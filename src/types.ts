@@ -11,9 +11,91 @@ export type PriorityByVector = Record<VectorId, ComponentPriority>
 export type TextVariantMap = Partial<Record<VectorId, string>>
 export type VariantSelection = VectorId | 'default'
 export type SkillGroupOrder = { default?: number } & Record<string, number | undefined>
+export type SectionHeaderStyle = 'caps-rule' | 'bold-rule' | 'bold-only' | 'underline'
+export type BulletChar = '•' | '–' | '▸' | 'none'
+export type ThemeTextAlignment = 'left' | 'center' | 'right'
+export type ThemeDatesAlignment = 'right-tab' | 'inline'
+export type ResumeThemePresetId =
+  | 'ferguson-v12'
+  | 'clean-modern'
+  | 'classic-serif'
+  | 'minimal'
+  | 'editorial'
+  | 'executive-serif'
+  | 'modern-contrast'
+  | 'signal-clean'
+
+export interface ResumeTheme {
+  id: ResumeThemePresetId
+  name: string
+  fontBody: string
+  fontHeading: string
+  sizeBody: number
+  sizeName: number
+  sizeSectionHeader: number
+  sizeRoleTitle: number
+  sizeCompanyName: number
+  sizeSmall: number
+  sizeContact: number
+  lineHeight: number
+  bulletGap: number
+  sectionGapBefore: number
+  sectionGapAfter: number
+  roleGap: number
+  roleLineGapAfter: number
+  paragraphGap: number
+  contactGapAfter: number
+  competencyGap: number
+  projectGap: number
+  marginTop: number
+  marginBottom: number
+  marginLeft: number
+  marginRight: number
+  colorBody: string
+  colorHeading: string
+  colorSection: string
+  colorDim: string
+  colorRule: string
+  roleTitleColor: string
+  datesColor: string
+  subtitleColor: string
+  competencyLabelColor: string
+  projectUrlColor: string
+  sectionHeaderStyle: SectionHeaderStyle
+  sectionHeaderLetterSpacing: number
+  sectionRuleWeight: number
+  nameLetterSpacing: number
+  nameBold: boolean
+  nameAlignment: ThemeTextAlignment
+  contactAlignment: ThemeTextAlignment
+  roleTitleItalic: boolean
+  datesAlignment: ThemeDatesAlignment
+  subtitleItalic: boolean
+  companyBold: boolean
+  bulletChar: BulletChar
+  bulletIndent: number
+  bulletHanging: number
+  competencyLabelBold: boolean
+  projectNameBold: boolean
+  projectUrlSize: number
+  educationSchoolBold: boolean
+}
+
+export type ResumeThemeOverrides = Partial<Omit<ResumeTheme, 'id' | 'name'>>
+
+export interface ResumeThemeState {
+  preset: ResumeThemePresetId
+  overrides?: ResumeThemeOverrides
+}
+
+export interface SkillGroupVectorConfig {
+  priority: ComponentPriority
+  order: number
+  content?: string
+}
 
 export interface ResumeLink {
-  label: string
+  label?: string
   url: string
 }
 
@@ -49,7 +131,8 @@ export interface SkillGroupComponent {
   id: string
   label: string
   content: string
-  order: SkillGroupOrder
+  order?: SkillGroupOrder
+  vectors?: Record<VectorId, SkillGroupVectorConfig>
 }
 
 export interface RoleBulletComponent {
@@ -84,9 +167,35 @@ export interface EducationEntry {
   year: string
 }
 
+export interface SavedVariantOverrides {
+  manualOverrides: Record<string, boolean>
+  variantOverrides: Record<string, VariantSelection>
+  bulletOrders: RoleBulletOrderMap
+  priorityOverrides?: Array<{
+    bulletId: string
+    vectorId: VectorId
+    priority: ComponentPriority
+  }>
+  theme?: ResumeThemeState
+  targetLineId?: string
+  profileId?: string
+  skillGroupOrder?: string[]
+}
+
+export interface SavedVariant {
+  id: string
+  name: string
+  description?: string
+  createdAt: string
+  updatedAt: string
+  baseVector: VectorSelection
+  overrides: SavedVariantOverrides
+}
+
 export interface ResumeData {
   version: number
   meta: ResumeMeta
+  theme?: ResumeThemeState
   vectors: ResumeVector[]
   target_lines: TargetLineComponent[]
   profiles: ProfileComponent[]
@@ -94,6 +203,7 @@ export interface ResumeData {
   roles: RoleComponent[]
   projects: ProjectComponent[]
   education: EducationEntry[]
+  saved_variants?: SavedVariant[]
 }
 
 export type ManualComponentOverrides = Record<string, boolean>
@@ -166,7 +276,9 @@ export interface AssemblyResult {
   resume: AssembledResume
   targetPages: number
   estimatedPages: number
+  estimatedPageUsage: number
   mustOnlyEstimatedPages: number
+  mustOnlyEstimatedPageUsage: number
   trimmedBulletIds: string[]
   warnings: EngineWarning[]
 }
