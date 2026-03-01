@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Final Brand Assets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0c10; color: #c0c8d4; font-family: 'DM Sans', sans-serif; font-size: 15px; -webkit-font-smoothing: antialiased; }
+.page { max-width: 900px; margin: 0 auto; padding: 60px 32px; }
+h1 { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: #6b7a8d; margin-bottom: 8px; }
+.subtitle { font-size: 14px; color: #6b7a8d; margin-bottom: 56px; }
+.section { margin-bottom: 56px; }
+.section-label { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #5ba4d9; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #252a36; }
+.asset-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+.asset {
+  background: #12151c;
+  border: 1px solid #252a36;
+  border-radius: 10px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  position: relative;
+}
+.asset.grow { flex: 1; min-width: 280px; }
+.asset.light-bg { background: #f4f5f7; border-color: #e0e2e6; }
+.asset.accent-bg { background: #3a88c0; border-color: #4a98d0; }
+.asset-label {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #6b7a8d;
+}
+.asset.light-bg .asset-label { color: #999; }
+.asset.accent-bg .asset-label { color: rgba(255,255,255,0.5); }
+.code-block {
+  background: #0e1117;
+  border: 1px solid #252a36;
+  border-radius: 6px;
+  padding: 16px 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #8ba4bc;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+}
+.note { font-family: 'DM Mono', monospace; font-size: 10px; color: #6b7a8d; line-height: 1.5; }
+.spec-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px 20px; margin-top: 16px; }
+.spec-key { font-family: 'DM Mono', monospace; font-size: 11px; color: #5ba4d9; }
+.spec-val { font-size: 13px; color: #c0c8d4; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Facet — Final Brand Assets</h1>
+<div class="subtitle">Medium weight · 40° cut · Outfit 300 · Ready for implementation</div>
+
+<!-- ═══════ PRIMARY LOCKUP ═══════ -->
+<div class="section">
+  <div class="section-label">Primary Lockup — Icon as F</div>
+  <div class="asset-row">
+    <div class="asset grow">
+      <span class="asset-label">Dark (default)</span>
+      <div style="display:flex; align-items:center; gap:2px;">
+        <svg width="28" height="35" viewBox="0 0 34 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="primary-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+            <clipPath id="primary-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+          </defs>
+          <g clip-path="url(#primary-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6cb8e8"/></g>
+          <g clip-path="url(#primary-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#2d6a96"/></g>
+          <line x1="0" y1="21" x2="34" y2="42" stroke="#7ac4f0" stroke-width="0.5" opacity="0.4"/>
+        </svg>
+        <span style="font-family:'Outfit',sans-serif; font-weight:300; font-size:32px; color:#e8ecf2; letter-spacing:-0.5px;">acet</span>
+      </div>
+    </div>
+    <div class="asset grow light-bg">
+      <span class="asset-label">Light</span>
+      <div style="display:flex; align-items:center; gap:2px;">
+        <svg width="28" height="35" viewBox="0 0 34 42" fill="none">
+          <defs>
+            <clipPath id="light-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+            <clipPath id="light-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+          </defs>
+          <g clip-path="url(#light-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#4a90c0"/></g>
+          <g clip-path="url(#light-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#1e5a84"/></g>
+          <line x1="0" y1="21" x2="34" y2="42" stroke="#fff" stroke-width="0.5" opacity="0.2"/>
+        </svg>
+        <span style="font-family:'Outfit',sans-serif; font-weight:300; font-size:32px; color:#1a2233; letter-spacing:-0.5px;">acet</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ICON ONLY ═══════ -->
+<div class="section">
+  <div class="section-label">Icon Only — Favicon / App Icon / Small Contexts</div>
+  <div class="asset-row">
+    <div class="asset" style="padding:24px 40px;">
+      <span class="asset-label">Dark</span>
+      <svg width="48" height="60" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="ico-d-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="ico-d-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#ico-d-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6cb8e8"/></g>
+        <g clip-path="url(#ico-d-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#2d6a96"/></g>
+        <line x1="0" y1="21" x2="34" y2="42" stroke="#7ac4f0" stroke-width="0.5" opacity="0.4"/>
+      </svg>
+    </div>
+    <div class="asset light-bg" style="padding:24px 40px;">
+      <span class="asset-label">Light</span>
+      <svg width="48" height="60" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="ico-l-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="ico-l-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#ico-l-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#4a90c0"/></g>
+        <g clip-path="url(#ico-l-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#1e5a84"/></g>
+      </svg>
+    </div>
+    <div class="asset" style="padding:24px 40px;">
+      <span class="asset-label">Mono light</span>
+      <svg width="48" height="60" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="ico-m-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="ico-m-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#ico-m-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#e8ecf2"/></g>
+        <g clip-path="url(#ico-m-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6b7a8d"/></g>
+      </svg>
+    </div>
+    <div class="asset light-bg" style="padding:24px 40px;">
+      <span class="asset-label">Mono dark</span>
+      <svg width="48" height="60" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="ico-md-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="ico-md-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#ico-md-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#3a4050"/></g>
+        <g clip-path="url(#ico-md-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#1a2030"/></g>
+      </svg>
+    </div>
+    <div class="asset accent-bg" style="padding:24px 40px;">
+      <span class="asset-label">On accent</span>
+      <svg width="48" height="60" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="ico-a-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="ico-a-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#ico-a-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#ffffff"/></g>
+        <g clip-path="url(#ico-a-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="rgba(255,255,255,0.45)"/></g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ STACKED ═══════ -->
+<div class="section">
+  <div class="section-label">Stacked — Splash / Loading / About</div>
+  <div class="asset-row">
+    <div class="asset grow" style="padding:48px;">
+      <svg width="44" height="55" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="stk-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="stk-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#stk-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6cb8e8"/></g>
+        <g clip-path="url(#stk-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#2d6a96"/></g>
+        <line x1="0" y1="21" x2="34" y2="42" stroke="#7ac4f0" stroke-width="0.5" opacity="0.4"/>
+      </svg>
+      <span style="font-family:'Outfit',sans-serif; font-weight:350; font-size:15px; color:#e8ecf2; letter-spacing:3.5px; text-transform:uppercase;">Facet</span>
+    </div>
+    <div class="asset grow" style="padding:48px;">
+      <svg width="44" height="55" viewBox="0 0 34 42" fill="none">
+        <defs>
+          <clipPath id="stk2-u"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath>
+          <clipPath id="stk2-l"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath>
+        </defs>
+        <g clip-path="url(#stk2-u)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6cb8e8"/></g>
+        <g clip-path="url(#stk2-l)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#2d6a96"/></g>
+        <line x1="0" y1="21" x2="34" y2="42" stroke="#7ac4f0" stroke-width="0.5" opacity="0.4"/>
+      </svg>
+      <div style="text-align:center;">
+        <span style="font-family:'Outfit',sans-serif; font-weight:350; font-size:15px; color:#e8ecf2; letter-spacing:3.5px; text-transform:uppercase;">Facet</span>
+        <div style="font-family:'DM Mono',monospace; font-size:10px; color:#6b7a8d; letter-spacing:0.5px; margin-top:4px;">Same diamond. Different face.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ FAVICON SVG ═══════ -->
+<div class="section">
+  <div class="section-label">Favicon — Data URI (drop into HTML)</div>
+  <div class="code-block">&lt;link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 42'&gt;&lt;defs&gt;&lt;clipPath id='u'&gt;&lt;path d='M0 0H34V42L0 21Z'/&gt;&lt;/clipPath&gt;&lt;clipPath id='l'&gt;&lt;path d='M0 21L34 42V42H0Z'/&gt;&lt;/clipPath&gt;&lt;/defs&gt;&lt;g clip-path='url(%23u)'&gt;&lt;path d='M4 2H28V10H13V18H24V26H13V40H4Z' fill='%236cb8e8'/&gt;&lt;/g&gt;&lt;g clip-path='url(%23l)'&gt;&lt;path d='M4 2H28V10H13V18H24V26H13V40H4Z' fill='%232d6a96'/&gt;&lt;/g&gt;&lt;/svg&gt;"&gt;</div>
+</div>
+
+<!-- ═══════ RAW SVG ═══════ -->
+<div class="section">
+  <div class="section-label">Raw SVG — Icon (copy/paste)</div>
+  <div class="code-block">&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 42" fill="none"&gt;
+  &lt;defs&gt;
+    &lt;clipPath id="facet-upper"&gt;
+      &lt;path d="M0 0 H34 V42 L0 21 Z"/&gt;
+    &lt;/clipPath&gt;
+    &lt;clipPath id="facet-lower"&gt;
+      &lt;path d="M0 21 L34 42 V42 H0 Z"/&gt;
+    &lt;/clipPath&gt;
+  &lt;/defs&gt;
+  &lt;g clip-path="url(#facet-upper)"&gt;
+    &lt;path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6cb8e8"/&gt;
+  &lt;/g&gt;
+  &lt;g clip-path="url(#facet-lower)"&gt;
+    &lt;path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#2d6a96"/&gt;
+  &lt;/g&gt;
+  &lt;!-- Optional edge highlight (drop below 32px) --&gt;
+  &lt;line x1="0" y1="21" x2="34" y2="42" stroke="#7ac4f0"
+        stroke-width="0.5" opacity="0.4"/&gt;
+&lt;/svg&gt;</div>
+</div>
+
+<!-- ═══════ SPEC ═══════ -->
+<div class="section">
+  <div class="section-label">Brand Spec</div>
+  <div class="spec-grid">
+    <span class="spec-key">Icon viewBox</span><span class="spec-val">0 0 34 42</span>
+    <span class="spec-key">F path</span><span class="spec-val">M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z</span>
+    <span class="spec-key">Cut angle</span><span class="spec-val">40° — clip from (0,21) to (34,42)</span>
+    <span class="spec-key">Upper fill</span><span class="spec-val">#6cb8e8 (light face)</span>
+    <span class="spec-key">Lower fill</span><span class="spec-val">#2d6a96 (shadow face)</span>
+    <span class="spec-key">Edge line</span><span class="spec-val">#7ac4f0 @ 40% opacity, 0.5px — optional, omit below 32px</span>
+    <span class="spec-key">Light mode upper</span><span class="spec-val">#4a90c0</span>
+    <span class="spec-key">Light mode lower</span><span class="spec-val">#1e5a84</span>
+    <span class="spec-key">Mono light</span><span class="spec-val">upper #e8ecf2 / lower #6b7a8d</span>
+    <span class="spec-key">Mono dark</span><span class="spec-val">upper #3a4050 / lower #1a2030</span>
+    <span class="spec-key">On accent</span><span class="spec-val">upper #ffffff / lower rgba(255,255,255,0.45)</span>
+    <span class="spec-key">Wordmark font</span><span class="spec-val">Outfit, weight 300, letter-spacing -0.5px</span>
+    <span class="spec-key">Lockup gap</span><span class="spec-val">2px between icon and "acet" (icon replaces F)</span>
+    <span class="spec-key">Stacked spacing</span><span class="spec-val">Outfit 350, 15px, letter-spacing 3.5px, uppercase</span>
+    <span class="spec-key">Tagline</span><span class="spec-val">Same diamond. Different face.</span>
+    <span class="spec-key">Min icon size</span><span class="spec-val">16px (two-tone readable at 24px+)</span>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

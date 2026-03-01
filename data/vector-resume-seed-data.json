@@ -1,0 +1,305 @@
+{
+  "version": 3,
+  "meta": {
+    "name": "Nicholas Ferguson",
+    "email": "nick@atlascrew.dev",
+    "phone": "727.266.8813",
+    "location": "Tampa, FL (Remote)",
+    "links": [
+      { "label": "github", "url": "github.com/NickCrew" },
+      { "label": "linkedin", "url": "linkedin.com/in/ncferguson" }
+    ]
+  },
+
+  "vectors": [
+    { "id": "security", "label": "Security Platform", "color": "#e74c3c" },
+    { "id": "platform", "label": "Platform / DevEx", "color": "#2dd4a0" },
+    { "id": "sre", "label": "SRE / Infrastructure", "color": "#3b9eff" },
+    { "id": "build", "label": "Build / Release Engineering", "color": "#f39c12" },
+    { "id": "leadership", "label": "Engineering Leadership", "color": "#a78bfa" }
+  ],
+
+  "target_lines": [
+    {
+      "id": "tl-security",
+      "text": "Senior Platform Engineer | Edge Security | Rust / Python / eBPF",
+      "vectors": { "security": "must" }
+    },
+    {
+      "id": "tl-platform",
+      "text": "Senior Platform Engineer | Internal Developer Platforms | Infrastructure as Product",
+      "vectors": { "platform": "must", "sre": "strong" }
+    },
+    {
+      "id": "tl-sre",
+      "text": "Senior Platform Engineer | SRE | Fleet Management / Observability",
+      "vectors": { "sre": "must" }
+    },
+    {
+      "id": "tl-build",
+      "text": "Senior Platform / Build Engineer | CI/CD / Cross-Platform Release Engineering",
+      "vectors": { "build": "must" }
+    },
+    {
+      "id": "tl-leadership",
+      "text": "Engineering Leader | Platform Strategy | Developer Productivity",
+      "vectors": { "leadership": "must" }
+    }
+  ],
+
+  "profiles": [
+    {
+      "id": "profile-default",
+      "text": "Platform engineer who treats infrastructure as a product. Delivered four production platforms in 11 months post-acquisition — an edge protection sensor that cut detection latency from seconds to sub-millisecond (4,400× improvement, 99.8% OWASP coverage), a fleet management and threat intelligence platform, an internal security tooling suite, and a Linux endpoint agent for the company's AI Firewall product. Previously built an internal developer platform shipping $50M/year in software across 6 target platforms. Track record of identifying architectural gaps, choosing the right technology for the constraint, and driving platforms from roadmap to production — then handing them off so others can own them.",
+      "vectors": { "security": "must", "platform": "must", "sre": "strong", "leadership": "strong" }
+    },
+    {
+      "id": "profile-security",
+      "text": "Security platform engineer who builds detection and protection infrastructure at the edge. Architected an edge protection sensor that moved detection from cloud round-trips (1–10s latency) to inline processing at sub-millisecond — a 4,400× improvement with 99.8% OWASP coverage. Identified an unaddressed gap in API authorization observability and built the MVP for continuous auth posture monitoring. Designed a fleet management platform for distributed sensor deployments with privacy-preserving cross-tenant threat intelligence. Deep Linux systems expertise, Rust for performance-critical paths, eBPF for kernel-level visibility.",
+      "vectors": { "security": "must" }
+    },
+    {
+      "id": "profile-platform",
+      "text": "Platform engineer who treats internal infrastructure as a product. Built an internal developer platform shipping $50M/year in software across 6 target platforms — self-bootstrapping reproducible builds, 600+ managed pipelines, and a task-based DSL. Post-acquisition, delivered four production platforms in 11 months including an edge protection sensor, fleet intelligence platform, and endpoint agent. Designed self-service systems that eliminated organizational bottlenecks: pipeline portals, documentation platforms, demo environments, validation suites. The pattern across every role: find the bottleneck, build the system that removes it, then hand it off.",
+      "vectors": { "platform": "must", "sre": "strong" }
+    },
+    {
+      "id": "profile-build",
+      "text": "Platform engineer who treats build and release infrastructure as a product. Built an internal developer platform shipping $50M/year in software across 6 target platforms with self-bootstrapping reproducible builds, 600+ managed pipelines, and a task-based DSL. Developer tools that eliminated ~1 day/week of engineering toil, self-service pipeline portal that cut support requests 50%. Post-acquisition, delivered four production platforms in 11 months using AI-augmented development methodology with multi-LLM review gates and behavioral test gap analysis.",
+      "vectors": { "build": "must" }
+    },
+    {
+      "id": "profile-sre",
+      "text": "Platform engineer focused on infrastructure reliability and operational excellence. Rearchitected sensor fleet infrastructure cutting AWS spend ~50% (~$60K/mo savings) by replacing dedicated per-customer VPCs with shared infrastructure and redesigning scaling from CPU-based to connection-based metrics. Diagnosed a kernel-level issue (conntrack table exhaustion at 150K+ RPS) enabling a $1M enterprise contract. Built fleet management tooling that reduced troubleshooting from hours to minutes and enabled self-service sensor operations. Deep Linux systems expertise across RHEL, Ubuntu, KVM, systemd, and eBPF.",
+      "vectors": { "sre": "must" }
+    }
+  ],
+
+  "skill_groups": [
+    {
+      "id": "languages",
+      "label": "Languages",
+      "content": "Python, C# / .NET, SQL, Bash, C++, PowerShell, TypeScript, Rust",
+      "vectors": {
+        "security": { "priority": "must", "order": 1, "content": "Python, Rust, C++, Bash, SQL, TypeScript, C# / .NET, PowerShell" },
+        "platform": { "priority": "must", "order": 1, "content": "Python, C# / .NET, TypeScript, Bash, SQL, PowerShell, Rust, C++" },
+        "sre": { "priority": "must", "order": 1, "content": "Python, Bash, SQL, C# / .NET, PowerShell, TypeScript, Rust, C++" },
+        "build": { "priority": "must", "order": 1, "content": "C# / .NET, PowerShell, Python, Bash, SQL, TypeScript, Rust, C++" },
+        "leadership": { "priority": "must", "order": 1 }
+      }
+    },
+    {
+      "id": "infrastructure",
+      "label": "Infrastructure",
+      "content": "AWS (production, Serverless), Linux (RHEL, Ubuntu, KVM, systemd, SELinux), Kubernetes/EKS, Docker, VMware, Terraform, Ansible, Helm, Flux/Kustomize",
+      "vectors": {
+        "security": { "priority": "must", "order": 3 },
+        "platform": { "priority": "must", "order": 2 },
+        "sre": { "priority": "must", "order": 2 },
+        "build": { "priority": "must", "order": 3 },
+        "leadership": { "priority": "must", "order": 2 }
+      }
+    },
+    {
+      "id": "networking",
+      "label": "Networking",
+      "content": "TCP/IP, HTTP/S, TLS/SSL, DNS, routing/switching, load balancing, Nginx, Pingora",
+      "vectors": {
+        "security": { "priority": "must", "order": 2 },
+        "platform": { "priority": "strong", "order": 4 },
+        "sre": { "priority": "must", "order": 3 },
+        "build": { "priority": "optional", "order": 6 },
+        "leadership": { "priority": "strong", "order": 4 }
+      }
+    },
+    {
+      "id": "data-messaging",
+      "label": "Data & Messaging",
+      "content": "PostgreSQL, SQL Server, MongoDB, ClickHouse, Kafka (AWS MSK), WebSocket, REST APIs",
+      "vectors": {
+        "security": { "priority": "strong", "order": 4 },
+        "platform": { "priority": "must", "order": 3 },
+        "sre": { "priority": "must", "order": 4 },
+        "build": { "priority": "optional", "order": 5 },
+        "leadership": { "priority": "strong", "order": 3 }
+      }
+    },
+    {
+      "id": "observability",
+      "label": "Observability",
+      "content": "Grafana, Prometheus, InfluxDB, ELK, Loki, PagerDuty",
+      "vectors": {
+        "security": { "priority": "strong", "order": 5 },
+        "platform": { "priority": "strong", "order": 5 },
+        "sre": { "priority": "must", "order": 5 },
+        "build": { "priority": "optional", "order": 4 },
+        "leadership": { "priority": "strong", "order": 5 }
+      }
+    },
+    {
+      "id": "cicd",
+      "label": "CI/CD",
+      "content": "GitHub Actions, GoCD, GitLab CI/CD, Jenkins",
+      "vectors": {
+        "security": { "priority": "strong", "order": 6 },
+        "platform": { "priority": "must", "order": 6 },
+        "sre": { "priority": "strong", "order": 6 },
+        "build": { "priority": "must", "order": 2 },
+        "leadership": { "priority": "must", "order": 6 }
+      }
+    }
+  ],
+
+  "roles": [
+    {
+      "id": "a10",
+      "company": "A10 Networks",
+      "subtitle": "(acquired ThreatX)",
+      "title": "Senior Platform Engineer",
+      "dates": "Feb 2025 – Present",
+      "bullets": [
+        {
+          "id": "a10-synapse",
+          "text": "Architected ThreatX Synapse, rebuilding the legacy SaaS-dependent WAF as a standalone edge protection sensor capable of inline blocking without cloud round-trips — opening new customer classes (air-gapped, on-prem, hybrid) and improving detection latency 4,400×. Detection and profiling run at the edge with sub-millisecond latency; sensitive data scanning executes concurrently at zero added latency. Blocking decisions use campaign correlation and statistical anomaly detection, not just static rules. 99.8% OWASP CRS coverage.",
+          "vectors": { "security": "must", "platform": "must", "sre": "strong", "leadership": "strong" }
+        },
+        {
+          "id": "a10-auth-intel",
+          "text": "Identified a gap in API authorization observability — every competitor detects authorization attacks, but none provide continuous visibility into which endpoints enforce auth, which don't, and how patterns change over time. Built the authorization coverage map MVP that auto-discovers endpoint auth posture from live traffic with zero configuration. Designed the edge ML roadmap for on-device behavioral learning and autonomous anomaly detection.",
+          "vectors": { "security": "must", "platform": "strong", "sre": "optional", "leadership": "must" }
+        },
+        {
+          "id": "a10-signal-horizon",
+          "text": "Designed Signal Horizon, the central management platform for the Synapse sensor fleet. Centralized security operations, fleet management, and cross-deployment threat intelligence across distributed sensor deployments. Designed for both SaaS and on-premise delivery models, enabling the product to serve cloud-managed and air-gapped customers from the same platform. Privacy-preserving multi-tenant intelligence sharing (HMAC-SHA256) allows cross-customer threat correlation without exposing tenant data.",
+          "vectors": { "security": "must", "platform": "strong", "sre": "must", "leadership": "strong" }
+        },
+        {
+          "id": "a10-demo-platform",
+          "text": "Created a real-time demo platform for the sales engineering team, solving the problem that live POC deployments couldn't guarantee advanced attacks would occur on-demand. Sales engineers could tailor attack scenarios to each customer's vertical in real time, store demo blueprints in a shared catalog with ratings and tags, and spin up fully configured environments with one click via API key.",
+          "vectors": { "security": "strong", "platform": "strong", "sre": "optional", "leadership": "strong" }
+        },
+        {
+          "id": "a10-validation-platform",
+          "text": "Delivered an automated performance and security validation platform with auto-provisioned AWS infrastructure for high-volume load testing, industry-focused dashboards and test suites (healthcare, finance), compliance framework support, and a visual test designer. Key enabler for the SaaS-to-on-prem transition — allowed customers to self-validate the product without SOC involvement, opening a new class of on-prem customers who preferred self-support over vendor dependency.",
+          "vectors": { "security": "strong", "platform": "strong", "sre": "strong", "leadership": "strong" }
+        },
+        {
+          "id": "a10-endpoint-agent",
+          "text": "Designed the cross-platform endpoint agent architecture for the company's AI Firewall product — five platforms (Linux, Windows, macOS, iOS, Android) — and built the Linux agent (eBPF, Rust) as the production proof of concept. Authored v1 and v2 platform roadmaps. The endpoint agent unlocked the enterprise segment by maintaining protection without requiring a constant VPN connection.",
+          "vectors": { "security": "must", "platform": "strong", "sre": "optional", "leadership": "must" }
+        },
+        {
+          "id": "a10-ai-methodology",
+          "text": "Established AI-augmented development methodology for the platform team — a multi-LLM workflow gating changes behind automated tests, linters, and multi-perspective analysis (security, performance, code quality). Includes behavioral test gap analysis that identifies missing or insufficient test scenarios based on expected system behavior, not just code coverage. Delivered four production platforms and an endpoint agent in 11 months.",
+          "vectors": { "security": "strong", "platform": "must", "sre": "strong", "leadership": "must", "build": "strong" }
+        },
+        {
+          "id": "a10-docs",
+          "text": "Authored all published end-user documentation across both the ThreatX and A10 eras, including architecture decision records, operational runbooks, API references, and onboarding guides.",
+          "vectors": { "security": "optional", "platform": "strong", "sre": "optional", "leadership": "strong", "build": "optional" }
+        }
+      ]
+    },
+    {
+      "id": "threatx",
+      "company": "ThreatX",
+      "subtitle": "(acquired by A10 Networks, Feb 2025)",
+      "title": "Senior Platform Engineer",
+      "dates": "Jan 2022 – Feb 2025",
+      "bullets": [
+        {
+          "id": "tx-cli-sre",
+          "text": "Identified operational gaps in customer onboarding and remote sensor management — scattered scripts with manual steps that slowed support and frustrated both engineering and SOC teams. Designed and built a unified CLI with a hot-reloading plugin architecture, cutting onboarding time and enabling self-service sensor operations. As SOC engineers began contributing plugins, mentored them through core development and eventually handed off full ownership. This led to my role as technical advisor for a new SRE-focused team within the SOC that took over sensor development entirely.",
+          "vectors": { "security": "strong", "platform": "must", "sre": "must", "leadership": "must" }
+        },
+        {
+          "id": "tx-aws-rearchitect",
+          "text": "Rearchitected sensor fleet infrastructure after SOC platform work exposed systemic over-provisioning — cutting AWS spend ~50% (~$60K/mo savings). Consolidated per-customer VPCs into shared infrastructure, replaced dedicated EC2 instances with Fargate clusters, and redesigned scaling policies from CPU-based to connection-based after identifying that the fleet was scaling on the wrong metric.",
+          "vectors": { "security": "strong", "platform": "strong", "sre": "must", "leadership": "strong" }
+        },
+        {
+          "id": "tx-kafka-blackhat",
+          "text": "Stabilized the platform's critical failure point — database saturation under production load — by deploying Kafka (AWS MSK) with custom connectors as a protective buffer, buying time to architect the Synapse and Signal Horizon replacements. Built the first version of what became ThreatX Labs as a serverless attack traffic platform (Lambda, Step Functions) that modeled kill chains and bot detection scenarios through a chatbot-controlled interface. Featured during Black Hat keynote.",
+          "vectors": { "security": "must", "platform": "strong", "sre": "must", "leadership": "strong" }
+        },
+        {
+          "id": "tx-wayfair",
+          "text": "Enabled a $1M enterprise contract by diagnosing Wayfair's failed sensor onboarding (1 prior failed attempt, 400+ self-hosted sensors). Designed a distributed load testing framework generating 150K+ RPS that revealed conntrack table exhaustion. Tuned the Linux TCP stack, built dynamic conntrack sizing, and developed a scaling policy that improved efficiency 40%.",
+          "vectors": { "security": "must", "platform": "strong", "sre": "must", "leadership": "strong" }
+        },
+        {
+          "id": "tx-proserv",
+          "text": "Recognized that the company lacked a professional services capability after repeatedly being the engineer who could drop into complex customer environments — coordinating across customer teams, CDN providers, and internal engineering to solve deployment problems no single team could own. Proposed the service model, organized the delivery structure, and personally delivered 4 enterprise engagements including Microsoft-ecosystem integrations, a VMware appliance for a customer that wouldn't run Linux containers, and pre-sales technical translation that opened new market segments.",
+          "vectors": { "security": "strong", "platform": "strong", "sre": "strong", "leadership": "must" }
+        },
+        {
+          "id": "tx-docs-platform",
+          "text": "Replaced a manual documentation bottleneck — engineers handing Confluence pages to one person for bespoke rewrites — with an automated publishing platform that versioned docs alongside every release. Designed the information architecture (Diataxis framework), built a library of custom AsciiDoc components and content generators, and enforced quality through PR checks and build pipeline gates using a style guide and controlled vocabulary. Scaled documentation from a single-author dependency to a system anyone could contribute to with consistent output.",
+          "vectors": { "security": "optional", "platform": "must", "sre": "optional", "leadership": "must", "build": "strong" }
+        }
+      ]
+    },
+    {
+      "id": "vispero",
+      "company": "Vispero",
+      "subtitle": null,
+      "title": "Senior Platform / Build Engineer",
+      "dates": "Oct 2018 – Dec 2021",
+      "bullets": [
+        {
+          "id": "vis-idp",
+          "text": "Position created after meeting leadership. Built the internal developer platform from scratch in C#, ASP.NET, SQL Server, and PowerShell (75%+ hands-on development). Modernized build framework with self-bootstrapping reproducible builds and a task-based DSL shipping $50M/year in software across embedded Linux, Android, iOS, macOS, Windows, and ASP.NET Core. Recognized with quarterly award (1 of 450+ employees).",
+          "vectors": { "security": "strong", "platform": "must", "sre": "strong", "leadership": "strong", "build": "must" }
+        },
+        {
+          "id": "vis-devtools",
+          "text": "Built developer tools eliminating ~1 day/week of engineering toil: pipeline diff/merge for 600+ pipelines, branch management across 20+ components, multi-pipeline orchestration, and a static analysis tool that diagnosed build failures with 100% accuracy on compiler errors.",
+          "vectors": { "security": "optional", "platform": "must", "sre": "strong", "leadership": "optional", "build": "must" }
+        },
+        {
+          "id": "vis-portal-license",
+          "text": "Created self-service pipeline portal (C# library + PowerShell CLI wrapping build server API) cutting routine support requests 50%. Reverse-engineered the license generation logic out of an ancient C++ application and rebuilt it as a database-driven platform managing $2M+ in active government licenses — reducing turnaround from 3+ days to immediate and removing a hard dependency on the one person who understood the original code.",
+          "vectors": { "security": "optional", "platform": "strong", "sre": "optional", "leadership": "optional", "build": "strong" }
+        },
+        {
+          "id": "vis-acquisition",
+          "text": "Led post-acquisition technical integrations contributing to 3 new product lines. Designed hybrid CI/CD architecture (AWS control plane, on-prem ephemeral agents). Migrated dev services to AWS — isolating the team from a ransomware attack that incapacitated the rest of the org.",
+          "vectors": { "security": "strong", "platform": "strong", "sre": "strong", "leadership": "must", "build": "strong" }
+        }
+      ]
+    }
+  ],
+
+  "projects": [
+    {
+      "id": "proj-apparatus",
+      "name": "Apparatus",
+      "url": "github.com/NickCrew/apparatus",
+      "text": "AI-augmented network security platform for validating detection logic and incident response workflows against realistic attack scenarios. Automates red/blue team exercises with scenario-driven traffic generation, LLM-powered honeypots, and chaos engineering. Built internally; extracted from monorepo for open-source release. TypeScript.",
+      "vectors": { "security": "must", "platform": "strong", "sre": "optional" }
+    },
+    {
+      "id": "proj-crucible",
+      "name": "Crucible",
+      "url": "github.com/NickCrew/crucible",
+      "text": "Attack simulation engine used internally to regression-test Synapse edge sensor detection rules. 119 scenarios covering OWASP Top 10, APT kill chains, HIPAA/PCI compliance boundaries, and nation-state threat models. TypeScript.",
+      "vectors": { "security": "must", "platform": "optional", "sre": "optional" }
+    },
+    {
+      "id": "proj-chimera",
+      "name": "Chimera",
+      "url": "github.com/NickCrew/chimera",
+      "text": "Vulnerable application platform for validating WAF/sensor coverage across realistic attack surfaces. 450 endpoints spanning 22 verticals across 13 industry-specific web apps. Includes an OWASP LLM teaching environment with guided hints, vulnerability code diffs, and detection x-ray view. Python Flask and TypeScript.",
+      "vectors": { "security": "must", "platform": "strong", "sre": "optional" }
+    }
+  ],
+
+  "education": [
+    {
+      "school": "St. Petersburg College",
+      "location": "Clearwater, FL",
+      "degree": "AAS, Computer Information Systems",
+      "year": "2020"
+    }
+  ]
+}
