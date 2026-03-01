@@ -1,6 +1,6 @@
-# Vector Resume
+# Facet
 
-Vector Resume is a strategic resume assembly tool that lets you define one reusable career component library and generate targeted resumes by selecting a positioning vector.
+Facet is a strategic resume assembly tool that lets you define one reusable career component library and generate targeted resumes by selecting a positioning vector.
 
 ## Quick Start
 
@@ -29,8 +29,8 @@ Open `http://localhost:5173`.
 - Bullet drag-and-drop ordering (persisted per selected vector)
 - Skill group reordering controls
 - Page budget estimation + trimming strategy (optional/strong from oldest roles first)
-- Live resume preview with paper-like panel
-- DOCX generation via Editorial Dense template
+- Live PDF resume preview rendered via Typst (WYSIWYG with download output)
+- PDF generation with embedded bundled fonts (theme-aware)
 - Plain-text and Markdown renderers (clipboard actions)
 - YAML/JSON import/export with schema validation
 - localStorage persistence for resume data and UI state

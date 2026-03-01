@@ -20,8 +20,8 @@ export default defineConfig({
             return 'icons'
           }
 
-          if (id.includes('/docx/') || id.includes('/jszip/')) {
-            return 'docx'
+          if (id.includes('/@myriaddreamin/typst-ts-')) {
+            return 'renderer'
           }
         },
       },
