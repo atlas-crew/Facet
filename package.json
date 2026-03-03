@@ -1,8 +1,22 @@
 {
-  "name": "facet",
-  "private": true,
-  "version": "0.0.0",
+  "name": "Facet",
+  "private": false,
+  "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/NickCrew/Facet",
+  "bugs": {
+      "url": "https://github.com/NickCrew/Facet/issues"
+  },
+  "keywords": [
+    "resume",
+    "career"
+  ],
+  "author": {
+      "name": "Nicholas Ferguson",
+    "url": "https://nickcrew.github.io/resume",
+    "email": "nick@atlascrew.dev"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
