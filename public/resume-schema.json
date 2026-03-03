@@ -1,0 +1,407 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://facet.dev/resume-schema.json",
+  "title": "Facet Resume Configuration",
+  "description": "Schema for Facet resume data files (JSON or YAML). Add \"$schema\": \"./resume-schema.json\" to your config for IDE autocomplete.",
+  "type": "object",
+  "required": ["version", "meta", "vectors", "target_lines", "profiles", "skill_groups", "roles", "projects", "education"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference (ignored at runtime)"
+    },
+    "version": {
+      "type": "number",
+      "description": "Schema version number"
+    },
+    "meta": { "$ref": "#/$defs/ResumeMeta" },
+    "theme": { "$ref": "#/$defs/ResumeThemeState" },
+    "vectors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ResumeVector" },
+      "description": "Positioning vectors (e.g. Backend Engineering, Security Platform)"
+    },
+    "target_lines": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TargetLineComponent" }
+    },
+    "profiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ProfileComponent" }
+    },
+    "skill_groups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SkillGroupComponent" }
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/RoleComponent" },
+      "description": "At least one role with at least one bullet is required"
+    },
+    "projects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ProjectComponent" }
+    },
+    "education": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EducationEntry" }
+    },
+    "saved_variants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SavedVariant" }
+    },
+    "manualOverrides": { "$ref": "#/$defs/VectorManualOverrides" },
+    "variantOverrides": { "$ref": "#/$defs/VectorVariantOverrides" },
+    "bulletOrders": { "$ref": "#/$defs/VectorBulletOrders" },
+    "_overridesMigrated": { "type": "boolean" }
+  },
+  "$defs": {
+    "ComponentPriority": {
+      "type": "string",
+      "enum": ["must", "strong", "optional", "exclude"]
+    },
+    "IncludedPriority": {
+      "type": "string",
+      "enum": ["must", "strong", "optional"]
+    },
+    "PriorityByVector": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/ComponentPriority" },
+      "description": "Map of vector ID → priority level"
+    },
+    "TextVariantMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Map of vector ID → variant text"
+    },
+    "VariantSelection": {
+      "type": "string",
+      "description": "A vector ID or \"default\""
+    },
+    "RoleBulletOrderMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "description": "Map of role ID → ordered bullet ID array"
+    },
+    "SkillGroupOrder": {
+      "type": "object",
+      "additionalProperties": { "type": "number" },
+      "description": "Map of vector ID (or \"default\") → sort order"
+    },
+    "ResumeMeta": {
+      "type": "object",
+      "required": ["name", "email", "phone", "location", "links"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "location": { "type": "string" },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ResumeLink" }
+        }
+      }
+    },
+    "ResumeLink": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "url": { "type": "string" }
+      }
+    },
+    "ResumeVector": {
+      "type": "object",
+      "required": ["id", "label", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "TargetLineComponent": {
+      "type": "object",
+      "required": ["id", "vectors", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "vectors": { "$ref": "#/$defs/PriorityByVector" },
+        "text": { "type": "string" },
+        "variants": { "$ref": "#/$defs/TextVariantMap" }
+      }
+    },
+    "ProfileComponent": {
+      "type": "object",
+      "required": ["id", "vectors", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "vectors": { "$ref": "#/$defs/PriorityByVector" },
+        "text": { "type": "string" },
+        "variants": { "$ref": "#/$defs/TextVariantMap" }
+      }
+    },
+    "SkillGroupVectorConfig": {
+      "type": "object",
+      "required": ["priority", "order"],
+      "additionalProperties": false,
+      "properties": {
+        "priority": { "$ref": "#/$defs/ComponentPriority" },
+        "order": { "type": "number" },
+        "content": { "type": "string" }
+      }
+    },
+    "SkillGroupComponent": {
+      "type": "object",
+      "required": ["id", "label", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "content": { "type": "string" },
+        "order": { "$ref": "#/$defs/SkillGroupOrder" },
+        "vectors": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/SkillGroupVectorConfig" }
+        }
+      }
+    },
+    "RoleBulletComponent": {
+      "type": "object",
+      "required": ["id", "vectors", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "vectors": { "$ref": "#/$defs/PriorityByVector" },
+        "text": { "type": "string" },
+        "variants": { "$ref": "#/$defs/TextVariantMap" }
+      }
+    },
+    "RoleComponent": {
+      "type": "object",
+      "required": ["id", "company", "title", "dates", "bullets"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "company": { "type": "string" },
+        "title": { "type": "string" },
+        "dates": { "type": "string" },
+        "location": { "type": ["string", "null"] },
+        "subtitle": { "type": ["string", "null"] },
+        "bullets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoleBulletComponent" }
+        }
+      }
+    },
+    "ProjectComponent": {
+      "type": "object",
+      "required": ["id", "name", "vectors", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "vectors": { "$ref": "#/$defs/PriorityByVector" },
+        "text": { "type": "string" },
+        "variants": { "$ref": "#/$defs/TextVariantMap" }
+      }
+    },
+    "EducationEntry": {
+      "type": "object",
+      "required": ["school", "location", "degree", "year"],
+      "additionalProperties": false,
+      "properties": {
+        "school": { "type": "string" },
+        "location": { "type": "string" },
+        "degree": { "type": "string" },
+        "year": { "type": "string" }
+      }
+    },
+    "HexColor": {
+      "type": "string",
+      "pattern": "^#?[0-9a-fA-F]{6}$"
+    },
+    "SectionHeaderStyle": {
+      "type": "string",
+      "enum": ["caps-rule", "bold-rule", "bold-only", "underline"]
+    },
+    "BulletChar": {
+      "type": "string",
+      "enum": ["•", "–", "▸", "none"]
+    },
+    "ThemeTextAlignment": {
+      "type": "string",
+      "enum": ["left", "center", "right"]
+    },
+    "ThemeDatesAlignment": {
+      "type": "string",
+      "enum": ["right-tab", "inline"]
+    },
+    "ResumeThemePresetId": {
+      "type": "string",
+      "enum": [
+        "ferguson-v12",
+        "clean-modern",
+        "classic-serif",
+        "minimal",
+        "editorial",
+        "executive-serif",
+        "modern-contrast",
+        "signal-clean"
+      ]
+    },
+    "ResumeThemeOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontBody": { "type": "string" },
+        "fontHeading": { "type": "string" },
+        "sizeBody": { "type": "number", "minimum": 7, "maximum": 14 },
+        "sizeName": { "type": "number", "minimum": 10, "maximum": 28 },
+        "sizeSectionHeader": { "type": "number", "minimum": 8, "maximum": 16 },
+        "sizeRoleTitle": { "type": "number", "minimum": 8, "maximum": 16 },
+        "sizeCompanyName": { "type": "number", "minimum": 8, "maximum": 16 },
+        "sizeSmall": { "type": "number", "minimum": 6, "maximum": 12 },
+        "sizeContact": { "type": "number", "minimum": 6, "maximum": 12 },
+        "lineHeight": { "type": "number", "minimum": 0.9, "maximum": 1.8 },
+        "bulletGap": { "type": "number", "minimum": 0, "maximum": 12 },
+        "sectionGapBefore": { "type": "number", "minimum": 0, "maximum": 24 },
+        "sectionGapAfter": { "type": "number", "minimum": 0, "maximum": 12 },
+        "roleGap": { "type": "number", "minimum": 0, "maximum": 18 },
+        "roleLineGapAfter": { "type": "number", "minimum": 0, "maximum": 12 },
+        "paragraphGap": { "type": "number", "minimum": 0, "maximum": 12 },
+        "contactGapAfter": { "type": "number", "minimum": 0, "maximum": 12 },
+        "competencyGap": { "type": "number", "minimum": 0, "maximum": 8 },
+        "projectGap": { "type": "number", "minimum": 0, "maximum": 12 },
+        "marginTop": { "type": "number", "minimum": 0.25, "maximum": 2 },
+        "marginBottom": { "type": "number", "minimum": 0.25, "maximum": 2 },
+        "marginLeft": { "type": "number", "minimum": 0.25, "maximum": 2 },
+        "marginRight": { "type": "number", "minimum": 0.25, "maximum": 2 },
+        "sectionHeaderLetterSpacing": { "type": "number", "minimum": 0, "maximum": 8 },
+        "sectionRuleWeight": { "type": "number", "minimum": 0, "maximum": 3 },
+        "nameLetterSpacing": { "type": "number", "minimum": 0, "maximum": 8 },
+        "bulletIndent": { "type": "number", "minimum": 0, "maximum": 36 },
+        "bulletHanging": { "type": "number", "minimum": 0, "maximum": 24 },
+        "projectUrlSize": { "type": "number", "minimum": 6, "maximum": 12 },
+        "colorBody": { "$ref": "#/$defs/HexColor" },
+        "colorHeading": { "$ref": "#/$defs/HexColor" },
+        "colorSection": { "$ref": "#/$defs/HexColor" },
+        "colorDim": { "$ref": "#/$defs/HexColor" },
+        "colorRule": { "$ref": "#/$defs/HexColor" },
+        "roleTitleColor": { "$ref": "#/$defs/HexColor" },
+        "datesColor": { "$ref": "#/$defs/HexColor" },
+        "subtitleColor": { "$ref": "#/$defs/HexColor" },
+        "competencyLabelColor": { "$ref": "#/$defs/HexColor" },
+        "projectUrlColor": { "$ref": "#/$defs/HexColor" },
+        "sectionHeaderStyle": { "$ref": "#/$defs/SectionHeaderStyle" },
+        "bulletChar": { "$ref": "#/$defs/BulletChar" },
+        "nameAlignment": { "$ref": "#/$defs/ThemeTextAlignment" },
+        "contactAlignment": { "$ref": "#/$defs/ThemeTextAlignment" },
+        "datesAlignment": { "$ref": "#/$defs/ThemeDatesAlignment" },
+        "nameBold": { "type": "boolean" },
+        "roleTitleItalic": { "type": "boolean" },
+        "subtitleItalic": { "type": "boolean" },
+        "companyBold": { "type": "boolean" },
+        "competencyLabelBold": { "type": "boolean" },
+        "projectNameBold": { "type": "boolean" },
+        "educationSchoolBold": { "type": "boolean" },
+        "sectionGap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24,
+          "description": "Legacy alias for sectionGapBefore"
+        }
+      }
+    },
+    "ResumeThemeState": {
+      "type": "object",
+      "required": ["preset"],
+      "additionalProperties": false,
+      "properties": {
+        "preset": { "$ref": "#/$defs/ResumeThemePresetId" },
+        "overrides": { "$ref": "#/$defs/ResumeThemeOverrides" }
+      }
+    },
+    "SavedVariantOverrides": {
+      "type": "object",
+      "required": ["manualOverrides", "variantOverrides", "bulletOrders"],
+      "additionalProperties": false,
+      "properties": {
+        "manualOverrides": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" }
+        },
+        "variantOverrides": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/VariantSelection" }
+        },
+        "bulletOrders": { "$ref": "#/$defs/RoleBulletOrderMap" },
+        "priorityOverrides": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PriorityOverrideEntry" }
+        },
+        "theme": { "$ref": "#/$defs/ResumeThemeState" },
+        "targetLineId": { "type": "string" },
+        "profileId": { "type": "string" },
+        "skillGroupOrder": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "PriorityOverrideEntry": {
+      "type": "object",
+      "required": ["bulletId", "vectorId", "priority"],
+      "additionalProperties": false,
+      "properties": {
+        "bulletId": { "type": "string" },
+        "vectorId": { "type": "string" },
+        "priority": { "$ref": "#/$defs/ComponentPriority" }
+      }
+    },
+    "SavedVariant": {
+      "type": "object",
+      "required": ["id", "name", "createdAt", "updatedAt", "baseVector", "overrides"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "baseVector": { "type": "string" },
+        "overrides": { "$ref": "#/$defs/SavedVariantOverrides" }
+      }
+    },
+    "VectorManualOverrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": "boolean" }
+      },
+      "description": "Map of vector ID → component key → include/exclude boolean"
+    },
+    "VectorVariantOverrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": "string" }
+      },
+      "description": "Map of vector ID → component key → variant selection"
+    },
+    "VectorBulletOrders": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/RoleBulletOrderMap" },
+      "description": "Map of vector ID → role bullet order map"
+    }
+  }
+}

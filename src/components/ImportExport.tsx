@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Download, Upload, X } from 'lucide-react'
+import { CheckCircle, Download, ShieldCheck, Upload, X } from 'lucide-react'
 import type { ResumeData } from '../types'
 import { exportResumeConfig, importResumeConfig } from '../engine/serializer'
 import { useFocusTrap } from '../utils/useFocusTrap'
@@ -20,6 +20,7 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
   const [importMode, setImportMode] = useState<ImportMode>('replace')
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [validationWarnings, setValidationWarnings] = useState<string[] | null>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -33,16 +34,29 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
     return null
   }
 
+  const handleValidate = () => {
+    try {
+      const parsed = importResumeConfig(input, format)
+      setError(null)
+      setValidationWarnings(parsed.warnings)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to parse config')
+      setValidationWarnings(null)
+    }
+  }
+
   const handleImport = () => {
     try {
       const parsed = importResumeConfig(input, format)
       onImport(parsed.data, importMode, parsed.warnings)
       setInput('')
       setError(null)
+      setValidationWarnings(null)
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to parse config'
       setError(message)
+      setValidationWarnings(null)
     }
   }
 
@@ -70,6 +84,7 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
       const content = await file.text()
       setInput(content)
       setError(null)
+      setValidationWarnings(null)
       const lowered = file.name.toLowerCase()
       if (lowered.endsWith('.json')) {
         setFormat('json')
@@ -148,16 +163,46 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
             </button>
             <textarea
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value)
+                setError(null)
+                setValidationWarnings(null)
+              }}
               placeholder={`Paste ${format.toUpperCase()} here...`}
               className="import-textarea"
               aria-label="Imported configuration input"
             />
             {error ? <p className="error-text">{error}</p> : null}
-            <button type="button" className="btn-primary" onClick={handleImport}>
-              <Upload size={16} />
-              Import {format.toUpperCase()} ({importMode === 'replace' ? 'Replace All' : 'Merge'})
-            </button>
+            {validationWarnings !== null && !error && (
+              validationWarnings.length === 0 ? (
+                <p className="warning-text" style={{ color: 'var(--success, #16a34a)' }}>
+                  <CheckCircle size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                  Validation passed — no warnings.
+                </p>
+              ) : (
+                <ul className="warning-text" style={{ paddingLeft: 16 }}>
+                  {validationWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              )
+            )}
+            <div className="format-toggle">
+              <button type="button" className="btn-secondary" onClick={handleValidate} disabled={!input.trim()}>
+                <ShieldCheck size={16} />
+                Validate
+              </button>
+              <button type="button" className="btn-primary" onClick={handleImport} disabled={!input.trim()}>
+                <Upload size={16} />
+                Import ({importMode === 'replace' ? 'Replace All' : 'Merge'})
+              </button>
+            </div>
+            <p style={{ margin: 0, fontSize: 11, color: 'var(--text-dim)' }}>
+              <a href="/resume-schema.json" download style={{ color: 'var(--accent-primary)' }}>
+                Download JSON Schema
+              </a>
+              {' '}for IDE autocomplete
+            </p>
           </>
         ) : (
           <>

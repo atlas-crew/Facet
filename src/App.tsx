@@ -26,6 +26,7 @@ import { buildResumePdfFileName } from './utils/pdfFormatting'
 import {
   analyzeJobDescription,
   prepareJobDescription,
+  reframeBulletForVector,
   type JdAnalysisResult,
 } from './utils/jdAnalyzer'
 import {
@@ -94,6 +95,16 @@ interface JdSuggestionSelection {
   applyPrimaryVector: boolean
   applyTargetLine: boolean
   bulletAdjustmentIds: string[]
+}
+
+interface ReframeResult {
+  roleId: string
+  bulletId: string
+  vectorId: string
+  vectorLabel: string
+  original: string
+  reframed: string
+  reasoning: string
 }
 
 function FacetWordmark() {
@@ -173,8 +184,11 @@ function App() {
   const [jdLoading, setJdLoading] = useState(false)
   const [jdError, setJdError] = useState<string | null>(null)
   const [themePanelOpen, setThemePanelOpen] = useState(false)
+  const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
+  const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
   const noticeTimeoutRef = useRef<number | null>(null)
   const jdModalRef = useRef<HTMLDivElement>(null)
+  const reframeModalRef = useRef<HTMLDivElement>(null)
   const jdAnalysisEndpointRaw = (import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''
   const jdAnalysisEndpoint = useMemo(() => sanitizeEndpointUrl(jdAnalysisEndpointRaw), [jdAnalysisEndpointRaw])
 
@@ -250,6 +264,7 @@ function App() {
     theme: resolvedTheme,
   })
   useFocusTrap(jdModalOpen, jdModalRef, () => setJdModalOpen(false))
+  useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
 
   useEffect(() => {
     if (!draggingSplit) {
@@ -528,6 +543,89 @@ function App() {
         }
       }
     }
+  }
+
+  const onReframeBullet = async (roleId: string, bulletId: string) => {
+    if (selectedVector === 'all') {
+      return
+    }
+
+    if (!jdAnalysisEndpoint) {
+      showNotice('error', 'AI features are disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+      return
+    }
+
+    const role = data.roles.find((r) => r.id === roleId)
+    const bullet = role?.bullets.find((b) => b.id === bulletId)
+    if (!role || !bullet) return
+
+    const vector = data.vectors.find((v) => v.id === selectedVector)
+    const vectorLabel = vector?.label ?? selectedVector
+
+    setReframeLoadingId(bulletId)
+    try {
+      const result = await reframeBulletForVector(bullet.text, vectorLabel, jdAnalysisEndpoint)
+      setReframeResult({
+        roleId,
+        bulletId,
+        vectorId: selectedVector,
+        vectorLabel,
+        original: bullet.text,
+        reframed: result.reframed,
+        reasoning: result.reasoning,
+      })
+    } catch (error) {
+      showNotice('error', error instanceof Error ? error.message : 'Reframing failed')
+    } finally {
+      setReframeLoadingId(null)
+    }
+  }
+
+  const onApplyReframe = () => {
+    if (!reframeResult) return
+
+    const { roleId, bulletId, vectorId, reframed } = reframeResult
+    const componentKey = componentKeys.bullet(roleId, bulletId)
+
+    updateData((current) => {
+      // 1. Update the bullet text variant
+      const nextRoles = current.roles.map((r) =>
+        r.id === roleId
+          ? {
+              ...r,
+              bullets: r.bullets.map((b) =>
+                b.id === bulletId
+                  ? {
+                      ...b,
+                      variants: {
+                        ...(b.variants ?? {}),
+                        [vectorId]: reframed,
+                      },
+                    }
+                  : b,
+              ),
+            }
+          : r,
+      )
+
+      // 2. Set the variant override for the vector
+      const nextVariantOverrides = {
+        ...(current.variantOverrides ?? {}),
+        [vectorId]: {
+          ...(current.variantOverrides?.[vectorId] ?? {}),
+          [componentKey]: vectorId,
+        },
+      }
+
+      return {
+        ...current,
+        roles: nextRoles,
+        variantOverrides: nextVariantOverrides,
+      }
+    })
+
+    setReframeResult(null)
+    showNotice('success', 'Applied AI rewrite as variant')
   }
 
   const onDownloadPdf = () => {
@@ -1143,6 +1241,14 @@ function App() {
                   projects: reorderById(current.projects, order),
                 }))
               }
+              onUpdateRole={(id, field, value) =>
+                updateData((current) => ({
+                  ...current,
+                  roles: current.roles.map((role) =>
+                    role.id === id ? { ...role, [field]: value } : role,
+                  ),
+                }))
+              }
               onUpdateBullet={(roleId, bulletId, text) =>
                 updateData((current) => ({
                   ...current,
@@ -1178,6 +1284,8 @@ function App() {
               }
               onReorderBullets={handleRoleBulletReorder}
               onResetRoleBulletOrder={(roleId) => resetRoleBulletOrder(vectorKey, roleId)}
+              onReframeBullet={onReframeBullet}
+              reframeLoadingId={reframeLoadingId}
               onAddComponent={onAddComponent}
             />
           </section>
@@ -1330,6 +1438,45 @@ function App() {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {reframeResult ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reframe-title">
+          <div className="modal-card reframe-modal" ref={reframeModalRef} tabIndex={-1}>
+            <header className="modal-header">
+              <h3 id="reframe-title">AI Reframe for {reframeResult.vectorLabel}</h3>
+              <button className="btn-ghost" type="button" onClick={() => setReframeResult(null)}>
+                Cancel
+              </button>
+            </header>
+
+            <div className="reframe-content">
+              <section className="reframe-section">
+                <h4>Original</h4>
+                <p className="reframe-text original">{reframeResult.original}</p>
+              </section>
+
+              <section className="reframe-section">
+                <h4>Reframed</h4>
+                <p className="reframe-text suggested">{reframeResult.reframed}</p>
+              </section>
+
+              <section className="reframe-section">
+                <h4>Strategy</h4>
+                <p className="reframe-strategy">{reframeResult.reasoning}</p>
+              </section>
+            </div>
+
+            <footer className="reframe-actions">
+              <button className="btn-secondary" type="button" onClick={() => setReframeResult(null)}>
+                Discard
+              </button>
+              <button className="btn-primary" type="button" onClick={onApplyReframe}>
+                Apply as Variant
+              </button>
+            </footer>
           </div>
         </div>
       ) : null}

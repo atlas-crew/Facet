@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Eye, EyeOff, GripVertical } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff, GripVertical, Plus, Sparkles, X } from 'lucide-react'
 import { useState } from 'react'
 import type { PriorityByVector, Role, TextVariantMap, VectorDef, VectorSelection } from '../types'
 import { getPriorityForVector } from '../engine/assembler'
@@ -35,6 +35,9 @@ interface BulletListProps {
   onChangeBulletText: (bulletId: string, text: string) => void
   onSetBulletVariant: (bulletId: string, variant: string | null) => void
   onSetBulletVectors: (bulletId: string, vectors: PriorityByVector) => void
+  onUpdateRole: (field: 'company' | 'title' | 'dates' | 'location' | 'subtitle', value: string | null) => void
+  onReframe: (bulletId: string) => void
+  reframeLoadingId: string | null
 }
 
 interface SortableBulletProps {
@@ -46,10 +49,13 @@ interface SortableBulletProps {
   variants?: TextVariantMap
   selectedVariant?: string
   vectorDefs: VectorDef[]
+  selectedVector: VectorSelection
   onToggle: () => void
   onChangeText: (value: string) => void
   onVariantChange: (variant: string | null) => void
   onVectorsChange: (vectors: PriorityByVector) => void
+  onReframe: () => void
+  isLoading: boolean
 }
 
 function SortableBullet({
@@ -61,10 +67,13 @@ function SortableBullet({
   variants,
   selectedVariant,
   vectorDefs,
+  selectedVector,
   onToggle,
   onChangeText,
   onVariantChange,
   onVectorsChange,
+  onReframe,
+  isLoading,
 }: SortableBulletProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
   const variantEntries = Object.entries(variants ?? {})
@@ -92,6 +101,21 @@ function SortableBullet({
         </div>
         <div className="component-card-actions">
           <span className={`priority-badge priority-${priority}`}>{priority}</span>
+          {selectedVector !== 'all' && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={onReframe}
+              disabled={isLoading}
+              title="AI Reframe for Vector"
+              aria-busy={isLoading}
+            >
+              <Sparkles size={14} className={isLoading ? 'animate-pulse' : ''} />
+              <span aria-live="polite">
+                {isLoading ? 'Reframing...' : 'Reframe'}
+              </span>
+            </button>
+          )}
           <button type="button" className="btn-ghost" aria-pressed={included} onClick={onToggle}>
             {included ? <Eye size={14} /> : <EyeOff size={14} />}
             {included ? 'Included' : 'Excluded'}
@@ -144,8 +168,12 @@ export function BulletList({
   onChangeBulletText,
   onSetBulletVariant,
   onSetBulletVectors,
+  onUpdateRole,
+  onReframe,
+  reframeLoadingId,
 }: BulletListProps) {
   const bulletIds = role.bullets.map((bullet) => bullet.id)
+  const [expanded, setExpanded] = useState(true)
   const [announcement, setAnnouncement] = useState('')
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -180,17 +208,109 @@ export function BulletList({
     setAnnouncement(`Dropped bullet at position ${newIndex + 1}.`)
   }
 
+  const collapseId = `role-collapse-${role.id}`
+
   return (
     <section className="role-block">
       <header className="role-header">
+        <button
+          className={`role-collapse-toggle ${expanded ? 'expanded' : ''}`}
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={collapseId}
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? 'Collapse role' : 'Expand role'}
+        >
+          <ChevronRight size={14} />
+        </button>
         <div className="role-header-main">
-          <h3>
-            {role.company} <span>{role.title}</span>
-          </h3>
+          <div className="role-fields">
+            <label className="field-label">
+              Company
+              <input
+                className="component-input compact"
+                value={role.company}
+                onChange={(event) => onUpdateRole('company', event.target.value)}
+              />
+            </label>
+            <label className="field-label">
+              Title
+              <input
+                className="component-input compact"
+                value={role.title}
+                onChange={(event) => onUpdateRole('title', event.target.value)}
+              />
+            </label>
+            <label className="field-label">
+              Dates
+              <input
+                className="component-input compact"
+                value={role.dates}
+                onChange={(event) => onUpdateRole('dates', event.target.value)}
+              />
+            </label>
+            {role.location != null ? (
+              <label className="field-label optional-field">
+                Location
+                <div className="optional-field-row">
+                  <input
+                    className="component-input compact"
+                    value={role.location}
+                    onChange={(event) => onUpdateRole('location', event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost btn-icon"
+                    onClick={() => onUpdateRole('location', null)}
+                    aria-label="Remove location"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </label>
+            ) : (
+              <button
+                type="button"
+                className="btn-ghost btn-add-optional"
+                onClick={() => onUpdateRole('location', '')}
+              >
+                <Plus size={12} />
+                Location
+              </button>
+            )}
+            {role.subtitle != null ? (
+              <label className="field-label optional-field">
+                Subtitle
+                <div className="optional-field-row">
+                  <input
+                    className="component-input compact"
+                    value={role.subtitle}
+                    onChange={(event) => onUpdateRole('subtitle', event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost btn-icon"
+                    onClick={() => onUpdateRole('subtitle', null)}
+                    aria-label="Remove subtitle"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </label>
+            ) : (
+              <button
+                type="button"
+                className="btn-ghost btn-add-optional"
+                onClick={() => onUpdateRole('subtitle', '')}
+              >
+                <Plus size={12} />
+                Subtitle
+              </button>
+            )}
+          </div>
           {customOrderLabel ? <span className="custom-order-badge">{customOrderLabel}</span> : null}
         </div>
         <div className="role-header-actions">
-          <p>{role.dates}</p>
           <button
             type="button"
             className="btn-ghost"
@@ -202,50 +322,61 @@ export function BulletList({
         </div>
       </header>
 
-      <p className="sr-only" aria-live="polite" aria-atomic="true">
-        {announcement}
-      </p>
-
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragCancel={handleDragCancel}
-        onDragEnd={handleDragEnd}
+      <div
+        className={`role-collapse ${expanded ? 'expanded' : ''}`}
+        id={collapseId}
+        aria-hidden={!expanded}
       >
-        <SortableContext items={bulletIds} strategy={verticalListSortingStrategy}>
-          <div className="bullet-list">
-            {role.bullets.map((bullet) => (
-              <SortableBullet
-                key={bullet.id}
-                id={bullet.id}
-                text={bullet.text}
-                vectors={bullet.vectors}
-                priority={getPriorityForVector(bullet.vectors, selectedVector)}
-                included={includedByBulletId[bullet.id] ?? true}
-                variants={bullet.variants}
-                selectedVariant={variantByBulletId[bullet.id]}
-                vectorDefs={vectorDefs}
-                onToggle={() => onToggleBullet(bullet.id)}
-                onChangeText={(value) => onChangeBulletText(bullet.id, value)}
-                onVariantChange={(value) => onSetBulletVariant(bullet.id, value)}
-                onVectorsChange={(vectors) => onSetBulletVectors(bullet.id, vectors)}
-              />
+        <div className="role-collapse-panel">
+          <p className="sr-only" aria-live="polite" aria-atomic="true">
+            {announcement}
+          </p>
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragCancel={handleDragCancel}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={bulletIds} strategy={verticalListSortingStrategy}>
+              <div className="bullet-list">
+                {role.bullets.map((bullet) => (
+                  <SortableBullet
+                    key={bullet.id}
+                    id={bullet.id}
+                    text={bullet.text}
+                    vectors={bullet.vectors}
+                    priority={getPriorityForVector(bullet.vectors, selectedVector)}
+                    included={includedByBulletId[bullet.id] ?? true}
+                    variants={bullet.variants}
+                    selectedVariant={variantByBulletId[bullet.id]}
+                    vectorDefs={vectorDefs}
+                    selectedVector={selectedVector}
+                    onToggle={() => onToggleBullet(bullet.id)}
+                    onChangeText={(value) => onChangeBulletText(bullet.id, value)}
+                    onVariantChange={(value) => onSetBulletVariant(bullet.id, value)}
+                    onVectorsChange={(vectors) => onSetBulletVectors(bullet.id, vectors)}
+                    onReframe={() => onReframe(bullet.id)}
+                    isLoading={reframeLoadingId === bullet.id}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          <div className="vector-badges">
+            {vectorDefs.map((vector) => (
+              <span
+                className="vector-badge"
+                key={vector.id}
+                style={{ ['--vector-color' as string]: vector.color }}
+              >
+                {vector.label}
+              </span>
             ))}
           </div>
-        </SortableContext>
-      </DndContext>
-
-      <div className="vector-badges">
-        {vectorDefs.map((vector) => (
-          <span
-            className="vector-badge"
-            key={vector.id}
-            style={{ ['--vector-color' as string]: vector.color }}
-          >
-            {vector.label}
-          </span>
-        ))}
+        </div>
       </div>
     </section>
   )

@@ -58,11 +58,14 @@ interface ComponentLibraryProps {
   onUpdateSkillGroup: (id: string, field: 'label' | 'content', value: string) => void
   onUpdateSkillGroupVectors: (id: string, vectors: Record<string, SkillGroupVectorConfig>) => void
   onReorderSkillGroups: (order: string[]) => void
+  onUpdateRole: (roleId: string, field: 'company' | 'title' | 'dates' | 'location' | 'subtitle', value: string | null) => void
   onUpdateBullet: (roleId: string, bulletId: string, text: string) => void
   onUpdateBulletVectors: (roleId: string, bulletId: string, vectors: PriorityByVector) => void
   onToggleBullet: (roleId: string, bulletId: string, vectors: PriorityByVector) => void
   onReorderBullets: (roleId: string, order: string[]) => void
   onResetRoleBulletOrder: (roleId: string) => void
+  onReframeBullet: (roleId: string, bulletId: string) => void
+  reframeLoadingId: string | null
   onAddComponent: (type: AddComponentType, payload: AddComponentPayload) => void
   onUpdateMetaField: (field: 'name' | 'email' | 'phone' | 'location', value: string) => void
   onUpdateMetaLink: (index: number, field: 'label' | 'url', value: string) => void
@@ -94,11 +97,14 @@ export function ComponentLibrary({
   onUpdateSkillGroup,
   onUpdateSkillGroupVectors,
   onReorderSkillGroups,
+  onUpdateRole,
   onUpdateBullet,
   onUpdateBulletVectors,
   onToggleBullet,
   onReorderBullets,
   onResetRoleBulletOrder,
+  onReframeBullet,
+  reframeLoadingId,
   onAddComponent,
   onUpdateMetaField,
   onUpdateMetaLink,
@@ -417,6 +423,7 @@ export function ComponentLibrary({
                     : Boolean(activeVectorBulletOrderByRole[orderedRole.id])
                 }
                 onResetOrder={() => onResetRoleBulletOrder(orderedRole.id)}
+                onUpdateRole={(field, value) => onUpdateRole(orderedRole.id, field, value)}
                 includedByBulletId={includedByBulletId}
                 variantByBulletId={variantByBulletId}
                 onToggleBullet={(bulletId) => {
@@ -434,6 +441,8 @@ export function ComponentLibrary({
                 onSetBulletVectors={(bulletId, vectors) =>
                   onUpdateBulletVectors(orderedRole.id, bulletId, vectors)
                 }
+                onReframe={(bulletId) => onReframeBullet(orderedRole.id, bulletId)}
+                reframeLoadingId={reframeLoadingId}
               />
             )
           })}
