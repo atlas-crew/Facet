@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { Copy, Download, FileDown, FileJson, Monitor, Moon, ScanSearch, Settings2, Sun, Upload } from 'lucide-react'
+import { Copy, Download, FileDown, FileJson, Layers, Monitor, Moon, Paintbrush, ScanSearch, Sun, Upload } from 'lucide-react'
 import './index.css'
 import type {
   PriorityByVector,
@@ -38,7 +38,7 @@ import { defaultVectorsForSelection } from './utils/vectorPriority'
 import { normalizeThemeState, resolveTheme } from './themes/theme'
 import { ThemeEditorPanel } from './components/ThemeEditorPanel'
 import { usePdfPreview } from './hooks/usePdfPreview'
-import { VariantSaveCanceledError, useSavedVariants } from './hooks/useSavedVariants'
+import { PresetSaveCanceledError, usePresets } from './hooks/usePresets'
 import { createId, sanitizeEndpointUrl, slugify } from './utils/idUtils'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
@@ -183,7 +183,7 @@ function App() {
   const [jdWasTruncated, setJdWasTruncated] = useState(false)
   const [jdLoading, setJdLoading] = useState(false)
   const [jdError, setJdError] = useState<string | null>(null)
-  const [themePanelOpen, setThemePanelOpen] = useState(false)
+  const [leftPanelMode, setLeftPanelMode] = useState<'content' | 'design'>('content')
   const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
   const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
   const noticeTimeoutRef = useRef<number | null>(null)
@@ -320,17 +320,17 @@ function App() {
   }
 
   const {
-    savedVariants,
-    activeVariantId,
-    setActiveVariantId,
-    activeVariant,
-    variantDirty,
+    presets,
+    activePresetId,
+    setActivePresetId,
+    activePreset,
+    presetDirty,
     getSnapshotForVector,
-    applySavedVariant,
-    persistVariant,
-    onSaveCurrentVariant,
-    onDeleteActiveVariant,
-  } = useSavedVariants({
+    applyPreset,
+    persistPreset,
+    onSavePreset,
+    onDeleteActivePreset,
+  } = usePresets({
     data,
     selectedVector,
     overridesForVector,
@@ -442,7 +442,7 @@ function App() {
     }
   }
 
-  const applyJdSelections = (saveAsVariant: boolean) => {
+  const applyJdSelections = (saveAsPreset: boolean) => {
     if (!jdAnalysisResult) {
       return
     }
@@ -459,7 +459,7 @@ function App() {
 
     const targetVector = baseVector === 'all' ? data.vectors[0]?.id ?? 'all' : baseVector
     const selectedBulletIds = new Set(jdSelection.bulletAdjustmentIds)
-    const priorityOverridesForVariant =
+    const priorityOverridesForPreset =
       targetVector === 'all'
         ? []
         : jdAnalysisResult.bullet_adjustments
@@ -469,10 +469,10 @@ function App() {
               vectorId: targetVector,
               priority: adjustment.recommended_priority,
             }))
-    const snapshotForSave = saveAsVariant
+    const snapshotForSave = saveAsPreset
       ? {
           ...getSnapshotForVector(baseVector),
-          priorityOverrides: priorityOverridesForVariant,
+          priorityOverrides: priorityOverridesForPreset,
         }
       : null
 
@@ -520,25 +520,25 @@ function App() {
 
     showNotice('success', 'Applied selected JD suggestions')
 
-    if (saveAsVariant) {
+    if (saveAsPreset) {
       const suggestedName = jdAnalysisResult.positioning_note
         .split(/[.!?]/)
         .map((part) => part.trim())
         .find((part) => part.length > 0)
         ?.slice(0, 36)
-      const variantName = window.prompt('Variant name', suggestedName ?? 'JD Variant')?.trim()
-      if (variantName) {
+      const presetName = window.prompt('Preset name', suggestedName ?? 'JD Preset')?.trim()
+      if (presetName) {
         try {
-          persistVariant(
-            variantName,
+          persistPreset(
+            presetName,
             'Generated from JD analysis',
             baseVector,
             snapshotForSave ?? getSnapshotForVector(baseVector),
           )
-          showNotice('success', `Applied and saved variant ${variantName}`)
+          showNotice('success', `Applied and saved preset ${presetName}`)
         } catch (error) {
-          if (!(error instanceof VariantSaveCanceledError)) {
-            showNotice('error', 'Applied suggestions, but failed to save variant.')
+          if (!(error instanceof PresetSaveCanceledError)) {
+            showNotice('error', 'Applied suggestions, but failed to save preset.')
           }
         }
       }
@@ -906,12 +906,10 @@ function App() {
           setImportExportMode(null)
         } else if (jdModalOpen) {
           setJdModalOpen(false)
-        } else if (themePanelOpen) {
-          setThemePanelOpen(false)
         }
       }
     },
-    [data.vectors, importExportMode, jdModalOpen, onDownloadPdf, redo, setSelectedVector, themePanelOpen, undo],
+    [data.vectors, importExportMode, jdModalOpen, onDownloadPdf, redo, setSelectedVector, undo],
   )
 
   useEffect(() => {
@@ -927,43 +925,43 @@ function App() {
           <p className="top-bar-tagline">Same diamond. Different face.</p>
         </div>
         <div className="top-bar-center">
-          <div className="variant-controls">
+          <div className="preset-controls">
             <select
               className="component-input compact"
-              aria-label="Load saved variant"
-              value={activeVariantId ?? ''}
+              aria-label="Load preset"
+              value={activePresetId ?? ''}
               onChange={(event) => {
                 const nextId = event.target.value
                 if (!nextId) {
-                  setActiveVariantId(null)
+                  setActivePresetId(null)
                   return
                 }
-                const variant = savedVariants.find((item) => item.id === nextId)
-                if (!variant) {
-                  setActiveVariantId(null)
+                const preset = presets.find((item) => item.id === nextId)
+                if (!preset) {
+                  setActivePresetId(null)
                   return
                 }
-                applySavedVariant(variant)
+                applyPreset(preset)
               }}
             >
-              <option value="">Saved Variants</option>
-              {savedVariants.map((variant) => (
-                <option key={variant.id} value={variant.id}>
-                  {variant.name} ({variant.baseVector})
+              <option value="">Presets</option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name} ({preset.baseVector})
                 </option>
               ))}
             </select>
-            <button className="btn-secondary" type="button" onClick={onSaveCurrentVariant}>
+            <button className="btn-secondary" type="button" onClick={onSavePreset}>
               Save Current
             </button>
             <button
               className="btn-secondary"
               type="button"
-              onClick={onDeleteActiveVariant}
-              disabled={!activeVariant}
-              aria-label={activeVariant ? `Delete variant ${activeVariant.name}` : 'Delete Variant'}
+              onClick={onDeleteActivePreset}
+              disabled={!activePreset}
+              aria-label={activePreset ? `Delete preset ${activePreset.name}` : 'Delete Preset'}
             >
-              Delete Variant
+              Delete Preset
             </button>
           </div>
         </div>
@@ -983,16 +981,6 @@ function App() {
             title={`Appearance: ${appearance}`}
           >
             {appearance === 'system' ? <Monitor size={16} /> : appearance === 'light' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button
-            className={`btn-ghost ${themePanelOpen ? 'selected' : ''}`}
-            type="button"
-            onClick={() => setThemePanelOpen((current) => !current)}
-            aria-expanded={themePanelOpen}
-            aria-controls="theme-overrides-panel"
-            title="Theme editor"
-          >
-            <Settings2 size={16} />
           </button>
           <button className="btn-secondary" type="button" onClick={() => setImportExportMode('import')} title="Import config (⌘I)">
             <Upload size={16} />
@@ -1024,16 +1012,6 @@ function App() {
           </button>
         </div>
       </header>
-
-      <ThemeEditorPanel
-        open={themePanelOpen}
-        activePreset={themeState.preset}
-        resolvedTheme={resolvedTheme}
-        onSetPreset={setThemePreset}
-        onSetOverride={setThemeOverride}
-        onAdjustDensityStep={adjustThemeDensity}
-        onResetOverrides={resetThemeOverrides}
-      />
 
       <VectorBar
         vectors={data.vectors}
@@ -1091,6 +1069,35 @@ function App() {
       ) : (
         <main className="workspace">
           <section className="library-column" style={{ width: `${panelRatio * 100}%` }}>
+            <div className="left-panel-shell">
+              <div className="left-panel-header">
+                <div className="format-toggle" role="tablist" aria-label="Left panel mode">
+                  <button
+                    className={`btn-secondary ${leftPanelMode === 'content' ? 'selected' : ''}`}
+                    role="tab"
+                    aria-selected={leftPanelMode === 'content'}
+                    aria-controls="left-panel-content"
+                    onClick={() => setLeftPanelMode('content')}
+                  >
+                    <Layers size={14} /> Content
+                  </button>
+                  <button
+                    className={`btn-secondary ${leftPanelMode === 'design' ? 'selected' : ''}`}
+                    role="tab"
+                    aria-selected={leftPanelMode === 'design'}
+                    aria-controls="left-panel-design"
+                    onClick={() => setLeftPanelMode('design')}
+                  >
+                    <Paintbrush size={14} /> Design
+                  </button>
+                </div>
+              </div>
+              <div
+                id="left-panel-content"
+                role="tabpanel"
+                className="left-panel-body"
+                hidden={leftPanelMode !== 'content'}
+              >
             <ComponentLibrary
               data={data}
               selectedVector={selectedVector}
@@ -1288,6 +1295,23 @@ function App() {
               reframeLoadingId={reframeLoadingId}
               onAddComponent={onAddComponent}
             />
+              </div>
+              <div
+                id="left-panel-design"
+                role="tabpanel"
+                className="left-panel-body"
+                hidden={leftPanelMode !== 'design'}
+              >
+                <ThemeEditorPanel
+                  activePreset={themeState.preset}
+                  resolvedTheme={resolvedTheme}
+                  onSetPreset={setThemePreset}
+                  onSetOverride={setThemeOverride}
+                  onAdjustDensityStep={adjustThemeDensity}
+                  onResetOverrides={resetThemeOverrides}
+                />
+              </div>
+            </div>
           </section>
 
           <div
@@ -1433,7 +1457,7 @@ function App() {
                     Apply Selected
                   </button>
                   <button className="btn-primary" type="button" onClick={() => applyJdSelections(true)}>
-                    Apply & Save as Variant
+                    Apply & Save as Preset
                   </button>
                 </div>
               </div>
@@ -1489,12 +1513,12 @@ function App() {
         nearBudget={nearPageLimit}
         overBudget={overPageLimit}
         mustOverBudget={assembledResult.warnings.some((warning) => warning.code === 'must_over_budget')}
-        activeVariantLabel={
-          activeVariant
-            ? `${activeVariant.name} (based on ${activeVariant.baseVector})`
+        activePresetLabel={
+          activePreset
+            ? `${activePreset.name} (based on ${activePreset.baseVector})`
             : undefined
         }
-        variantDirty={variantDirty}
+        presetDirty={presetDirty}
       />
 
       <ImportExport

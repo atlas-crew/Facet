@@ -168,7 +168,7 @@ export interface EducationEntry {
   year: string
 }
 
-export interface SavedVariantOverrides {
+export interface PresetOverrides {
   manualOverrides: Record<string, boolean>
   variantOverrides: Record<string, VariantSelection>
   bulletOrders: RoleBulletOrderMap
@@ -183,14 +183,14 @@ export interface SavedVariantOverrides {
   skillGroupOrder?: string[]
 }
 
-export interface SavedVariant {
+export interface Preset {
   id: string
   name: string
   description?: string
   createdAt: string
   updatedAt: string
   baseVector: VectorSelection
-  overrides: SavedVariantOverrides
+  overrides: PresetOverrides
 }
 
 export interface ResumeData {
@@ -204,7 +204,7 @@ export interface ResumeData {
   roles: RoleComponent[]
   projects: ProjectComponent[]
   education: EducationEntry[]
-  saved_variants?: SavedVariant[]
+  presets?: Preset[]
   manualOverrides?: VectorManualOverrides
   variantOverrides?: VectorVariantOverrides
   bulletOrders?: VectorBulletOrders

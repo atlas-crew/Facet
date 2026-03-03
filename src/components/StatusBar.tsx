@@ -8,8 +8,8 @@ interface StatusBarProps {
   nearBudget: boolean
   overBudget: boolean
   mustOverBudget: boolean
-  activeVariantLabel?: string
-  variantDirty?: boolean
+  activePresetLabel?: string
+  presetDirty?: boolean
 }
 
 export function StatusBar({
@@ -20,8 +20,8 @@ export function StatusBar({
   nearBudget,
   overBudget,
   mustOverBudget,
-  activeVariantLabel,
-  variantDirty,
+  activePresetLabel,
+  presetDirty,
 }: StatusBarProps) {
   const showWarning = nearBudget || overBudget
 
@@ -38,11 +38,11 @@ export function StatusBar({
       </span>
       <span>{bulletCount} bullets</span>
       <span>{skillGroupCount} skill groups</span>
-      {activeVariantLabel ? (
-        <span className={`variant-status ${variantDirty ? 'dirty' : ''}`}>
-          Editing: {activeVariantLabel}
-          {variantDirty ? ' *' : ''}
-          {variantDirty ? <span className="sr-only"> (unsaved changes)</span> : null}
+      {activePresetLabel ? (
+        <span className={`preset-status ${presetDirty ? 'dirty' : ''}`}>
+          Editing: {activePresetLabel}
+          {presetDirty ? ' *' : ''}
+          {presetDirty ? <span className="sr-only"> (unsaved changes)</span> : null}
         </span>
       ) : null}
       {showWarning && (

@@ -6,7 +6,7 @@ import type {
   ResumeVector,
   RoleBulletComponent,
   RoleComponent,
-  SavedVariant,
+  Preset,
   SkillGroupComponent,
   TargetLineComponent,
 } from '../types'
@@ -61,5 +61,5 @@ export const mergeResumeData = (current: ResumeData, imported: ResumeData): Resu
   roles: mergeRoles(current.roles, imported.roles),
   projects: mergeById<ProjectComponent>(current.projects, imported.projects),
   education: mergeEducation(current.education, imported.education),
-  saved_variants: mergeById<SavedVariant>(current.saved_variants ?? [], imported.saved_variants ?? []),
+  presets: mergeById<Preset>(current.presets ?? [], imported.presets ?? []),
 })

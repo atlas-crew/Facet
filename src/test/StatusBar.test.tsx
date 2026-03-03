@@ -73,18 +73,18 @@ describe('StatusBar', () => {
     expect(screen.queryByText(/Approaching|trimmed|exceeds/)).toBeNull()
   })
 
-  it('shows active variant label', () => {
-    render(<StatusBar {...baseProps} activeVariantLabel="Backend v2" />)
+  it('shows active preset label', () => {
+    render(<StatusBar {...baseProps} activePresetLabel="Backend v2" />)
     expect(screen.getByText(/Editing: Backend v2/)).toBeTruthy()
   })
 
-  it('shows dirty indicator when variant has unsaved changes', () => {
-    render(<StatusBar {...baseProps} activeVariantLabel="Backend v2" variantDirty />)
+  it('shows dirty indicator when preset has unsaved changes', () => {
+    render(<StatusBar {...baseProps} activePresetLabel="Backend v2" presetDirty />)
     expect(screen.getByText(/Editing: Backend v2/)).toBeTruthy()
     expect(screen.getByText('(unsaved changes)')).toBeTruthy()
   })
 
-  it('does not show variant section when no label', () => {
+  it('does not show preset section when no label', () => {
     render(<StatusBar {...baseProps} />)
     expect(screen.queryByText(/Editing:/)).toBeNull()
   })

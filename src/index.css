@@ -249,7 +249,7 @@ select {
 }
 
 /* Scrollbar styling for dark theme */
-.library-panel,
+.left-panel-body,
 .preview-shell,
 .pdf-preview-shell,
 .jd-modal {
@@ -257,14 +257,14 @@ select {
   scrollbar-color: var(--border-subtle) transparent;
 }
 
-.library-panel::-webkit-scrollbar,
+.left-panel-body::-webkit-scrollbar,
 .preview-shell::-webkit-scrollbar,
 .pdf-preview-shell::-webkit-scrollbar,
 .jd-modal::-webkit-scrollbar {
   width: 6px;
 }
 
-.library-panel::-webkit-scrollbar-thumb,
+.left-panel-body::-webkit-scrollbar-thumb,
 .preview-shell::-webkit-scrollbar-thumb,
 .pdf-preview-shell::-webkit-scrollbar-thumb,
 .jd-modal::-webkit-scrollbar-thumb {
@@ -272,14 +272,14 @@ select {
   border-radius: 3px;
 }
 
-.library-panel::-webkit-scrollbar-thumb:hover,
+.left-panel-body::-webkit-scrollbar-thumb:hover,
 .preview-shell::-webkit-scrollbar-thumb:hover,
 .pdf-preview-shell::-webkit-scrollbar-thumb:hover,
 .jd-modal::-webkit-scrollbar-thumb:hover {
   background: var(--border-default);
 }
 
-.library-panel::-webkit-scrollbar-track,
+.left-panel-body::-webkit-scrollbar-track,
 .preview-shell::-webkit-scrollbar-track,
 .pdf-preview-shell::-webkit-scrollbar-track,
 .jd-modal::-webkit-scrollbar-track {
@@ -365,7 +365,7 @@ select {
   border-right: 1px solid var(--border-subtle);
 }
 
-.variant-controls {
+.preset-controls {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -378,10 +378,10 @@ select {
 }
 
 @media (max-width: 1200px) {
-  .variant-controls .btn-secondary {
+  .preset-controls .btn-secondary {
     padding: 6px;
   }
-  .variant-controls .btn-secondary span {
+  .preset-controls .btn-secondary span {
     display: none;
   }
   .top-bar-actions .btn-label {
@@ -426,27 +426,26 @@ select {
     justify-content: flex-start;
   }
 
-  .variant-controls {
+  .preset-controls {
     width: 100%;
   }
 
-  .variant-controls .component-input.compact {
+  .preset-controls .component-input.compact {
     flex: 1;
   }
 }
 
 .theme-panel {
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--text-primary) 6%, transparent);
   background: var(--bg-surface);
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-6);
   display: grid;
   gap: var(--space-3);
 }
 
 .theme-panel-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-3);
 }
 
@@ -460,7 +459,8 @@ select {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  justify-content: flex-end;
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .theme-density-controls {
@@ -677,13 +677,13 @@ select {
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-.variant-controls {
+.preset-controls {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.variant-controls .component-input.compact {
+.preset-controls .component-input.compact {
   min-width: 200px;
 }
 
@@ -806,9 +806,28 @@ select {
   background: var(--accent-primary);
 }
 
-.library-panel {
+.left-panel-shell {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-panel-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.left-panel-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.library-panel {
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
@@ -1600,11 +1619,11 @@ select.component-input {
   gap: var(--space-1);
 }
 
-.variant-status {
+.preset-status {
   color: var(--text-secondary);
 }
 
-.variant-status.dirty {
+.preset-status.dirty {
   color: var(--warning);
 }
 
@@ -2095,20 +2114,6 @@ select.component-input {
 }
 
 @media (max-width: 768px) {
-  .theme-panel {
-    padding: var(--space-3);
-  }
-
-  .theme-panel-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .theme-panel-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .theme-gallery-header {
     align-items: flex-start;
     flex-direction: column;

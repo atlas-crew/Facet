@@ -212,11 +212,11 @@ education: []
     expect(parsed.data.skill_groups[0]?.vectors?.backend?.priority).toBe('strong')
   })
 
-  it('supports saved variants in import/export schema', () => {
+  it('supports presets in import/export schema', () => {
     const source = clone(defaultResumeData)
-    source.saved_variants = [
+    source.presets = [
       {
-        id: 'variant-1',
+        id: 'preset-1',
         name: 'Lumin-SRE',
         description: 'SRE-first framing',
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -238,13 +238,13 @@ education: []
     ]
 
     const parsed = importResumeConfig(exportResumeConfig(source, 'json'), 'json')
-    expect(parsed.data.saved_variants?.[0]?.name).toBe('Lumin-SRE')
-    expect(parsed.data.saved_variants?.[0]?.overrides.bulletOrders.acme).toEqual([
+    expect(parsed.data.presets?.[0]?.name).toBe('Lumin-SRE')
+    expect(parsed.data.presets?.[0]?.overrides.bulletOrders.acme).toEqual([
       'acme-b2',
       'acme-b1',
     ])
-    expect(parsed.data.saved_variants?.[0]?.overrides.priorityOverrides?.[0]?.priority).toBe('must')
-    expect(parsed.data.saved_variants?.[0]?.overrides.theme).toEqual({
+    expect(parsed.data.presets?.[0]?.overrides.priorityOverrides?.[0]?.priority).toBe('must')
+    expect(parsed.data.presets?.[0]?.overrides.theme).toEqual({
       preset: 'minimal',
       overrides: { bulletChar: 'none' },
     })

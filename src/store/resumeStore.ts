@@ -61,6 +61,13 @@ export function resumeMigration(persistedState: any, version: number, legacyUiDa
       console.warn('Resume data migration: Failed to pull overrides from uiStore.', e)
     }
   }
+  // v2 → v3: rename saved_variants → presets
+  if (version < 3 && persistedState.data) {
+    if (persistedState.data.saved_variants && !persistedState.data.presets) {
+      persistedState.data.presets = persistedState.data.saved_variants
+    }
+    delete persistedState.data.saved_variants
+  }
   return persistedState
 }
 
@@ -247,7 +254,7 @@ export const useResumeStore = create<ResumeState>()(
     }),
     {
       name: 'vector-resume-data',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({ data: state.data }),
       migrate: resumeMigration,

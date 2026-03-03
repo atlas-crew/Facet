@@ -43,11 +43,11 @@ describe('importMerge', () => {
     expect(role?.bullets.some((bullet) => bullet.id === 'acme-b1')).toBe(true)
   })
 
-  it('merges saved variants by id while preserving existing variants', () => {
+  it('merges presets by id while preserving existing presets', () => {
     const current = clone(defaultResumeData)
-    current.saved_variants = [
+    current.presets = [
       {
-        id: 'variant-1',
+        id: 'preset-1',
         name: 'Existing',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
@@ -61,9 +61,9 @@ describe('importMerge', () => {
     ]
 
     const incoming = clone(defaultResumeData)
-    incoming.saved_variants = [
+    incoming.presets = [
       {
-        id: 'variant-2',
+        id: 'preset-2',
         name: 'Incoming',
         createdAt: '2026-01-02T00:00:00.000Z',
         updatedAt: '2026-01-02T00:00:00.000Z',
@@ -77,6 +77,6 @@ describe('importMerge', () => {
     ]
 
     const merged = mergeResumeData(current, incoming)
-    expect(merged.saved_variants?.map((variant) => variant.id)).toEqual(['variant-1', 'variant-2'])
+    expect(merged.presets?.map((preset) => preset.id)).toEqual(['preset-1', 'preset-2'])
   })
 })

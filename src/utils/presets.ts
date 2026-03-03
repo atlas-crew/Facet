@@ -1,7 +1,7 @@
 import type {
   ResumeThemeState,
-  SavedVariant,
-  SavedVariantOverrides,
+  Preset,
+  PresetOverrides,
   VectorSelection,
 } from '../types'
 
@@ -22,12 +22,12 @@ const sortObject = (value: unknown): unknown => {
 
 const stableStringify = (value: unknown): string => JSON.stringify(sortObject(value))
 
-export const createVariantOverridesSnapshot = (
+export const createPresetSnapshot = (
   manualOverrides: Record<string, boolean>,
-  variantOverrides: Record<string, SavedVariant['overrides']['variantOverrides'][string]>,
+  variantOverrides: Record<string, Preset['overrides']['variantOverrides'][string]>,
   bulletOrders: Record<string, string[]>,
   theme: ResumeThemeState | undefined,
-): SavedVariantOverrides => ({
+): PresetOverrides => ({
   manualOverrides: { ...manualOverrides },
   variantOverrides: { ...variantOverrides },
   bulletOrders: Object.fromEntries(
@@ -41,19 +41,19 @@ export const createVariantOverridesSnapshot = (
     : undefined,
 })
 
-export const areVariantOverridesEqual = (
-  left: SavedVariantOverrides,
-  right: SavedVariantOverrides,
+export const arePresetOverridesEqual = (
+  left: PresetOverrides,
+  right: PresetOverrides,
 ): boolean => stableStringify(left) === stableStringify(right)
 
-export const createSavedVariant = (
+export const createPreset = (
   id: string,
   name: string,
   description: string,
   baseVector: VectorSelection,
-  overrides: SavedVariantOverrides,
+  overrides: PresetOverrides,
   createdAt = new Date().toISOString(),
-): SavedVariant => ({
+): Preset => ({
   id,
   name,
   description: description.trim().length > 0 ? description.trim() : undefined,

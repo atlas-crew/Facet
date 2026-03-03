@@ -89,15 +89,15 @@ Primary files:
 - `src/App.tsx`
 - `src/index.css`
 
-### 6) Saved Variants
-- Users can save, load, and delete named variants.
+### 6) Presets
+- Users can save, load, and delete named presets.
 - Loading restores selected vector and associated override state.
-- Dirty-state indicator shows divergence from the active saved variant.
-- Variants persist and round-trip via JSON import/export.
+- Dirty-state indicator shows divergence from the active preset.
+- Presets persist and round-trip via JSON import/export.
 
 Primary files:
-- `src/hooks/useSavedVariants.ts`
-- `src/utils/savedVariants.ts`
+- `src/hooks/usePresets.ts`
+- `src/utils/presets.ts`
 - `src/App.tsx`
 - `src/engine/serializer.ts`
 - `src/engine/importMerge.ts`
@@ -105,7 +105,7 @@ Primary files:
 ### 7) JD Analysis
 - Users can paste job descriptions and run analysis via configured endpoint.
 - Results support selective apply (vector, target line, and bullet-level priority changes).
-- Applied analysis can be saved as a new variant.
+- Applied analysis can be saved as a new preset.
 - Missing/invalid endpoint and request errors degrade gracefully.
 
 Primary files:
@@ -124,8 +124,8 @@ Primary files:
 
 ## Data Model Notes
 - `ResumeData.theme?: ResumeThemeState`
-- `ResumeData.saved_variants?: SavedVariant[]`
-- `SavedVariantOverrides` include manual overrides, variant overrides, bullet ordering, optional priority overrides, and optional theme snapshot.
+- `ResumeData.presets?: Preset[]`
+- `PresetOverrides` include manual overrides, variant overrides, bullet ordering, optional priority overrides, and optional theme snapshot.
 - Skill groups support vector-specific config (`priority`, `order`, optional `content`).
 - Assembly result includes integer page estimates and fractional usage for budget threshold UI.
 

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  areVariantOverridesEqual,
-  createSavedVariant,
-  createVariantOverridesSnapshot,
-} from '../utils/savedVariants'
+  arePresetOverridesEqual,
+  createPreset,
+  createPresetSnapshot,
+} from '../utils/presets'
 
-describe('savedVariants helpers', () => {
+describe('preset helpers', () => {
   it('creates deterministic snapshots for current overrides', () => {
-    const snapshot = createVariantOverridesSnapshot(
+    const snapshot = createPresetSnapshot(
       { 'bullet:a': true },
       { 'bullet:a': 'default' },
       { role1: ['b1', 'b2'] },
@@ -40,12 +40,12 @@ describe('savedVariants helpers', () => {
       bulletOrders: { role1: ['b1', 'b2'] },
     }
 
-    expect(areVariantOverridesEqual(left, right)).toBe(true)
+    expect(arePresetOverridesEqual(left, right)).toBe(true)
   })
 
-  it('creates a saved variant model with timestamps and optional description', () => {
-    const created = createSavedVariant(
-      'variant-1',
+  it('creates a preset model with timestamps and optional description', () => {
+    const created = createPreset(
+      'preset-1',
       'Security',
       '',
       'backend',
@@ -58,7 +58,7 @@ describe('savedVariants helpers', () => {
       '2026-01-01T00:00:00.000Z',
     )
 
-    expect(created.id).toBe('variant-1')
+    expect(created.id).toBe('preset-1')
     expect(created.baseVector).toBe('backend')
     expect(created.description).toBeUndefined()
     expect(created.createdAt).toBe('2026-01-01T00:00:00.000Z')

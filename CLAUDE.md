@@ -54,7 +54,7 @@ The assembly pipeline is the core of the app:
 
 Two Zustand stores, both persisted to localStorage:
 
-- **`resumeStore`** — Holds the canonical `ResumeData` (components, vectors, metadata, saved variants). Key: `vector-resume-data`.
+- **`resumeStore`** — Holds the canonical `ResumeData` (components, vectors, metadata, presets). Key: `vector-resume-data`.
 - **`uiStore`** — Holds UI state: selected vector, panel ratio, manual overrides, variant overrides, and bullet orders. All keyed by vector so each vector has independent override state. Key: `vector-resume-ui`.
 
 ### Component Override System
@@ -84,9 +84,9 @@ Two-panel split: Component Library (left, ~45%) | Live Preview (right, ~55%) wit
 
 `src/utils/jdAnalyzer.ts` sends job descriptions to an external Claude API proxy (configured via `VITE_ANTHROPIC_PROXY_URL` env var) for analysis. Returns vector recommendations, bullet priority adjustments, target line suggestions, and skill gap analysis.
 
-### Saved Variants
+### Presets
 
-Variants snapshot the current override state (manual overrides, variant text selections, bullet orders, priority overrides) for a given vector. Stored in `ResumeData.saved_variants` and managed through `src/utils/savedVariants.ts`.
+Presets snapshot the current override state (manual overrides, variant text selections, bullet orders, priority overrides) for a given vector. Stored in `ResumeData.presets` and managed through `src/utils/presets.ts`.
 
 ## Conventions
 

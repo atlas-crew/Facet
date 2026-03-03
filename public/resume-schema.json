@@ -48,9 +48,9 @@
       "type": "array",
       "items": { "$ref": "#/$defs/EducationEntry" }
     },
-    "saved_variants": {
+    "presets": {
       "type": "array",
-      "items": { "$ref": "#/$defs/SavedVariant" }
+      "items": { "$ref": "#/$defs/Preset" }
     },
     "manualOverrides": { "$ref": "#/$defs/VectorManualOverrides" },
     "variantOverrides": { "$ref": "#/$defs/VectorVariantOverrides" },
@@ -331,7 +331,7 @@
         "overrides": { "$ref": "#/$defs/ResumeThemeOverrides" }
       }
     },
-    "SavedVariantOverrides": {
+    "PresetOverrides": {
       "type": "object",
       "required": ["manualOverrides", "variantOverrides", "bulletOrders"],
       "additionalProperties": false,
@@ -368,7 +368,7 @@
         "priority": { "$ref": "#/$defs/ComponentPriority" }
       }
     },
-    "SavedVariant": {
+    "Preset": {
       "type": "object",
       "required": ["id", "name", "createdAt", "updatedAt", "baseVector", "overrides"],
       "additionalProperties": false,
@@ -379,7 +379,7 @@
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" },
         "baseVector": { "type": "string" },
-        "overrides": { "$ref": "#/$defs/SavedVariantOverrides" }
+        "overrides": { "$ref": "#/$defs/PresetOverrides" }
       }
     },
     "VectorManualOverrides": {

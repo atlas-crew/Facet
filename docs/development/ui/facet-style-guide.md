@@ -263,7 +263,7 @@ Full viewport height. No scrolling on the page level — panels scroll independe
 
 ### Top Bar Zones
 - **Left:** Brand lockup (Facet mark + wordmark + tagline)
-- **Center:** Variant controls (saved variant selector, save/delete)
+- **Center:** Preset controls (preset selector, save/delete)
 - **Right:** Theme toggle (gear icon), Import, Export, Analyze JD, Copy (icon-only), Download PDF
 
 ### Preview Panel

@@ -143,6 +143,25 @@ describe('resumeStore', () => {
     expect(useResumeStore.getState().past.length).toBe(50)
   })
 
+  it('resumeMigration renames saved_variants to presets (v2→v3)', () => {
+    // Simulate real v2 persisted data: has saved_variants, no presets field
+    const { presets: _drop, ...dataWithoutPresets } = defaultResumeData
+    const persistedState = {
+      data: {
+        ...dataWithoutPresets,
+        saved_variants: [
+          { id: 'sv-1', name: 'Test', createdAt: '', updatedAt: '', baseVector: 'backend', overrides: { manualOverrides: {}, variantOverrides: {}, bulletOrders: {} } },
+        ],
+        _overridesMigrated: true,
+      },
+    }
+    const migrated = resumeMigration(persistedState, 2, null)
+
+    expect(migrated.data.presets).toHaveLength(1)
+    expect(migrated.data.presets[0].id).toBe('sv-1')
+    expect(migrated.data.saved_variants).toBeUndefined()
+  })
+
   it('resumeMigration recovers positioning overrides from legacy data', () => {
     const mockUiData = JSON.stringify({
       state: {

@@ -448,91 +448,93 @@ function assertResumeDataShape(value: unknown): asserts value is ResumeData {
     }
   }
 
-  if (root.saved_variants !== undefined) {
-    const variants = assertArray(root.saved_variants, 'saved_variants')
-    const variantIds = new Set<string>()
-    for (const [index, variant] of variants.entries()) {
-      const record = assertRecord(variant, `saved_variants[${index}]`)
-      const id = assertString(record.id, `saved_variants[${index}].id`)
-      assertUniqueId(variantIds, id, `saved_variants[${index}]`)
-      assertString(record.name, `saved_variants[${index}].name`)
-      assertOptionalString(record.description, `saved_variants[${index}].description`)
-      assertString(record.createdAt, `saved_variants[${index}].createdAt`)
-      assertString(record.updatedAt, `saved_variants[${index}].updatedAt`)
-      assertString(record.baseVector, `saved_variants[${index}].baseVector`)
+  // Accept both "presets" and legacy "saved_variants" field name
+  const rawPresets = root.presets ?? root.saved_variants
+  if (rawPresets !== undefined) {
+    const presetList = assertArray(rawPresets, 'presets')
+    const presetIds = new Set<string>()
+    for (const [index, preset] of presetList.entries()) {
+      const record = assertRecord(preset, `presets[${index}]`)
+      const id = assertString(record.id, `presets[${index}].id`)
+      assertUniqueId(presetIds, id, `presets[${index}]`)
+      assertString(record.name, `presets[${index}].name`)
+      assertOptionalString(record.description, `presets[${index}].description`)
+      assertString(record.createdAt, `presets[${index}].createdAt`)
+      assertString(record.updatedAt, `presets[${index}].updatedAt`)
+      assertString(record.baseVector, `presets[${index}].baseVector`)
 
-      const overrides = assertRecord(record.overrides, `saved_variants[${index}].overrides`)
+      const overrides = assertRecord(record.overrides, `presets[${index}].overrides`)
       const manualOverrides = assertRecord(
         overrides.manualOverrides,
-        `saved_variants[${index}].overrides.manualOverrides`,
+        `presets[${index}].overrides.manualOverrides`,
       )
       for (const [key, rawValue] of Object.entries(manualOverrides)) {
-        assertBoolean(rawValue, `saved_variants[${index}].overrides.manualOverrides.${key}`)
+        assertBoolean(rawValue, `presets[${index}].overrides.manualOverrides.${key}`)
       }
 
       const variantOverrides = assertRecord(
         overrides.variantOverrides,
-        `saved_variants[${index}].overrides.variantOverrides`,
+        `presets[${index}].overrides.variantOverrides`,
       )
       for (const [key, rawValue] of Object.entries(variantOverrides)) {
         const variantSelection = assertString(
           rawValue,
-          `saved_variants[${index}].overrides.variantOverrides.${key}`,
+          `presets[${index}].overrides.variantOverrides.${key}`,
         )
         if (variantSelection === 'auto') {
           throw new Error(
-            `saved_variants[${index}].overrides.variantOverrides.${key} must be a vector id or "default".`,
+            `presets[${index}].overrides.variantOverrides.${key} must be a vector id or "default".`,
           )
         }
       }
 
       assertRoleBulletOrderMap(
         overrides.bulletOrders,
-        `saved_variants[${index}].overrides.bulletOrders`,
+        `presets[${index}].overrides.bulletOrders`,
       )
 
       if (overrides.priorityOverrides !== undefined) {
         const priorityOverrides = assertArray(
           overrides.priorityOverrides,
-          `saved_variants[${index}].overrides.priorityOverrides`,
+          `presets[${index}].overrides.priorityOverrides`,
         )
         for (const [overrideIndex, override] of priorityOverrides.entries()) {
           const priorityOverride = assertRecord(
             override,
-            `saved_variants[${index}].overrides.priorityOverrides[${overrideIndex}]`,
+            `presets[${index}].overrides.priorityOverrides[${overrideIndex}]`,
           )
           assertString(
             priorityOverride.bulletId,
-            `saved_variants[${index}].overrides.priorityOverrides[${overrideIndex}].bulletId`,
+            `presets[${index}].overrides.priorityOverrides[${overrideIndex}].bulletId`,
           )
           assertString(
             priorityOverride.vectorId,
-            `saved_variants[${index}].overrides.priorityOverrides[${overrideIndex}].vectorId`,
+            `presets[${index}].overrides.priorityOverrides[${overrideIndex}].vectorId`,
           )
           const priority = assertString(
             priorityOverride.priority,
-            `saved_variants[${index}].overrides.priorityOverrides[${overrideIndex}].priority`,
+            `presets[${index}].overrides.priorityOverrides[${overrideIndex}].priority`,
           )
           if (!PRIORITIES.has(priority as ComponentPriority)) {
             throw new Error(
-              `saved_variants[${index}].overrides.priorityOverrides[${overrideIndex}].priority must be one of: must, strong, optional, exclude.`,
+              `presets[${index}].overrides.priorityOverrides[${overrideIndex}].priority must be one of: must, strong, optional, exclude.`,
             )
           }
         }
       }
       if (overrides.theme !== undefined) {
-        assertThemeShape(overrides.theme, `saved_variants[${index}].overrides.theme`)
+        assertThemeShape(overrides.theme, `presets[${index}].overrides.theme`)
       }
-      assertOptionalString(overrides.targetLineId, `saved_variants[${index}].overrides.targetLineId`)
-      assertOptionalString(overrides.profileId, `saved_variants[${index}].overrides.profileId`)
+      assertOptionalString(overrides.targetLineId, `presets[${index}].overrides.targetLineId`)
+      assertOptionalString(overrides.profileId, `presets[${index}].overrides.profileId`)
 
       if (overrides.skillGroupOrder !== undefined) {
         const skillOrder = assertArray(
           overrides.skillGroupOrder,
-          `saved_variants[${index}].overrides.skillGroupOrder`,
+          `presets[${index}].overrides.skillGroupOrder`,
         )
         for (const [skillIndex, skillId] of skillOrder.entries()) {
-          assertString(skillId, `saved_variants[${index}].overrides.skillGroupOrder[${skillIndex}]`)
+          assertString(skillId, `presets[${index}].overrides.skillGroupOrder[${skillIndex}]`)
         }
       }
     }
@@ -655,11 +657,11 @@ const collectWarningsAndNormalizeVectors = (data: ResumeData): { data: ResumeDat
         ...skillGroup,
         vectors: ensureSkillGroupVectors(skillGroup, vectors),
       })),
-      saved_variants: (data.saved_variants ?? []).map((variant) => ({
-        ...variant,
+      presets: (data.presets ?? []).map((preset) => ({
+        ...preset,
         overrides: {
-          ...variant.overrides,
-          ...(variant.overrides.theme ? { theme: normalizeThemeState(variant.overrides.theme) } : {}),
+          ...preset.overrides,
+          ...(preset.overrides.theme ? { theme: normalizeThemeState(preset.overrides.theme) } : {}),
         },
       })),
     },
@@ -712,6 +714,15 @@ export const importResumeConfig = (
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(`Failed to parse ${format.toUpperCase()}: ${detail}`)
+  }
+
+  // Normalize legacy "saved_variants" field name to "presets"
+  if (parsed && typeof parsed === 'object' && 'saved_variants' in (parsed as Record<string, unknown>)) {
+    const record = parsed as Record<string, unknown>
+    if (record.presets === undefined) {
+      record.presets = record.saved_variants
+    }
+    delete record.saved_variants
   }
 
   try {

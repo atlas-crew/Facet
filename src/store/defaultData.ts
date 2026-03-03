@@ -133,5 +133,5 @@ export const defaultResumeData: ResumeData = {
       year: '2018',
     },
   ],
-  saved_variants: [],
+  presets: [],
 }
