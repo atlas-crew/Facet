@@ -3,9 +3,9 @@ import { Copy, Download, FileDown, FileJson, Monitor, Moon, ScanSearch, Settings
 import './index.css'
 import type {
   PriorityByVector,
-  ResumeData,
   ResumeThemeOverrides,
   ResumeThemePresetId,
+  VariantSelection,
 } from './types'
 import { assembleResume, getPriorityForVector } from './engine/assembler'
 import { renderResumeAsText } from './utils/textRenderer'
@@ -41,6 +41,10 @@ import { VariantSaveCanceledError, useSavedVariants } from './hooks/useSavedVari
 import { createId, sanitizeEndpointUrl, slugify } from './utils/idUtils'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
+
+const EMPTY_MANUAL_OVERRIDES: Readonly<Record<string, Record<string, boolean>>> = Object.freeze({})
+const EMPTY_VARIANT_OVERRIDES: Readonly<Record<string, Record<string, VariantSelection>>> = Object.freeze({})
+const EMPTY_BULLET_ORDERS: Readonly<Record<string, Record<string, string[]>>> = Object.freeze({})
 
 const colorThemeKeys = new Set<keyof ResumeThemeOverrides>([
   'colorBody',
@@ -127,24 +131,31 @@ function FacetWordmark() {
 }
 
 function App() {
-  const { data, setData, undo, redo } = useResumeStore()
+  const {
+    data,
+    setData,
+    updateData,
+    undo,
+    redo,
+    setOverride,
+    setVariantOverride,
+    setRoleBulletOrder,
+    resetRoleBulletOrder,
+    resetAllOverrides,
+    resetOverridesForVector,
+  } = useResumeStore()
   const {
     selectedVector,
     setSelectedVector,
     panelRatio,
     setPanelRatio,
-    manualOverrides,
-    variantOverrides,
-    resetAllOverrides,
-    resetOverridesForVector,
-    setOverride,
-    setVariantOverride,
-    bulletOrders,
-    setRoleBulletOrder,
-    resetRoleBulletOrder,
     appearance,
     setAppearance,
   } = useUiStore()
+
+  const manualOverrides = data.manualOverrides ?? EMPTY_MANUAL_OVERRIDES
+  const variantOverrides = data.variantOverrides ?? EMPTY_VARIANT_OVERRIDES
+  const bulletOrders = data.bulletOrders ?? EMPTY_BULLET_ORDERS
 
   const [draggingSplit, setDraggingSplit] = useState(false)
   const [importExportMode, setImportExportMode] = useState<'import' | 'export' | null>(null)
@@ -293,9 +304,6 @@ function App() {
     setOverride(vectorKey, componentKey, nextIncluded)
   }
 
-  const updateData = (fn: (current: ResumeData) => ResumeData) => {
-    setData(fn(useResumeStore.getState().data))
-  }
   const {
     savedVariants,
     activeVariantId,

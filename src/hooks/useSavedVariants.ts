@@ -8,7 +8,7 @@ import type {
   VectorSelection,
 } from '../types'
 import { useResumeStore } from '../store/resumeStore'
-import { toVectorKey, useUiStore, type UiState } from '../store/uiStore'
+import { toVectorKey, useUiStore } from '../store/uiStore'
 import {
   areVariantOverridesEqual,
   createSavedVariant,
@@ -33,7 +33,7 @@ interface UseSavedVariantsArgs {
   selectedVector: VectorSelection
   overridesForVector: Record<string, boolean>
   variantsForVector: Record<string, VariantSelection>
-  activeBulletOrders: UiState['bulletOrders'][string]
+  activeBulletOrders: Record<string, string[]>
   themeState: ResumeThemeState
   updateData: (fn: (current: ResumeData) => ResumeData) => void
   showNotice: (tone: NoticeTone, message: string) => void
@@ -95,43 +95,40 @@ export function useSavedVariants({
   }, [activeVariant, currentVariantSnapshot])
 
   const getSnapshotForVector = (vector: SavedVariant['baseVector']) => {
-    const state = useUiStore.getState()
     const resumeState = useResumeStore.getState()
     const key = toVectorKey(vector)
 
     return createVariantOverridesSnapshot(
-      state.manualOverrides[key] ?? {},
-      state.variantOverrides[key] ?? {},
-      state.bulletOrders[key] ?? {},
+      resumeState.data.manualOverrides?.[key] ?? {},
+      resumeState.data.variantOverrides?.[key] ?? {},
+      resumeState.data.bulletOrders?.[key] ?? {},
       normalizeThemeState(resumeState.data.theme),
     )
   }
 
   const applySavedVariant = (variant: SavedVariant) => {
     const key = toVectorKey(variant.baseVector)
+    const { setSelectedVector } = useUiStore.getState()
 
-    useUiStore.setState((state) => ({
-      ...state,
-      selectedVector: variant.baseVector,
-      manualOverrides: {
-        ...state.manualOverrides,
-        [key]: { ...variant.overrides.manualOverrides },
-      },
-      variantOverrides: {
-        ...state.variantOverrides,
-        [key]: { ...variant.overrides.variantOverrides },
-      },
-      bulletOrders: {
-        ...state.bulletOrders,
-        [key]: Object.fromEntries(
-          Object.entries(variant.overrides.bulletOrders).map(([roleId, order]) => [roleId, [...order]]),
-        ),
-      },
-    }))
+    setSelectedVector(variant.baseVector)
 
-    if (variant.overrides.priorityOverrides?.length || variant.overrides.theme) {
-      updateData((current) => ({
+    updateData((current) => {
+      const manualOverrides = { ...(current.manualOverrides ?? {}) }
+      manualOverrides[key] = { ...variant.overrides.manualOverrides }
+
+      const variantOverrides = { ...(current.variantOverrides ?? {}) }
+      variantOverrides[key] = { ...variant.overrides.variantOverrides }
+
+      const bulletOrders = { ...(current.bulletOrders ?? {}) }
+      bulletOrders[key] = Object.fromEntries(
+        Object.entries(variant.overrides.bulletOrders).map(([roleId, order]) => [roleId, [...order]]),
+      )
+
+      return {
         ...current,
+        manualOverrides,
+        variantOverrides,
+        bulletOrders,
         roles:
           variant.overrides.priorityOverrides && variant.overrides.priorityOverrides.length > 0
             ? current.roles.map((role) => ({
@@ -158,8 +155,8 @@ export function useSavedVariants({
               theme: normalizeThemeState(variant.overrides.theme),
             }
           : {}),
-      }))
-    }
+      }
+    })
 
     setActiveVariantId(variant.id)
     showNotice('success', `Loaded variant ${variant.name}`)

@@ -2,6 +2,7 @@ import type { ResumeData } from '../types'
 
 export const defaultResumeData: ResumeData = {
   version: 1,
+  _overridesMigrated: true,
   theme: {
     preset: 'ferguson-v12',
   },

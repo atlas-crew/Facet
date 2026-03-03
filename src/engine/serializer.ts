@@ -421,6 +421,33 @@ function assertResumeDataShape(value: unknown): asserts value is ResumeData {
     assertString(record.year, `education[${index}].year`)
   }
 
+  if (root.manualOverrides !== undefined) {
+    const manualOverrides = assertRecord(root.manualOverrides, 'manualOverrides')
+    for (const [vectorKey, vectorMap] of Object.entries(manualOverrides)) {
+      const record = assertRecord(vectorMap, `manualOverrides.${vectorKey}`)
+      for (const [key, value] of Object.entries(record)) {
+        assertBoolean(value, `manualOverrides.${vectorKey}.${key}`)
+      }
+    }
+  }
+
+  if (root.variantOverrides !== undefined) {
+    const variantOverrides = assertRecord(root.variantOverrides, 'variantOverrides')
+    for (const [vectorKey, vectorMap] of Object.entries(variantOverrides)) {
+      const record = assertRecord(vectorMap, `variantOverrides.${vectorKey}`)
+      for (const [key, value] of Object.entries(record)) {
+        assertString(value, `variantOverrides.${vectorKey}.${key}`)
+      }
+    }
+  }
+
+  if (root.bulletOrders !== undefined) {
+    const bulletOrders = assertRecord(root.bulletOrders, 'bulletOrders')
+    for (const [vectorKey, vectorMap] of Object.entries(bulletOrders)) {
+      assertRoleBulletOrderMap(vectorMap, `bulletOrders.${vectorKey}`)
+    }
+  }
+
   if (root.saved_variants !== undefined) {
     const variants = assertArray(root.saved_variants, 'saved_variants')
     const variantIds = new Set<string>()

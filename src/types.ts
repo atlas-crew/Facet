@@ -205,11 +205,20 @@ export interface ResumeData {
   projects: ProjectComponent[]
   education: EducationEntry[]
   saved_variants?: SavedVariant[]
+  manualOverrides?: VectorManualOverrides
+  variantOverrides?: VectorVariantOverrides
+  bulletOrders?: VectorBulletOrders
+  _overridesMigrated?: boolean
 }
 
 export type ManualComponentOverrides = Record<string, boolean>
+export type VectorManualOverrides = Record<VectorId | 'all', ManualComponentOverrides>
+
 export type ManualVariantOverrides = Record<string, VariantSelection>
+export type VectorVariantOverrides = Record<VectorId | 'all', ManualVariantOverrides>
+
 export type RoleBulletOrderMap = Record<string, string[]>
+export type VectorBulletOrders = Record<VectorId | 'all', RoleBulletOrderMap>
 
 export interface AssembledTextComponent {
   id: string
