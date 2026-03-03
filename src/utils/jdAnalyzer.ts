@@ -24,10 +24,131 @@ export interface JdAnalysisRequestOptions {
   apiKey?: string
 }
 
+export interface ReframedBulletResult {
+  original: string
+  reframed: string
+  reasoning: string
+}
+
 const MODEL_ID = 'claude-sonnet-4-20250514'
 const MAX_JD_WORDS = 1800
 const REQUEST_TIMEOUT_MS = 30_000
 class JsonExtractionError extends Error {}
+
+const callAnthropicProxy = async (
+  endpoint: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options: JdAnalysisRequestOptions = {},
+  extraBody: Record<string, unknown> = {},
+): Promise<string> => {
+  const normalizedEndpoint = normalizeEndpoint(endpoint)
+  const timeoutController = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  }
+  if (options.apiKey) {
+    headers.authorization = `Bearer ${options.apiKey}`
+  }
+
+  try {
+    const response = await fetch(normalizedEndpoint, {
+      method: 'POST',
+      headers,
+      redirect: 'manual',
+      signal: timeoutController.signal,
+      body: JSON.stringify({
+        model: MODEL_ID,
+        system_prompt: systemPrompt,
+        prompt: userPrompt,
+        ...extraBody,
+      }),
+    })
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error('AI proxy endpoint returned a redirect, which is not allowed.')
+    }
+    if (!response.ok) {
+      const errorBody = (await response.text()).trim().replace(/\s+/g, ' ').slice(0, 200)
+      throw new Error(`Anthropic API error (${response.status}): ${errorBody || 'Request failed.'}`)
+    }
+
+    const payload = (await response.json()) as unknown
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('AI response schema was invalid.')
+    }
+
+    const payloadRecord = payload as Record<string, unknown>
+    
+    // Check for nested analysis property (Format 1)
+    if (payloadRecord.analysis && typeof payloadRecord.analysis === 'object') {
+      return JSON.stringify(payloadRecord.analysis)
+    }
+    
+    // Check for common fields directly (Format 2)
+    if ('primary_vector' in payloadRecord || 'reframed' in payloadRecord) {
+      return JSON.stringify(payloadRecord)
+    }
+
+    // Anthropic-style { content: [{ type: 'text', text: '...json...' }] } (Format 3)
+    const content = Array.isArray(payloadRecord.content) ? payloadRecord.content : []
+    const text = content.find((part) => part && typeof part === 'object' && (part as { type?: unknown }).type === 'text')
+    const rawText = text && typeof (text as { text?: unknown }).text === 'string' ? (text as { text: string }).text : ''
+
+    if (!rawText) {
+      throw new Error('AI response schema was invalid.')
+    }
+
+    return rawText
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`AI request timed out after ${REQUEST_TIMEOUT_MS}ms.`)
+    }
+    throw error
+  } finally {
+    globalThis.clearTimeout(timeoutId)
+  }
+}
+
+export const reframeBulletForVector = async (
+  bulletText: string,
+  vectorLabel: string,
+  endpoint: string,
+  options: JdAnalysisRequestOptions = {},
+): Promise<ReframedBulletResult> => {
+  const systemPrompt = `You are a resume positioning expert. Return JSON only.
+Given a resume bullet and a target positioning vector, strategically rewrite the bullet to emphasize accomplishments and skills most relevant to that vector.
+The rewrite should remain truthful but use vocabulary and emphasis appropriate for the target role level and focus.
+
+Response schema:
+{
+  "original": "string",
+  "reframed": "string",
+  "reasoning": "one sentence explaining the strategy used"
+}`
+
+  const userPrompt = `Original Bullet: "${bulletText}"
+Target Vector: "${vectorLabel}"
+
+Respond in JSON only.`
+
+  const rawResponse = await callAnthropicProxy(endpoint, systemPrompt, userPrompt, options)
+  
+  try {
+    const parsed = JSON.parse(extractJsonBlock(rawResponse)) as Partial<ReframedBulletResult>
+    if (typeof parsed.reframed !== 'string' || typeof parsed.reasoning !== 'string') {
+      throw new Error('Invalid reframe response schema.')
+    }
+    return {
+      original: bulletText,
+      reframed: parsed.reframed,
+      reasoning: parsed.reasoning,
+    }
+  } catch (error) {
+    if (error instanceof JsonExtractionError) throw error
+    throw new Error('Failed to parse reframing response.', { cause: error })
+  }
+}
 
 const isRecommendedPriority = (value: unknown): value is JdBulletAdjustment['recommended_priority'] =>
   value === 'must' || value === 'strong' || value === 'optional' || value === 'exclude'
@@ -275,73 +396,15 @@ export const analyzeJobDescription = async (
   endpoint: string,
   options: JdAnalysisRequestOptions = {},
 ): Promise<JdAnalysisResult> => {
-  const normalizedEndpoint = normalizeEndpoint(endpoint)
   const contextObject = buildContext(data)
   const contextJson = JSON.stringify(contextObject)
-  const timeoutController = new AbortController()
-  const timeoutId = globalThis.setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-  }
-  if (options.apiKey) {
-    headers.authorization = `Bearer ${options.apiKey}`
-  }
+  const userPrompt = `Job description:\n${preparedJd.content}\n\nCandidate data:\n${contextJson}\n\nRespond in JSON only.`
 
-  let response: Response
-  try {
-    response = await fetch(normalizedEndpoint, {
-      method: 'POST',
-      headers,
-      redirect: 'manual',
-      signal: timeoutController.signal,
-      body: JSON.stringify({
-        model: MODEL_ID,
-        system_prompt: systemPrompt,
-        job_description: preparedJd.content,
-        resume_data: contextObject,
-        prompt: `Job description:\n${preparedJd.content}\n\nCandidate data:\n${contextJson}\n\nRespond in JSON only.`,
-      }),
-    })
-    if (response.status >= 300 && response.status < 400) {
-      throw new Error('JD analysis endpoint returned a redirect, which is not allowed.')
-    }
-    if (!response.ok) {
-      const errorBody = (await response.text()).trim().replace(/\s+/g, ' ').slice(0, 200)
-      throw new Error(`Anthropic API error (${response.status}): ${errorBody || 'Request failed.'}`)
-    }
-
-    const payload = (await response.json()) as unknown
-    if (!payload || typeof payload !== 'object') {
-      throw new Error('Analysis response schema was invalid.')
-    }
-
-    const payloadRecord = payload as Record<string, unknown>
-    // Format 1: custom proxy returns { analysis: { ...result } }.
-    if (payloadRecord.analysis && typeof payloadRecord.analysis === 'object') {
-      return parseJdAnalysisResponseWithKnownBullets(JSON.stringify(payloadRecord.analysis), data)
-    }
-    // Format 2: proxy returns result object directly.
-    if ('primary_vector' in payloadRecord) {
-      return parseJdAnalysisResponseWithKnownBullets(JSON.stringify(payloadRecord), data)
-    }
-    // Format 3: Anthropic-style { content: [{ type: 'text', text: '...json...' }] }.
-    const content = Array.isArray(payloadRecord.content) ? payloadRecord.content : []
-    const text = content.find((part) => part && typeof part === 'object' && (part as { type?: unknown }).type === 'text')
-    const rawText = text && typeof (text as { text?: unknown }).text === 'string' ? (text as { text: string }).text : ''
-
-    if (!rawText) {
-      throw new Error('Analysis response schema was invalid.')
-    }
-
-    return parseJdAnalysisResponseWithKnownBullets(rawText, data)
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`JD analysis request timed out after ${REQUEST_TIMEOUT_MS}ms.`)
-    }
-    throw error
-  } finally {
-    globalThis.clearTimeout(timeoutId)
-  }
+  const rawText = await callAnthropicProxy(endpoint, systemPrompt, userPrompt, options, {
+    job_description: preparedJd.content,
+    resume_data: contextObject,
+  })
+  return parseJdAnalysisResponseWithKnownBullets(rawText, data)
 }
 
 const parseJdAnalysisResponseWithKnownBullets = (raw: string, data: ResumeData): JdAnalysisResult => {
