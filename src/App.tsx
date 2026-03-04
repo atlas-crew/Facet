@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { Copy, Download, FileDown, FileJson, Layers, Monitor, Moon, Paintbrush, ScanSearch, Sun, Upload } from 'lucide-react'
+import { Copy, Download, Eye, FileDown, FileJson, FileText, FolderOpen, Layers, Monitor, Moon, Paintbrush, Save, ScanSearch, Sun, Trash2, Upload, Zap } from 'lucide-react'
+import { DropdownMenu } from './components/DropdownMenu'
 import './index.css'
 import type {
   PriorityByVector,
@@ -17,6 +18,7 @@ import { UndoRedoControls } from './components/UndoRedoControls'
 import { VectorBar } from './components/VectorBar'
 import { ComponentLibrary } from './components/ComponentLibrary'
 import { PdfPreview } from './components/PdfPreview'
+import { LivePreview } from './components/LivePreview'
 import { StatusBar } from './components/StatusBar'
 import { ImportExport } from './components/ImportExport'
 import { mergeResumeData } from './engine/importMerge'
@@ -35,11 +37,12 @@ import {
 } from './utils/skillGroupVectors'
 import { useFocusTrap } from './utils/useFocusTrap'
 import { defaultVectorsForSelection } from './utils/vectorPriority'
-import { normalizeThemeState, resolveTheme } from './themes/theme'
+import { normalizeThemeState, resolveTheme, THEME_DENSITY_KEYS } from './themes/theme'
 import { ThemeEditorPanel } from './components/ThemeEditorPanel'
 import { usePdfPreview } from './hooks/usePdfPreview'
 import { PresetSaveCanceledError, usePresets } from './hooks/usePresets'
 import { createId, sanitizeEndpointUrl, slugify } from './utils/idUtils'
+import { findOptimalDensity } from './utils/densityOptimizer'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
 
@@ -59,41 +62,6 @@ const colorThemeKeys = new Set<keyof ResumeThemeOverrides>([
   'competencyLabelColor',
   'projectUrlColor',
 ])
-
-type ThemeDensityKey =
-  | 'sectionGapBefore'
-  | 'sectionGapAfter'
-  | 'sectionRuleGap'
-  | 'roleGap'
-  | 'roleHeaderGap'
-  | 'roleLineGapAfter'
-  | 'bulletGap'
-  | 'paragraphGap'
-  | 'contactGapAfter'
-  | 'competencyGap'
-  | 'projectGap'
-  | 'marginTop'
-  | 'marginBottom'
-  | 'marginLeft'
-  | 'marginRight'
-
-const themeDensityKeys: ThemeDensityKey[] = [
-  'sectionGapBefore',
-  'sectionGapAfter',
-  'sectionRuleGap',
-  'roleGap',
-  'roleHeaderGap',
-  'roleLineGapAfter',
-  'bulletGap',
-  'paragraphGap',
-  'contactGapAfter',
-  'competencyGap',
-  'projectGap',
-  'marginTop',
-  'marginBottom',
-  'marginLeft',
-  'marginRight',
-]
 
 interface JdSuggestionSelection {
   applyPrimaryVector: boolean
@@ -166,6 +134,12 @@ function App() {
     setPanelRatio,
     appearance,
     setAppearance,
+    showHeatmap,
+    setShowHeatmap,
+    showDesignHealth,
+    setShowDesignHealth,
+    viewMode,
+    setViewMode,
   } = useUiStore()
 
   const manualOverrides = data.manualOverrides ?? EMPTY_MANUAL_OVERRIDES
@@ -190,6 +164,7 @@ function App() {
   const [leftPanelMode, setLeftPanelMode] = useState<'content' | 'design'>('content')
   const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
   const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
+  const [isOptimizingDensity, setIsOptimizingDensity] = useState(false)
   const noticeTimeoutRef = useRef<number | null>(null)
   const jdModalRef = useRef<HTMLDivElement>(null)
   const reframeModalRef = useRef<HTMLDivElement>(null)
@@ -398,13 +373,15 @@ function App() {
         ...(normalized.overrides ?? {}),
       }
 
-      for (const key of themeDensityKeys) {
+      for (const key of THEME_DENSITY_KEYS) {
         const baseValue = resolved[key]
         if (typeof baseValue !== 'number') {
           continue
         }
-        nextOverrides[key] = Number((baseValue * multiplier).toFixed(3))
+        // Explicitly cast to Record<string, number> for type-safe indexing
+        ;(nextOverrides as Record<string, number>)[key] = Number((baseValue * multiplier).toFixed(3))
       }
+
 
       return {
         ...current,
@@ -414,6 +391,33 @@ function App() {
         }),
       }
     })
+  }
+
+  const optimizeDensity = async (targetPages: number) => {
+    setIsOptimizingDensity(true)
+    try {
+      const result = await findOptimalDensity(assembledResult.resume, resolvedTheme, targetPages)
+
+      updateData((current) => {
+        const normalized = normalizeThemeState(current.theme)
+        return {
+          ...current,
+          theme: normalizeThemeState({
+            preset: normalized.preset,
+            overrides: {
+              ...(normalized.overrides ?? {}),
+              ...result.overrides,
+            },
+          }),
+        }
+      })
+
+      showNotice('success', `Optimized density to fit ${targetPages} page(s) (${result.iterations} steps)`)
+    } catch (error) {
+      showNotice('error', 'Density optimization failed')
+    } finally {
+      setIsOptimizingDensity(false)
+    }
   }
 
   const onAnalyzeJd = async () => {
@@ -848,6 +852,22 @@ function App() {
     }
   }
 
+  const onViewSwitcherKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      setViewMode(viewMode === 'pdf' ? 'live' : 'pdf')
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      setViewMode(viewMode === 'live' ? 'pdf' : 'live')
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      setViewMode('pdf')
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      setViewMode('live')
+    }
+  }
+
   // Global keyboard shortcuts
   const handleGlobalKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
@@ -928,49 +948,88 @@ function App() {
           <FacetWordmark />
           <p className="top-bar-tagline">Same diamond. Different face.</p>
         </div>
-        <div className="top-bar-center">
-          <div className="preset-controls">
-            <select
-              className="component-input compact"
-              aria-label="Load preset"
-              value={activePresetId ?? ''}
-              onChange={(event) => {
-                const nextId = event.target.value
-                if (!nextId) {
-                  setActivePresetId(null)
-                  return
-                }
-                const preset = presets.find((item) => item.id === nextId)
-                if (!preset) {
-                  setActivePresetId(null)
-                  return
-                }
-                applyPreset(preset)
-              }}
-            >
-              <option value="">Presets</option>
-              {presets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.name} ({preset.baseVector})
-                </option>
-              ))}
-            </select>
-            <button className="btn-secondary" type="button" onClick={onSavePreset}>
-              Save Current
-            </button>
-            <button
-              className="btn-secondary"
-              type="button"
-              onClick={onDeleteActivePreset}
-              disabled={!activePreset}
-              aria-label={activePreset ? `Delete preset ${activePreset.name}` : 'Delete Preset'}
-            >
-              Delete Preset
-            </button>
-          </div>
-        </div>
         <div className="top-bar-actions">
           <UndoRedoControls />
+          <div className="view-switcher" role="tablist" aria-label="Preview mode">
+            <button
+              id="tab-pdf"
+              type="button"
+              className={`view-switcher-btn ${viewMode === 'pdf' ? 'active' : ''}`}
+              onClick={() => setViewMode('pdf')}
+              onKeyDown={onViewSwitcherKeyDown}
+              role="tab"
+              aria-selected={viewMode === 'pdf'}
+              aria-controls="preview-panel"
+              tabIndex={viewMode === 'pdf' ? 0 : -1}
+              title="PDF View (High Fidelity)"
+            >
+              <FileText size={14} />
+              <span className="btn-label">PDF</span>
+            </button>
+            <button
+              id="tab-live"
+              type="button"
+              className={`view-switcher-btn ${viewMode === 'live' ? 'active' : ''}`}
+              onClick={() => setViewMode('live')}
+              onKeyDown={onViewSwitcherKeyDown}
+              role="tab"
+              aria-selected={viewMode === 'live'}
+              aria-controls="preview-panel"
+              tabIndex={viewMode === 'live' ? 0 : -1}
+              title="Live View (Interactive)"
+            >
+              <Eye size={14} />
+              <span className="btn-label">Live</span>
+            </button>
+          </div>
+
+          <DropdownMenu label="File" icon={FolderOpen}>
+            <DropdownMenu.Item icon={Upload} label="Import" shortcut="⌘I" onClick={() => setImportExportMode('import')} />
+            <DropdownMenu.Item icon={FileJson} label="Export" shortcut="⌘E" onClick={() => setImportExportMode('export')} />
+            <DropdownMenu.Divider />
+            <DropdownMenu.Item icon={Copy} label="Copy as Text" onClick={onCopyText} />
+            <DropdownMenu.Item icon={FileDown} label="Copy as Markdown" onClick={onCopyMarkdown} />
+          </DropdownMenu>
+
+          <DropdownMenu label="Actions" icon={Zap}>
+            <DropdownMenu.Item icon={ScanSearch} label="Analyze JD" onClick={() => setJdModalOpen(true)} />
+            <DropdownMenu.Divider />
+            <div className="dropdown-preset-section">
+              <select
+                className="component-input compact"
+                aria-label="Load preset"
+                value={activePresetId ?? ''}
+                onChange={(event) => {
+                  const nextId = event.target.value
+                  if (!nextId) {
+                    setActivePresetId(null)
+                    return
+                  }
+                  const preset = presets.find((item) => item.id === nextId)
+                  if (!preset) {
+                    setActivePresetId(null)
+                    return
+                  }
+                  applyPreset(preset)
+                }}
+              >
+                <option value="">Presets</option>
+                {presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name} ({preset.baseVector})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <DropdownMenu.Item icon={Save} label="Save Preset" onClick={onSavePreset} />
+            <DropdownMenu.Item
+              icon={Trash2}
+              label="Delete Preset"
+              onClick={onDeleteActivePreset}
+              disabled={!activePreset}
+            />
+          </DropdownMenu>
+
           <button
             className="btn-ghost"
             type="button"
@@ -985,24 +1044,6 @@ function App() {
             title={`Appearance: ${appearance}`}
           >
             {appearance === 'system' ? <Monitor size={16} /> : appearance === 'light' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button className="btn-secondary" type="button" onClick={() => setImportExportMode('import')} title="Import config (⌘I)">
-            <Upload size={16} />
-            <span className="btn-label">Import</span>
-          </button>
-          <button className="btn-secondary" type="button" onClick={() => setJdModalOpen(true)} title="Analyze job description">
-            <ScanSearch size={16} />
-            <span className="btn-label">Analyze JD</span>
-          </button>
-          <button className="btn-secondary" type="button" onClick={() => setImportExportMode('export')} title="Export config (⌘E)">
-            <FileJson size={16} />
-            <span className="btn-label">Export</span>
-          </button>
-          <button className="btn-ghost" type="button" onClick={onCopyText} title="Copy as plain text">
-            <Copy size={16} />
-          </button>
-          <button className="btn-ghost" type="button" onClick={onCopyMarkdown} title="Copy as Markdown">
-            <FileDown size={16} />
           </button>
           <button
             className="btn-primary"
@@ -1309,10 +1350,16 @@ function App() {
                 <ThemeEditorPanel
                   activePreset={themeState.preset}
                   resolvedTheme={resolvedTheme}
+                  showHeatmap={showHeatmap}
+                  showDesignHealth={showDesignHealth}
+                  isOptimizingDensity={isOptimizingDensity}
                   onSetPreset={setThemePreset}
                   onSetOverride={setThemeOverride}
                   onAdjustDensityStep={adjustThemeDensity}
+                  onOptimizeDensity={optimizeDensity}
                   onResetOverrides={resetThemeOverrides}
+                  onToggleHeatmap={setShowHeatmap}
+                  onToggleDesignHealth={setShowDesignHealth}
                 />
               </div>
             </div>
@@ -1331,8 +1378,22 @@ function App() {
             onKeyDown={onSplitterKeyDown}
           />
 
-          <section className="preview-column" style={{ width: `${(1 - panelRatio) * 100}%` }}>
-            <PdfPreview blobUrl={previewBlobUrl} loading={pdfRenderPending} error={pdfRenderError} />
+          <section
+            className="preview-column"
+            style={{ width: `${(1 - panelRatio) * 100}%` }}
+            role="tabpanel"
+            id="preview-panel"
+            aria-labelledby={viewMode === 'pdf' ? 'tab-pdf' : 'tab-live'}
+          >
+            {viewMode === 'pdf' ? (
+              <PdfPreview blobUrl={previewBlobUrl} loading={pdfRenderPending} error={pdfRenderError} />
+            ) : (
+              <LivePreview
+                assembled={assembledResult.resume}
+                theme={resolvedTheme}
+                showHeatmap={showHeatmap}
+              />
+            )}
           </section>
         </main>
       )}
