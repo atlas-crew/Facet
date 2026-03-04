@@ -1,9 +1,11 @@
 {
-  "name": "Facet",
+  "name": "@nickcrew/facet",
   "private": false,
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
+  "files": ["dist/"],
+  "engines": { "node": ">=20.19.0" },
   "homepage": "https://github.com/NickCrew/Facet",
   "bugs": {
       "url": "https://github.com/NickCrew/Facet/issues"
