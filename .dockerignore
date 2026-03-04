@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+backlog
+data
+coverage
+*.md
+!README.md
+.env*
+.DS_Store
