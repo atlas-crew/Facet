@@ -171,8 +171,8 @@
     #text(fill: to-color(theme.colorBody))[#content]
   ]
 ] else [
-  #pad(left: to-pt(theme.bulletIndent))[
-    #block(breakable: false, below: to-pt(theme.bulletGap))[
+  #block(breakable: false, below: to-pt(theme.bulletGap))[
+    #pad(left: to-pt(theme.bulletIndent))[
       #grid(
         columns: (to-pt(theme.bulletHanging), 1fr),
         gutter: 2pt,
@@ -245,7 +245,7 @@
         weight: if theme.educationSchoolBold { "bold" } else { "regular" },
         fill: to-color(theme.colorHeading),
       )[#entry.school]
-      #text(fill: to-color(theme.colorBody))[, #entry.location - #entry.degree (#entry.year)]
+      #text(fill: to-color(theme.colorBody))[, #entry.location - #entry.degree#if entry.year != none [ (#entry.year)]]
     ]
   ]
 ]

@@ -67,7 +67,7 @@ export const renderResumeAsText = (resume: AssembledResume): string => {
   if (templateResume.education.length > 0) {
     lines.push(section('Education'))
     for (const entry of templateResume.education) {
-      lines.push(`${entry.school}, ${entry.location} — ${entry.degree} (${entry.year})`)
+      lines.push(`${entry.school}, ${entry.location} — ${entry.degree}${entry.year ? ` (${entry.year})` : ''}`)
     }
   }
 

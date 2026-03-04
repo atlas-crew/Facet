@@ -387,6 +387,7 @@ function assertResumeDataShape(value: unknown): asserts value is ResumeData {
       const bulletRecord = assertRecord(bullet, `roles[${roleIndex}].bullets[${bulletIndex}]`)
       const bulletId = assertString(bulletRecord.id, `roles[${roleIndex}].bullets[${bulletIndex}].id`)
       assertUniqueId(bulletIds, bulletId, `roles[${roleIndex}].bullets[${bulletIndex}]`)
+      assertOptionalString(bulletRecord.label, `roles[${roleIndex}].bullets[${bulletIndex}].label`)
       assertString(bulletRecord.text, `roles[${roleIndex}].bullets[${bulletIndex}].text`)
       assertPriorityMap(
         bulletRecord.vectors,
@@ -418,7 +419,7 @@ function assertResumeDataShape(value: unknown): asserts value is ResumeData {
     assertString(record.school, `education[${index}].school`)
     assertString(record.location, `education[${index}].location`)
     assertString(record.degree, `education[${index}].degree`)
-    assertString(record.year, `education[${index}].year`)
+    if (record.year !== undefined) assertString(record.year, `education[${index}].year`)
   }
 
   if (root.manualOverrides !== undefined) {

@@ -15,8 +15,11 @@ export type SectionHeaderStyle = 'caps-rule' | 'bold-rule' | 'bold-only' | 'unde
 export type BulletChar = '•' | '–' | '▸' | 'none'
 export type ThemeTextAlignment = 'left' | 'center' | 'right'
 export type ThemeDatesAlignment = 'right-tab' | 'inline'
+export type TemplateId = 'classic' | 'sidebar' | 'minimalist'
+
 export type ResumeThemePresetId =
   | 'ferguson-v12'
+
   | 'clean-modern'
   | 'classic-serif'
   | 'minimal'
@@ -24,10 +27,13 @@ export type ResumeThemePresetId =
   | 'executive-serif'
   | 'modern-contrast'
   | 'signal-clean'
+  | 'creative-bold'
+  | 'academic-dense'
 
 export interface ResumeTheme {
   id: ResumeThemePresetId
   name: string
+  templateId: TemplateId
   fontBody: string
   fontHeading: string
   sizeBody: number
@@ -81,6 +87,11 @@ export interface ResumeTheme {
   projectNameBold: boolean
   projectUrlSize: number
   educationSchoolBold: boolean
+
+  // Template-specific tokens
+  sidebarWidth?: number // in inches
+  sidebarColor?: string // hex
+  columnGap?: number // in points
 }
 
 export type ResumeThemeOverrides = Partial<Omit<ResumeTheme, 'id' | 'name'>>
@@ -88,6 +99,8 @@ export type ResumeThemeOverrides = Partial<Omit<ResumeTheme, 'id' | 'name'>>
 export interface ResumeThemeState {
   preset: ResumeThemePresetId
   overrides?: ResumeThemeOverrides
+  showHeatmap?: boolean
+  showDesignHealth?: boolean
 }
 
 export interface SkillGroupVectorConfig {
@@ -139,6 +152,7 @@ export interface SkillGroupComponent {
 
 export interface RoleBulletComponent {
   id: string
+  label?: string
   vectors: PriorityByVector
   text: string
   variants?: TextVariantMap
@@ -167,7 +181,7 @@ export interface EducationEntry {
   school: string
   location: string
   degree: string
-  year: string
+  year?: string
 }
 
 export interface PresetOverrides {

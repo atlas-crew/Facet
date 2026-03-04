@@ -76,7 +76,7 @@ export const renderResumeAsMarkdown = (resume: AssembledResume): string => {
     lines.push('')
     lines.push('## Education')
     for (const entry of templateResume.education) {
-      lines.push(`- **${entry.school}, ${entry.location}** — ${entry.degree} (${entry.year})`)
+      lines.push(`- **${entry.school}, ${entry.location}** — ${entry.degree}${entry.year ? ` (${entry.year})` : ''}`)
     }
   }
 

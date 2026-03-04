@@ -26,7 +26,7 @@ export interface TemplateEducationEntry {
   school: string
   location: string
   degree: string
-  year: string
+  year?: string
 }
 
 export interface TemplateResumeData {

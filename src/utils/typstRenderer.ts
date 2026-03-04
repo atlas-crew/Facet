@@ -1,7 +1,7 @@
 import type { AssembledResume, ResumeTheme } from '../types'
 import { getThemeFontFiles, resolveThemeFontFamily } from '../themes/theme'
 import { toLinkDisplayText, toLinkHref } from './linkFormatting'
-import resumeTemplate from '../templates/resume.typ?raw'
+import { TEMPLATES, DEFAULT_TEMPLATE_ID } from '../templates/registry'
 import { getTypstSnippet, toPdfPageCount } from './typstRendererUtils'
 
 const PDF_MIME_TYPE = 'application/pdf'
@@ -87,7 +87,7 @@ interface TypstDataPayload {
     bullets: string[]
   }>
   projects: Array<{ name: string; urlText: string | null; urlHref: string | null; text: string }>
-  education: Array<{ school: string; location: string; degree: string; year: string }>
+  education: Array<{ school: string; location: string; degree: string; year?: string }>
 }
 
 const toRgbTuple = (value: string): [number, number, number] => {
@@ -176,9 +176,10 @@ export const renderResumeAsPdf = async (
   const snippet = await getTypstSnippet(fontFiles)
   const dataPayload = toDataPayload(resume)
   const themePayload = toThemePayload(theme)
+  const template = TEMPLATES[theme.templateId] || TEMPLATES[DEFAULT_TEMPLATE_ID]
 
   const pdfBytes = await snippet.pdf({
-    mainContent: resumeTemplate,
+    mainContent: template.content,
     inputs: {
       data: JSON.stringify(dataPayload),
       theme: JSON.stringify(themePayload),

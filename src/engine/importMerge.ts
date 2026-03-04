@@ -47,8 +47,8 @@ const mergeRoles = (existing: RoleComponent[], incoming: RoleComponent[]): RoleC
 }
 
 const mergeEducation = (existing: EducationEntry[], incoming: EducationEntry[]): EducationEntry[] => {
-  const keys = new Set(existing.map((entry) => `${entry.school}|${entry.degree}|${entry.year}`))
-  const additions = incoming.filter((entry) => !keys.has(`${entry.school}|${entry.degree}|${entry.year}`))
+  const keys = new Set(existing.map((entry) => `${entry.school}|${entry.degree}|${entry.year ?? ''}`))
+  const additions = incoming.filter((entry) => !keys.has(`${entry.school}|${entry.degree}|${entry.year ?? ''}`))
   return [...existing, ...additions]
 }
 
