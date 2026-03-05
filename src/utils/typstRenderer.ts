@@ -87,7 +87,7 @@ interface TypstDataPayload {
     bullets: string[]
   }>
   projects: Array<{ name: string; urlText: string | null; urlHref: string | null; text: string }>
-  education: Array<{ school: string; location: string; degree: string; year?: string }>
+  education: Array<{ school: string; location: string; degree: string; year: string | null }>
 }
 
 const toRgbTuple = (value: string): [number, number, number] => {

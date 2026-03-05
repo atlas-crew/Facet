@@ -73,7 +73,7 @@ describe('densityOptimizer', () => {
     })
 
     const result = await findOptimalDensity(resume, theme, 1, 1)
-    const val = result.overrides.sectionGapBefore
+    const val = result.overrides.sectionGapBefore!
     const valStr = val.toString()
     if (valStr.includes('.')) {
       const decimals = valStr.split('.')[1]
