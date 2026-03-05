@@ -45,7 +45,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          BASE_PATH: ${{ vars.BASE_PATH || '/' }}
+          BASE_PATH: /Facet/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
