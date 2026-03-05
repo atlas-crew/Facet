@@ -30,7 +30,9 @@ async function loadFontBytes(path: string): Promise<Uint8Array> {
   const cached = fontBufferCache.get(path)
   if (cached) return cached
 
-  const response = await fetch(path)
+  const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'
+  const url = path.startsWith('/') ? `${base}${path.slice(1)}` : path
+  const response = await fetch(url)
   if (!response.ok) throw new Error(`Unable to load font file: ${path}`)
 
   const bytes = new Uint8Array(await response.arrayBuffer())
