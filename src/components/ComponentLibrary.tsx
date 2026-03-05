@@ -310,8 +310,15 @@ export function ComponentLibrary({
     )
   }
 
+  const activeVectorColor = selectedVector === 'all'
+    ? undefined
+    : data.vectors.find((v) => v.id === selectedVector)?.color
+
   return (
-    <aside className="library-panel">
+    <aside
+      className="library-panel"
+      style={activeVectorColor ? { '--active-vector-color': activeVectorColor } as React.CSSProperties : undefined}
+    >
       <div className="library-panel-header">
         <h2>Component Library</h2>
         <button

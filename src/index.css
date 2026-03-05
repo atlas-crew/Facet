@@ -1089,8 +1089,8 @@ select {
 .library-section-toggle:hover {
   border-color: var(--border-default);
   color: var(--text-secondary);
-  box-shadow: inset 3px 0 0 var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
+  box-shadow: inset 3px 0 0 var(--active-vector-color, var(--accent-primary));
+  background: color-mix(in srgb, var(--active-vector-color, var(--accent-primary)) 4%, var(--bg-surface));
 }
 
 .library-section-toggle:focus-visible {
@@ -1103,7 +1103,7 @@ select {
 }
 
 .library-section-toggle.expanded {
-  box-shadow: inset 3px 0 0 var(--accent-primary);
+  box-shadow: inset 3px 0 0 var(--active-vector-color, var(--accent-primary));
 }
 
 .library-section-toggle.expanded svg {
@@ -2119,6 +2119,13 @@ select.component-input {
   color: var(--preview-color-subtitle) !important;
   font-size: var(--preview-size-small) !important;
   font-style: var(--preview-subtitle-style);
+}
+
+.role-subtitle {
+  color: var(--preview-color-subtitle) !important;
+  font-size: var(--preview-size-small) !important;
+  font-style: var(--preview-subtitle-style);
+  margin-left: 0.3em;
 }
 
 .preview-bullet-list {
