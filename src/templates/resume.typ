@@ -52,11 +52,12 @@
   )[#data.name]
 ]
 
-#v(2pt)
+#v(to-pt(theme.contactGapAfter * 0.4))
 #if data.contactLine != none and data.contactLine != "" [
   #align(align-mode(theme.contactAlignment))[
     #text(size: to-pt(theme.sizeContact), fill: to-color(theme.colorDim))[#data.contactLine]
   ]
+  #v(to-pt(theme.contactGapAfter * 0.15))
 ]
 
 #if data.contactLinks.len() > 0 [
@@ -112,23 +113,22 @@
 ]
 
 #let role-header(role) = [
-  #v(to-pt(theme.roleGap))
   #text(
     font: theme.fontHeading,
     size: to-pt(theme.sizeCompanyName),
     weight: if theme.companyBold { "bold" } else { "regular" },
     fill: to-color(theme.colorHeading),
   )[#role.company]
-
-  #v(to-pt(theme.roleHeaderGap))
   #if role.subtitle != none and role.subtitle != "" [
+    #text(size: to-pt(theme.sizeSmall))[ ]
     #text(
       size: to-pt(theme.sizeSmall),
       style: if theme.subtitleItalic { "italic" } else { "normal" },
       fill: to-color(theme.subtitleColor),
     )[#role.subtitle]
-    #v(to-pt(theme.roleHeaderGap))
   ]
+
+  #v(to-pt(theme.roleHeaderGap))
 
   #let location-dates = {
     let parts = ()
@@ -207,7 +207,10 @@
 
 #if data.roles.len() > 0 [
   #section-header("Professional Experience")
-  #for role in data.roles [
+  #for (index, role) in data.roles.enumerate() [
+    #if index > 0 [
+      #v(to-pt(theme.roleGap))
+    ]
     #role-header(role)
     #for bullet in role.bullets [
       #bullet-item(bullet)
