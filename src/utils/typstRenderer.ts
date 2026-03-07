@@ -3,17 +3,19 @@ import { getThemeFontFiles, resolveThemeFontFamily } from '../themes/theme'
 import { toLinkDisplayText, toLinkHref } from './linkFormatting'
 import { TEMPLATES, DEFAULT_TEMPLATE_ID } from '../templates/registry'
 import { getTypstSnippet, toPdfPageCount } from './typstRendererUtils'
+import type { TypstWorkerRequest, TypstWorkerResponse } from './typstRenderer.types'
 
 const PDF_MIME_TYPE = 'application/pdf'
+const WORKER_TIMEOUT_MS = 30000
 
-interface TypstRenderResult {
+export interface TypstRenderResult {
   blob: Blob
   bytes: Uint8Array
   pageCount: number
   generatedAt: string
 }
 
-interface TypstThemePayload {
+export interface TypstThemePayload {
   fontBody: string
   fontHeading: string
   sizeBody: number
@@ -67,7 +69,7 @@ interface TypstThemePayload {
   educationSchoolBold: boolean
 }
 
-interface TypstDataPayload {
+export interface TypstDataPayload {
   metadata: {
     title: string
     author: string
@@ -115,8 +117,6 @@ export const toThemePayload = (theme: ResumeTheme): TypstThemePayload => ({
   competencyLabelColor: toRgbTuple(theme.competencyLabelColor),
   projectUrlColor: toRgbTuple(theme.projectUrlColor),
 })
-
-
 
 export const toDataPayload = (resume: AssembledResume): TypstDataPayload => {
   const contactCore = [resume.header.location, resume.header.email, resume.header.phone]
@@ -168,7 +168,11 @@ export const toDataPayload = (resume: AssembledResume): TypstDataPayload => {
   }
 }
 
-export const renderResumeAsPdf = async (
+/**
+ * Direct WASM rendering on the current thread.
+ * Use this only if workers are unavailable or for extremely simple one-off tasks.
+ */
+export const renderResumeAsPdfDirect = async (
   resume: AssembledResume,
   theme: ResumeTheme,
 ): Promise<TypstRenderResult> => {
@@ -201,3 +205,78 @@ export const renderResumeAsPdf = async (
   }
 }
 
+/**
+ * Renders the resume in a background Web Worker.
+ * PREFERRED for all UI-blocking operations like density optimization.
+ */
+export const renderResumeAsPdf = (
+  resume: AssembledResume,
+  theme: ResumeTheme,
+): Promise<TypstRenderResult> => {
+  // Return early fallback if Worker is not available
+  if (typeof Worker === 'undefined') {
+    console.warn('Web Workers not available, falling back to direct render.')
+    return renderResumeAsPdfDirect(resume, theme)
+  }
+
+  let worker: Worker
+  try {
+    worker = new Worker(new URL('../engine/typst.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+  } catch (e) {
+    console.error('Failed to spawn worker for render, falling back to direct render.', e)
+    return renderResumeAsPdfDirect(resume, theme)
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+
+    const timeoutId = window.setTimeout(() => {
+      if (!settled) {
+        settled = true
+        worker.terminate()
+        reject(new Error(`Typst render timed out after ${WORKER_TIMEOUT_MS}ms`))
+      }
+    }, WORKER_TIMEOUT_MS)
+
+    worker.onmessage = (event: MessageEvent<TypstWorkerResponse>) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeoutId)
+
+      const response = event.data
+      if (response.type === 'success') {
+        const { bytes, pageCount } = response
+        const blob = new Blob([bytes.slice()], { type: PDF_MIME_TYPE })
+        resolve({
+          blob,
+          bytes,
+          pageCount,
+          generatedAt: new Date().toISOString(),
+        })
+      } else {
+        reject(new Error(response.error || 'Worker render failed'))
+      }
+      worker.terminate()
+    }
+
+    worker.onerror = (event) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeoutId)
+      reject(new Error(event.message || 'Worker encountered a system error'))
+      worker.terminate()
+    }
+
+    const request: TypstWorkerRequest = {
+      id: Date.now(),
+      dataPayload: toDataPayload(resume),
+      themePayload: toThemePayload(theme),
+      fontFiles: getThemeFontFiles(theme),
+      templateContent: (TEMPLATES[theme.templateId] || TEMPLATES[DEFAULT_TEMPLATE_ID]).content,
+    }
+
+    worker.postMessage(request)
+  })
+}
