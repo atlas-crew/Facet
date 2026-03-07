@@ -1,14 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { BookOpen, Copy, Download, Eye, FileDown, FileJson, FileText, FolderOpen, Layers, Monitor, Moon, Paintbrush, Save, ScanSearch, Sun, Trash2, Upload, Zap } from 'lucide-react'
+import {
+  BookOpen,
+  Copy,
+  Download,
+  Eye,
+  FileDown,
+  FileJson,
+  FileText,
+  FolderOpen,
+  Monitor,
+  Moon,
+  Paintbrush,
+  Save,
+  ScanSearch,
+  Sun,
+  Trash2,
+  Upload,
+  X,
+  Zap,
+} from 'lucide-react'
 import { DropdownMenu } from './components/DropdownMenu'
 import './index.css'
 import type {
   AddComponentPayload,
   AddComponentType,
-  PriorityByVector,
   ResumeThemeOverrides,
   ResumeThemePresetId,
   VariantSelection,
+  PriorityByVector,
+  JdAnalysisResult,
+  ResumeData,
 } from './types'
 import { assembleResume, getPriorityForVector } from './engine/assembler'
 import { renderResumeAsText } from './utils/textRenderer'
@@ -16,14 +37,17 @@ import { renderResumeAsMarkdown } from './utils/markdownRenderer'
 import { useResumeStore } from './store/resumeStore'
 import { toVectorKey, useUiStore } from './store/uiStore'
 import { componentKeys } from './utils/componentKeys'
-import { UndoRedoControls } from './components/UndoRedoControls'
 import { VectorBar } from './components/VectorBar'
+import { UndoRedoControls } from './components/UndoRedoControls'
 import { ComponentLibrary } from './components/ComponentLibrary'
 import { PdfPreview } from './components/PdfPreview'
 import { LivePreview } from './components/LivePreview'
 import { StatusBar } from './components/StatusBar'
+import { GapAnalysisPanel } from './components/GapAnalysisPanel'
+import { SuggestionToolbar } from './components/SuggestionToolbar'
 import { VariableEditor } from './components/VariableEditor'
 import { ImportExport } from './components/ImportExport'
+import { Tour } from './components/Tour'
 import { mergeResumeData } from './engine/importMerge'
 import { resolveEffectiveBulletOrders } from './utils/bulletOrder'
 import { buildResumePdfFileName } from './utils/pdfFormatting'
@@ -31,18 +55,15 @@ import {
   analyzeJobDescription,
   prepareJobDescription,
   reframeBulletForVector,
-  type JdAnalysisResult,
+  sanitizeEndpointUrl,
 } from './utils/jdAnalyzer'
-import {
-  ensureSkillGroupVectors,
-} from './utils/skillGroupVectors'
 import { useFocusTrap } from './utils/useFocusTrap'
-import { defaultVectorsForSelection } from './utils/vectorPriority'
-import { normalizeThemeState, resolveTheme, THEME_DENSITY_KEYS } from './themes/theme'
+import { normalizeThemeState, resolveTheme } from './themes/theme'
 import { ThemeEditorPanel } from './components/ThemeEditorPanel'
 import { usePdfPreview } from './hooks/usePdfPreview'
-import { PresetSaveCanceledError, usePresets } from './hooks/usePresets'
-import { createId, sanitizeEndpointUrl, slugify } from './utils/idUtils'
+import { useSuggestionActions } from './hooks/useSuggestionActions'
+import { usePresets } from './hooks/usePresets'
+import { createId, slugify } from './utils/idUtils'
 import { findOptimalDensity } from './utils/densityOptimizer'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
@@ -53,25 +74,6 @@ const EMPTY_VARIANT_OVERRIDES: Readonly<Record<string, Record<string, VariantSel
 const EMPTY_BULLET_ORDERS: Readonly<Record<string, Record<string, string[]>>> = Object.freeze({})
 const EMPTY_VARIABLES: Readonly<Record<string, string>> = Object.freeze({})
 
-const colorThemeKeys = new Set<keyof ResumeThemeOverrides>([
-  'colorBody',
-  'colorHeading',
-  'colorSection',
-  'colorDim',
-  'colorRule',
-  'roleTitleColor',
-  'datesColor',
-  'subtitleColor',
-  'competencyLabelColor',
-  'projectUrlColor',
-])
-
-interface JdSuggestionSelection {
-  applyPrimaryVector: boolean
-  applyTargetLine: boolean
-  bulletAdjustmentIds: string[]
-}
-
 interface ReframeResult {
   roleId: string
   bulletId: string
@@ -80,6 +82,16 @@ interface ReframeResult {
   original: string
   reframed: string
   reasoning: string
+}
+
+const ID_MAP: Record<AddComponentType, string> = {
+  target_line: 'target-line',
+  profile: 'profile',
+  skill_group: 'skill',
+  project: 'project',
+  bullet: 'bullet',
+  role: 'role',
+  education: 'education',
 }
 
 function FacetWordmark() {
@@ -127,12 +139,55 @@ function App() {
     setVariantOverride,
     setRoleBulletOrder,
     resetRoleBulletOrder,
-    resetAllOverrides,
     resetOverridesForVector,
     reorderProjects,
     reorderSkillGroups,
+    updateMetaField,
+    updateMetaLink,
+    addMetaLink,
+    removeMetaLink,
+    updateTargetLine,
+    updateTargetLineVectors,
+    updateProfile,
+    updateProfileVectors,
+    updateProject,
+    updateProjectVectors,
+    updateSkillGroup,
+    updateSkillGroupVectors,
+    updateRole,
+    updateBullet,
+    updateBulletLabel,
+    updateBulletVectors,
+    addTargetLine,
+    addProfile,
+    addSkillGroup,
+    addProject,
+    addBullet,
+    addRole,
+    addEducation,
     updateVariables,
+    resetToDefaults,
   } = useResumeStore()
+
+  // 1. State Declarations
+  const [variablesOpen, setVariablesOpen] = useState(false)
+  const [tourOpen, setTourOpen] = useState(false)
+  const [draggingSplit, setDraggingSplit] = useState(false)
+  const [importExportMode, setImportExportMode] = useState<'import' | 'export' | null>(null)
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+  const [jdModalOpen, setJdModalOpen] = useState(false)
+  const [jdInput, setJdInput] = useState('')
+  const [jdAnalysisResult, setJdAnalysisResult] = useState<JdAnalysisResult | null>(null)
+  const [jdWordCount, setJdWordCount] = useState(0)
+  const [jdWasTruncated, setJdWasTruncated] = useState(false)
+  const [jdLoading, setJdLoading] = useState(false)
+  const [jdError, setJdError] = useState<string | null>(null)
+  const [leftPanelMode, setLeftPanelMode] = useState<'content' | 'design'>('content')
+  const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
+  const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
+  const [isOptimizingDensity, setIsOptimizingDensity] = useState(false)
+
+  // 2. UI Store
   const {
     selectedVector,
     setSelectedVector,
@@ -144,44 +199,154 @@ function App() {
     setShowHeatmap,
     showDesignHealth,
     setShowDesignHealth,
+    suggestionModeActive,
+    setSuggestionModeActive,
     viewMode,
     setViewMode,
+    tourCompleted,
+    setTourCompleted,
   } = useUiStore()
 
-  const manualOverrides = data.manualOverrides ?? EMPTY_MANUAL_OVERRIDES
-  const variantOverrides = data.variantOverrides ?? EMPTY_VARIANT_OVERRIDES
-  const bulletOrders = data.bulletOrders ?? EMPTY_BULLET_ORDERS
-
-  const [draggingSplit, setDraggingSplit] = useState(false)
-  const [importExportMode, setImportExportMode] = useState<'import' | 'export' | null>(null)
-  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
-  const [jdModalOpen, setJdModalOpen] = useState(false)
-  const [jdInput, setJdInput] = useState('')
-  const [jdAnalysisResult, setJdAnalysisResult] = useState<JdAnalysisResult | null>(null)
-  const [jdSelection, setJdSelection] = useState<JdSuggestionSelection>({
-    applyPrimaryVector: true,
-    applyTargetLine: true,
-    bulletAdjustmentIds: [],
-  })
-  const [jdWordCount, setJdWordCount] = useState(0)
-  const [jdWasTruncated, setJdWasTruncated] = useState(false)
-  const [jdLoading, setJdLoading] = useState(false)
-  const [jdError, setJdError] = useState<string | null>(null)
-  const [leftPanelMode, setLeftPanelMode] = useState<'content' | 'design'>('content')
-  const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
-  const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
-  const [isOptimizingDensity, setIsOptimizingDensity] = useState(false)
-  const [variablesOpen, setVariablesOpen] = useState(false)
+  // 3. Refs
   const noticeTimeoutRef = useRef<number | null>(null)
   const jdModalRef = useRef<HTMLDivElement>(null)
   const reframeModalRef = useRef<HTMLDivElement>(null)
   const variablesModalRef = useRef<HTMLDivElement>(null)
 
-  useFocusTrap(jdModalOpen, jdModalRef, () => setJdModalOpen(false))
-  useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
-  useFocusTrap(variablesOpen, variablesModalRef, () => setVariablesOpen(false))
+  // 4. Shared Utilities & Memoized Values
+  const showNotice = useCallback((tone: 'success' | 'error', message: string) => {
+    if (noticeTimeoutRef.current !== null) {
+      window.clearTimeout(noticeTimeoutRef.current)
+    }
+    setNotice({ tone, message })
+    noticeTimeoutRef.current = window.setTimeout(() => {
+      setNotice(null)
+      noticeTimeoutRef.current = null
+    }, tone === 'error' ? 5000 : 2500)
+  }, [])
+
+  const variables = data.variables ?? EMPTY_VARIABLES
+  const manualOverrides = data.manualOverrides ?? EMPTY_MANUAL_OVERRIDES
+  const variantOverrides = data.variantOverrides ?? EMPTY_VARIANT_OVERRIDES
+  const bulletOrders = data.bulletOrders ?? EMPTY_BULLET_ORDERS
+  const vectorKey = toVectorKey(selectedVector)
+
   const jdAnalysisEndpointRaw = (import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''
   const jdAnalysisEndpoint = useMemo(() => sanitizeEndpointUrl(jdAnalysisEndpointRaw), [jdAnalysisEndpointRaw])
+
+  const themeState = useMemo(() => normalizeThemeState(data.theme), [data.theme])
+  const resolvedTheme = useMemo(() => resolveTheme(themeState), [themeState])
+
+  const effectiveBulletOrders = useMemo(
+    () => resolveEffectiveBulletOrders(bulletOrders, selectedVector),
+    [bulletOrders, selectedVector],
+  )
+
+  const overridesForVector = useMemo(
+    () => manualOverrides[vectorKey] ?? {},
+    [manualOverrides, vectorKey],
+  )
+  const variantsForVector = useMemo(
+    () => variantOverrides[vectorKey] ?? {},
+    [variantOverrides, vectorKey],
+  )
+  const activeBulletOrders = useMemo(
+    () => bulletOrders[vectorKey] ?? {},
+    [bulletOrders, vectorKey],
+  )
+
+  // 5. Custom Hooks (Suggestion Mode & Presets)
+  const {
+    ignoredIds: ignoredSuggestionIds,
+    suggestionCount,
+    onAcceptBullet: onAcceptBulletSuggestion,
+    onIgnoreBullet: onIgnoreBulletSuggestion,
+    onAcceptTargetLine: onAcceptTargetLineSuggestion,
+    onIgnoreTargetLine: onIgnoreTargetLineSuggestion,
+    onAcceptAll: onAcceptAllSuggestions,
+    onDismissRemaining: onDismissRemainingSuggestions,
+    setIgnoredIds: setIgnoredSuggestionIds,
+  } = useSuggestionActions({
+    data,
+    vectorKey,
+    jdAnalysisResult,
+    updateBulletVectors,
+    updateTargetLineVectors,
+    updateData,
+    setSuggestionModeActive,
+    showNotice,
+  })
+
+  const {
+    activePresetId,
+    activePreset,
+    presets,
+    presetDirty,
+    setActivePresetId,
+    onSavePreset,
+    onDeleteActivePreset,
+    applyPreset,
+  } = usePresets({
+    data,
+    selectedVector,
+    overridesForVector,
+    variantsForVector,
+    activeBulletOrders,
+    themeState,
+    updateData,
+    showNotice,
+  })
+
+  const bulletSuggestions = useMemo(() => {
+    if (!suggestionModeActive || !jdAnalysisResult) return undefined
+    return Object.fromEntries(
+      (jdAnalysisResult.bullet_adjustments ?? [])
+        .filter(adj => !ignoredSuggestionIds.has(adj.bullet_id))
+        .map(adj => [adj.bullet_id, { recommendedPriority: adj.recommended_priority, reason: adj.reason }])
+    )
+  }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds])
+
+  const targetLineSuggestion = useMemo(() => {
+    if (!suggestionModeActive || !jdAnalysisResult?.suggested_target_line || ignoredSuggestionIds.has('target-line')) {
+      return undefined
+    }
+    return {
+      recommendedPriority: 'must' as const,
+      reason: 'Matched JD recommendation'
+    }
+  }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds])
+
+  const suggestedChanges = useMemo(() => {
+    if (!suggestionModeActive || !jdAnalysisResult) return []
+    const ids = (jdAnalysisResult.bullet_adjustments ?? [])
+      .filter((adj) => !ignoredSuggestionIds.has(adj.bullet_id))
+      .map((adj) => adj.bullet_id)
+    if (jdAnalysisResult.suggested_target_line && !ignoredSuggestionIds.has('target-line')) {
+      const firstTl = data.target_lines[0]?.id
+      if (firstTl) ids.push(firstTl)
+    }
+    return ids
+  }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds, data.target_lines])
+
+  const matchScore = useMemo(() => {
+    if (!jdAnalysisResult) return null
+    const matched = jdAnalysisResult.matched_keywords.length
+    const gaps = jdAnalysisResult.skill_gaps.length
+    const total = matched + gaps
+    return total > 0 ? matched / total : 1.0
+  }, [jdAnalysisResult])
+
+  // 6. Effects
+  useEffect(() => {
+    setIgnoredSuggestionIds(new Set())
+  }, [vectorKey, jdAnalysisResult, setIgnoredSuggestionIds])
+
+  useEffect(() => {
+    if (!tourCompleted) {
+      const timer = window.setTimeout(() => setTourOpen(true), 1000)
+      return () => window.clearTimeout(timer)
+    }
+  }, [tourCompleted])
 
   useEffect(() => {
     const root = document.documentElement
@@ -194,38 +359,24 @@ function App() {
       mediaQuery.addEventListener('change', updateTheme)
       return () => mediaQuery.removeEventListener('change', updateTheme)
     }
-
     root.setAttribute('data-theme', appearance)
   }, [appearance])
 
-  const vectorKey = toVectorKey(selectedVector)
-  const bulletTextById = useMemo(
-    () =>
-      Object.fromEntries(
-        data.roles.flatMap((role) =>
-          role.bullets.map((bullet) => [bullet.id, bullet.text]),
-        ),
-      ),
-    [data.roles],
+  useEffect(
+    () => () => {
+      if (noticeTimeoutRef.current !== null) {
+        window.clearTimeout(noticeTimeoutRef.current)
+      }
+    },
+    [],
   )
-  const themeState = useMemo(() => normalizeThemeState(data.theme), [data.theme])
-  const resolvedTheme = useMemo(() => resolveTheme(themeState), [themeState])
-  const overridesForVector = useMemo(
-    () => manualOverrides[vectorKey] ?? {},
-    [manualOverrides, vectorKey],
-  )
-  const variantsForVector = useMemo(
-    () => variantOverrides[vectorKey] ?? {},
-    [variantOverrides, vectorKey],
-  )
-  const defaultBulletOrders = useMemo(() => bulletOrders.all ?? {}, [bulletOrders])
-  const activeBulletOrders = useMemo(() => bulletOrders[vectorKey] ?? {}, [bulletOrders, vectorKey])
-  const effectiveBulletOrders = useMemo(
-    () => resolveEffectiveBulletOrders(bulletOrders, selectedVector),
-    [bulletOrders, selectedVector],
-  )
-  const jdEndpointInvalid = jdAnalysisEndpointRaw.length > 0 && !jdAnalysisEndpoint
 
+  // Focus Traps
+  useFocusTrap(jdModalOpen, jdModalRef, () => setJdModalOpen(false))
+  useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
+  useFocusTrap(variablesOpen, variablesModalRef, () => setVariablesOpen(false))
+
+  // 7. Assembly & Preview
   const assembledResult = useMemo(
     () =>
       assembleResume(data, {
@@ -234,9 +385,12 @@ function App() {
         variantOverrides: variantsForVector,
         bulletOrderByRole: effectiveBulletOrders,
         targetPages: 2,
+        variables,
       }),
-    [data, selectedVector, overridesForVector, variantsForVector, effectiveBulletOrders],
+    [data, selectedVector, overridesForVector, variantsForVector, effectiveBulletOrders, variables],
   )
+
+  const assembled = assembledResult.resume
   const nearPageLimit =
     assembledResult.estimatedPageUsage >= 1.8 && assembledResult.estimatedPageUsage < 2
   const overPageLimit =
@@ -244,6 +398,8 @@ function App() {
     assembledResult.warnings.some(
       (warning) => warning.code === 'must_over_budget' || warning.code === 'over_budget_after_trim',
     )
+  const mustOnlyOverPageLimit = assembledResult.mustOnlyEstimatedPageUsage >= 1.0
+
   const {
     previewBlobUrl,
     cachedPdfBlob,
@@ -251,12 +407,16 @@ function App() {
     pending: pdfRenderPending,
     error: pdfRenderError,
   } = usePdfPreview({
-    resume: assembledResult.resume,
+    resume: assembled,
     theme: resolvedTheme,
   })
-  useFocusTrap(jdModalOpen, jdModalRef, () => setJdModalOpen(false))
-  useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
 
+  const bulletCount = useMemo(() => 
+    assembledResult.resume.roles.reduce((acc, role) => acc + role.bullets.length, 0),
+    [assembledResult.resume.roles]
+  )
+
+  // 8. Event Handlers
   useEffect(() => {
     if (!draggingSplit) {
       return
@@ -278,152 +438,60 @@ function App() {
     }
   }, [draggingSplit, setPanelRatio])
 
-  const showNotice = (tone: 'success' | 'error', message: string) => {
-    if (noticeTimeoutRef.current !== null) {
-      window.clearTimeout(noticeTimeoutRef.current)
-    }
-    setNotice({ tone, message })
-    noticeTimeoutRef.current = window.setTimeout(() => {
-      setNotice(null)
-      noticeTimeoutRef.current = null
-    }, 2500)
-  }
-
-  useEffect(
-    () => () => {
-      if (noticeTimeoutRef.current !== null) {
-        window.clearTimeout(noticeTimeoutRef.current)
-      }
-    },
-    [],
-  )
-
-  const toggleComponentWithPriority = (componentKey: string, vectors: PriorityByVector) => {
+  const toggleComponentWithPriority = useCallback((componentKey: string, vectors: PriorityByVector) => {
     const autoIncluded = getPriorityForVector(vectors, selectedVector) !== 'exclude'
     const currentOverride = overridesForVector[componentKey]
     const currentIncluded = currentOverride ?? autoIncluded
     const nextIncluded = !currentIncluded
-    if (nextIncluded === autoIncluded) {
-      setOverride(vectorKey, componentKey, null)
-      return
-    }
-    setOverride(vectorKey, componentKey, nextIncluded)
+    
+    setOverride(vectorKey, componentKey, nextIncluded === autoIncluded ? null : nextIncluded)
+  }, [selectedVector, vectorKey, overridesForVector, setOverride])
+
+  const onUpdateTheme = (overrides: ResumeThemeOverrides) => {
+    updateData((current) => ({
+      ...current,
+      theme: normalizeThemeState({
+        ...normalizeThemeState(current.theme),
+        overrides: {
+          ...(current.theme?.overrides ?? {}),
+          ...overrides,
+        },
+      }),
+    }))
   }
 
-  const {
-    presets,
-    activePresetId,
-    setActivePresetId,
-    activePreset,
-    presetDirty,
-    getSnapshotForVector,
-    applyPreset,
-    persistPreset,
-    onSavePreset,
-    onDeleteActivePreset,
-  } = usePresets({
-    data,
-    selectedVector,
-    overridesForVector,
-    variantsForVector,
-    activeBulletOrders,
-    themeState,
-    updateData,
-    showNotice,
-  })
+  const onResetAllThemeOverrides = () => {
+    updateData((current) => ({
+      ...current,
+      theme: normalizeThemeState({ preset: current.theme?.preset ?? 'ferguson-v12' }),
+    }))
+  }
 
-  const setThemePreset = (preset: ResumeThemePresetId) => {
+  const onSelectThemePreset = (preset: ResumeThemePresetId) => {
     updateData((current) => ({
       ...current,
       theme: normalizeThemeState({ preset }),
     }))
   }
 
-  const setThemeOverride = <K extends keyof ResumeThemeOverrides>(key: K, value: ResumeThemeOverrides[K]) => {
-    updateData((current) => {
-      if (typeof value === 'number' && !Number.isFinite(value)) {
-        return current
-      }
-
-      const normalizedValue =
-        typeof value === 'string' && colorThemeKeys.has(key)
-          ? (value.replace(/^#/, '') as ResumeThemeOverrides[K])
-          : value
-
-      const normalized = normalizeThemeState(current.theme)
-      const nextTheme = normalizeThemeState({
-        preset: normalized.preset,
-        overrides: {
-          ...(normalized.overrides ?? {}),
-          [key]: normalizedValue,
-        },
-      })
-
-      return {
-        ...current,
-        theme: nextTheme,
-      }
-    })
-  }
-
-  const resetThemeOverrides = () => {
-    updateData((current) => {
-      const normalized = normalizeThemeState(current.theme)
-      return {
-        ...current,
-        theme: { preset: normalized.preset },
-      }
-    })
-  }
-
-  const adjustThemeDensity = (direction: 'tighten' | 'loosen') => {
-    updateData((current) => {
-      const normalized = normalizeThemeState(current.theme)
-      const resolved = resolveTheme(normalized)
-      const multiplier = direction === 'tighten' ? 0.92 : 1.08
-      const nextOverrides: ResumeThemeOverrides = {
-        ...(normalized.overrides ?? {}),
-      }
-
-      for (const key of THEME_DENSITY_KEYS) {
-        const baseValue = resolved[key]
-        if (typeof baseValue !== 'number') {
-          continue
-        }
-        // Explicitly cast to Record<string, number> for type-safe indexing
-        ;(nextOverrides as Record<string, number>)[key] = Number((baseValue * multiplier).toFixed(3))
-      }
-
-
-      return {
-        ...current,
-        theme: normalizeThemeState({
-          preset: normalized.preset,
-          overrides: nextOverrides,
-        }),
-      }
-    })
-  }
-
-  const optimizeDensity = async (targetPages: number) => {
+  const onOptimizeDensity = async (targetPages: number) => {
+    if (isOptimizingDensity) return
     setIsOptimizingDensity(true)
     try {
-      const result = await findOptimalDensity(assembledResult.resume, resolvedTheme, targetPages)
-
+      const result = await findOptimalDensity(assembled, resolvedTheme, targetPages)
       updateData((current) => {
-        const normalized = normalizeThemeState(current.theme)
+        const currentTheme = current.theme ?? { preset: 'ferguson-v12' }
         return {
           ...current,
           theme: normalizeThemeState({
-            preset: normalized.preset,
+            ...currentTheme,
             overrides: {
-              ...(normalized.overrides ?? {}),
+              ...(currentTheme.overrides ?? {}),
               ...result.overrides,
             },
           }),
         }
       })
-
       showNotice('success', `Optimized density to fit ${targetPages} page(s) (${result.iterations} steps)`)
     } catch {
       showNotice('error', 'Density optimization failed')
@@ -433,148 +501,37 @@ function App() {
   }
 
   const onAnalyzeJd = async () => {
+    if (!jdAnalysisEndpoint) {
+      showNotice('error', 'JD analysis is disabled. Configure VITE_ANTHROPIC_PROXY_URL to enable it.')
+      setJdError('AI proxy not configured.')
+      return
+    }
     setJdError(null)
     setJdAnalysisResult(null)
-
     const prepared = prepareJobDescription(jdInput)
     setJdWordCount(prepared.wordCount)
     setJdWasTruncated(prepared.truncated)
-
-    if (!jdAnalysisEndpoint) {
-      setJdError('JD analysis is disabled. Configure VITE_ANTHROPIC_PROXY_URL to enable it.')
-      return
-    }
-
     setJdLoading(true)
     try {
       const result = await analyzeJobDescription(prepared, data, jdAnalysisEndpoint)
       setJdAnalysisResult(result)
-      setJdSelection({
-        applyPrimaryVector: true,
-        applyTargetLine: true,
-        bulletAdjustmentIds: result.bullet_adjustments.map((adjustment) => adjustment.bullet_id),
-      })
+      setIgnoredSuggestionIds(new Set())
+      setSuggestionModeActive(true)
+      setJdModalOpen(false) 
+      showNotice('success', 'JD analysis complete. Suggestion mode active.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      setJdError(message)
+      setJdError(error instanceof Error ? error.message : String(error))
     } finally {
       setJdLoading(false)
     }
   }
 
-  const applyJdSelections = (saveAsPreset: boolean) => {
-    if (!jdAnalysisResult) {
-      return
-    }
-
-    const hasPrimaryVector = data.vectors.some((vector) => vector.id === jdAnalysisResult.primary_vector)
-    const baseVector =
-      jdSelection.applyPrimaryVector && hasPrimaryVector
-        ? jdAnalysisResult.primary_vector
-        : selectedVector
-
-    if (jdSelection.applyPrimaryVector && hasPrimaryVector) {
-      setSelectedVector(jdAnalysisResult.primary_vector)
-    }
-
-    const targetVector = baseVector === 'all' ? data.vectors[0]?.id ?? 'all' : baseVector
-    const selectedBulletIds = new Set(jdSelection.bulletAdjustmentIds)
-    const priorityOverridesForPreset =
-      targetVector === 'all'
-        ? []
-        : jdAnalysisResult.bullet_adjustments
-            .filter((adjustment) => selectedBulletIds.has(adjustment.bullet_id))
-            .map((adjustment) => ({
-              bulletId: adjustment.bullet_id,
-              vectorId: targetVector,
-              priority: adjustment.recommended_priority,
-            }))
-    const snapshotForSave = saveAsPreset
-      ? {
-          ...getSnapshotForVector(baseVector),
-          priorityOverrides: priorityOverridesForPreset,
-        }
-      : null
-
-    updateData((current) => {
-      const nextTargetLines = [...current.target_lines]
-      if (jdSelection.applyTargetLine && jdAnalysisResult.suggested_target_line.trim().length > 0) {
-        const existing = nextTargetLines.find(
-          (line) =>
-            line.id === jdAnalysisResult.suggested_target_line ||
-            line.text.trim() === jdAnalysisResult.suggested_target_line.trim(),
-        )
-        if (!existing) {
-          nextTargetLines.push({
-            id: createId('target-line'),
-            text: jdAnalysisResult.suggested_target_line.trim(),
-            vectors: defaultVectorsForSelection(targetVector, current.vectors),
-          })
-        }
-      }
-
-      return {
-        ...current,
-        target_lines: nextTargetLines,
-        roles: current.roles.map((role) => ({
-          ...role,
-          bullets: role.bullets.map((bullet) => {
-            const adjustment = jdAnalysisResult.bullet_adjustments.find(
-              (item) => item.bullet_id === bullet.id && selectedBulletIds.has(item.bullet_id),
-            )
-            if (!adjustment || targetVector === 'all') {
-              return bullet
-            }
-
-            return {
-              ...bullet,
-              vectors: {
-                ...bullet.vectors,
-                [targetVector]: adjustment.recommended_priority,
-              },
-            }
-          }),
-        })),
-      }
-    })
-
-    showNotice('success', 'Applied selected JD suggestions')
-
-    if (saveAsPreset) {
-      const suggestedName = jdAnalysisResult.positioning_note
-        .split(/[.!?]/)
-        .map((part) => part.trim())
-        .find((part) => part.length > 0)
-        ?.slice(0, 36)
-      const presetName = window.prompt('Preset name', suggestedName ?? 'JD Preset')?.trim()
-      if (presetName) {
-        try {
-          persistPreset(
-            presetName,
-            'Generated from JD analysis',
-            baseVector,
-            snapshotForSave ?? getSnapshotForVector(baseVector),
-          )
-          showNotice('success', `Applied and saved preset ${presetName}`)
-        } catch (error) {
-          if (!(error instanceof PresetSaveCanceledError)) {
-            showNotice('error', 'Applied suggestions, but failed to save preset.')
-          }
-        }
-      }
-    }
-  }
-
   const onReframeBullet = async (roleId: string, bulletId: string) => {
-    if (selectedVector === 'all') {
-      return
-    }
-
+    if (selectedVector === 'all') return
     if (!jdAnalysisEndpoint) {
       showNotice('error', 'AI features are disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
       return
     }
-
     const role = data.roles.find((r) => r.id === roleId)
     const bullet = role?.bullets.find((b) => b.id === bulletId)
     if (!role || !bullet) return
@@ -584,7 +541,9 @@ function App() {
 
     setReframeLoadingId(bulletId)
     try {
-      const result = await reframeBulletForVector(bullet.text, vectorLabel, jdAnalysisEndpoint)
+      const result = await reframeBulletForVector(bullet.text, vectorLabel, jdAnalysisEndpoint, {
+        strategy: jdAnalysisResult?.positioning_note,
+      })
       setReframeResult({
         roleId,
         bulletId,
@@ -603,32 +562,27 @@ function App() {
 
   const onApplyReframe = () => {
     if (!reframeResult) return
-
     const { roleId, bulletId, vectorId, reframed } = reframeResult
     const componentKey = componentKeys.bullet(roleId, bulletId)
 
     updateData((current) => {
-      // 1. Update the bullet text variant
-      const nextRoles = current.roles.map((r) =>
-        r.id === roleId
-          ? {
-              ...r,
-              bullets: r.bullets.map((b) =>
-                b.id === bulletId
-                  ? {
-                      ...b,
-                      variants: {
-                        ...(b.variants ?? {}),
-                        [vectorId]: reframed,
-                      },
-                    }
-                  : b,
-              ),
+      const nextRoles = current.roles.map((r) => {
+        if (r.id !== roleId) return r
+        return {
+          ...r,
+          bullets: r.bullets.map((b) => {
+            if (b.id !== bulletId) return b
+            return {
+              ...b,
+              variants: {
+                ...(b.variants ?? {}),
+                [vectorId]: reframed,
+              },
             }
-          : r,
-      )
+          }),
+        }
+      })
 
-      // 2. Set the variant override for the vector
       const nextVariantOverrides = {
         ...(current.variantOverrides ?? {}),
         [vectorId]: {
@@ -648,12 +602,11 @@ function App() {
     showNotice('success', 'Applied AI rewrite as variant')
   }
 
-  const onDownloadPdf = () => {
+  const onDownloadPdf = useCallback(() => {
     if (!cachedPdfBlob) {
       showNotice('error', 'PDF is still rendering. Please try again in a moment.')
       return
     }
-
     const url = URL.createObjectURL(cachedPdfBlob)
     const link = document.createElement('a')
     link.href = url
@@ -663,206 +616,92 @@ function App() {
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 10000)
     showNotice('success', 'PDF downloaded')
-  }
+  }, [cachedPdfBlob, data.meta.name, selectedVector, data.vectors, showNotice])
 
   const onCopyText = async () => {
     try {
       await navigator.clipboard.writeText(renderResumeAsText(assembledResult.resume))
       showNotice('success', 'Copied plain text')
     } catch {
-      showNotice('error', 'Clipboard write failed for plain text.')
+      showNotice('error', 'Failed to copy text')
     }
   }
 
   const onCopyMarkdown = async () => {
     try {
       await navigator.clipboard.writeText(renderResumeAsMarkdown(assembledResult.resume))
-      showNotice('success', 'Copied Markdown')
+      showNotice('success', 'Copied markdown')
     } catch {
-      showNotice('error', 'Clipboard write failed for Markdown.')
+      showNotice('error', 'Failed to copy markdown')
     }
   }
 
-  const onAddVector = () => {
-    const label = window.prompt('Vector label')?.trim()
-    if (!label) {
-      return
-    }
-
-    const id = slugify(label)
-    if (!id) {
-      window.alert('Label must contain at least one alphanumeric character.')
-      return
-    }
-    const alreadyExists = data.vectors.some((vector) => vector.id === id)
-    if (alreadyExists) {
-      window.alert('Vector id already exists. Choose a unique label.')
-      return
-    }
-
-    const color =
-      vectorFallbackColors[data.vectors.length % vectorFallbackColors.length] ?? vectorFallbackColors[0]
-
-    updateData((current) => ({
-      ...current,
-      vectors: [...current.vectors, { id, label, color }],
-      skill_groups: current.skill_groups.map((skillGroup) => {
-        const normalized = ensureSkillGroupVectors(skillGroup, current.vectors)
-        return {
-          ...skillGroup,
-          vectors: {
-            ...normalized,
-            [id]: {
-              priority: 'optional',
-              order: Object.keys(normalized).length + 1,
-            },
-          },
+  const handleGlobalKeyDown = useCallback(
+    (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+        if (event.key === 'Escape') {
+          target.blur()
         }
-      }),
-    }))
-    setSelectedVector(id)
-  }
-
-  const onAddComponent = (
-    type: AddComponentType,
-    payload: AddComponentPayload,
-  ) => {
-    const baseVectors = payload.vectors ?? defaultVectorsForSelection(selectedVector, data.vectors)
-
-    if (type === 'target_line') {
-      updateData((current) => ({
-        ...current,
-        target_lines: [
-          ...current.target_lines,
-          {
-            id: createId('target-line'),
-            vectors: baseVectors,
-            text: payload.text?.trim() ?? '',
-          },
-        ],
-      }))
-      return
-    }
-
-    if (type === 'profile') {
-      updateData((current) => ({
-        ...current,
-        profiles: [
-          ...current.profiles,
-          {
-            id: createId('profile'),
-            vectors: baseVectors,
-            text: payload.text?.trim() ?? '',
-          },
-        ],
-      }))
-      return
-    }
-
-    if (type === 'skill_group') {
-      updateData((current) => ({
-        ...current,
-        skill_groups: [
-          ...current.skill_groups,
-          {
-            id: createId('skill'),
-            label: payload.label?.trim() || 'New Skill Group',
-            content: payload.content?.trim() ?? '',
-            vectors: Object.fromEntries(
-              current.vectors.map((vector) => [
-                vector.id,
-                {
-                  priority: 'strong',
-                  order: current.skill_groups.length + 1,
-                },
-              ]),
-            ),
-          },
-        ],
-      }))
-      return
-    }
-
-    if (type === 'project') {
-      updateData((current) => ({
-        ...current,
-        projects: [
-          ...current.projects,
-          {
-            id: createId('project'),
-            name: payload.name?.trim() || 'New Project',
-            url: payload.url?.trim() || undefined,
-            vectors: baseVectors,
-            text: payload.text?.trim() ?? '',
-          },
-        ],
-      }))
-      return
-    }
-
-    if (type === 'bullet') {
-      const targetRoleId = payload.roleId ?? data.roles[0]?.id
-      if (!targetRoleId) {
         return
       }
 
-      updateData((current) => ({
-        ...current,
-        roles: current.roles.map((role) =>
-          role.id === targetRoleId
-            ? {
-                ...role,
-                bullets: [
-                  ...role.bullets,
-                  {
-                    id: createId('bullet'),
-                    vectors: baseVectors,
-                    text: payload.text?.trim() ?? '',
-                  },
-                ],
-              }
-            : role,
-        ),
-      }))
-    }
-  }
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+      const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey
 
-  const handleRoleBulletReorder = (roleId: string, order: string[]) => {
-    setRoleBulletOrder(vectorKey, roleId, order)
-  }
+      if (cmdOrCtrl && event.key === 'z') {
+        event.preventDefault()
+        if (event.shiftKey) redo()
+        else undo()
+      } else if (cmdOrCtrl && event.key === 'e') {
+        event.preventDefault()
+        setImportExportMode('export')
+      } else if (cmdOrCtrl && event.key === 'i') {
+        event.preventDefault()
+        setImportExportMode('import')
+      } else if (cmdOrCtrl && event.key === 'p') {
+        event.preventDefault()
+        onDownloadPdf()
+      } else if (event.key === 'Escape') {
+        if (jdModalOpen) setJdModalOpen(false)
+        if (reframeResult) setReframeResult(null)
+        if (variablesOpen) setVariablesOpen(false)
+        if (suggestionModeActive) setSuggestionModeActive(false)
+      } else if (!cmdOrCtrl && !event.shiftKey && !event.altKey && event.key >= '1' && event.key <= '9') {
+        const index = Number.parseInt(event.key, 10) - 1
+        if (data.vectors[index]) setSelectedVector(data.vectors[index].id)
+      } else if (event.key === '0') {
+        setSelectedVector('all')
+      }
+    },
+    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, onDownloadPdf],
+  )
 
-  const onSplitterKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  useEffect(() => {
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [handleGlobalKeyDown])
+
+  const onSplitterKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'ArrowLeft') {
       event.preventDefault()
       setPanelRatio(Math.min(0.7, Math.max(0.3, panelRatio - 0.03)))
-      return
-    }
-
-    if (event.key === 'ArrowRight') {
+    } else if (event.key === 'ArrowRight') {
       event.preventDefault()
       setPanelRatio(Math.min(0.7, Math.max(0.3, panelRatio + 0.03)))
-      return
-    }
-
-    if (event.key === 'Home') {
+    } else if (event.key === 'Home') {
       event.preventDefault()
       setPanelRatio(0.3)
-      return
-    }
-
-    if (event.key === 'End') {
+    } else if (event.key === 'End') {
       event.preventDefault()
       setPanelRatio(0.7)
     }
   }
 
-  const onViewSwitcherKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+  const onViewSwitcherKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault()
       setViewMode(viewMode === 'pdf' ? 'live' : 'pdf')
-    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-      event.preventDefault()
-      setViewMode(viewMode === 'live' ? 'pdf' : 'live')
     } else if (event.key === 'Home') {
       event.preventDefault()
       setViewMode('pdf')
@@ -872,88 +711,138 @@ function App() {
     }
   }
 
-  // Global keyboard shortcuts
-  const handleGlobalKeyDown = useCallback(
-    (event: globalThis.KeyboardEvent) => {
-      // Skip shortcuts when typing in inputs/textareas
-      const target = event.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-        // Only allow Escape to blur out of inputs
-        if (event.key === 'Escape') {
-          target.blur()
-        }
+  const onAddComponentBound = (type: AddComponentType, payload: AddComponentPayload) => {
+    const id = createId(ID_MAP[type])
+    const baseVectors = payload.vectors ?? { [vectorKey]: 'must' }
+
+    switch (type) {
+      case 'target_line':
+        addTargetLine({ id, vectors: baseVectors, text: (payload.text ?? '').trim() })
+        break
+      case 'profile':
+        addProfile({ id, vectors: baseVectors, text: (payload.text ?? '').trim() })
+        break
+      case 'skill_group': {
+        const sgVectors: Record<string, any> = {}
+        data.vectors.forEach((v) => {
+          sgVectors[v.id] = { priority: 'strong', order: 1 }
+        })
+        addSkillGroup({
+          id,
+          label: payload.label?.trim() || 'New Skill Group',
+          content: (payload.content ?? '').trim(),
+          vectors: sgVectors,
+        } as any)
+        break
+      }
+      case 'project':
+        addProject({ id, name: payload.name?.trim() || 'New Project', url: payload.url?.trim() || undefined, vectors: baseVectors, text: (payload.text ?? '').trim() })
+        break
+      case 'bullet': {
+        const targetRoleId = payload.roleId ?? data.roles[0]?.id
+        if (!targetRoleId) return
+        addBullet(targetRoleId, { id, vectors: baseVectors, text: (payload.text ?? '').trim() })
+        break
+      }
+      case 'role':
+        addRole({ id, company: 'New Company', title: 'Role Title', dates: 'Jan 2024 – Present', vectors: { [vectorKey]: 'must' }, bullets: [] })
+        break
+      case 'education':
+        addEducation({ id, school: 'New School', location: 'Location', degree: 'Degree', year: CURRENT_YEAR.toString() })
+        break
+    }
+  }
+
+  const onAddVector = () => {
+    const name = window.prompt('Vector name (e.g. "Staff Engineer")')?.trim()
+    if (name) {
+      const id = slugify(name)
+      if (!id) {
+        showNotice('error', 'Invalid vector name.')
         return
       }
-
-      // Cmd/Ctrl shortcuts
-      if (event.metaKey || event.ctrlKey) {
-        if (event.key === 'z') {
-          event.preventDefault()
-          if (event.shiftKey) {
-            redo()
-          } else {
-            undo()
-          }
-          return
-        }
-
-        switch (event.key) {
-          case 'e':
-            event.preventDefault()
-            setImportExportMode('export')
-            return
-          case 'i':
-            event.preventDefault()
-            setImportExportMode('import')
-            return
-          case 'p':
-            event.preventDefault()
-            onDownloadPdf()
-            return
-        }
-      }
-
-      // Number keys 1-9 for vector switching (no modifier)
-      if (event.key >= '1' && event.key <= '9' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        const index = Number.parseInt(event.key, 10) - 1
-        if (index < data.vectors.length) {
-          setSelectedVector(data.vectors[index].id)
-        }
+      if (data.vectors.some((v) => v.id === id || v.label.toLowerCase() === name.toLowerCase())) {
+        showNotice('error', 'A vector with that name already exists.')
         return
       }
+      const color = vectorFallbackColors[data.vectors.length % vectorFallbackColors.length]
+      updateData((current) => ({
+        ...current,
+        vectors: [...current.vectors, { id, label: name, color }],
+      }))
+    }
+  }
 
-      // 0 for "all" vectors
-      if (event.key === '0' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        setSelectedVector('all')
-        return
-      }
+  const onImport = (nextData: ResumeData, importMode: 'merge' | 'replace', warnings: any[]) => {
+    if (importMode === 'merge') {
+      updateData((current) => mergeResumeData(current, nextData))
+    } else {
+      setData(nextData)
+    }
 
-      // Escape to close modals/panels
-      if (event.key === 'Escape') {
-        if (importExportMode) {
-          setImportExportMode(null)
-        } else if (jdModalOpen) {
-          setJdModalOpen(false)
-        }
-      }
-    },
-    [data.vectors, importExportMode, jdModalOpen, onDownloadPdf, redo, setSelectedVector, undo],
-  )
+    if (warnings.length > 0) {
+      showNotice(
+        'success',
+        `${importMode === 'merge' ? 'Merged' : 'Imported'} with ${warnings.length} warning${warnings.length === 1 ? '' : 's'}.`,
+      )
+      return
+    }
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleGlobalKeyDown)
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [handleGlobalKeyDown])
+    showNotice('success', importMode === 'merge' ? 'Import merged successfully' : 'Import replaced successfully')
+  }
+
+  const onAddMetaLinkBound = () => addMetaLink()
+  const onRemoveMetaLinkBound = (index: number) => removeMetaLink(index)
+
+  const handleRoleBulletReorder = (roleId: string, order: string[]) => {
+    setRoleBulletOrder(vectorKey, roleId, order)
+  }
+
+  // 9. Rendering Logic
+  if (!data.meta.name && data.roles.length === 0) {
+    return (
+      <main className="empty-state">
+        <div className="empty-state-card">
+          <FacetWordmark />
+          <h2>Welcome to Facet</h2>
+          <p>
+            Facet is a vector-based resume builder that helps you Strategically reposition your
+            experience for different roles.
+          </p>
+          <div className="empty-state-actions">
+            <button className="btn-primary" type="button" onClick={() => setImportExportMode('import')}>
+              <Upload size={16} />
+              Import Config
+            </button>
+            <button className="btn-secondary" type="button" onClick={() => resetToDefaults()}>
+              Load Sample Data
+            </button>
+            <button className="btn-secondary" type="button" onClick={onAddVector}>
+              Start from Scratch
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${draggingSplit ? 'is-dragging' : ''}`}>
       <header className="top-bar">
         <div className="top-bar-brand">
-          <FacetWordmark />
-          <p className="top-bar-tagline">Same diamond. Different face.</p>
+          <button
+            type="button"
+            className="brand btn-ghost"
+            onClick={() => setTourOpen(true)}
+            title="Restart Tour"
+          >
+            <FacetWordmark />
+          </button>
+          <p className="top-bar-tagline">AI-Powered Vector Resume</p>
         </div>
         <div className="top-bar-actions">
           <UndoRedoControls />
+
           <div className="view-switcher" role="tablist" aria-label="Preview mode">
             <button
               id="tab-pdf"
@@ -965,7 +854,7 @@ function App() {
               aria-selected={viewMode === 'pdf'}
               aria-controls="preview-panel"
               tabIndex={viewMode === 'pdf' ? 0 : -1}
-              title="PDF View (High Fidelity)"
+              title="PDF View"
             >
               <FileText size={14} />
               <span className="btn-label">PDF</span>
@@ -980,7 +869,7 @@ function App() {
               aria-selected={viewMode === 'live'}
               aria-controls="preview-panel"
               tabIndex={viewMode === 'live' ? 0 : -1}
-              title="Live View (Interactive)"
+              title="Live View"
             >
               <Eye size={14} />
               <span className="btn-label">Live</span>
@@ -1013,11 +902,7 @@ function App() {
                     return
                   }
                   const preset = presets.find((item) => item.id === nextId)
-                  if (!preset) {
-                    setActivePresetId(null)
-                    return
-                  }
-                  applyPreset(preset)
+                  if (preset) applyPreset(preset)
                 }}
               >
                 <option value="">Presets</option>
@@ -1040,17 +925,11 @@ function App() {
           <button
             className="btn-ghost"
             type="button"
-            onClick={() => {
-              if (appearance === 'system') setAppearance('light')
-              else if (appearance === 'light') setAppearance('dark')
-              else setAppearance('system')
-            }}
-            aria-label={`Appearance: ${appearance}. Switch to ${
-              appearance === 'system' ? 'light' : appearance === 'light' ? 'dark' : 'system'
-            }.`}
+            onClick={() => setAppearance(appearance === 'system' ? 'light' : appearance === 'light' ? 'dark' : 'system')}
+            aria-label={`Appearance: ${appearance}. Switch to ${appearance === 'light' ? 'dark' : appearance === 'dark' ? 'system' : 'light'}.`}
             title={`Appearance: ${appearance}`}
           >
-            {appearance === 'system' ? <Monitor size={16} /> : appearance === 'light' ? <Sun size={16} /> : <Moon size={16} />}
+            {appearance === 'dark' ? <Moon size={16} /> : appearance === 'light' ? <Sun size={16} /> : <Monitor size={16} />}
           </button>
           <button
             className="btn-primary"
@@ -1058,9 +937,10 @@ function App() {
             onClick={onDownloadPdf}
             disabled={pdfRenderPending || Boolean(pdfRenderError)}
             title="Download PDF (⌘P)"
+            data-tour="download-btn"
           >
             <Download size={16} />
-            <span className="btn-label">Download PDF</span>
+            <span>Download PDF</span>
           </button>
         </div>
       </header>
@@ -1070,304 +950,116 @@ function App() {
         selectedVector={selectedVector}
         onSelect={setSelectedVector}
         onAddVector={onAddVector}
-        onResetAuto={() => {
-          if (selectedVector === 'all') {
-            const confirmed = window.confirm('Reset overrides for all vectors?')
-            if (!confirmed) {
-              return
-            }
-            resetAllOverrides()
-            return
-          }
-          resetOverridesForVector(vectorKey)
-        }}
+        onResetAuto={() => resetOverridesForVector(vectorKey)}
       />
 
-      {!data.vectors.length ? (
-        <main className="empty-state-wrap">
-          <div className="empty-state">
-            <div className="empty-state-wireframe" aria-hidden="true">
-              <div className="wireframe-panel">
-                <div className="wireframe-line" style={{ width: '60%' }} />
-                <div className="wireframe-line" style={{ width: '80%' }} />
-                <div className="wireframe-line" style={{ width: '45%' }} />
-              </div>
-              <div className="wireframe-divider" />
-              <div className="wireframe-panel">
-                <div className="wireframe-line" style={{ width: '40%' }} />
-                <div className="wireframe-line" style={{ width: '90%' }} />
-                <div className="wireframe-line" style={{ width: '70%' }} />
-                <div className="wireframe-line" style={{ width: '85%' }} />
-              </div>
-            </div>
-            <h2>No vectors defined.</h2>
-            <p>
-              Vectors are positioning angles for your resume — like &ldquo;Backend Engineering&rdquo; or
-              &ldquo;Engineering Leadership.&rdquo; Import a config, load sample data, or create your first vector.
-            </p>
-            <div className="empty-actions">
-              <button className="btn-primary" type="button" onClick={() => setImportExportMode('import')}>
-                Import Config
-              </button>
-              <button className="btn-secondary" type="button" onClick={() => useResumeStore.getState().resetToDefaults()}>
-                Load Sample Data
-              </button>
-              <button className="btn-secondary" type="button" onClick={onAddVector}>
-                Start from Scratch
-              </button>
-            </div>
-          </div>
-        </main>
-      ) : (
+      {isOptimizingDensity && (
+        <div className="global-overlay-spinner">
+          <div className="spinner" />
+          <p>Optimizing Layout...</p>
+        </div>
+      )}
+
+      {assembled && (
         <main className="workspace">
           <section className="library-column" style={{ width: `${panelRatio * 100}%` }}>
             <div className="left-panel-shell">
               <div className="left-panel-header">
                 <div className="format-toggle" role="tablist" aria-label="Left panel mode">
                   <button
+                    id="tab-content"
                     className={`btn-secondary ${leftPanelMode === 'content' ? 'selected' : ''}`}
                     role="tab"
                     aria-selected={leftPanelMode === 'content'}
                     aria-controls="left-panel-content"
                     onClick={() => setLeftPanelMode('content')}
                   >
-                    <Layers size={14} /> Content
+                    Content
                   </button>
                   <button
+                    id="tab-design"
                     className={`btn-secondary ${leftPanelMode === 'design' ? 'selected' : ''}`}
                     role="tab"
                     aria-selected={leftPanelMode === 'design'}
                     aria-controls="left-panel-design"
                     onClick={() => setLeftPanelMode('design')}
+                    data-tour="design-tab"
                   >
-                    <Paintbrush size={14} /> Design
+                    Design
                   </button>
                 </div>
               </div>
+
               <div
                 id="left-panel-content"
                 role="tabpanel"
                 className="left-panel-body"
                 hidden={leftPanelMode !== 'content'}
+                aria-labelledby="tab-content"
               >
-            <ComponentLibrary
-              data={data}
-              selectedVector={selectedVector}
-              includedByKey={overridesForVector}
-              variantByKey={variantsForVector}
-              bulletOrderByRole={effectiveBulletOrders}
-              activeVectorBulletOrderByRole={activeBulletOrders}
-              defaultBulletOrderByRole={defaultBulletOrders}
-              onToggleComponent={toggleComponentWithPriority}
-              onSetVariant={(componentKey, variant) => setVariantOverride(vectorKey, componentKey, variant)}
-              onUpdateMetaField={(field, value) =>
-                updateData((current) => ({
-                  ...current,
-                  meta: {
-                    ...current.meta,
-                    [field]: value,
-                  },
-                }))
-              }
-              onUpdateMetaLink={(index, field, value) =>
-                updateData((current) => ({
-                  ...current,
-                  meta: {
-                    ...current.meta,
-                    links: current.meta.links.map((link, linkIndex) =>
-                      linkIndex === index
-                        ? {
-                            ...link,
-                            [field]: field === 'label' ? value || undefined : value,
-                          }
-                        : link,
-                    ),
-                  },
-                }))
-              }
-              onAddMetaLink={() =>
-                updateData((current) => ({
-                  ...current,
-                  meta: {
-                    ...current.meta,
-                    links: [...current.meta.links, { url: '' }],
-                  },
-                }))
-              }
-              onRemoveMetaLink={(index) =>
-                updateData((current) => ({
-                  ...current,
-                  meta: {
-                    ...current.meta,
-                    links: current.meta.links.filter((_, linkIndex) => linkIndex !== index),
-                  },
-                }))
-              }
-              onUpdateTargetLine={(id, text) =>
-                updateData((current) => ({
-                  ...current,
-                  target_lines: current.target_lines.map((line) =>
-                    line.id === id ? { ...line, text } : line,
-                  ),
-                }))
-              }
-              onUpdateTargetLineVectors={(id, vectors) =>
-                updateData((current) => ({
-                  ...current,
-                  target_lines: current.target_lines.map((line) =>
-                    line.id === id ? { ...line, vectors } : line,
-                  ),
-                }))
-              }
-              onUpdateProfile={(id, text) =>
-                updateData((current) => ({
-                  ...current,
-                  profiles: current.profiles.map((profile) =>
-                    profile.id === id ? { ...profile, text } : profile,
-                  ),
-                }))
-              }
-              onUpdateProfileVectors={(id, vectors) =>
-                updateData((current) => ({
-                  ...current,
-                  profiles: current.profiles.map((profile) =>
-                    profile.id === id ? { ...profile, vectors } : profile,
-                  ),
-                }))
-              }
-              onUpdateProject={(id, field, value) =>
-                updateData((current) => ({
-                  ...current,
-                  projects: current.projects.map((project) =>
-                    project.id === id ? { ...project, [field]: field === 'url' ? value || undefined : value } : project,
-                  ),
-                }))
-              }
-              onUpdateProjectVectors={(id, vectors) =>
-                updateData((current) => ({
-                  ...current,
-                  projects: current.projects.map((project) =>
-                    project.id === id ? { ...project, vectors } : project,
-                  ),
-                }))
-              }
-              onUpdateSkillGroup={(id, field, value) =>
-                updateData((current) => ({
-                  ...current,
-                  skill_groups: current.skill_groups.map((skillGroup) =>
-                    skillGroup.id !== id
-                      ? skillGroup
-                      : (() => {
-                          const nextSkillGroup = {
-                            ...skillGroup,
-                            [field]: value,
-                          }
-                          return {
-                            ...nextSkillGroup,
-                            vectors: ensureSkillGroupVectors(nextSkillGroup, current.vectors),
-                          }
-                        })(),
-                  ),
-                }))
-              }
-              onUpdateSkillGroupVectors={(id, vectors) =>
-                updateData((current) => ({
-                  ...current,
-                  skill_groups: current.skill_groups.map((skillGroup) =>
-                    skillGroup.id === id
-                      ? {
-                          ...skillGroup,
-                          vectors,
-                        }
-                      : skillGroup,
-                  ),
-                }))
-              }
-              onReorderSkillGroups={reorderSkillGroups}
-              onReorderProjects={reorderProjects}
-              onUpdateRole={(id, field, value) =>
-                updateData((current) => ({
-                  ...current,
-                  roles: current.roles.map((role) =>
-                    role.id === id ? { ...role, [field]: value } : role,
-                  ),
-                }))
-              }
-              onUpdateBullet={(roleId, bulletId, text) =>
-                updateData((current) => ({
-                  ...current,
-                  roles: current.roles.map((role) =>
-                    role.id !== roleId
-                      ? role
-                      : {
-                          ...role,
-                          bullets: role.bullets.map((bullet) =>
-                            bullet.id === bulletId ? { ...bullet, text } : bullet,
-                          ),
-                        },
-                  ),
-                }))
-              }
-              onUpdateBulletLabel={(roleId, bulletId, label) =>
-                updateData((current) => ({
-                  ...current,
-                  roles: current.roles.map((role) =>
-                    role.id !== roleId
-                      ? role
-                      : {
-                          ...role,
-                          bullets: role.bullets.map((bullet) =>
-                            bullet.id === bulletId ? { ...bullet, label: label || undefined } : bullet,
-                          ),
-                        },
-                  ),
-                }))
-              }
-              onUpdateBulletVectors={(roleId, bulletId, vectors) =>
-                updateData((current) => ({
-                  ...current,
-                  roles: current.roles.map((role) =>
-                    role.id !== roleId
-                      ? role
-                      : {
-                          ...role,
-                          bullets: role.bullets.map((bullet) =>
-                            bullet.id === bulletId ? { ...bullet, vectors } : bullet,
-                          ),
-                        },
-                  ),
-                }))
-              }
-              onToggleBullet={(roleId, bulletId, vectors) =>
-                toggleComponentWithPriority(componentKeys.bullet(roleId, bulletId), vectors)
-              }
-              onReorderBullets={handleRoleBulletReorder}
-              onResetRoleBulletOrder={(roleId) => resetRoleBulletOrder(vectorKey, roleId)}
-              onReframeBullet={onReframeBullet}
-              reframeLoadingId={reframeLoadingId}
-              aiEnabled={!!jdAnalysisEndpoint}
-              onAddComponent={onAddComponent}
-            />
+                <ComponentLibrary
+                  data={data}
+                  selectedVector={selectedVector}
+                  includedByKey={overridesForVector}
+                  variantByKey={variantsForVector}
+                  bulletOrderByRole={effectiveBulletOrders}
+                  activeVectorBulletOrderByRole={activeBulletOrders}
+                  defaultBulletOrderByRole={bulletOrders.all ?? {}}
+                  onToggleComponent={toggleComponentWithPriority}
+                  onSetVariant={(key, variant) => setVariantOverride(vectorKey, key, variant)}
+                  onUpdateTargetLine={updateTargetLine}
+                  onUpdateTargetLineVectors={updateTargetLineVectors}
+                  onUpdateProfile={updateProfile}
+                  onUpdateProfileVectors={updateProfileVectors}
+                  onUpdateProject={updateProject}
+                  onUpdateProjectVectors={updateProjectVectors}
+                  onReorderProjects={reorderProjects}
+                  onUpdateSkillGroup={updateSkillGroup}
+                  onUpdateSkillGroupVectors={updateSkillGroupVectors}
+                  onReorderSkillGroups={reorderSkillGroups}
+                  onUpdateRole={updateRole}
+                  onUpdateBullet={updateBullet}
+                  onUpdateBulletLabel={updateBulletLabel}
+                  onUpdateBulletVectors={updateBulletVectors}
+                  onToggleBullet={(roleId, bulletId, vectors) => toggleComponentWithPriority(componentKeys.bullet(roleId, bulletId), vectors)}
+                  onReorderBullets={handleRoleBulletReorder}
+                  onResetRoleBulletOrder={(roleId) => resetRoleBulletOrder(vectorKey, roleId)}
+                  onReframeBullet={onReframeBullet}
+                  reframeLoadingId={reframeLoadingId}
+                  aiEnabled={!!jdAnalysisEndpoint}
+                  onAddComponent={onAddComponentBound}
+                  onUpdateMetaField={updateMetaField}
+                  onUpdateMetaLink={updateMetaLink}
+                  onAddMetaLink={onAddMetaLinkBound}
+                  onRemoveMetaLink={onRemoveMetaLinkBound}
+                  bulletSuggestions={bulletSuggestions}
+                  onAcceptBulletSuggestion={onAcceptBulletSuggestion}
+                  onIgnoreBulletSuggestion={onIgnoreBulletSuggestion}
+                  targetLineSuggestion={targetLineSuggestion}
+                  onAcceptTargetLineSuggestion={onAcceptTargetLineSuggestion}
+                  onIgnoreTargetLineSuggestion={onIgnoreTargetLineSuggestion}
+                />
               </div>
               <div
                 id="left-panel-design"
                 role="tabpanel"
                 className="left-panel-body"
                 hidden={leftPanelMode !== 'design'}
+                aria-labelledby="tab-design"
               >
                 <ThemeEditorPanel
                   activePreset={themeState.preset}
                   resolvedTheme={resolvedTheme}
+                  onSetPreset={onSelectThemePreset}
+                  onSetOverride={(key, value) => onUpdateTheme({ [key]: value })}
+                  onAdjustDensityStep={() => {}}
+                  onOptimizeDensity={onOptimizeDensity}
+                  onResetOverrides={onResetAllThemeOverrides}
                   showHeatmap={showHeatmap}
-                  showDesignHealth={showDesignHealth}
-                  isOptimizingDensity={isOptimizingDensity}
-                  onSetPreset={setThemePreset}
-                  onSetOverride={setThemeOverride}
-                  onAdjustDensityStep={adjustThemeDensity}
-                  onOptimizeDensity={optimizeDensity}
-                  onResetOverrides={resetThemeOverrides}
                   onToggleHeatmap={setShowHeatmap}
+                  showDesignHealth={showDesignHealth}
                   onToggleDesignHealth={setShowDesignHealth}
+                  isOptimizingDensity={isOptimizingDensity}
                 />
               </div>
             </div>
@@ -1376,22 +1068,22 @@ function App() {
           <div
             className="splitter"
             role="separator"
-            tabIndex={0}
-            aria-label="Resize panels"
+            aria-label="Panel resize handle"
             aria-orientation="vertical"
             aria-valuemin={30}
             aria-valuemax={70}
             aria-valuenow={Math.round(panelRatio * 100)}
+            tabIndex={0}
             onMouseDown={() => setDraggingSplit(true)}
             onKeyDown={onSplitterKeyDown}
           />
 
           <section
             className="preview-column"
-            style={{ width: `${(1 - panelRatio) * 100}%` }}
-            role="tabpanel"
             id="preview-panel"
+            role="tabpanel"
             aria-labelledby={viewMode === 'pdf' ? 'tab-pdf' : 'tab-live'}
+            data-tour="preview-panel"
           >
             {viewMode === 'pdf' ? (
               <PdfPreview blobUrl={previewBlobUrl} loading={pdfRenderPending} error={pdfRenderError} />
@@ -1400,146 +1092,107 @@ function App() {
                 assembled={assembledResult.resume}
                 theme={resolvedTheme}
                 showHeatmap={showHeatmap}
+                matchedKeywords={jdAnalysisResult?.matched_keywords}
+                suggestedChanges={suggestedChanges}
               />
             )}
           </section>
         </main>
       )}
 
-      {jdModalOpen ? (
+      {suggestionModeActive && jdAnalysisResult && suggestionCount > 0 && (
+        <SuggestionToolbar
+          activeVector={jdAnalysisResult.primary_vector}
+          suggestionCount={suggestionCount}
+          onAcceptAll={onAcceptAllSuggestions}
+          onDismissRemaining={onDismissRemainingSuggestions}
+          onExit={() => setSuggestionModeActive(false)}
+        />
+      )}
+
+      {jdModalOpen && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="jd-analyzer-title">
           <div className="modal-card jd-modal" ref={jdModalRef} tabIndex={-1}>
             <header className="modal-header">
               <h3 id="jd-analyzer-title">Analyze Job Description</h3>
-              <button className="btn-ghost" type="button" onClick={() => setJdModalOpen(false)}>
-                Close
+              <button
+                className="btn-ghost btn-icon-only"
+                type="button"
+                onClick={() => setJdModalOpen(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
               </button>
             </header>
-            <textarea
-              className="import-textarea"
-              aria-label="Job description input"
-              placeholder="Paste a job description..."
-              value={jdInput}
-              onChange={(event) => setJdInput(event.target.value)}
-            />
-            {!jdAnalysisEndpoint ? (
-              <p className="error-text">
-                {jdEndpointInvalid
-                  ? 'JD analysis endpoint is invalid. Use http(s) URL without embedded credentials.'
-                  : 'JD analysis disabled. Set `VITE_ANTHROPIC_PROXY_URL` to enable this feature.'}
+            <div className="jd-modal-body">
+              <p className="modal-intro">
+                Paste a job description to get AI-powered positioning advice, skill gap analysis, and tailored bullet suggestions.
               </p>
-            ) : null}
-            {jdWordCount > 0 && jdWordCount < 50 ? (
-              <p className="warning-text" role="status">
-                JD appears short (&lt; 50 words). Analysis quality may be limited.
-              </p>
-            ) : null}
-            {jdWasTruncated ? (
-              <p className="warning-text" role="status">
-                Long JD truncated to fit analysis context window.
-              </p>
-            ) : null}
-            {jdError ? (
-              <p className="error-text" role="alert">
-                {jdError}
-              </p>
-            ) : null}
-            <button
-              className="btn-primary"
-              type="button"
-              disabled={jdLoading || jdInput.trim().length === 0 || !jdAnalysisEndpoint}
-              onClick={onAnalyzeJd}
-            >
-              {jdLoading ? 'Analyzing…' : 'Analyze'}
-            </button>
+              <textarea
+                className="component-input jd-input"
+                placeholder="Paste JD text here..."
+                value={jdInput}
+                onChange={(e) => setJdInput(e.target.value)}
+              />
+              <div className="jd-meta">
+                <span>{jdWordCount} words</span>
+                {jdWasTruncated && (
+                  <p className="warning-text" role="status">
+                    Long JD truncated.
+                  </p>
+                ) }
+                {jdError && (
+                  <p className="error-text" role="alert">
+                    {jdError}
+                  </p>
+                )}
+                <button
+                  className="btn-primary"
+                  type="button"
+                  disabled={jdLoading || jdInput.trim().length === 0 || !jdAnalysisEndpoint}
+                  onClick={onAnalyzeJd}
+                >
+                  {jdLoading ? 'Analyzing…' : 'Analyze'}
+                </button>
 
-            {jdAnalysisResult ? (
-              <div className="jd-results">
-                <section className="jd-section">
-                  <label className="jd-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={jdSelection.applyPrimaryVector}
-                      onChange={(event) =>
-                        setJdSelection((current) => ({
-                          ...current,
-                          applyPrimaryVector: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>Apply vector recommendation: {jdAnalysisResult.primary_vector}</span>
-                  </label>
-                </section>
-
-                <section className="jd-section">
-                  <h4>Bullet Adjustments</h4>
-                  {jdAnalysisResult.bullet_adjustments.map((adjustment) => (
-                    <label className="jd-checkbox" key={adjustment.bullet_id}>
-                      <input
-                        type="checkbox"
-                        checked={jdSelection.bulletAdjustmentIds.includes(adjustment.bullet_id)}
-                        onChange={(event) =>
-                          setJdSelection((current) => ({
-                            ...current,
-                            bulletAdjustmentIds: event.target.checked
-                              ? Array.from(new Set([...current.bulletAdjustmentIds, adjustment.bullet_id]))
-                              : current.bulletAdjustmentIds.filter((id) => id !== adjustment.bullet_id),
-                          }))
-                        }
+                {jdAnalysisResult && (
+                  <div className="jd-results">
+                    <section className="jd-section">
+                      <h4>Skill Gaps & Actions</h4>
+                      <GapAnalysisPanel
+                        skillGaps={jdAnalysisResult.skill_gaps}
+                        onQuickAdd={(type, payload) => {
+                          try {
+                            onAddComponentBound(type, payload)
+                            setJdModalOpen(false)
+                            showNotice('success', 'Added missing competency')
+                          } catch (err) {
+                            console.error('Quick-add failed:', err)
+                            showNotice('error', 'Failed to add component')
+                          }
+                        }}
                       />
-                      <span>
-                        {(bulletTextById[adjustment.bullet_id] ?? adjustment.bullet_id).slice(0, 90)}
-                        : {adjustment.recommended_priority} ({adjustment.reason})
-                      </span>
-                    </label>
-                  ))}
-                </section>
+                    </section>
 
-                <section className="jd-section">
-                  <label className="jd-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={jdSelection.applyTargetLine}
-                      onChange={(event) =>
-                        setJdSelection((current) => ({
-                          ...current,
-                          applyTargetLine: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>Apply target line suggestion: {jdAnalysisResult.suggested_target_line}</span>
-                  </label>
-                </section>
+                    <section className="jd-section">
+                      <h4>Positioning Note</h4>
+                      <p>{jdAnalysisResult.positioning_note}</p>
+                    </section>
 
-                <section className="jd-section">
-                  <h4>Skill Gaps</h4>
-                  <ul className="jd-skill-gaps">
-                    {jdAnalysisResult.skill_gaps.map((gap) => (
-                      <li key={gap}>{gap}</li>
-                    ))}
-                  </ul>
-                </section>
-
-                <section className="jd-section">
-                  <h4>Positioning Note</h4>
-                  <p>{jdAnalysisResult.positioning_note}</p>
-                </section>
-
-                <div className="jd-actions">
-                  <button className="btn-secondary" type="button" onClick={() => applyJdSelections(false)}>
-                    Apply Selected
-                  </button>
-                  <button className="btn-primary" type="button" onClick={() => applyJdSelections(true)}>
-                    Apply & Save as Preset
-                  </button>
-                </div>
+                    <div className="jd-actions">
+                      <button className="btn-secondary" type="button" onClick={() => setJdModalOpen(false)}>
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : null}
+            </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {reframeResult ? (
+      {reframeResult && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reframe-title">
           <div className="modal-card reframe-modal" ref={reframeModalRef} tabIndex={-1}>
             <header className="modal-header">
@@ -1549,7 +1202,7 @@ function App() {
                 type="button"
                 onClick={() => setReframeResult(null)}
               >
-                Cancel
+                <X size={18} />
               </button>
             </header>
 
@@ -1584,32 +1237,28 @@ function App() {
             </footer>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {variablesOpen ? (
+      {variablesOpen && (
         <VariableEditor
           ref={variablesModalRef}
-          variables={data.variables ?? EMPTY_VARIABLES}
+          variables={variables}
           onChange={updateVariables}
           onClose={() => setVariablesOpen(false)}
         />
-      ) : null}
-
+      )}
 
       <StatusBar
         pageCount={pdfPageCount}
         pageCountPending={pdfRenderPending}
-        bulletCount={assembledResult.resume.roles.reduce((acc, role) => acc + role.bullets.length, 0)}
+        bulletCount={bulletCount}
         skillGroupCount={assembledResult.resume.skillGroups.length}
         nearBudget={nearPageLimit}
         overBudget={overPageLimit}
-        mustOverBudget={assembledResult.warnings.some((warning) => warning.code === 'must_over_budget')}
-        activePresetLabel={
-          activePreset
-            ? `${activePreset.name} (based on ${activePreset.baseVector})`
-            : undefined
-        }
+        mustOverBudget={mustOnlyOverPageLimit}
+        activePresetLabel={activePreset?.name}
         presetDirty={presetDirty}
+        matchScore={matchScore}
       />
 
       <footer className="app-footer">
@@ -1627,33 +1276,34 @@ function App() {
         mode={importExportMode ?? 'import'}
         data={data}
         onClose={() => setImportExportMode(null)}
-        onImport={(nextData, importMode, warnings) => {
-          if (importMode === 'merge') {
-            updateData((current) => mergeResumeData(current, nextData))
-          } else {
-            setData(nextData)
-          }
+        onImport={onImport}
+      />
 
-          if (warnings.length > 0) {
-            showNotice(
-              'success',
-              `${importMode === 'merge' ? 'Merged' : 'Imported'} with ${warnings.length} warning${warnings.length === 1 ? '' : 's'}.`,
-            )
-            return
-          }
-
-          showNotice('success', importMode === 'merge' ? 'Import merged successfully' : 'Import replaced successfully')
+      <Tour
+        open={tourOpen}
+        onClose={() => {
+          setTourOpen(false)
+          setTourCompleted(true)
         }}
       />
-      {notice ? (
+
+      {notice && (
         <div
           className={`toast ${notice.tone}`}
           role={notice.tone === 'error' ? 'alert' : 'status'}
           aria-live={notice.tone === 'error' ? 'assertive' : 'polite'}
         >
-          {notice.message}
+          <span className="toast-message">{notice.message}</span>
+          <button 
+            type="button" 
+            className="toast-dismiss" 
+            onClick={() => setNotice(null)}
+            aria-label="Dismiss notification"
+          >
+            <X size={14} />
+          </button>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 
 afterEach(cleanup)
 import { PdfPreview } from '../components/PdfPreview'
@@ -12,26 +12,12 @@ describe('PdfPreview', () => {
     expect(screen.getByText('PDF preview will appear here.')).toBeTruthy()
   })
 
-  it('renders buffer iframe with blob URL when first provided', () => {
+  it('renders iframe directly with blob URL', () => {
     render(<PdfPreview blobUrl="blob:http://localhost/abc123" loading={false} error={null} />)
     const iframe = document.querySelector('iframe')
     expect(iframe).toBeTruthy()
     expect(iframe?.getAttribute('src')).toBe('blob:http://localhost/abc123')
-    expect(iframe?.getAttribute('title')).toBe('Resume PDF preview (loading)')
-  })
-
-  it('promotes buffer to display after load', () => {
-    render(<PdfPreview blobUrl="blob:http://localhost/abc123" loading={false} error={null} />)
-    const buffer = document.querySelector('iframe')
-    expect(buffer).toBeTruthy()
-
-    act(() => {
-      fireEvent.load(buffer!)
-    })
-
-    const display = document.querySelector('iframe')
-    expect(display?.getAttribute('title')).toBe('Resume PDF preview')
-    expect(display?.getAttribute('src')).toBe('blob:http://localhost/abc123')
+    expect(iframe?.getAttribute('title')).toBe('Resume PDF preview')
   })
 
   it('does not render placeholder when blob URL is present', () => {
@@ -76,8 +62,7 @@ describe('PdfPreview', () => {
 
   it('shows placeholder again when blobUrl becomes null', () => {
     const { rerender } = render(<PdfPreview blobUrl="blob:http://localhost/abc123" loading={false} error={null} />)
-    const buffer = document.querySelector('iframe')
-    act(() => { fireEvent.load(buffer!) })
+    expect(document.querySelector('iframe')).toBeTruthy()
 
     rerender(<PdfPreview blobUrl={null} loading={false} error={null} />)
     expect(screen.getByText('PDF preview will appear here.')).toBeTruthy()
