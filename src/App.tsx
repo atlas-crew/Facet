@@ -22,9 +22,9 @@ import { ComponentLibrary } from './components/ComponentLibrary'
 import { PdfPreview } from './components/PdfPreview'
 import { LivePreview } from './components/LivePreview'
 import { StatusBar } from './components/StatusBar'
+import { VariableEditor } from './components/VariableEditor'
 import { ImportExport } from './components/ImportExport'
 import { mergeResumeData } from './engine/importMerge'
-import { reorderById } from './utils/reorderById'
 import { resolveEffectiveBulletOrders } from './utils/bulletOrder'
 import { buildResumePdfFileName } from './utils/pdfFormatting'
 import {
@@ -35,7 +35,6 @@ import {
 } from './utils/jdAnalyzer'
 import {
   ensureSkillGroupVectors,
-  reorderSkillGroupForSelection,
 } from './utils/skillGroupVectors'
 import { useFocusTrap } from './utils/useFocusTrap'
 import { defaultVectorsForSelection } from './utils/vectorPriority'
@@ -129,6 +128,8 @@ function App() {
     resetAllOverrides,
     resetOverridesForVector,
     reorderProjects,
+    reorderSkillGroups,
+    updateVariables,
   } = useResumeStore()
   const {
     selectedVector,
@@ -168,6 +169,7 @@ function App() {
   const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
   const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
   const [isOptimizingDensity, setIsOptimizingDensity] = useState(false)
+  const [variablesOpen, setVariablesOpen] = useState(false)
   const noticeTimeoutRef = useRef<number | null>(null)
   const jdModalRef = useRef<HTMLDivElement>(null)
   const reframeModalRef = useRef<HTMLDivElement>(null)
@@ -990,6 +992,7 @@ function App() {
 
           <DropdownMenu label="Actions" icon={Zap}>
             <DropdownMenu.Item icon={ScanSearch} label="Analyze JD" onClick={() => setJdModalOpen(true)} />
+            <DropdownMenu.Item icon={Paintbrush} label="Variables" onClick={() => setVariablesOpen(true)} />
             <DropdownMenu.Divider />
             <div className="dropdown-preset-section">
               <select
@@ -1273,17 +1276,7 @@ function App() {
                   ),
                 }))
               }
-              onReorderSkillGroups={(order) =>
-                updateData((current) => {
-                  const reordered = reorderById(current.skill_groups, order)
-                  return {
-                    ...current,
-                    skill_groups: reordered.map((skill, index) =>
-                      reorderSkillGroupForSelection(skill, selectedVector, current.vectors, index + 1),
-                    ),
-                  }
-                })
-              }
+              onReorderSkillGroups={reorderSkillGroups}
               onReorderProjects={reorderProjects}
               onUpdateRole={(id, field, value) =>
                 updateData((current) => ({
@@ -1544,7 +1537,11 @@ function App() {
           <div className="modal-card reframe-modal" ref={reframeModalRef} tabIndex={-1}>
             <header className="modal-header">
               <h3 id="reframe-title">AI Reframe for {reframeResult.vectorLabel}</h3>
-              <button className="btn-ghost" type="button" onClick={() => setReframeResult(null)}>
+              <button
+                className="btn-ghost"
+                type="button"
+                onClick={() => setReframeResult(null)}
+              >
                 Cancel
               </button>
             </header>
@@ -1567,7 +1564,11 @@ function App() {
             </div>
 
             <footer className="reframe-actions">
-              <button className="btn-secondary" type="button" onClick={() => setReframeResult(null)}>
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => setReframeResult(null)}
+              >
                 Discard
               </button>
               <button className="btn-primary" type="button" onClick={onApplyReframe}>
@@ -1577,6 +1578,15 @@ function App() {
           </div>
         </div>
       ) : null}
+
+      {variablesOpen ? (
+        <VariableEditor
+          variables={data.variables ?? {}}
+          onChange={updateVariables}
+          onClose={() => setVariablesOpen(false)}
+        />
+      ) : null}
+
 
       <StatusBar
         pageCount={pdfPageCount}
@@ -1593,6 +1603,15 @@ function App() {
         }
         presetDirty={presetDirty}
       />
+
+      <footer className="app-footer">
+        <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
+        <nav className="app-footer-links" aria-label="Footer links">
+          <a href="https://github.com/NickCrew/Facet" target="_blank" rel="noopener noreferrer" aria-label="GitHub (opens in new tab)">GitHub</a>
+          <a href="https://github.com/NickCrew/Facet/issues" target="_blank" rel="noopener noreferrer" aria-label="Report an Issue (opens in new tab)">Report an Issue</a>
+          <a href="https://nickcrew.github.io/resume/process.html" target="_blank" rel="noopener noreferrer" aria-label="AI Job Search & Interview Prep (opens in new tab)">AI Job Search &amp; Interview Prep</a>
+        </nav>
+      </footer>
 
       <ImportExport
         key={importExportMode ?? 'closed'}
