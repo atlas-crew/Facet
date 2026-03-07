@@ -76,7 +76,23 @@ Templates implement the `ResumeTemplate` interface. Currently one template: "Edi
 
 Additional renderers: `textRenderer.ts` (plain text) and `markdownRenderer.ts` (clipboard).
 
-### UI Layout
+### Routing & App Shell
+
+The app uses **TanStack Router** (code-based) with three routes:
+
+- `/build` — Resume assembly workspace (the original Facet SPA)
+- `/pipeline` — Job search pipeline tracker (in development)
+- `/prep` — Interview prep reference cards (in development)
+
+The root route renders `AppShell` (`src/components/AppShell.tsx`) which provides:
+- A 48px icon sidebar for navigation between routes
+- Global appearance/theme management
+- The app footer
+- An `<Outlet />` for child route content
+
+Router config lives in `src/router.tsx`. Route components live in `src/routes/{name}/`.
+
+### UI Layout (Build Route)
 
 Two-panel split: Component Library (left, ~45%) | Live Preview (right, ~55%) with a draggable splitter. Vector selector bar at top, status bar at bottom showing page usage. The split ratio is persisted in `uiStore`.
 

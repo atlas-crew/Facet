@@ -4,18 +4,22 @@
   "version": "0.1.0",
   "type": "module",
   "license": "AGPL",
-  "files": ["dist/"],
-  "engines": { "node": ">=20.19.0" },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "homepage": "https://github.com/NickCrew/Facet",
   "bugs": {
-      "url": "https://github.com/NickCrew/Facet/issues"
+    "url": "https://github.com/NickCrew/Facet/issues"
   },
   "keywords": [
     "resume",
     "career"
   ],
   "author": {
-      "name": "Nicholas Ferguson",
+    "name": "Nicholas Ferguson",
     "url": "https://nickcrew.github.io/resume",
     "email": "nick@atlascrew.dev"
   },
@@ -34,6 +38,7 @@
     "@myriaddreamin/typst-ts-renderer": "0.7.0-rc2",
     "@myriaddreamin/typst-ts-web-compiler": "0.7.0-rc2",
     "@myriaddreamin/typst.ts": "0.7.0-rc2",
+    "@tanstack/react-router": "^1.166.2",
     "js-yaml": "^4.1.1",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",

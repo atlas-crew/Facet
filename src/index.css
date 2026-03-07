@@ -253,7 +253,8 @@ select {
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
 }
 
 .top-bar {
@@ -1959,6 +1960,29 @@ select.component-input {
   color: var(--error);
 }
 
+.pdf-preview-shell.is-stale .pdf-preview-frame {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+  transition: opacity 300ms var(--easing), filter 300ms var(--easing);
+}
+
+.pdf-preview-stale-overlay {
+  position: absolute;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+  pointer-events: none;
+}
+
 .preview-paper {
   background: var(--bg-preview);
   max-width: 680px;
@@ -2860,6 +2884,161 @@ select.component-input {
     justify-content: center;
     gap: var(--space-3);
   }
+}
+
+/* ── App Root & Sidebar ──────────────────── */
+
+.app-root {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-sidebar {
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-2) 0;
+  z-index: 20;
+}
+
+.sidebar-top {
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-2);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  padding: var(--space-1);
+  border-radius: 6px;
+  transition: background var(--duration-fast) var(--easing);
+}
+
+.sidebar-brand:hover {
+  background: var(--bg-surface-hover);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing);
+  position: relative;
+}
+
+.sidebar-nav-item:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+.sidebar-nav-item.active {
+  color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+}
+
+.sidebar-nav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  width: 100%;
+  justify-content: center;
+}
+
+.app-content-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Route Placeholders ──────────────────── */
+
+.route-placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-primary);
+}
+
+.route-placeholder-content {
+  text-align: center;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.route-placeholder-content h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.route-placeholder-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.route-placeholder-content svg {
+  color: var(--text-tertiary);
+}
+
+.route-placeholder-hint {
+  font-size: 12px !important;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
 }
 
 /* ── Tour ─────────────────────────────────── */
