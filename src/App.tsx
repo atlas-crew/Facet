@@ -51,6 +51,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 const EMPTY_MANUAL_OVERRIDES: Readonly<Record<string, Record<string, boolean>>> = Object.freeze({})
 const EMPTY_VARIANT_OVERRIDES: Readonly<Record<string, Record<string, VariantSelection>>> = Object.freeze({})
 const EMPTY_BULLET_ORDERS: Readonly<Record<string, Record<string, string[]>>> = Object.freeze({})
+const EMPTY_VARIABLES: Readonly<Record<string, string>> = Object.freeze({})
 
 const colorThemeKeys = new Set<keyof ResumeThemeOverrides>([
   'colorBody',
@@ -1587,7 +1588,8 @@ function App() {
 
       {variablesOpen ? (
         <VariableEditor
-          variables={data.variables ?? {}}
+          ref={variablesModalRef}
+          variables={data.variables ?? EMPTY_VARIABLES}
           onChange={updateVariables}
           onClose={() => setVariablesOpen(false)}
         />
