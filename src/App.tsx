@@ -129,7 +129,6 @@ function App() {
     resetAllOverrides,
     resetOverridesForVector,
     reorderProjects,
-    reorderSkillGroups,
   } = useResumeStore()
   const {
     selectedVector,
