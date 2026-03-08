@@ -698,9 +698,10 @@ export function BuildPage() {
         onDownloadPdf()
       } else if (event.key === 'Escape') {
         if (jdModalOpen) setJdModalOpen(false)
-        if (reframeResult) setReframeResult(null)
-        if (variablesOpen) setVariablesOpen(false)
-        if (suggestionModeActive) setSuggestionModeActive(false)
+        else if (reframeResult) setReframeResult(null)
+        else if (variablesOpen) setVariablesOpen(false)
+        else if (suggestionModeActive) setSuggestionModeActive(false)
+        else if (comparisonVector) setComparisonVector(null)
       } else if (!cmdOrCtrl && !event.shiftKey && !event.altKey && event.key >= '1' && event.key <= '9') {
         const index = Number.parseInt(event.key, 10) - 1
         if (data.vectors[index]) setSelectedVector(data.vectors[index].id)
@@ -708,7 +709,7 @@ export function BuildPage() {
         setSelectedVector('all')
       }
     },
-    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, onDownloadPdf],
+    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, comparisonVector, setComparisonVector, onDownloadPdf],
   )
 
   useEffect(() => {
@@ -1158,6 +1159,15 @@ export function BuildPage() {
                   <div className="comparison-panel">
                     <div className="comparison-panel-header">
                       {data.vectors.find((v) => v.id === comparisonVector)?.label ?? 'All Vectors'}
+                      <button
+                        type="button"
+                        className="comparison-close-btn"
+                        onClick={() => setComparisonVector(null)}
+                        aria-label="Exit comparison"
+                        title="Exit comparison (Esc)"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
                     <LivePreview
                       assembled={comparisonResult.resume}

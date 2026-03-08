@@ -3422,6 +3422,9 @@ select.component-input {
   position: sticky;
   top: 0;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-2) var(--space-3);
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
@@ -3431,12 +3434,32 @@ select.component-input {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  text-align: center;
+}
+
+.comparison-close-btn {
+  position: absolute;
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+}
+
+.comparison-close-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
 }
 
 .comparison-diff-strip {
-  width: 200px;
-  min-width: 200px;
+  width: clamp(140px, 15vw, 200px);
+  flex-shrink: 0;
   border-left: 1px solid var(--border-subtle);
   border-right: 1px solid var(--border-subtle);
   overflow-y: auto;
@@ -3474,13 +3497,13 @@ select.component-input {
 
 .comparison-diff-badge.left-only {
   background: color-mix(in srgb, #ef4444 15%, var(--bg-surface));
-  color: #dc2626;
+  color: color-mix(in srgb, #ef4444 85%, var(--text-primary));
   border: 1px solid color-mix(in srgb, #ef4444 30%, var(--border-subtle));
 }
 
 .comparison-diff-badge.right-only {
   background: color-mix(in srgb, #3b82f6 15%, var(--bg-surface));
-  color: #2563eb;
+  color: color-mix(in srgb, #3b82f6 85%, var(--text-primary));
   border: 1px solid color-mix(in srgb, #3b82f6 30%, var(--border-subtle));
 }
 
@@ -3506,8 +3529,6 @@ select.component-input {
   overflow: hidden;
 }
 
-.preview-column.comparison-active .preview-shell {
-  transform-origin: top left;
-  transform: scale(0.85);
-  width: 117.6%;
+.preview-column.comparison-active .preview-paper {
+  font-size: 0.85em;
 }
