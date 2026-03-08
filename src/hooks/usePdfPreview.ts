@@ -37,6 +37,12 @@ export function usePdfPreview({ resume, theme, debounceMs = DEFAULT_DEBOUNCE_MS 
       type: 'module'
     })
 
+    workerRef.current.onerror = (event) => {
+      console.error('[usePdfPreview] Worker error:', event.message)
+      setError(event.message || 'PDF worker encountered a fatal error.')
+      setPending(false)
+    }
+
     workerRef.current.onmessage = (event) => {
       const { id, type, bytes, pageCount: nextPageCount, error: workerError } = event.data
       

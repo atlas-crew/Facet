@@ -32,6 +32,11 @@ const prepRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/prep',
   component: PrepPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    vector: (search.vector as string) ?? '',
+    skills: (search.skills as string) ?? '',
+    q: (search.q as string) ?? '',
+  }),
 })
 
 const routeTree = rootRoute.addChildren([indexRoute, buildRoute, pipelineRoute, prepRoute])

@@ -132,6 +132,9 @@
   --success: #16a34a;
   --warning: #b45309;
   --error: #dc2626;
+  --accent-violet: #7c3aed;
+  --accent-cyan: #0891b2;
+  --accent-orange: #c2410c;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
@@ -173,6 +176,9 @@
   --success: #3fbf8a;
   --warning: #d8a34d;
   --error: #f07178;
+  --accent-violet: #a78bfa;
+  --accent-cyan: #22d3ee;
+  --accent-orange: #f97316;
 
   --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
@@ -289,10 +295,14 @@ select {
   flex-shrink: 0;
 }
 
+.facet-gem-mark {
+  flex-shrink: 0;
+}
+
 .facet-wordmark {
   font-family: var(--font-brand);
   font-weight: 300;
-  font-size: 24px;
+  font-size: 28px;
   letter-spacing: -0.5px;
   color: var(--text-primary);
 }
@@ -817,6 +827,8 @@ select {
 .preview-column {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
   height: 100%;
   background: var(--bg-inset);
 }

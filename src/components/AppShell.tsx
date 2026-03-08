@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, Link, useRouterState } from '@tanstack/react-router'
 import { Layers, ListChecks, BookOpen, Moon, Sun, Monitor } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
-import { FacetMark } from './FacetWordmark'
+import { FacetGemMark } from './FacetWordmark'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -42,7 +42,7 @@ export function AppShell() {
       <nav className="app-sidebar" aria-label="Main navigation">
         <div className="sidebar-top">
           <Link to="/build" className="sidebar-brand" aria-label="Facet home">
-            <FacetMark size={22} />
+            <FacetGemMark size={22} />
           </Link>
         </div>
 
@@ -87,6 +87,9 @@ export function AppShell() {
         <footer className="app-footer">
           <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
           <nav className="app-footer-links" aria-label="Footer links">
+            <a href="https://github.com/NickCrew/Facet/blob/main/docs/NAVIGATOR.md" target="_blank" rel="noopener noreferrer">
+              Docs
+            </a>
             <a href="https://github.com/NickCrew/Facet" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
