@@ -39,4 +39,25 @@ describe('uiStore', () => {
     useUiStore.getState().setSelectedVector('backend')
     expect(useUiStore.getState().selectedVector).toBe('backend')
   })
+
+  it('comparisonVector defaults to null', () => {
+    expect(useUiStore.getState().comparisonVector).toBeNull()
+  })
+
+  it('setComparisonVector updates and clears', () => {
+    useUiStore.getState().setComparisonVector('security')
+    expect(useUiStore.getState().comparisonVector).toBe('security')
+
+    useUiStore.getState().setComparisonVector(null)
+    expect(useUiStore.getState().comparisonVector).toBeNull()
+  })
+
+  it('comparisonVector is excluded from persistence', () => {
+    const persistOptions = (useUiStore as unknown as { persist: { getOptions: () => { partialize?: (state: Record<string, unknown>) => Record<string, unknown> } } }).persist.getOptions()
+    if (persistOptions.partialize) {
+      const state = useUiStore.getState()
+      const persisted = persistOptions.partialize(state as unknown as Record<string, unknown>)
+      expect('comparisonVector' in persisted).toBe(false)
+    }
+  })
 })
