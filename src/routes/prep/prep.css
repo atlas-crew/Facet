@@ -53,10 +53,15 @@
   transition: all var(--duration-fast) var(--easing);
 }
 
-.prep-btn:hover {
+.prep-btn:hover:not(:disabled) {
   background: var(--bg-surface-hover);
   border-color: var(--border-strong);
   color: var(--text-primary);
+}
+
+.prep-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .prep-btn-primary {
@@ -65,7 +70,7 @@
   color: var(--text-inverse);
 }
 
-.prep-btn-primary:hover {
+.prep-btn-primary:hover:not(:disabled) {
   background: var(--accent-primary-hover);
   border-color: var(--accent-primary-hover);
   color: var(--text-inverse);
@@ -515,4 +520,115 @@
   display: flex;
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+
+/* ── Practice Mode ── */
+
+.prep-practice-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+}
+
+.prep-practice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.prep-practice-progress {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.prep-practice-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.prep-practice-card-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) 0;
+}
+
+.prep-practice-flashcard {
+  width: 100%;
+  max-width: 600px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-4);
+  box-shadow: var(--shadow-md);
+}
+
+.prep-practice-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.prep-practice-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prep-practice-reveal {
+  margin-top: var(--space-6);
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.prep-practice-revealed {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prep-practice-nav {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.prep-practice-complete {
+  margin-top: var(--space-6);
+  text-align: center;
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.prep-practice-complete h3 {
+  margin: 0 0 var(--space-2) 0;
+  color: var(--text-primary);
+}
+
+.prep-practice-complete p {
+  margin: 0 0 var(--space-4) 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.prep-practice-hint {
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--text-tertiary);
 }

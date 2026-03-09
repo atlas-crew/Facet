@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useSearch } from '@tanstack/react-router'
-import { Download, Upload } from 'lucide-react'
+import { Download, Upload, Play } from 'lucide-react'
 import type { PrepCard, PrepCategory } from '../../types/prep'
 import { PrepSearch } from './PrepSearch'
 import { PrepCardGrid } from './PrepCardGrid'
+import { PrepPracticeMode } from './PrepPracticeMode'
 import { samplePrepData } from './samplePrepData'
 import { parsePrepImport } from '../../utils/prepImport'
 import './prep.css'
@@ -31,6 +32,7 @@ export function PrepPage() {
   const [query, setQuery] = useState(search.q ?? '')
   const [category, setCategory] = useState<PrepCategory | 'all'>('all')
   const [vectorFilter, setVectorFilter] = useState(search.vector ?? '')
+  const [isPracticeMode, setIsPracticeMode] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
 
   // Parse skills from URL
@@ -141,11 +143,28 @@ export function PrepPage() {
     )
   }
 
+  if (isPracticeMode) {
+    return (
+      <PrepPracticeMode 
+        cards={filteredCards} 
+        onExit={() => setIsPracticeMode(false)} 
+      />
+    )
+  }
+
   return (
     <div className="prep-page">
       <div className="prep-header">
         <h1>Interview Prep</h1>
         <div className="prep-header-actions">
+          <button 
+            className="prep-btn prep-btn-primary" 
+            onClick={() => setIsPracticeMode(true)}
+            disabled={filteredCards.length === 0}
+            title={filteredCards.length === 0 ? "No cards match your filters" : undefined}
+          >
+            <Play size={16} /> Practice Mode
+          </button>
           <button className="prep-btn" onClick={() => importRef.current?.click()}>
             <Upload size={16} /> Import
           </button>
