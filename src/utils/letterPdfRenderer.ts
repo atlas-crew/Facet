@@ -4,23 +4,9 @@ import { getTypstSnippet, toPdfPageCount } from './typstRendererUtils'
 import { TEMPLATES } from '../templates/registry'
 import type { ResumeTheme, ResumeMeta, VectorId } from '../types'
 import { toThemePayload } from './typstRenderer'
+import { assembleCoverLetterData } from '../engine/letterAssembler'
 
 const PDF_MIME_TYPE = 'application/pdf'
-
-export interface LetterDataPayload {
-  metadata: {
-    title: string
-    author: string
-  }
-  name: string
-  contactLine: string | null
-  contactLinks: Array<{ text: string; href: string }>
-  date: string
-  recipient: string | null
-  greeting: string
-  paragraphs: string[]
-  signOff: string
-}
 
 export const renderLetterAsPdf = async (
   template: CoverLetterTemplate,
@@ -28,43 +14,20 @@ export const renderLetterAsPdf = async (
   meta: ResumeMeta,
   vectorId: VectorId,
   recipient: string = '',
-  variables: Record<string, string> = {}
+  variables: Record<string, string> = {},
+  date?: Date
 ) => {
   const fontFiles = getThemeFontFiles(theme)
   const snippet = await getTypstSnippet(fontFiles)
   
-  // Assemble paragraphs based on vector
-  const filteredParagraphs = template.paragraphs.filter(p => {
-    const priority = p.vectors[vectorId]
-    return priority === 'must' || priority === 'strong' || priority === 'optional'
+  // Use the shared assembler logic
+  const dataPayload = assembleCoverLetterData(template, {
+    vectorId,
+    meta,
+    variables,
+    recipient,
+    date
   })
-
-  const paragraphsToRender = filteredParagraphs.length > 0 
-    ? filteredParagraphs 
-    : template.paragraphs.filter(p => !Object.keys(p.vectors).length)
-
-  // Resolve variables
-  const resolve = (text: string) => {
-    return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-      const trimmedKey = key.trim()
-      return variables[trimmedKey] ?? match
-    })
-  }
-
-  const dataPayload: LetterDataPayload = {
-    metadata: {
-      title: `${template.name} - ${meta.name}`,
-      author: meta.name
-    },
-    name: meta.name,
-    contactLine: [meta.location, meta.email, meta.phone].filter(Boolean).join(' | '),
-    contactLinks: [], // We can wire these up later if needed
-    date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-    recipient: resolve(recipient),
-    greeting: resolve(template.greeting),
-    paragraphs: paragraphsToRender.map(p => resolve(p.text)),
-    signOff: resolve(template.signOff)
-  }
 
   const themePayload = toThemePayload(theme)
   const typstTemplate = TEMPLATES.letter
