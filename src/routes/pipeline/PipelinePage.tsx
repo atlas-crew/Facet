@@ -13,11 +13,17 @@ import { PipelineFilters } from './PipelineFilters'
 import { PipelineTable } from './PipelineTable'
 import { PipelineEntryModal } from './PipelineEntryModal'
 import { PipelineAnalytics } from './PipelineAnalytics'
+import { PasteJdModal } from './PasteJdModal'
 import { samplePipelineData } from './samplePipelineData'
 import { parsePipelineImport } from '../../utils/pipelineImport'
 import './pipeline.css'
 
-type ModalState = null | 'add' | PipelineEntry
+type ModalState = 
+  | null 
+  | 'add' 
+  | PipelineEntry 
+  | 'paste-jd' 
+  | { type: 'add-prefilled'; data: Partial<PipelineEntry> }
 
 const TIER_ORDER: Record<string, number> = { '1': 1, '2': 2, '3': 3, watch: 4 }
 
@@ -84,7 +90,7 @@ export function PipelinePage() {
   const handleSave = useCallback(
     (data: Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'>) => {
       if (modal && typeof modal === 'object' && 'id' in modal) {
-        updateEntry(modal.id, data)
+        updateEntry((modal as PipelineEntry).id, data)
       } else {
         addEntry(data)
       }
@@ -169,6 +175,7 @@ export function PipelinePage() {
   }, [importEntries])
 
   const modalEntry = modal && typeof modal === 'object' && 'id' in modal ? modal : null
+  const initialData = modal && typeof modal === 'object' && 'type' in modal && modal.type === 'add-prefilled' ? modal.data : undefined
 
   const handleImportLegacy = useCallback(() => {
     try {
@@ -215,6 +222,9 @@ export function PipelinePage() {
             <button className="pipeline-btn pipeline-btn-primary" onClick={() => setModal('add')}>
               <Plus size={16} /> Add First Entry
             </button>
+            <button className="pipeline-btn pipeline-btn-primary" onClick={() => setModal('paste-jd')}>
+              <Plus size={16} /> Paste JD
+            </button>
             {hasLegacyData && (
               <button className="pipeline-btn pipeline-btn-primary" onClick={handleImportLegacy}>
                 <Upload size={16} /> Import Legacy Data
@@ -243,6 +253,9 @@ export function PipelinePage() {
         <div className="pipeline-header-actions">
           <button className="pipeline-btn pipeline-btn-primary" onClick={() => setModal('add')}>
             <Plus size={16} /> Add
+          </button>
+          <button className="pipeline-btn pipeline-btn-primary" onClick={() => setModal('paste-jd')}>
+            <Plus size={16} /> Paste JD
           </button>
           <button className="pipeline-btn" onClick={() => importRef.current?.click()}>
             <Upload size={16} /> Import
@@ -281,12 +294,20 @@ export function PipelinePage() {
         onOpenInBuilder={handleOpenInBuilder}
       />
 
-      {modal !== null && (
+      {(modal === 'add' || modalEntry || initialData) && (
         <PipelineEntryModal
           key={modalEntry?.id ?? 'new'}
           entry={modalEntry}
+          initialData={initialData}
           onSave={handleSave}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'paste-jd' && (
+        <PasteJdModal
+          onClose={() => setModal(null)}
+          onParse={(data) => setModal({ type: 'add-prefilled', data })}
         />
       )}
     </div>

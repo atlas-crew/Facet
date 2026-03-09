@@ -16,6 +16,7 @@ type EntryDraft = Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'histo
 
 interface PipelineEntryModalProps {
   entry: PipelineEntry | null
+  initialData?: Partial<PipelineEntry>
   onSave: (data: EntryDraft) => void
   onClose: () => void
 }
@@ -83,8 +84,15 @@ function entryToDraft(e: PipelineEntry): EntryDraft {
   return rest
 }
 
-export function PipelineEntryModal({ entry, onSave, onClose }: PipelineEntryModalProps) {
-  const [draft, setDraft] = useState<EntryDraft>(entry ? entryToDraft(entry) : blankDraft())
+export function PipelineEntryModal({ entry, initialData, onSave, onClose }: PipelineEntryModalProps) {
+  const [draft, setDraft] = useState<EntryDraft>(() => {
+    if (entry) return entryToDraft(entry)
+    const blank = blankDraft()
+    if (initialData) {
+      return { ...blank, ...initialData }
+    }
+    return blank
+  })
   const dialogRef = useRef<HTMLDivElement>(null)
   const vectors = useResumeStore((s) => s.data.vectors)
 
