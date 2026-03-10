@@ -29,8 +29,8 @@ describe('pageBudget internals', () => {
         location: 'City, State', 
         links: [{ url: 'github.com/jane' }] 
       },
-      targetLine: { id: 'tl', text: 'Target Line Text', priority: 'must' },
-      profile: { id: 'p', text: 'Profile text goes here.', priority: 'must' },
+      targetLine: { id: 'tl', text: 'Target Line Text' },
+      profile: { id: 'p', text: 'Profile text goes here.' },
       skillGroups: [
         { id: 's1', label: 'Skills', content: 'React, TypeScript, Node.js' }
       ],
@@ -40,14 +40,14 @@ describe('pageBudget internals', () => {
           company: 'Co',
           title: 'Title',
           dates: '2020-2021',
-          bullets: [{ id: 'b1', text: 'Bullet text', priority: 'must' }]
+          bullets: [{ id: 'b1', text: 'Bullet text' }]
         }
       ],
       projects: [
-        { id: 'pr1', name: 'Proj', text: 'Project description', priority: 'must' }
+        { id: 'pr1', name: 'Proj', text: 'Project description' }
       ],
       education: [
-        { id: 'e1', school: 'Uni', degree: 'BS', location: 'Loc', year: '2020', priority: 'must' as const }
+        { id: 'e1', school: 'Uni', degree: 'BS', location: 'Loc', year: '2020' }
       ],
       certifications: [],
     }
@@ -62,7 +62,7 @@ describe('pageBudget internals', () => {
     const resume: AssembledResume = {
       selectedVector: 'all',
       header: { name: 'N', email: 'E', phone: 'P', location: 'L', links: [] },
-      profile: { id: 'p', text: 'A'.repeat(500), priority: 'must' }, // ~6 lines at 92 chars/line
+      profile: { id: 'p', text: 'A'.repeat(500) }, // ~6 lines at 92 chars/line
       skillGroups: [],
       roles: [],
       projects: [],

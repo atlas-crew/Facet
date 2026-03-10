@@ -184,13 +184,23 @@ Respond in JSON only.`
 const isStringArray = (val: unknown): val is string[] =>
   Array.isArray(val) && val.every((item) => typeof item === 'string')
 
+const normalizeRecommendedPriority = (value: unknown): 'include' | 'exclude' | null => {
+  if (value === 'exclude') {
+    return 'exclude'
+  }
+  if (value === 'include' || value === 'must' || value === 'strong' || value === 'optional') {
+    return 'include'
+  }
+  return null
+}
+
 const isBulletAdjustment = (val: unknown): val is JdBulletAdjustment => {
   const v = val as JdBulletAdjustment
   return (
     typeof v === 'object' &&
     v !== null &&
     typeof v.bullet_id === 'string' &&
-    ['must', 'strong', 'optional', 'exclude'].includes(v.recommended_priority) &&
+    normalizeRecommendedPriority(v.recommended_priority) !== null &&
     typeof v.reason === 'string'
   )
 }
@@ -221,7 +231,10 @@ export const parseJdAnalysisResponse = (raw: string): JdAnalysisResult => {
 
   return {
     primary_vector: parsed.primary_vector,
-    bullet_adjustments: parsed.bullet_adjustments,
+    bullet_adjustments: parsed.bullet_adjustments.map((adjustment) => ({
+      ...adjustment,
+      recommended_priority: normalizeRecommendedPriority(adjustment.recommended_priority) ?? 'exclude',
+    })),
     suggested_target_line: typeof parsed.suggested_target_line === 'string' ? parsed.suggested_target_line : '',
     skill_gaps: parsed.skill_gaps,
     matched_keywords: parsed.matched_keywords,

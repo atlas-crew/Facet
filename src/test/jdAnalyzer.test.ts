@@ -13,7 +13,7 @@ describe('jdAnalyzer', () => {
         title: 'T1',
         dates: 'D1',
         vectors: {},
-        bullets: [{ id: 'b1', text: 'Original text', vectors: { v1: 'must' } }]
+        bullets: [{ id: 'b1', text: 'Original text', vectors: { v1: 'include' } }]
       }
     ]
   }

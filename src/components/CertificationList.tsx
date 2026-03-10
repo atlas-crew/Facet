@@ -45,19 +45,13 @@ interface SortableCertificationCardProps {
 }
 
 function cyclePriority(current: ComponentPriority): ComponentPriority {
-  switch (current) {
-    case 'must': return 'strong'
-    case 'strong': return 'optional'
-    case 'optional': return 'exclude'
-    case 'exclude': return 'must'
-    default: return 'must'
-  }
+  return current === 'exclude' ? 'include' : 'exclude'
 }
 
 const SortableCertificationCard = memo(function SortableCertificationCard({
   cert,
   vectorDefs,
-  selectedVector,
+  selectedVector: _selectedVector,
   included,
   onUpdate,
   onUpdateVectors,
@@ -65,19 +59,6 @@ const SortableCertificationCard = memo(function SortableCertificationCard({
   onDelete,
 }: SortableCertificationCardProps) {
   const { setNodeRef, style, dragHandleProps, isDragging } = useSortableItem(cert.id)
-  const priority = getPriorityForVector(cert.vectors, selectedVector)
-
-  const handlePriorityCycle = () => {
-    if (selectedVector === 'all') return
-    const next = cyclePriority(priority)
-    const nextVectors = { ...cert.vectors }
-    if (next === 'exclude') {
-      delete nextVectors[selectedVector]
-    } else {
-      nextVectors[selectedVector] = next
-    }
-    onUpdateVectors(cert.id, nextVectors)
-  }
 
   const handleMatrixDotClick = (vectorId: string) => {
     const currentPriority = cert.vectors[vectorId] ?? 'exclude'
@@ -97,8 +78,6 @@ const SortableCertificationCard = memo(function SortableCertificationCard({
       ref={setNodeRef}
       style={style}
     >
-      <div className={`priority-strip priority-${priority}`} />
-
       <header className="component-card-header">
         <div className="bullet-title-row">
           <button
@@ -111,16 +90,6 @@ const SortableCertificationCard = memo(function SortableCertificationCard({
             <GripVertical size={14} />
           </button>
           <h4>Certification</h4>
-          {selectedVector !== 'all' && (
-            <button
-              type="button"
-              className={`priority-quick-toggle ${priority}`}
-              onClick={handlePriorityCycle}
-              title={`Priority for current vector: ${priority}. Click to cycle.`}
-            >
-              {priority}
-            </button>
-          )}
         </div>
         <div className="component-card-actions">
           <button
@@ -190,9 +159,9 @@ const SortableCertificationCard = memo(function SortableCertificationCard({
                 type="button"
                 className={`matrix-dot priority-${p} ${isLastFew ? 'tooltip-left' : ''}`}
                 style={{ '--vector-color': vector.color } as React.CSSProperties}
-                data-tooltip={`${vector.label}: ${p}`}
+                data-tooltip={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
                 onClick={() => handleMatrixDotClick(vector.id)}
-                aria-label={`${vector.label} priority: ${p}`}
+                aria-label={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
               />
             )
           })}

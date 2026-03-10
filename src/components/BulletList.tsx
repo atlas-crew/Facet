@@ -49,7 +49,6 @@ interface SortableBulletProps {
   label?: string
   text: string
   vectors: PriorityByVector
-  priority: ComponentPriority
   included: boolean
   hasVariant: boolean
   vectorDefs: VectorDef[]
@@ -68,13 +67,7 @@ interface SortableBulletProps {
 }
 
 function cyclePriority(current: ComponentPriority): ComponentPriority {
-  switch (current) {
-    case 'must': return 'strong'
-    case 'strong': return 'optional'
-    case 'optional': return 'exclude'
-    case 'exclude': return 'must'
-    default: return 'must'
-  }
+  return current === 'exclude' ? 'include' : 'exclude'
 }
 
 const SortableBullet = memo(function SortableBullet({
@@ -82,7 +75,6 @@ const SortableBullet = memo(function SortableBullet({
   label,
   text,
   vectors,
-  priority,
   included,
   hasVariant,
   vectorDefs,
@@ -102,18 +94,6 @@ const SortableBullet = memo(function SortableBullet({
   const { setNodeRef, style, dragHandleProps, isDragging } = useSortableItem(id)
   const hasVariables = text.includes('{{')
   const overlayRef = useRef<HTMLDivElement>(null)
-
-  const handlePriorityCycle = () => {
-    if (selectedVector === 'all') return
-    const next = cyclePriority(priority)
-    const nextVectors = { ...vectors }
-    if (next === 'exclude') {
-      delete nextVectors[selectedVector]
-    } else {
-      nextVectors[selectedVector] = next
-    }
-    onVectorsChange(id, nextVectors)
-  }
 
   const handleMatrixDotClick = (vectorId: string) => {
     const currentPriority = vectors[vectorId] ?? 'exclude'
@@ -137,8 +117,6 @@ const SortableBullet = memo(function SortableBullet({
       ref={setNodeRef}
       style={style}
     >
-      <div className={`priority-strip priority-${priority}`} />
-
       <header className="component-card-header">
         <div className="bullet-title-row">
           <button
@@ -152,16 +130,6 @@ const SortableBullet = memo(function SortableBullet({
           </button>
           <h4>Bullet</h4>
           {hasVariant && <span className="variant-badge" title="Has vector-specific variant">V</span>}
-          {selectedVector !== 'all' && (
-            <button
-              type="button"
-              className={`priority-quick-toggle ${priority}`}
-              onClick={handlePriorityCycle}
-              title={`Priority for current vector: ${priority}. Click to cycle.`}
-            >
-              {priority}
-            </button>
-          )}
         </div>
         <div className="component-card-actions">
           {hasVariant && onResetVariant && (
@@ -240,9 +208,9 @@ const SortableBullet = memo(function SortableBullet({
                 type="button"
                 className={`matrix-dot priority-${p} ${isLastFew ? 'tooltip-left' : ''}`}
                 style={{ '--vector-color': vector.color } as React.CSSProperties}
-                data-tooltip={`${vector.label}: ${p}`}
+                data-tooltip={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
                 onClick={() => handleMatrixDotClick(vector.id)}
-                aria-label={`${vector.label} priority: ${p}`}
+                aria-label={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
               />
             )
           })}
@@ -257,7 +225,7 @@ const SortableBullet = memo(function SortableBullet({
           <p className="suggestion-reason">{suggestion.reason}</p>
           <div className="suggestion-action-row">
             <div className={`suggestion-preview priority-${suggestion.recommendedPriority}`}>
-              Change to {suggestion.recommendedPriority}
+              Change to {suggestion.recommendedPriority === 'include' ? 'Include' : 'Exclude'}
             </div>
             <div className="suggestion-buttons">
               <button
@@ -495,7 +463,6 @@ export function BulletList({
                       label={bullet.label}
                       text={resolveDisplayText(bullet.text, bullet.variants, selectedVector)}
                       vectors={bullet.vectors}
-                      priority={getPriorityForVector(bullet.vectors, selectedVector)}
                       included={included}
                       hasVariant={hasVariant}
                       vectorDefs={vectorDefs}

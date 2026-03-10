@@ -5,11 +5,11 @@ export function defaultVectorsForSelection(
   availableVectors: ResumeData['vectors'],
 ): PriorityByVector {
   if (selectedVector !== 'all') {
-    return { [selectedVector]: 'must' }
+    return { [selectedVector]: 'include' }
   }
 
   if (availableVectors.length) {
-    return Object.fromEntries(availableVectors.map((vector) => [vector.id, 'optional' as const]))
+    return Object.fromEntries(availableVectors.map((vector) => [vector.id, 'include' as const]))
   }
 
   return {}

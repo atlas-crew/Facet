@@ -1,7 +1,6 @@
 import { Eye, EyeOff, Check, X, Wand2, RotateCcw } from 'lucide-react'
 import { memo, useCallback, useRef } from 'react'
 import type { ComponentPriority, PriorityByVector, VectorDef, VectorSelection, ComponentSuggestion } from '../types'
-import { getPriorityForVector } from '../engine/assembler'
 import { highlightVariables } from '../utils/variableHighlighting'
 
 interface ComponentCardProps {
@@ -23,13 +22,7 @@ interface ComponentCardProps {
 }
 
 function cyclePriority(current: ComponentPriority): ComponentPriority {
-  switch (current) {
-    case 'must': return 'strong'
-    case 'strong': return 'optional'
-    case 'optional': return 'exclude'
-    case 'exclude': return 'must'
-    default: return 'must'
-  }
+  return current === 'exclude' ? 'include' : 'exclude'
 }
 
 export const ComponentCard = memo(function ComponentCard({
@@ -38,7 +31,7 @@ export const ComponentCard = memo(function ComponentCard({
   body,
   vectors,
   vectorDefs,
-  selectedVector,
+  selectedVector: _selectedVector,
   included,
   hasVariant,
   onToggleIncluded,
@@ -49,21 +42,8 @@ export const ComponentCard = memo(function ComponentCard({
   onAcceptSuggestion,
   onIgnoreSuggestion,
 }: ComponentCardProps) {
-  const priority = getPriorityForVector(vectors, selectedVector)
   const hasVariables = body.includes('{{')
   const overlayRef = useRef<HTMLDivElement>(null)
-
-  const handlePriorityCycle = () => {
-    if (selectedVector === 'all' || !onVectorsChange) return
-    const next = cyclePriority(priority)
-    const nextVectors = { ...vectors }
-    if (next === 'exclude') {
-      delete nextVectors[selectedVector]
-    } else {
-      nextVectors[selectedVector] = next
-    }
-    onVectorsChange(id, nextVectors)
-  }
 
   const handleMatrixDotClick = (vectorId: string) => {
     if (!onVectorsChange) return
@@ -88,22 +68,10 @@ export const ComponentCard = memo(function ComponentCard({
 
   return (
     <article className={`component-card ${included ? '' : 'dimmed'} ${suggestion ? 'has-suggestion' : ''}`}>
-      <div className={`priority-strip priority-${priority}`} />
-
       <header className="component-card-header">
         <div className="bullet-title-row">
           <h4>{title}</h4>
           {hasVariant && <span className="variant-badge" title="Has vector-specific variant">V</span>}
-          {selectedVector !== 'all' && onVectorsChange && (
-            <button
-              type="button"
-              className={`priority-quick-toggle ${priority}`}
-              onClick={handlePriorityCycle}
-              title={`Priority for current vector: ${priority}. Click to cycle.`}
-            >
-              {priority}
-            </button>
-          )}
         </div>
         <div className="component-card-actions">
           {hasVariant && onResetVariant && (
@@ -154,16 +122,16 @@ export const ComponentCard = memo(function ComponentCard({
               const isLastFew = idx >= vectorDefs.length - 2
               return (
                 <button
-                  key={vector.id}
-                  type="button"
-                  className={`matrix-dot priority-${p} ${isLastFew ? 'tooltip-left' : ''}`}
-                  style={{ '--vector-color': vector.color } as React.CSSProperties}
-                  data-tooltip={`${vector.label}: ${p}`}
-                  onClick={() => handleMatrixDotClick(vector.id)}
-                  aria-label={`${vector.label} priority: ${p}`}
-                />
-              )
-            })}
+                key={vector.id}
+                type="button"
+                className={`matrix-dot priority-${p} ${isLastFew ? 'tooltip-left' : ''}`}
+                style={{ '--vector-color': vector.color } as React.CSSProperties}
+                data-tooltip={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
+                onClick={() => handleMatrixDotClick(vector.id)}
+                aria-label={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
+              />
+            )
+          })}
           </div>
         )}
       </div>
@@ -176,7 +144,7 @@ export const ComponentCard = memo(function ComponentCard({
           <p className="suggestion-reason">{suggestion.reason}</p>
           <div className="suggestion-action-row">
             <div className={`suggestion-preview priority-${suggestion.recommendedPriority}`}>
-              Change to {suggestion.recommendedPriority}
+              Change to {suggestion.recommendedPriority === 'include' ? 'Include' : 'Exclude'}
             </div>
             <div className="suggestion-buttons">
               <button

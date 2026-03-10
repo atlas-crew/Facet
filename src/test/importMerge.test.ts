@@ -11,7 +11,7 @@ describe('importMerge', () => {
     incoming.target_lines.push({
       id: 'tl-new',
       text: 'New target line',
-      vectors: { backend: 'strong' },
+      vectors: { backend: 'include' },
     })
     incoming.profiles[0].text = 'changed text should be ignored for duplicate profile id'
 
@@ -31,7 +31,7 @@ describe('importMerge', () => {
           {
             id: 'acme-b4',
             text: 'New imported bullet',
-            vectors: { backend: 'optional' },
+            vectors: { backend: 'include' },
           },
         ],
       },

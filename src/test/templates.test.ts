@@ -39,7 +39,7 @@ describe('toTemplateResumeData', () => {
           company: 'Co',
           title: 'T',
           dates: 'D',
-          bullets: [{ id: 'b1', text: 'Text', priority: 'must' }],
+          bullets: [{ id: 'b1', text: 'Text' }],
         },
       ],
     })
@@ -57,9 +57,9 @@ describe('toTemplateResumeData', () => {
     expect(resultNo.profile).toBe('')
     expect(resultNo.targetLine).toBeUndefined()
 
-    const withProfile = buildAssembledResume({ 
-      profile: { id: 'p1', text: 'Summary', priority: 'must' },
-      targetLine: { id: 't1', text: 'Target', priority: 'must' }
+    const withProfile = buildAssembledResume({
+      profile: { id: 'p1', text: 'Summary' },
+      targetLine: { id: 't1', text: 'Target' }
     })
     const resultWith = toTemplateResumeData(withProfile)
     expect(resultWith.profile).toBe('Summary')
@@ -76,8 +76,8 @@ describe('toTemplateResumeData', () => {
         links: [{ url: 'U' }]
       },
       skillGroups: [{ id: 's1', label: 'L', content: 'C' }],
-      projects: [{ id: 'pr1', name: 'N', text: 'T', priority: 'must', url: 'U' }],
-      education: [{ id: 'e1', school: 'S', degree: 'D', location: 'L', year: 'Y', priority: 'must' as const }],
+      projects: [{ id: 'pr1', name: 'N', text: 'T', url: 'U' }],
+      education: [{ id: 'e1', school: 'S', degree: 'D', location: 'L', year: 'Y' }],
       certifications: []
     })
     

@@ -12,7 +12,6 @@ const baseProps = {
   skillGroupCount: 3,
   nearBudget: false,
   overBudget: false,
-  mustOverBudget: false,
   matchScore: null,
 }
 
@@ -61,12 +60,7 @@ describe('StatusBar', () => {
 
   it('shows over-budget warning text', () => {
     render(<StatusBar {...baseProps} overBudget />)
-    expect(screen.getByText(/lower-priority bullets were trimmed/)).toBeTruthy()
-  })
-
-  it('shows must-over-budget warning when flagged', () => {
-    render(<StatusBar {...baseProps} overBudget mustOverBudget />)
-    expect(screen.getByText(/Must-tagged content exceeds budget/)).toBeTruthy()
+    expect(screen.getByText(/bottom bullets were trimmed/)).toBeTruthy()
   })
 
   it('does not show warning when budget is fine', () => {

@@ -24,24 +24,24 @@ export const defaultResumeData: ResumeData = {
   target_lines: [
     {
       id: 'tl-backend',
-      vectors: { backend: 'must', platform: 'strong' },
+      vectors: { backend: 'include', platform: 'include' },
       text: 'Senior Backend Engineer | Distributed Systems | Go / Python | AWS',
     },
     {
       id: 'tl-leadership',
-      vectors: { leadership: 'must' },
+      vectors: { leadership: 'include' },
       text: 'Engineering Leader | Platform Strategy | Developer Productivity',
     },
   ],
   profiles: [
     {
       id: 'profile-backend',
-      vectors: { backend: 'must', platform: 'strong' },
+      vectors: { backend: 'include', platform: 'include' },
       text: 'Backend engineer building reliable distributed systems, observability-first services, and high-throughput data pipelines in cloud-native environments.',
     },
     {
       id: 'profile-leadership',
-      vectors: { leadership: 'must' },
+      vectors: { leadership: 'include' },
       text: 'Engineering leader focused on scaling teams, improving delivery systems, and shipping platform capabilities that improve product velocity.',
     },
   ],
@@ -51,9 +51,9 @@ export const defaultResumeData: ResumeData = {
       label: 'Languages',
       content: 'Go, Python, TypeScript, SQL, Rust',
       vectors: {
-        backend: { priority: 'strong', order: 1 },
-        platform: { priority: 'strong', order: 2 },
-        leadership: { priority: 'optional', order: 2 },
+        backend: { priority: 'include', order: 1 },
+        platform: { priority: 'include', order: 2 },
+        leadership: { priority: 'include', order: 2 },
       },
     },
     {
@@ -61,9 +61,9 @@ export const defaultResumeData: ResumeData = {
       label: 'Infrastructure',
       content: 'AWS, Kubernetes, Terraform, Docker, Linux',
       vectors: {
-        backend: { priority: 'strong', order: 2 },
-        platform: { priority: 'must', order: 1 },
-        leadership: { priority: 'optional', order: 1 },
+        backend: { priority: 'include', order: 2 },
+        platform: { priority: 'include', order: 1 },
+        leadership: { priority: 'include', order: 1 },
       },
     },
   ],
@@ -78,7 +78,7 @@ export const defaultResumeData: ResumeData = {
       bullets: [
         {
           id: 'acme-b1',
-          vectors: { backend: 'must', platform: 'strong' },
+          vectors: { backend: 'include', platform: 'include' },
           text: 'Designed and built a high-throughput order processing pipeline serving 25M+ events/day.',
           variants: {
             platform:
@@ -87,12 +87,12 @@ export const defaultResumeData: ResumeData = {
         },
         {
           id: 'acme-b2',
-          vectors: { backend: 'must' },
+          vectors: { backend: 'include' },
           text: 'Reduced P99 API latency from 800ms to 120ms through query planning and cache strategy.',
         },
         {
           id: 'acme-b3',
-          vectors: { platform: 'optional', leadership: 'strong' },
+          vectors: { platform: 'include', leadership: 'include' },
           text: 'Led quarterly platform planning and introduced a reliability review process across 4 teams.',
         },
       ],
@@ -107,12 +107,12 @@ export const defaultResumeData: ResumeData = {
       bullets: [
         {
           id: 'byteforge-b1',
-          vectors: { backend: 'strong', platform: 'strong' },
+          vectors: { backend: 'include', platform: 'include' },
           text: 'Implemented service decomposition roadmap, reducing deploy blast radius by 60%.',
         },
         {
           id: 'byteforge-b2',
-          vectors: { leadership: 'optional' },
+          vectors: { leadership: 'include' },
           text: 'Mentored six engineers and established onboarding playbooks for new hires.',
         },
       ],
@@ -123,7 +123,7 @@ export const defaultResumeData: ResumeData = {
       id: 'project-1',
       name: 'OpenThing',
       url: 'github.com/jane/openthing',
-      vectors: { backend: 'strong', platform: 'optional' },
+      vectors: { backend: 'include', platform: 'include' },
       text: 'Distributed task queue library with adaptive retry and dead-letter routing.',
     },
   ],

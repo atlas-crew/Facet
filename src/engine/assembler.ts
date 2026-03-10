@@ -1,12 +1,10 @@
 import {
   DEFAULT_TARGET_PAGES,
-  PRIORITY_ORDER,
   type AssembledRoleBullet,
   type AssembledTextComponent,
   type AssemblyOptions,
   type AssemblyResult,
   type ComponentPriority,
-  type IncludedPriority,
   type ManualComponentOverrides,
   type PriorityByVector,
   type ResumeData,
@@ -16,37 +14,15 @@ import {
 import { applyPageBudget } from './pageBudget'
 import { resolveVariables } from '../utils/variableResolver'
 
-const PRIORITY_RANK: Record<IncludedPriority, number> = {
-  must: 0,
-  strong: 1,
-  optional: 2,
-}
-
 const hasOwn = (record: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(record, key)
-
-const priorityRankForSorting = (priority: IncludedPriority): number => PRIORITY_RANK[priority]
-
-const toIncludedPriority = (priority: ComponentPriority | null): IncludedPriority | null => {
-  if (!priority || priority === 'exclude') {
-    return null
-  }
-
-  return priority
-}
 
 const resolvePriorityForVector = (
   priorities: PriorityByVector,
   selectedVector: VectorSelection,
 ): ComponentPriority | null => {
   if (selectedVector === 'all') {
-    for (const priority of PRIORITY_ORDER) {
-      if (Object.values(priorities).includes(priority)) {
-        return priority
-      }
-    }
-
-    return null
+    return Object.values(priorities).some((priority) => priority === 'include') ? 'include' : null
   }
 
   return priorities[selectedVector] ?? null
@@ -98,31 +74,7 @@ const shouldIncludeComponent = (
   rawPriority: ComponentPriority | null,
   override: boolean | undefined,
 ): boolean => {
-  if (override === false) {
-    return false
-  }
-
-  if (override === true) {
-    return true
-  }
-
-  const includedPriority = toIncludedPriority(rawPriority)
-  return includedPriority !== null
-}
-
-const normalizeIncludedPriority = (
-  rawPriority: ComponentPriority | null,
-  override: boolean | undefined,
-): IncludedPriority => {
-  const includedPriority = toIncludedPriority(rawPriority)
-
-  if (includedPriority) {
-    return includedPriority
-  }
-
-  // Manually forced inclusion of excluded/unknown-priority components defaults to optional.
-  void override
-  return 'optional'
+  return override === true || (override !== false && rawPriority === 'include')
 }
 
 const applyManualBulletOrder = (
@@ -175,17 +127,7 @@ const pickHighestPriorityText = (
     return undefined
   }
 
-  return [...candidates]
-    .sort((left, right) => {
-      const priorityDelta =
-        priorityRankForSorting(left.component.priority) - priorityRankForSorting(right.component.priority)
-      if (priorityDelta !== 0) {
-        return priorityDelta
-      }
-
-      return left.sourceIndex - right.sourceIndex
-    })
-    .at(0)?.component
+  return [...candidates].sort((left, right) => left.sourceIndex - right.sourceIndex).at(0)?.component
 }
 
 const skillGroupSortOrder = (
@@ -275,7 +217,6 @@ export const assembleResume = (
       component: {
         id: targetLine.id,
         text: resolveTextVariant(targetLine.text, targetLine.variants, selectedVector, variables),
-        priority: normalizeIncludedPriority(autoPriority, override),
       },
       sourceIndex: index,
     })
@@ -293,7 +234,6 @@ export const assembleResume = (
       component: {
         id: profile.id,
         text: resolveTextVariant(profile.text, profile.variants, selectedVector, variables),
-        priority: normalizeIncludedPriority(autoPriority, override),
       },
       sourceIndex: index,
     })
@@ -341,21 +281,12 @@ export const assembleResume = (
           return {
             id: bullet.id,
             text: resolveTextVariant(bullet.text, bullet.variants, selectedVector, variables),
-            priority: normalizeIncludedPriority(autoPriority, override),
             sourceIndex: bulletIndex,
           }
         })
         .filter((bullet): bullet is Exclude<typeof bullet, null> => bullet !== null)
-        .sort((left, right) => {
-          const priorityDelta =
-            priorityRankForSorting(left.priority) - priorityRankForSorting(right.priority)
-          if (priorityDelta !== 0) {
-            return priorityDelta
-          }
-
-          return left.sourceIndex - right.sourceIndex
-        })
-        .map(({ id, text, priority }) => ({ id, text, priority }))
+        .sort((left, right) => left.sourceIndex - right.sourceIndex)
+        .map(({ id, text }) => ({ id, text }))
 
       const orderedBullets = applyManualBulletOrder(includedBullets, bulletOrderByRole[role.id])
       if (orderedBullets.length === 0) {
@@ -388,7 +319,6 @@ export const assembleResume = (
         name: resolveVariables(project.name, variables),
         url: project.url,
         text: resolveTextVariant(project.text, project.variants, selectedVector, variables),
-        priority: normalizeIncludedPriority(autoPriority, override),
       }
     })
     .filter((project): project is Exclude<typeof project, null> => project !== null)
@@ -408,7 +338,6 @@ export const assembleResume = (
         location: resolveVariables(entry.location, variables),
         degree: resolveVariables(entry.degree, variables),
         year: entry.year ? resolveVariables(entry.year, variables) : entry.year,
-        priority: normalizeIncludedPriority(autoPriority, override),
       }
     })
     .filter((entry): entry is Exclude<typeof entry, null> => entry !== null)
@@ -429,7 +358,6 @@ export const assembleResume = (
         date: cert.date ? resolveVariables(cert.date, variables) : cert.date,
         credential_id: cert.credential_id,
         url: cert.url,
-        priority: normalizeIncludedPriority(autoPriority, override),
       }
     })
     .filter((cert): cert is Exclude<typeof cert, null> => cert !== null)
@@ -460,8 +388,6 @@ export const assembleResume = (
     targetPages: budgeted.targetPages,
     estimatedPages: budgeted.estimatedPages,
     estimatedPageUsage: budgeted.estimatedPageUsage,
-    mustOnlyEstimatedPages: budgeted.mustOnlyEstimatedPages,
-    mustOnlyEstimatedPageUsage: budgeted.mustOnlyEstimatedPageUsage,
     trimmedBulletIds: budgeted.trimmedBulletIds,
     warnings: budgeted.warnings,
   }

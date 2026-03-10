@@ -15,12 +15,10 @@ function createResume(): AssembledResume {
     targetLine: {
       id: 'tl-1',
       text: 'Platform engineer',
-      priority: 'must',
     },
     profile: {
       id: 'p-1',
       text: 'Profile text '.repeat(10),
-      priority: 'must',
     },
     skillGroups: [],
     roles: [
@@ -30,8 +28,8 @@ function createResume(): AssembledResume {
         title: 'Engineer',
         dates: '2024-Present',
         bullets: [
-          { id: 'new-must', text: 'Must content '.repeat(20), priority: 'must' },
-          { id: 'new-optional', text: 'Optional content '.repeat(20), priority: 'optional' },
+          { id: 'new-last', text: 'Last content '.repeat(20) },
+          { id: 'new-keep', text: 'Keep content '.repeat(20) },
         ],
       },
       {
@@ -40,8 +38,8 @@ function createResume(): AssembledResume {
         title: 'Engineer',
         dates: '2020-2024',
         bullets: [
-          { id: 'old-strong', text: 'Strong content '.repeat(20), priority: 'strong' },
-          { id: 'old-optional', text: 'Optional content '.repeat(20), priority: 'optional' },
+          { id: 'old-last', text: 'Old content '.repeat(20) },
+          { id: 'old-first', text: 'Earlier content '.repeat(20) },
         ],
       },
     ],
@@ -52,7 +50,7 @@ function createResume(): AssembledResume {
 }
 
 describe('pageBudget', () => {
-  it('trims optional before strong from the oldest role', () => {
+  it('trims from the bottom of the ordered list', () => {
     const resume = createResume()
     const result = applyPageBudget(resume, {
       targetPages: 1,
@@ -61,23 +59,8 @@ describe('pageBudget', () => {
     })
 
     expect(result.trimmedBulletIds.length).toBeGreaterThan(0)
-    const oldOptionalIndex = result.trimmedBulletIds.indexOf('old-optional')
-    const oldStrongIndex = result.trimmedBulletIds.indexOf('old-strong')
-
-    expect(oldOptionalIndex).toBeGreaterThanOrEqual(0)
-    expect(oldStrongIndex).toBeGreaterThanOrEqual(0)
-    expect(oldOptionalIndex).toBeLessThan(oldStrongIndex)
-    expect(result.resume.roles.flatMap((role) => role.bullets).some((bullet) => bullet.id === 'new-must')).toBe(true)
-  })
-
-  it('emits must-over-budget warning when must content exceeds target', () => {
-    const resume = createResume()
-    const result = applyPageBudget(resume, {
-      targetPages: 1,
-      linesPerPage: 4,
-    })
-
-    expect(result.warnings.some((warning) => warning.code === 'must_over_budget')).toBe(true)
+    expect(result.trimmedBulletIds[0]).toBe('old-first')
+    expect(result.trimmedBulletIds).toContain('old-last')
   })
 
   it('does not trim when trim is disabled', () => {
@@ -100,7 +83,7 @@ describe('pageBudget', () => {
     expect(estimateResumePages(resume, -5)).toBeGreaterThanOrEqual(1)
   })
 
-  it('never trims must-priority bullets and warns if still over budget', () => {
+  it('warns if still over budget after all bullets are trimmed', () => {
     const resume = createResume()
     resume.roles = [
       {
@@ -109,8 +92,8 @@ describe('pageBudget', () => {
         title: 'Engineer',
         dates: 'Now',
         bullets: [
-          { id: 'm1', text: 'Must text '.repeat(40), priority: 'must' },
-          { id: 'm2', text: 'Must text '.repeat(40), priority: 'must' },
+          { id: 'm1', text: 'Must text '.repeat(40) },
+          { id: 'm2', text: 'Must text '.repeat(40) },
         ],
       },
     ]
@@ -121,8 +104,8 @@ describe('pageBudget', () => {
       trim: true,
     })
 
-    expect(result.trimmedBulletIds).toHaveLength(0)
-    expect(result.resume.roles[0].bullets.map((bullet) => bullet.id)).toEqual(['m1', 'm2'])
+    expect(result.trimmedBulletIds).toEqual(['m2', 'm1'])
+    expect(result.resume.roles).toEqual([])
     expect(result.warnings.some((warning) => warning.code === 'over_budget_after_trim')).toBe(true)
   })
 

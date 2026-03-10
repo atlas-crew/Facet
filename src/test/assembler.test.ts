@@ -5,7 +5,7 @@ import { defaultResumeData } from '../store/defaultData'
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 describe('assembleResume', () => {
-  it('includes must backend components for backend vector', () => {
+  it('includes backend components for backend vector', () => {
     const data = clone(defaultResumeData)
     const result = assembleResume(data, { selectedVector: 'backend' })
 
@@ -28,14 +28,14 @@ describe('assembleResume', () => {
     expect(result.resume.targetLine?.id).toBe('tl-backend')
   })
 
-  it('trims optional/strong bullets when page budget is exceeded', () => {
+  it('trims bottom bullets when page budget is exceeded', () => {
     const data = clone(defaultResumeData)
 
     data.roles[0].bullets = [
       ...data.roles[0].bullets,
       ...Array.from({ length: 40 }).map((_, index) => ({
         id: `extra-opt-${index}`,
-        vectors: { backend: 'optional' as const },
+        vectors: { backend: 'include' as const },
         text: `Optional filler bullet ${index} `.repeat(10),
       })),
     ]
@@ -65,22 +65,22 @@ describe('assembleResume', () => {
     expect(bullet?.text).toBeDefined()
   })
 
-  it('resolves all-vector selection using highest priority', () => {
+  it('resolves all-vector selection using any included vector', () => {
     const data = clone(defaultResumeData)
     data.projects = [
       {
         id: 'all-mode-project',
         name: 'All Mode',
         vectors: {
-          backend: 'optional',
-          leadership: 'must',
+          backend: 'include',
+          leadership: 'include',
         },
         text: 'Should remain in all mode',
       },
     ]
 
     const result = assembleResume(data, { selectedVector: 'all' })
-    expect(result.resume.projects[0]?.priority).toBe('must')
+    expect(result.resume.projects[0]?.id).toBe('all-mode-project')
   })
 
   it('excludes roles with no qualifying bullets', () => {
@@ -143,8 +143,8 @@ describe('assembleResume', () => {
         label: 'Languages',
         content: 'Go, Python',
         vectors: {
-          backend: { priority: 'strong', order: 2 },
-          platform: { priority: 'strong', order: 1, content: 'TypeScript, Go, Python' },
+          backend: { priority: 'include', order: 2 },
+          platform: { priority: 'include', order: 1, content: 'TypeScript, Go, Python' },
         },
       },
       {
@@ -152,7 +152,7 @@ describe('assembleResume', () => {
         label: 'Tooling',
         content: 'Terraform, Docker',
         vectors: {
-          backend: { priority: 'must', order: 1 },
+          backend: { priority: 'include', order: 1 },
           platform: { priority: 'exclude', order: 2 },
         },
       },
@@ -176,22 +176,22 @@ describe('assembleResume', () => {
   })
 
   it('returns exclude priority when vector does not match', () => {
-    expect(getPriorityForVector({ backend: 'must' }, 'leadership')).toBe('exclude')
+    expect(getPriorityForVector({ backend: 'include' }, 'leadership')).toBe('exclude')
   })
 
-  it('selects highest-priority target line when multiple match', () => {
+  it('selects the first matching target line when multiple match', () => {
     const data = clone(defaultResumeData)
     data.target_lines = [
-      { id: 'tl-optional', text: 'Optional line', vectors: { backend: 'optional' } },
-      { id: 'tl-must', text: 'Must line', vectors: { backend: 'must' } },
-      { id: 'tl-strong', text: 'Strong line', vectors: { backend: 'strong' } },
+      { id: 'tl-first', text: 'First line', vectors: { backend: 'include' } },
+      { id: 'tl-second', text: 'Second line', vectors: { backend: 'include' } },
+      { id: 'tl-third', text: 'Third line', vectors: { backend: 'include' } },
     ]
 
     const result = assembleResume(data, { selectedVector: 'backend' })
-    expect(result.resume.targetLine?.id).toBe('tl-must')
+    expect(result.resume.targetLine?.id).toBe('tl-first')
   })
 
-  it('force-includes excluded bullets as optional priority', () => {
+  it('force-includes excluded bullets', () => {
     const data = clone(defaultResumeData)
     data.roles = [
       {
@@ -216,7 +216,6 @@ describe('assembleResume', () => {
 
     const bullet = result.resume.roles[0]?.bullets[0]
     expect(bullet?.id).toBe('excluded-by-default')
-    expect(bullet?.priority).toBe('optional')
   })
 
   it('auto-selects vector variant when override is not set', () => {
@@ -240,7 +239,7 @@ describe('assembleResume', () => {
         dates: '2020-2021',
         vectors: {}, // Should be ignored for role-level inclusion
         bullets: [
-          { id: 'b1', text: 'Text', vectors: { backend: 'must' } }
+          { id: 'b1', text: 'Text', vectors: { backend: 'include' } }
         ]
       }
     ]
@@ -254,7 +253,7 @@ describe('assembleResume', () => {
     const data = clone(defaultResumeData)
     data.meta.name = 'Custom Name'
     data.education = [
-      { id: 'edu-1', school: 'Test Uni', degree: 'BS', location: 'City', year: '2020', vectors: { backend: 'must' } }
+      { id: 'edu-1', school: 'Test Uni', degree: 'BS', location: 'City', year: '2020', vectors: { backend: 'include' } }
     ]
 
     const result = assembleResume(data, { selectedVector: 'backend' })

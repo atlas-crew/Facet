@@ -6,7 +6,7 @@ import type {
   VectorSelection,
 } from '../types'
 
-const DEFAULT_SKILL_PRIORITY: ComponentPriority = 'strong'
+const DEFAULT_SKILL_PRIORITY: ComponentPriority = 'include'
 
 const getLegacyOrder = (
   skillGroup: SkillGroupComponent,

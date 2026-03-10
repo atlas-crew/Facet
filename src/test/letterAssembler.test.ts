@@ -21,12 +21,12 @@ const mockTemplate: CoverLetterTemplate = {
     {
       id: 'p1',
       text: 'Must for Vector A',
-      vectors: { v1: 'must' }
+      vectors: { v1: 'include' }
     },
     {
       id: 'p2',
       text: 'Strong for Vector B',
-      vectors: { v2: 'strong' }
+      vectors: { v2: 'include' }
     },
     {
       id: 'p3',
@@ -66,7 +66,7 @@ describe('letterAssembler', () => {
     const templateNoUntagged: CoverLetterTemplate = {
       ...mockTemplate,
       paragraphs: [
-        { id: 'p1', text: 'P1', vectors: { v1: 'must' } }
+        { id: 'p1', text: 'P1', vectors: { v1: 'include' } }
       ]
     }
 

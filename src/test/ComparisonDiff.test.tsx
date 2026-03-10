@@ -30,8 +30,6 @@ function makeResult(overrides: Partial<AssembledResume> = {}): AssemblyResult {
     targetPages: 2,
     estimatedPages: 1,
     estimatedPageUsage: 0.5,
-    mustOnlyEstimatedPages: 0.5,
-    mustOnlyEstimatedPageUsage: 0.25,
     trimmedBulletIds: [],
     warnings: [],
   }
@@ -50,7 +48,7 @@ describe('ComparisonDiff', () => {
     const left = makeResult({
       roles: [
         { id: 'r1', company: 'Acme', title: 'Eng', dates: '2024', bullets: [
-          { id: 'b1', text: 'Built the API', priority: 'must' },
+          { id: 'b1', text: 'Built the API' },
         ]},
       ],
     })
@@ -69,7 +67,7 @@ describe('ComparisonDiff', () => {
     const right = makeResult({
       roles: [
         { id: 'r1', company: 'Acme', title: 'Eng', dates: '2024', bullets: [
-          { id: 'b2', text: 'Designed the frontend', priority: 'strong' },
+          { id: 'b2', text: 'Designed the frontend' },
         ]},
       ],
     })
@@ -86,16 +84,16 @@ describe('ComparisonDiff', () => {
     const left = makeResult({
       roles: [
         { id: 'r1', company: 'Acme', title: 'Eng', dates: '2024', bullets: [
-          { id: 'b1', text: 'Built the API', priority: 'must' },
-          { id: 'shared', text: 'Led team', priority: 'must' },
+          { id: 'b1', text: 'Built the API' },
+          { id: 'shared', text: 'Led team' },
         ]},
       ],
     })
     const right = makeResult({
       roles: [
         { id: 'r1', company: 'Acme', title: 'Eng', dates: '2024', bullets: [
-          { id: 'shared', text: 'Led team', priority: 'must' },
-          { id: 'b2', text: 'Designed UI', priority: 'strong' },
+          { id: 'shared', text: 'Led team' },
+          { id: 'b2', text: 'Designed UI' },
         ]},
       ],
     })
@@ -111,7 +109,7 @@ describe('ComparisonDiff', () => {
 
   it('detects target line differences', () => {
     const left = makeResult({
-      targetLine: { id: 'tl-1', text: 'Backend specialist', priority: 'must' },
+      targetLine: { id: 'tl-1', text: 'Backend specialist' },
     })
     const right = makeResult()
 
@@ -141,7 +139,7 @@ describe('ComparisonDiff', () => {
 
   it('detects project differences', () => {
     const left = makeResult({
-      projects: [{ id: 'p1', name: 'CLI Tool', text: 'Built a CLI', priority: 'must' }],
+      projects: [{ id: 'p1', name: 'CLI Tool', text: 'Built a CLI' }],
     })
     const right = makeResult()
 
@@ -156,7 +154,7 @@ describe('ComparisonDiff', () => {
     const left = makeResult({
       roles: [
         { id: 'r1', company: 'Co', title: 'T', dates: '2024', bullets: [
-          { id: 'b1', text: longText, priority: 'must' },
+          { id: 'b1', text: longText },
         ]},
       ],
     })

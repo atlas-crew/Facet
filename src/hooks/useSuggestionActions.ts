@@ -32,14 +32,14 @@ export function useSuggestionActions({
     })
   }, [])
 
-  const onAcceptBullet = useCallback((roleId: string, bulletId: string, suggestion: ComponentSuggestion) => {
+  const onAcceptBullet = useCallback((roleId: string, bulletId: string, _suggestion: ComponentSuggestion) => {
     const role = data.roles.find((r) => r.id === roleId)
     const bullet = role?.bullets.find((b) => b.id === bulletId)
     if (!bullet) return
 
     updateBulletVectors(roleId, bulletId, {
       ...bullet.vectors,
-      [vectorKey]: suggestion.recommendedPriority,
+      [vectorKey]: 'include',
     })
     ignoreSuggestion(bulletId)
   }, [data.roles, vectorKey, updateBulletVectors, ignoreSuggestion])
@@ -48,13 +48,13 @@ export function useSuggestionActions({
     ignoreSuggestion(bulletId)
   }, [ignoreSuggestion])
 
-  const onAcceptTargetLine = useCallback((id: string, suggestion: ComponentSuggestion) => {
+  const onAcceptTargetLine = useCallback((id: string, _suggestion: ComponentSuggestion) => {
     const line = data.target_lines.find((l) => l.id === id)
     if (!line) return
 
     updateTargetLineVectors(id, {
       ...line.vectors,
-      [vectorKey]: suggestion.recommendedPriority,
+      [vectorKey]: 'include',
     })
     ignoreSuggestion('target-line') // Use consistent sentinel
   }, [data.target_lines, vectorKey, updateTargetLineVectors, ignoreSuggestion])
@@ -96,7 +96,7 @@ export function useSuggestionActions({
           if (recommended) {
             return {
               ...bullet,
-              vectors: { ...bullet.vectors, [vectorKey]: recommended }
+              vectors: { ...bullet.vectors, [vectorKey]: recommended === 'exclude' ? 'exclude' : 'include' }
             }
           }
           return bullet
@@ -109,7 +109,7 @@ export function useSuggestionActions({
         if (firstTl) {
           nextData.target_lines = nextData.target_lines.map(tl => 
             tl.id === firstTl.id 
-              ? { ...tl, vectors: { ...tl.vectors, [vectorKey]: 'must' as const } } 
+              ? { ...tl, vectors: { ...tl.vectors, [vectorKey]: 'include' as const } } 
               : tl
           )
         }

@@ -26,7 +26,7 @@ export interface ParsedResumeConfig {
   warnings: string[]
 }
 
-const PRIORITIES = new Set<ComponentPriority>(['must', 'strong', 'optional', 'exclude'])
+const LEGACY_INCLUDED_PRIORITIES = new Set(['must', 'strong', 'optional'])
 const THEME_PRESETS = new Set<ResumeThemePresetId>(THEME_PRESET_IDS)
 const SECTION_HEADER_STYLES = new Set<SectionHeaderStyle>(THEME_SECTION_HEADER_OPTIONS)
 const BULLET_CHARS = new Set<BulletChar>(THEME_BULLET_OPTIONS)
@@ -155,11 +155,21 @@ const assertBoolean = (value: unknown, context: string): boolean => {
   return value
 }
 
+const normalizePriorityValue = (value: unknown): ComponentPriority | null => {
+  if (value === 'exclude') {
+    return 'exclude'
+  }
+  if (value === 'include' || LEGACY_INCLUDED_PRIORITIES.has(String(value))) {
+    return 'include'
+  }
+  return null
+}
+
 const assertPriorityMap = (value: unknown, context: string): void => {
   const record = assertRecord(value, context)
   for (const [key, rawPriority] of Object.entries(record)) {
-    if (!PRIORITIES.has(rawPriority as ComponentPriority)) {
-      throw new Error(`${context}.${key} must be one of: must, strong, optional, exclude.`)
+    if (!normalizePriorityValue(rawPriority)) {
+      throw new Error(`${context}.${key} must be one of: include, exclude.`)
     }
   }
 }
@@ -197,8 +207,8 @@ const assertSkillVectorConfigMap = (value: unknown, context: string): void => {
   const record = assertRecord(value, context)
   for (const [key, rawConfig] of Object.entries(record)) {
     const config = assertRecord(rawConfig, `${context}.${key}`)
-    if (!PRIORITIES.has(config.priority as ComponentPriority)) {
-      throw new Error(`${context}.${key}.priority must be one of: must, strong, optional, exclude.`)
+    if (!normalizePriorityValue(config.priority)) {
+      throw new Error(`${context}.${key}.priority must be one of: include, exclude.`)
     }
     assertNumber(config.order, `${context}.${key}.order`)
     assertOptionalString(config.content, `${context}.${key}.content`)
@@ -512,9 +522,9 @@ function assertResumeDataShape(value: unknown): asserts value is ResumeData {
             priorityOverride.priority,
             `presets[${index}].overrides.priorityOverrides[${overrideIndex}].priority`,
           )
-          if (!PRIORITIES.has(priority as ComponentPriority)) {
+          if (!normalizePriorityValue(priority)) {
             throw new Error(
-              `presets[${index}].overrides.priorityOverrides[${overrideIndex}].priority must be one of: must, strong, optional, exclude.`,
+              `presets[${index}].overrides.priorityOverrides[${overrideIndex}].priority must be one of: include, exclude.`,
             )
           }
         }
@@ -675,6 +685,76 @@ const collectWarningsAndNormalizeVectors = (data: ResumeData): { data: ResumeDat
   }
 }
 
+const normalizePriorityMap = (map: Record<string, unknown> | undefined): Record<string, ComponentPriority> => {
+  if (!map) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(map)
+      .map(([key, value]) => {
+        const normalized = normalizePriorityValue(value)
+        return normalized ? [key, normalized] : null
+      })
+      .filter((entry): entry is [string, ComponentPriority] => entry !== null),
+  )
+}
+
+const normalizeResumePriorities = (data: ResumeData): ResumeData => ({
+  ...data,
+  target_lines: data.target_lines.map((line) => ({
+    ...line,
+    vectors: normalizePriorityMap(line.vectors),
+  })),
+  profiles: data.profiles.map((profile) => ({
+    ...profile,
+    vectors: normalizePriorityMap(profile.vectors),
+  })),
+  skill_groups: data.skill_groups.map((group) => ({
+    ...group,
+    vectors: group.vectors
+      ? Object.fromEntries(
+          Object.entries(group.vectors).map(([vectorId, config]) => [
+            vectorId,
+            {
+              ...config,
+              priority: normalizePriorityValue(config.priority) ?? 'exclude',
+            },
+          ]),
+        )
+      : group.vectors,
+  })),
+  roles: data.roles.map((role) => ({
+    ...role,
+    bullets: role.bullets.map((bullet) => ({
+      ...bullet,
+      vectors: normalizePriorityMap(bullet.vectors),
+    })),
+  })),
+  projects: data.projects.map((project) => ({
+    ...project,
+    vectors: normalizePriorityMap(project.vectors),
+  })),
+  education: data.education.map((entry) => ({
+    ...entry,
+    vectors: normalizePriorityMap(entry.vectors),
+  })),
+  certifications: (data.certifications ?? []).map((cert) => ({
+    ...cert,
+    vectors: normalizePriorityMap(cert.vectors),
+  })),
+  presets: (data.presets ?? []).map((preset) => ({
+    ...preset,
+    overrides: {
+      ...preset.overrides,
+      priorityOverrides: preset.overrides.priorityOverrides?.map((override) => ({
+        ...override,
+        priority: normalizePriorityValue(override.priority) ?? 'exclude',
+      })),
+    },
+  })),
+})
+
 const extractContextPath = (message: string): string | null => {
   const match = message.match(/^([a-z0-9_[\].]+)\s/i)
   return match?.[1] ?? null
@@ -742,7 +822,7 @@ export const importResumeConfig = (
     throw new Error(`${detail}${suffix}`)
   }
 
-  const normalized = collectWarningsAndNormalizeVectors(parsed as ResumeData)
+  const normalized = collectWarningsAndNormalizeVectors(normalizeResumePriorities(parsed as ResumeData))
   return {
     data: normalized.data,
     format,

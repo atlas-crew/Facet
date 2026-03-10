@@ -8,7 +8,6 @@ interface StatusBarProps {
   skillGroupCount: number
   nearBudget: boolean
   overBudget: boolean
-  mustOverBudget: boolean
   activePresetLabel?: string
   presetDirty?: boolean
   matchScore?: number | null
@@ -21,7 +20,6 @@ export function StatusBar({
   skillGroupCount,
   nearBudget,
   overBudget,
-  mustOverBudget,
   activePresetLabel,
   presetDirty,
   matchScore,
@@ -59,11 +57,9 @@ export function StatusBar({
       {showWarning && (
         <span className="status-warning">
           <AlertTriangle size={14} />
-          {mustOverBudget
-            ? 'Must-tagged content exceeds budget'
-            : overBudget
-              ? 'Estimated at 2+ pages; lower-priority bullets were trimmed'
-              : 'Approaching 2-page target (>= 1.8 pages)'}
+          {overBudget
+            ? 'Estimated at 2+ pages; bottom bullets were trimmed'
+            : 'Approaching 2-page target (>= 1.8 pages)'}
         </span>
       )}
     </footer>

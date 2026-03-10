@@ -241,7 +241,7 @@ describe('resumeStore', () => {
       expect(newGroup).toBeDefined()
       expect(newGroup?.label).toBe('New Skills')
       expect(newGroup?.content).toBe('Content')
-      expect(newGroup?.vectors?.[vectorId]?.priority).toBe('strong')
+      expect(newGroup?.vectors?.[vectorId]?.priority).toBe('include')
       expect(newGroup?.vectors?.[vectorId]?.order).toBe(initialCount + 1)
     })
 

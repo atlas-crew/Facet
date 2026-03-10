@@ -38,7 +38,7 @@ const createResume = (name: string): AssembledResume => ({
     location: 'Austin, TX',
     links: [],
   },
-  profile: { id: 'profile-1', text: 'Profile text', priority: 'must' },
+  profile: { id: 'profile-1', text: 'Profile text' },
   skillGroups: [],
   roles: [],
   projects: [],

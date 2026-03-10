@@ -80,6 +80,6 @@ export const toTemplateResumeData = (resume: AssembledResume): TemplateResumeDat
     url: project.url,
     text: project.text,
   })),
-  education: resume.education.map(({ id: _id, priority: _p, ...entry }) => entry),
-  certifications: resume.certifications.map(({ id: _id, priority: _p, ...cert }) => cert),
+  education: resume.education.map(({ id: _id, ...entry }) => entry),
+  certifications: resume.certifications.map(({ id: _id, ...cert }) => cert),
 })

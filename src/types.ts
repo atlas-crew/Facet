@@ -1,10 +1,7 @@
 export type VectorId = string
 export type VectorSelection = VectorId | 'all'
 
-export type ComponentPriority = 'must' | 'strong' | 'optional' | 'exclude'
-export type IncludedPriority = Exclude<ComponentPriority, 'exclude'>
-
-export const PRIORITY_ORDER: IncludedPriority[] = ['must', 'strong', 'optional']
+export type ComponentPriority = 'include' | 'exclude'
 export const DEFAULT_TARGET_PAGES = 2
 
 export type PriorityByVector = Record<VectorId, ComponentPriority>
@@ -251,7 +248,6 @@ export type VectorBulletOrders = Record<VectorId | 'all', RoleBulletOrderMap>
 export interface AssembledTextComponent {
   id: string
   text: string
-  priority: IncludedPriority
 }
 
 export interface AssembledSkillGroup {
@@ -263,7 +259,6 @@ export interface AssembledSkillGroup {
 export interface AssembledRoleBullet {
   id: string
   text: string
-  priority: IncludedPriority
 }
 
 export interface AssembledRole {
@@ -281,7 +276,6 @@ export interface AssembledProject {
   name: string
   url?: string
   text: string
-  priority: IncludedPriority
 }
 
 export interface AssembledEducation {
@@ -290,7 +284,6 @@ export interface AssembledEducation {
   location: string
   degree: string
   year?: string
-  priority: IncludedPriority
 }
 
 export interface AssembledCertification {
@@ -300,7 +293,6 @@ export interface AssembledCertification {
   date?: string
   credential_id?: string
   url?: string
-  priority: IncludedPriority
 }
 
 export interface AssembledResume {
@@ -315,7 +307,7 @@ export interface AssembledResume {
   certifications: AssembledCertification[]
 }
 
-export type EngineWarningCode = 'must_over_budget' | 'over_budget_after_trim'
+export type EngineWarningCode = 'over_budget_after_trim'
 
 export interface EngineWarning {
   code: EngineWarningCode
@@ -336,14 +328,10 @@ export interface AssemblyResult {
   targetPages: number
   estimatedPages: number
   estimatedPageUsage: number
-  mustOnlyEstimatedPages: number
-  mustOnlyEstimatedPageUsage: number
   trimmedBulletIds: string[]
   warnings: EngineWarning[]
 }
 
-// UI aliases
-export type Priority = ComponentPriority
 export type VectorDef = ResumeVector
 export type SkillGroup = SkillGroupComponent
 export type Role = RoleComponent

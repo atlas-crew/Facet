@@ -1285,24 +1285,14 @@ select.component-input {
   line-height: 1;
 }
 
-.priority-must {
-  background: var(--priority-must-bg);
-  color: var(--priority-must-text);
-}
-
-.priority-strong {
-  background: var(--priority-strong-bg);
-  color: var(--priority-strong-text);
-}
-
-.priority-optional {
-  background: var(--priority-optional-bg);
-  color: var(--priority-optional-text);
+.priority-include {
+  background: var(--accent-primary-subtle);
+  color: var(--accent-primary);
 }
 
 .priority-exclude {
-  color: var(--priority-optional);
-  opacity: 0.6;
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 .role-block {
@@ -1491,22 +1481,6 @@ select.component-input {
   overflow: hidden;
 }
 
-/* Primary Priority Strip */
-.priority-strip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--border-subtle);
-  transition: background var(--duration-normal) var(--easing);
-}
-
-.priority-strip.priority-must { background: #22c55e; }
-.priority-strip.priority-strong { background: #3b82f6; }
-.priority-strip.priority-optional { background: #94a3b8; }
-.priority-strip.priority-exclude { background: #f1f5f9; }
-
 /* Vector Matrix */
 .skill-vector-config-drawer {
   margin-top: var(--space-3);
@@ -1605,22 +1579,13 @@ select.component-input {
   z-index: 2;
 }
 
-.matrix-dot.priority-must {
+.matrix-dot.priority-include {
   background: var(--vector-color);
-  box-shadow: 0 0 0 1px var(--bg-surface), 0 0 0 2px var(--vector-color);
-}
-
-.matrix-dot.priority-strong {
-  background: var(--vector-color);
-}
-
-.matrix-dot.priority-optional {
-  border-color: var(--vector-color);
-  background: transparent;
+  box-shadow: 0 0 0 1px var(--bg-surface), 0 0 0 2px color-mix(in srgb, var(--vector-color) 28%, transparent);
 }
 
 .matrix-dot.priority-exclude {
-  border-color: var(--border-default);
+  border-color: color-mix(in srgb, var(--vector-color) 45%, var(--border-default));
   background: transparent;
 }
 
@@ -1656,37 +1621,16 @@ select.component-input {
   transform: translateX(0) translateY(-8px);
 }
 
-.priority-quick-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface-subtle);
-  transition: all var(--duration-fast) var(--easing);
-  font-family: var(--font-mono);
-}
-
-.priority-quick-toggle:hover {
-  border-color: var(--border-default);
-  background: var(--bg-surface-hover);
-}
-
-.priority-quick-toggle.must { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
-.priority-quick-toggle.strong { color: #1e40af; border-color: #bfdbfe; background: #eff6ff; }
-.priority-quick-toggle.optional { color: #475569; border-color: #e2e8f0; background: #f8fafc; }
-.priority-quick-toggle.exclude { color: #94a3b8; border-color: #f1f5f9; background: #ffffff; }
-
 .bullet-title-row {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+.vector-priority-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
 }
 
 .bullet-label-input {

@@ -13,13 +13,13 @@ const mockProjects: ProjectComponent[] = [
     id: 'p1',
     name: 'Project One',
     text: 'Description One',
-    vectors: { all: 'strong' }
+    vectors: { all: 'include' }
   },
   {
     id: 'p2',
     name: 'Project Two',
     text: 'Description Two',
-    vectors: { all: 'optional' }
+    vectors: { all: 'include' }
   }
 ]
 

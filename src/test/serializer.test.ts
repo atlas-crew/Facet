@@ -21,7 +21,7 @@ describe('serializer', () => {
   it('rejects invalid priority and missing required fields', () => {
     const invalidPriority = clone(defaultResumeData)
     invalidPriority.target_lines[0].vectors.backend = 'critical' as never
-    expect(() => importResumeConfig(JSON.stringify(invalidPriority))).toThrow(/must, strong, optional, exclude/)
+    expect(() => importResumeConfig(JSON.stringify(invalidPriority))).toThrow(/include, exclude/)
 
     const missingName = clone(defaultResumeData) as unknown as Record<string, unknown>
     delete (missingName.meta as Record<string, unknown>).name
@@ -209,7 +209,7 @@ education: []
     const parsed = importResumeConfig(JSON.stringify(source), 'json')
     expect(parsed.data.skill_groups[0]?.vectors?.backend?.order).toBe(2)
     expect(parsed.data.skill_groups[0]?.vectors?.platform?.order).toBe(1)
-    expect(parsed.data.skill_groups[0]?.vectors?.backend?.priority).toBe('strong')
+    expect(parsed.data.skill_groups[0]?.vectors?.backend?.priority).toBe('include')
   })
 
   it('supports presets in import/export schema', () => {
@@ -230,7 +230,7 @@ education: []
             overrides: { bulletChar: 'none' },
           },
           priorityOverrides: [
-            { bulletId: 'acme-b1', vectorId: 'backend', priority: 'must' },
+            { bulletId: 'acme-b1', vectorId: 'backend', priority: 'include' },
           ],
         },
       },
@@ -242,10 +242,25 @@ education: []
       'acme-b2',
       'acme-b1',
     ])
-    expect(parsed.data.presets?.[0]?.overrides.priorityOverrides?.[0]?.priority).toBe('must')
+    expect(parsed.data.presets?.[0]?.overrides.priorityOverrides?.[0]?.priority).toBe('include')
     expect(parsed.data.presets?.[0]?.overrides.theme).toEqual({
       preset: 'minimal',
       overrides: { bulletChar: 'none' },
     })
   })
 })
+  it('normalizes legacy four-tier priorities on import', () => {
+    const legacy = clone(defaultResumeData)
+    ;(legacy.target_lines[0].vectors as Record<string, string>).backend = 'must'
+    ;(legacy.profiles[0].vectors as Record<string, string>).backend = 'strong'
+    ;(legacy.roles[0].bullets[0].vectors as Record<string, string>).backend = 'optional'
+    legacy.skill_groups[0].vectors = {
+      backend: { priority: 'must' as never, order: 1 },
+    }
+
+    const parsed = importResumeConfig(JSON.stringify(legacy), 'json')
+    expect(parsed.data.target_lines[0]?.vectors.backend).toBe('include')
+    expect(parsed.data.profiles[0]?.vectors.backend).toBe('include')
+    expect(parsed.data.roles[0]?.bullets[0]?.vectors.backend).toBe('include')
+    expect(parsed.data.skill_groups[0]?.vectors?.backend?.priority).toBe('include')
+  })

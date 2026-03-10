@@ -102,6 +102,27 @@ interface ResumeState {
   reorderCertifications: (order: string[]) => void
 }
 
+const normalizePriorityValue = (value: unknown): ComponentPriority => {
+  if (value === 'exclude') {
+    return 'exclude'
+  }
+
+  return 'include'
+}
+
+const normalizePriorityMap = (value: unknown): PriorityByVector => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([vectorId, priority]) => [
+      vectorId,
+      normalizePriorityValue(priority),
+    ]),
+  )
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- migration handles raw persisted state with unknown shape
 export function resumeMigration(persistedState: any, version: number, legacyUiData: string | null = legacyUiStoreSnapshot) {
   if (version < 2 && !persistedState.data._overridesMigrated) {
@@ -164,6 +185,80 @@ export function resumeMigration(persistedState: any, version: number, legacyUiDa
     }
     if (!persistedState.data.certifications) {
       persistedState.data.certifications = []
+    }
+  }
+
+  // v5 -> v6: collapse legacy four-tier priority values into include/exclude
+  if (version < 6 && persistedState.data) {
+    if (persistedState.data.target_lines) {
+      persistedState.data.target_lines = persistedState.data.target_lines.map((line: any) => ({
+        ...line,
+        vectors: normalizePriorityMap(line.vectors),
+      }))
+    }
+    if (persistedState.data.profiles) {
+      persistedState.data.profiles = persistedState.data.profiles.map((profile: any) => ({
+        ...profile,
+        vectors: normalizePriorityMap(profile.vectors),
+      }))
+    }
+    if (persistedState.data.skill_groups) {
+      persistedState.data.skill_groups = persistedState.data.skill_groups.map((group: any) => ({
+        ...group,
+        vectors: group.vectors && typeof group.vectors === 'object'
+          ? Object.fromEntries(
+              Object.entries(group.vectors).map(([vectorId, config]) => [
+                vectorId,
+                {
+                  ...(config as Record<string, unknown>),
+                  priority: normalizePriorityValue((config as Record<string, unknown>).priority),
+                },
+              ]),
+            )
+          : group.vectors,
+      }))
+    }
+    if (persistedState.data.roles) {
+      persistedState.data.roles = persistedState.data.roles.map((role: any) => ({
+        ...role,
+        vectors: normalizePriorityMap(role.vectors),
+        bullets: (role.bullets ?? []).map((bullet: any) => ({
+          ...bullet,
+          vectors: normalizePriorityMap(bullet.vectors),
+        })),
+      }))
+    }
+    if (persistedState.data.projects) {
+      persistedState.data.projects = persistedState.data.projects.map((project: any) => ({
+        ...project,
+        vectors: normalizePriorityMap(project.vectors),
+      }))
+    }
+    if (persistedState.data.education) {
+      persistedState.data.education = persistedState.data.education.map((entry: any) => ({
+        ...entry,
+        vectors: normalizePriorityMap(entry.vectors),
+      }))
+    }
+    if (persistedState.data.certifications) {
+      persistedState.data.certifications = persistedState.data.certifications.map((cert: any) => ({
+        ...cert,
+        vectors: normalizePriorityMap(cert.vectors),
+      }))
+    }
+    if (persistedState.data.presets) {
+      persistedState.data.presets = persistedState.data.presets.map((preset: any) => ({
+        ...preset,
+        overrides: {
+          ...(preset.overrides ?? {}),
+          priorityOverrides: Array.isArray(preset.overrides?.priorityOverrides)
+            ? preset.overrides.priorityOverrides.map((override: any) => ({
+                ...override,
+                priority: normalizePriorityValue(override.priority),
+              }))
+            : preset.overrides?.priorityOverrides,
+        },
+      }))
     }
   }
 
@@ -613,7 +708,7 @@ export const useResumeStore = create<ResumeState>()(
             current.vectors.map((vector) => [
               vector.id,
               {
-                priority: 'strong' as ComponentPriority,
+                priority: 'include' as ComponentPriority,
                 order: current.skill_groups.length + 1,
               },
             ]),
@@ -753,7 +848,7 @@ export const useResumeStore = create<ResumeState>()(
     }),
     {
       name: 'vector-resume-data',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({ data: state.data }),
       migrate: resumeMigration,

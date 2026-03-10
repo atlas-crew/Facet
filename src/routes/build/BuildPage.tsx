@@ -298,7 +298,7 @@ export function BuildPage() {
       return undefined
     }
     return {
-      recommendedPriority: 'must' as const,
+      recommendedPriority: 'include' as const,
       reason: 'Matched JD recommendation'
     }
   }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds])
@@ -367,10 +367,7 @@ export function BuildPage() {
     assembledResult.estimatedPageUsage >= 1.8 && assembledResult.estimatedPageUsage < 2
   const overPageLimit =
     assembledResult.estimatedPageUsage >= 2 ||
-    assembledResult.warnings.some(
-      (warning) => warning.code === 'must_over_budget' || warning.code === 'over_budget_after_trim',
-    )
-  const mustOnlyOverPageLimit = assembledResult.mustOnlyEstimatedPageUsage >= 1.0
+    assembledResult.warnings.some((warning) => warning.code === 'over_budget_after_trim')
 
   // Comparison assembly — only computed when a comparison vector is active
   const comparisonVectorKey = comparisonVector ? toVectorKey(comparisonVector) : null
@@ -719,7 +716,7 @@ export function BuildPage() {
 
   const onAddComponentBound = (type: AddComponentType, payload: AddComponentPayload) => {
     const id = createId(ID_MAP[type])
-    const baseVectors = payload.vectors ?? { [vectorKey]: 'must' }
+    const baseVectors = payload.vectors ?? { [vectorKey]: 'include' }
 
     switch (type) {
       case 'target_line':
@@ -731,7 +728,7 @@ export function BuildPage() {
       case 'skill_group': {
         const sgVectors: Record<string, any> = {}
         data.vectors.forEach((v) => {
-          sgVectors[v.id] = { priority: 'strong', order: 1 }
+          sgVectors[v.id] = { priority: 'include', order: 1 }
         })
         addSkillGroup({
           id,
@@ -751,7 +748,7 @@ export function BuildPage() {
         break
       }
       case 'role':
-        addRole({ id, company: 'New Company', title: 'Role Title', dates: 'Jan 2024 – Present', vectors: { [vectorKey]: 'must' }, bullets: [] })
+        addRole({ id, company: 'New Company', title: 'Role Title', dates: 'Jan 2024 – Present', vectors: { [vectorKey]: 'include' }, bullets: [] })
         break
       case 'education':
         addEducation({ id, school: payload.name?.trim() || 'New School', location: payload.label?.trim() || 'Location', degree: payload.text?.trim() || 'Degree', year: payload.url?.trim() || CURRENT_YEAR.toString(), vectors: baseVectors })
@@ -1333,7 +1330,6 @@ export function BuildPage() {
         skillGroupCount={assembledResult.resume.skillGroups.length}
         nearBudget={nearPageLimit}
         overBudget={overPageLimit}
-        mustOverBudget={mustOnlyOverPageLimit}
         activePresetLabel={activePreset?.name}
         presetDirty={presetDirty}
         matchScore={matchScore}

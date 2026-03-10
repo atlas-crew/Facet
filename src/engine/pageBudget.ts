@@ -2,7 +2,6 @@ import {
   DEFAULT_TARGET_PAGES,
   type AssembledResume,
   type EngineWarning,
-  type IncludedPriority,
 } from '../types'
 
 const DEFAULT_LINES_PER_PAGE = 58
@@ -20,8 +19,6 @@ export interface PageBudgetResult {
   targetPages: number
   estimatedPages: number
   estimatedPageUsage: number
-  mustOnlyEstimatedPages: number
-  mustOnlyEstimatedPageUsage: number
   trimmedBulletIds: string[]
   warnings: EngineWarning[]
 }
@@ -73,40 +70,12 @@ const cloneAssembledResume = (resume: AssembledResume): AssembledResume => ({
   certifications: resume.certifications.map((cert) => ({ ...cert })),
 })
 
-const buildMustOnlySnapshot = (resume: AssembledResume): AssembledResume => ({
-  ...cloneAssembledResume(resume),
-  targetLine: resume.targetLine?.priority === 'must' ? { ...resume.targetLine } : undefined,
-  profile: resume.profile?.priority === 'must' ? { ...resume.profile } : undefined,
-  roles: resume.roles
-    .map((role) => ({
-      ...role,
-      bullets: role.bullets.filter((bullet) => bullet.priority === 'must').map((bullet) => ({ ...bullet })),
-    }))
-    .filter((role) => role.bullets.length > 0),
-  projects: resume.projects
-    .filter((project) => project.priority === 'must')
-    .map((project) => ({ ...project })),
-  education: resume.education
-    .filter((entry) => entry.priority === 'must')
-    .map((entry) => ({ ...entry })),
-  certifications: resume.certifications
-    .filter((cert) => cert.priority === 'must')
-    .map((cert) => ({ ...cert })),
-})
-
-const removeOldestBulletByPriority = (
-  resume: AssembledResume,
-  priority: Extract<IncludedPriority, 'optional' | 'strong'>,
-): string | null => {
+const removeLastBullet = (resume: AssembledResume): string | null => {
   for (let roleIndex = resume.roles.length - 1; roleIndex >= 0; roleIndex -= 1) {
     const role = resume.roles[roleIndex]
 
     for (let bulletIndex = role.bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
       const bullet = role.bullets[bulletIndex]
-      if (bullet.priority !== priority) {
-        continue
-      }
-
       role.bullets.splice(bulletIndex, 1)
       if (role.bullets.length === 0) {
         resume.roles.splice(roleIndex, 1)
@@ -193,30 +162,17 @@ export const applyPageBudget = (
 
   let estimatedPageUsage = estimateResumePageUsage(workingResume, linesPerPage)
   let estimatedPages = Math.ceil(estimatedPageUsage)
-  const mustOnlyEstimatedPageUsage = estimateResumePageUsage(buildMustOnlySnapshot(workingResume), linesPerPage)
-  const mustOnlyEstimatedPages = Math.ceil(mustOnlyEstimatedPageUsage)
-
-  if (mustOnlyEstimatedPages > targetPages) {
-    warnings.push({
-      code: 'must_over_budget',
-      message: `Must-priority content alone is estimated at ${mustOnlyEstimatedPageUsage.toFixed(2)} pages (target: ${targetPages}).`,
-    })
-  }
 
   if (shouldTrim && estimatedPageUsage > targetPages) {
-    const trimOrder: Array<Extract<IncludedPriority, 'optional' | 'strong'>> = ['optional', 'strong']
-
-    for (const trimPriority of trimOrder) {
-      while (estimatedPageUsage > targetPages) {
-        const removedId = removeOldestBulletByPriority(workingResume, trimPriority)
-        if (!removedId) {
-          break
-        }
-
-        trimmedBulletIds.push(removedId)
-        estimatedPageUsage = estimateResumePageUsage(workingResume, linesPerPage)
-        estimatedPages = Math.ceil(estimatedPageUsage)
+    while (estimatedPageUsage > targetPages) {
+      const removedId = removeLastBullet(workingResume)
+      if (!removedId) {
+        break
       }
+
+      trimmedBulletIds.push(removedId)
+      estimatedPageUsage = estimateResumePageUsage(workingResume, linesPerPage)
+      estimatedPages = Math.ceil(estimatedPageUsage)
     }
   }
 
@@ -232,8 +188,6 @@ export const applyPageBudget = (
     targetPages,
     estimatedPages,
     estimatedPageUsage,
-    mustOnlyEstimatedPages,
-    mustOnlyEstimatedPageUsage,
     trimmedBulletIds,
     warnings,
   }

@@ -13,13 +13,13 @@ const mockSkillGroups: SkillGroup[] = [
     id: 's1',
     label: 'Languages',
     content: 'TypeScript, Rust',
-    vectors: { all: { priority: 'must', order: 1 } }
+    vectors: { all: { priority: 'include', order: 1 } }
   },
   {
     id: 's2',
     label: 'Frameworks',
     content: 'React, Next.js',
-    vectors: { all: { priority: 'strong', order: 2 } }
+    vectors: { all: { priority: 'include', order: 2 } }
   }
 ]
 
@@ -79,7 +79,7 @@ describe('SkillGroupList', () => {
       />
     )
 
-    const toggleBtn = screen.getByRole('button', { name: /included/i })
+    const toggleBtn = screen.getByRole('button', { name: /^Included$/i })
     toggleBtn.click()
     expect(onToggle).toHaveBeenCalledWith('s1')
   })

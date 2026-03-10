@@ -136,7 +136,7 @@ const createResume = (): AssembledResume => ({
       company: 'Acme',
       title: 'Engineer',
       dates: '2022 - Present',
-      bullets: [{ id: 'bullet-1', text: 'Built systems', priority: 'must' }],
+      bullets: [{ id: 'bullet-1', text: 'Built systems' }],
     },
   ],
   projects: [
@@ -144,10 +144,9 @@ const createResume = (): AssembledResume => ({
       id: 'project-1',
       name: 'Facet',
       text: 'Resume tooling',
-      priority: 'must',
     },
   ],
-  education: [{ id: 'edu-1', school: 'State U', location: 'TX', degree: 'BS', year: '2020', priority: 'must' as const }],
+  education: [{ id: 'edu-1', school: 'State U', location: 'TX', degree: 'BS', year: '2020' }],
   certifications: [],
 })
 
@@ -245,8 +244,8 @@ describe('typstRenderer', () => {
   it('serializes target line and profile when present', async () => {
     const { renderResumeAsPdf } = await loadRenderer()
     const resume = createResume()
-    resume.targetLine = { id: 'tl', text: 'Backend-focused engineer', priority: 'must' }
-    resume.profile = { id: 'pr', text: 'Experienced engineer', priority: 'must' }
+    resume.targetLine = { id: 'tl', text: 'Backend-focused engineer' }
+    resume.profile = { id: 'pr', text: 'Experienced engineer' }
     await renderResumeAsPdf(resume, createTheme())
 
     const args = snippetInstances[0]?.lastPdfArgs

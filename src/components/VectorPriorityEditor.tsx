@@ -1,17 +1,10 @@
-import type { ComponentPriority, PriorityByVector, VectorDef } from '../types'
+import type { PriorityByVector, VectorDef } from '../types'
 
 interface VectorPriorityEditorProps {
   vectors: PriorityByVector
   vectorDefs: VectorDef[]
   onChange: (nextVectors: PriorityByVector) => void
 }
-
-const priorityOptions: Array<{ value: ComponentPriority; label: string }> = [
-  { value: 'must', label: 'Must' },
-  { value: 'strong', label: 'Strong' },
-  { value: 'optional', label: 'Optional' },
-  { value: 'exclude', label: 'Exclude' },
-]
 
 export function VectorPriorityEditor({ vectors, vectorDefs, onChange }: VectorPriorityEditorProps) {
   if (!vectorDefs.length) {
@@ -20,7 +13,7 @@ export function VectorPriorityEditor({ vectors, vectorDefs, onChange }: VectorPr
 
   return (
     <fieldset className="vector-priority-editor">
-      <legend className="vector-priority-title">Vector Priority</legend>
+      <legend className="vector-priority-title">Vector Inclusion</legend>
       <div className="vector-priority-grid">
         {vectorDefs.map((vector) => (
           <label className="vector-priority-row" key={vector.id}>
@@ -28,26 +21,21 @@ export function VectorPriorityEditor({ vectors, vectorDefs, onChange }: VectorPr
               <span className="vector-priority-dot" style={{ backgroundColor: vector.color }} aria-hidden />
               {vector.label}
             </span>
-            <select
-              className="component-input compact vector-priority-select"
-              value={vectors[vector.id] ?? 'exclude'}
+            <input
+              type="checkbox"
+              className="vector-priority-checkbox"
+              checked={(vectors[vector.id] ?? 'exclude') === 'include'}
               onChange={(event) => {
-                const nextPriority = event.target.value as ComponentPriority
                 const nextVectors: PriorityByVector = { ...vectors }
-                if (nextPriority === 'exclude') {
-                  delete nextVectors[vector.id]
+                if (event.target.checked) {
+                  nextVectors[vector.id] = 'include'
                 } else {
-                  nextVectors[vector.id] = nextPriority
+                  delete nextVectors[vector.id]
                 }
                 onChange(nextVectors)
               }}
-            >
-              {priorityOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              aria-label={`${vector.label} included`}
+            />
           </label>
         ))}
       </div>

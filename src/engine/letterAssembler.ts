@@ -45,7 +45,7 @@ function resolveVariables(text: string, variables: Record<string, string>): stri
 function filterParagraphs(paragraphs: CoverLetterParagraph[], vectorId: VectorId): CoverLetterParagraph[] {
   const matched = paragraphs.filter(p => {
     const priority = p.vectors[vectorId]
-    return priority === 'must' || priority === 'strong' || priority === 'optional'
+    return priority === 'include'
   })
 
   if (matched.length > 0) return matched

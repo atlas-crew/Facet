@@ -17,8 +17,8 @@ describe('ensureSkillGroupVectors', () => {
   it('creates default vector configs when skill group has none', () => {
     const result = ensureSkillGroupVectors(baseSkillGroup, vectors)
     expect(result).toEqual({
-      backend: { priority: 'strong', order: 1, content: undefined },
-      security: { priority: 'strong', order: 2, content: undefined },
+      backend: { priority: 'include', order: 1, content: undefined },
+      security: { priority: 'include', order: 2, content: undefined },
     })
   })
 
@@ -26,12 +26,12 @@ describe('ensureSkillGroupVectors', () => {
     const sg: SkillGroupComponent = {
       ...baseSkillGroup,
       vectors: {
-        backend: { priority: 'must', order: 5, content: 'Go, Rust' },
+        backend: { priority: 'include', order: 5, content: 'Go, Rust' },
       },
     }
     const result = ensureSkillGroupVectors(sg, vectors)
-    expect(result.backend).toEqual({ priority: 'must', order: 5, content: 'Go, Rust' })
-    expect(result.security).toEqual({ priority: 'strong', order: 2, content: undefined })
+    expect(result.backend).toEqual({ priority: 'include', order: 5, content: 'Go, Rust' })
+    expect(result.security).toEqual({ priority: 'include', order: 2, content: undefined })
   })
 
   it('falls back to legacy order map when vector config is missing', () => {
@@ -74,13 +74,13 @@ describe('reorderSkillGroupForSelection', () => {
     const sg: SkillGroupComponent = {
       ...baseSkillGroup,
       vectors: {
-        backend: { priority: 'must', order: 1, content: 'Go' },
-        security: { priority: 'optional', order: 3, content: 'SAST' },
+        backend: { priority: 'include', order: 1, content: 'Go' },
+        security: { priority: 'include', order: 3, content: 'SAST' },
       },
     }
     const result = reorderSkillGroupForSelection(sg, 'backend', vectors, 10)
-    expect(result.vectors?.backend).toEqual({ priority: 'must', order: 10, content: 'Go' })
-    expect(result.vectors?.security).toEqual({ priority: 'optional', order: 3, content: 'SAST' })
+    expect(result.vectors?.backend).toEqual({ priority: 'include', order: 10, content: 'Go' })
+    expect(result.vectors?.security).toEqual({ priority: 'include', order: 3, content: 'SAST' })
   })
 
   it('preserves base skill group fields', () => {
