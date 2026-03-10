@@ -128,7 +128,10 @@ export function PrepPracticeMode({ cards, onExit }: PrepPracticeModeProps) {
           </div>
         ) : (
           <div className="prep-practice-revealed">
-            <PrepCardView card={currentCard} />
+            <PrepCardView
+              card={currentCard}
+              readOnly
+            />
             
             {isEnd ? (
               <div className="prep-practice-complete">

@@ -773,6 +773,7 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .vector-pill {
@@ -811,6 +812,15 @@ select {
 
 .add-pill {
   border-style: dashed;
+}
+
+.btn-danger-soft {
+  color: var(--status-critical);
+}
+
+.btn-danger-soft:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--status-critical) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-critical) 10%, var(--bg-surface));
 }
 
 .workspace {
@@ -1610,9 +1620,8 @@ select.component-input {
 }
 
 .matrix-dot.priority-exclude {
-  border-color: var(--border-subtle);
+  border-color: var(--border-default);
   background: transparent;
-  opacity: 0.3;
 }
 
 /* Tooltip for Matrix Dots */

@@ -82,4 +82,10 @@ describe('VectorBar', () => {
     expect(screen.getByText('All')).toBeTruthy()
     expect(screen.getByText('New Vector')).toBeTruthy()
   })
+
+  it('shows rename and delete controls', () => {
+    renderBar({ selectedVector: 'backend' })
+    expect(screen.getByText('Rename')).toBeTruthy()
+    expect(screen.getByText('Delete')).toBeTruthy()
+  })
 })
