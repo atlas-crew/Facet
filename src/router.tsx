@@ -1,9 +1,12 @@
+import { lazy } from 'react'
 import { createRouter, createRootRoute, createRoute, redirect } from '@tanstack/react-router'
 import { AppShell } from './components/AppShell'
 import { BuildPage } from './routes/build/BuildPage'
 import { PipelinePage } from './routes/pipeline/PipelinePage'
 import { PrepPage } from './routes/prep/PrepPage'
 import { LettersPage } from './routes/letters/LettersPage'
+
+const LazyHelpPage = lazy(() => import('./routes/help/HelpPage').then((m) => ({ default: m.HelpPage })))
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -46,7 +49,13 @@ const lettersRoute = createRoute({
   component: LettersPage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, buildRoute, pipelineRoute, prepRoute, lettersRoute])
+const helpRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/help',
+  component: LazyHelpPage,
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, buildRoute, pipelineRoute, prepRoute, lettersRoute, helpRoute])
 
 export const router = createRouter({
   routeTree,

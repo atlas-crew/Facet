@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet, Link, useRouterState } from '@tanstack/react-router'
-import { Layers, ListChecks, BookOpen, FileText, Moon, Sun, Monitor } from 'lucide-react'
+import { Layers, ListChecks, BookOpen, FileText, HelpCircle, Moon, Sun, Monitor } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
 import { FacetGemMark } from './FacetWordmark'
 
@@ -62,6 +62,13 @@ export function AppShell() {
         </div>
 
         <div className="sidebar-bottom">
+          <Link
+            to="/help"
+            className={`sidebar-nav-item ${currentPath.startsWith('/help') ? 'active' : ''}`}
+            title="Help"
+          >
+            <HelpCircle size={18} strokeWidth={1.5} />
+          </Link>
           <button
             className="sidebar-nav-item"
             type="button"
@@ -88,9 +95,7 @@ export function AppShell() {
         <footer className="app-footer">
           <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
           <nav className="app-footer-links" aria-label="Footer links">
-            <a href="https://github.com/NickCrew/Facet/blob/main/docs/NAVIGATOR.md" target="_blank" rel="noopener noreferrer">
-              Docs
-            </a>
+            <Link to="/help">Docs</Link>
             <a href="https://github.com/NickCrew/Facet" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
