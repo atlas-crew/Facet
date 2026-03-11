@@ -20,6 +20,7 @@ import { resolveStorage } from './storage'
 import { reorderSkillGroupForSelection } from '../utils/skillGroupVectors'
 import { reorderById } from '../utils/reorderById'
 import { createId } from '../utils/idUtils'
+import { ensureDurableMetadata, touchDurableMetadata } from './durableMetadata'
 import { useUiStore } from './uiStore'
 
 const MAX_HISTORY = 50
@@ -131,6 +132,20 @@ const normalizePriorityMap = (value: unknown): PriorityByVector => {
 }
 
 type PersistedRecord = Record<string, unknown>
+
+const normalizeResumeData = (
+  data: ResumeData,
+  options: { touch?: boolean } = {},
+): ResumeData => {
+  const timestamp = new Date().toISOString()
+
+  return {
+    ...data,
+    durableMeta: options.touch
+      ? touchDurableMetadata(data.durableMeta, timestamp)
+      : ensureDurableMetadata(data.durableMeta, timestamp),
+  }
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- migration handles raw persisted state with unknown shape
 export function resumeMigration(persistedState: any, version: number, legacyUiData: string | null = legacyUiStoreSnapshot) {
@@ -286,13 +301,17 @@ export function resumeMigration(persistedState: any, version: number, legacyUiDa
     }
   }
 
+  if (version < 7 && persistedState.data) {
+    persistedState.data = normalizeResumeData(persistedState.data)
+  }
+
   return persistedState
 }
 
 export const useResumeStore = create<ResumeState>()(
   persist(
     (set, get) => ({
-      data: defaultResumeData,
+      data: normalizeResumeData(defaultResumeData),
       past: [],
       future: [],
       canUndo: false,
@@ -306,8 +325,9 @@ export const useResumeStore = create<ResumeState>()(
 
       updateData: (fn) => {
         const { data: current, past } = get()
-        const next = fn(current)
-        if (next === current) return
+        const nextState = fn(current)
+        if (nextState === current) return
+        const next = normalizeResumeData(nextState, { touch: true })
         set({
           data: next,
           past: [...past, current].slice(-MAX_HISTORY),
@@ -320,7 +340,7 @@ export const useResumeStore = create<ResumeState>()(
       resetToDefaults: () => {
         const { data: current, past } = get()
         set({
-          data: defaultResumeData,
+          data: normalizeResumeData(defaultResumeData),
           past: [...past, current].slice(-MAX_HISTORY),
           future: [],
           canUndo: true,
@@ -872,7 +892,7 @@ export const useResumeStore = create<ResumeState>()(
     }),
     {
       name: 'vector-resume-data',
-      version: 6,
+      version: 7,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({ data: state.data }),
       migrate: resumeMigration,

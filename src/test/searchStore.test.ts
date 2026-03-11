@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useSearchStore } from '../store/searchStore'
+import {
+  migrateSearchState,
+  useSearchStore,
+} from '../store/searchStore'
+import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
 describe('searchStore', () => {
   beforeEach(() => {
@@ -73,6 +77,8 @@ describe('searchStore', () => {
     expect(updated?.constraints.compensation).toBe('$250k')
     expect(updated?.filters.prioritize).toEqual(['platform'])
     expect(updated?.interviewPrefs.strongFit).toEqual(['staff scope'])
+    expect(updated?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(updated?.durableMeta?.revision).toBe(5)
   })
 
   it('adds, updates, and deletes requests', () => {
@@ -88,12 +94,27 @@ describe('searchStore', () => {
 
     expect(request.id).toMatch(/^sreq-/)
     expect(useSearchStore.getState().requests).toHaveLength(1)
+    expect(request.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(request.durableMeta?.revision).toBe(0)
 
+    const before = useSearchStore.getState().requests[0]
     useSearchStore.getState().updateRequest(request.id, {
       customKeywords: 'platform engineering',
+      durableMeta: {
+        workspaceId: 'ignored-workspace',
+        tenantId: 'tenant-x',
+        userId: 'user-y',
+        schemaVersion: 7,
+        revision: 22,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
     })
 
     expect(useSearchStore.getState().requests[0]?.customKeywords).toBe('platform engineering')
+    expect(useSearchStore.getState().requests[0]?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(useSearchStore.getState().requests[0]?.durableMeta?.createdAt).toBe(before?.durableMeta?.createdAt)
+    expect(useSearchStore.getState().requests[0]?.durableMeta?.revision).toBe(1)
 
     useSearchStore.getState().deleteRequest(request.id)
     expect(useSearchStore.getState().requests).toEqual([])
@@ -153,6 +174,8 @@ describe('searchStore', () => {
     const requestOneRuns = useSearchStore.getState().getRunsForRequest(requestOne.id)
     expect(requestOneRuns).toHaveLength(1)
     expect(requestOneRuns[0]?.status).toBe('completed')
+    expect(requestOneRuns[0]?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(requestOneRuns[0]?.durableMeta?.revision).toBe(1)
 
     useSearchStore.getState().deleteRequest(requestOne.id)
     expect(useSearchStore.getState().runs).toHaveLength(1)
@@ -205,5 +228,56 @@ describe('searchStore', () => {
 
     useSearchStore.getState().clearProfile()
     expect(useSearchStore.getState().profile).toBeNull()
+  })
+
+  it('migrates persisted profile, request, and run metadata and safely defaults invalid state', () => {
+    const migrated = migrateSearchState({
+      profile: {
+        id: 'legacy-profile',
+        skills: [],
+        vectors: [],
+        workSummary: [],
+        openQuestions: [],
+        constraints: { compensation: '', locations: [], clearance: '', companySize: '' },
+        filters: { prioritize: [], avoid: [] },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        inferredFromResumeVersion: 2,
+        inferredAt: '2025-02-01T00:00:00.000Z',
+      },
+      requests: [
+        {
+          id: 'legacy-request',
+          focusVectors: ['backend'],
+          companySizeOverride: '',
+          salaryAnchorOverride: '',
+          geoExpand: true,
+          customKeywords: '',
+          excludeCompanies: [],
+          maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          createdAt: '2025-02-02T00:00:00.000Z',
+        },
+      ],
+      runs: [
+        {
+          id: 'legacy-run',
+          requestId: 'legacy-request',
+          status: 'completed',
+          results: [],
+          searchLog: [],
+          createdAt: '2025-02-03T00:00:00.000Z',
+        },
+      ],
+    })
+
+    expect(migrated.profile?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(migrated.profile?.durableMeta?.createdAt).toBe('2025-02-01T00:00:00.000Z')
+    expect(migrated.requests[0].durableMeta?.createdAt).toBe('2025-02-02T00:00:00.000Z')
+    expect(migrated.runs[0].durableMeta?.createdAt).toBe('2025-02-03T00:00:00.000Z')
+
+    expect(migrateSearchState('bad-state')).toEqual({
+      profile: null,
+      requests: [],
+      runs: [],
+    })
   })
 })

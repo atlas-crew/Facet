@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { PrepCard, PrepDeck, PrepCategory } from '../types/prep'
+import {
+  ensureDurableMetadata,
+  stripDurableMetadataPatch,
+  touchDurableMetadata,
+} from './durableMetadata'
 import { resolveStorage } from './storage'
 import { createId } from '../utils/idUtils'
 
@@ -91,9 +96,14 @@ function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
   }
 }
 
-function sanitizeDeck(deck: PrepDeck): PrepDeck {
+function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean } = {}): PrepDeck {
+  const timestamp = now()
+
   return {
     ...deck,
+    durableMeta: options.touch
+      ? touchDurableMetadata(deck.durableMeta, timestamp)
+      : ensureDurableMetadata(deck.durableMeta, deck.updatedAt ?? timestamp),
     title: deck.title.trim() || 'Interview Prep',
     company: deck.company.trim(),
     role: deck.role.trim(),
@@ -106,7 +116,7 @@ function sanitizeDeck(deck: PrepDeck): PrepDeck {
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
     generatedAt: deck.generatedAt,
-    updatedAt: now(),
+    updatedAt: timestamp,
     cards: deck.cards.map((card) => sanitizeCard(deck.id, card)),
   }
 }
@@ -122,7 +132,7 @@ function loadLegacyDecks(): PrepDeck[] {
 
     const deckId = createId('prep-deck')
     return [
-      {
+      sanitizeDeck({
         id: deckId,
         title: 'Imported Prep Cards',
         company: '',
@@ -133,7 +143,7 @@ function loadLegacyDecks(): PrepDeck[] {
         cards: parsed
           .filter((item): item is PrepCard => item && typeof item === 'object')
           .map((card) => sanitizeCard(deckId, { ...card, source: 'imported' })),
-      },
+      }),
     ]
   } catch {
     return []
@@ -145,7 +155,29 @@ function updateDeckCollection(
   deckId: string,
   updater: (deck: PrepDeck) => PrepDeck,
 ): PrepDeck[] {
-  return decks.map((deck) => (deck.id === deckId ? sanitizeDeck(updater(deck)) : deck))
+  return decks.map((deck) => (
+    deck.id === deckId ? sanitizeDeck(updater(deck), { touch: true }) : deck
+  ))
+}
+
+export const migratePrepState = (persistedState: unknown) => {
+  const state =
+    typeof persistedState === 'object' && persistedState !== null
+      ? (persistedState as {
+          decks?: PrepDeck[]
+          activeDeckId?: string | null
+        })
+      : undefined
+
+  const decks = Array.isArray(state?.decks)
+    ? state.decks.map((deck) => sanitizeDeck(deck))
+    : loadLegacyDecks()
+
+  return {
+    ...state,
+    decks,
+    activeDeckId: state?.activeDeckId ?? decks[0]?.id ?? null,
+  }
 }
 
 export const usePrepStore = create<PrepState>()(
@@ -183,8 +215,9 @@ export const usePrepStore = create<PrepState>()(
       },
 
       updateDeck: (deckId, patch) => {
+        const restPatch = stripDurableMetadataPatch(patch)
         set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({ ...deck, ...patch })),
+          decks: updateDeckCollection(state.decks, deckId, (deck) => ({ ...deck, ...restPatch })),
         }))
       },
 
@@ -266,7 +299,7 @@ export const usePrepStore = create<PrepState>()(
       },
 
       importDecks: (decks) => {
-        const sanitized = decks.map(sanitizeDeck)
+        const sanitized = decks.map((deck) => sanitizeDeck(deck))
         set({
           decks: sanitized,
           activeDeckId: sanitized[0]?.id ?? null,
@@ -277,8 +310,9 @@ export const usePrepStore = create<PrepState>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      version: 2,
       storage: createJSONStorage(resolveStorage),
+      migrate: migratePrepState,
       onRehydrateStorage: () => (state) => {
         if (!state) return
         if (!state.activeDeckId && state.decks.length > 0) {

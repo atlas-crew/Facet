@@ -1,3 +1,4 @@
+export { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 import type { CoverLetterTemplate } from '../types/coverLetter'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck } from '../types/prep'
@@ -6,7 +7,6 @@ import type { ResumeData, VectorSelection } from '../types'
 
 export const FACET_WORKSPACE_SNAPSHOT_VERSION = 1 as const
 export const FACET_LOCAL_PREFERENCES_VERSION = 1 as const
-export const DEFAULT_LOCAL_WORKSPACE_ID = 'facet-local-workspace'
 export const DEFAULT_LOCAL_WORKSPACE_NAME = 'Facet Local Workspace'
 
 export const FACET_ARTIFACT_TYPES = [

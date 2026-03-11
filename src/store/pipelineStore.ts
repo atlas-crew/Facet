@@ -5,6 +5,13 @@ import type {
   PipelineStatus,
   PipelineTier,
 } from '../types/pipeline'
+import {
+  createDurableMetadata,
+  ensureDurableMetadata,
+  normalizeDurableTimestamp,
+  stripDurableMetadataPatch,
+  touchDurableMetadata,
+} from './durableMetadata'
 import { resolveStorage } from './storage'
 import { createId } from '../utils/idUtils'
 
@@ -32,6 +39,41 @@ interface PipelineState {
 }
 
 const now = () => new Date().toISOString().split('T')[0]
+const timestamp = () => new Date().toISOString()
+
+const normalizeEntry = (
+  entry: PipelineEntry,
+  options: { touch?: boolean } = {},
+): PipelineEntry => {
+  const fallbackTimestamp = normalizeDurableTimestamp(entry.createdAt, timestamp())
+
+  return {
+    ...entry,
+    durableMeta: options.touch
+      ? touchDurableMetadata(entry.durableMeta, timestamp())
+      : ensureDurableMetadata(entry.durableMeta, fallbackTimestamp),
+  }
+}
+
+export const migratePipelineState = (persistedState: unknown) => {
+  const state =
+    typeof persistedState === 'object' && persistedState !== null
+      ? (persistedState as {
+          entries?: PipelineEntry[]
+          sortField?: string
+          sortDir?: 'asc' | 'desc'
+        })
+      : undefined
+
+  return {
+    ...state,
+    entries: Array.isArray(state?.entries)
+      ? state.entries.map((entry) => normalizeEntry(entry))
+      : [],
+    sortField: state?.sortField ?? 'tier',
+    sortDir: state?.sortDir ?? 'asc',
+  }
+}
 
 export const usePipelineStore = create<PipelineState>()(
   persist(
@@ -49,14 +91,21 @@ export const usePipelineStore = create<PipelineState>()(
           createdAt: date,
           lastAction: date,
           history: [{ date, note: 'Created' }],
+          durableMeta: createDurableMetadata(timestamp()),
         }
         set((s) => ({ entries: [...s.entries, newEntry] }))
       },
 
       updateEntry: (id, patch) => {
+        const restPatch = stripDurableMetadataPatch(patch)
         set((s) => ({
           entries: s.entries.map((e) =>
-            e.id === id ? { ...e, ...patch, lastAction: now() } : e
+            e.id === id
+              ? normalizeEntry(
+                  { ...e, ...restPatch, lastAction: now() },
+                  { touch: true },
+                )
+              : e
           ),
         }))
       },
@@ -70,7 +119,10 @@ export const usePipelineStore = create<PipelineState>()(
         set((s) => ({
           entries: s.entries.map((e) =>
             e.id === id
-              ? { ...e, lastAction: date, history: [...e.history, { date, note }] }
+              ? normalizeEntry(
+                  { ...e, lastAction: date, history: [...e.history, { date, note }] },
+                  { touch: true },
+                )
               : e
           ),
         }))
@@ -81,12 +133,15 @@ export const usePipelineStore = create<PipelineState>()(
         set((s) => ({
           entries: s.entries.map((e) =>
             e.id === id
-              ? {
-                  ...e,
-                  status,
-                  lastAction: date,
-                  history: [...e.history, { date, note: `Status → ${status}` }],
-                }
+              ? normalizeEntry(
+                  {
+                    ...e,
+                    status,
+                    lastAction: date,
+                    history: [...e.history, { date, note: `Status → ${status}` }],
+                  },
+                  { touch: true },
+                )
               : e
           ),
         }))
@@ -104,20 +159,21 @@ export const usePipelineStore = create<PipelineState>()(
       },
 
       importEntries: (entries) => {
-        set({ entries })
+        set({ entries: entries.map((entry) => normalizeEntry(entry)) })
       },
 
       exportEntries: () => get().entries,
     }),
     {
       name: 'facet-pipeline-data',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({
         entries: state.entries,
         sortField: state.sortField,
         sortDir: state.sortDir,
       }),
+      migrate: migratePipelineState,
     }
   )
 )

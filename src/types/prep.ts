@@ -1,3 +1,5 @@
+import type { DurableMetadata } from './durable'
+
 export type PrepCategory =
   | 'opener'
   | 'behavioral'
@@ -51,6 +53,7 @@ export interface PrepCard {
 
 export interface PrepDeck {
   id: string
+  durableMeta?: DurableMetadata
   title: string
   company: string
   role: string

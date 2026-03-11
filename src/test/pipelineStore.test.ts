@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { usePipelineStore } from '../store/pipelineStore'
+import {
+  migratePipelineState,
+  usePipelineStore,
+} from '../store/pipelineStore'
 import type { PipelineEntry } from '../types/pipeline'
+import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
 const makeEntry = (overrides: Partial<PipelineEntry> = {}): Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'> => ({
   company: 'Acme Corp',
@@ -46,14 +50,31 @@ describe('pipelineStore', () => {
     expect(entries[0].history).toHaveLength(1)
     expect(entries[0].history[0].note).toBe('Created')
     expect(entries[0].company).toBe('Acme Corp')
+    expect(entries[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(entries[0].durableMeta?.revision).toBe(0)
   })
 
   it('updates an entry and bumps lastAction', () => {
     usePipelineStore.getState().addEntry(makeEntry())
     const id = usePipelineStore.getState().entries[0].id
-    usePipelineStore.getState().updateEntry(id, { company: 'Initech' })
+    const before = usePipelineStore.getState().entries[0]
+    usePipelineStore.getState().updateEntry(id, {
+      company: 'Initech',
+      durableMeta: {
+        workspaceId: 'ignored-workspace',
+        tenantId: 'tenant-x',
+        userId: 'user-x',
+        schemaVersion: 99,
+        revision: 41,
+        createdAt: '2020-01-01T00:00:00.000Z',
+        updatedAt: '2020-01-01T00:00:00.000Z',
+      },
+    })
     const updated = usePipelineStore.getState().entries[0]
     expect(updated.company).toBe('Initech')
+    expect(updated.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(updated.durableMeta?.createdAt).toBe(before.durableMeta?.createdAt)
+    expect(updated.durableMeta?.revision).toBe((before.durableMeta?.revision ?? 0) + 1)
   })
 
   it('deletes an entry', () => {
@@ -109,6 +130,8 @@ describe('pipelineStore', () => {
     usePipelineStore.getState().importEntries(imported)
     expect(usePipelineStore.getState().entries).toHaveLength(1)
     expect(usePipelineStore.getState().entries[0].company).toBe('Imported')
+    expect(usePipelineStore.getState().entries[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(usePipelineStore.getState().entries[0].durableMeta?.createdAt).toBe('2026-01-01T00:00:00.000Z')
   })
 
   it('exports entries', () => {
@@ -116,5 +139,27 @@ describe('pipelineStore', () => {
     usePipelineStore.getState().addEntry(makeEntry({ company: 'Two' }))
     const exported = usePipelineStore.getState().exportEntries()
     expect(exported).toHaveLength(2)
+  })
+
+  it('migrates persisted entries to durable ISO timestamps and defaults invalid state', () => {
+    const migrated = migratePipelineState({
+      entries: [
+        {
+          ...makeEntry({ company: 'Legacy' }),
+          id: 'pipe-legacy-1',
+          createdAt: '2026-01-01',
+          lastAction: '2026-01-01',
+          history: [],
+        },
+      ],
+    })
+
+    expect(migrated.entries).toHaveLength(1)
+    expect(migrated.entries[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(migrated.entries[0].durableMeta?.createdAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(migrated.sortField).toBe('tier')
+    expect(migrated.sortDir).toBe('asc')
+
+    expect(migratePipelineState('bad-state').entries).toEqual([])
   })
 })

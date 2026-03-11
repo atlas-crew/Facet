@@ -1,3 +1,5 @@
+import type { DurableMetadata } from './types/durable'
+
 export type VectorId = string
 export type VectorSelection = VectorId | 'all'
 
@@ -219,6 +221,7 @@ export interface Preset {
 
 export interface ResumeData {
   version: number
+  durableMeta?: DurableMetadata
   meta: ResumeMeta
   theme?: ResumeThemeState
   vectors: ResumeVector[]

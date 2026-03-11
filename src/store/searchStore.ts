@@ -11,6 +11,11 @@ import type {
   VectorSearchConfig,
 } from '../types/search'
 import { createId } from '../utils/idUtils'
+import {
+  ensureDurableMetadata,
+  stripDurableMetadataPatch,
+  touchDurableMetadata,
+} from './durableMetadata'
 import { resolveStorage } from './storage'
 
 type SearchProfileInput = Omit<SearchProfile, 'id' | 'inferredAt'> &
@@ -49,19 +54,44 @@ const hydrateProfile = (profile: SearchProfileInput): SearchProfile => ({
   ...profile,
   id: profile.id ?? createId('sprof'),
   inferredAt: profile.inferredAt ?? now(),
+  durableMeta: ensureDurableMetadata(profile.durableMeta, profile.inferredAt ?? now()),
 })
 
 const hydrateRequest = (request: SearchRequestInput): SearchRequest => ({
   ...request,
   id: request.id ?? createId('sreq'),
   createdAt: request.createdAt ?? now(),
+  durableMeta: ensureDurableMetadata(request.durableMeta, request.createdAt ?? now()),
 })
 
 const hydrateRun = (run: SearchRunInput): SearchRun => ({
   ...run,
   id: run.id ?? createId('srun'),
   createdAt: run.createdAt ?? now(),
+  durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
 })
+
+export const migrateSearchState = (persistedState: unknown) => {
+  const state =
+    typeof persistedState === 'object' && persistedState !== null
+      ? (persistedState as {
+          profile?: SearchProfile | null
+          requests?: SearchRequest[]
+          runs?: SearchRun[]
+        })
+      : undefined
+
+  return {
+    ...state,
+    profile: state?.profile ? hydrateProfile(state.profile) : null,
+    requests: Array.isArray(state?.requests)
+      ? state.requests.map((request) => hydrateRequest(request))
+      : [],
+    runs: Array.isArray(state?.runs)
+      ? state.runs.map((run) => hydrateRun(run))
+      : [],
+  }
+}
 
 export const useSearchStore = create<SearchState>()(
   persist(
@@ -83,6 +113,7 @@ export const useSearchStore = create<SearchState>()(
                 profile: {
                   ...state.profile,
                   skills,
+                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
                 },
               }
             : state,
@@ -96,6 +127,7 @@ export const useSearchStore = create<SearchState>()(
                 profile: {
                   ...state.profile,
                   vectors,
+                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
                 },
               }
             : state,
@@ -109,6 +141,7 @@ export const useSearchStore = create<SearchState>()(
                 profile: {
                   ...state.profile,
                   constraints,
+                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
                 },
               }
             : state,
@@ -122,6 +155,7 @@ export const useSearchStore = create<SearchState>()(
                 profile: {
                   ...state.profile,
                   filters,
+                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
                 },
               }
             : state,
@@ -135,6 +169,7 @@ export const useSearchStore = create<SearchState>()(
                 profile: {
                   ...state.profile,
                   interviewPrefs,
+                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
                 },
               }
             : state,
@@ -152,9 +187,16 @@ export const useSearchStore = create<SearchState>()(
       },
 
       updateRequest: (id, patch) => {
+        const restPatch = stripDurableMetadataPatch(patch)
         set((state) => ({
           requests: state.requests.map((request) =>
-            request.id === id ? { ...request, ...patch } : request,
+            request.id === id
+              ? {
+                  ...request,
+                  ...restPatch,
+                  durableMeta: touchDurableMetadata(request.durableMeta, now()),
+                }
+              : request,
           ),
         }))
       },
@@ -173,8 +215,17 @@ export const useSearchStore = create<SearchState>()(
       },
 
       updateRun: (id, patch) => {
+        const restPatch = stripDurableMetadataPatch(patch)
         set((state) => ({
-          runs: state.runs.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+          runs: state.runs.map((run) =>
+            run.id === id
+              ? {
+                  ...run,
+                  ...restPatch,
+                  durableMeta: touchDurableMetadata(run.durableMeta, now()),
+                }
+              : run,
+          ),
         }))
       },
 
@@ -187,13 +238,14 @@ export const useSearchStore = create<SearchState>()(
     }),
     {
       name: 'facet-search-data',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({
         profile: state.profile,
         requests: state.requests,
         runs: state.runs,
       }),
+      migrate: migrateSearchState,
     },
   ),
 )

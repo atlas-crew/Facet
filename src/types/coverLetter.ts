@@ -1,4 +1,5 @@
 import type { PriorityByVector } from '../types'
+import type { DurableMetadata } from './durable'
 
 export interface CoverLetterParagraph {
   id: string
@@ -9,6 +10,7 @@ export interface CoverLetterParagraph {
 
 export interface CoverLetterTemplate {
   id: string
+  durableMeta?: DurableMetadata
   name: string
   header: string
   greeting: string

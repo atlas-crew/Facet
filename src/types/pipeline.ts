@@ -1,3 +1,5 @@
+import type { DurableMetadata } from './durable'
+
 export type PipelineStatus =
   | 'researching'
   | 'applied'
@@ -61,6 +63,7 @@ export interface PipelineHistoryEntry {
 
 export interface PipelineEntry {
   id: string
+  durableMeta?: DurableMetadata
   company: string
   role: string
   tier: PipelineTier

@@ -1,3 +1,5 @@
+import type { DurableMetadata } from './durable'
+
 export type SearchSkillCategory =
   | 'backend'
   | 'frontend'
@@ -66,6 +68,7 @@ export interface SearchInterviewPrefs {
 
 export interface SearchProfile {
   id: string
+  durableMeta?: DurableMetadata
   skills: SkillCatalogEntry[]
   vectors: VectorSearchConfig[]
   workSummary: SearchWorkSummaryEntry[]
@@ -85,6 +88,7 @@ export interface SearchRequestMaxResults {
 
 export interface SearchRequest {
   id: string
+  durableMeta?: DurableMetadata
   createdAt: string
   focusVectors: string[]
   companySizeOverride: SearchCompanySize | ''
@@ -118,6 +122,7 @@ export interface SearchTokenUsage {
 
 export interface SearchRun {
   id: string
+  durableMeta?: DurableMetadata
   requestId: string
   createdAt: string
   status: SearchRunStatus

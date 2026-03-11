@@ -1,6 +1,10 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { useCoverLetterStore } from '../store/coverLetterStore'
+import {
+  migrateCoverLetterState,
+  useCoverLetterStore,
+} from '../store/coverLetterStore'
 import type { CoverLetterTemplate } from '../types/coverLetter'
+import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
 function buildTemplate(overrides: Partial<CoverLetterTemplate> = {}): CoverLetterTemplate {
   return {
@@ -12,6 +16,20 @@ function buildTemplate(overrides: Partial<CoverLetterTemplate> = {}): CoverLette
     signOff: 'Thanks',
     ...overrides
   }
+}
+
+function expectDurableMetadata(value: CoverLetterTemplate['durableMeta'], revision = 0) {
+  expect(value).toEqual(
+    expect.objectContaining({
+      workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+      tenantId: null,
+      userId: null,
+      schemaVersion: 1,
+      revision,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+    }),
+  )
 }
 
 describe('coverLetterStore', () => {
@@ -36,6 +54,8 @@ describe('coverLetterStore', () => {
     expect(state.templates).toHaveLength(2)
     expect(state.templates[0].id).toBe('t1')
     expect(state.templates[1].id).toBe('t2')
+    expectDurableMetadata(state.templates[0].durableMeta)
+    expectDurableMetadata(state.templates[1].durableMeta)
   })
 
   it('updateTemplate patches matching template and preserves others', () => {
@@ -48,9 +68,13 @@ describe('coverLetterStore', () => {
     useCoverLetterStore.getState().updateTemplate('t1', { greeting: 'Hello' })
     
     const state = useCoverLetterStore.getState()
-    expect(state.templates.find(t => t.id === 't1')?.greeting).toBe('Hello')
-    expect(state.templates.find(t => t.id === 't1')?.name).toBe('T1') // preserved
-    expect(state.templates.find(t => t.id === 't2')).toEqual(t2) // untouched
+    const updated = state.templates.find(t => t.id === 't1')
+    const untouched = state.templates.find(t => t.id === 't2')
+    expect(updated?.greeting).toBe('Hello')
+    expect(updated?.name).toBe('T1')
+    expectDurableMetadata(updated?.durableMeta, 1)
+    expect(untouched).toEqual(expect.objectContaining(t2))
+    expectDurableMetadata(untouched?.durableMeta)
   })
 
   it('updateTemplate shallow-merges and replaces nested arrays (paragraphs)', () => {
@@ -72,11 +96,12 @@ describe('coverLetterStore', () => {
   it('updateTemplate with non-existent ID is a silent no-op', () => {
     const t1 = buildTemplate({ id: 't1' })
     useCoverLetterStore.getState().addTemplate(t1)
+    const before = useCoverLetterStore.getState().templates[0]
     
     useCoverLetterStore.getState().updateTemplate('nonexistent', { name: 'New' })
     
     const state = useCoverLetterStore.getState()
-    expect(state.templates[0]).toEqual(t1)
+    expect(state.templates[0]).toEqual(before)
   })
 
   it('deleteTemplate removes only the matching template', () => {
@@ -96,12 +121,13 @@ describe('coverLetterStore', () => {
   it('deleteTemplate with non-existent ID is a no-op', () => {
     const t1 = buildTemplate({ id: 't1' })
     useCoverLetterStore.getState().addTemplate(t1)
+    const before = useCoverLetterStore.getState().templates[0]
     
     useCoverLetterStore.getState().deleteTemplate('nonexistent')
     
     const state = useCoverLetterStore.getState()
     expect(state.templates).toHaveLength(1)
-    expect(state.templates[0]).toEqual(t1)
+    expect(state.templates[0]).toEqual(before)
   })
 
   it('importTemplates is a destructive replacement', () => {
@@ -117,8 +143,39 @@ describe('coverLetterStore', () => {
     const state = useCoverLetterStore.getState()
     expect(state.templates).toHaveLength(2)
     expect(state.templates).not.toContainEqual(t1)
-    expect(state.templates).toContainEqual(t2)
-    expect(state.templates).toContainEqual(t3)
+    expect(state.templates).toContainEqual(expect.objectContaining(t2))
+    expect(state.templates).toContainEqual(expect.objectContaining(t3))
+    expectDurableMetadata(state.templates[0].durableMeta)
+    expectDurableMetadata(state.templates[1].durableMeta)
+  })
+
+  it('ignores incoming durable metadata patches and only bumps revision for matching updates', () => {
+    const template = buildTemplate({ id: 't1', greeting: 'Hi' })
+    useCoverLetterStore.getState().addTemplate(template)
+
+    const before = useCoverLetterStore.getState().templates[0]
+
+    useCoverLetterStore.getState().updateTemplate('t1', {
+      durableMeta: {
+        workspaceId: 'other-workspace',
+        tenantId: 'tenant-x',
+        userId: 'user-x',
+        schemaVersion: 99,
+        revision: 77,
+        createdAt: '2020-01-01T00:00:00.000Z',
+        updatedAt: '2020-01-01T00:00:00.000Z',
+      },
+      greeting: 'Hello',
+    })
+
+    const updated = useCoverLetterStore.getState().templates[0]
+    expect(updated.greeting).toBe('Hello')
+    expect(updated.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+    expect(updated.durableMeta?.tenantId).toBeNull()
+    expect(updated.durableMeta?.userId).toBeNull()
+    expect(updated.durableMeta?.schemaVersion).toBe(1)
+    expect(updated.durableMeta?.createdAt).toBe(before.durableMeta?.createdAt)
+    expect(updated.durableMeta?.revision).toBe((before.durableMeta?.revision ?? 0) + 1)
   })
 
   it('importTemplates with empty array clears the store', () => {
@@ -143,5 +200,39 @@ describe('coverLetterStore', () => {
     
     const state = useCoverLetterStore.getState()
     expect(state.templates).toEqual([])
+  })
+
+  it('migrates persisted templates and safely defaults invalid persisted state', () => {
+    const migrated = migrateCoverLetterState({
+      templates: [
+        buildTemplate({
+          id: 'legacy-template',
+          durableMeta: {
+            workspaceId: '',
+            tenantId: 'tenant-a',
+            userId: 'user-a',
+            schemaVersion: 'bad' as unknown as number,
+            revision: 'bad' as unknown as number,
+            createdAt: '2025-01-01T00:00:00.000Z',
+            updatedAt: '',
+          },
+        }),
+      ],
+    })
+
+    expect(migrated.templates).toHaveLength(1)
+    expect(migrated.templates[0].durableMeta).toEqual(
+      expect.objectContaining({
+        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+        tenantId: 'tenant-a',
+        userId: 'user-a',
+        schemaVersion: 1,
+        revision: 0,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      }),
+    )
+
+    expect(migrateCoverLetterState('bad-state').templates).toEqual([])
   })
 })

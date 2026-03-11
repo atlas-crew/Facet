@@ -2,6 +2,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { resumeMigration, useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
+import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
 describe('resumeStore', () => {
   beforeEach(() => {
@@ -123,6 +124,21 @@ describe('resumeStore', () => {
     it('updateData skips history if next state is identical', () => {
       useResumeStore.getState().updateData((current) => current)
       expect(useResumeStore.getState().past.length).toBe(0)
+    })
+
+    it('updateData attaches durable metadata and bumps revision for durable writes', () => {
+      expect(useResumeStore.getState().data.durableMeta).toBeUndefined()
+
+      useResumeStore.getState().updateMetaField('name', 'New Name')
+
+      const durableMeta = useResumeStore.getState().data.durableMeta
+      expect(durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
+      expect(durableMeta?.tenantId).toBeNull()
+      expect(durableMeta?.userId).toBeNull()
+      expect(durableMeta?.schemaVersion).toBe(1)
+      expect(durableMeta?.revision).toBe(1)
+      expect(durableMeta?.createdAt).toEqual(expect.any(String))
+      expect(durableMeta?.updatedAt).toEqual(expect.any(String))
     })
 
     it('limits history to MAX_HISTORY', () => {
@@ -336,6 +352,36 @@ describe('resumeStore', () => {
       // Verify idempotency (preserving existing values when re-migrated)
       const remigrated = resumeMigration(JSON.parse(JSON.stringify(migrated)), 3, null)
       expect(remigrated.data.education[0].id).toBe(eduId)
+    })
+
+    it('resumeMigration normalizes durable metadata for persisted v6 data (v6→v7)', () => {
+      const persistedState = {
+        data: {
+          ...JSON.parse(JSON.stringify(defaultResumeData)),
+          durableMeta: {
+            workspaceId: '',
+            tenantId: 'tenant-a',
+            userId: 'user-a',
+            schemaVersion: 'bad',
+            revision: 'bad',
+            createdAt: '2025-01-01T00:00:00.000Z',
+          },
+        },
+      }
+
+      const migrated = resumeMigration(persistedState, 6, null)
+
+      expect(migrated.data.durableMeta).toEqual(
+        expect.objectContaining({
+          workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+          tenantId: 'tenant-a',
+          userId: 'user-a',
+          schemaVersion: 1,
+          revision: 0,
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        }),
+      )
     })
   })
 })
