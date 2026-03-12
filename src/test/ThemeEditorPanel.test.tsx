@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ThemeEditorPanel } from '../components/ThemeEditorPanel'
 import { THEME_PRESETS } from '../themes/theme'
 
@@ -63,8 +63,14 @@ describe('ThemeEditorPanel preset gallery', () => {
 
   it('supports one-step tighten and loosen spacing controls', () => {
     const { onAdjustDensityStep } = renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'Tighten spacing one step' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Loosen spacing one step' }))
+    const densityControls = screen.getByLabelText('Spacing density controls')
+
+    fireEvent.click(
+      within(densityControls).getByRole('button', { name: 'Tighten spacing one step' }),
+    )
+    fireEvent.click(
+      within(densityControls).getByRole('button', { name: 'Loosen spacing one step' }),
+    )
 
     expect(onAdjustDensityStep).toHaveBeenNthCalledWith(1, 'tighten')
     expect(onAdjustDensityStep).toHaveBeenNthCalledWith(2, 'loosen')

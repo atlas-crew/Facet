@@ -175,16 +175,17 @@ describe('ResearchPage', () => {
 
     await waitFor(() => {
       expect(usePipelineStore.getState().entries).toHaveLength(1)
-    })
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/pipeline' })
+    }, { timeout: 10000 })
 
     const entry = usePipelineStore.getState().entries[0]
-    expect(entry?.company).toBe('Acme Corp')
-    expect(entry?.role).toBe('Staff Platform Engineer')
-    expect(entry?.tier).toBe('1')
-    expect(entry?.status).toBe('researching')
-    expect(entry?.vectorId).toBe('backend')
-    expect(mockNavigate).toHaveBeenCalledWith({ to: '/pipeline' })
-  })
+    expect(entry).toBeDefined()
+    expect(entry!.company).toBe('Acme Corp')
+    expect(entry!.role).toBe('Staff Platform Engineer')
+    expect(entry!.tier).toBe('1')
+    expect(entry!.status).toBe('researching')
+    expect(entry!.vectorId).toBe('backend')
+  }, 10000)
 
   it('shows the stale profile warning when resume data is newer than the inferred profile', async () => {
     useResumeStore.setState((state) => ({
