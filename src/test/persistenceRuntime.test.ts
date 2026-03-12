@@ -357,6 +357,26 @@ describe('persistence runtime', () => {
     runtime.dispose()
   })
 
+  it('exports the live workspace snapshot directly without requiring runtime start', async () => {
+    const runtime = createPersistenceRuntime({
+      workspaceId: 'ws-7',
+      workspaceName: 'Workspace Seven',
+      backend: createInMemoryPersistenceBackend(),
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    useResumeStore.getState().updateMetaField('name', 'Exported Directly')
+
+    const snapshot = await runtime.exportWorkspaceSnapshot()
+
+    expect(snapshot.workspace.id).toBe('ws-7')
+    expect(snapshot.workspace.name).toBe('Workspace Seven')
+    expect(snapshot.artifacts.resume.payload.meta.name).toBe('Exported Directly')
+    expect(usePersistenceRuntimeStore.getState().hydrated).toBe(false)
+
+    runtime.dispose()
+  })
+
   it('flushes store changes through the shared runtime and updates status', async () => {
     const workspaceBackend = createInMemoryPersistenceBackend()
     const preferencesBackend = createInMemoryLocalPreferencesBackend()
@@ -753,6 +773,115 @@ describe('persistence runtime', () => {
     expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Imported Winner')
 
     runtime.dispose()
+  })
+
+  it('recovers from local-preferences save failures during import and supports a later flush', async () => {
+    const workspaceBackend = createInMemoryPersistenceBackend()
+    let failSave = true
+    const preferencesBackend = {
+      ...createInMemoryLocalPreferencesBackend(),
+      saveLocalPreferencesSnapshot: vi.fn(async (snapshot: FacetLocalPreferencesSnapshot) => {
+        if (failSave) {
+          failSave = false
+          throw new Error('preferences save failed')
+        }
+
+        return snapshot
+      }),
+    }
+
+    const runtime = createPersistenceRuntime({
+      backend: workspaceBackend,
+      localPreferencesBackend: preferencesBackend,
+    })
+
+    await runtime.start()
+
+    const importedSnapshot = buildWorkspaceSnapshot({
+      artifacts: {
+        ...buildWorkspaceSnapshot().artifacts,
+        resume: {
+          ...buildWorkspaceSnapshot().artifacts.resume,
+          payload: {
+            ...buildWorkspaceSnapshot().artifacts.resume.payload,
+            meta: {
+              ...buildWorkspaceSnapshot().artifacts.resume.payload.meta,
+              name: 'Imported After Failure',
+            },
+          },
+        },
+      },
+    })
+
+    await expect(
+      runtime.importWorkspaceSnapshot(importedSnapshot, { mode: 'replace' }),
+    ).rejects.toThrow('preferences save failed')
+
+    expect(useResumeStore.getState().data.meta.name).toBe('Imported After Failure')
+
+    useResumeStore.getState().updateMetaField('name', 'Recovered Save')
+    await runtime.flush()
+
+    const savedSnapshot = await workspaceBackend.loadWorkspaceSnapshot('facet-local-workspace')
+    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Recovered Save')
+
+    runtime.dispose()
+  })
+
+  it('surfaces local-preferences backend load failures during bootstrap', async () => {
+    const workspaceBackend = createInMemoryPersistenceBackend()
+    await workspaceBackend.saveWorkspaceSnapshot(
+      buildWorkspaceSnapshot({
+        workspace: {
+          ...buildWorkspaceSnapshot().workspace,
+          id: 'facet-local-workspace',
+        },
+        artifacts: {
+          ...buildWorkspaceSnapshot().artifacts,
+          resume: {
+            ...buildWorkspaceSnapshot().artifacts.resume,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:resume',
+          },
+          pipeline: {
+            ...buildWorkspaceSnapshot().artifacts.pipeline,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:pipeline',
+          },
+          prep: {
+            ...buildWorkspaceSnapshot().artifacts.prep,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:prep',
+          },
+          coverLetters: {
+            ...buildWorkspaceSnapshot().artifacts.coverLetters,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:coverLetters',
+          },
+          research: {
+            ...buildWorkspaceSnapshot().artifacts.research,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:research',
+          },
+        },
+      }),
+    )
+
+    const preferencesBackend = {
+      ...createInMemoryLocalPreferencesBackend(),
+      loadLocalPreferencesSnapshot: vi.fn(async () => {
+        throw new Error('preferences load failed')
+      }),
+    }
+
+    const runtime = createPersistenceRuntime({
+      backend: workspaceBackend,
+      localPreferencesBackend: preferencesBackend,
+    })
+
+    await expect(runtime.start()).rejects.toThrow('preferences load failed')
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
+    expect(usePersistenceRuntimeStore.getState().status.lastError).toBe('preferences load failed')
   })
 
   it('does not finish bootstrapping after being disposed mid-start', async () => {

@@ -7,6 +7,7 @@ const PBKDF2_ITERATIONS = 310000
 const AES_KEY_LENGTH = 256
 const SALT_BYTES = 16
 const IV_BYTES = 12
+export const MIN_BACKUP_PASSPHRASE_LENGTH = 12
 
 interface BackupPayload {
   snapshot: FacetWorkspaceSnapshot
@@ -124,8 +125,8 @@ const parseEnvelope = (bundleText: string): EncryptedWorkspaceBackupEnvelope => 
 
 const normalizePassphrase = (passphrase: string) => {
   const normalized = passphrase.trim()
-  if (normalized.length < 8) {
-    throw new Error('Passphrase must be at least 8 characters.')
+  if (normalized.length < MIN_BACKUP_PASSPHRASE_LENGTH) {
+    throw new Error(`Passphrase must be at least ${MIN_BACKUP_PASSPHRASE_LENGTH} characters.`)
   }
 
   return normalized

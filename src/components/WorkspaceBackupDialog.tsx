@@ -1,10 +1,11 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Download, ShieldCheck, Upload, X } from 'lucide-react'
 import {
   buildWorkspaceBackupFileName,
   createEncryptedWorkspaceBackup,
   decryptEncryptedWorkspaceBackup,
   getPersistenceRuntime,
+  MIN_BACKUP_PASSPHRASE_LENGTH,
 } from '../persistence'
 import { openTextFileWithPicker, saveTextFileWithPicker, supportsFileSystemOpen, supportsFileSystemSave } from '../persistence/fileSystemAccess'
 import { BACKUP_REMINDER_INTERVAL_OPTIONS } from '../persistence/backupReminder'
@@ -20,7 +21,7 @@ interface WorkspaceBackupDialogProps {
   onClose: () => void
 }
 
-const MIN_PASSPHRASE_LENGTH = 8
+const MIN_PASSPHRASE_LENGTH = MIN_BACKUP_PASSPHRASE_LENGTH
 
 export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogProps) {
   const {
@@ -45,10 +46,6 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
 
   useFocusTrap(open, modalRef, onClose)
 
-  if (!open) {
-    return null
-  }
-
   const clearStatus = () => {
     setError(null)
     setSuccess(null)
@@ -60,6 +57,19 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
     setBundleText('')
     clearStatus()
   }
+
+  useEffect(() => {
+    if (!open) {
+      setMode('export')
+      setImportMode('replace')
+      setPassphrase('')
+      setConfirmPassphrase('')
+      setBundleText('')
+      setError(null)
+      setSuccess(null)
+      setBusy(false)
+    }
+  }, [open])
 
   const ensureMatchingPassphrases = () => {
     if (passphrase !== confirmPassphrase) {
@@ -152,7 +162,6 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
       const runtime = getPersistenceRuntime()
       const snapshot = await decryptEncryptedWorkspaceBackup(bundleText, passphrase)
       await runtime.importWorkspaceSnapshot(snapshot, { mode: importMode })
-      markBackupCreated()
       setSuccess(importMode === 'merge' ? 'Backup merged successfully.' : 'Backup restored successfully.')
       setBundleText('')
     } catch (err) {
@@ -200,6 +209,10 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
     }
   }
 
+  if (!open) {
+    return null
+  }
+
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="workspace-backup-title">
       <div className="modal-card workspace-backup-modal" ref={modalRef} tabIndex={-1}>
@@ -219,6 +232,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               resetForm()
             }}
             aria-pressed={mode === 'export'}
+            disabled={busy}
           >
             Export Backup
           </button>
@@ -230,6 +244,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               resetForm()
             }}
             aria-pressed={mode === 'import'}
+            disabled={busy}
           >
             Import Backup
           </button>
@@ -242,6 +257,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               type="button"
               onClick={() => setImportMode('replace')}
               aria-pressed={importMode === 'replace'}
+              disabled={busy}
             >
               Replace All
             </button>
@@ -250,6 +266,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               type="button"
               onClick={() => setImportMode('merge')}
               aria-pressed={importMode === 'merge'}
+              disabled={busy}
             >
               Merge
             </button>
@@ -266,7 +283,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               setPassphrase(event.target.value)
               clearStatus()
             }}
-            placeholder="At least 8 characters"
+            placeholder={`At least ${MIN_PASSPHRASE_LENGTH} characters`}
             autoComplete={mode === 'export' ? 'new-password' : 'current-password'}
           />
         </label>
@@ -302,6 +319,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               type="button"
               className="btn-secondary"
               onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
             >
               <Upload size={16} />
               Upload Backup File

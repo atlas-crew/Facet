@@ -73,13 +73,13 @@ describe('workspace backup bundle', () => {
     )
 
     await expect(createEncryptedWorkspaceBackup(snapshot, ' short ')).rejects.toThrow(
-      /at least 8 characters/i,
+      /at least 12 characters/i,
     )
-    await expect(createEncryptedWorkspaceBackup(snapshot, 'abcdefgh')).resolves.toEqual(
+    await expect(createEncryptedWorkspaceBackup(snapshot, '123456789012')).resolves.toEqual(
       expect.any(String),
     )
     await expect(decryptEncryptedWorkspaceBackup(encrypted, '       x')).rejects.toThrow(
-      /at least 8 characters/i,
+      /at least 12 characters/i,
     )
 
     const paddedEncrypted = await createEncryptedWorkspaceBackup(snapshot, '  super-secret-passphrase  ')
@@ -127,6 +127,28 @@ describe('workspace backup bundle', () => {
     await expect(
       decryptEncryptedWorkspaceBackup(encrypted, 'super-secret-passphrase'),
     ).rejects.toThrow(/expected 1, got 999/i)
+  })
+
+  it('rejects decrypted payloads that are not valid backup payload objects', async () => {
+    const encrypted = await createEncryptedWorkspaceBackup(
+      backupSnapshot(),
+      'super-secret-passphrase',
+    )
+    const originalCrypto = globalThis.crypto
+    const originalSubtle = originalCrypto.subtle
+
+    vi.stubGlobal('crypto', {
+      ...originalCrypto,
+      subtle: {
+        decrypt: vi.fn(async () => new TextEncoder().encode(JSON.stringify({})).buffer),
+        deriveKey: originalSubtle.deriveKey.bind(originalSubtle),
+        importKey: originalSubtle.importKey.bind(originalSubtle),
+      },
+    })
+
+    await expect(
+      decryptEncryptedWorkspaceBackup(encrypted, 'super-secret-passphrase'),
+    ).rejects.toThrow(/workspace snapshot must be an object/i)
   })
 
   it('surfaces missing WebCrypto and envelope metadata in the generated bundle', async () => {
@@ -194,6 +216,10 @@ describe('workspace backup bundle', () => {
 
     expect(buildWorkspaceBackupFileName('!!!', '2026-03-11', slugify)).toBe(
       'facet-workspace-backup-2026-03-11.facet.json',
+    )
+
+    expect(buildWorkspaceBackupFileName(' Workspace Name ', '', slugify)).toBe(
+      'workspace-name-backup-.facet.json',
     )
   })
 })
