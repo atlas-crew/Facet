@@ -16,65 +16,39 @@ import {
 } from '@dnd-kit/sortable'
 import { Eye, EyeOff, GripVertical, Trash2 } from 'lucide-react'
 import { useState, memo, useMemo } from 'react'
-import type { ComponentPriority, EducationEntry, PriorityByVector, VectorDef, VectorSelection } from '../types'
-import { getPriorityForVector } from '../engine/assembler'
+import type { EducationEntry } from '../types'
 import { componentKeys } from '../utils/componentKeys'
 import { useSortableItem } from '../hooks/useSortableItem'
 
 interface EducationListProps {
   education: EducationEntry[]
-  vectorDefs: VectorDef[]
-  selectedVector: VectorSelection
   includedByKey: Record<string, boolean>
   onReorder: (nextOrder: string[]) => void
   onUpdate: (id: string, field: 'school' | 'location' | 'degree' | 'year', value: string) => void
-  onUpdateVectors: (id: string, vectors: PriorityByVector) => void
-  onToggleIncluded: (id: string, vectors: PriorityByVector) => void
+  onToggleIncluded: (id: string) => void
   onDelete: (id: string) => void
 }
 
 interface SortableEducationCardProps {
   entry: EducationEntry
-  vectorDefs: VectorDef[]
-  selectedVector: VectorSelection
   included: boolean
   onUpdate: (id: string, field: 'school' | 'location' | 'degree' | 'year', value: string) => void
-  onUpdateVectors: (id: string, vectors: PriorityByVector) => void
-  onToggleIncluded: (id: string, vectors: PriorityByVector) => void
+  onToggleIncluded: (id: string) => void
   onDelete: (id: string) => void
-}
-
-function cyclePriority(current: ComponentPriority): ComponentPriority {
-  return current === 'exclude' ? 'include' : 'exclude'
 }
 
 const SortableEducationCard = memo(function SortableEducationCard({
   entry,
-  vectorDefs,
-  selectedVector: _selectedVector,
   included,
   onUpdate,
-  onUpdateVectors,
   onToggleIncluded,
   onDelete,
 }: SortableEducationCardProps) {
   const { setNodeRef, style, dragHandleProps, isDragging } = useSortableItem(entry.id)
 
-  const handleMatrixDotClick = (vectorId: string) => {
-    const currentPriority = entry.vectors[vectorId] ?? 'exclude'
-    const next = cyclePriority(currentPriority)
-    const nextVectors = { ...entry.vectors }
-    if (next === 'exclude') {
-      delete nextVectors[vectorId]
-    } else {
-      nextVectors[vectorId] = next
-    }
-    onUpdateVectors(entry.id, nextVectors)
-  }
-
   return (
     <article
-      className={`component-card bullet-card ${included ? '' : 'dimmed'} ${isDragging ? 'dragging' : ''}`}
+      className={`component-card bullet-card ${isDragging ? 'dragging' : ''}`}
       ref={setNodeRef}
       style={style}
     >
@@ -96,7 +70,7 @@ const SortableEducationCard = memo(function SortableEducationCard({
             type="button"
             className="btn-ghost"
             aria-pressed={included}
-            onClick={() => onToggleIncluded(entry.id, entry.vectors)}
+            onClick={() => onToggleIncluded(entry.id)}
           >
             {included ? <Eye size={14} /> : <EyeOff size={14} />}
             {included ? 'Included' : 'Excluded'}
@@ -139,39 +113,15 @@ const SortableEducationCard = memo(function SortableEducationCard({
         placeholder="Year"
         onChange={(event) => onUpdate(entry.id, 'year', event.target.value)}
       />
-
-      <div className="bullet-footer-row">
-        <div />
-        <div className="vector-matrix">
-          {vectorDefs.map((vector, idx) => {
-            const p = entry.vectors[vector.id] ?? 'exclude'
-            const isLastFew = idx >= vectorDefs.length - 2
-            return (
-              <button
-                key={vector.id}
-                type="button"
-                className={`matrix-dot priority-${p} ${isLastFew ? 'tooltip-left' : ''}`}
-                style={{ '--vector-color': vector.color } as React.CSSProperties}
-                data-tooltip={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
-                onClick={() => handleMatrixDotClick(vector.id)}
-                aria-label={`${vector.label}: ${p === 'include' ? 'included' : 'excluded'}`}
-              />
-            )
-          })}
-        </div>
-      </div>
     </article>
   )
 })
 
 export const EducationList = memo(function EducationList({
   education,
-  vectorDefs,
-  selectedVector,
   includedByKey,
   onReorder,
   onUpdate,
-  onUpdateVectors,
   onToggleIncluded,
   onDelete,
 }: EducationListProps) {
@@ -227,23 +177,16 @@ export const EducationList = memo(function EducationList({
       >
         <SortableContext items={educationIds} strategy={verticalListSortingStrategy}>
           <div className="library-grid">
-            {education.map((entry) => {
-              const key = componentKeys.education(entry.id)
-              const included = includedByKey[key] ?? getPriorityForVector(entry.vectors, selectedVector) !== 'exclude'
-              return (
-                <SortableEducationCard
-                  key={entry.id}
-                  entry={entry}
-                  vectorDefs={vectorDefs}
-                  selectedVector={selectedVector}
-                  included={included}
-                  onUpdate={onUpdate}
-                  onUpdateVectors={onUpdateVectors}
-                  onToggleIncluded={onToggleIncluded}
-                  onDelete={onDelete}
-                />
-              )
-            })}
+            {education.map((entry) => (
+              <SortableEducationCard
+                key={entry.id}
+                entry={entry}
+                included={includedByKey[componentKeys.education(entry.id)] ?? true}
+                onUpdate={onUpdate}
+                onToggleIncluded={onToggleIncluded}
+                onDelete={onDelete}
+              />
+            ))}
           </div>
         </SortableContext>
       </DndContext>

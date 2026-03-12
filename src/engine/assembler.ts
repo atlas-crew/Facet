@@ -325,10 +325,8 @@ export const assembleResume = (
 
   const education = data.education
     .map((entry) => {
-      const keys = buildComponentKeys('education', entry.id)
-      const autoPriority = resolvePriorityForVector(entry.vectors ?? {}, selectedVector)
-      const override = resolveManualOverride(manualOverrides, keys)
-      if (!shouldIncludeComponent(autoPriority, override)) {
+      const override = resolveManualOverride(manualOverrides, buildComponentKeys('education', entry.id))
+      if (override === false) {
         return null
       }
 

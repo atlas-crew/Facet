@@ -262,6 +262,33 @@ describe('assembleResume', () => {
     expect(result.resume.education[0].school).toBe('Test Uni')
   })
 
+  it('always includes education entries even when their vectors are empty', () => {
+    const data = clone(defaultResumeData)
+    data.education = [
+      { id: 'edu-1', school: 'State U', degree: 'BS', location: 'Austin, TX', year: '2020', vectors: {} },
+    ]
+
+    expect(assembleResume(data, { selectedVector: 'backend' }).resume.education).toHaveLength(1)
+    expect(assembleResume(data, { selectedVector: 'leadership' }).resume.education).toHaveLength(1)
+    expect(assembleResume(data, { selectedVector: 'all' }).resume.education).toHaveLength(1)
+  })
+
+  it('still honors manual exclusion overrides for education entries', () => {
+    const data = clone(defaultResumeData)
+    data.education = [
+      { id: 'edu-1', school: 'State U', degree: 'BS', location: 'Austin, TX', year: '2020', vectors: {} },
+    ]
+
+    const result = assembleResume(data, {
+      selectedVector: 'backend',
+      manualOverrides: {
+        'education:edu-1': false,
+      },
+    })
+
+    expect(result.resume.education).toHaveLength(0)
+  })
+
   it('honors override precedence (specific trumps general)', () => {
     const data = clone(defaultResumeData)
     const roleId = data.roles[0].id

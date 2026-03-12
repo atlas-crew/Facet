@@ -134,7 +134,6 @@ export function BuildPage() {
     addRole,
     addEducation,
     updateEducation,
-    updateEducationVectors,
     deleteEducation,
     reorderEducation,
     addCertification,
@@ -453,6 +452,15 @@ export function BuildPage() {
     setOverride(vectorKey, componentKey, nextIncluded === autoIncluded ? null : nextIncluded)
   }, [selectedVector, vectorKey, overridesForVector, setOverride])
 
+  const toggleEducationOverride = useCallback((id: string) => {
+    const componentKey = componentKeys.education(id)
+    const currentOverride = overridesForVector[componentKey]
+    const currentIncluded = currentOverride ?? true
+    const nextIncluded = !currentIncluded
+
+    setOverride(vectorKey, componentKey, nextIncluded ? null : false)
+  }, [overridesForVector, setOverride, vectorKey])
+
   const onUpdateTheme = (overrides: ResumeThemeOverrides) => {
     updateData((current) => ({
       ...current,
@@ -677,7 +685,7 @@ export function BuildPage() {
         setSelectedVector('all')
       }
     },
-    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, comparisonVector, setComparisonVector, onDownloadPdf],
+    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, comparisonVector, setComparisonVector, setSuggestionModeActive, onDownloadPdf],
   )
 
   useEffect(() => {
@@ -726,16 +734,11 @@ export function BuildPage() {
         addProfile({ id, vectors: baseVectors, text: (payload.text ?? '').trim() })
         break
       case 'skill_group': {
-        const sgVectors: Record<string, any> = {}
-        data.vectors.forEach((v) => {
-          sgVectors[v.id] = { priority: 'include', order: 1 }
-        })
         addSkillGroup({
           id,
           label: payload.label?.trim() || 'New Skill Group',
           content: (payload.content ?? '').trim(),
-          vectors: sgVectors,
-        } as any)
+        })
         break
       }
       case 'project':
@@ -751,7 +754,15 @@ export function BuildPage() {
         addRole({ id, company: 'New Company', title: 'Role Title', dates: 'Jan 2024 – Present', vectors: { [vectorKey]: 'include' }, bullets: [] })
         break
       case 'education':
-        addEducation({ id, school: payload.name?.trim() || 'New School', location: payload.label?.trim() || 'Location', degree: payload.text?.trim() || 'Degree', year: payload.url?.trim() || CURRENT_YEAR.toString(), vectors: baseVectors })
+        addEducation({
+          id,
+          school: payload.name?.trim() || 'New School',
+          location: payload.label?.trim() || 'Location',
+          degree: payload.text?.trim() || 'Degree',
+          year: payload.url?.trim() || CURRENT_YEAR.toString(),
+          // Retained for schema compatibility; education no longer participates in vector filtering.
+          vectors: {},
+        })
         break
       case 'certification':
         addCertification({ id, name: payload.name?.trim() || 'New Certification', issuer: payload.issuer?.trim() || 'Issuer', date: payload.date?.trim() || undefined, credential_id: payload.content?.trim() || undefined, url: payload.url?.trim() || undefined, vectors: baseVectors })
@@ -779,7 +790,7 @@ export function BuildPage() {
     }
   }
 
-  const onImport = (nextData: ResumeData, importMode: 'merge' | 'replace', warnings: any[]) => {
+  const onImport = (nextData: ResumeData, importMode: 'merge' | 'replace', warnings: string[]) => {
     if (importMode === 'merge') {
       updateData((current) => mergeResumeData(current, nextData))
     } else {
@@ -1055,7 +1066,7 @@ export function BuildPage() {
                   reframeLoadingId={reframeLoadingId}
                   aiEnabled={!!jdAnalysisEndpoint}
                   onUpdateEducation={updateEducation}
-                  onUpdateEducationVectors={updateEducationVectors}
+                  onToggleEducation={toggleEducationOverride}
                   onDeleteEducation={deleteEducation}
                   onReorderEducation={reorderEducation}
                   onUpdateCertification={updateCertification}

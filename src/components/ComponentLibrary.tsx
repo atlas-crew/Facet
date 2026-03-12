@@ -76,7 +76,7 @@ interface ComponentLibraryProps {
   onUpdateMetaField: (field: 'name' | 'email' | 'phone' | 'location', value: string) => void
   onUpdateMetaLink: (index: number, field: 'label' | 'url', value: string) => void
   onUpdateEducation: (id: string, field: 'school' | 'location' | 'degree' | 'year', value: string) => void
-  onUpdateEducationVectors: (id: string, vectors: PriorityByVector) => void
+  onToggleEducation: (id: string) => void
   onDeleteEducation: (id: string) => void
   onReorderEducation: (order: string[]) => void
   onUpdateCertification: (id: string, field: 'name' | 'issuer' | 'date' | 'credential_id' | 'url', value: string) => void
@@ -94,7 +94,7 @@ interface ComponentLibraryProps {
 }
 
 function requiresVectorPriority(type: AddComponentType): boolean {
-  return type === 'target_line' || type === 'profile' || type === 'project' || type === 'bullet' || type === 'education' || type === 'certification'
+  return type === 'target_line' || type === 'profile' || type === 'project' || type === 'bullet' || type === 'certification'
 }
 
 function useFilteredList<T>(
@@ -149,7 +149,7 @@ export function ComponentLibrary({
   aiEnabled,
   onAddComponent,
   onUpdateEducation,
-  onUpdateEducationVectors,
+  onToggleEducation,
   onDeleteEducation,
   onReorderEducation,
   onUpdateCertification,
@@ -185,20 +185,33 @@ export function ComponentLibrary({
   })
   const modalRef = useRef<HTMLDivElement>(null)
 
-  // Announce type change in modal
   useEffect(() => {
-    if (addOpen) {
-      const typeLabels: Record<AddComponentType, string> = {
-        bullet: 'Bullet',
-        project: 'Project',
-        skill_group: 'Skill Group',
-        profile: 'Profile',
-        target_line: 'Target Line',
-        role: 'Role',
-        education: 'Education',
-        certification: 'Certification',
-      }
+    if (!addOpen) {
+      return
+    }
+
+    const typeLabels: Record<AddComponentType, string> = {
+      bullet: 'Bullet',
+      project: 'Project',
+      skill_group: 'Skill Group',
+      profile: 'Profile',
+      target_line: 'Target Line',
+      role: 'Role',
+      education: 'Education',
+      certification: 'Certification',
+    }
+
+    const clearAnnouncementId = window.setTimeout(() => {
+      setAddAnnouncement('')
+    }, 0)
+
+    const announcementId = window.setTimeout(() => {
       setAddAnnouncement(`Switched to ${typeLabels[addType]} form`)
+    }, 10)
+
+    return () => {
+      window.clearTimeout(clearAnnouncementId)
+      window.clearTimeout(announcementId)
     }
   }, [addType, addOpen])
 
@@ -459,9 +472,9 @@ export function ComponentLibrary({
     onToggleBullet(roleId, bulletId, vectors)
   }, [onToggleBullet])
 
-  const handleToggleEducationBound = useCallback((id: string, vectors: PriorityByVector) => {
-    onToggleComponent(componentKeys.education(id), vectors)
-  }, [onToggleComponent])
+  const handleToggleEducation = useCallback((id: string) => {
+    onToggleEducation(id)
+  }, [onToggleEducation])
 
   const handleToggleCertificationBound = useCallback((id: string, vectors: PriorityByVector) => {
     onToggleComponent(componentKeys.certification(id), vectors)
@@ -797,13 +810,10 @@ export function ComponentLibrary({
         'Education',
         <EducationList
           education={filteredEducation}
-          vectorDefs={data.vectors}
-          selectedVector={selectedVector}
           includedByKey={includedByKey}
           onReorder={onReorderEducation}
           onUpdate={onUpdateEducation}
-          onUpdateVectors={onUpdateEducationVectors}
-          onToggleIncluded={handleToggleEducationBound}
+          onToggleIncluded={handleToggleEducation}
           onDelete={onDeleteEducation}
         />,
         {

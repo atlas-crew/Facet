@@ -182,6 +182,7 @@ export interface EducationEntry {
   location: string
   degree: string
   year?: string
+  // Retained for schema compatibility. Education is always assembled unless manually overridden.
   vectors: PriorityByVector
 }
 
