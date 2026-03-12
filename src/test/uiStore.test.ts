@@ -11,6 +11,10 @@ beforeEach(() => {
     selectedVector: 'all',
     panelRatio: 0.45,
     appearance: 'system',
+    backupRemindersEnabled: true,
+    backupReminderIntervalDays: 7,
+    backupReminderSnoozedUntil: null,
+    lastBackupAt: null,
   })
 })
 
@@ -59,5 +63,19 @@ describe('uiStore', () => {
       const persisted = persistOptions.partialize(state as unknown as Record<string, unknown>)
       expect('comparisonVector' in persisted).toBe(false)
     }
+  })
+
+  it('normalizes backup reminder settings and records successful backups', () => {
+    useUiStore.getState().setBackupReminderIntervalDays(999)
+    expect(useUiStore.getState().backupReminderIntervalDays).toBe(7)
+
+    useUiStore.getState().setBackupRemindersEnabled(false)
+    expect(useUiStore.getState().backupRemindersEnabled).toBe(false)
+
+    useUiStore.getState().setBackupReminderSnoozedUntil('2026-03-19T12:00:00.000Z')
+    useUiStore.getState().markBackupCreated('2026-03-12T12:00:00.000Z')
+
+    expect(useUiStore.getState().lastBackupAt).toBe('2026-03-12T12:00:00.000Z')
+    expect(useUiStore.getState().backupReminderSnoozedUntil).toBeNull()
   })
 })

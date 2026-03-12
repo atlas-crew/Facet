@@ -55,6 +55,10 @@ const localPreferencesSnapshot: FacetLocalPreferencesSnapshot = {
     showHeatmap: true,
     showDesignHealth: true,
     suggestionModeActive: true,
+    backupRemindersEnabled: true,
+    backupReminderIntervalDays: 7,
+    backupReminderSnoozedUntil: '2026-03-18T12:00:00.000Z',
+    lastBackupAt: '2026-03-10T12:00:00.000Z',
     tourCompleted: true,
   },
   pipeline: {
@@ -110,6 +114,10 @@ describe('persistence runtime', () => {
       showDesignHealth: false,
       suggestionModeActive: false,
       comparisonVector: null,
+      backupRemindersEnabled: true,
+      backupReminderIntervalDays: 7,
+      backupReminderSnoozedUntil: null,
+      lastBackupAt: null,
       tourCompleted: false,
     })
     usePersistenceRuntimeStore.setState({

@@ -93,6 +93,10 @@ describe('persistence foundation', () => {
       showDesignHealth: false,
       suggestionModeActive: false,
       comparisonVector: null,
+      backupRemindersEnabled: true,
+      backupReminderIntervalDays: 7,
+      backupReminderSnoozedUntil: null,
+      lastBackupAt: null,
       tourCompleted: false,
     })
     clearLegacyStorage()
@@ -200,6 +204,10 @@ describe('persistence foundation', () => {
       showDesignHealth: true,
       suggestionModeActive: true,
       comparisonVector: 'all',
+      backupRemindersEnabled: true,
+      backupReminderIntervalDays: 30,
+      backupReminderSnoozedUntil: '2026-03-18T12:00:00.000Z',
+      lastBackupAt: '2026-03-01T12:00:00.000Z',
       tourCompleted: true,
     })
 
@@ -251,6 +259,10 @@ describe('persistence foundation', () => {
       showDesignHealth: false,
       suggestionModeActive: true,
       comparisonVector: 'all',
+      backupRemindersEnabled: true,
+      backupReminderIntervalDays: 30,
+      backupReminderSnoozedUntil: '2026-03-20T12:00:00.000Z',
+      lastBackupAt: '2026-03-01T12:00:00.000Z',
       tourCompleted: true,
     })
     usePipelineStore.setState({
@@ -268,6 +280,8 @@ describe('persistence foundation', () => {
 
     expect(snapshot.workspaceId).toBe('ws-1')
     expect(snapshot.ui.selectedVector).toBe('backend')
+    expect(snapshot.ui.backupReminderIntervalDays).toBe(30)
+    expect(snapshot.ui.lastBackupAt).toBe('2026-03-01T12:00:00.000Z')
     expect(snapshot.pipeline.sortField).toBe('company')
     expect(snapshot.prep.activeDeckId).toBe('prep-deck-1')
     expect(snapshot.ui).not.toHaveProperty('comparisonVector')
@@ -384,6 +398,10 @@ describe('persistence foundation', () => {
         showHeatmap: true,
         showDesignHealth: true,
         suggestionModeActive: true,
+        backupRemindersEnabled: true,
+        backupReminderIntervalDays: 7,
+        backupReminderSnoozedUntil: '2026-03-18T12:00:00.000Z',
+        lastBackupAt: '2026-03-10T12:00:00.000Z',
         tourCompleted: true,
       },
       pipeline: {
@@ -400,6 +418,7 @@ describe('persistence foundation', () => {
 
     expect(useUiStore.getState().appearance).toBe('dark')
     expect(useUiStore.getState().selectedVector).toBe('backend')
+    expect(useUiStore.getState().backupReminderSnoozedUntil).toBe('2026-03-18T12:00:00.000Z')
     expect(usePipelineStore.getState().sortField).toBe('company')
     expect(usePipelineStore.getState().sortDir).toBe('desc')
     expect(usePrepStore.getState().activeDeckId).toBe('deck-1')

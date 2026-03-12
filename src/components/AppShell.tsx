@@ -5,6 +5,7 @@ import { useUiStore } from '../store/uiStore'
 import { getPersistenceRuntime, usePersistenceRuntimeStore } from '../persistence/runtime'
 import { FacetGemMark } from './FacetWordmark'
 import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
+import { WorkspaceBackupReminder } from './WorkspaceBackupReminder'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -119,6 +120,7 @@ export function AppShell() {
           )}
         </div>
 
+        <WorkspaceBackupReminder onOpenBackup={() => setBackupOpen(true)} />
         <footer className="app-footer">
           <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
           <span

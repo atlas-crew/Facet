@@ -18,6 +18,11 @@ Plaintext passphrases are never written to local persistence. The active runtime
 keeps using the shared coordinator and hydration path after import, so backup
 restore follows the same store-application contract as normal persistence.
 
+`fileSystemAccess.ts` now layers optional File System Access save/load helpers on
+top of the same encrypted bundle flow. Supported browsers can save a backup to a
+user-chosen file handle and reopen a bundle without copy/paste, while
+unsupported browsers keep using the existing download/upload fallback.
+
 ## Durable workspace snapshot
 
 `createWorkspaceSnapshotFromStores()` captures the durable workspace artifacts that
@@ -39,11 +44,22 @@ multi-tenant persistence arrives.
 device-local instead of becoming part of a synced tenant workspace:
 
 - UI preferences from `uiStore`
+- backup reminder settings and the timestamp of the most recent file backup
 - pipeline sorting preferences
 - the currently selected prep deck
 
 This makes the boundary explicit: durable content travels with the workspace,
 while view state stays local.
+
+## Backup reminders
+
+`backupReminder.ts` defines the reminder policy for local-only data safety:
+
+- reminders only appear when the app has newer local saves than the latest file
+  backup
+- users can disable reminders or snooze them for a configured interval
+- reminder preferences stay in local-only persistence and do not become synced
+  tenant workspace state
 
 ## Legacy migration plan
 

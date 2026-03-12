@@ -6,6 +6,9 @@ import {
   decryptEncryptedWorkspaceBackup,
   getPersistenceRuntime,
 } from '../persistence'
+import { openTextFileWithPicker, saveTextFileWithPicker, supportsFileSystemOpen, supportsFileSystemSave } from '../persistence/fileSystemAccess'
+import { BACKUP_REMINDER_INTERVAL_OPTIONS } from '../persistence/backupReminder'
+import { useUiStore } from '../store/uiStore'
 import { slugify } from '../utils/idUtils'
 import { useFocusTrap } from '../utils/useFocusTrap'
 
@@ -17,7 +20,16 @@ interface WorkspaceBackupDialogProps {
   onClose: () => void
 }
 
+const MIN_PASSPHRASE_LENGTH = 8
+
 export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogProps) {
+  const {
+    backupRemindersEnabled,
+    backupReminderIntervalDays,
+    setBackupRemindersEnabled,
+    setBackupReminderIntervalDays,
+    markBackupCreated,
+  } = useUiStore()
   const [mode, setMode] = useState<DialogMode>('export')
   const [importMode, setImportMode] = useState<ImportMode>('replace')
   const [passphrase, setPassphrase] = useState('')
@@ -28,6 +40,8 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
   const [busy, setBusy] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileSaveSupported = supportsFileSystemSave()
+  const fileOpenSupported = supportsFileSystemOpen()
 
   useFocusTrap(open, modalRef, onClose)
 
@@ -53,6 +67,12 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
     }
   }
 
+  const ensureMinimumPassphraseLength = () => {
+    if (passphrase.trim().length < MIN_PASSPHRASE_LENGTH) {
+      throw new Error(`Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters.`)
+    }
+  }
+
   const downloadBundleText = (bundle: string, fileName: string) => {
     const blob = new Blob([bundle], {
       type: 'application/json;charset=utf-8',
@@ -71,6 +91,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
     clearStatus()
 
     try {
+      ensureMinimumPassphraseLength()
       ensureMatchingPassphrases()
       setBusy(true)
       const runtime = getPersistenceRuntime()
@@ -81,9 +102,41 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
         backupText,
         buildWorkspaceBackupFileName(snapshot.workspace.name, snapshot.exportedAt, slugify),
       )
+      markBackupCreated()
       setSuccess('Encrypted backup created and downloaded.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create encrypted backup.')
+      setSuccess(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSaveBackupToFile = async () => {
+    clearStatus()
+
+    try {
+      ensureMinimumPassphraseLength()
+      ensureMatchingPassphrases()
+      setBusy(true)
+      const runtime = getPersistenceRuntime()
+      const snapshot = await runtime.exportWorkspaceSnapshot()
+      const backupText = await createEncryptedWorkspaceBackup(snapshot, passphrase)
+      const fileName = buildWorkspaceBackupFileName(
+        snapshot.workspace.name,
+        snapshot.exportedAt,
+        slugify,
+      )
+      const saved = await saveTextFileWithPicker(backupText, fileName)
+      if (!saved) {
+        return
+      }
+
+      setBundleText(backupText)
+      markBackupCreated()
+      setSuccess('Encrypted backup created and saved to file.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save encrypted backup.')
       setSuccess(null)
     } finally {
       setBusy(false)
@@ -94,14 +147,35 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
     clearStatus()
 
     try {
+      ensureMinimumPassphraseLength()
       setBusy(true)
       const runtime = getPersistenceRuntime()
       const snapshot = await decryptEncryptedWorkspaceBackup(bundleText, passphrase)
       await runtime.importWorkspaceSnapshot(snapshot, { mode: importMode })
+      markBackupCreated()
       setSuccess(importMode === 'merge' ? 'Backup merged successfully.' : 'Backup restored successfully.')
       setBundleText('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import encrypted backup.')
+      setSuccess(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleLoadBackupFromFile = async () => {
+    clearStatus()
+
+    try {
+      setBusy(true)
+      const content = await openTextFileWithPicker()
+      if (!content) {
+        return
+      }
+
+      setBundleText(content)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to open backup file.')
       setSuccess(null)
     } finally {
       setBusy(false)
@@ -193,7 +267,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               clearStatus()
             }}
             placeholder="At least 8 characters"
-            autoComplete="new-password"
+            autoComplete={mode === 'export' ? 'new-password' : 'current-password'}
           />
         </label>
 
@@ -221,6 +295,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               type="file"
               accept=".json,text/plain"
               className="sr-only"
+              aria-label="Upload encrypted backup file"
               onChange={handleFileUpload}
             />
             <button
@@ -231,6 +306,17 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               <Upload size={16} />
               Upload Backup File
             </button>
+            {fileOpenSupported ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void handleLoadBackupFromFile()}
+                disabled={busy}
+              >
+                <Upload size={16} />
+                Load Backup File
+              </button>
+            ) : null}
           </>
         ) : null}
 
@@ -250,9 +336,9 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
           aria-label={mode === 'export' ? 'Encrypted backup output' : 'Encrypted backup input'}
         />
 
-        {error ? <p className="error-text">{error}</p> : null}
+        {error ? <p className="error-text" role="alert">{error}</p> : null}
         {success ? (
-          <p className="warning-text workspace-backup-success">
+          <p className="workspace-backup-success" role="status">
             <ShieldCheck size={12} />
             {success}
           </p>
@@ -260,27 +346,80 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
 
         <div className="format-toggle">
           {mode === 'export' ? (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleCreateBackup}
-              disabled={busy || !passphrase.trim() || !confirmPassphrase.trim()}
-            >
-              <Download size={16} />
-              {busy ? 'Creating…' : 'Create Encrypted Backup'}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleCreateBackup}
+                disabled={
+                  busy ||
+                  passphrase.trim().length < MIN_PASSPHRASE_LENGTH ||
+                  confirmPassphrase.trim().length < MIN_PASSPHRASE_LENGTH
+                }
+              >
+                <Download size={16} />
+                {busy ? 'Creating…' : 'Create Encrypted Backup'}
+              </button>
+              {fileSaveSupported ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void handleSaveBackupToFile()}
+                  disabled={
+                    busy ||
+                    passphrase.trim().length < MIN_PASSPHRASE_LENGTH ||
+                    confirmPassphrase.trim().length < MIN_PASSPHRASE_LENGTH
+                  }
+                >
+                  <Download size={16} />
+                  {busy ? 'Saving…' : 'Save Backup to File'}
+                </button>
+              ) : null}
+            </>
           ) : (
             <button
               type="button"
               className="btn-primary"
               onClick={handleImportBackup}
-              disabled={busy || !passphrase.trim() || !bundleText.trim()}
+              disabled={
+                busy ||
+                passphrase.trim().length < MIN_PASSPHRASE_LENGTH ||
+                !bundleText.trim()
+              }
             >
               <Upload size={16} />
               {busy ? 'Importing…' : `Import Backup (${importMode === 'merge' ? 'Merge' : 'Replace'})`}
             </button>
           )}
         </div>
+
+        <section className="workspace-backup-settings" aria-label="Backup reminder settings">
+          <label className="workspace-backup-field workspace-backup-checkbox">
+            <span>Backup reminders</span>
+            <input
+              type="checkbox"
+              checked={backupRemindersEnabled}
+              onChange={(event) => setBackupRemindersEnabled(event.target.checked)}
+            />
+          </label>
+          <label className="workspace-backup-field">
+            <span>Snooze interval</span>
+            <select
+              className="component-input"
+              value={backupReminderIntervalDays}
+              onChange={(event) =>
+                setBackupReminderIntervalDays(Number(event.target.value))
+              }
+              disabled={!backupRemindersEnabled}
+            >
+              {BACKUP_REMINDER_INTERVAL_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {`${value} day${value === 1 ? '' : 's'}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
 
         <p className="workspace-backup-note">
           Passphrases never leave this browser and are not stored in local persistence.

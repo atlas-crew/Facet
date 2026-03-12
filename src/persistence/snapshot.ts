@@ -71,7 +71,8 @@ export const DURABLE_PERSISTENCE_BOUNDARIES: PersistenceBoundaryDefinition[] = [
 
 export const LOCAL_ONLY_PERSISTENCE_BOUNDARIES: PersistenceBoundaryDefinition[] = [
   {
-    source: 'uiStore.selectedVector,panelRatio,appearance,viewMode,showHeatmap,showDesignHealth,suggestionModeActive,tourCompleted',
+    source:
+      'uiStore.selectedVector,panelRatio,appearance,viewMode,showHeatmap,showDesignHealth,suggestionModeActive,backupRemindersEnabled,backupReminderIntervalDays,backupReminderSnoozedUntil,lastBackupAt,tourCompleted',
     target: 'localPreferences.ui',
     durability: 'local-only',
     notes: 'Device-local UI preferences should not become multi-tenant synced artifacts.',
@@ -249,6 +250,10 @@ export const createLocalPreferencesSnapshotFromStores = (
       showHeatmap: uiState.showHeatmap,
       showDesignHealth: uiState.showDesignHealth,
       suggestionModeActive: uiState.suggestionModeActive,
+      backupRemindersEnabled: uiState.backupRemindersEnabled,
+      backupReminderIntervalDays: uiState.backupReminderIntervalDays,
+      backupReminderSnoozedUntil: uiState.backupReminderSnoozedUntil,
+      lastBackupAt: uiState.lastBackupAt,
       tourCompleted: uiState.tourCompleted,
     },
     pipeline: {

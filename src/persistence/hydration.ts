@@ -105,6 +105,10 @@ export const applyLocalPreferencesSnapshotToStores = (
     showHeatmap: snapshot.ui.showHeatmap,
     showDesignHealth: snapshot.ui.showDesignHealth,
     suggestionModeActive: snapshot.ui.suggestionModeActive,
+    backupRemindersEnabled: snapshot.ui.backupRemindersEnabled,
+    backupReminderIntervalDays: snapshot.ui.backupReminderIntervalDays,
+    backupReminderSnoozedUntil: snapshot.ui.backupReminderSnoozedUntil,
+    lastBackupAt: snapshot.ui.lastBackupAt,
     tourCompleted: snapshot.ui.tourCompleted,
   }))
 

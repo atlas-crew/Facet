@@ -87,6 +87,10 @@ export interface FacetUiLocalPreferences {
   showHeatmap: boolean
   showDesignHealth: boolean
   suggestionModeActive: boolean
+  backupRemindersEnabled: boolean
+  backupReminderIntervalDays: number
+  backupReminderSnoozedUntil: string | null
+  lastBackupAt: string | null
   tourCompleted: boolean
 }
 
