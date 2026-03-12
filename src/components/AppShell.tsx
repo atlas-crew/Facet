@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, Link, useRouterState } from '@tanstack/react-router'
 import { Layers, ListChecks, Search, BookOpen, FileText, HelpCircle, Moon, Sun, Monitor } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
 import { getPersistenceRuntime, usePersistenceRuntimeStore } from '../persistence/runtime'
 import { FacetGemMark } from './FacetWordmark'
+import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -20,6 +21,7 @@ export function AppShell() {
   const persistenceState = usePersistenceRuntimeStore()
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const [backupOpen, setBackupOpen] = useState(false)
 
   // ── Global appearance management ──────────────────────────
   useEffect(() => {
@@ -127,6 +129,9 @@ export function AppShell() {
             Sync: {syncLabel}
           </span>
           <nav className="app-footer-links" aria-label="Footer links">
+            <button type="button" className="app-footer-link-button" onClick={() => setBackupOpen(true)}>
+              Backup
+            </button>
             <Link to="/help">Docs</Link>
             <a href="https://github.com/NickCrew/Facet" target="_blank" rel="noopener noreferrer">
               GitHub
@@ -137,6 +142,8 @@ export function AppShell() {
           </nav>
         </footer>
       </div>
+
+      <WorkspaceBackupDialog open={backupOpen} onClose={() => setBackupOpen(false)} />
     </div>
   )
 }

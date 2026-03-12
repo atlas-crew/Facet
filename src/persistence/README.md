@@ -3,6 +3,21 @@
 This module defines the first persistence-layer contract for Facet without changing
 today's runtime behavior.
 
+## Encrypted backup bundles
+
+`backupBundle.ts` adds passphrase-based encrypted workspace export/import on top
+of the shared snapshot contract:
+
+- export uses WebCrypto `PBKDF2` plus `AES-GCM`
+- the downloaded file contains only encrypted snapshot payload bytes plus the
+  metadata required to derive the key and identify the workspace
+- import decrypts the bundle in memory and then reuses the workspace snapshot
+  validation and runtime import flow
+
+Plaintext passphrases are never written to local persistence. The active runtime
+keeps using the shared coordinator and hydration path after import, so backup
+restore follows the same store-application contract as normal persistence.
+
 ## Durable workspace snapshot
 
 `createWorkspaceSnapshotFromStores()` captures the durable workspace artifacts that

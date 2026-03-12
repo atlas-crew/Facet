@@ -538,6 +538,243 @@ describe('persistence runtime', () => {
     third.dispose()
   })
 
+  it('imports a scoped workspace snapshot through the runtime and hydrates stores', async () => {
+    const workspaceBackend = createInMemoryPersistenceBackend()
+    const runtime = createPersistenceRuntime({
+      backend: workspaceBackend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    await runtime.start()
+
+    const baseSnapshot = buildWorkspaceSnapshot()
+    const importedSnapshot = buildWorkspaceSnapshot({
+      workspace: {
+        id: 'remote-workspace',
+        name: 'Imported Workspace',
+        revision: 3,
+        updatedAt: '2026-03-11T12:00:00.000Z',
+      },
+      artifacts: {
+        ...baseSnapshot.artifacts,
+        resume: {
+          ...baseSnapshot.artifacts.resume,
+          payload: {
+            ...baseSnapshot.artifacts.resume.payload,
+            meta: {
+              ...baseSnapshot.artifacts.resume.payload.meta,
+              name: 'Imported Person',
+            },
+          },
+        },
+      },
+    })
+
+    const savedSnapshot = await runtime.importWorkspaceSnapshot(importedSnapshot, {
+      mode: 'replace',
+    })
+
+    expect(useResumeStore.getState().data.meta.name).toBe('Imported Person')
+    expect(savedSnapshot.workspace.id).toBe('facet-local-workspace')
+    expect(savedSnapshot.artifacts.resume.artifactId).toBe('facet-local-workspace:resume')
+
+    runtime.dispose()
+  })
+
+  it('merges imported workspace snapshots additively through the runtime', async () => {
+    const workspaceBackend = createInMemoryPersistenceBackend()
+    const runtime = createPersistenceRuntime({
+      backend: workspaceBackend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    await runtime.start()
+
+    usePipelineStore.setState({
+      entries: [
+        {
+          id: 'pipe-1',
+          company: 'Acme',
+          role: 'Current Role',
+          tier: '1',
+          status: 'applied',
+          comp: '',
+          url: '',
+          contact: '',
+          vectorId: 'backend',
+          jobDescription: '',
+          presetId: null,
+          resumeVariant: 'default',
+          positioning: '',
+          skillMatch: '',
+          nextStep: '',
+          notes: '',
+          appMethod: 'direct-apply',
+          response: 'none',
+          daysToResponse: null,
+          rounds: null,
+          format: [],
+          rejectionStage: '',
+          rejectionReason: '',
+          offerAmount: '',
+          dateApplied: '2026-03-11',
+          dateClosed: '',
+          lastAction: '2026-03-11',
+          createdAt: '2026-03-11',
+          history: [],
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    await runtime.flush()
+
+    const baseSnapshot = buildWorkspaceSnapshot()
+    const importedSnapshot = buildWorkspaceSnapshot({
+      artifacts: {
+        ...baseSnapshot.artifacts,
+        pipeline: {
+          ...baseSnapshot.artifacts.pipeline,
+          payload: {
+            entries: [
+              {
+                id: 'pipe-2',
+                company: 'Globex',
+                role: 'Imported Role',
+                tier: '2',
+                status: 'screening',
+                comp: '',
+                url: '',
+                contact: '',
+                vectorId: 'backend',
+                jobDescription: '',
+                presetId: null,
+                resumeVariant: 'default',
+                positioning: '',
+                skillMatch: '',
+                nextStep: '',
+                notes: '',
+                appMethod: 'direct-apply',
+                response: 'none',
+                daysToResponse: null,
+                rounds: null,
+                format: [],
+                rejectionStage: '',
+                rejectionReason: '',
+                offerAmount: '',
+                dateApplied: '2026-03-11',
+                dateClosed: '',
+                lastAction: '2026-03-11',
+                createdAt: '2026-03-11',
+                history: [],
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    await runtime.importWorkspaceSnapshot(importedSnapshot, { mode: 'merge' })
+
+    expect(usePipelineStore.getState().entries.map((entry) => entry.id)).toEqual([
+      'pipe-1',
+      'pipe-2',
+    ])
+
+    runtime.dispose()
+  })
+
+  it('waits for an in-flight autosave before applying an imported backup snapshot', async () => {
+    vi.useFakeTimers()
+    const backing = createInMemoryPersistenceBackend()
+    let delayFirstSave = true
+    let resolveSave: (() => void) | null = null
+
+    const backend: PersistenceBackend = {
+      ...backing,
+      saveWorkspaceSnapshot: async (snapshot) => {
+        if (delayFirstSave) {
+          delayFirstSave = false
+          await new Promise<void>((resolve) => {
+            resolveSave = resolve
+          })
+        }
+
+        return backing.saveWorkspaceSnapshot(snapshot)
+      },
+    }
+
+    const runtime = createPersistenceRuntime({
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+      saveDebounceMs: 10,
+    })
+
+    await runtime.start()
+    useResumeStore.getState().updateMetaField('name', 'Autosave Draft')
+    await vi.advanceTimersByTimeAsync(10)
+
+    const baseSnapshot = buildWorkspaceSnapshot()
+    const importedSnapshot = buildWorkspaceSnapshot({
+      artifacts: {
+        ...baseSnapshot.artifacts,
+        resume: {
+          ...baseSnapshot.artifacts.resume,
+          payload: {
+            ...baseSnapshot.artifacts.resume.payload,
+            meta: {
+              ...baseSnapshot.artifacts.resume.payload.meta,
+              name: 'Imported Winner',
+            },
+          },
+        },
+      },
+    })
+
+    const importPromise = runtime.importWorkspaceSnapshot(importedSnapshot, {
+      mode: 'replace',
+    })
+
+    expect(resolveSave).not.toBeNull()
+    resolveSave!()
+    await importPromise
+
+    expect(useResumeStore.getState().data.meta.name).toBe('Imported Winner')
+    const savedSnapshot = await backing.loadWorkspaceSnapshot('facet-local-workspace')
+    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Imported Winner')
+
+    runtime.dispose()
+  })
+
+  it('does not finish bootstrapping after being disposed mid-start', async () => {
+    let resolveLoad: ((snapshot: FacetWorkspaceSnapshot | null) => void) | null = null
+    const backend: PersistenceBackend = {
+      kind: 'memory',
+      loadWorkspaceSnapshot: async () =>
+        new Promise<FacetWorkspaceSnapshot | null>((resolve) => {
+          resolveLoad = resolve
+        }),
+      saveWorkspaceSnapshot: async (snapshot) => snapshot,
+    }
+
+    const runtime = createPersistenceRuntime({
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    const startPromise = runtime.start()
+    runtime.dispose()
+    expect(resolveLoad).not.toBeNull()
+    resolveLoad!(null)
+    await startPromise
+
+    expect(usePersistenceRuntimeStore.getState().hydrated).toBe(false)
+    useResumeStore.getState().updateMetaField('name', 'After Disposed Start')
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('idle')
+  })
+
   it('surfaces runtime bootstrap failures through error status', async () => {
     const backend: PersistenceBackend = {
       kind: 'memory',

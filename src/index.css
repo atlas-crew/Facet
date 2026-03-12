@@ -2831,6 +2831,22 @@ select.component-input {
   transition: color var(--duration-fast) var(--easing);
 }
 
+.app-footer-link-button {
+  color: var(--text-tertiary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--easing);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-footer-link-button:hover {
+  color: var(--accent-primary);
+  text-decoration: underline;
+}
+
 .app-footer-links a:hover {
   color: var(--accent-primary);
   text-decoration: underline;
@@ -2962,6 +2978,32 @@ select.component-input {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.workspace-backup-modal {
+  max-width: 720px;
+}
+
+.workspace-backup-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.workspace-backup-success {
+  color: var(--success, #16a34a);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.workspace-backup-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 /* ── Route Placeholders ──────────────────── */

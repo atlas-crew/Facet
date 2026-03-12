@@ -9,6 +9,7 @@ import { DEFAULT_LOCAL_WORKSPACE_ID, DEFAULT_LOCAL_WORKSPACE_NAME } from './cont
 import {
   createPersistenceCoordinator,
   type PersistenceBackend,
+  type PersistenceImportOptions,
   type PersistenceStatus,
 } from './coordinator'
 import {
@@ -28,6 +29,11 @@ import {
   createLocalPreferencesSnapshotFromStores,
   createWorkspaceSnapshotFromStores,
 } from './snapshot'
+import type { FacetWorkspaceSnapshot } from './contracts'
+import {
+  mergeWorkspaceSnapshots,
+  scopeWorkspaceSnapshotToWorkspace,
+} from './workspaceImportMerge'
 
 const DEFAULT_SAVE_DEBOUNCE_MS = 150
 
@@ -63,6 +69,11 @@ export interface PersistenceRuntimeOptions {
 export interface PersistenceRuntime {
   start: () => Promise<void>
   flush: () => Promise<void>
+  exportWorkspaceSnapshot: () => Promise<FacetWorkspaceSnapshot>
+  importWorkspaceSnapshot: (
+    snapshot: FacetWorkspaceSnapshot,
+    options?: PersistenceImportOptions,
+  ) => Promise<FacetWorkspaceSnapshot>
   dispose: () => void
 }
 
@@ -85,6 +96,7 @@ export const createPersistenceRuntime = (
   const coordinator = createPersistenceCoordinator({
     backend,
     readWorkspaceSnapshot: createWorkspaceSnapshotFromStores,
+    mergeImportedSnapshot: mergeWorkspaceSnapshots,
   })
 
   let started = false
@@ -93,6 +105,7 @@ export const createPersistenceRuntime = (
   let suppressSaves = false
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let subscriptions: Array<() => void> = []
+  let activePersistenceWrite: Promise<unknown> | null = null
 
   const syncRuntimeState = (patch: Partial<PersistenceRuntimeState>) => {
     usePersistenceRuntimeStore.setState((state) => ({
@@ -121,19 +134,40 @@ export const createPersistenceRuntime = (
 
     clearSaveTimer()
 
-    const currentSnapshot = await coordinator.exportWorkspaceSnapshot({
-      workspaceId,
-      workspaceName,
-    })
-    // Saving reuses the coordinator's validation and status flow but does not
-    // rehydrate Zustand stores; store writes continue to flow one-way into the
-    // persistence runtime.
-    await coordinator.importWorkspaceSnapshot(currentSnapshot, { mode: 'replace' })
-    syncStatusFromCoordinator()
+    const writePromise = (async () => {
+      const currentSnapshot = await coordinator.exportWorkspaceSnapshot({
+        workspaceId,
+        workspaceName,
+      })
+      if (disposed) {
+        return
+      }
+      // Saving reuses the coordinator's validation and status flow but does not
+      // rehydrate Zustand stores; store writes continue to flow one-way into the
+      // persistence runtime.
+      await coordinator.importWorkspaceSnapshot(currentSnapshot, { mode: 'replace' })
+      if (disposed) {
+        return
+      }
+      syncStatusFromCoordinator()
 
-    await localPreferencesBackend.saveLocalPreferencesSnapshot(
-      createLocalPreferencesSnapshotFromStores(workspaceId),
-    )
+      if (disposed) {
+        return
+      }
+      await localPreferencesBackend.saveLocalPreferencesSnapshot(
+        createLocalPreferencesSnapshotFromStores(workspaceId),
+      )
+    })()
+
+    activePersistenceWrite = writePromise
+
+    try {
+      await writePromise
+    } finally {
+      if (activePersistenceWrite === writePromise) {
+        activePersistenceWrite = null
+      }
+    }
   }
 
   const schedulePersist = () => {
@@ -169,6 +203,10 @@ export const createPersistenceRuntime = (
 
   const runtime: PersistenceRuntime = {
     start: async () => {
+      if (disposed) {
+        return
+      }
+
       if (started) {
         return
       }
@@ -189,6 +227,10 @@ export const createPersistenceRuntime = (
 
         try {
           const { snapshot } = await coordinator.bootstrap(workspaceId)
+          if (disposed) {
+            return
+          }
+
           syncStatusFromCoordinator()
 
           if (snapshot) {
@@ -205,6 +247,10 @@ export const createPersistenceRuntime = (
             }
           }
 
+          if (disposed) {
+            return
+          }
+
           started = true
           installSubscriptions()
           syncRuntimeState({
@@ -213,6 +259,10 @@ export const createPersistenceRuntime = (
             status: coordinator.getStatus(),
           })
         } catch (error) {
+          if (disposed) {
+            return
+          }
+
           syncRuntimeState({
             hydrated: true,
             status: {
@@ -237,6 +287,43 @@ export const createPersistenceRuntime = (
       await persistCurrentState()
     },
 
+    exportWorkspaceSnapshot: async () =>
+      coordinator.exportWorkspaceSnapshot({
+        workspaceId,
+        workspaceName,
+      }),
+
+    importWorkspaceSnapshot: async (snapshot, options = { mode: 'replace' }) => {
+      clearSaveTimer()
+      await (starting ?? (started ? Promise.resolve() : runtime.start()))
+
+      suppressSaves = true
+      try {
+        if (activePersistenceWrite) {
+          await activePersistenceWrite.catch(() => undefined)
+        }
+
+        const scopedSnapshot = scopeWorkspaceSnapshotToWorkspace(
+          snapshot,
+          workspaceId,
+          workspaceName,
+        )
+        const savedSnapshot = await coordinator.importWorkspaceSnapshot(scopedSnapshot, options)
+        applyWorkspaceSnapshotToStores(savedSnapshot)
+        await localPreferencesBackend.saveLocalPreferencesSnapshot(
+          createLocalPreferencesSnapshotFromStores(workspaceId),
+        )
+        syncRuntimeState({
+          hydrated: true,
+          usingLegacyMigration: false,
+          status: coordinator.getStatus(),
+        })
+        return savedSnapshot
+      } finally {
+        suppressSaves = false
+      }
+    },
+
     dispose: () => {
       disposed = true
       clearSaveTimer()
@@ -244,6 +331,11 @@ export const createPersistenceRuntime = (
       subscriptions = []
       started = false
       starting = null
+      syncRuntimeState({
+        hydrated: false,
+        usingLegacyMigration: false,
+        status: defaultStatus(backend.kind),
+      })
       if (runtimeSingleton === runtime) {
         runtimeSingleton = null
       }
