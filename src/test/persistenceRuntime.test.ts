@@ -74,6 +74,7 @@ const localPreferencesSnapshot: FacetLocalPreferencesSnapshot = {
 describe('persistence runtime', () => {
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
     getPersistenceRuntime().dispose()
   })
 
@@ -246,6 +247,93 @@ describe('persistence runtime', () => {
     runtime.dispose()
   })
 
+  it('hydrates an existing workspace without local preferences and avoids a bootstrap writeback', async () => {
+    const baseSnapshot = buildWorkspaceSnapshot()
+    const backing = createInMemoryPersistenceBackend()
+    let saveCalls = 0
+    const workspaceBackend: PersistenceBackend = {
+      ...backing,
+      saveWorkspaceSnapshot: async (snapshot) => {
+        saveCalls += 1
+        return backing.saveWorkspaceSnapshot(snapshot)
+      },
+    }
+
+    await backing.saveWorkspaceSnapshot(
+      buildWorkspaceSnapshot({
+        workspace: {
+          id: 'facet-local-workspace',
+          name: 'Facet Local Workspace',
+          revision: 2,
+          updatedAt: '2026-03-11T12:00:00.000Z',
+        },
+        artifacts: {
+          ...baseSnapshot.artifacts,
+          resume: {
+            ...baseSnapshot.artifacts.resume,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:resume',
+            payload: {
+              ...baseSnapshot.artifacts.resume.payload,
+              meta: {
+                ...baseSnapshot.artifacts.resume.payload.meta,
+                name: 'Hydrated Without Preferences',
+              },
+            },
+          },
+          pipeline: {
+            ...baseSnapshot.artifacts.pipeline,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:pipeline',
+          },
+          prep: {
+            ...baseSnapshot.artifacts.prep,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:prep',
+            payload: {
+              decks: [
+                {
+                  id: 'deck-1',
+                  title: 'Prep Deck',
+                  company: 'Acme',
+                  role: 'Staff Engineer',
+                  vectorId: 'backend',
+                  pipelineEntryId: null,
+                  updatedAt: '2026-03-11T12:00:00.000Z',
+                  cards: [],
+                },
+              ],
+            },
+          },
+          coverLetters: {
+            ...baseSnapshot.artifacts.coverLetters,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:coverLetters',
+          },
+          research: {
+            ...baseSnapshot.artifacts.research,
+            workspaceId: 'facet-local-workspace',
+            artifactId: 'facet-local-workspace:research',
+          },
+        },
+      }),
+    )
+
+    const runtime = createPersistenceRuntime({
+      backend: workspaceBackend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    await runtime.start()
+
+    expect(useResumeStore.getState().data.meta.name).toBe('Hydrated Without Preferences')
+    expect(usePrepStore.getState().activeDeckId).toBe('deck-1')
+    expect(useUiStore.getState().appearance).toBe('system')
+    expect(saveCalls).toBe(0)
+
+    runtime.dispose()
+  })
+
   it('starts cleanly against empty persistence backends without forcing legacy migration', async () => {
     const runtime = createPersistenceRuntime({
       backend: createInMemoryPersistenceBackend(),
@@ -353,6 +441,23 @@ describe('persistence runtime', () => {
     expect(useResumeStore.getState().data.meta.name).toBe('Hydrated Before Flush')
     expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Hydrated Before Flush')
     expect(usePersistenceRuntimeStore.getState().hydrated).toBe(true)
+
+    runtime.dispose()
+  })
+
+  it('falls back to the localStorage local-preferences backend when indexedDB is unavailable', async () => {
+    vi.stubGlobal('indexedDB', undefined)
+
+    const runtime = createPersistenceRuntime({
+      backend: createInMemoryPersistenceBackend(),
+    })
+
+    await runtime.start()
+    useUiStore.getState().setAppearance('dark')
+    await runtime.flush()
+
+    const savedPreferences = resolveStorage().getItem('facet-local-preferences:facet-local-workspace')
+    expect(savedPreferences).toContain('"appearance":"dark"')
 
     runtime.dispose()
   })
@@ -530,6 +635,33 @@ describe('persistence runtime', () => {
 
     expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
     expect(usePersistenceRuntimeStore.getState().status.lastError).toBe('save failed')
+
+    runtime.dispose()
+  })
+
+  it('surfaces generic autosave failure status when the backend throws non-Error values', async () => {
+    vi.useFakeTimers()
+    const backend: PersistenceBackend = {
+      kind: 'memory',
+      loadWorkspaceSnapshot: async () => null,
+      saveWorkspaceSnapshot: async () => {
+        throw 'save failed'
+      },
+    }
+    const runtime = createPersistenceRuntime({
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+      saveDebounceMs: 10,
+    })
+
+    await runtime.start()
+    useResumeStore.getState().updateMetaField('name', 'Broken Save')
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
+    expect(usePersistenceRuntimeStore.getState().status.lastError).toBe(
+      'Failed to persist workspace runtime',
+    )
 
     runtime.dispose()
   })
@@ -929,5 +1061,26 @@ describe('persistence runtime', () => {
     await expect(runtime.start()).rejects.toThrow('bootstrap failed')
     expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
     expect(usePersistenceRuntimeStore.getState().status.lastError).toBe('bootstrap failed')
+  })
+
+  it('surfaces generic runtime bootstrap failures when the backend throws non-Error values', async () => {
+    const backend: PersistenceBackend = {
+      kind: 'memory',
+      loadWorkspaceSnapshot: async () => {
+        throw 'bootstrap failed'
+      },
+      saveWorkspaceSnapshot: async (snapshot) => snapshot,
+    }
+
+    const runtime = createPersistenceRuntime({
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    await expect(runtime.start()).rejects.toBe('bootstrap failed')
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
+    expect(usePersistenceRuntimeStore.getState().status.lastError).toBe(
+      'Failed to bootstrap persistence runtime',
+    )
   })
 })

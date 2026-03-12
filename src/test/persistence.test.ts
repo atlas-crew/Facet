@@ -858,6 +858,82 @@ describe('persistence foundation', () => {
         ...valid,
         artifacts: {
           ...valid.artifacts,
+          prep: {
+            ...valid.artifacts.prep,
+            payload: {
+              decks: null,
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.prep.payload.decks/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              templates: null,
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.coverLetters.payload.templates/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              profile: [],
+              requests: [],
+              runs: [],
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.research.payload shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              profile: null,
+              requests: null,
+              runs: [],
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.research.payload shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              profile: null,
+              requests: [],
+              runs: null,
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.research.payload shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
           pipeline: {
             ...valid.artifacts.pipeline,
             payload: {
@@ -867,6 +943,26 @@ describe('persistence foundation', () => {
         },
       }),
     ).toThrow(/invalid artifacts.pipeline.payload.entries/)
+  })
+
+  it('uses native structuredClone when available and preserves non-JSON-safe details', () => {
+    const createdAt = new Date('2026-03-11T12:00:00.000Z')
+    const original = {
+      nested: { count: 1 },
+      createdAt,
+      optional: undefined as string | undefined,
+    }
+
+    const cloned = cloneValue(original)
+
+    expect(cloned).not.toBe(original)
+    expect(cloned.nested).not.toBe(original.nested)
+    expect(cloned.createdAt).toBeInstanceOf(Date)
+    expect(cloned.createdAt).toEqual(createdAt)
+    expect(cloned).toHaveProperty('optional', undefined)
+
+    cloned.nested.count = 2
+    expect(original.nested.count).toBe(1)
   })
 
   it('loads missing workspaces as null while leaving the coordinator ready', async () => {
@@ -955,6 +1051,31 @@ describe('persistence foundation', () => {
 
     cloned.nested.count = 2
     expect(original.nested.count).toBe(1)
+  })
+
+  it('surfaces generic bootstrap errors when the backend throws non-Error values', async () => {
+    const coordinator = createPersistenceCoordinator({
+      backend: {
+        kind: 'memory',
+        loadWorkspaceSnapshot: () => {
+          throw 'bootstrap failed'
+        },
+        saveWorkspaceSnapshot: (snapshot) => snapshot,
+      },
+      readWorkspaceSnapshot: createWorkspaceSnapshotFromStores,
+    })
+
+    let thrown: unknown = null
+
+    try {
+      await coordinator.bootstrap('broken-workspace')
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).not.toBeNull()
+    expect(coordinator.getStatus().phase).toBe('error')
+    expect(coordinator.getStatus().lastError).toBe('Failed to bootstrap persistence')
   })
 
   it('keeps the in-memory backend isolated across save, load, list, and delete', async () => {
