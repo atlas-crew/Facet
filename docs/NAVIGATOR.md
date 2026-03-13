@@ -45,6 +45,7 @@ Documentation for contributors and developers working on the Facet codebase.
 | Document | Description |
 |----------|-------------|
 | [Style Guide](development/ui/facet-style-guide.md) | Design system, CSS custom properties, color palette, typography, and UI conventions |
+| [Wave 1 Hosting Foundation](development/platform/wave-1-hosting-foundation.md) | Provider lock, environment contract, migration workflow, and billing webhook contract for hosted accounts |
 
 ### Plans (Archived)
 
@@ -60,4 +61,4 @@ Documentation for contributors and developers working on the Facet codebase.
 
 | Document | Description |
 |----------|-------------|
-| [v0.2 Feature Reference](reference/vector-resume-v0.2-feature-reference.md) | Feature inventory for the v0.2 release |
+| [Feature Reference](reference/vector-resume-v0.2-feature-reference.md) | Current feature inventory for the shipped Facet product surface |
