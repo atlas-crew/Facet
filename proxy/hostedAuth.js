@@ -160,6 +160,7 @@ export function createHostedSessionActorResolver(options) {
       tenantId: actor.tenantId,
       userId: actor.userId,
       workspaces: actor.workspaces.map((workspace) => workspace.workspaceId),
+      workspaceMemberships: actor.workspaces,
       accountId: actor.accountId,
       email: actor.email,
       authMode: 'hosted',

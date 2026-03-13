@@ -186,6 +186,7 @@ The backend is authoritative for:
 The executable contract for this task lives in:
 - `src/types/hosted.ts`
 - `src/utils/aiAccess.ts`
+- `src/utils/hostedAccountClient.ts`
 
 Those modules define:
 - deployment modes

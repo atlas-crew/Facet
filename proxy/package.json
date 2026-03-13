@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "jose": "^6.2.1"
+    "jose": "^6.2.1",
+    "stripe": "^20.4.1"
   }
 }

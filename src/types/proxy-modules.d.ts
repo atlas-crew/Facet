@@ -32,6 +32,25 @@ declare module '../../proxy/facetServer.js' {
         getActor: (userId: string) => Promise<unknown>
       }
     }
+    billingStore?: {
+      getAccountState: (tenantId: string, accountId: string) => Promise<unknown>
+      upsertAccountState: (entry: unknown) => Promise<unknown>
+    }
+    stripeClient?: {
+      customers: {
+        create: (params: unknown) => Promise<{ id: string }>
+        retrieve: (customerId: string) => Promise<{ id: string, deleted?: boolean }>
+      }
+      checkout: {
+        sessions: {
+          create: (params: unknown) => Promise<{ id: string, url: string }>
+        }
+      }
+    }
+    stripeSecretKey?: string
+    stripePriceId?: string
+    billingSuccessUrl?: string
+    billingCancelUrl?: string
     now?: () => string
   }
 
@@ -88,4 +107,11 @@ declare module '../../proxy/hostedAuth.js' {
       getActor: (userId: string) => Promise<unknown>
     }
   }): (req: IncomingMessage) => Promise<unknown>
+}
+
+declare module '../../proxy/billingState.js' {
+  export function createInMemoryHostedBillingStore(records?: unknown[]): {
+    getAccountState: (tenantId: string, accountId: string) => Promise<unknown>
+    upsertAccountState: (entry: unknown) => Promise<unknown>
+  }
 }

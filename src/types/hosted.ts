@@ -63,6 +63,30 @@ export interface FacetEntitlement {
   effectiveThrough: string | null
 }
 
+export interface FacetHostedAccountContext {
+  deploymentMode: 'hosted'
+  account: FacetTenantAccount
+  actor: FacetUserIdentity
+  memberships: FacetWorkspaceMembership[]
+  billingCustomer: FacetBillingCustomer | null
+  billingSubscription: FacetBillingSubscription | null
+  entitlement: FacetEntitlement | null
+}
+
+export interface FacetHostedAccountContextResponse {
+  context: FacetHostedAccountContext
+}
+
+export interface FacetBillingCustomerLinkResponse {
+  billingCustomer: FacetBillingCustomer
+}
+
+export interface FacetBillingCheckoutSessionResponse {
+  sessionId: string
+  url: string
+  billingCustomer: FacetBillingCustomer
+}
+
 export interface FacetSelfHostedAiConfig {
   proxyConfigured: boolean
   managedBy: 'operator'

@@ -1,0 +1,17 @@
+{
+  "accounts": [
+    {
+      "tenantId": "tenant-1",
+      "accountId": "account-1",
+      "billingCustomer": null,
+      "billingSubscription": null,
+      "entitlement": {
+        "planId": "free",
+        "status": "inactive",
+        "source": "stripe",
+        "features": [],
+        "effectiveThrough": null
+      }
+    }
+  ]
+}

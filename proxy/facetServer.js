@@ -8,6 +8,14 @@ import {
   parsePersistenceAuthTokens,
 } from './persistenceApi.js'
 import {
+  createBillingApi,
+  createStripeBillingClient,
+} from './billingApi.js'
+import {
+  createFileHostedBillingStore,
+  createInMemoryHostedBillingStore,
+} from './billingState.js'
+import {
   createFileHostedMembershipStore,
   createHostedSessionActorResolver,
 } from './hostedAuth.js'
@@ -145,6 +153,26 @@ export function createFacetServer(options = {}) {
     store: persistenceStore,
     now: options.now,
   })
+  const billingStore = options.billingStore ?? createInMemoryHostedBillingStore()
+  const billingApi =
+    authMode === 'hosted'
+      ? createBillingApi({
+          actorResolver: persistenceActorResolver,
+          billingStore,
+          stripeClient:
+            options.stripeClient ??
+            (
+              options.stripeSecretKey
+                ? createStripeBillingClient({
+                    secretKey: options.stripeSecretKey,
+                  })
+                : null
+            ),
+          stripePriceId: options.stripePriceId,
+          successUrl: options.billingSuccessUrl ?? `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/success`,
+          cancelUrl: options.billingCancelUrl ?? `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/cancel`,
+        })
+      : null
 
   const isAllowedOrigin = (origin) => allowedOrigins.includes(origin)
 
@@ -180,10 +208,20 @@ export function createFacetServer(options = {}) {
       return
     }
 
-    try {
-      if (persistenceApi.canHandle(req)) {
-        await persistenceApi.handle(
-          req,
+      try {
+        if (billingApi?.canHandle(req)) {
+          await billingApi.handle(
+            req,
+            res,
+            (request) => readBody(request, maxBodyBytes),
+            sendJson,
+          )
+          return
+        }
+
+        if (persistenceApi.canHandle(req)) {
+          await persistenceApi.handle(
+            req,
           res,
           (request) => readBody(request, maxBodyBytes),
           sendJson,
@@ -288,6 +326,20 @@ export function createEnvFacetServer(env = process.env) {
         membershipStore: createFileHostedMembershipStore(env.HOSTED_MEMBERSHIP_FILE),
       }
     : undefined
+  const billingBaseUrl =
+    env.BILLING_APP_URL ??
+    env.PUBLIC_APP_URL ??
+    (
+      (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)[0]
+    ) ??
+    'http://localhost:5173'
+  const billingStore =
+    authMode === 'hosted'
+      ? createFileHostedBillingStore(env.HOSTED_BILLING_FILE)
+      : undefined
 
   return createFacetServer({
     authMode,
@@ -307,5 +359,14 @@ export function createEnvFacetServer(env = process.env) {
         ? undefined
         : parsePersistenceAuthTokens(env.PERSISTENCE_AUTH_TOKENS),
     hostedAuth,
+    billingStore,
+    stripeSecretKey: env.STRIPE_SECRET_KEY,
+    stripePriceId: env.STRIPE_PRICE_AI_MONTHLY,
+    billingSuccessUrl:
+      env.STRIPE_CHECKOUT_SUCCESS_URL ??
+      `${billingBaseUrl.replace(/\/+$/, '')}/settings/billing/success`,
+    billingCancelUrl:
+      env.STRIPE_CHECKOUT_CANCEL_URL ??
+      `${billingBaseUrl.replace(/\/+$/, '')}/settings/billing/cancel`,
   })
 }

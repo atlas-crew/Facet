@@ -111,8 +111,12 @@ These values belong on the Fly app and must never be shipped to the browser.
 | `SUPABASE_JWT_AUDIENCE` | yes | Expected audience for hosted auth tokens |
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | Service credential for trusted server-side data operations |
 | `HOSTED_MEMBERSHIP_FILE` | transitional hosted auth | Durable file-backed workspace membership directory until the hosted workspace backend lands |
+| `HOSTED_BILLING_FILE` | transitional hosted billing | Durable file-backed billing and entitlement directory until the hosted billing backend lands |
 | `STRIPE_SECRET_KEY` | yes | Stripe API secret for the current environment |
+| `STRIPE_PRICE_AI_MONTHLY` | yes | Hosted Wave 1 paid AI plan price identifier |
 | `STRIPE_WEBHOOK_SECRET` | yes | Stripe webhook signing secret |
+| `STRIPE_CHECKOUT_SUCCESS_URL` | recommended | Hosted checkout success return URL |
+| `STRIPE_CHECKOUT_CANCEL_URL` | recommended | Hosted checkout cancel return URL |
 | `ANTHROPIC_API_KEY` | yes for AI routes | Anthropic API credential used by the server-side proxy |
 | `MODEL` | yes | Default AI model alias or concrete model id |
 | `MAX_TOKENS` | yes | Default max output token limit |
@@ -129,6 +133,7 @@ Rules:
 - hosted identity comes from verified Supabase session tokens, not static bearer token maps
 - server code must rewrite tenant, user, and workspace identity from trusted auth context before save
 - when `FACET_AUTH_MODE=hosted`, membership comes from `HOSTED_MEMBERSHIP_FILE` until the hosted workspace directory moves into the durable backend layer
+- hosted billing and entitlement state come from `HOSTED_BILLING_FILE` until the durable billing backend replaces the file-backed transition layer
 
 ## Secret Ownership
 
@@ -175,6 +180,9 @@ Initial Wave 1 schema ownership:
 
 Ingress:
 - `POST /api/billing/webhooks/stripe`
+- `GET /api/account/context`
+- `POST /api/billing/customer`
+- `POST /api/billing/checkout-session`
 
 Rules:
 - Stripe webhook signature must be verified with `STRIPE_WEBHOOK_SECRET`
