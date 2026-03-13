@@ -8,6 +8,7 @@
     "dev": "node --env-file=.env --watch server.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "jose": "^6.2.1"
   }
 }

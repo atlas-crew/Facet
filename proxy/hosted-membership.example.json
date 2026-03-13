@@ -1,0 +1,17 @@
+{
+  "actors": [
+    {
+      "tenantId": "tenant-1",
+      "accountId": "account-1",
+      "userId": "user-1",
+      "email": "owner@example.com",
+      "workspaces": [
+        {
+          "workspaceId": "workspace-1",
+          "role": "owner",
+          "isDefault": true
+        }
+      ]
+    }
+  ]
+}

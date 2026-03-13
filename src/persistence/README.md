@@ -95,15 +95,25 @@ The current proxy exposes:
 - `GET /api/persistence/workspaces/:workspaceId`
 - `PUT /api/persistence/workspaces/:workspaceId`
 
-These routes require:
+In local auth mode these routes require:
 
 - `Authorization: Bearer <token>`
 - `X-Proxy-API-Key: <proxy key>`
 
-Server-side auth resolves the actor from configured bearer tokens and checks
-workspace membership on the server. The request body snapshot may suggest
-tenant, user, or workspace identity values, but the server rewrites those to
-its own authoritative scope before saving.
+In hosted auth mode these routes require:
+
+- `Authorization: Bearer <hosted session token>`
+- `X-Proxy-API-Key: <proxy key>`
+
+Server-side auth can now run in two modes:
+
+- `local` mode resolves the actor from configured bearer tokens
+- `hosted` mode validates the bearer token against Supabase JWKS and resolves
+  workspace membership from the hosted membership directory
+
+In both modes, the server checks workspace membership on the server. The request
+body snapshot may suggest tenant, user, or workspace identity values, but the
+server rewrites those to its own authoritative scope before saving.
 
 ## Validation scope
 

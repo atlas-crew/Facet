@@ -12,9 +12,11 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,h
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean)
+const AUTH_MODE = process.env.FACET_AUTH_MODE === 'hosted' ? 'hosted' : 'local'
 const PROXY_API_KEY = process.env.PROXY_API_KEY ?? 'facet-local-proxy'
 const USING_DEFAULT_PROXY_API_KEY = PROXY_API_KEY === 'facet-local-proxy'
-const USING_DEFAULT_PERSISTENCE_AUTH_TOKENS = !process.env.PERSISTENCE_AUTH_TOKENS
+const USING_DEFAULT_PERSISTENCE_AUTH_TOKENS =
+  AUTH_MODE === 'local' && !process.env.PERSISTENCE_AUTH_TOKENS
 
 const { server } = createEnvFacetServer()
 
@@ -26,11 +28,22 @@ server.listen(PORT, '127.0.0.1', () => {
   if (!Number.isNaN(DEFAULT_TEMPERATURE)) console.log(`Temperature override: ${DEFAULT_TEMPERATURE}`)
   if (DEFAULT_THINKING_BUDGET > 0) console.log(`Thinking budget: ${DEFAULT_THINKING_BUDGET} tokens`)
   console.log(`Allowed origins: ${ALLOWED_ORIGINS.join(', ')}`)
+  console.log(`Auth mode: ${AUTH_MODE}`)
   console.log(`Proxy auth: ${PROXY_API_KEY ? 'configured' : 'NOT SET'}`)
   console.log('Persistence API: GET/PUT /api/persistence/workspaces/:workspaceId')
-  console.log(
-    `Persistence auth tokens: ${process.env.PERSISTENCE_AUTH_TOKENS ? 'configured' : 'default local dev token'}`,
-  )
+  if (AUTH_MODE === 'hosted') {
+    console.log(
+      `Hosted auth: ${
+        process.env.SUPABASE_JWKS_URL && process.env.HOSTED_MEMBERSHIP_FILE
+          ? 'configured'
+          : 'INCOMPLETE'
+      }`,
+    )
+  } else {
+    console.log(
+      `Persistence auth tokens: ${process.env.PERSISTENCE_AUTH_TOKENS ? 'configured' : 'default local dev token'}`,
+    )
+  }
   console.log(`API key: ${process.env.ANTHROPIC_API_KEY ? 'configured' : 'NOT SET'}`)
   if (USING_DEFAULT_PROXY_API_KEY) {
     console.warn('[proxy] Using default proxy API key. Set PROXY_API_KEY before sharing this server.')

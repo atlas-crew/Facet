@@ -1,17 +1,25 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { SignJWT, exportJWK, generateKeyPair } from 'jose'
 import { buildForgedWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
 async function loadProxyModules() {
-  const [{ createFacetServer }, { createInMemoryWorkspaceStore }] = await Promise.all([
+  const [
+    { createFacetServer },
+    { createInMemoryWorkspaceStore },
+    { createInMemoryHostedMembershipStore },
+  ] = await Promise.all([
     // @ts-expect-error runtime-tested local proxy module
     import('../../proxy/facetServer.js'),
     // @ts-expect-error runtime-tested local proxy module
     import('../../proxy/persistenceApi.js'),
+    // @ts-expect-error runtime-tested local proxy module
+    import('../../proxy/hostedAuth.js'),
   ])
 
   return {
     createFacetServer,
     createInMemoryWorkspaceStore,
+    createInMemoryHostedMembershipStore,
   }
 }
 
@@ -51,6 +59,95 @@ async function startServer() {
     store,
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
+  }
+}
+
+async function buildHostedAuthFixture() {
+  const { privateKey, publicKey } = await generateKeyPair('RS256')
+  const publicJwk = await exportJWK(publicKey)
+  return {
+    privateKey,
+    jwks: {
+      keys: [
+        {
+          ...publicJwk,
+          alg: 'RS256',
+          kid: 'facet-test-key',
+          use: 'sig',
+        },
+      ],
+    },
+  }
+}
+
+async function createHostedSessionToken(
+  privateKey: Awaited<ReturnType<typeof generateKeyPair>>['privateKey'],
+) {
+  return new SignJWT({ email: 'member@example.com' })
+    .setProtectedHeader({ alg: 'RS256', kid: 'facet-test-key' })
+    .setSubject('user-1')
+    .setIssuer('https://supabase.example/auth/v1')
+    .setAudience('authenticated')
+    .setExpirationTime('1h')
+    .sign(privateKey)
+}
+
+async function startHostedServer() {
+  const {
+    createFacetServer,
+    createInMemoryWorkspaceStore,
+    createInMemoryHostedMembershipStore,
+  } = await loadProxyModules()
+  const store = createInMemoryWorkspaceStore()
+  const hosted = await buildHostedAuthFixture()
+  const membershipStore = createInMemoryHostedMembershipStore([
+    {
+      tenantId: 'tenant-1',
+      accountId: 'account-1',
+      userId: 'user-1',
+      email: 'member@example.com',
+      workspaces: [
+        {
+          workspaceId: 'ws-1',
+          role: 'owner',
+          isDefault: true,
+        },
+      ],
+    },
+  ])
+  const { server } = createFacetServer({
+    authMode: 'hosted',
+    allowedOrigins: ['http://localhost:5173'],
+    proxyApiKey: 'proxy-key',
+    hostedAuth: {
+      issuer: 'https://supabase.example/auth/v1',
+      audience: 'authenticated',
+      jwks: hosted.jwks,
+      membershipStore,
+    },
+    persistenceStore: store,
+    anthropicClient: {
+      messages: {
+        create: async () => ({ content: [], usage: { input_tokens: 0, output_tokens: 0 } }),
+      },
+    },
+    now: () => '2026-03-14T12:00:00.000Z',
+  })
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  const address = server.address()
+  if (!address || typeof address === 'string') {
+    throw new Error('Failed to bind hosted auth test server.')
+  }
+
+  return {
+    store,
+    server,
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    accessToken: await createHostedSessionToken(hosted.privateKey),
   }
 }
 
@@ -197,5 +294,42 @@ describe('facetServer persistence API', () => {
         error: expect.stringMatching(/invalid artifacts\.pipeline\.payload\.entries/i),
       }),
     )
+  })
+
+  it('validates hosted session tokens and disables the default local token fallback in hosted mode', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer()
+    servers.add(server)
+
+    const localDevToken = await fetch(`${baseUrl}/api/persistence/workspaces/ws-1`, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer facet-local-user',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+    })
+    expect(localDevToken.status).toBe(401)
+
+    const authorized = await fetch(`${baseUrl}/api/persistence/workspaces/ws-1`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({ snapshot: buildForgedWorkspaceSnapshot() }),
+    })
+    expect(authorized.status).toBe(200)
+
+    const unauthorizedWorkspace = await fetch(`${baseUrl}/api/persistence/workspaces/ws-2`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+    })
+    expect(unauthorizedWorkspace.status).toBe(403)
   })
 })

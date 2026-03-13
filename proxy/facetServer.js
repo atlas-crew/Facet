@@ -2,10 +2,15 @@ import { createServer } from 'node:http'
 import Anthropic from '@anthropic-ai/sdk'
 import {
   createInMemoryWorkspaceStore,
+  createTokenActorResolver,
   createPersistenceApi,
   DEFAULT_PERSISTENCE_AUTH_TOKENS,
   parsePersistenceAuthTokens,
 } from './persistenceApi.js'
+import {
+  createFileHostedMembershipStore,
+  createHostedSessionActorResolver,
+} from './hostedAuth.js'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
@@ -125,10 +130,18 @@ export function createFacetServer(options = {}) {
     ...Object.keys(MODEL_ALIASES),
     ...Object.values(MODEL_ALIASES),
   ])
+  const authMode = options.authMode === 'hosted' ? 'hosted' : 'local'
   const persistenceAuthTokens = options.persistenceAuthTokens ?? DEFAULT_PERSISTENCE_AUTH_TOKENS
   const persistenceStore = options.persistenceStore ?? createInMemoryWorkspaceStore()
+  const persistenceActorResolver =
+    options.persistenceActorResolver ??
+    (
+      authMode === 'hosted'
+        ? createHostedSessionActorResolver(options.hostedAuth ?? {})
+        : createTokenActorResolver(persistenceAuthTokens)
+    )
   const persistenceApi = createPersistenceApi({
-    authTokens: persistenceAuthTokens,
+    actorResolver: persistenceActorResolver,
     store: persistenceStore,
     now: options.now,
   })
@@ -260,7 +273,24 @@ export function createFacetServer(options = {}) {
 }
 
 export function createEnvFacetServer(env = process.env) {
+  const authMode = env.FACET_AUTH_MODE === 'hosted' ? 'hosted' : 'local'
+  const hostedAuth = authMode === 'hosted'
+    ? {
+        issuer:
+          env.SUPABASE_JWT_ISSUER ??
+          (
+            env.SUPABASE_URL
+              ? `${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1`
+              : undefined
+          ),
+        audience: env.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
+        jwksUrl: env.SUPABASE_JWKS_URL,
+        membershipStore: createFileHostedMembershipStore(env.HOSTED_MEMBERSHIP_FILE),
+      }
+    : undefined
+
   return createFacetServer({
+    authMode,
     allowedOrigins: (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
       .split(',')
       .map((origin) => origin.trim())
@@ -272,6 +302,10 @@ export function createEnvFacetServer(env = process.env) {
     defaultTemperature: parseFloat(env.DEFAULT_TEMPERATURE ?? ''),
     defaultThinkingBudget: parseInt(env.THINKING_BUDGET ?? '0', 10),
     proxyApiKey: env.PROXY_API_KEY ?? DEFAULT_PROXY_API_KEY,
-    persistenceAuthTokens: parsePersistenceAuthTokens(env.PERSISTENCE_AUTH_TOKENS),
+    persistenceAuthTokens:
+      authMode === 'hosted'
+        ? undefined
+        : parsePersistenceAuthTokens(env.PERSISTENCE_AUTH_TOKENS),
+    hostedAuth,
   })
 }

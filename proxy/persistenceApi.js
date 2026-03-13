@@ -17,6 +17,14 @@ export const DEFAULT_PERSISTENCE_AUTH_TOKENS = [
   },
 ]
 
+export class PersistenceAuthError extends Error {
+  constructor(status, message) {
+    super(message)
+    this.name = 'PersistenceAuthError'
+    this.status = status
+  }
+}
+
 const isRecord = (value) =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -90,7 +98,7 @@ export function parsePersistenceAuthTokens(raw) {
   })
 }
 
-function getAuthorizationToken(req) {
+export function getAuthorizationToken(req) {
   const header = req.headers.authorization
   if (typeof header !== 'string') {
     return null
@@ -100,13 +108,20 @@ function getAuthorizationToken(req) {
   return match?.[1]?.trim() || null
 }
 
-function resolveActor(req, authTokens) {
-  const token = getAuthorizationToken(req)
-  if (!token) {
-    return null
-  }
+export function createTokenActorResolver(authTokens) {
+  return async (req) => {
+    const token = getAuthorizationToken(req)
+    if (!token) {
+      throw new PersistenceAuthError(401, 'Missing or invalid persistence bearer token.')
+    }
 
-  return authTokens.find((entry) => entry.token === token) ?? null
+    const actor = authTokens.find((entry) => entry.token === token) ?? null
+    if (!actor) {
+      throw new PersistenceAuthError(401, 'Missing or invalid persistence bearer token.')
+    }
+
+    return actor
+  }
 }
 
 function actorCanAccessWorkspace(actor, workspaceId) {
@@ -280,7 +295,7 @@ function extractWorkspaceId(req, routePrefix) {
   return workspaceId || null
 }
 
-export function createPersistenceApi({ authTokens, store, now = () => new Date().toISOString() }) {
+export function createPersistenceApi({ actorResolver, store, now = () => new Date().toISOString() }) {
   const routePrefix = '/api/persistence/workspaces/'
 
   return {
@@ -293,9 +308,20 @@ export function createPersistenceApi({ authTokens, store, now = () => new Date()
     },
 
     async handle(req, res, readBody, sendJson) {
-      const actor = resolveActor(req, authTokens)
-      if (!actor) {
-        sendJson(res, 401, { error: 'Missing or invalid persistence bearer token.' })
+      let actor
+      try {
+        actor = await actorResolver(req)
+      } catch (error) {
+        sendJson(
+          res,
+          error instanceof PersistenceAuthError ? error.status : 500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Persistence authentication failed.',
+          },
+        )
         return
       }
 
