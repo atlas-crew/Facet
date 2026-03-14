@@ -119,6 +119,16 @@ In both modes, the server checks workspace membership on the server. The request
 body snapshot may suggest tenant, user, or workspace identity values, but the
 server rewrites those to its own authoritative scope before saving.
 
+Hosted browser bootstrap now layers on top of that contract:
+
+- hosted mode can fetch account context plus the workspace directory before the
+  main app renders
+- the shell can switch the persistence runtime onto a selected hosted workspace
+  by swapping in `createRemotePersistenceBackend()`
+- local-to-hosted migration can capture an existing local snapshot first and
+  then import it into a newly created hosted workspace without changing the
+  snapshot contract shape
+
 Hosted workspace directory behavior now lives on the server:
 
 - list/create/rename/delete run through server-side membership checks
@@ -126,6 +136,10 @@ Hosted workspace directory behavior now lives on the server:
 - hosted saves still rewrite `tenantId`, `userId`, `revision`, and `updatedAt` on the server
 - local hosted development can back this contract with `HOSTED_WORKSPACE_FILE`, a durable
   file-backed directory that stores actors, workspace summaries, and snapshots together
+- the file-backed hosted store now serializes same-process writes per backing file and rejects
+  malformed timestamps, empty workspace names, and stale direct-save revisions at the store boundary
+- cross-process write locking is still out of scope for the transitional file-backed store; hosted
+  production should move to the durable database-backed implementation described in the Wave 1 docs
 
 ## Validation scope
 

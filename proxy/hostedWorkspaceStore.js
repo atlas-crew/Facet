@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, writeFile } from 'node:fs/promises'
 
 const FACET_WORKSPACE_SNAPSHOT_VERSION = 1
 const FACET_ARTIFACT_TYPES = ['resume', 'pipeline', 'prep', 'coverLetters', 'research']
+const fileWriteQueues = new Map()
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -20,6 +21,43 @@ function createWorkspaceValidationError(message) {
   const error = new Error(message)
   error.name = 'WorkspaceStoreValidationError'
   return error
+}
+
+function validateWorkspaceName(value, message = 'Hosted workspace name is required.') {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    throw createWorkspaceValidationError(message)
+  }
+
+  if (trimmed.length > 200) {
+    throw createWorkspaceValidationError('Hosted workspace name must be 200 characters or fewer.')
+  }
+
+  return trimmed
+}
+
+function validateTimestamp(value, message = 'Hosted workspace operations require a valid ISO timestamp.') {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed || Number.isNaN(Date.parse(trimmed))) {
+    throw createWorkspaceValidationError(message)
+  }
+
+  return trimmed
+}
+
+function validateWorkspaceId(value) {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    throw createWorkspaceValidationError('Hosted workspace id is required.')
+  }
+
+  if (!/^[a-z0-9-]{1,64}$/i.test(trimmed)) {
+    throw createWorkspaceValidationError(
+      'Hosted workspace id must use letters, numbers, and hyphens only.',
+    )
+  }
+
+  return trimmed
 }
 
 function membershipKey(tenantId, workspaceId) {
@@ -285,7 +323,27 @@ function serializeState(state) {
   }
 }
 
-function createWorkspaceStoreApi({ readState, writeState, persist }) {
+async function withFileWriteQueue(filePath, callback) {
+  const previous = fileWriteQueues.get(filePath) ?? Promise.resolve()
+  let releaseQueue = () => {}
+  const current = new Promise((resolve) => {
+    releaseQueue = resolve
+  })
+  fileWriteQueues.set(filePath, current)
+
+  await previous.catch(() => {})
+
+  try {
+    return await callback()
+  } finally {
+    releaseQueue()
+    if (fileWriteQueues.get(filePath) === current) {
+      fileWriteQueues.delete(filePath)
+    }
+  }
+}
+
+function createWorkspaceStoreApi({ readState, writeState }) {
   const getActorRecord = async (userId) => {
     const state = await readState()
     const actor = state.actors.get(userId)
@@ -323,38 +381,81 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
     },
 
     async saveWorkspace(snapshot) {
+      // The proxy is expected to rewrite tenantId/userId from authenticated server
+      // context before calling the store. This direct store boundary validates the
+      // resulting actor membership, but it does not perform identity derivation.
       const actorUserId = typeof snapshot.userId === 'string' ? snapshot.userId : ''
-      const actor = actorUserId ? await getActorRecord(actorUserId) : null
-      if (!actor || actor.tenantId !== snapshot.tenantId) {
-        throw createWorkspaceValidationError('Hosted workspace save requires a provisioned actor.')
-      }
-
-      const hasMembership = actor.workspaces.some(
-        (membership) => membership.workspaceId === snapshot.workspace.id,
+      const workspaceName = validateWorkspaceName(
+        snapshot.workspace?.name,
+        'Hosted workspace save requires a non-empty workspace name.',
       )
-      if (!hasMembership) {
-        throw createWorkspaceValidationError('Hosted workspace save requires workspace membership.')
-      }
-
-      const key = membershipKey(actor.tenantId, snapshot.workspace.id)
-      const currentRecord = await getWorkspaceRecord(actor.tenantId, snapshot.workspace.id)
-      const nextRecord = {
-        tenantId: actor.tenantId,
-        accountId: actor.accountId,
-        workspaceId: snapshot.workspace.id,
-        name: snapshot.workspace.name,
-        revision: snapshot.workspace.revision,
-        updatedAt: snapshot.workspace.updatedAt,
-        createdAt: currentRecord?.createdAt ?? snapshot.workspace.updatedAt,
-      }
+      const updatedAt = validateTimestamp(
+        snapshot.workspace?.updatedAt,
+        'Hosted workspace save requires a valid workspace updatedAt timestamp.',
+      )
+      const exportedAt = validateTimestamp(
+        snapshot.exportedAt,
+        'Hosted workspace save requires a valid exportedAt timestamp.',
+      )
+      const workspaceId = validateWorkspaceId(snapshot.workspace?.id)
+      const key = membershipKey(snapshot.tenantId, workspaceId)
+      let savedSnapshot = null
 
       await writeState((state) => {
-        state.workspaces.set(key, cloneValue(nextRecord))
-        state.snapshots.set(key, cloneValue(snapshot))
-      })
-      await persist()
+        const actor = actorUserId ? state.actors.get(actorUserId) : null
+        if (!actor || actor.tenantId !== snapshot.tenantId) {
+          throw createWorkspaceValidationError('Hosted workspace save requires a provisioned actor.')
+        }
 
-      return cloneValue(snapshot)
+        const membership = actor.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
+        if (!membership) {
+          throw createWorkspaceValidationError('Hosted workspace save requires workspace membership.')
+        }
+
+        const currentRecord = state.workspaces.get(key) ?? null
+        const currentSnapshot = state.snapshots.get(key) ?? null
+        if (currentRecord) {
+          const incomingRevision = snapshot.workspace?.revision
+          if (typeof incomingRevision !== 'number' || !Number.isFinite(incomingRevision)) {
+            throw createWorkspaceValidationError('Hosted workspace save requires a numeric revision.')
+          }
+          if (incomingRevision < currentRecord.revision) {
+            throw createWorkspaceValidationError('Hosted workspace save rejected a stale workspace revision.')
+          }
+          if (
+            incomingRevision === currentRecord.revision &&
+            currentSnapshot &&
+            JSON.stringify(currentSnapshot) !== JSON.stringify(snapshot)
+          ) {
+            throw createWorkspaceValidationError(
+              'Hosted workspace save rejected a conflicting workspace revision.',
+            )
+          }
+        }
+
+        const nextRecord = {
+          tenantId: actor.tenantId,
+          accountId: actor.accountId,
+          workspaceId,
+          name: workspaceName,
+          revision: snapshot.workspace.revision,
+          updatedAt,
+          createdAt: currentRecord?.createdAt ?? updatedAt,
+        }
+        const normalizedSnapshot = cloneValue(snapshot)
+        normalizedSnapshot.workspace = {
+          ...normalizedSnapshot.workspace,
+          name: workspaceName,
+          updatedAt,
+        }
+        normalizedSnapshot.exportedAt = exportedAt
+
+        state.workspaces.set(key, cloneValue(nextRecord))
+        state.snapshots.set(key, cloneValue(normalizedSnapshot))
+        savedSnapshot = cloneValue(normalizedSnapshot)
+      })
+
+      return cloneValue(savedSnapshot)
     },
 
     async listWorkspacesForActor(actor) {
@@ -366,7 +467,9 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
 
       return actorRecord.workspaces
         .map((membership) => {
-          const workspace = state.workspaces.get(membershipKey(actor.tenantId, membership.workspaceId))
+          const workspace = state.workspaces.get(
+            membershipKey(actorRecord.tenantId, membership.workspaceId),
+          )
           return workspace ? createWorkspaceSummary(workspace, membership) : null
         })
         .filter(Boolean)
@@ -379,29 +482,31 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
         throw createWorkspaceValidationError('Hosted actor is not provisioned for workspace creation.')
       }
 
+      const operationTimestamp = validateTimestamp(timestamp)
       const trimmedName = typeof input.name === 'string' ? input.name.trim() : ''
-      const workspaceName = trimmedName || 'Facet Workspace'
+      const workspaceName = trimmedName ? validateWorkspaceName(trimmedName) : 'Facet Workspace'
       const requestedWorkspaceId =
-        typeof input.workspaceId === 'string' ? input.workspaceId.trim() : ''
+        typeof input.workspaceId === 'string' ? validateWorkspaceId(input.workspaceId) : ''
       const workspaceId = requestedWorkspaceId || `workspace-${randomUUID()}`
-      const key = membershipKey(actor.tenantId, workspaceId)
+      const key = membershipKey(actorRecord.tenantId, workspaceId)
       const wasEmpty = actorRecord.workspaces.length === 0
 
       const workspace = {
-        tenantId: actor.tenantId,
-        accountId: actor.accountId,
+        tenantId: actorRecord.tenantId,
+        accountId: actorRecord.accountId,
         workspaceId,
         name: workspaceName,
         revision: 0,
-        updatedAt: timestamp,
-        createdAt: timestamp,
+        updatedAt: operationTimestamp,
+        createdAt: operationTimestamp,
       }
       const membership = {
         workspaceId,
         role: 'owner',
         isDefault: wasEmpty || !actorRecord.workspaces.some((entry) => entry.isDefault),
       }
-      const snapshot = createEmptySnapshot(actor, workspaceId, workspaceName, timestamp)
+      const snapshot = createEmptySnapshot(actorRecord, workspaceId, workspaceName, operationTimestamp)
+      let createdMembership = cloneValue(membership)
 
       await writeState((state) => {
         if (state.workspaces.has(key)) {
@@ -409,42 +514,46 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
         }
 
         const writableActor = state.actors.get(actor.userId)
-        if (!writableActor) {
+        if (!writableActor || writableActor.tenantId !== actor.tenantId) {
           throw createWorkspaceValidationError('Hosted actor is not provisioned for workspace creation.')
         }
 
         writableActor.workspaces.push(cloneValue(membership))
         writableActor.workspaces.sort(compareWorkspaceMemberships)
         ensureSingleDefault(writableActor.workspaces)
+        createdMembership =
+          cloneValue(
+            writableActor.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? membership,
+          )
 
         state.workspaces.set(key, cloneValue(workspace))
         state.snapshots.set(key, cloneValue(snapshot))
       })
-      await persist()
 
       return {
-        workspace: createWorkspaceSummary(workspace, membership),
+        workspace: createWorkspaceSummary(workspace, createdMembership),
         snapshot,
       }
     },
 
     async renameWorkspace(actor, workspaceId, name, timestamp) {
-      const trimmedName = typeof name === 'string' ? name.trim() : ''
-      if (!trimmedName) {
-        throw createWorkspaceValidationError('Hosted workspace name is required.')
-      }
-
-      const actorRecord = await getActorRecord(actor.userId)
-      const membership = actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
-      if (!membership || membership.role !== 'owner') {
-        throw createWorkspaceValidationError('Hosted workspace rename requires owner access.')
-      }
+      const trimmedName = validateWorkspaceName(name)
+      const operationTimestamp = validateTimestamp(timestamp)
 
       let renamedSummary = null
       let renamedSnapshot = null
 
       await writeState((state) => {
-        const key = membershipKey(actor.tenantId, workspaceId)
+        const actorRecord = state.actors.get(actor.userId)
+        if (!actorRecord || actorRecord.tenantId !== actor.tenantId) {
+          throw createWorkspaceValidationError('Hosted workspace rename requires owner access.')
+        }
+        const membership = actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
+        if (!membership || membership.role !== 'owner') {
+          throw createWorkspaceValidationError('Hosted workspace rename requires owner access.')
+        }
+
+        const key = membershipKey(actorRecord.tenantId, workspaceId)
         const workspace = state.workspaces.get(key)
         if (!workspace) {
           throw createWorkspaceValidationError('Hosted workspace not found.')
@@ -453,7 +562,7 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
         const nextRevision = workspace.revision + 1
         workspace.name = trimmedName
         workspace.revision = nextRevision
-        workspace.updatedAt = timestamp
+        workspace.updatedAt = operationTimestamp
         renamedSummary = createWorkspaceSummary(workspace, membership)
 
         const snapshot = state.snapshots.get(key)
@@ -462,13 +571,12 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
             ...snapshot.workspace,
             name: trimmedName,
             revision: nextRevision,
-            updatedAt: timestamp,
+            updatedAt: operationTimestamp,
           }
-          snapshot.exportedAt = timestamp
+          snapshot.exportedAt = operationTimestamp
           renamedSnapshot = cloneValue(snapshot)
         }
       })
-      await persist()
 
       return {
         workspace: cloneValue(renamedSummary),
@@ -477,16 +585,19 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
     },
 
     async deleteWorkspace(actor, workspaceId) {
-      const actorRecord = await getActorRecord(actor.userId)
-      const membership = actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
-      if (!membership || membership.role !== 'owner') {
-        throw createWorkspaceValidationError('Hosted workspace deletion requires owner access.')
-      }
-
       let nextDefaultWorkspaceId = null
 
       await writeState((state) => {
-        const key = membershipKey(actor.tenantId, workspaceId)
+        const actorRecord = state.actors.get(actor.userId)
+        if (!actorRecord || actorRecord.tenantId !== actor.tenantId) {
+          throw createWorkspaceValidationError('Hosted workspace deletion requires owner access.')
+        }
+        const membership = actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
+        if (!membership || membership.role !== 'owner') {
+          throw createWorkspaceValidationError('Hosted workspace deletion requires owner access.')
+        }
+
+        const key = membershipKey(actorRecord.tenantId, workspaceId)
         if (!state.workspaces.has(key)) {
           throw createWorkspaceValidationError('Hosted workspace not found.')
         }
@@ -507,7 +618,6 @@ function createWorkspaceStoreApi({ readState, writeState, persist }) {
         state.workspaces.delete(key)
         state.snapshots.delete(key)
       })
-      await persist()
 
       return {
         deletedWorkspaceId: workspaceId,
@@ -527,7 +637,6 @@ export function createInMemoryHostedWorkspaceStore(directory = {}) {
       mutate(next)
       state = next
     },
-    persist: async () => {},
   })
 }
 
@@ -536,34 +645,26 @@ export function createFileHostedWorkspaceStore(filePath) {
     throw new Error('Hosted persistence requires HOSTED_WORKSPACE_FILE.')
   }
 
-  let cachedState = null
-
   const readState = async () => {
-    if (cachedState) {
-      return cachedState
-    }
-
     const raw = await readFile(filePath, 'utf8')
-    cachedState = buildStoreState(normalizeHostedWorkspaceDirectory(JSON.parse(raw)))
-    return cachedState
+    return buildStoreState(normalizeHostedWorkspaceDirectory(JSON.parse(raw)))
   }
 
-  const persist = async () => {
-    if (!cachedState) {
-      return
-    }
-
-    await writeFile(filePath, JSON.stringify(serializeState(cachedState), null, 2))
+  const persist = async (state) => {
+    const nextFilePath = `${filePath}.${randomUUID()}.tmp`
+    await writeFile(nextFilePath, JSON.stringify(serializeState(state), null, 2))
+    await rename(nextFilePath, filePath)
   }
 
   return createWorkspaceStoreApi({
     readState,
     writeState: async (mutate) => {
-      const current = await readState()
-      const next = buildStoreState(serializeState(current))
-      mutate(next)
-      cachedState = next
+      await withFileWriteQueue(filePath, async () => {
+        const current = await readState()
+        const next = buildStoreState(serializeState(current))
+        mutate(next)
+        await persist(next)
+      })
     },
-    persist,
   })
 }
