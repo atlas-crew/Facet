@@ -264,7 +264,7 @@ export const createPersistenceRuntime = (
           }
 
           syncRuntimeState({
-            hydrated: true,
+            hydrated: false,
             status: {
               ...coordinator.getStatus(),
               phase: 'error',
@@ -296,11 +296,17 @@ export const createPersistenceRuntime = (
     importWorkspaceSnapshot: async (snapshot, options = { mode: 'replace' }) => {
       clearSaveTimer()
       await (starting ?? (started ? Promise.resolve() : runtime.start()))
+      if (disposed) {
+        return snapshot
+      }
 
       suppressSaves = true
       try {
         if (activePersistenceWrite) {
           await activePersistenceWrite.catch(() => undefined)
+        }
+        if (disposed) {
+          return snapshot
         }
 
         const scopedSnapshot = scopeWorkspaceSnapshotToWorkspace(
@@ -308,11 +314,23 @@ export const createPersistenceRuntime = (
           workspaceId,
           workspaceName,
         )
+        if (disposed) {
+          return scopedSnapshot
+        }
         const savedSnapshot = await coordinator.importWorkspaceSnapshot(scopedSnapshot, options)
+        if (disposed) {
+          return savedSnapshot
+        }
         applyWorkspaceSnapshotToStores(savedSnapshot)
+        if (disposed) {
+          return savedSnapshot
+        }
         await localPreferencesBackend.saveLocalPreferencesSnapshot(
           createLocalPreferencesSnapshotFromStores(workspaceId),
         )
+        if (disposed) {
+          return savedSnapshot
+        }
         syncRuntimeState({
           hydrated: true,
           usingLegacyMigration: false,
@@ -353,4 +371,46 @@ export const getPersistenceRuntime = (): PersistenceRuntime => {
   }
 
   return runtimeSingleton
+}
+
+export const replacePersistenceRuntime = async (
+  options: PersistenceRuntimeOptions = {},
+): Promise<PersistenceRuntime> => {
+  const existingRuntime = runtimeSingleton
+  if (existingRuntime) {
+    if (usePersistenceRuntimeStore.getState().hydrated) {
+      try {
+        await existingRuntime.flush()
+      } catch {
+        // Swapping runtimes should still proceed so the user can recover into
+        // the next backend or workspace selection flow.
+      }
+    }
+    existingRuntime.dispose()
+  }
+
+  runtimeSingleton = createPersistenceRuntime(options)
+  return runtimeSingleton
+}
+
+export const captureLocalWorkspaceSnapshotForMigration = async (): Promise<FacetWorkspaceSnapshot | null> => {
+  const runtime = createPersistenceRuntime({
+    workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+    workspaceName: DEFAULT_LOCAL_WORKSPACE_NAME,
+  })
+
+  try {
+    await runtime.start()
+    const runtimeState = usePersistenceRuntimeStore.getState()
+    const hasCapturedLocalState =
+      runtimeState.usingLegacyMigration || runtimeState.status.lastHydratedAt !== null
+
+    if (!hasCapturedLocalState) {
+      return null
+    }
+
+    return runtime.exportWorkspaceSnapshot()
+  } finally {
+    runtime.dispose()
+  }
 }

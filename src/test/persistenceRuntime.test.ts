@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { waitFor } from '@testing-library/react'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { defaultResumeData } from '../store/defaultData'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -958,6 +959,59 @@ describe('persistence runtime', () => {
     expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Recovered Save')
 
     runtime.dispose()
+  })
+
+  it('does not hydrate imported data after the runtime is disposed mid-import', async () => {
+    const backing = createInMemoryPersistenceBackend()
+    let resolveSave: (() => void) | null = null
+    const workspaceBackend: PersistenceBackend = {
+      ...backing,
+      saveWorkspaceSnapshot: async (snapshot) => {
+        await new Promise<void>((resolve) => {
+          resolveSave = resolve
+        })
+
+        return backing.saveWorkspaceSnapshot(snapshot)
+      },
+    }
+
+    const runtime = createPersistenceRuntime({
+      backend: workspaceBackend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    await runtime.start()
+    useResumeStore.getState().updateMetaField('name', 'Before Dispose')
+
+    const importedSnapshot = buildWorkspaceSnapshot({
+      artifacts: {
+        ...buildWorkspaceSnapshot().artifacts,
+        resume: {
+          ...buildWorkspaceSnapshot().artifacts.resume,
+          payload: {
+            ...buildWorkspaceSnapshot().artifacts.resume.payload,
+            meta: {
+              ...buildWorkspaceSnapshot().artifacts.resume.payload.meta,
+              name: 'Should Not Hydrate',
+            },
+          },
+        },
+      },
+    })
+
+    const importPromise = runtime.importWorkspaceSnapshot(importedSnapshot, {
+      mode: 'replace',
+    })
+
+    await waitFor(() => {
+      expect(resolveSave).not.toBeNull()
+    })
+    runtime.dispose()
+    resolveSave!()
+
+    const returnedSnapshot = await importPromise
+    expect(returnedSnapshot.artifacts.resume.payload.meta.name).toBe('Should Not Hydrate')
+    expect(useResumeStore.getState().data.meta.name).toBe('Before Dispose')
   })
 
   it('surfaces local-preferences backend load failures during bootstrap', async () => {
