@@ -4,6 +4,8 @@ import type {
   SearchResultEntry,
   SearchTokenUsage,
 } from '../types/search'
+import { readAiProxyError } from './aiProxyErrors'
+import { getHostedAccessToken } from './hostedSession'
 import { createId } from './idUtils'
 
 const REQUEST_TIMEOUT_MS = 120000
@@ -72,10 +74,12 @@ export async function callSearchProxy(
   const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
+    const bearerToken = await getHostedAccessToken()
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
         'X-Proxy-API-Key':
           (import.meta.env.VITE_ANTHROPIC_PROXY_API_KEY as string | undefined) ??
           DEFAULT_PROXY_API_KEY,
@@ -86,13 +90,14 @@ export async function callSearchProxy(
         temperature: 1,
         thinking_budget: 8000,
         model: 'sonnet',
+        feature: 'research.search',
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 15 }],
       }),
       signal: controller.signal,
     })
 
     if (!response.ok) {
-      throw new Error(`AI proxy error (${response.status}): ${(await response.text()).slice(0, 160)}`)
+      throw await readAiProxyError(response)
     }
 
     const payload = (await response.json()) as Record<string, unknown>

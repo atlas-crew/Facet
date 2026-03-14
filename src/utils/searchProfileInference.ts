@@ -222,6 +222,7 @@ Response schema:
 }`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildInferencePrompt(resumeData), {
+    feature: 'research.profile-inference',
     model: PROFILE_INFERENCE_MODEL,
     timeoutMs: 45000,
   })

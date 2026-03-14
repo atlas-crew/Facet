@@ -107,4 +107,28 @@ describe('LettersPage', () => {
     expect(screen.getByDisplayValue('Dear Jordan Lee,')).toBeTruthy()
     expect(screen.getByDisplayValue('I am excited to apply for the Staff Engineer role at Acme Corp.')).toBeTruthy()
   })
+
+  it('shows hosted upgrade messaging when AI generation is paywalled', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 402,
+      text: async () =>
+        JSON.stringify({
+          code: 'ai_access_denied',
+          reason: 'upgrade_required',
+          feature: 'letters.generate',
+          error: 'Upgrade to AI Pro to use this hosted AI feature.',
+        }),
+    }) as typeof fetch
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Upgrade to AI Pro')
+    })
+
+    expect(useCoverLetterStore.getState().templates).toHaveLength(0)
+  })
 })

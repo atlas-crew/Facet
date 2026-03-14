@@ -1,3 +1,7 @@
+import type { FacetAiFeatureKey } from '../types/hosted'
+import { readAiProxyError } from './aiProxyErrors'
+import { getHostedAccessToken } from './hostedSession'
+
 /**
  * Shared AI proxy utilities.
  *
@@ -53,6 +57,8 @@ export interface LlmProxyOptions {
   apiKey?: string
   /** Optional proxy auth header override. */
   proxyApiKey?: string
+  /** Identifies the hosted AI feature for entitlement checks. */
+  feature?: FacetAiFeatureKey
 }
 
 /**
@@ -72,11 +78,13 @@ export async function callLlmProxy(
   const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
+    const bearerToken = await getHostedAccessToken()
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(options.apiKey ? { 'X-API-Key': options.apiKey } : {}),
+        ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
         'X-Proxy-API-Key': options.proxyApiKey ?? (import.meta.env.VITE_ANTHROPIC_PROXY_API_KEY as string | undefined) ?? DEFAULT_PROXY_API_KEY,
       },
       body: JSON.stringify({
@@ -84,13 +92,13 @@ export async function callLlmProxy(
         messages: [{ role: 'user', content: userPrompt }],
         temperature: options.temperature ?? 0.3,
         ...(options.model ? { model: options.model } : {}),
+        ...(options.feature ? { feature: options.feature } : {}),
       }),
       signal: controller.signal,
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`AI proxy error (${response.status}): ${errorText.slice(0, 160)}`)
+      throw await readAiProxyError(response)
     }
 
     const payload = (await response.json()) as Record<string, unknown>

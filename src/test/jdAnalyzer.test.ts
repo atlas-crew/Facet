@@ -68,6 +68,24 @@ describe('jdAnalyzer', () => {
       await expect(reframeBulletForVector('Original text', 'Vector 1', mockEndpoint))
         .rejects.toThrow('AI proxy error (500)')
     })
+
+    it('tags reframe requests with the paid AI feature id', async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: JSON.stringify({ reframed: 'Rewritten text', reasoning: 'Strategic reason' }) } }],
+        }),
+      } as Response)
+
+      await reframeBulletForVector('Original text', 'Vector 1', mockEndpoint)
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual(
+        expect.objectContaining({
+          feature: 'build.bullet-reframe',
+        }),
+      )
+    })
   })
 
   describe('analyzeJobDescription', () => {
@@ -96,6 +114,28 @@ describe('jdAnalyzer', () => {
       expect(result.primary_vector).toBe('v1')
       expect(result.suggested_target_line).toBe('Target')
       expect(result.suggested_variables.company).toBe('Acme')
+    })
+
+    it('surfaces hosted upgrade-required failures', async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: false,
+        status: 402,
+        text: async () =>
+          JSON.stringify({
+            code: 'ai_access_denied',
+            reason: 'upgrade_required',
+            feature: 'build.jd-analysis',
+            error: 'Upgrade to AI Pro to use this hosted AI feature.',
+          }),
+      } as Response)
+
+      await expect(
+        analyzeJobDescription(
+          prepareJobDescription('Job desc text'),
+          mockResumeData as ResumeData,
+          mockEndpoint,
+        ),
+      ).rejects.toThrow('Upgrade to AI Pro to use this hosted AI feature.')
     })
   })
 })

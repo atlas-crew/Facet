@@ -117,6 +117,7 @@ ${JSON.stringify(request.resumeContext, null, 2)}
 Return JSON only.`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+    feature: 'letters.generate',
     model: COVER_LETTER_MODEL,
     timeoutMs: 45000,
   })

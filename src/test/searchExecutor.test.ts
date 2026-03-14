@@ -297,4 +297,30 @@ describe('searchExecutor', () => {
       executeSearch(baseProfile, baseRequest, 'https://ai.example/proxy'),
     ).rejects.toThrow('Failed to parse search results response.')
   })
+
+  it('sends the hosted feature id and surfaces upgrade-required proxy failures', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 402,
+      text: async () =>
+        JSON.stringify({
+          code: 'ai_access_denied',
+          reason: 'upgrade_required',
+          feature: 'research.search',
+          error: 'Upgrade to AI Pro to use this hosted AI feature.',
+        }),
+    } as Response)
+
+    await expect(
+      callSearchProxy('https://ai.example/proxy', 'System', 'User prompt'),
+    ).rejects.toThrow('Upgrade to AI Pro to use this hosted AI feature.')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(
+      expect.objectContaining({
+        feature: 'research.search',
+      }),
+    )
+  })
 })

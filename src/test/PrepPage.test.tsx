@@ -130,4 +130,31 @@ describe('PrepPage', () => {
 
     expect(screen.getByDisplayValue('New Prep Card')).toBeTruthy()
   })
+
+  it('shows hosted upgrade messaging without blocking manual prep creation', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 402,
+      text: async () =>
+        JSON.stringify({
+          code: 'ai_access_denied',
+          reason: 'upgrade_required',
+          feature: 'prep.generate',
+          error: 'Upgrade to AI Pro to use this hosted AI feature.',
+        }),
+    }) as typeof fetch
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Upgrade to AI Pro to use this hosted AI feature.')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getAllByText('Blank Set')[0])
+
+    expect(usePrepStore.getState().decks).toHaveLength(1)
+    expect(screen.getAllByDisplayValue('Acme Corp Staff Engineer Interview Prep').length).toBeGreaterThan(0)
+  })
 })

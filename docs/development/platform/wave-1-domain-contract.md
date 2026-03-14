@@ -181,6 +181,12 @@ The backend is authoritative for:
 - workspace ownership and membership
 - hosted billing reconciliation
 
+Hosted AI request contract:
+- browser AI requests must declare the invoked `feature`
+- hosted browser requests should carry the verified session bearer token when one exists
+- the proxy must reject hosted AI requests that omit a valid feature or lack the
+  required paid entitlement
+
 ## Implementation Contract in Code
 
 The executable contract for this task lives in:

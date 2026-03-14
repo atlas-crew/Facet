@@ -85,6 +85,7 @@ These values are safe to expose in the browser bundle.
 |---|---|---|---|
 | `VITE_FACET_ENVIRONMENT` | optional | required | Environment label such as `local`, `staging`, or `production` |
 | `VITE_FACET_API_BASE_URL` | optional while local proxy remains in use | required | Base URL for the hosted Fly API |
+| `VITE_FACET_DEPLOYMENT_MODE` | optional today | required | Declares `hosted` vs `self-hosted` browser behavior for AI/session wiring |
 | `VITE_SUPABASE_URL` | optional until hosted auth lands | required | Supabase project URL for browser auth/session flows |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | optional until hosted auth lands | required | Supabase browser key |
 | `VITE_STRIPE_PRICE_AI_MONTHLY` | optional until billing UI lands | required | Price identifier for the paid AI plan |
@@ -95,6 +96,9 @@ Rules:
 - `VITE_ANTHROPIC_PROXY_API_KEY` is a local-development convenience only
 - hosted production must not rely on a client-bundled proxy key for trust
 - frontend feature gating may hide paid AI actions, but backend entitlement checks remain authoritative
+- hosted browser AI requests now derive their bearer token from the Supabase browser
+  session when one exists and declare the invoked AI feature for server-side
+  entitlement checks
 
 ## Backend API Environment Contract
 

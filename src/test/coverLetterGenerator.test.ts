@@ -111,4 +111,26 @@ describe('coverLetterGenerator', () => {
       }),
     ).rejects.toThrow('Cover letter response schema was invalid.')
   })
+
+  it('tags cover-letter generation requests with the paid AI feature id', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(
+      expect.objectContaining({
+        feature: 'letters.generate',
+      }),
+    )
+  })
 })

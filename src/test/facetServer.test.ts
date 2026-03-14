@@ -7,6 +7,7 @@ async function loadProxyModules() {
     { createFacetServer },
     { createInMemoryWorkspaceStore },
     { createInMemoryHostedMembershipStore },
+    { createInMemoryHostedBillingStore },
   ] = await Promise.all([
     // @ts-expect-error runtime-tested local proxy module
     import('../../proxy/facetServer.js'),
@@ -14,12 +15,15 @@ async function loadProxyModules() {
     import('../../proxy/persistenceApi.js'),
     // @ts-expect-error runtime-tested local proxy module
     import('../../proxy/hostedAuth.js'),
+    // @ts-expect-error runtime-tested local proxy module
+    import('../../proxy/billingState.js'),
   ])
 
   return {
     createFacetServer,
     createInMemoryWorkspaceStore,
     createInMemoryHostedMembershipStore,
+    createInMemoryHostedBillingStore,
   }
 }
 
@@ -92,11 +96,20 @@ async function createHostedSessionToken(
     .sign(privateKey)
 }
 
-async function startHostedServer() {
+async function startHostedServer(options?: {
+  entitlement?: {
+    planId: 'free' | 'ai-pro'
+    status: 'inactive' | 'trial' | 'active' | 'grace' | 'delinquent'
+    source: 'stripe'
+    features: string[]
+    effectiveThrough: string | null
+  } | null
+}) {
   const {
     createFacetServer,
     createInMemoryWorkspaceStore,
     createInMemoryHostedMembershipStore,
+    createInMemoryHostedBillingStore,
   } = await loadProxyModules()
   const store = createInMemoryWorkspaceStore()
   const hosted = await buildHostedAuthFixture()
@@ -115,6 +128,21 @@ async function startHostedServer() {
       ],
     },
   ])
+  const billingStore = createInMemoryHostedBillingStore([
+    {
+      tenantId: 'tenant-1',
+      accountId: 'account-1',
+      billingCustomer: null,
+      billingSubscription: null,
+      entitlement: options?.entitlement ?? {
+        planId: 'free',
+        status: 'inactive',
+        source: 'stripe',
+        features: [],
+        effectiveThrough: null,
+      },
+    },
+  ])
   const { server } = createFacetServer({
     authMode: 'hosted',
     allowedOrigins: ['http://localhost:5173'],
@@ -126,9 +154,13 @@ async function startHostedServer() {
       membershipStore,
     },
     persistenceStore: store,
+    billingStore,
     anthropicClient: {
       messages: {
-        create: async () => ({ content: [], usage: { input_tokens: 0, output_tokens: 0 } }),
+        create: async () => ({
+          content: [{ type: 'text', text: '{"ok":true}' }],
+          usage: { input_tokens: 0, output_tokens: 0 },
+        }),
       },
     },
     now: () => '2026-03-14T12:00:00.000Z',
@@ -331,5 +363,252 @@ describe('facetServer persistence API', () => {
       },
     })
     expect(unauthorizedWorkspace.status).toBe(403)
+  })
+
+  it('rejects hosted AI requests when the entitlement is missing or inactive', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer()
+    servers.add(server)
+
+    const denied = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(denied.status).toBe(402)
+    await expect(denied.json()).resolves.toEqual({
+      code: 'ai_access_denied',
+      reason: 'upgrade_required',
+      feature: 'research.search',
+      error: 'Upgrade to AI Pro to use this hosted AI feature.',
+    })
+  })
+
+  it('allows hosted AI requests when the entitlement includes the requested feature', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search', 'research.profile-inference'],
+        effectiveThrough: '2026-04-14T00:00:00.000Z',
+      },
+    })
+    servers.add(server)
+
+    const allowed = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(allowed.status).toBe(200)
+    await expect(allowed.json()).resolves.toEqual(
+      expect.objectContaining({
+        content: [{ type: 'text', text: '{"ok":true}' }],
+      }),
+    )
+  })
+
+  it('fails closed with a billing_state_error when hosted billing state cannot be loaded', async () => {
+    const { createFacetServer, createInMemoryWorkspaceStore, createInMemoryHostedMembershipStore } =
+      await loadProxyModules()
+    const hosted = await buildHostedAuthFixture()
+    const membershipStore = createInMemoryHostedMembershipStore([
+      {
+        tenantId: 'tenant-1',
+        accountId: 'account-1',
+        userId: 'user-1',
+        email: 'member@example.com',
+        workspaces: [
+          {
+            workspaceId: 'ws-1',
+            role: 'owner',
+            isDefault: true,
+          },
+        ],
+      },
+    ])
+    const { server } = createFacetServer({
+      authMode: 'hosted',
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      hostedAuth: {
+        issuer: 'https://supabase.example/auth/v1',
+        audience: 'authenticated',
+        jwks: hosted.jwks,
+        membershipStore,
+      },
+      billingStore: {
+        getAccountState: async () => {
+          throw new Error('disk read failed')
+        },
+        upsertAccountState: async () => {
+          throw new Error('not implemented')
+        },
+      },
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: async () => ({ content: [], usage: { input_tokens: 0, output_tokens: 0 } }),
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind billing-state test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${await createHostedSessionToken(hosted.privateKey)}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hosted billing state could not be loaded for this AI request.',
+      code: 'billing_state_error',
+    })
+  })
+
+  it('returns auth_internal_error when hosted actor resolution fails unexpectedly', async () => {
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+    const { server } = createFacetServer({
+      authMode: 'hosted',
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceActorResolver: async () => {
+        const error = new Error('jwks fetch timeout')
+        Object.assign(error, { status: 500 })
+        throw error
+      },
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: async () => ({ content: [], usage: { input_tokens: 0, output_tokens: 0 } }),
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind actor-resolve test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer token',
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Unable to verify identity for AI access.',
+      code: 'auth_internal_error',
+    })
+  })
+
+  it('returns incomplete_actor when hosted actor resolution succeeds without account identifiers', async () => {
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+    const { server } = createFacetServer({
+      authMode: 'hosted',
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceActorResolver: async () => ({
+        userId: 'user-1',
+        email: 'member@example.com',
+        workspaceMemberships: [],
+      }),
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: async () => ({ content: [], usage: { input_tokens: 0, output_tokens: 0 } }),
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind incomplete-actor test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer token',
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hosted AI access requires a tenant-scoped account context.',
+      code: 'incomplete_actor',
+    })
   })
 })

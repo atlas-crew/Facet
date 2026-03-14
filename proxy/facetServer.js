@@ -12,6 +12,11 @@ import {
   createStripeBillingClient,
 } from './billingApi.js'
 import {
+  createHostedAiErrorPayload,
+  isFacetAiFeatureKey,
+  resolveHostedAiAccess,
+} from './aiAccess.js'
+import {
   createFileHostedBillingStore,
   createInMemoryHostedBillingStore,
 } from './billingState.js'
@@ -153,21 +158,33 @@ export function createFacetServer(options = {}) {
     store: persistenceStore,
     now: options.now,
   })
-  const billingStore = options.billingStore ?? createInMemoryHostedBillingStore()
+  const billingStore =
+    authMode === 'hosted'
+      ? (options.billingStore ?? createInMemoryHostedBillingStore())
+      : null
+  const stripeClient =
+    options.stripeClient ??
+    (
+      options.stripeSecretKey
+        ? createStripeBillingClient({
+            secretKey: options.stripeSecretKey,
+          })
+        : null
+    )
+
+  if (authMode === 'hosted' && !stripeClient) {
+    console.warn('[proxy] hosted mode: Stripe client not configured; billing checkout will be unavailable')
+  }
+  if (authMode === 'hosted' && !options.stripePriceId) {
+    console.warn('[proxy] hosted mode: Stripe price id not configured; billing checkout will be unavailable')
+  }
+
   const billingApi =
     authMode === 'hosted'
       ? createBillingApi({
           actorResolver: persistenceActorResolver,
           billingStore,
-          stripeClient:
-            options.stripeClient ??
-            (
-              options.stripeSecretKey
-                ? createStripeBillingClient({
-                    secretKey: options.stripeSecretKey,
-                  })
-                : null
-            ),
+          stripeClient,
           stripePriceId: options.stripePriceId,
           successUrl: options.billingSuccessUrl ?? `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/success`,
           cancelUrl: options.billingCancelUrl ?? `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/cancel`,
@@ -208,20 +225,21 @@ export function createFacetServer(options = {}) {
       return
     }
 
-      try {
-        if (billingApi?.canHandle(req)) {
-          await billingApi.handle(
-            req,
-            res,
-            (request) => readBody(request, maxBodyBytes),
-            sendJson,
-          )
-          return
-        }
+    try {
+      // Keep the explicit billing routes ahead of the generic AI handler.
+      if (billingApi?.canHandle(req)) {
+        await billingApi.handle(
+          req,
+          res,
+          (request) => readBody(request, maxBodyBytes),
+          sendJson,
+        )
+        return
+      }
 
-        if (persistenceApi.canHandle(req)) {
-          await persistenceApi.handle(
-            req,
+      if (persistenceApi.canHandle(req)) {
+        await persistenceApi.handle(
+          req,
           res,
           (request) => readBody(request, maxBodyBytes),
           sendJson,
@@ -241,11 +259,65 @@ export function createFacetServer(options = {}) {
       }
 
       const body = await readBody(req, maxBodyBytes)
-      const { system, messages, temperature, max_tokens, model, thinking_budget, tools } = body
+      const { system, messages, temperature, max_tokens, model, thinking_budget, tools, feature } = body
 
       if (!hasValidMessages(messages)) {
         sendJson(res, 400, { error: 'Missing or invalid "messages" array' })
         return
+      }
+
+      if (authMode === 'hosted') {
+        if (!isFacetAiFeatureKey(feature)) {
+          sendJson(res, 400, {
+            error: 'Hosted AI requests must declare a valid feature.',
+            code: 'invalid_ai_feature',
+          })
+          return
+        }
+
+        let actor
+        try {
+          actor = await persistenceActorResolver(req)
+        } catch (error) {
+          if (error?.status === 401 || error?.status === 403) {
+            sendJson(res, error.status, {
+              error: 'Sign in to use AI features in hosted Facet.',
+              code: 'auth_required',
+            })
+            return
+          }
+
+          console.error('[proxy] actor_resolve_error', error)
+          sendJson(res, 500, {
+            error: 'Unable to verify identity for AI access.',
+            code: 'auth_internal_error',
+          })
+          return
+        }
+
+        if (!actor?.tenantId || !actor?.accountId) {
+          sendJson(res, 403, {
+            error: 'Hosted AI access requires a tenant-scoped account context.',
+            code: 'incomplete_actor',
+          })
+          return
+        }
+
+        try {
+          const billingState = await billingStore.getAccountState(actor.tenantId, actor.accountId)
+          const access = resolveHostedAiAccess(billingState, feature)
+          if (!access.allowed) {
+            sendJson(res, 402, createHostedAiErrorPayload(access.reason, feature))
+            return
+          }
+        } catch (error) {
+          console.error('[proxy] billing_state_error', error)
+          sendJson(res, 500, {
+            error: 'Hosted billing state could not be loaded for this AI request.',
+            code: 'billing_state_error',
+          })
+          return
+        }
       }
 
       const resolvedModel = resolveModel(model, defaultModel)
@@ -312,6 +384,10 @@ export function createFacetServer(options = {}) {
 
 export function createEnvFacetServer(env = process.env) {
   const authMode = env.FACET_AUTH_MODE === 'hosted' ? 'hosted' : 'local'
+  const allowedOrigins = (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
   const hostedAuth = authMode === 'hosted'
     ? {
         issuer:
@@ -329,12 +405,7 @@ export function createEnvFacetServer(env = process.env) {
   const billingBaseUrl =
     env.BILLING_APP_URL ??
     env.PUBLIC_APP_URL ??
-    (
-      (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean)[0]
-    ) ??
+    allowedOrigins[0] ??
     'http://localhost:5173'
   const billingStore =
     authMode === 'hosted'
@@ -343,10 +414,7 @@ export function createEnvFacetServer(env = process.env) {
 
   return createFacetServer({
     authMode,
-    allowedOrigins: (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    allowedOrigins,
     defaultModel: env.MODEL ?? DEFAULT_MODEL,
     defaultMaxTokens: parseInt(env.MAX_TOKENS ?? '4096', 10),
     maxRequestTokens: parseInt(env.MAX_REQUEST_TOKENS ?? env.MAX_TOKENS ?? '4096', 10),

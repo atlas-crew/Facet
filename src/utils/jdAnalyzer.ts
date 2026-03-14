@@ -71,6 +71,7 @@ ${options.strategy ? `Positioning Strategy: "${options.strategy}"` : ''}
 Respond in JSON only.`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+    feature: 'build.bullet-reframe',
     model: JD_ANALYSIS_MODEL,
     temperature: 0,
     apiKey: options.apiKey,
@@ -78,8 +79,11 @@ Respond in JSON only.`
 
   try {
     const extracted = extractJsonBlock(rawResponse)
-    const json = JSON.parse(extracted) as any
-    const parsed = json.analysis || json
+    const json = JSON.parse(extracted) as Record<string, unknown>
+    const parsed =
+      json.analysis && typeof json.analysis === 'object' && json.analysis !== null
+        ? (json.analysis as Record<string, unknown>)
+        : json
 
     if (typeof parsed.reframed !== 'string' || typeof parsed.reasoning !== 'string') {
       throw new Error('Invalid reframe response schema.')
@@ -192,6 +196,7 @@ ${JSON.stringify(context, null, 2)}
 Analyze how to best position this candidate for the JD. Respond in JSON only.`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+    feature: 'build.jd-analysis',
     model: JD_ANALYSIS_MODEL,
     temperature: 0,
     apiKey: options.apiKey,

@@ -258,6 +258,40 @@ describe('ResearchPage', () => {
     expect(screen.getByText('OldCo')).toBeTruthy()
   })
 
+  it('surfaces upgrade messaging when hosted AI profile inference is paywalled', async () => {
+    mockInferSearchProfile.mockRejectedValueOnce(
+      new Error('Upgrade to AI Pro to use this hosted AI feature.'),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Build Profile from Resume/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Upgrade to AI Pro')
+    })
+  })
+
+  it('surfaces billing-issue messaging without blocking the rest of the page', async () => {
+    mockExecuteSearch.mockRejectedValueOnce(
+      new Error('AI access is unavailable until billing is resolved for this hosted account.'),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.some((alert) => alert.textContent?.includes('billing is resolved'))).toBe(true)
+    })
+
+    expect(screen.getByRole('tab', { name: 'Profile Editor' })).toBeTruthy()
+  })
+
   it('hides the stale warning when resume and profile versions match', async () => {
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)

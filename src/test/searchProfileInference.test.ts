@@ -129,6 +129,13 @@ describe('searchProfileInference', () => {
     expect(inferred.skills).toHaveLength(1)
     expect(inferred.vectors[0]?.vectorId).toBe('backend')
     expect(inferred.openQuestions).toEqual(['Open to hybrid?'])
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(
+      expect.objectContaining({
+        feature: 'research.profile-inference',
+      }),
+    )
   })
 
   it('rethrows extraction errors and wraps malformed JSON errors', async () => {
