@@ -1,5 +1,4 @@
 import { createServer } from 'node:http'
-import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
@@ -223,42 +222,6 @@ function extractBearerToken(authorizationHeader) {
   return match?.[1] ?? null
 }
 
-function decodeJwtSubject(token) {
-  if (!token) {
-    return null
-  }
-
-  const [, encodedPayload] = token.split('.')
-  if (!encodedPayload) {
-    return null
-  }
-
-  try {
-    const payload = JSON.parse(
-      Buffer.from(encodedPayload, 'base64url').toString('utf8'),
-    )
-    return typeof payload.sub === 'string' && payload.sub.trim()
-      ? payload.sub.trim()
-      : null
-  } catch {
-    return null
-  }
-}
-
-function createRateLimitSubjectKey(req) {
-  const bearerToken = extractBearerToken(req.headers.authorization)
-  const stableSubject = decodeJwtSubject(bearerToken)
-  if (stableSubject) {
-    return `sub:${stableSubject}`
-  }
-
-  if (bearerToken) {
-    return createHash('sha256').update(bearerToken).digest('hex').slice(0, 24)
-  }
-
-  return req.socket.remoteAddress ?? 'anonymous'
-}
-
 const ALLOWED_TOOL_TYPES = new Set(['web_search_20250305'])
 
 function resolveModel(requested, defaultModel) {
@@ -310,6 +273,13 @@ function readBody(req, maxBodyBytes) {
     const chunks = []
     let bytesRead = 0
     let isClosed = false
+    let drainTimeout = null
+    const clearDrainTimeout = () => {
+      if (drainTimeout) {
+        clearTimeout(drainTimeout)
+        drainTimeout = null
+      }
+    }
     req.on('data', (chunk) => {
       if (isClosed) {
         return
@@ -317,28 +287,45 @@ function readBody(req, maxBodyBytes) {
       bytesRead += chunk.length
       if (bytesRead > maxBodyBytes) {
         isClosed = true
-        reject(new Error(`Request body exceeds ${maxBodyBytes} bytes`))
-        req.destroy()
+        const error = new Error('Request body too large')
+        error.status = 413
+        reject(error)
+        drainTimeout = setTimeout(() => {
+          if (!req.destroyed) {
+            req.destroy()
+          }
+        }, 1_000)
+        drainTimeout.unref?.()
+        req.resume()
         return
       }
       chunks.push(chunk)
     })
     req.on('end', () => {
       if (isClosed) {
+        clearDrainTimeout()
+        if (!req.destroyed) {
+          req.destroy()
+        }
         return
       }
       try {
+        clearDrainTimeout()
         resolve(JSON.parse(Buffer.concat(chunks).toString()))
       } catch {
-        reject(new Error('Invalid JSON body'))
+        const error = new Error('Invalid JSON body')
+        error.status = 400
+        reject(error)
       }
     })
     req.on('error', (error) => {
+      clearDrainTimeout()
       if (isClosed) {
         return
       }
       reject(error)
     })
+    req.on('close', clearDrainTimeout)
   })
 }
 
@@ -368,7 +355,12 @@ async function resolveCanonicalStaticFile(staticRoot, filePath) {
 }
 
 async function resolveStaticFilePath(staticRoot, pathname) {
-  const requestedPath = pathname === '/' ? '/index.html' : pathname
+  let requestedPath
+  try {
+    requestedPath = pathname === '/' ? '/index.html' : decodeURIComponent(pathname)
+  } catch {
+    return null
+  }
   if (requestedPath.includes('\0')) {
     return null
   }
@@ -497,8 +489,18 @@ export function createFacetServer(options = {}) {
           })
         : createTokenActorResolver(persistenceAuthTokens)
     )
+  const requestActorSymbol = Symbol('facet.requestActor')
+  const resolveRequestActor = async (req) => {
+    if (req[requestActorSymbol]) {
+      return req[requestActorSymbol]
+    }
+
+    const actor = await persistenceActorResolver(req)
+    req[requestActorSymbol] = actor
+    return actor
+  }
   const persistenceApi = createPersistenceApi({
-    actorResolver: persistenceActorResolver,
+    actorResolver: resolveRequestActor,
     store: persistenceStore,
     now: options.now,
     onEvent:
@@ -530,7 +532,7 @@ export function createFacetServer(options = {}) {
   const billingApi =
     authMode === 'hosted'
       ? createBillingApi({
-          actorResolver: persistenceActorResolver,
+          actorResolver: resolveRequestActor,
           billingStore,
           stripeClient,
           stripePriceId: options.stripePriceId,
@@ -541,6 +543,53 @@ export function createFacetServer(options = {}) {
       : null
 
   const isAllowedOrigin = (origin) => allowedOrigins.includes(origin)
+  const createHostedRateLimitKey = (actor, req) => {
+    if (actor?.tenantId && actor?.accountId) {
+      return `account:${actor.tenantId}:${actor.accountId}`
+    }
+
+    if (actor?.tenantId && actor?.userId) {
+      return `user:${actor.tenantId}:${actor.userId}`
+    }
+
+    return `ip:${req.socket.remoteAddress ?? 'anonymous'}`
+  }
+  const enforceHostedRateLimit = (req, res, pathname, bucket, actor) => {
+    const subjectKey = createHostedRateLimitKey(actor, req)
+    const rateLimit = hostedRateLimiter.consume(bucket, subjectKey)
+    if (rateLimit.allowed) {
+      return true
+    }
+
+    operationsMonitor.record(bucket, 'rate_limited', {
+      method: req.method,
+      path: pathname,
+    })
+    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
+    sendJson(res, 429, {
+      error: `Rate limit exceeded for hosted ${bucket}.`,
+      code: 'rate_limited',
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    })
+    return false
+  }
+  const enforceHostedRouteRateLimit = async (req, res, pathname) => {
+    if (authMode !== 'hosted') {
+      return true
+    }
+
+    const rateLimitBucket = resolveHostedRateLimitBucket(req, pathname)
+    if (!rateLimitBucket) {
+      return true
+    }
+
+    try {
+      const actor = await resolveRequestActor(req)
+      return enforceHostedRateLimit(req, res, pathname, rateLimitBucket, actor)
+    } catch {
+      return enforceHostedRateLimit(req, res, pathname, rateLimitBucket, null)
+    }
+  }
 
   function setCors(req, res) {
     const origin = req.headers.origin
@@ -593,8 +642,7 @@ export function createFacetServer(options = {}) {
     const hasValidProxyApiKey = req.headers['x-proxy-api-key'] === proxyApiKey
     const hasHostedBearerToken =
       authMode === 'hosted' &&
-      typeof req.headers.authorization === 'string' &&
-      /^Bearer\s+\S+/i.test(req.headers.authorization)
+      Boolean(extractBearerToken(req.headers.authorization))
 
     if (!hasValidProxyApiKey && !hasHostedBearerToken) {
       sendJson(res, 401, {
@@ -603,32 +651,12 @@ export function createFacetServer(options = {}) {
       return
     }
 
-    if (authMode === 'hosted') {
-      const rateLimitBucket = resolveHostedRateLimitBucket(req, url.pathname)
-      if (rateLimitBucket) {
-        const rateLimit = hostedRateLimiter.consume(
-          rateLimitBucket,
-          createRateLimitSubjectKey(req),
-        )
-        if (!rateLimit.allowed) {
-          operationsMonitor.record(rateLimitBucket, 'rate_limited', {
-            method: req.method,
-            path: url.pathname,
-          })
-          res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
-          sendJson(res, 429, {
-            error: `Rate limit exceeded for hosted ${rateLimitBucket}.`,
-            code: 'rate_limited',
-            retryAfterSeconds: rateLimit.retryAfterSeconds,
-          })
-          return
-        }
-      }
-    }
-
     try {
       // Keep the explicit billing routes ahead of the generic AI handler.
       if (billingApi?.canHandle(req)) {
+        if (!await enforceHostedRouteRateLimit(req, res, url.pathname)) {
+          return
+        }
         await billingApi.handle(
           req,
           res,
@@ -639,6 +667,9 @@ export function createFacetServer(options = {}) {
       }
 
       if (persistenceApi.canHandle(req)) {
+        if (!await enforceHostedRouteRateLimit(req, res, url.pathname)) {
+          return
+        }
         await persistenceApi.handle(
           req,
           res,
@@ -697,7 +728,7 @@ export function createFacetServer(options = {}) {
 
         let actor
         try {
-          actor = await persistenceActorResolver(req)
+          actor = await resolveRequestActor(req)
         } catch (error) {
           if (error?.status === 401 || error?.status === 403) {
             operationsMonitor.record('ai', 'denied', {
@@ -735,6 +766,10 @@ export function createFacetServer(options = {}) {
             error: 'Hosted AI access requires a tenant-scoped account context.',
             code: 'incomplete_actor',
           })
+          return
+        }
+
+        if (!enforceHostedRateLimit(req, res, url.pathname, 'ai', actor)) {
           return
         }
 

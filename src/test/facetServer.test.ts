@@ -1,3 +1,6 @@
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SignJWT, exportJWK, generateKeyPair } from 'jose'
 import { buildForgedWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
@@ -28,11 +31,15 @@ async function loadProxyModules() {
   }
 }
 
-async function startServer() {
+async function startServer(options?: {
+  maxBodyBytes?: number
+  staticDir?: string
+}) {
   const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
   const store = createInMemoryWorkspaceStore()
   const { server } = createFacetServer({
     allowedOrigins: ['http://localhost:5173'],
+    maxBodyBytes: options?.maxBodyBytes,
     proxyApiKey: 'proxy-key',
     persistenceAuthTokens: [
       {
@@ -49,6 +56,7 @@ async function startServer() {
       },
     },
     now: () => '2026-03-11T12:00:00.000Z',
+    staticDir: options?.staticDir,
   })
 
   await new Promise<void>((resolve) => {
@@ -208,6 +216,7 @@ async function startHostedServer(options?: {
 
 describe('facetServer persistence API', () => {
   const servers = new Set<import('node:http').Server>()
+  const tempDirs = new Set<string>()
 
   afterEach(async () => {
     await Promise.all(
@@ -222,6 +231,122 @@ describe('facetServer persistence API', () => {
       })),
     )
     servers.clear()
+    await Promise.all(
+      [...tempDirs].map((dir) => rm(dir, { recursive: true, force: true })),
+    )
+    tempDirs.clear()
+  })
+
+  it('serves static files with cache headers and blocks symlink escapes', async () => {
+    const staticDir = await mkdtemp(join(tmpdir(), 'facet-static-'))
+    tempDirs.add(staticDir)
+    await writeFile(join(staticDir, 'index.html'), '<!doctype html><html><body>Facet static shell</body></html>')
+    await mkdir(join(staticDir, 'assets'), { recursive: true })
+    await writeFile(join(staticDir, 'assets', 'app.js'), 'console.log("facet-static")')
+    await writeFile(join(staticDir, 'hello world.txt'), 'Facet encoded path')
+    await symlink(join(process.cwd(), 'package.json'), join(staticDir, 'escape.json'))
+
+    const { server, baseUrl } = await startServer({ staticDir })
+    servers.add(server)
+
+    const asset = await fetch(`${baseUrl}/assets/app.js`)
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('Content-Type')).toBe('text/javascript; charset=utf-8')
+    expect(asset.headers.get('Cache-Control')).toBe('public, immutable, max-age=31536000')
+    await expect(asset.text()).resolves.toContain('facet-static')
+
+    const shell = await fetch(`${baseUrl}/dashboard`)
+    expect(shell.status).toBe(200)
+    expect(shell.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    expect(shell.headers.get('Cache-Control')).toBe('no-cache')
+    await expect(shell.text()).resolves.toContain('Facet static shell')
+
+    const encodedPath = await fetch(`${baseUrl}/hello%20world.txt`)
+    expect(encodedPath.status).toBe(200)
+    expect(encodedPath.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
+    await expect(encodedPath.text()).resolves.toBe('Facet encoded path')
+
+    const escaped = await fetch(`${baseUrl}/escape.json`, {
+      headers: {
+        Authorization: 'Bearer member-token',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+    })
+    expect(escaped.status).not.toBe(200)
+    await expect(escaped.text()).resolves.not.toContain('"name"')
+  })
+
+  it('handles OPTIONS preflight and rejects disallowed origins', async () => {
+    const { server, baseUrl } = await startServer()
+    servers.add(server)
+
+    const preflight = await fetch(baseUrl, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Headers': 'Content-Type, Authorization',
+        'Access-Control-Request-Method': 'POST',
+      },
+    })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173')
+    expect(preflight.headers.get('Access-Control-Allow-Methods')).toContain('OPTIONS')
+    expect(preflight.headers.get('Access-Control-Allow-Headers')).toContain('Authorization')
+
+    const blocked = await fetch(`${baseUrl}/api/persistence/workspaces/ws-1`, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer member-token',
+        Origin: 'https://evil.example',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+    })
+    expect(blocked.status).toBe(403)
+    await expect(blocked.json()).resolves.toEqual({
+      error: 'Origin not allowed',
+    })
+  })
+
+  it('returns client errors for malformed and oversized JSON bodies', async () => {
+    const malformedServer = await startServer()
+    servers.add(malformedServer.server)
+
+    const malformed = await fetch(malformedServer.baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer member-token',
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: '{ bad_json ',
+    })
+    expect(malformed.status).toBe(400)
+    await expect(malformed.json()).resolves.toEqual({
+      error: 'Invalid JSON body',
+    })
+
+    const limitedServer = await startServer({ maxBodyBytes: 64 })
+    servers.add(limitedServer.server)
+    const oversized = await fetch(limitedServer.baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer member-token',
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'x'.repeat(200) }],
+      }),
+    })
+    expect(oversized.status).toBe(413)
+    await expect(oversized.json()).resolves.toEqual({
+      error: 'Request body too large',
+    })
   })
 
   it('requires bearer auth and workspace membership for persistence routes', async () => {
@@ -730,7 +855,7 @@ describe('facetServer persistence API', () => {
     })
   })
 
-  it('applies hosted rate limits to refreshed tokens for the same subject', async () => {
+  it('applies hosted rate limits across refreshed tokens after actor verification', async () => {
     const { server, baseUrl, accessToken, createAccessToken } = await startHostedServer({
       entitlement: {
         planId: 'ai-pro',

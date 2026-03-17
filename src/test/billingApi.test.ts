@@ -56,7 +56,20 @@ async function createHostedSessionToken(
     .sign(privateKey)
 }
 
-async function startBillingServer() {
+async function startBillingServer(options?: {
+  stripeClient?: {
+    customers: {
+      create: () => Promise<{ id: string }>
+      retrieve: (customerId: string) => Promise<{ id: string, deleted: boolean }>
+    }
+    checkout: {
+      sessions: {
+        create: () => Promise<{ id: string, url: string }>
+      }
+    }
+  } | null
+  stripePriceId?: string | null
+}) {
   const {
     createFacetServer,
     createInMemoryWorkspaceStore,
@@ -96,7 +109,7 @@ async function startBillingServer() {
     },
   ])
 
-  const stripeClient = {
+  const defaultStripeClient = {
     customers: {
       create: async () => ({ id: 'cus_created' }),
       retrieve: async (customerId: string) => ({ id: customerId, deleted: false }),
@@ -123,8 +136,8 @@ async function startBillingServer() {
     },
     persistenceStore: createInMemoryWorkspaceStore(),
     billingStore,
-    stripeClient,
-    stripePriceId: 'price_ai_monthly',
+    stripeClient: options?.stripeClient === undefined ? defaultStripeClient : options.stripeClient,
+    stripePriceId: options?.stripePriceId === undefined ? 'price_ai_monthly' : options.stripePriceId,
     billingSuccessUrl: 'http://localhost:5173/settings/billing/success',
     billingCancelUrl: 'http://localhost:5173/settings/billing/cancel',
     anthropicClient: {
@@ -251,6 +264,48 @@ describe('facetServer billing API', () => {
         provider: 'stripe',
         customerId: 'cus_created',
       },
+    })
+  })
+
+  it('fails cleanly when hosted billing is missing Stripe configuration', async () => {
+    const missingStripe = await startBillingServer({
+      stripeClient: null,
+    })
+    servers.add(missingStripe.server)
+
+    const missingStripeResponse = await fetch(`${missingStripe.baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${missingStripe.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(missingStripeResponse.status).toBe(500)
+    await expect(missingStripeResponse.json()).resolves.toEqual({
+      error: 'Hosted billing is not fully configured.',
+    })
+
+    const missingPrice = await startBillingServer({
+      stripePriceId: null,
+    })
+    servers.add(missingPrice.server)
+
+    const missingPriceResponse = await fetch(`${missingPrice.baseUrl}/api/billing/checkout-session`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${missingPrice.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(missingPriceResponse.status).toBe(500)
+    await expect(missingPriceResponse.json()).resolves.toEqual({
+      error: 'Hosted billing is not fully configured.',
     })
   })
 })
