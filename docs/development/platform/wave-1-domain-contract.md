@@ -110,10 +110,13 @@ Wave 1 statuses:
 Wave 1 paid AI features are:
 - `build.jd-analysis`
 - `build.bullet-reframe`
+- `match.jd-analysis`
 - `research.profile-inference`
 - `research.search`
 - `prep.generate`
 - `letters.generate`
+- `linkedin.generate`
+- `debrief.generate`
 
 Everything else in the shipped product remains in the free standard boundary,
 including:

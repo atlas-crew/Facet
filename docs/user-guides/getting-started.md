@@ -207,6 +207,7 @@ enforcement ensure the result fits within your target length.
 
 ## Next Steps
 
+- [Hosted Accounts](hosted-accounts.md) -- hosted beta setup, migration, upgrade, and recovery guidance.
 - [Vectors](vectors.md) -- learn how vectors control assembly and how to manage them.
 - [Components](components.md) -- understand all seven component types and their controls.
 - [NAVIGATOR](../NAVIGATOR.md) -- return to the documentation index.

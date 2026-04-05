@@ -11,6 +11,7 @@ Guides for using Facet to build and manage your resumes.
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](user-guides/getting-started.md) | Interface overview, first-time setup, and your first resume in 5 minutes |
+| [Hosted Accounts](user-guides/hosted-accounts.md) | Hosted beta setup, workspace migration, AI upgrade messaging, and recovery paths |
 | [Vectors](user-guides/vectors.md) | Creating and managing positioning angles for tailored resumes |
 | [Components](user-guides/components.md) | Component types, card anatomy, adding and editing resume content |
 | [Priorities and Overrides](user-guides/priorities-and-overrides.md) | Priority levels, manual overrides, and the override hierarchy |
@@ -26,15 +27,16 @@ Guides for using Facet to build and manage your resumes.
 If you are new to Facet, read the guides in this order:
 
 1. **Getting Started** — orientation and first walkthrough
-2. **Vectors** — the core concept that makes Facet different
-3. **Components** — your resume building blocks
-4. **Priorities and Overrides** — controlling what appears and when
-5. **Text Variants** — tailoring phrasing per vector
-6. **Preview and Export** — seeing results and getting output
-7. **Page Budget** — understanding the constraint system
-8. **Bullet Ordering** — fine-tuning presentation order
-9. **Presets** — saving configurations for reuse
-10. **Design and Themes** — visual customization
+2. **Hosted Accounts** — hosted beta setup, migration, and recovery guidance
+3. **Vectors** — the core concept that makes Facet different
+4. **Components** — your resume building blocks
+5. **Priorities and Overrides** — controlling what appears and when
+6. **Text Variants** — tailoring phrasing per vector
+7. **Preview and Export** — seeing results and getting output
+8. **Page Budget** — understanding the constraint system
+9. **Bullet Ordering** — fine-tuning presentation order
+10. **Presets** — saving configurations for reuse
+11. **Design and Themes** — visual customization
 
 ---
 
@@ -47,7 +49,9 @@ Documentation for contributors and developers working on the Facet codebase.
 | [Style Guide](development/ui/facet-style-guide.md) | Design system, CSS custom properties, color palette, typography, and UI conventions |
 | [Wave 1 Hosting Foundation](development/platform/wave-1-hosting-foundation.md) | Provider lock, environment contract, migration workflow, and billing webhook contract for hosted accounts |
 | [Wave 1 Domain Contract](development/platform/wave-1-domain-contract.md) | Hosted vs self-hosted AI rules, account/workspace entities, and entitlement contract for Wave 1 |
+| [Wave 1 Pricing And Entitlements](development/platform/wave-1-pricing-and-entitlements.md) | Internal source of truth for hosted pricing, AI-gated features, and entitlement messaging |
 | [Wave 1 Operations Runbook](development/platform/wave-1-operations-runbook.md) | Hosted launch controls, rate limits, alert signals, and rollback or restore procedures for the Wave 1 beta |
+| [Wave 1 Beta Support Playbook](development/platform/wave-1-beta-support-playbook.md) | Launch communication, support scenarios, known limits, and escalation guidance for the hosted beta |
 
 ### Plans (Archived)
 
