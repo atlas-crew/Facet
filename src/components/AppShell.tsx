@@ -30,6 +30,7 @@ import { createRemotePersistenceBackend } from '../persistence/remoteBackend'
 import { useHostedAppStore } from '../store/hostedAppStore'
 import { isFacetApiError } from '../utils/facetApiErrors'
 import { getHostedPersistenceEndpoint } from '../utils/hostedApi'
+import { reloadPage } from '../utils/windowLocation'
 import { FacetGemMark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
 import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
@@ -285,7 +286,7 @@ export function AppShell() {
     })
 
   const handleSessionRefresh = () => {
-    window.location.reload()
+    reloadPage()
   }
 
   const syncLabelByPhase: Partial<Record<typeof persistenceState.status.phase, string>> = {
@@ -393,6 +394,7 @@ export function AppShell() {
           <div>
             <strong>No hosted workspace selected</strong>
             <p>Create your first hosted workspace, or import your existing local workspace.</p>
+            {hostedApp.lastError ? <p role="alert">{hostedApp.lastError}</p> : null}
             <div className="hosted-workspace-state-actions">
               <button
                 className="btn-secondary"

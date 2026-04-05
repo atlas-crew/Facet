@@ -24,6 +24,10 @@ const remoteBackendMocks = vi.hoisted(() => ({
   createRemotePersistenceBackend: vi.fn(() => ({ kind: 'remote' })),
 }))
 
+const locationMocks = vi.hoisted(() => ({
+  reloadPage: vi.fn(),
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
     <a href={to} {...props}>
@@ -55,6 +59,7 @@ vi.mock('../persistence/runtime', async () => {
 })
 
 vi.mock('../persistence/remoteBackend', () => remoteBackendMocks)
+vi.mock('../utils/windowLocation', () => locationMocks)
 vi.mock('../utils/hostedApi', async () => {
   const actual = await vi.importActual<typeof import('../utils/hostedApi')>(
     '../utils/hostedApi',
@@ -72,7 +77,8 @@ vi.mock('../components/WorkspaceBackupReminder', () => ({
   WorkspaceBackupReminder: () => null,
 }))
 vi.mock('../components/WorkspaceBackupDialog', () => ({
-  WorkspaceBackupDialog: () => null,
+  WorkspaceBackupDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="workspace-backup-dialog">Backup Dialog</div> : null,
 }))
 
 const hostedContext = {
@@ -188,6 +194,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     runtimeMocks.getPersistenceRuntimeStart.mockReset()
     runtimeMocks.replacePersistenceRuntime.mockReset()
     remoteBackendMocks.createRemotePersistenceBackend.mockClear()
+    locationMocks.reloadPage.mockReset()
     setPersistenceHydration(false)
   })
 
@@ -296,6 +303,23 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('button', { name: /refresh billing state/i })).toBeTruthy()
   })
 
+  it('reloads the session when the hosted billing recovery button is clicked', async () => {
+    locationMocks.reloadPage.mockReset()
+
+    setHostedStore({
+      bootstrapStatus: 'error',
+      selectedWorkspaceId: null,
+      workspaces: [],
+      lastError: 'Hosted billing state unavailable (500)',
+      lastErrorCode: 'billing_state_error',
+    })
+
+    render(<AppShell />)
+    fireEvent.click(screen.getByRole('button', { name: /refresh billing state/i }))
+
+    expect(locationMocks.reloadPage).toHaveBeenCalledTimes(1)
+  })
+
   it('surfaces hosted billing issues distinctly during bootstrap recovery', async () => {
     setHostedStore({
       bootstrapStatus: 'error',
@@ -309,6 +333,22 @@ describe('AppShell hosted workspace bootstrap', () => {
     render(<AppShell />)
 
     expect(screen.getByRole('alert').textContent).toContain('Hosted billing issue')
+    expect(screen.getByRole('alert').textContent).not.toContain('Hosted bootstrap failed')
+  })
+
+  it('surfaces hosted upgrade requirements distinctly during bootstrap recovery', async () => {
+    setHostedStore({
+      bootstrapStatus: 'error',
+      selectedWorkspaceId: null,
+      workspaces: [],
+      lastError: 'Upgrade required for hosted access (402)',
+      lastErrorCode: 'ai_access_denied',
+      lastErrorReason: 'upgrade_required',
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('alert').textContent).toContain('Hosted upgrade required')
     expect(screen.getByRole('alert').textContent).not.toContain('Hosted bootstrap failed')
   })
 
@@ -338,6 +378,34 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     expect(screen.getByRole('button', { name: /refresh session/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /backup workspace/i })).toBeTruthy()
+  })
+
+  it('opens the backup dialog from the hosted runtime recovery screen', async () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-previous')
+
+    runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(null)
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn().mockRejectedValue(
+        new FacetApiError('Hosted session expired (401)', {
+          status: 401,
+          code: 'auth_required',
+        }),
+      ),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /backup workspace/i })).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /backup workspace/i }))
+    expect(screen.getByTestId('workspace-backup-dialog')).toBeTruthy()
   })
 
   it('surfaces hosted upgrade requirements distinctly from generic runtime sync failures', async () => {
@@ -371,6 +439,47 @@ describe('AppShell hosted workspace bootstrap', () => {
       lastErrorReason: 'upgrade_required',
     })
   })
+
+  it.each([
+    [
+      new FacetApiError('Hosted billing state unavailable (500)', {
+        status: 500,
+        code: 'billing_state_error',
+      }),
+      'Hosted billing state unavailable',
+    ],
+    [
+      new FacetApiError('Billing issue on hosted account (402)', {
+        status: 402,
+        code: 'ai_access_denied',
+        reason: 'billing_issue',
+      }),
+      'Hosted billing issue',
+    ],
+  ])(
+    'surfaces %s distinctly during hosted runtime recovery',
+    async (runtimeError, expectedLabel) => {
+      setHostedStore({})
+      setPersistenceHydration(true, 'ws-previous')
+
+      runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(null)
+      runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+        start: vi.fn().mockRejectedValue(runtimeError),
+        flush: vi.fn().mockResolvedValue(undefined),
+        exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+        importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+        dispose: vi.fn(),
+      })
+
+      render(<AppShell />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert').textContent).toContain(expectedLabel)
+      })
+
+      expect(screen.getByRole('alert').textContent).not.toContain('Hosted workspace sync failed')
+    },
+  )
 
   it('surfaces migration import failures after create-from-local-data instead of treating them as success', async () => {
     const migrationSnapshot = buildWorkspaceSnapshot({
@@ -447,6 +556,38 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
     expect(screen.getByRole('alert').textContent).toContain('Hosted import failed')
     expect(useHostedAppStore.getState().lastError).toBe('Hosted import failed')
+  })
+
+  it('surfaces create-workspace failures during local import onboarding', async () => {
+    const migrationSnapshot = buildWorkspaceSnapshot()
+    const createWorkspace = vi.fn().mockImplementation(async () => {
+      useHostedAppStore.setState({ lastError: 'Hosted workspace creation failed' })
+      throw new Error('Hosted workspace creation failed')
+    })
+
+    setHostedStore({
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: migrationSnapshot,
+      createWorkspace,
+      lastError: null,
+    })
+
+    runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(migrationSnapshot)
+
+    render(<AppShell />)
+    fireEvent.click(screen.getByRole('button', { name: /import local workspace/i }))
+
+    await waitFor(() => {
+      expect(createWorkspace).toHaveBeenCalledWith({
+        name: 'Imported Workspace',
+      })
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Hosted workspace creation failed')
+    })
+
+    expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
   })
 
   it('abandons a pending migration import when the user switches workspaces mid-load', async () => {
