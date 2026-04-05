@@ -501,6 +501,41 @@ describe('resumeScanner parser', () => {
     ])
   })
 
+  it('falls back to generated link ids when URL normalization fails', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('nick@example.com | Tampa, FL | http://[::1', 744),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.links).toEqual([
+      { id: 'link-1', url: 'http://[::1' },
+    ])
+  })
+
+  it('ignores rogue bullets that appear before the first role header', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('• Summary bullet that should be ignored', 684),
+      ...buildLine('Staff Engineer | Acme Corp | 2022 - Present', 668),
+      ...buildLine('• Stabilized the hosted release pipeline.', 652),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Acme Corp',
+        dates: '2022 - Present',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
   it('surfaces fallback warnings when structural sections are missing after text extraction succeeds', () => {
     const sparseItems: ResumeTextItem[] = [
       ...buildLine('Nick Ferguson', 760),
@@ -530,5 +565,37 @@ describe('resumeScanner parser', () => {
 
   it('throws a clear error for image-only or unreadable PDFs', () => {
     expect(() => parseResumeTextItems([])).toThrow(/image-only or unreadable/i)
+  })
+
+  it('splits skill lines across pipes, semicolons, and bullet separators', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Skills', 700),
+      ...buildLine('Tooling: React | Node ; Python • AWS', 684),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const skillGroups = extractSkillGroups(sections)
+
+    expect(skillGroups).toEqual([
+      { label: 'Tooling', items: ['React', 'Node', 'Python', 'AWS'] },
+    ])
+  })
+
+  it('extracts education fields from unstructured degree-first lines', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Education', 700),
+      ...buildLine('B.S. in Computer Science, University of Florida', 684),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const education = extractEducation(sections)
+
+    expect(education).toEqual([
+      {
+        school: 'University of Florida',
+        degree: 'B.S. in Computer Science',
+        location: '',
+      },
+    ])
   })
 })

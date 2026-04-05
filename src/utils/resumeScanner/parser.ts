@@ -27,6 +27,8 @@ const DATE_RANGE_PATTERN = new RegExp(DATE_RANGE_SOURCE, 'i')
 const FULL_DATE_SEGMENT_PATTERN = new RegExp(`^(?:${DATE_RANGE_SOURCE}|${DATE_TOKEN_SOURCE})$`, 'i')
 const ROLE_KEYWORD_PATTERN = new RegExp(`\\b${ROLE_KEYWORD_SOURCE}\\b`, 'i')
 const ROLE_KEYWORD_END_PATTERN = new RegExp(`\\b${ROLE_KEYWORD_SOURCE}$`, 'i')
+const DEGREE_PATTERN =
+  /(?:\b(?:bachelor|master|associate|doctor|phd|certificate|mba|aas)\b|b\.s\.|b\.a\.|m\.s\.)/i
 const TRAILING_DATE_PATTERN = new RegExp(
   `(?:${TRAILING_DATE_SEPARATOR_SOURCE}\\s*)(${DATE_TOKEN_SOURCE})$`,
   'i',
@@ -501,11 +503,7 @@ const parseEducationEntry = (text: string): ParsedResumeEducation => {
     parts[0] ??
     ''
   const degree =
-    parts.find((entry) =>
-      /\b(bachelor|master|associate|doctor|phd|certificate|b\.s\.|b\.a\.|m\.s\.|mba|aas)\b/i.test(
-        entry,
-      ),
-    ) ?? ''
+    parts.find((entry) => DEGREE_PATTERN.test(entry)) ?? ''
   const location =
     parts.find(
       (entry) =>
