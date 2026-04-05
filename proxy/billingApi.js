@@ -28,6 +28,12 @@ function normalizeAccount(actor, state) {
   }
 }
 
+function actorCanManageBilling(actor) {
+  return Array.isArray(actor.workspaceMemberships) && actor.workspaceMemberships.some(
+    (membership) => membership.role === 'owner',
+  )
+}
+
 async function readJsonBody(readBody, req) {
   const body = await readBody(req)
   return isRecord(body) ? body : {}
@@ -81,6 +87,23 @@ export function createBillingApi({
         return
       }
 
+      if (!actorCanManageBilling(actor)) {
+        onEvent?.(
+          url.pathname === customerRoute ? 'billing.customer' : 'billing.checkout',
+          'denied',
+          {
+            code: 'billing_owner_required',
+            method: req.method,
+            path: url.pathname,
+          },
+        )
+        sendJson(res, 403, {
+          error: 'Only workspace owners can manage hosted billing.',
+          code: 'billing_owner_required',
+        })
+        return
+      }
+
       if (!stripeClient) {
         onEvent?.('billing.config', 'error', {
           code: 'stripe_not_configured',
@@ -92,51 +115,64 @@ export function createBillingApi({
       }
 
       if (req.method === 'POST' && url.pathname === customerRoute) {
-        const body = await readJsonBody(readBody, req)
-        let customer
+        try {
+          const body = await readJsonBody(readBody, req)
+          let customer
 
-        if (typeof body.customerId === 'string' && body.customerId.trim()) {
-          customer = await stripeClient.customers.retrieve(body.customerId.trim())
-          if (customer.deleted) {
-            sendJson(res, 400, { error: 'Stripe customer is deleted and cannot be linked.' })
-            return
+          if (typeof body.customerId === 'string' && body.customerId.trim()) {
+            customer = await stripeClient.customers.retrieve(body.customerId.trim())
+            if (customer.deleted) {
+              sendJson(res, 400, { error: 'Stripe customer is deleted and cannot be linked.' })
+              return
+            }
+          } else if (state?.billingCustomer?.customerId) {
+            customer = await stripeClient.customers.retrieve(state.billingCustomer.customerId)
+            if (customer.deleted) {
+              sendJson(res, 400, { error: 'Stored Stripe customer is deleted and cannot be reused.' })
+              return
+            }
+          } else {
+            customer = await stripeClient.customers.create({
+              email: actor.email,
+              metadata: {
+                tenantId: actor.tenantId,
+                accountId: actor.accountId,
+                userId: actor.userId,
+              },
+            })
           }
-        } else if (state?.billingCustomer?.customerId) {
-          customer = await stripeClient.customers.retrieve(state.billingCustomer.customerId)
-          if (customer.deleted) {
-            sendJson(res, 400, { error: 'Stored Stripe customer is deleted and cannot be reused.' })
-            return
-          }
-        } else {
-          customer = await stripeClient.customers.create({
-            email: actor.email,
-            metadata: {
-              tenantId: actor.tenantId,
-              accountId: actor.accountId,
-              userId: actor.userId,
+
+          const next = await billingStore.upsertAccountState({
+            tenantId: actor.tenantId,
+            accountId: actor.accountId,
+            billingCustomer: {
+              provider: 'stripe',
+              customerId: customer.id,
             },
+            billingSubscription: state?.billingSubscription ?? null,
+            entitlement: state?.entitlement ?? null,
           })
+
+          onEvent?.('billing.customer', 'success', {
+            method: req.method,
+            path: url.pathname,
+          })
+          sendJson(res, 200, {
+            billingCustomer: next.billingCustomer,
+          })
+          return
+        } catch (error) {
+          onEvent?.('billing.customer', 'error', {
+            code: 'billing_provider_error',
+            method: req.method,
+            path: url.pathname,
+          })
+          sendJson(res, 502, {
+            error: 'Hosted billing provider request failed.',
+            code: 'billing_provider_error',
+          })
+          return
         }
-
-        const next = await billingStore.upsertAccountState({
-          tenantId: actor.tenantId,
-          accountId: actor.accountId,
-          billingCustomer: {
-            provider: 'stripe',
-            customerId: customer.id,
-          },
-          billingSubscription: state?.billingSubscription ?? null,
-          entitlement: state?.entitlement ?? null,
-        })
-
-        onEvent?.('billing.customer', 'success', {
-          method: req.method,
-          path: url.pathname,
-        })
-        sendJson(res, 200, {
-          billingCustomer: next.billingCustomer,
-        })
-        return
       }
 
       if (!stripePriceId) {
@@ -149,57 +185,69 @@ export function createBillingApi({
         return
       }
 
-      let customerId = state?.billingCustomer?.customerId ?? null
-      if (!customerId) {
-        const customer = await stripeClient.customers.create({
-          email: actor.email,
+      try {
+        let customerId = state?.billingCustomer?.customerId ?? null
+        if (!customerId) {
+          const customer = await stripeClient.customers.create({
+            email: actor.email,
+            metadata: {
+              tenantId: actor.tenantId,
+              accountId: actor.accountId,
+              userId: actor.userId,
+            },
+          })
+          customerId = customer.id
+        }
+
+        const updatedState = await billingStore.upsertAccountState({
+          tenantId: actor.tenantId,
+          accountId: actor.accountId,
+          billingCustomer: {
+            provider: 'stripe',
+            customerId,
+          },
+          billingSubscription: state?.billingSubscription ?? null,
+          entitlement: state?.entitlement ?? null,
+        })
+
+        const session = await stripeClient.checkout.sessions.create({
+          mode: 'subscription',
+          customer: customerId,
+          line_items: [
+            {
+              price: stripePriceId,
+              quantity: 1,
+            },
+          ],
+          success_url: successUrl,
+          cancel_url: cancelUrl,
           metadata: {
             tenantId: actor.tenantId,
             accountId: actor.accountId,
             userId: actor.userId,
           },
         })
-        customerId = customer.id
+
+        onEvent?.('billing.checkout', 'success', {
+          method: req.method,
+          path: url.pathname,
+        })
+        sendJson(res, 200, {
+          sessionId: session.id,
+          url: session.url,
+          billingCustomer: updatedState.billingCustomer,
+        })
+      } catch (error) {
+        onEvent?.('billing.checkout', 'error', {
+          code: 'billing_provider_error',
+          method: req.method,
+          path: url.pathname,
+        })
+        sendJson(res, 502, {
+          error: 'Hosted billing provider request failed.',
+          code: 'billing_provider_error',
+        })
       }
-
-      const updatedState = await billingStore.upsertAccountState({
-        tenantId: actor.tenantId,
-        accountId: actor.accountId,
-        billingCustomer: {
-          provider: 'stripe',
-          customerId,
-        },
-        billingSubscription: state?.billingSubscription ?? null,
-        entitlement: state?.entitlement ?? null,
-      })
-
-      const session = await stripeClient.checkout.sessions.create({
-        mode: 'subscription',
-        customer: customerId,
-        line_items: [
-          {
-            price: stripePriceId,
-            quantity: 1,
-          },
-        ],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          tenantId: actor.tenantId,
-          accountId: actor.accountId,
-          userId: actor.userId,
-        },
-      })
-
-      onEvent?.('billing.checkout', 'success', {
-        method: req.method,
-        path: url.pathname,
-      })
-      sendJson(res, 200, {
-        sessionId: session.id,
-        url: session.url,
-        billingCustomer: updatedState.billingCustomer,
-      })
     },
   }
 }

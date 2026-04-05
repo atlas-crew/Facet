@@ -46,17 +46,40 @@ async function buildHostedAuthFixture() {
 
 async function createHostedSessionToken(
   privateKey: Awaited<ReturnType<typeof generateKeyPair>>['privateKey'],
+  options: {
+    email?: string
+    expiresIn?: string
+    subject?: string
+  } = {},
 ) {
-  return new SignJWT({ email: 'member@example.com' })
+  return new SignJWT({ email: options.email ?? 'member@example.com' })
     .setProtectedHeader({ alg: 'RS256', kid: 'facet-test-key' })
-    .setSubject('user-1')
+    .setSubject(options.subject ?? 'user-1')
     .setIssuer('https://supabase.example/auth/v1')
     .setAudience('authenticated')
-    .setExpirationTime('1h')
+    .setExpirationTime(options.expiresIn ?? '1h')
     .sign(privateKey)
 }
 
 async function startBillingServer(options?: {
+  memberships?: Array<{
+    tenantId: string
+    accountId: string
+    userId: string
+    email: string
+    workspaces: Array<{
+      workspaceId: string
+      role: string
+      isDefault: boolean
+    }>
+  }>
+  entitlement?: {
+    planId: string
+    status: string
+    source: 'stripe'
+    features: string[]
+    effectiveThrough: string | null
+  }
   stripeClient?: {
     customers: {
       create: () => Promise<{ id: string }>
@@ -69,6 +92,11 @@ async function startBillingServer(options?: {
     }
   } | null
   stripePriceId?: string | null
+  tokenOptions?: {
+    email?: string
+    expiresIn?: string
+    subject?: string
+  }
 }) {
   const {
     createFacetServer,
@@ -78,28 +106,30 @@ async function startBillingServer(options?: {
   } = await loadProxyModules()
 
   const hosted = await buildHostedAuthFixture()
-  const membershipStore = createInMemoryHostedMembershipStore([
-    {
-      tenantId: 'tenant-1',
-      accountId: 'account-1',
-      userId: 'user-1',
-      email: 'member@example.com',
-      workspaces: [
-        {
-          workspaceId: 'ws-1',
-          role: 'owner',
-          isDefault: true,
-        },
-      ],
-    },
-  ])
+  const membershipStore = createInMemoryHostedMembershipStore(
+    options?.memberships ?? [
+      {
+        tenantId: 'tenant-1',
+        accountId: 'account-1',
+        userId: 'user-1',
+        email: 'member@example.com',
+        workspaces: [
+          {
+            workspaceId: 'ws-1',
+            role: 'owner',
+            isDefault: true,
+          },
+        ],
+      },
+    ],
+  )
   const billingStore = createInMemoryHostedBillingStore([
     {
       tenantId: 'tenant-1',
       accountId: 'account-1',
       billingCustomer: null,
       billingSubscription: null,
-      entitlement: {
+      entitlement: options?.entitlement ?? {
         planId: 'free',
         status: 'inactive',
         source: 'stripe',
@@ -159,7 +189,7 @@ async function startBillingServer(options?: {
   return {
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
-    accessToken: await createHostedSessionToken(hosted.privateKey),
+    accessToken: await createHostedSessionToken(hosted.privateKey, options?.tokenOptions),
   }
 }
 
@@ -264,6 +294,192 @@ describe('facetServer billing API', () => {
         provider: 'stripe',
         customerId: 'cus_created',
       },
+    })
+  })
+
+  it('rejects missing or expired hosted sessions for billing routes', async () => {
+    const missingAuth = await startBillingServer()
+    servers.add(missingAuth.server)
+
+    const missingAuthResponse = await fetch(`${missingAuth.baseUrl}/api/account/context`, {
+      headers: {
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+    })
+    expect(missingAuthResponse.status).toBe(401)
+
+    const expired = await startBillingServer({
+      tokenOptions: {
+        expiresIn: '-1h',
+      },
+    })
+    servers.add(expired.server)
+
+    const expiredResponse = await fetch(`${expired.baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${expired.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(expiredResponse.status).toBe(401)
+  })
+
+  it('rejects billing routes from disallowed origins', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer()
+    servers.add(server)
+
+    const response = await fetch(`${baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'https://evil.example',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Origin not allowed',
+    })
+  })
+
+  it('rejects hosted billing mutations for non-owner memberships', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      memberships: [
+        {
+          tenantId: 'tenant-1',
+          accountId: 'account-1',
+          userId: 'user-1',
+          email: 'member@example.com',
+          workspaces: [
+            {
+              workspaceId: 'ws-1',
+              role: 'member',
+              isDefault: true,
+            },
+          ],
+        },
+      ],
+    })
+    servers.add(server)
+
+    const response = await fetch(`${baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Only workspace owners can manage hosted billing.',
+      code: 'billing_owner_required',
+    })
+  })
+
+  it('creates checkout sessions even when billing customer linkage has not been created yet', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer()
+    servers.add(server)
+
+    const checkout = await fetch(`${baseUrl}/api/billing/checkout-session`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+
+    expect(checkout.status).toBe(200)
+    await expect(checkout.json()).resolves.toEqual({
+      sessionId: 'cs_test_123',
+      url: 'https://checkout.stripe.test/session/cs_test_123',
+      billingCustomer: {
+        provider: 'stripe',
+        customerId: 'cus_created',
+      },
+    })
+  })
+
+  it('returns provider errors when Stripe customer or checkout calls fail', async () => {
+    const createFailure = await startBillingServer({
+      stripeClient: {
+        customers: {
+          create: async () => {
+            throw new Error('stripe create failed')
+          },
+          retrieve: async (customerId: string) => ({ id: customerId, deleted: false }),
+        },
+        checkout: {
+          sessions: {
+            create: async () => ({
+              id: 'unused',
+              url: 'https://unused.example',
+            }),
+          },
+        },
+      },
+    })
+    servers.add(createFailure.server)
+
+    const createFailureResponse = await fetch(`${createFailure.baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${createFailure.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(createFailureResponse.status).toBe(502)
+    await expect(createFailureResponse.json()).resolves.toEqual({
+      error: 'Hosted billing provider request failed.',
+      code: 'billing_provider_error',
+    })
+
+    const checkoutFailure = await startBillingServer({
+      stripeClient: {
+        customers: {
+          create: async () => ({ id: 'cus_created' }),
+          retrieve: async (customerId: string) => ({ id: customerId, deleted: false }),
+        },
+        checkout: {
+          sessions: {
+            create: async () => {
+              throw new Error('stripe checkout failed')
+            },
+          },
+        },
+      },
+    })
+    servers.add(checkoutFailure.server)
+
+    const checkoutFailureResponse = await fetch(`${checkoutFailure.baseUrl}/api/billing/checkout-session`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${checkoutFailure.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(checkoutFailureResponse.status).toBe(502)
+    await expect(checkoutFailureResponse.json()).resolves.toEqual({
+      error: 'Hosted billing provider request failed.',
+      code: 'billing_provider_error',
     })
   })
 
