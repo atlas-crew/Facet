@@ -9,6 +9,7 @@ const MAX_REQUEST_TOKENS = parseInt(process.env.MAX_REQUEST_TOKENS ?? String(DEF
 const MAX_BODY_BYTES = parseInt(process.env.MAX_BODY_BYTES ?? '1048576', 10)
 const DEFAULT_TEMPERATURE = parseFloat(process.env.DEFAULT_TEMPERATURE ?? '')
 const DEFAULT_THINKING_BUDGET = parseInt(process.env.THINKING_BUDGET ?? '0', 10)
+const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL?.trim() ?? ''
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
@@ -46,6 +47,9 @@ server.listen(PORT, HOST, () => {
     )
   }
   console.log(`API key: ${process.env.ANTHROPIC_API_KEY ? 'configured' : 'NOT SET'}`)
+  if (ANTHROPIC_BASE_URL) {
+    console.log(`Anthropic base URL: ${ANTHROPIC_BASE_URL}`)
+  }
   if (process.env.FACET_STATIC_DIR) {
     console.log(`Static app dir: ${process.env.FACET_STATIC_DIR}`)
   }

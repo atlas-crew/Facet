@@ -13,4 +13,6 @@ if [[ -s "$NVM_DIR/nvm.sh" ]]; then
 fi
 
 cd "$ROOT_DIR"
+export VITE_ANTHROPIC_PROXY_URL="${VITE_ANTHROPIC_PROXY_URL:-http://127.0.0.1:9001}"
+export VITE_ANTHROPIC_PROXY_API_KEY="${VITE_ANTHROPIC_PROXY_API_KEY:-facet-local-proxy}"
 pnpm run dev

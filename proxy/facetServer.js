@@ -71,6 +71,43 @@ export const formatModelAliases = () =>
     .map(([alias, model]) => `${alias} -> ${model}`)
     .join(', ')
 
+function createUnauthenticatedAnthropicCompatClient({ baseURL }) {
+  const normalizedBaseUrl = baseURL.replace(/\/+$/, '')
+
+  return {
+    messages: {
+      async create(params) {
+        const response = await fetch(`${normalizedBaseUrl}/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify(params),
+        })
+
+        const contentType = response.headers.get('content-type') ?? ''
+        const payload = contentType.includes('application/json')
+          ? await response.json()
+          : await response.text()
+
+        if (!response.ok) {
+          const message =
+            typeof payload === 'string'
+              ? payload
+              : payload?.error?.message ?? payload?.message ?? 'Anthropic-compatible upstream error'
+          const error = new Error(message)
+          error.status = response.status
+          error.payload = payload
+          throw error
+        }
+
+        return payload
+      },
+    },
+  }
+}
+
 function parsePositiveInteger(value, fallback) {
   const parsed = parseInt(value ?? '', 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
@@ -442,7 +479,18 @@ export function createFacetServer(options = {}) {
   const defaultTemperature = options.defaultTemperature
   const defaultThinkingBudget = options.defaultThinkingBudget ?? 0
   const proxyApiKey = options.proxyApiKey ?? DEFAULT_PROXY_API_KEY
-  const anthropicClient = options.anthropicClient ?? new Anthropic()
+  const anthropicClient =
+    options.anthropicClient ??
+    (
+      options.anthropicBaseUrl && !options.anthropicApiKey
+        ? createUnauthenticatedAnthropicCompatClient({
+            baseURL: options.anthropicBaseUrl,
+          })
+        : new Anthropic({
+            ...(options.anthropicApiKey ? { apiKey: options.anthropicApiKey } : {}),
+            ...(options.anthropicBaseUrl ? { baseURL: options.anthropicBaseUrl } : {}),
+          })
+    )
   const allowedModelValues = new Set([
     defaultModel,
     ...Object.keys(MODEL_ALIASES),
@@ -964,6 +1012,8 @@ export function createEnvFacetServer(env = process.env) {
   return createFacetServer({
     authMode,
     allowedOrigins,
+    anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
+    anthropicBaseUrl: env.ANTHROPIC_BASE_URL?.trim() || undefined,
     defaultModel: env.MODEL ?? DEFAULT_MODEL,
     defaultMaxTokens: parseInt(env.MAX_TOKENS ?? '4096', 10),
     maxRequestTokens: parseInt(env.MAX_REQUEST_TOKENS ?? env.MAX_TOKENS ?? '4096', 10),
