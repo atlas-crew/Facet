@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SignJWT, exportJWK, generateKeyPair } from 'jose'
 
 async function loadProxyModules() {
@@ -49,14 +49,16 @@ async function createHostedSessionToken(
   options: {
     email?: string
     expiresIn?: string
+    issuer?: string
+    audience?: string
     subject?: string
   } = {},
 ) {
   return new SignJWT({ email: options.email ?? 'member@example.com' })
     .setProtectedHeader({ alg: 'RS256', kid: 'facet-test-key' })
     .setSubject(options.subject ?? 'user-1')
-    .setIssuer('https://supabase.example/auth/v1')
-    .setAudience('authenticated')
+    .setIssuer(options.issuer ?? 'https://supabase.example/auth/v1')
+    .setAudience(options.audience ?? 'authenticated')
     .setExpirationTime(options.expiresIn ?? '1h')
     .sign(privateKey)
 }
@@ -80,14 +82,33 @@ async function startBillingServer(options?: {
     features: string[]
     effectiveThrough: string | null
   }
+  billingState?: {
+    billingCustomer: {
+      provider: 'stripe'
+      customerId: string
+    } | null
+    billingSubscription: {
+      provider: 'stripe'
+      subscriptionId: string
+      status: string
+      currentPeriodEnd: string | null
+    } | null
+    entitlement: {
+      planId: string
+      status: string
+      source: 'stripe'
+      features: string[]
+      effectiveThrough: string | null
+    }
+  }
   stripeClient?: {
     customers: {
-      create: () => Promise<{ id: string }>
+      create: (...args: unknown[]) => Promise<{ id: string }>
       retrieve: (customerId: string) => Promise<{ id: string, deleted: boolean }>
     }
     checkout: {
       sessions: {
-        create: () => Promise<{ id: string, url: string }>
+        create: (...args: unknown[]) => Promise<{ id: string, url: string }>
       }
     }
   } | null
@@ -95,6 +116,8 @@ async function startBillingServer(options?: {
   tokenOptions?: {
     email?: string
     expiresIn?: string
+    issuer?: string
+    audience?: string
     subject?: string
   }
 }) {
@@ -127,15 +150,17 @@ async function startBillingServer(options?: {
     {
       tenantId: 'tenant-1',
       accountId: 'account-1',
-      billingCustomer: null,
-      billingSubscription: null,
-      entitlement: options?.entitlement ?? {
-        planId: 'free',
-        status: 'inactive',
-        source: 'stripe',
-        features: [],
-        effectiveThrough: null,
-      },
+      billingCustomer: options?.billingState?.billingCustomer ?? null,
+      billingSubscription: options?.billingState?.billingSubscription ?? null,
+      entitlement:
+        options?.billingState?.entitlement ??
+        options?.entitlement ?? {
+          planId: 'free',
+          status: 'inactive',
+          source: 'stripe',
+          features: [],
+          effectiveThrough: null,
+        },
     },
   ])
 
@@ -190,6 +215,7 @@ async function startBillingServer(options?: {
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
     accessToken: await createHostedSessionToken(hosted.privateKey, options?.tokenOptions),
+    createAccessToken: (tokenOptions = {}) => createHostedSessionToken(hosted.privateKey, tokenOptions),
   }
 }
 
@@ -224,6 +250,7 @@ describe('facetServer billing API', () => {
     })
 
     expect(response.status).toBe(200)
+    expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
     await expect(response.json()).resolves.toEqual({
       context: expect.objectContaining({
         deploymentMode: 'hosted',
@@ -247,6 +274,59 @@ describe('facetServer billing API', () => {
         entitlement: expect.objectContaining({
           planId: 'free',
           status: 'inactive',
+        }),
+      }),
+    })
+  })
+
+  it('reflects active entitlements and falls back to the first workspace when no default is set', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      memberships: [
+        {
+          tenantId: 'tenant-1',
+          accountId: 'account-1',
+          userId: 'user-1',
+          email: 'member@example.com',
+          workspaces: [
+            {
+              workspaceId: 'ws-2',
+              role: 'owner',
+              isDefault: false,
+            },
+            {
+              workspaceId: 'ws-3',
+              role: 'owner',
+              isDefault: false,
+            },
+          ],
+        },
+      ],
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-05-01T00:00:00.000Z',
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(`${baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      context: expect.objectContaining({
+        account: expect.objectContaining({
+          defaultWorkspaceId: 'ws-2',
+        }),
+        entitlement: expect.objectContaining({
+          planId: 'ai-pro',
+          status: 'active',
         }),
       }),
     })
@@ -329,6 +409,69 @@ describe('facetServer billing API', () => {
     expect(expiredResponse.status).toBe(401)
   })
 
+  it('rejects invalid hosted session signatures, issuer, audience, and malformed auth headers', async () => {
+    // Fresh key pair so the token signature does not match the server fixture.
+    const { privateKey } = await buildHostedAuthFixture()
+    const serverState = await startBillingServer()
+    servers.add(serverState.server)
+
+    const badSignature = await createHostedSessionToken(privateKey)
+    const wrongIssuer = await serverState.createAccessToken({
+      issuer: 'https://malicious.example/auth/v1',
+    })
+    const wrongAudience = await serverState.createAccessToken({
+      audience: 'not-facet',
+    })
+
+    const invalidSignatureResponse = await fetch(`${serverState.baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${badSignature}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(invalidSignatureResponse.status).toBe(401)
+
+    const wrongIssuerResponse = await fetch(`${serverState.baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${wrongIssuer}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(wrongIssuerResponse.status).toBe(401)
+
+    const wrongAudienceResponse = await fetch(`${serverState.baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${wrongAudience}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(wrongAudienceResponse.status).toBe(401)
+
+    for (const header of ['Basic abc123', 'Bearer', serverState.accessToken]) {
+      const malformedResponse = await fetch(`${serverState.baseUrl}/api/account/context`, {
+        headers: {
+          Authorization: header,
+          Origin: 'http://localhost:5173',
+        },
+      })
+      expect(malformedResponse.status).toBe(401)
+    }
+  })
+
+  it('allows hosted billing routes with a valid bearer token and no proxy key', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer()
+    servers.add(server)
+
+    const response = await fetch(`${baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+
+    expect(response.status).toBe(200)
+  })
+
   it('rejects billing routes from disallowed origins', async () => {
     const { server, baseUrl, accessToken } = await startBillingServer()
     servers.add(server)
@@ -384,6 +527,17 @@ describe('facetServer billing API', () => {
       error: 'Only workspace owners can manage hosted billing.',
       code: 'billing_owner_required',
     })
+
+    const checkoutResponse = await fetch(`${baseUrl}/api/billing/checkout-session`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(checkoutResponse.status).toBe(403)
   })
 
   it('creates checkout sessions even when billing customer linkage has not been created yet', async () => {
@@ -481,6 +635,194 @@ describe('facetServer billing API', () => {
       error: 'Hosted billing provider request failed.',
       code: 'billing_provider_error',
     })
+  })
+
+  it('reuses an existing linked Stripe customer without creating a new one', async () => {
+    const retrieve = vi.fn(async (customerId: string) => ({ id: customerId, deleted: false }))
+    const create = vi.fn(async () => ({ id: 'cus_created_new' }))
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      billingState: {
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_existing',
+        },
+        billingSubscription: null,
+        entitlement: {
+          planId: 'free',
+          status: 'inactive',
+          source: 'stripe',
+          features: [],
+          effectiveThrough: null,
+        },
+      },
+      stripeClient: {
+        customers: {
+          create,
+          retrieve,
+        },
+        checkout: {
+          sessions: {
+            create: async () => ({
+              id: 'cs_test_123',
+              url: 'https://checkout.stripe.test/session/cs_test_123',
+            }),
+          },
+        },
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(`${baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      billingCustomer: {
+        provider: 'stripe',
+        customerId: 'cus_existing',
+      },
+    })
+    expect(retrieve).toHaveBeenCalledWith('cus_existing')
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('rejects deleted Stripe customers', async () => {
+    const deletedCustomer = await startBillingServer({
+      billingState: {
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_deleted',
+        },
+        billingSubscription: null,
+        entitlement: {
+          planId: 'free',
+          status: 'inactive',
+          source: 'stripe',
+          features: [],
+          effectiveThrough: null,
+        },
+      },
+      stripeClient: {
+        customers: {
+          create: async () => ({ id: 'cus_created' }),
+          retrieve: async (customerId: string) => ({ id: customerId, deleted: true }),
+        },
+        checkout: {
+          sessions: {
+            create: async () => ({
+              id: 'cs_test_123',
+              url: 'https://checkout.stripe.test/session/cs_test_123',
+            }),
+          },
+        },
+      },
+    })
+    servers.add(deletedCustomer.server)
+
+    const deletedResponse = await fetch(`${deletedCustomer.baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${deletedCustomer.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(deletedResponse.status).toBe(400)
+    await expect(deletedResponse.json()).resolves.toEqual({
+      error: 'Stored Stripe customer is deleted and cannot be reused.',
+    })
+
+  })
+
+  it('returns provider errors when Stripe customer retrieval fails', async () => {
+    const retrieveFailure = await startBillingServer({
+      billingState: {
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_existing',
+        },
+        billingSubscription: null,
+        entitlement: {
+          planId: 'free',
+          status: 'inactive',
+          source: 'stripe',
+          features: [],
+          effectiveThrough: null,
+        },
+      },
+      stripeClient: {
+        customers: {
+          create: async () => ({ id: 'cus_created' }),
+          retrieve: async () => {
+            throw new Error('stripe retrieve failed')
+          },
+        },
+        checkout: {
+          sessions: {
+            create: async () => ({
+              id: 'cs_test_123',
+              url: 'https://checkout.stripe.test/session/cs_test_123',
+            }),
+          },
+        },
+      },
+    })
+    servers.add(retrieveFailure.server)
+
+    const retrieveFailureResponse = await fetch(`${retrieveFailure.baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${retrieveFailure.accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(retrieveFailureResponse.status).toBe(502)
+  })
+
+  it('returns CORS preflight headers, rejects wrong methods, and fails malformed JSON with 400', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer()
+    servers.add(server)
+
+    const preflight = await fetch(`${baseUrl}/api/billing/customer`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'Authorization, Content-Type',
+      },
+    })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
+
+    const wrongMethod = await fetch(`${baseUrl}/api/billing/customer`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(wrongMethod.status).toBe(404)
+
+    const malformed = await fetch(`${baseUrl}/api/billing/customer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+        'Content-Type': 'application/json',
+      },
+      body: '{ bad_json ',
+    })
+    expect(malformed.status).toBe(400)
   })
 
   it('fails cleanly when hosted billing is missing Stripe configuration', async () => {

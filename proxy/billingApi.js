@@ -162,6 +162,16 @@ export function createBillingApi({
           })
           return
         } catch (error) {
+          if (error?.status === 400 || error?.status === 413) {
+            sendJson(res, error.status, {
+              error:
+                error.status === 413
+                  ? 'Request payload too large.'
+                  : 'Invalid billing request body.',
+            })
+            return
+          }
+
           onEvent?.('billing.customer', 'error', {
             code: 'billing_provider_error',
             method: req.method,
