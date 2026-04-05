@@ -81,19 +81,42 @@ const uploadPdf = (container: HTMLElement, fileName = 'resume.pdf') => {
   }
   fireEvent.change(uploadInput as HTMLInputElement, {
     target: {
+      // Content is irrelevant here because scanResumePdf is fully mocked in this test file.
       files: [new File(['%PDF-1.4'], fileName, { type: 'application/pdf' })],
     },
   })
 }
 
+const flushMicrotasks = async (count = 3) => {
+  // rejection handler -> store write -> React/store follow-on microtask before assertions
+  for (let index = 0; index < count; index += 1) {
+    await Promise.resolve()
+  }
+}
+
 const rejectWithAbort = async (reject: (reason?: unknown) => void) => {
   await act(async () => {
     reject(createAbortError())
-    // Flush the React microtask queue so abort-driven catch handlers settle before assertions run.
-    await Promise.resolve()
-    await Promise.resolve()
+    // Flush the rejection handler and the follow-on React/store microtasks before asserting.
+    await flushMicrotasks()
   })
 }
+
+const expectBlob = (value: Blob | MediaSource | undefined): Blob => {
+  expect(value).toBeInstanceOf(Blob)
+  return value as Blob
+}
+
+const setupExportMocks = (url: string, expectedFilename: string) => ({
+  createObjectUrlMock: vi.spyOn(URL, 'createObjectURL').mockReturnValue(url),
+  revokeObjectUrlMock: vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined),
+  anchorClickMock: vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    expect(this.href).toContain(url)
+    expect(this.download).toBe(expectedFilename)
+  }),
+})
 
 describe('IdentityPage', () => {
   beforeEach(() => {
@@ -142,6 +165,7 @@ describe('IdentityPage', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllEnvs()
+    vi.useRealTimers()
     vi.restoreAllMocks()
     navigateMock.mockReset()
   })
@@ -267,5 +291,72 @@ describe('IdentityPage', () => {
     await rejectWithAbort(rejectGenerate)
 
     expect(useIdentityStore.getState().draft).toBeNull()
+  })
+
+  it('exports the current draft document and revokes the object URL after download', async () => {
+    const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } =
+      setupExportMocks('blob:draft-export', 'identity-draft.json')
+    const draftDocument = JSON.stringify(cloneIdentityFixture(), null, 2)
+
+    useIdentityStore.setState({
+      draft: {
+        generatedAt: '2026-04-05T00:00:00.000Z',
+        summary: 'Draft ready.',
+        followUpQuestions: [],
+        identity: cloneIdentityFixture(),
+        bullets: [],
+        warnings: [],
+      },
+      draftDocument,
+    })
+
+    vi.useFakeTimers()
+    render(<IdentityPage />)
+
+    const exportDraftButton = screen.getByText('Export Draft')
+    fireEvent.click(exportDraftButton)
+
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1)
+    const draftBlob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0])
+    expect(draftBlob.type).toBe('application/json')
+    await expect(draftBlob.text()).resolves.toBe(draftDocument)
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Exported the current draft document.')).toBeTruthy()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:draft-export')
+  })
+
+  it('exports the current identity model and revokes the object URL after download', async () => {
+    const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } =
+      setupExportMocks('blob:identity-export', 'identity.json')
+    const currentIdentity = cloneIdentityFixture()
+    const expectedIdentityDocument = JSON.stringify(currentIdentity, null, 2)
+
+    useIdentityStore.setState({
+      currentIdentity,
+    })
+
+    vi.useFakeTimers()
+    render(<IdentityPage />)
+
+    const exportIdentityButton = screen.getByText('Export Identity')
+    fireEvent.click(exportIdentityButton)
+
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1)
+    const identityBlob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0])
+    expect(identityBlob.type).toBe('application/json')
+    await expect(identityBlob.text()).resolves.toBe(expectedIdentityDocument)
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Exported the current identity model.')).toBeTruthy()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:identity-export')
   })
 })
