@@ -503,6 +503,140 @@ describe('resumeScanner parser', () => {
     expect(contact.thesis).toBe('I build platform systems that make complex delivery work routine.')
   })
 
+  it('does not treat email-first headers as the contact name', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('nick@example.com', 760),
+      ...buildLine('Platform Engineer', 744),
+      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Summary', 696),
+      ...buildLine('I build platform systems that make complex delivery work routine.', 680),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.name).toBe('')
+    expect(contact.email).toBe('nick@example.com')
+    expect(contact.title).toBe('Platform Engineer')
+    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.thesis).toBe('I build platform systems that make complex delivery work routine.')
+  })
+
+  it('extracts the name when the first header line combines name and email', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson — nick@example.com', 760),
+      ...buildLine('Platform Engineer', 744),
+      ...buildLine('Tampa, FL', 728),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.name).toBe('Nick Ferguson')
+    expect(contact.email).toBe('nick@example.com')
+    expect(contact.title).toBe('Platform Engineer')
+    expect(contact.location).toBe('Tampa, FL')
+  })
+
+  it('extracts the name when the first header line also contains multiple URLs', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson — https://nick.dev — https://github.com/nick', 760),
+      ...buildLine('Platform Engineer', 744),
+      ...buildLine('Tampa, FL', 728),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.name).toBe('Nick Ferguson')
+    expect(contact.title).toBe('Platform Engineer')
+    expect(contact.location).toBe('Tampa, FL')
+  })
+
+  it('preserves titles that contain uppercase abbreviations', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('AI Engineer', 744),
+      ...buildLine('Tampa, FL', 728),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.name).toBe('Nick Ferguson')
+    expect(contact.title).toBe('AI Engineer')
+    expect(contact.location).toBe('Tampa, FL')
+  })
+
+  it('classifies remote work-model lines as location rather than title', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Platform Engineer', 744),
+      ...buildLine('Remote', 728),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.title).toBe('Platform Engineer')
+    expect(contact.location).toBe('Remote')
+  })
+
+  it('classifies compound city-state remote labels as location rather than title', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Platform Engineer', 744),
+      ...buildLine('Tampa, FL (Remote)', 728),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.title).toBe('Platform Engineer')
+    expect(contact.location).toBe('Tampa, FL (Remote)')
+  })
+
+  it('does not treat URL-only detail lines as the title across consecutive extractions', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('https://portfolio.nick.dev', 744),
+      ...buildLine('https://github.com/nick', 728),
+      ...buildLine('Platform Engineer', 712),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const firstContact = extractContact(sections)
+    const secondContact = extractContact(sections)
+
+    expect(firstContact.title).toBe('Platform Engineer')
+    expect(secondContact.title).toBe('Platform Engineer')
+    expect(firstContact.links).toEqual([
+      { id: 'portfolio-nick-dev', url: 'https://portfolio.nick.dev' },
+      { id: 'github-com', url: 'https://github.com/nick' },
+    ])
+    expect(secondContact.links).toEqual(firstContact.links)
+  })
+
+  it('rejects oversized title candidates in the header detail lines', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine(
+        'I build platform systems that make complex delivery work routine across product, platform, and infrastructure teams.',
+        744,
+      ),
+      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Summary', 696),
+      ...buildLine('Short summary used as the thesis instead.', 680),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.title).toBeUndefined()
+    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.thesis).toBe('Short summary used as the thesis instead.')
+  })
+
   it('extracts and normalizes contact links from the header line', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Nick Ferguson', 760),

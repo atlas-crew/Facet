@@ -29,6 +29,11 @@ const ROLE_KEYWORD_PATTERN = new RegExp(`\\b${ROLE_KEYWORD_SOURCE}\\b`, 'i')
 const ROLE_KEYWORD_END_PATTERN = new RegExp(`\\b${ROLE_KEYWORD_SOURCE}$`, 'i')
 const DEGREE_PATTERN =
   /(?:\b(?:bachelor|master|associate|doctor|phd|certificate|mba|aas)\b|b\.s\.|b\.a\.|m\.s\.)/i
+const US_STATE_CODE_SOURCE =
+  '(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY|DC)'
+const WORK_MODEL_SOURCE = '(?:remote|hybrid)'
+const LOCATION_CORE_SOURCE = `(?:[A-Za-z .'-]+,\\s*${US_STATE_CODE_SOURCE}|${US_STATE_CODE_SOURCE})`
+const MAX_HEADER_DETAIL_LENGTH = 80
 const TRAILING_DATE_PATTERN = new RegExp(
   `(?:${TRAILING_DATE_SEPARATOR_SOURCE}\\s*)(${DATE_TOKEN_SOURCE})$`,
   'i',
@@ -36,7 +41,15 @@ const TRAILING_DATE_PATTERN = new RegExp(
 const PHONE_PATTERN =
   /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}/
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
-const URL_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/gi
+// g-flag: safe with .match() and .replace(); avoid .test()/.exec() which retain lastIndex state.
+const URL_MATCH_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/gi
+const URL_TEST_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/i
+// Resume Scanner v1 intentionally tunes location detection to US state codes plus Remote/Hybrid.
+// Matches: "Tampa, FL", "FL", "Remote", "Tampa, FL (Remote)", "Remote - Tampa, FL".
+const LOCATION_LINE_PATTERN = new RegExp(
+  `^(?:${WORK_MODEL_SOURCE}|${LOCATION_CORE_SOURCE}|${LOCATION_CORE_SOURCE}\\s*(?:\\(\\s*${WORK_MODEL_SOURCE}\\s*\\)|[-–—]\\s*${WORK_MODEL_SOURCE})|${WORK_MODEL_SOURCE}\\s*[-–—]\\s*${LOCATION_CORE_SOURCE})$`,
+  'i',
+)
 const SECTION_HEADINGS: Array<[ResumeSection['key'], RegExp]> = [
   ['experience', /^(experience|professional experience|work experience|employment|career history)$/i],
   ['skills', /^(skills|technical skills|core competencies|technologies|tooling)$/i],
@@ -52,6 +65,19 @@ const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, '')
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim()
+
+const extractNameCandidate = (line: string): string => {
+  const stripped = normalizeWhitespace(
+    line
+      .replace(EMAIL_PATTERN, ' ')
+      .replace(PHONE_PATTERN, ' ')
+      .replace(URL_MATCH_PATTERN, ' ')
+      .replace(/\s+[|•–—-]\s+/g, ' '),
+  )
+  const cleaned = normalizeWhitespace(stripped.replace(/^[|•–—-]+|[|•–—-]+$/g, ' '))
+
+  return /[A-Za-z]/.test(cleaned) ? cleaned : ''
+}
 
 const joinLineText = (items: ResumeTextItem[]): string => {
   const sorted = [...items].sort((left, right) => left.x - right.x)
@@ -179,7 +205,7 @@ export const splitLinesIntoSections = (lines: ResumeLine[]): ResumeSection[] => 
 }
 
 const parseLinks = (text: string): ProfessionalIdentityV3['identity']['links'] => {
-  const matches = text.match(URL_PATTERN) ?? []
+  const matches = text.match(URL_MATCH_PATTERN) ?? []
   const deduped = Array.from(new Set(matches))
   return deduped.map((url, index) => {
     const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`
@@ -202,22 +228,25 @@ export const extractContact = (sections: ResumeSection[]): ParsedResumeContact =
   const summaryLines = sections.find((section) => section.key === 'summary')?.lines ?? []
   const headerText = headerLines.map((line) => line.text).join(' | ')
   const nonEmptyHeaderLines = headerLines.map((line) => line.text).filter(Boolean)
-  const name = nonEmptyHeaderLines[0] ?? ''
+  const nameCandidate = nonEmptyHeaderLines[0] ?? ''
+  const name = extractNameCandidate(nameCandidate)
   const detailCandidates = nonEmptyHeaderLines.slice(1, 4)
   const title = detailCandidates.find(
     (line) =>
       !EMAIL_PATTERN.test(line) &&
       !PHONE_PATTERN.test(line) &&
-      !URL_PATTERN.test(line) &&
-      line.length < 80,
+      !URL_TEST_PATTERN.test(line) &&
+      !LOCATION_LINE_PATTERN.test(line) &&
+      line.length < MAX_HEADER_DETAIL_LENGTH,
   )
   const location =
     detailCandidates.find(
       (line) =>
         !EMAIL_PATTERN.test(line) &&
         !PHONE_PATTERN.test(line) &&
-        !URL_PATTERN.test(line) &&
-        /,|remote|hybrid|[A-Z]{2}\b/.test(line),
+        !URL_TEST_PATTERN.test(line) &&
+        line.length < MAX_HEADER_DETAIL_LENGTH &&
+        LOCATION_LINE_PATTERN.test(line),
     ) ?? ''
   const thesis = summaryLines.map((line) => line.text).join(' ').trim() || title || ''
 
