@@ -118,6 +118,322 @@ describe('resumeScanner parser', () => {
     expect(detectAmbiguousColumnLayout(lines)).toBe(true)
   })
 
+  it('parses role headers that use "at" syntax and merges continuation lines into the current bullet', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Staff Engineer at Atlas Crew - 2022 - Present', 684),
+      ...buildLine('• Led the hosted migration program across platform', 668),
+      ...buildLine('and product surfaces while simplifying deploy recovery paths.', 652),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Atlas Crew',
+        dates: '2022 - Present',
+        bullets: [
+          'Led the hosted migration program across platform and product surfaces while simplifying deploy recovery paths.',
+        ],
+      },
+    ])
+  })
+
+  it('preserves role titles that contain "at" when pipe-delimited headers are present', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Director of Strategy at Scale | Acme Corp | 2021 - Present', 684),
+      ...buildLine('• Built the platform planning cadence.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Director of Strategy at Scale',
+        company: 'Acme Corp',
+        dates: '2021 - Present',
+        bullets: ['Built the platform planning cadence.'],
+      },
+    ])
+  })
+
+  it('preserves role titles that contain "at" in dash-delimited headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Director of Strategy at Scale at Acme Corp - 2021 - Present', 684),
+      ...buildLine('• Built the platform planning cadence.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Director of Strategy at Scale',
+        company: 'Acme Corp',
+        dates: '2021 - Present',
+        bullets: ['Built the platform planning cadence.'],
+      },
+    ])
+  })
+
+  it('preserves standalone year dates in pipe-delimited role headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Staff Engineer | Acme Corp | 2022', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Acme Corp',
+        dates: '2022',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('preserves trailing single-year dates in dash-delimited at-headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Staff Engineer at Acme Corp - 2022', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Acme Corp',
+        dates: '2022',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('strips pipe-delimited dates before splitting mixed at-headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Staff Engineer at Acme Corp | 2022 - Present', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Acme Corp',
+        dates: '2022 - Present',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('preserves company names that also contain "at" in dash-delimited headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Engineer at Made at Scale - 2022', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Engineer',
+        company: 'Made at Scale',
+        dates: '2022',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('does not misclassify year-bearing pipe-delimited company names as dates', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Engineer | 2023 Labs | 2023', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Engineer',
+        company: '2023 Labs',
+        dates: '2023',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('preserves title-contained "at" with a single-word company', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Director of Strategy at Scale at Google - 2022', 684),
+      ...buildLine('• Built the planning cadence.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Director of Strategy at Scale',
+        company: 'Google',
+        dates: '2022',
+        bullets: ['Built the planning cadence.'],
+      },
+    ])
+  })
+
+  it('preserves trailing single-year dates when the separator is an en dash', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Staff Engineer at Acme Corp – 2022', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Acme Corp',
+        dates: '2022',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('preserves em-dash date ranges in at-headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Staff Engineer at Acme Corp — 2020 — Present', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Staff Engineer',
+        company: 'Acme Corp',
+        dates: '2020 — Present',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('preserves company text when it contains the same year token as the trailing date', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('Engineer at 2023 Labs - 2023', 684),
+      ...buildLine('• Stabilized the hosted release pipeline.', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        title: 'Engineer',
+        company: '2023 Labs',
+        dates: '2023',
+        bullets: ['Stabilized the hosted release pipeline.'],
+      },
+    ])
+  })
+
+  it('creates default skill-group labels for unlabeled comma-separated skill lines', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Skills', 700),
+      ...buildLine('TypeScript, React, Vitest', 684),
+      ...buildLine('Postgres, Redis', 668),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const skillGroups = extractSkillGroups(sections)
+
+    expect(skillGroups).toEqual([
+      { label: 'Skills', items: ['TypeScript', 'React', 'Vitest'] },
+      { label: 'Skills 2', items: ['Postgres', 'Redis'] },
+    ])
+  })
+
+  it('falls back to summary text for thesis when the header omits a title', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('nick@example.com | Tampa, FL | www.nick.dev | https://github.com/nick', 744),
+      ...buildLine('Summary', 712),
+      ...buildLine('I build platform systems that make complex delivery work routine.', 696),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.title).toBeUndefined()
+    expect(contact.thesis).toBe('I build platform systems that make complex delivery work routine.')
+  })
+
+  it('extracts and normalizes contact links from the header line', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('nick@example.com | Tampa, FL | www.nick.dev | https://github.com/nick', 744),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.links).toEqual([
+      { id: 'nick-dev', url: 'https://www.nick.dev' },
+      { id: 'github-com', url: 'https://github.com/nick' },
+    ])
+  })
+
+  it('surfaces fallback warnings when structural sections are missing after text extraction succeeds', () => {
+    const sparseItems: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Platform Engineer', 744),
+      ...buildLine('Summary', 712),
+      ...buildLine('I build delivery systems for product teams.', 696),
+    ]
+
+    const parsed = parseResumeTextItems(sparseItems)
+    const warningCodes = parsed.warnings.map((warning) => warning.code)
+
+    expect(parsed.layout).toBe('single-column')
+    // exactly these 4 warnings, regardless of emission order
+    expect(warningCodes).toHaveLength(4)
+    expect(warningCodes).toEqual(
+      expect.arrayContaining([
+        'missing-contact',
+        'role-parse-fallback',
+        'missing-skills',
+        'missing-education',
+      ]),
+    )
+    expect(parsed.identity.roles).toEqual([])
+    expect(parsed.identity.skills.groups).toEqual([])
+    expect(parsed.identity.education).toEqual([])
+  })
+
   it('throws a clear error for image-only or unreadable PDFs', () => {
     expect(() => parseResumeTextItems([])).toThrow(/image-only or unreadable/i)
   })

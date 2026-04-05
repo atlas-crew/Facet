@@ -11,8 +11,24 @@ import type {
 } from './types'
 
 const BULLET_PREFIX = /^[•●▪◦◆▸►*-]\s*/
-const DATE_PATTERN =
-  /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|spring|summer|fall|winter|\d{4}|present|current)\b/i
+const ROLE_KEYWORD_SOURCE =
+  '(?:engineer|developer|manager|director|lead|architect|consultant|analyst|founder|owner|designer|administrator|specialist|intern)'
+const DATE_WORD_SOURCE = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|spring|summer|fall|winter|present|current|\\d{4})'
+const DATE_TOKEN_SOURCE =
+  '(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?\\s+\\d{4}|(?:spring|summer|fall|winter)\\s+\\d{4}|\\d{4}|present|current)'
+const DATE_RANGE_SEPARATOR_SOURCE = '[-–—]'
+const TRAILING_DATE_SEPARATOR_SOURCE = '[|•–—-]'
+const DATE_RANGE_SOURCE = `${DATE_TOKEN_SOURCE}\\s*${DATE_RANGE_SEPARATOR_SOURCE}\\s*${DATE_TOKEN_SOURCE}`
+const DATE_PATTERN = new RegExp(`\\b${DATE_WORD_SOURCE}\\b`, 'i')
+// Matches ranges like "Jan 2022 - Present", "2020 - 2022", or "Spring 2021 - Fall 2023".
+const DATE_RANGE_PATTERN = new RegExp(DATE_RANGE_SOURCE, 'i')
+const FULL_DATE_SEGMENT_PATTERN = new RegExp(`^(?:${DATE_RANGE_SOURCE}|${DATE_TOKEN_SOURCE})$`, 'i')
+const ROLE_KEYWORD_PATTERN = new RegExp(`\\b${ROLE_KEYWORD_SOURCE}\\b`, 'i')
+const ROLE_KEYWORD_END_PATTERN = new RegExp(`\\b${ROLE_KEYWORD_SOURCE}$`, 'i')
+const TRAILING_DATE_PATTERN = new RegExp(
+  `(?:${TRAILING_DATE_SEPARATOR_SOURCE}\\s*)(${DATE_TOKEN_SOURCE})$`,
+  'i',
+)
 const PHONE_PATTERN =
   /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}/
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
@@ -224,10 +240,55 @@ const looksLikeRoleHeader = (text: string): boolean => {
   return DATE_PATTERN.test(text) || /\s+\bat\b\s+/i.test(text) || /[|•]/.test(text)
 }
 
-const isLikelyRoleKeyword = (value: string): boolean =>
-  /\b(engineer|developer|manager|director|lead|architect|consultant|analyst|founder|owner|designer|administrator|specialist|intern)\b/i.test(
-    value,
-  )
+const isLikelyRoleKeyword = (value: string): boolean => ROLE_KEYWORD_PATTERN.test(value)
+
+const endsWithRoleKeyword = (value: string): boolean => ROLE_KEYWORD_END_PATTERN.test(value.trim())
+
+const trimRoleSeparators = (value: string): string =>
+  normalizeWhitespace(value.replace(/^[|•–—-]+\s*|\s*[|•–—-]+$/g, ''))
+
+const pickAtSplit = (text: string): { title: string; company: string } | null => {
+  const lower = text.toLowerCase()
+  const indices: number[] = []
+  let searchIndex = 0
+
+  while (searchIndex >= 0) {
+    const nextIndex = lower.indexOf(' at ', searchIndex)
+    if (nextIndex < 0) {
+      break
+    }
+    indices.push(nextIndex)
+    searchIndex = nextIndex + 4
+  }
+
+  const candidates = indices
+    .map((index) => ({
+      title: normalizeWhitespace(text.slice(0, index)),
+      company: trimRoleSeparators(text.slice(index + 4)),
+    }))
+    .filter((candidate) => candidate.title && candidate.company)
+    .map((candidate) => {
+      const titleWordCount = candidate.title.split(/\s+/).filter(Boolean).length
+      const companyWordCount = candidate.company.split(/\s+/).filter(Boolean).length
+      // Favor splits where the left side still reads like a role and the right
+      // side looks like a clean company name instead of a partially split title.
+      const score =
+        (isLikelyRoleKeyword(candidate.title) ? 3 : 0) +
+        (endsWithRoleKeyword(candidate.title) ? 2 : 0) +
+        (companyWordCount >= 2 ? 1 : 0) +
+        (candidate.company.toLowerCase().includes(' at ') ? -2 : 0) +
+        Math.min(titleWordCount, 5) * 0.2
+
+      return {
+        ...candidate,
+        score,
+      }
+    })
+    .sort((left, right) => right.score - left.score)
+
+  const best = candidates[0]
+  return best ? { title: best.title, company: best.company } : null
+}
 
 const parseRoleHeader = (
   line: string,
@@ -237,10 +298,31 @@ const parseRoleHeader = (
     .split(/\s*[|•]\s*/)
     .map((entry) => normalizeWhitespace(entry))
     .filter(Boolean)
+  const inlineDateMatch = line.match(DATE_RANGE_PATTERN)
+  const trailingDateMatch = line.match(TRAILING_DATE_PATTERN)
+  const inlineDateSegment = inlineDateMatch?.[0]
+  const trailingDateSegment = trailingDateMatch?.[1]
+  const segmentDateEntry =
+    (segments.length > 1
+      ? segments
+          .map((segment, index) => {
+            const exactDateMatch = segment.match(FULL_DATE_SEGMENT_PATTERN)?.[0]
+            return {
+              index,
+              date: exactDateMatch && !isLikelyRoleKeyword(segment) ? exactDateMatch : null,
+            }
+          })
+          .find((entry): entry is { index: number; date: string } => Boolean(entry.date))
+      : null) ?? null
   const dateSegment =
-    segments.find((segment) => DATE_PATTERN.test(segment)) ??
+    segmentDateEntry?.date ||
+    inlineDateSegment ||
+    trailingDateSegment ||
     (nextLine && DATE_PATTERN.test(nextLine) ? normalizeWhitespace(nextLine) : '')
-  const remaining = segments.filter((segment) => segment !== dateSegment)
+  const remaining =
+    segmentDateEntry
+      ? segments.filter((_, index) => index !== segmentDateEntry.index)
+      : segments.filter((segment) => segment !== dateSegment)
 
   if (remaining.length >= 2) {
     const [first, second] = remaining
@@ -255,16 +337,31 @@ const parseRoleHeader = (
     return { title: first, company: second, dates: dateSegment }
   }
 
-  const atMatch = line.match(/^(.*?)\s+\bat\b\s+(.*?)(?:\s*[|•-]\s*(.*))?$/i)
-  if (atMatch) {
+  const textWithoutDates = (() => {
+    if (segmentDateEntry) {
+      return remaining.join(' | ')
+    }
+    if (inlineDateMatch && inlineDateMatch.index !== undefined) {
+      return normalizeWhitespace(
+        `${line.slice(0, inlineDateMatch.index)} ${line.slice(inlineDateMatch.index + inlineDateMatch[0].length)}`,
+      )
+    }
+    if (trailingDateMatch && trailingDateMatch.index !== undefined) {
+      return normalizeWhitespace(
+        `${line.slice(0, trailingDateMatch.index)} ${line.slice(trailingDateMatch.index + trailingDateMatch[0].length)}`,
+      )
+    }
+    return dateSegment ? normalizeWhitespace(line.replace(dateSegment, '')) : line
+  })()
+  const atSplit = pickAtSplit(textWithoutDates)
+  if (atSplit) {
     return {
-      title: normalizeWhitespace(atMatch[1] ?? ''),
-      company: normalizeWhitespace(atMatch[2] ?? ''),
-      dates: normalizeWhitespace(atMatch[3] ?? dateSegment),
+      title: atSplit.title,
+      company: atSplit.company,
+      dates: normalizeWhitespace(dateSegment),
     }
   }
 
-  const textWithoutDates = dateSegment ? normalizeWhitespace(line.replace(dateSegment, '')) : line
   return {
     title: normalizeWhitespace(textWithoutDates),
     company: '',
