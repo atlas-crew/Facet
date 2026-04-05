@@ -123,6 +123,23 @@ describe('resumeScanner parser', () => {
     expect(lines.map((line) => line.text)).toEqual(['Nick Ferguson', 'Summary'])
   })
 
+  it('sorts scrambled text items into visual reading order before grouping lines', () => {
+    const items: ResumeTextItem[] = [
+      { text: 'Summary', x: 72, y: 700, width: 48, height: 12, page: 1 },
+      { text: 'Ferguson', x: 104, y: 760.4, width: 52, height: 12, page: 1 },
+      { text: 'Platform Engineer', x: 72, y: 744, width: 96, height: 12, page: 1 },
+      { text: 'Nick', x: 72, y: 760, width: 24, height: 12, page: 1 },
+    ]
+
+    const lines = groupTextItemsIntoLines(items)
+
+    expect(lines.map((line) => line.text)).toEqual([
+      'Nick Ferguson',
+      'Platform Engineer',
+      'Summary',
+    ])
+  })
+
   it('detects sections and extracts core resume structure', () => {
     const lines = groupTextItemsIntoLines(sampleItems)
     const sections = splitLinesIntoSections(lines)
@@ -594,6 +611,24 @@ describe('resumeScanner parser', () => {
       {
         school: 'University of Florida',
         degree: 'B.S. in Computer Science',
+        location: '',
+      },
+    ])
+  })
+
+  it('keeps sparse education entries when only the school name is present', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Education', 700),
+      ...buildLine('University of Florida', 684),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const education = extractEducation(sections)
+
+    expect(education).toEqual([
+      {
+        school: 'University of Florida',
+        degree: '',
         location: '',
       },
     ])
