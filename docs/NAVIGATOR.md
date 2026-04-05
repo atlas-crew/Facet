@@ -52,6 +52,7 @@ Documentation for contributors and developers working on the Facet codebase.
 | [Wave 1 Pricing And Entitlements](development/platform/wave-1-pricing-and-entitlements.md) | Internal source of truth for hosted pricing, AI-gated features, and entitlement messaging |
 | [Wave 1 Operations Runbook](development/platform/wave-1-operations-runbook.md) | Hosted launch controls, rate limits, alert signals, and rollback or restore procedures for the Wave 1 beta |
 | [Wave 1 Beta Support Playbook](development/platform/wave-1-beta-support-playbook.md) | Launch communication, support scenarios, known limits, and escalation guidance for the hosted beta |
+| [Wave 1 Beta Readiness Gate](development/platform/wave-1-beta-readiness-gate.md) | Staging validation checklist, go or no-go criteria, and staged rollout plan for the first hosted beta |
 
 ### Plans (Archived)
 
