@@ -69,7 +69,10 @@ export const extractPdfTextItems = async (
   }
 }
 
-export const scanResumePdf = async (file: File, options: { signal?: AbortSignal } = {}) => {
+export const scanResumePdf = async (
+  file: File,
+  options: { signal?: AbortSignal } = {},
+): Promise<import('../../types/identity').ResumeScanResult> => {
   const extracted = await extractPdfTextItems(file, options)
   const parsed = parseResumeTextItems(extracted.items)
 
@@ -91,7 +94,25 @@ export const scanResumePdf = async (file: File, options: { signal?: AbortSignal 
         0,
       ),
       decomposedBullets: 0,
+      scannedBullets: parsed.identity.roles.reduce(
+        (total, role) =>
+          total + role.bullets.filter((bullet) => bullet.source_text?.trim()).length,
+        0,
+      ),
+      deepenedBullets: 0,
+      editedBullets: 0,
+      failedBullets: 0,
     },
     layout: parsed.layout,
+    progress: {
+      bullets: {},
+      bulk: {
+        status: 'idle',
+        total: 0,
+        completed: 0,
+        currentBulletKey: null,
+        lastUpdatedAt: null,
+      },
+    },
   }
 }

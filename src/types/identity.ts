@@ -59,6 +59,28 @@ export interface ResumeScanWarning {
   message: string
 }
 
+export type ResumeScanBulletStatus = 'idle' | 'running' | 'completed' | 'failed' | 'edited'
+
+export interface ResumeScanBulletProgress {
+  status: ResumeScanBulletStatus
+  confidence: IdentityConfidence
+  lastError: string | null
+  updatedAt: string
+}
+
+export interface ResumeScanBulkProgress {
+  status: 'idle' | 'running' | 'cancelling'
+  total: number
+  completed: number
+  currentBulletKey: string | null
+  lastUpdatedAt: string | null
+}
+
+export interface ResumeScanProgress {
+  bullets: Record<string, ResumeScanBulletProgress>
+  bulk: ResumeScanBulkProgress
+}
+
 export interface ResumeScanCounts {
   roles: number
   bullets: number
@@ -66,6 +88,10 @@ export interface ResumeScanCounts {
   education: number
   extractedBullets: number
   decomposedBullets: number
+  scannedBullets: number
+  deepenedBullets: number
+  editedBullets: number
+  failedBullets: number
 }
 
 export interface ResumeScanResult {
@@ -77,6 +103,7 @@ export interface ResumeScanResult {
   warnings: ResumeScanWarning[]
   counts: ResumeScanCounts
   layout: 'single-column' | 'ambiguous-columns'
+  progress: ResumeScanProgress
 }
 
 export interface IdentityChangeLogEntry {

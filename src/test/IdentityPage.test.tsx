@@ -67,8 +67,22 @@ const scanFixture = (): ResumeScanResult => {
       education: 0,
       extractedBullets: 1,
       decomposedBullets: 0,
+      scannedBullets: 1,
+      deepenedBullets: 0,
+      editedBullets: 0,
+      failedBullets: 0,
     },
     layout: 'ambiguous-columns',
+    progress: {
+      bullets: {},
+      bulk: {
+        status: 'idle',
+        total: 0,
+        completed: 0,
+        currentBulletKey: null,
+        lastUpdatedAt: null,
+      },
+    },
   }
 }
 
