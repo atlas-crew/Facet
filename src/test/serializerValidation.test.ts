@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- intentional invalid-shape casts for validation tests */
 import { describe, expect, it } from 'vitest'
 import { importResumeConfig } from '../engine/serializer'
 import { defaultResumeData } from '../store/defaultData'

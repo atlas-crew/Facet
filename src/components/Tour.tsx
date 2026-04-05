@@ -57,7 +57,7 @@ export function Tour({ open, onClose }: TourProps) {
   // Reset to first step when tour is re-opened
   useEffect(() => {
     if (open) {
-      setCurrentStep(0)
+      setCurrentStep(0) // eslint-disable-line react-hooks/set-state-in-effect -- reset on open
     }
   }, [open])
 
@@ -82,7 +82,7 @@ export function Tour({ open, onClose }: TourProps) {
       setCardPosition(
         computeTooltipPosition(
           rect,
-          step.placement as any,
+          step.placement,
           cardRef.current.offsetWidth,
           cardRef.current.offsetHeight,
         ),
@@ -91,7 +91,7 @@ export function Tour({ open, onClose }: TourProps) {
   }, [open, step])
 
   useLayoutEffect(() => {
-    updatePosition()
+    updatePosition() // eslint-disable-line react-hooks/set-state-in-effect -- layout measurement requires synchronous setState
   }, [updatePosition, currentStep])
 
   useEffect(() => {

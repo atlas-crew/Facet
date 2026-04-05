@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { ComponentSuggestion, JdAnalysisResult, ResumeData, VectorId } from '../types'
+import type { ComponentSuggestion, JdAnalysisResult, PriorityByVector, ResumeData, VectorId } from '../types'
 
 interface UseSuggestionActionsArgs {
   data: ResumeData
   vectorKey: VectorId | 'all'
   jdAnalysisResult: JdAnalysisResult | null
-  updateBulletVectors: (roleId: string, bulletId: string, vectors: Record<string, any>) => void
-  updateTargetLineVectors: (id: string, vectors: Record<string, any>) => void
+  updateBulletVectors: (roleId: string, bulletId: string, vectors: PriorityByVector) => void
+  updateTargetLineVectors: (id: string, vectors: PriorityByVector) => void
   updateData: (fn: (current: ResumeData) => ResumeData) => void
   setSuggestionModeActive: (active: boolean) => void
   showNotice: (tone: 'success' | 'error', message: string) => void

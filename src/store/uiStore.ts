@@ -87,7 +87,6 @@ export const useUiStore = create<UiState>()(
       version: 5,
       storage: createJSONStorage(resolveStorage),
       // comparisonVector is transient — don't persist across sessions
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       partialize: ({ comparisonVector: _transient, ...rest }) => rest as UiState,
       migrate: (persistedState: unknown) => {
         // We're versioning purely to force cleanup of old override data
