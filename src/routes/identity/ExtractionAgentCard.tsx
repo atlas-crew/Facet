@@ -75,7 +75,7 @@ export function ExtractionAgentCard({
       <div className="identity-card-header">
         <div>
           <h2>Extraction Agent</h2>
-          <p>Upload a PDF first, or fall back to pasted text if the scan is ambiguous.</p>
+          <p>Upload a resume PDF first. Fall back to pasted text when the scan is ambiguous or unsupported.</p>
         </div>
         <div className="identity-card-actions">
           <button
@@ -124,12 +124,13 @@ export function ExtractionAgentCard({
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => void onDrop(event)}
           >
-            <Upload size={22} />
+            <Upload size={22} aria-hidden="true" />
             <strong>{isScanning ? 'Scanning PDF…' : 'Drop a PDF here or click to upload'}</strong>
-            <span>
-              Resume Scanner v1 is PDF-only and performs a local structural parse before any AI call.
-            </span>
           </button>
+          <p className="identity-muted">
+            Resume Scanner v1 is PDF-only and performs a local structural parse before any AI call.
+            Use a text-based, single-column PDF. OCR and image-only resumes are out of scope for this pass.
+          </p>
           <input
             ref={uploadRef}
             hidden
@@ -212,7 +213,10 @@ export function ExtractionAgentCard({
           ) : (
             <div className="identity-empty">
               <h3>No scanned resume yet</h3>
-              <p>Upload a text-based PDF to build a partial identity shell without a network call.</p>
+              <p>
+                Upload a text-based PDF to build a partial identity shell without a network call.
+                If the parser cannot recover a reliable structure, switch to paste-text mode and continue there.
+              </p>
             </div>
           )}
         </>
