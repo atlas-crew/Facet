@@ -42,6 +42,7 @@ export function IdentityPage() {
   const uploadRef = useRef<HTMLInputElement>(null)
   const generateAbortRef = useRef<AbortController | null>(null)
   const scanAbortRef = useRef<AbortController | null>(null)
+  // Single-bullet and bulk deepening are intentionally mutually exclusive in the UI.
   const deepenAbortRef = useRef<AbortController | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
@@ -71,6 +72,10 @@ export function IdentityPage() {
   const startScannedBulletDeepen = useIdentityStore((state) => state.startScannedBulletDeepen)
   const completeScannedBulletDeepen = useIdentityStore((state) => state.completeScannedBulletDeepen)
   const failScannedBulletDeepen = useIdentityStore((state) => state.failScannedBulletDeepen)
+  const startScanBulkDeepen = useIdentityStore((state) => state.startScanBulkDeepen)
+  const updateScanBulkProgress = useIdentityStore((state) => state.updateScanBulkProgress)
+  const requestCancelScanBulkDeepen = useIdentityStore((state) => state.requestCancelScanBulkDeepen)
+  const finishScanBulkDeepen = useIdentityStore((state) => state.finishScanBulkDeepen)
   const updateScannedSkillGroupLabel = useIdentityStore((state) => state.updateScannedSkillGroupLabel)
   const updateScannedSkillItemName = useIdentityStore((state) => state.updateScannedSkillItemName)
   const updateScannedEducationEntry = useIdentityStore((state) => state.updateScannedEducationEntry)
@@ -121,6 +126,8 @@ export function IdentityPage() {
       decomposedBullets: scanResult.counts.deepenedBullets + scanResult.counts.editedBullets,
     }
   }, [scanResult])
+
+  const bulkStatus = scanResult?.progress.bulk.status ?? null
 
   const ensureEndpoint = () => {
     if (!aiEndpoint) {
@@ -189,6 +196,7 @@ export function IdentityPage() {
 
     let controller: AbortController | null = null
     try {
+      deepenAbortRef.current?.abort()
       scanAbortRef.current?.abort()
       controller = new AbortController()
       scanAbortRef.current = controller
@@ -251,7 +259,20 @@ export function IdentityPage() {
   }
 
   const handleDeepenBullet = async (roleId: string, bulletId: string) => {
-    if (!scanResult) {
+    const liveScan = useIdentityStore.getState().scanResult
+    if (!liveScan) {
+      return
+    }
+
+    if (Object.values(liveScan.progress.bullets).some((progress) => progress.status === 'running')) {
+      return
+    }
+
+    const targetRole = liveScan.identity.roles.find((role) => role.id === roleId)
+    const targetBullet = targetRole?.bullets.find((bullet) => bullet.id === bulletId)
+    if (!targetBullet?.source_text?.trim()) {
+      setPageNotice(null)
+      setPageError('Add source text to the bullet before deepening it.')
       return
     }
 
@@ -266,7 +287,7 @@ export function IdentityPage() {
       startScannedBulletDeepen(roleId, bulletId)
       const result = await deepenIdentityBullet({
         endpoint: aiEndpoint,
-        identity: useIdentityStore.getState().scanResult?.identity ?? scanResult.identity,
+        identity: useIdentityStore.getState().scanResult?.identity ?? liveScan.identity,
         roleId,
         bulletId,
         correctionNotes,
@@ -292,6 +313,135 @@ export function IdentityPage() {
         deepenAbortRef.current = null
       }
     }
+  }
+
+  const handleDeepenAll = async () => {
+    const liveScan = useIdentityStore.getState().scanResult
+    if (!liveScan) {
+      return
+    }
+    const scanSessionId = liveScan.scannedAt
+    const isSameScanSession = () => useIdentityStore.getState().scanResult?.scannedAt === scanSessionId
+
+    if (Object.values(liveScan.progress.bullets).some((progress) => progress.status === 'running')) {
+      setPageNotice(null)
+      setPageError('Wait for the current bullet deepening run to finish before starting Deepen All.')
+      return
+    }
+
+    try {
+      ensureEndpoint()
+      setPageError(null)
+      setPageNotice(null)
+    } catch (error) {
+      setPageNotice(null)
+      setPageError(error instanceof Error ? error.message : 'Identity extraction is disabled.')
+      return
+    }
+
+    startScanBulkDeepen()
+
+    let completed = 0
+    let failed = 0
+    const pendingBullets = liveScan.identity.roles.flatMap((role) =>
+      role.bullets
+        .filter((bullet) => Boolean(bullet.source_text?.trim()))
+        .map((bullet) => ({
+          roleId: role.id,
+          bulletId: bullet.id,
+        })),
+    )
+
+    for (const target of pendingBullets) {
+      if (!isSameScanSession()) {
+        return
+      }
+
+      const currentScan = useIdentityStore.getState().scanResult
+      if (!currentScan) {
+        break
+      }
+
+      const progress = currentScan.progress.bullets[`${target.roleId}::${target.bulletId}`]
+      if (
+        progress?.status === 'completed' ||
+        progress?.status === 'edited' ||
+        progress?.status === 'running'
+      ) {
+        continue
+      }
+
+      if (currentScan.progress.bulk.status === 'cancelling') {
+        break
+      }
+
+      let controller: AbortController | null = null
+      try {
+        updateScanBulkProgress(`${target.roleId}::${target.bulletId}`)
+        startScannedBulletDeepen(target.roleId, target.bulletId)
+        controller = new AbortController()
+        deepenAbortRef.current = controller
+        const result = await deepenIdentityBullet({
+          endpoint: aiEndpoint,
+          identity: useIdentityStore.getState().scanResult?.identity ?? currentScan.identity,
+          roleId: target.roleId,
+          bulletId: target.bulletId,
+          correctionNotes,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) {
+          break
+        }
+        if (!isSameScanSession()) {
+          return
+        }
+
+        completeScannedBulletDeepen(result)
+        completed += 1
+      } catch (error) {
+        if (controller?.signal.aborted && useIdentityStore.getState().scanResult?.progress.bulk.status === 'cancelling') {
+          break
+        }
+
+        if (controller?.signal.aborted && error instanceof DOMException) {
+          break
+        }
+
+        const message = error instanceof Error ? error.message : 'Bullet deepening failed.'
+        if (!isSameScanSession()) {
+          return
+        }
+        failScannedBulletDeepen(target.roleId, target.bulletId, message)
+        failed += 1
+      } finally {
+        if (controller && deepenAbortRef.current === controller) {
+          deepenAbortRef.current = null
+        }
+      }
+    }
+
+    if (!isSameScanSession()) {
+      return
+    }
+
+    if (!useIdentityStore.getState().scanResult) {
+      return
+    }
+
+    const finalStatus = useIdentityStore.getState().scanResult?.progress.bulk.status
+    finishScanBulkDeepen()
+    setPageNotice(
+      finalStatus === 'cancelling'
+        ? `Stopped bulk deepening after completing ${completed} bullet(s).`
+        : failed > 0
+          ? `Deepened ${completed} scanned bullet(s); ${failed} failed.`
+          : `Deepened ${completed} scanned bullet(s).`,
+    )
+  }
+
+  const handleCancelDeepenAll = () => {
+    requestCancelScanBulkDeepen()
+    deepenAbortRef.current?.abort()
   }
 
   const handleValidateDraft = () => {
@@ -485,6 +635,7 @@ export function IdentityPage() {
           draft={draft}
           scanResult={scanResult}
           scanCompletion={scanCompletion}
+          bulkStatus={bulkStatus}
           isGenerating={isGenerating}
           isScanning={isScanning}
           uploadRef={uploadRef}
@@ -492,9 +643,12 @@ export function IdentityPage() {
           onSetSourceMaterial={setSourceMaterial}
           onSetCorrectionNotes={setCorrectionNotes}
           onGenerate={runGenerate}
+          onDeepenAll={handleDeepenAll}
+          onCancelDeepenAll={handleCancelDeepenAll}
           onUploadChange={handleUploadChange}
           onDrop={handleDrop}
           onClearScan={() => {
+            deepenAbortRef.current?.abort()
             setScanResult(null)
             setPageNotice('Cleared the scanned resume structure.')
           }}

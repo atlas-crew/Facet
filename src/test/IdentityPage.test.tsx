@@ -88,6 +88,26 @@ const scanFixture = (): ResumeScanResult => {
   }
 }
 
+const scanFixtureWithTwoBullets = (): ResumeScanResult => {
+  const result = scanFixture()
+  result.identity.roles[0].bullets.push({
+    id: 'second-migration',
+    source_text: 'Migrated workloads to EKS with Helm charts.',
+    problem: '',
+    action: '',
+    outcome: '',
+    impact: [],
+    metrics: {},
+    technologies: [],
+    tags: [],
+  })
+  result.counts.bullets = 2
+  result.counts.extractedBullets = 2
+  result.counts.scannedBullets = 2
+  result.rawText += '\n• Migrated workloads to EKS with Helm charts.'
+  return result
+}
+
 const createAbortError = (): DOMException => new DOMException('The operation was aborted.', 'AbortError')
 
 const uploadPdf = (container: HTMLElement, fileName = 'resume.pdf') => {
@@ -167,6 +187,7 @@ describe('IdentityPage', () => {
       lastError: null,
     })
 
+    identityExtractionMocks.generateIdentityDraftMock.mockReset()
     identityExtractionMocks.generateIdentityDraftMock.mockResolvedValue({
       generatedAt: '2026-04-05T00:00:00.000Z',
       summary: 'Generated from scan.',
@@ -175,6 +196,7 @@ describe('IdentityPage', () => {
       bullets: [],
       warnings: [],
     })
+    identityExtractionMocks.deepenIdentityBulletMock.mockReset()
     identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValue({
       summary: 'Deepened the migration bullet.',
       roleId: 'a10',
@@ -398,7 +420,316 @@ describe('IdentityPage', () => {
     expect(
       useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.problem,
     ).toBe('Cloud-only delivery blocked on-prem customer installs.')
-    expect(screen.getByText('Edited')).toBeTruthy()
+    expect(screen.getAllByText('Edited').length).toBeGreaterThan(0)
+  })
+
+  it('shows structured-only deepen results inline even when prose fields stay empty', async () => {
+    identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
+      summary: 'Extracted structured details from the migration bullet.',
+      roleId: 'a10',
+      bulletId: 'platform-migration',
+      bullet: {
+        id: 'platform-migration',
+        problem: '',
+        action: '',
+        outcome: '',
+        impact: ['Unlocked customer-hosted deployments'],
+        metrics: { installs: 12 },
+        technologies: ['Kubernetes'],
+        source_text: 'ignored',
+        tags: ['platform', 'kubernetes'],
+      },
+      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+      assumptions: [],
+      warnings: [],
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Technologies')).toBeTruthy()
+    })
+
+    expect((screen.getByLabelText('Technologies') as HTMLTextAreaElement).value).toContain('Kubernetes')
+  })
+
+  it('disables bullet deepening when the scanned source text is blank', async () => {
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.change(screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'), {
+      target: { value: '' },
+    })
+
+    const deepenButton = screen.getByText('Deepen') as HTMLButtonElement
+    expect(deepenButton.disabled).toBe(true)
+
+    fireEvent.click(deepenButton)
+    expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('disables Deepen All while a single bullet deepen is running', async () => {
+    let resolveDeepen!: (value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>) => void
+    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDeepen = resolve
+        }),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
+    })
+
+    const deepenAllButton = screen.getByText('Deepen All')
+    expect((deepenAllButton as HTMLButtonElement).disabled).toBe(true)
+
+    await act(async () => {
+      resolveDeepen({
+        summary: 'Deepened the migration bullet.',
+        roleId: 'a10',
+        bulletId: 'platform-migration',
+        bullet: {
+          id: 'platform-migration',
+          problem: 'Cloud-only delivery blocked on-prem installs.',
+          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+          outcome: 'Made the product deployable in customer environments.',
+          impact: ['Unlocked customer-hosted deployments'],
+          metrics: { installs: 12 },
+          technologies: ['Kubernetes'],
+          source_text: 'ignored',
+          tags: ['platform', 'kubernetes'],
+        },
+        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        assumptions: [],
+        warnings: [],
+      })
+      await flushMicrotasks()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Deepen All')).toBeTruthy()
+    })
+  })
+
+  it('ignores overlapping single-bullet deepen requests while one is already running', async () => {
+    let resolveFirstDeepen!: (value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>) => void
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(scanFixtureWithTwoBullets())
+    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstDeepen = resolve
+        }),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    const deepenButtons = screen.getAllByText('Deepen')
+    fireEvent.click(deepenButtons[0] as HTMLButtonElement)
+    fireEvent.click(deepenButtons[1] as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      resolveFirstDeepen({
+        summary: 'Deepened the migration bullet.',
+        roleId: 'a10',
+        bulletId: 'platform-migration',
+        bullet: {
+          id: 'platform-migration',
+          problem: 'Cloud-only delivery blocked on-prem installs.',
+          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+          outcome: 'Made the product deployable in customer environments.',
+          impact: ['Unlocked customer-hosted deployments'],
+          metrics: { installs: 12 },
+          technologies: ['Kubernetes'],
+          source_text: 'ignored',
+          tags: ['platform', 'kubernetes'],
+        },
+        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        assumptions: [],
+        warnings: [],
+      })
+      await flushMicrotasks()
+    })
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().scanResult?.progress.bullets['a10::platform-migration']?.status).toBe(
+        'completed',
+      )
+    })
+
+    expect(useIdentityStore.getState().scanResult?.progress.bullets['a10::second-migration']?.status).toBe(
+      'idle',
+    )
+    expect((screen.getByText('Deepen All') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('deepens all scanned bullets sequentially from the scanner card', async () => {
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen All'))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
+    })
+
+    expect(useIdentityStore.getState().scanResult?.counts.deepenedBullets).toBe(1)
+    expect(screen.getByText('Deepened 1 scanned bullet(s).')).toBeTruthy()
+  })
+
+  it('preserves focused impact edits across progress updates and keeps comma-bearing statements intact', async () => {
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.')).toBeTruthy()
+    })
+
+    const impactField = screen.getByLabelText('Impact')
+    const impactValue = 'Reduced latency by 40%, improving p99 to 12ms'
+
+    fireEvent.focus(impactField)
+    fireEvent.change(impactField, {
+      target: { value: impactValue },
+    })
+
+    act(() => {
+      useIdentityStore.getState().startScanBulkDeepen()
+    })
+
+    expect((screen.getByLabelText('Impact') as HTMLTextAreaElement).value).toBe(impactValue)
+
+    fireEvent.blur(impactField)
+
+    expect(useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.impact).toEqual([impactValue])
+  })
+
+  it('cancels bulk deepening without failing the current bullet', async () => {
+    let rejectDeepen!: (reason?: unknown) => void
+    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectDeepen = reject
+        }),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen All'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Cancel')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Cancel'))
+    await rejectWithAbort(rejectDeepen)
+
+    expect(useIdentityStore.getState().scanResult?.progress.bulk.status).toBe('idle')
+    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(0)
+  })
+
+  it('does not finalize a bulk deepening run after the scan is cleared', async () => {
+    let rejectDeepen!: (reason?: unknown) => void
+    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectDeepen = reject
+        }),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen All'))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(screen.getByText('Clear Scan'))
+    await rejectWithAbort(rejectDeepen)
+
+    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(screen.getByText('Cleared the scanned resume structure.')).toBeTruthy()
+    expect(screen.queryByText('Deepened 1 scanned bullet(s).')).toBeNull()
+    expect(screen.queryByText('Stopped bulk deepening after completing 0 bullet(s).')).toBeNull()
+  })
+
+  it('aborts an in-flight bullet deepen when the scan is cleared', async () => {
+    let rejectDeepen!: (reason?: unknown) => void
+    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectDeepen = reject
+        }),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(screen.getByText('Clear Scan'))
+    await rejectWithAbort(rejectDeepen)
+
+    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(screen.queryByText('Bullet deepening failed.')).toBeNull()
   })
 
   it('exports the current identity model and revokes the object URL after download', async () => {

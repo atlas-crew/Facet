@@ -325,9 +325,9 @@
 }
 
 .identity-chip-failed {
-  background: #fff1c4;
-  color: #704900;
-  border-color: #c89829;
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #dc2626;
 }
 
 .identity-chip-empty {
@@ -437,9 +437,9 @@
 }
 
 [data-theme='dark'] .identity-chip-failed {
-  background: #4c3700;
-  color: #fff1c4;
-  border-color: #c89829;
+  background: #5b211d;
+  color: #ffe3e0;
+  border-color: #d56d63;
 }
 
 .identity-question-list {

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import type { ResumeScanBulletProgress, ResumeScanResult } from '../../types/identity'
 
 interface ScannedIdentityEditorProps {
   scanResult: ResumeScanResult
+  bulkStatus: ResumeScanResult['progress']['bulk']['status']
   onUpdateIdentityCore: (
     field: keyof ProfessionalIdentityV3['identity'],
     value: string | boolean | ProfessionalIdentityV3['identity']['links'],
@@ -60,9 +61,9 @@ const parseLinksDocument = (value: string): ProfessionalIdentityV3['identity']['
 
 const listToDocument = (items: string[]): string => items.join('\n')
 
-const parseListDocument = (value: string): string[] =>
+const parseListDocument = (value: string, options?: { splitOnComma?: boolean }): string[] =>
   value
-    .split(/\n|,/)
+    .split(options?.splitOnComma ? /\n|,/ : /\n/)
     .map((entry) => entry.trim())
     .filter(Boolean)
 
@@ -110,21 +111,29 @@ const STATUS_CLASSNAMES: Record<ResumeScanBulletProgress['status'], string> = {
 }
 
 const hasDecomposition = (bullet: ProfessionalIdentityV3['roles'][number]['bullets'][number]): boolean =>
-  [bullet.problem, bullet.action, bullet.outcome].some((entry) => entry.trim())
+  [bullet.problem, bullet.action, bullet.outcome].some((entry) => entry.trim()) ||
+  bullet.impact.length > 0 ||
+  bullet.technologies.length > 0 ||
+  bullet.tags.length > 0 ||
+  Object.keys(bullet.metrics).length > 0
 
 function DeferredListField({
   label,
   value,
   onCommit,
+  splitOnComma = true,
 }: {
   label: string
   value: string[]
   onCommit: (nextValue: string[]) => void
+  splitOnComma?: boolean
 }) {
   const [document, setDocument] = useState(() => listToDocument(value))
+  const isFocusedRef = useRef(false)
 
   useEffect(() => {
-    setDocument(listToDocument(value))
+    const nextDocument = listToDocument(value)
+    setDocument((current) => (isFocusedRef.current || current === nextDocument ? current : nextDocument))
   }, [value])
 
   return (
@@ -133,9 +142,13 @@ function DeferredListField({
       <textarea
         className="identity-textarea"
         value={document}
+        onFocus={() => {
+          isFocusedRef.current = true
+        }}
         onChange={(event) => setDocument(event.target.value)}
         onBlur={() => {
-          const nextValue = parseListDocument(document)
+          isFocusedRef.current = false
+          const nextValue = parseListDocument(document, { splitOnComma })
           onCommit(nextValue)
           setDocument(listToDocument(nextValue))
         }}
@@ -161,11 +174,15 @@ function DeferredMetricsField({
 }) {
   const [document, setDocument] = useState(() => metricsToDocument(metrics))
   const [error, setError] = useState<string | null>(null)
+  const isFocusedRef = useRef(false)
   const errorId = `${roleId}-${bulletId}-metrics-error`
 
   useEffect(() => {
-    setDocument(metricsToDocument(metrics))
-    setError(null)
+    const nextDocument = metricsToDocument(metrics)
+    setDocument((current) => (isFocusedRef.current || current === nextDocument ? current : nextDocument))
+    if (!isFocusedRef.current) {
+      setError(null)
+    }
   }, [metrics])
 
   return (
@@ -176,6 +193,9 @@ function DeferredMetricsField({
         value={document}
         aria-invalid={error ? 'true' : undefined}
         aria-describedby={error ? errorId : undefined}
+        onFocus={() => {
+          isFocusedRef.current = true
+        }}
         onChange={(event) => {
           setDocument(event.target.value)
           if (error) {
@@ -183,6 +203,7 @@ function DeferredMetricsField({
           }
         }}
         onBlur={() => {
+          isFocusedRef.current = false
           const parsed = parseMetricsDocument(document)
           if (!parsed.data) {
             setError(parsed.error)
@@ -205,6 +226,7 @@ function DeferredMetricsField({
 
 export function ScannedIdentityEditor({
   scanResult,
+  bulkStatus,
   onUpdateIdentityCore,
   onUpdateRole,
   onUpdateBulletSourceText,
@@ -217,6 +239,7 @@ export function ScannedIdentityEditor({
   onUpdateEducationEntry,
 }: ScannedIdentityEditorProps) {
   const { identity, progress } = scanResult
+  const hasRunningBullet = Object.values(progress.bullets).some((entry) => entry.status === 'running')
 
   return (
     <div className="identity-scan-editor">
@@ -334,7 +357,10 @@ export function ScannedIdentityEditor({
                   {role.bullets.map((bullet, bulletIndex) => {
                     const key = `${role.id}::${bullet.id}`
                     const bulletProgress = progress.bullets[key]
-                    const showDecomposition = hasDecomposition(bullet) || bulletProgress?.status === 'edited'
+                    const showDecomposition =
+                      hasDecomposition(bullet) ||
+                      bulletProgress?.status === 'completed' ||
+                      bulletProgress?.status === 'edited'
                     return (
                       <article className="identity-scan-card identity-scan-bullet-card" key={bullet.id}>
                         <div className="identity-scan-bullet-toolbar">
@@ -350,7 +376,14 @@ export function ScannedIdentityEditor({
                             className="identity-btn"
                             type="button"
                             onClick={() => void onDeepenBullet(role.id, bullet.id)}
-                            disabled={bulletProgress?.status === 'running'}
+                            aria-label={`Deepen bullet ${bulletIndex + 1} in ${role.company}`}
+                            disabled={
+                              hasRunningBullet ||
+                              bulletProgress?.status === 'running' ||
+                              !bullet.source_text?.trim() ||
+                              bulkStatus === 'running' ||
+                              bulkStatus === 'cancelling'
+                            }
                           >
                             {bulletProgress?.status === 'completed' || bulletProgress?.status === 'edited'
                               ? 'Re-deepen'
@@ -407,6 +440,7 @@ export function ScannedIdentityEditor({
                             <DeferredListField
                               label="Impact"
                               value={bullet.impact}
+                              splitOnComma={false}
                               onCommit={(nextValue) =>
                                 onUpdateBulletListField(role.id, bullet.id, 'impact', nextValue)
                               }

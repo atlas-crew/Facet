@@ -16,6 +16,7 @@ interface ExtractionAgentCardProps {
   draft: IdentityExtractionDraft | null
   scanResult: ResumeScanResult | null
   scanCompletion: { extractedBullets: number; decomposedBullets: number } | null
+  bulkStatus: ResumeScanResult['progress']['bulk']['status'] | null
   isGenerating: boolean
   isScanning: boolean
   uploadRef: RefObject<HTMLInputElement | null>
@@ -23,6 +24,8 @@ interface ExtractionAgentCardProps {
   onSetSourceMaterial: (value: string) => void
   onSetCorrectionNotes: (value: string) => void
   onGenerate: (mode: 'fresh' | 'regenerate') => Promise<void>
+  onDeepenAll: () => Promise<void>
+  onCancelDeepenAll: () => void
   onUploadChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
   onDrop: (event: DragEvent<HTMLButtonElement>) => Promise<void>
   onClearScan: () => void
@@ -71,6 +74,7 @@ export function ExtractionAgentCard({
   draft,
   scanResult,
   scanCompletion,
+  bulkStatus,
   isGenerating,
   isScanning,
   uploadRef,
@@ -78,6 +82,8 @@ export function ExtractionAgentCard({
   onSetSourceMaterial,
   onSetCorrectionNotes,
   onGenerate,
+  onDeepenAll,
+  onCancelDeepenAll,
   onUploadChange,
   onDrop,
   onClearScan,
@@ -92,6 +98,10 @@ export function ExtractionAgentCard({
   onUpdateSkillItemName,
   onUpdateEducationEntry,
 }: ExtractionAgentCardProps) {
+  const hasRunningBullet = scanResult
+    ? Object.values(scanResult.progress.bullets).some((progress) => progress.status === 'running')
+    : false
+
   return (
     <section className="identity-card">
       <div className="identity-card-header">
@@ -209,8 +219,39 @@ export function ExtractionAgentCard({
                       {scanCompletion?.extractedBullets ?? scanResult.counts.extractedBullets}
                     </strong>
                   </div>
+                  <div className="identity-stat" role="group" aria-label={'Edited bullets: ' + scanResult.counts.editedBullets}>
+                    <span className="identity-stat-label">Edited</span>
+                    <strong>{scanResult.counts.editedBullets}</strong>
+                  </div>
+                  <div className="identity-stat" role="group" aria-label={'Failed bullets: ' + scanResult.counts.failedBullets}>
+                    <span className="identity-stat-label">Failed</span>
+                    <strong>{scanResult.counts.failedBullets}</strong>
+                  </div>
                 </div>
                 <div className="identity-card-actions">
+                  <button
+                    className="identity-btn identity-btn-primary"
+                    type="button"
+                    onClick={() => void onDeepenAll()}
+                    disabled={
+                      hasRunningBullet ||
+                      bulkStatus === 'running' ||
+                      bulkStatus === 'cancelling' ||
+                      scanResult.counts.extractedBullets === 0
+                    }
+                  >
+                    <Sparkles size={16} />
+                    {bulkStatus === 'running' || bulkStatus === 'cancelling' ? 'Deepening…' : 'Deepen All'}
+                  </button>
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={onCancelDeepenAll}
+                    disabled={bulkStatus !== 'running' && bulkStatus !== 'cancelling'}
+                  >
+                    <X size={16} />
+                    {bulkStatus === 'cancelling' ? 'Cancelling…' : 'Cancel'}
+                  </button>
                   <button className="identity-btn" type="button" onClick={() => uploadRef.current?.click()}>
                     <RefreshCcw size={16} />
                     Rescan PDF
@@ -224,6 +265,7 @@ export function ExtractionAgentCard({
 
               <ScannedIdentityEditor
                 scanResult={scanResult}
+                bulkStatus={bulkStatus ?? 'idle'}
                 onUpdateIdentityCore={onUpdateIdentityCore}
                 onUpdateRole={onUpdateRole}
                 onUpdateBulletSourceText={onUpdateBulletSourceText}
