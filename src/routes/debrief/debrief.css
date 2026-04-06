@@ -1,7 +1,10 @@
 .debrief-page {
-  display: flex;
-  height: 100%;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--space-6);
+  min-height: 100%;
+  padding: var(--space-6);
+  background: var(--bg-primary);
 }
 
 .debrief-sidebar,
@@ -13,9 +16,7 @@
 }
 
 .debrief-sidebar {
-  width: 280px;
-  margin: var(--space-6);
-  margin-right: 0;
+  min-width: 0;
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
@@ -79,9 +80,8 @@
 }
 
 .debrief-main {
-  flex: 1;
+  min-width: 0;
   overflow-y: auto;
-  padding: var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -204,13 +204,12 @@
 
 @media (max-width: 1024px) {
   .debrief-page {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    padding: var(--space-4);
   }
 
   .debrief-sidebar {
     width: auto;
-    margin: var(--space-4);
-    margin-bottom: 0;
   }
 
   .debrief-pattern-grid {
@@ -219,10 +218,6 @@
 }
 
 @media (max-width: 768px) {
-  .debrief-main {
-    padding: var(--space-4);
-  }
-
   .debrief-grid,
   .debrief-detail-grid {
     grid-template-columns: 1fr;
