@@ -25,6 +25,14 @@ export function resolveHostedAiAccess(state, feature) {
     }
   }
 
+  // Check time-boxed access window (one-time purchases)
+  if (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < new Date()) {
+    return {
+      allowed: false,
+      reason: 'access_expired',
+    }
+  }
+
   if (HOSTED_ALLOWED_STATUSES.has(entitlement.status)) {
     return {
       allowed: true,
@@ -52,6 +60,15 @@ export function createHostedAiErrorPayload(reason, feature) {
       reason,
       feature,
       error: 'AI access is unavailable until billing is resolved for this hosted account.',
+    }
+  }
+
+  if (reason === 'access_expired') {
+    return {
+      code: 'ai_access_denied',
+      reason,
+      feature,
+      error: 'Your AI Pro access has expired. Purchase again to continue using AI features.',
     }
   }
 

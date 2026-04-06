@@ -49,6 +49,107 @@ export function createStripeBillingClient(options) {
   })
 }
 
+const AI_PRO_ACCESS_DAYS = 90
+const AI_PRO_FEATURES = [
+  'build.jd-analysis',
+  'build.bullet-reframe',
+  'match.jd-analysis',
+  'research.profile-inference',
+  'research.search',
+  'prep.generate',
+  'letters.generate',
+  'linkedin.generate',
+  'debrief.generate',
+]
+
+function computeEffectiveThrough(fromDate, days) {
+  const date = new Date(fromDate)
+  date.setDate(date.getDate() + days)
+  return date.toISOString()
+}
+
+export function createBillingWebhookHandler({
+  stripeClient,
+  webhookSecret,
+  billingStore,
+  onEvent,
+}) {
+  const webhookRoute = '/api/billing/webhooks/stripe'
+
+  return {
+    canHandle(req) {
+      const url = new URL(req.url ?? '/', 'http://localhost')
+      return req.method === 'POST' && url.pathname === webhookRoute
+    },
+
+    async handle(req, res, rawBody, sendJson) {
+      if (!stripeClient || !webhookSecret) {
+        sendJson(res, 500, { error: 'Webhook handler not configured.' })
+        return
+      }
+
+      const signature = req.headers['stripe-signature']
+      if (!signature) {
+        sendJson(res, 400, { error: 'Missing Stripe signature.' })
+        return
+      }
+
+      let event
+      try {
+        event = stripeClient.webhooks.constructEvent(rawBody, signature, webhookSecret)
+      } catch (err) {
+        onEvent?.('billing.webhook', 'denied', { code: 'invalid_signature' })
+        sendJson(res, 400, { error: 'Invalid webhook signature.' })
+        return
+      }
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object
+        const tenantId = session.metadata?.tenantId
+        const accountId = session.metadata?.accountId
+        const accessDays = parseInt(session.metadata?.accessDays ?? String(AI_PRO_ACCESS_DAYS), 10)
+
+        if (!tenantId || !accountId) {
+          onEvent?.('billing.webhook', 'error', { code: 'missing_metadata', eventType: event.type })
+          sendJson(res, 200, { received: true })
+          return
+        }
+
+        const now = new Date()
+        const currentState = await billingStore.getAccountState(tenantId, accountId)
+
+        // If user has existing unexpired access, extend from current expiry
+        const extendFrom =
+          currentState?.entitlement?.effectiveThrough &&
+          new Date(currentState.entitlement.effectiveThrough) > now
+            ? new Date(currentState.entitlement.effectiveThrough)
+            : now
+
+        await billingStore.upsertAccountState({
+          tenantId,
+          accountId,
+          billingCustomer: currentState?.billingCustomer ?? {
+            provider: 'stripe',
+            customerId: session.customer,
+          },
+          billingSubscription: null,
+          entitlement: {
+            planId: 'ai-pro',
+            status: 'active',
+            source: 'stripe',
+            features: AI_PRO_FEATURES,
+            effectiveThrough: computeEffectiveThrough(extendFrom, accessDays),
+          },
+        })
+
+        onEvent?.('billing.webhook', 'success', { eventType: event.type, tenantId, accountId })
+      }
+
+      sendJson(res, 200, { received: true })
+    },
+  }
+}
+
 export function createBillingApi({
   actorResolver,
   billingStore,
@@ -221,7 +322,7 @@ export function createBillingApi({
         })
 
         const session = await stripeClient.checkout.sessions.create({
-          mode: 'subscription',
+          mode: 'payment',
           customer: customerId,
           line_items: [
             {
@@ -235,6 +336,7 @@ export function createBillingApi({
             tenantId: actor.tenantId,
             accountId: actor.accountId,
             userId: actor.userId,
+            accessDays: '90',
           },
         })
 

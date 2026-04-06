@@ -12,6 +12,7 @@ import {
 } from './persistenceApi.js'
 import {
   createBillingApi,
+  createBillingWebhookHandler,
   createStripeBillingClient,
 } from './billingApi.js'
 import {
@@ -369,6 +370,26 @@ function readBody(req, maxBodyBytes) {
   })
 }
 
+function readRawBody(req, maxBodyBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let bytesRead = 0
+    req.on('data', (chunk) => {
+      bytesRead += chunk.length
+      if (bytesRead > maxBodyBytes) {
+        const error = new Error('Request body too large')
+        error.status = 413
+        reject(error)
+        req.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()))
+    req.on('error', reject)
+  })
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify(data))
@@ -593,6 +614,16 @@ export function createFacetServer(options = {}) {
         })
       : null
 
+  const billingWebhookHandler =
+    authMode === 'hosted' && stripeClient && options.stripeWebhookSecret
+      ? createBillingWebhookHandler({
+          stripeClient,
+          webhookSecret: options.stripeWebhookSecret,
+          billingStore,
+          onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
+        })
+      : null
+
   const isAllowedOrigin = (origin) => allowedOrigins.includes(origin)
   const createHostedRateLimitKey = (actor, req) => {
     if (actor?.tenantId && actor?.accountId) {
@@ -675,6 +706,17 @@ export function createFacetServer(options = {}) {
         }
       } else {
         sendJson(res, 500, { error: 'Static asset request failed.' })
+      }
+      return
+    }
+
+    // Stripe webhooks bypass origin and auth checks
+    if (billingWebhookHandler?.canHandle(req)) {
+      try {
+        const rawBody = await readRawBody(req, maxBodyBytes)
+        await billingWebhookHandler.handle(req, res, rawBody, sendJson)
+      } catch (error) {
+        sendJson(res, 500, { error: 'Webhook processing failed.' })
       }
       return
     }
@@ -1072,6 +1114,7 @@ export function createEnvFacetServer(env = process.env) {
     hostedAuth,
     billingStore,
     stripeSecretKey: env.STRIPE_SECRET_KEY,
+    stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
     stripePriceId: env.STRIPE_PRICE_AI_MONTHLY,
     staticDir: env.FACET_STATIC_DIR,
     billingSuccessUrl:
