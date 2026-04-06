@@ -151,7 +151,7 @@ Scope executed from this checkout:
 Environment blockers found before attempting a staging pass:
 - no frontend hosted env is configured in this checkout for `VITE_FACET_DEPLOYMENT_MODE=hosted`, `VITE_SUPABASE_URL`, or `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `proxy/.env` is missing `SUPABASE_JWKS_URL` and `SUPABASE_JWT_ISSUER`, so hosted bearer-token validation cannot run locally against the proxy
-- `proxy/.env` is missing `STRIPE_SECRET_KEY` and `STRIPE_PRICE_AI_MONTHLY`, so the hosted billing path cannot be exercised honestly
+- `proxy/.env` is missing `STRIPE_SECRET_KEY` and `STRIPE_PRICE_AI_PRO`, so the hosted billing path cannot be exercised honestly
 - the browser app has no in-repo sign-in flow; hosted bootstrap expects an existing Supabase browser session
 
 Local evidence captured:

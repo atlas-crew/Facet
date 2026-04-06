@@ -1115,7 +1115,7 @@ export function createEnvFacetServer(env = process.env) {
     billingStore,
     stripeSecretKey: env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
-    stripePriceId: env.STRIPE_PRICE_AI_MONTHLY,
+    stripePriceId: env.STRIPE_PRICE_AI_PRO,
     staticDir: env.FACET_STATIC_DIR,
     billingSuccessUrl:
       env.STRIPE_CHECKOUT_SUCCESS_URL ??

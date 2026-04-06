@@ -93,7 +93,7 @@ scope.
 
 - in the Stripe dashboard (test mode), create a product called "Facet AI Pro"
 - add a recurring monthly price
-- record the price ID (`price_...`) as `STRIPE_PRICE_AI_MONTHLY`
+- record the price ID (`price_...`) as `STRIPE_PRICE_AI_PRO`
 
 ### 3b. Create webhook endpoint
 
@@ -112,7 +112,7 @@ scope.
 | Value | Source |
 |---|---|
 | `STRIPE_SECRET_KEY` | Stripe dashboard > Developers > API keys (test secret key) |
-| `STRIPE_PRICE_AI_MONTHLY` | Product > Price ID |
+| `STRIPE_PRICE_AI_PRO` | Product > Price ID |
 | `STRIPE_WEBHOOK_SECRET` | Webhook endpoint > Signing secret |
 | `STRIPE_CHECKOUT_SUCCESS_URL` | `https://<frontend-domain>/settings/billing/success` |
 | `STRIPE_CHECKOUT_CANCEL_URL` | `https://<frontend-domain>/settings/billing/cancel` |
@@ -154,7 +154,7 @@ fly secrets set \
   SUPABASE_JWT_AUDIENCE="authenticated" \
   SUPABASE_SERVICE_ROLE_KEY="..." \
   STRIPE_SECRET_KEY="sk_test_..." \
-  STRIPE_PRICE_AI_MONTHLY="price_..." \
+  STRIPE_PRICE_AI_PRO="price_..." \
   STRIPE_WEBHOOK_SECRET="whsec_..." \
   ANTHROPIC_API_KEY="sk-ant-..." \
   PROXY_API_KEY="<generate-a-strong-random-key>" \
@@ -222,7 +222,7 @@ For the hosted frontend build (Vercel or equivalent):
 | `VITE_FACET_API_BASE_URL` | `https://<fly-app-domain>` |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key |
-| `VITE_STRIPE_PRICE_AI_MONTHLY` | Stripe price ID |
+| `VITE_STRIPE_PRICE_AI_PRO` | Stripe price ID |
 
 For the lite demo build (GitHub Pages):
 

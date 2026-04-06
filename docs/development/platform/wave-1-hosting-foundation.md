@@ -88,7 +88,7 @@ These values are safe to expose in the browser bundle.
 | `VITE_FACET_DEPLOYMENT_MODE` | optional today | required | Declares `hosted` vs `self-hosted` browser behavior for AI/session wiring |
 | `VITE_SUPABASE_URL` | optional until hosted auth lands | required | Supabase project URL for browser auth/session flows |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | optional until hosted auth lands | required | Supabase browser key |
-| `VITE_STRIPE_PRICE_AI_MONTHLY` | optional until billing UI lands | required | Price identifier for the paid AI plan |
+| `VITE_STRIPE_PRICE_AI_PRO` | optional until billing UI lands | required | Price identifier for the paid AI plan |
 | `VITE_ANTHROPIC_PROXY_URL` | used today | compatibility-only during migration | Legacy direct proxy URL used by current AI routes |
 | `VITE_ANTHROPIC_PROXY_API_KEY` | used today for local development | must not be required in hosted production | Legacy client header value; not a real secret once shipped to browsers |
 
@@ -117,7 +117,7 @@ These values belong on the Fly app and must never be shipped to the browser.
 | `HOSTED_WORKSPACE_FILE` | transitional hosted persistence/auth | Durable file-backed actor, workspace, and snapshot directory for local hosted development |
 | `HOSTED_BILLING_FILE` | transitional hosted billing | Durable file-backed billing and entitlement directory until the hosted billing backend lands |
 | `STRIPE_SECRET_KEY` | yes | Stripe API secret for the current environment |
-| `STRIPE_PRICE_AI_MONTHLY` | yes | Hosted Wave 1 paid AI plan price identifier |
+| `STRIPE_PRICE_AI_PRO` | yes | Hosted Wave 1 paid AI plan price identifier |
 | `STRIPE_WEBHOOK_SECRET` | yes | Stripe webhook signing secret |
 | `STRIPE_CHECKOUT_SUCCESS_URL` | recommended | Hosted checkout success return URL |
 | `STRIPE_CHECKOUT_CANCEL_URL` | recommended | Hosted checkout cancel return URL |
