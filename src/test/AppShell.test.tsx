@@ -173,6 +173,14 @@ describe('AppShell hosted workspace bootstrap', () => {
   beforeEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    })
 
     useUiStore.setState({
       appearance: 'light',
@@ -261,6 +269,34 @@ describe('AppShell hosted workspace bootstrap', () => {
       bearerToken: 'token-123',
     })
     expect(screen.getByText(/workspace: hosted workspace/i)).toBeTruthy()
+  })
+
+  it('cycles appearance from the header theme button', () => {
+    setHostedStore({})
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    const lightButton = screen.getByRole('button', { name: 'Theme: light' })
+    fireEvent.click(lightButton)
+    expect(useUiStore.getState().appearance).toBe('dark')
+    expect(screen.getByRole('button', { name: 'Theme: dark' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Theme: dark' }))
+    expect(useUiStore.getState().appearance).toBe('system')
+    expect(screen.getByRole('button', { name: 'Theme: system' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Theme: system' }))
+    expect(useUiStore.getState().appearance).toBe('light')
+    expect(screen.getByRole('button', { name: 'Theme: light' })).toBeTruthy()
   })
 
   it('blocks the editor and surfaces an error when the hosted runtime fails to load', async () => {

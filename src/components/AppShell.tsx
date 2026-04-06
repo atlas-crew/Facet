@@ -43,6 +43,7 @@ const AI_ENABLED = !!import.meta.env.VITE_ANTHROPIC_PROXY_URL
 const AI_ROUTES: ReadonlySet<string> = new Set([
   '/identity', '/match', '/research', '/prep', '/letters', '/linkedin', '/debrief',
 ])
+const HELP_ROUTE = '/help' as const
 
 const NAV_ITEMS = [
   { to: '/build' as const, icon: Layers, label: 'Build' },
@@ -57,12 +58,19 @@ const NAV_ITEMS = [
   { to: '/debrief' as const, icon: MessageSquareQuote, label: 'Debrief' },
 ] as const
 
+const isRouteActive = (currentPath: string, route: string) =>
+  currentPath === route || currentPath.startsWith(`${route}/`)
+
 export function AppShell() {
   const { appearance, setAppearance } = useUiStore()
   const persistenceState = usePersistenceRuntimeStore()
   const hostedApp = useHostedAppStore()
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const isHelpRoute = isRouteActive(currentPath, HELP_ROUTE)
+  const currentNavLabel =
+    NAV_ITEMS.find(({ to }) => isRouteActive(currentPath, to))?.label ??
+    (isHelpRoute ? 'Help' : 'Facet')
   const [backupOpen, setBackupOpen] = useState(false)
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false)
   const [hostedRuntimePhase, setHostedRuntimePhase] = useState<
@@ -521,18 +529,12 @@ export function AppShell() {
   return (
     <div className="app-root">
       <nav className="app-sidebar" aria-label="Main navigation">
-        <div className="sidebar-top">
-          <Link to="/build" className="sidebar-brand" aria-label="Facet home">
-            <FacetGemMark size={22} />
-          </Link>
-        </div>
-
         <div className="sidebar-nav">
           {NAV_ITEMS.filter(({ to }) => AI_ENABLED || !AI_ROUTES.has(to)).map(({ to, icon: Icon, label }) => (
             <Link
               key={to}
               to={to}
-              className={`sidebar-nav-item ${currentPath.startsWith(to) ? 'active' : ''}`}
+              className={`sidebar-nav-item ${isRouteActive(currentPath, to) ? 'active' : ''}`}
               title={label}
             >
               <Icon size={20} strokeWidth={1.5} />
@@ -554,31 +556,46 @@ export function AppShell() {
             </button>
           ) : null}
           <Link
-            to="/help"
-            className={`sidebar-nav-item ${currentPath.startsWith('/help') ? 'active' : ''}`}
+            to={HELP_ROUTE}
+            className={`sidebar-nav-item ${isHelpRoute ? 'active' : ''}`}
             title="Help"
           >
             <HelpCircle size={18} strokeWidth={1.5} />
           </Link>
-          <button
-            className="sidebar-nav-item"
-            type="button"
-            onClick={cycleAppearance}
-            aria-label={`Theme: ${appearance}`}
-            title={`Theme: ${appearance}`}
-          >
-            {appearance === 'dark' ? (
-              <Moon size={18} strokeWidth={1.5} />
-            ) : appearance === 'light' ? (
-              <Sun size={18} strokeWidth={1.5} />
-            ) : (
-              <Monitor size={18} strokeWidth={1.5} />
-            )}
-          </button>
         </div>
       </nav>
 
       <div className="app-content-column">
+        <header className="app-topbar">
+          <div className="app-topbar-start">
+            <Link to="/build" className="app-topbar-brand" aria-label="Facet home">
+              <FacetGemMark size={22} />
+              <span>Facet</span>
+            </Link>
+            <div className="app-topbar-divider" aria-hidden="true" />
+            <div className="app-topbar-copy">
+              <h2 className="app-topbar-title">{currentNavLabel}</h2>
+            </div>
+          </div>
+          <div className="app-topbar-actions">
+            <button
+              className="app-topbar-theme-toggle"
+              type="button"
+              onClick={cycleAppearance}
+              aria-label={`Theme: ${appearance}`}
+              title={`Theme: ${appearance}`}
+            >
+              {appearance === 'dark' ? (
+                <Moon size={18} strokeWidth={1.5} />
+              ) : appearance === 'light' ? (
+                <Sun size={18} strokeWidth={1.5} />
+              ) : (
+                <Monitor size={18} strokeWidth={1.5} />
+              )}
+              <span>{appearance === 'system' ? 'System' : appearance === 'light' ? 'Light' : 'Dark'}</span>
+            </button>
+          </div>
+        </header>
         <div className="app-main">{renderMainContent()}</div>
 
         <WorkspaceBackupReminder onOpenBackup={() => setBackupOpen(true)} />

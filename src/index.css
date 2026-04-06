@@ -8,6 +8,7 @@
   --font-sans: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'DM Mono', 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   --font-brand: 'Outfit', 'DM Sans', 'Inter', sans-serif;
+  --font-wordmark: 'Instrument Serif', 'Georgia', serif;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -285,7 +286,7 @@ select {
 .facet-lockup {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   line-height: 1;
 }
 
@@ -300,10 +301,10 @@ select {
 }
 
 .facet-wordmark {
-  font-family: var(--font-brand);
-  font-weight: 300;
-  font-size: 28px;
-  letter-spacing: -0.5px;
+  font-family: var(--font-wordmark);
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 0.5px;
   color: var(--text-primary);
 }
 
@@ -2939,29 +2940,6 @@ select.component-input {
   z-index: 20;
 }
 
-.sidebar-top {
-  padding: var(--space-2) 0 var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: var(--space-2);
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  padding: var(--space-1);
-  border-radius: 6px;
-  transition: background var(--duration-fast) var(--easing);
-}
-
-.sidebar-brand:hover {
-  background: var(--bg-surface-hover);
-}
-
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -3059,6 +3037,86 @@ select.component-input {
   display: flex;
   flex-direction: column;
   height: 100vh;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.app-topbar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.app-topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.app-topbar-brand:hover {
+  color: var(--accent-primary);
+}
+
+.app-topbar-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border-subtle);
+}
+
+.app-topbar-copy {
+  min-width: 0;
+}
+
+.app-topbar-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-topbar-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing);
+}
+
+.app-topbar-theme-toggle:hover {
+  border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--border-default));
+  background: var(--bg-surface-hover);
+}
+
+.app-topbar-theme-toggle span {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .app-main {
@@ -3174,6 +3232,27 @@ select.component-input {
   .hosted-workspace-state-card {
     grid-template-columns: 1fr;
     margin: var(--space-4);
+  }
+
+  .app-topbar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .app-topbar-start {
+    gap: var(--space-3);
+  }
+
+  .app-topbar-title {
+    font-size: 18px;
+  }
+
+  .app-topbar-brand span,
+  .app-topbar-divider {
+    display: none;
+  }
+
+  .app-topbar-theme-toggle span {
+    display: none;
   }
 
   .hosted-workspace-item-header {
