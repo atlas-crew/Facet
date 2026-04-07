@@ -82,6 +82,17 @@ const multiRoleResumePdf = () =>
     '- Scaled the second platform.',
   ])
 
+const multiBulletResumePdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Built the first platform.',
+    '- Automated the second workflow.',
+    '- Stabilized the third service.',
+  ])
+
 test('uploads, parses, clears, and rescans a resume PDF with projects and education', async ({
   page,
 }) => {
@@ -336,4 +347,25 @@ test('parses multiple roles from a single resume pdf', async ({ page }) => {
   await expect(rolesSection.locator('input[value="ThreatX"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="Platform Engineer"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="Jan 2022 - Feb 2025"]')).toBeVisible()
+})
+
+test('parses multiple bullets for a single role in source order', async ({ page }) => {
+  await page.goto('/identity')
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const bulletSources = rolesSection.getByLabel(/Bullet \d+ Source/)
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'multi-bullet.pdf',
+    mimeType: 'application/pdf',
+    buffer: multiBulletResumePdf(),
+  })
+
+  await expect(page.getByLabel('Bullets: 3')).toBeVisible()
+  await expect(bulletSources).toHaveCount(3)
+  await expect(bulletSources.nth(0)).toHaveValue('Built the first platform.')
+  await expect(bulletSources.nth(1)).toHaveValue('Automated the second workflow.')
+  await expect(bulletSources.nth(2)).toHaveValue('Stabilized the third service.')
 })
