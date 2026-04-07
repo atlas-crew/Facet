@@ -2923,27 +2923,34 @@ select.component-input {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   background: var(--bg-surface);
   border-right: 1px solid var(--border-subtle);
   padding: var(--space-2) 0;
   z-index: 20;
+  overflow: hidden;
+  transition: width 0.2s var(--easing);
+}
+
+.app-sidebar:hover {
+  width: 168px;
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-1);
   flex: 1;
+  padding: 0 6px;
 }
 
 .sidebar-nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
+  gap: var(--space-2);
   height: 36px;
+  min-width: 36px;
+  padding: 0 8px;
   border-radius: 8px;
   border: none;
   background: transparent;
@@ -2953,7 +2960,12 @@ select.component-input {
   transition:
     color var(--duration-fast) var(--easing),
     background var(--duration-fast) var(--easing);
-  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-nav-item svg {
+  flex-shrink: 0;
 }
 
 .sidebar-nav-item:hover {
@@ -2967,23 +2979,22 @@ select.component-input {
 }
 
 .sidebar-nav-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.15s var(--easing);
+}
+
+.app-sidebar:hover .sidebar-nav-label {
+  opacity: 1;
 }
 
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-1);
-  padding-top: var(--space-2);
+  padding: var(--space-2) 6px 0;
   border-top: 1px solid var(--border-subtle);
-  width: 100%;
-  justify-content: center;
 }
 
 .hosted-workspace-state-card {
