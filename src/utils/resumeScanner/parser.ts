@@ -312,6 +312,16 @@ const isLikelyMetadataLine = (text: string): boolean => {
   )
 }
 
+const hasLikelyAtRoleHeader = (text: string): boolean => {
+  const stripped = normalizeWhitespace(
+    text
+      .replace(DATE_RANGE_PATTERN, ' ')
+      .replace(TRAILING_DATE_PATTERN, ' '),
+  )
+  const atSplit = pickAtSplit(stripped)
+  return Boolean(atSplit && isLikelyRoleKeyword(atSplit.title))
+}
+
 const looksLikeRoleHeader = (text: string): boolean => {
   if (!text || isBulletLine(text)) {
     return false
@@ -325,7 +335,7 @@ const looksLikeRoleHeader = (text: string): boolean => {
 
   return (
     DATE_PATTERN.test(text) ||
-    /\s+\bat\b\s+/i.test(text) ||
+    hasLikelyAtRoleHeader(text) ||
     (/[|•]/.test(text) &&
       segments.some((segment) => isLikelyRoleKeyword(segment) || FULL_DATE_SEGMENT_PATTERN.test(segment)))
   )

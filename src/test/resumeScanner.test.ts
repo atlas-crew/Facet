@@ -830,6 +830,32 @@ describe('resumeScanner parser', () => {
     ])
   })
 
+  it('does not turn wrapped bullet continuation lines with incidental "at" text into role headers', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('ThreatX (acquired by A10 Networks, Feb 2025)', 684),
+      ...buildLine('Senior Platform Engineer Jan 2022 - Feb 2025', 668),
+      ...buildLine('• Diagnosed a production failure that two weeks of planned optimizations could not fix. Built a distributed load', 652),
+      ...buildLine('testing framework from scratch, identified Linux conntrack table exhaustion at the kernel level at 150K RPS, built', 636),
+      ...buildLine('• Stabilized the production database under load.', 620),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        company: 'ThreatX (acquired by A10 Networks, Feb 2025)',
+        title: 'Senior Platform Engineer',
+        dates: 'Jan 2022 - Feb 2025',
+        bullets: [
+          'Diagnosed a production failure that two weeks of planned optimizations could not fix. Built a distributed load testing framework from scratch, identified Linux conntrack table exhaustion at the kernel level at 150K RPS, built',
+          'Stabilized the production database under load.',
+        ],
+      },
+    ])
+  })
+
   it('detects spaced section headings for projects and education', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('P R O J E C T S', 700),
