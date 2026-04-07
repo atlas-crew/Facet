@@ -6,6 +6,7 @@ import { useIdentityStore } from '../../store/identityStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { type IdentityApplyMode } from '../../types/identity'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
   deepenIdentityBullet,
@@ -89,7 +90,7 @@ export function IdentityPage() {
   const setData = useResumeStore((state) => state.setData)
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

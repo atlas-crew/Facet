@@ -28,7 +28,7 @@
     "dev": "vite",
     "dev:proxy": "pnpm --dir proxy run dev",
     "dev:all": "pnpm -r --parallel --stream run dev",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build --config vite.build.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
     "lint": "eslint .",

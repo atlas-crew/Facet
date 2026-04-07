@@ -8,6 +8,7 @@ import { useUiStore } from '../../store/uiStore'
 import { useHandoffStore } from '../../store/handoffStore'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from '../../utils/jobMatch'
 import { applyMatchReportToResumeData } from '../../utils/matchAssembler'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import './match.css'
 
@@ -42,7 +43,7 @@ export function MatchPage() {
   const setPendingAnalysis = useHandoffStore((state) => state.setPendingAnalysis)
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

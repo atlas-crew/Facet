@@ -1,17 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import type { FacetDeploymentMode } from '../types/hosted'
+import { facetClientEnv } from './facetEnv'
 
 let supabaseClient: SupabaseClient | null | undefined
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? ''
-const SUPABASE_PUBLISHABLE_KEY =
-  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ?? ''
+const SUPABASE_URL = facetClientEnv.supabaseUrl
+const SUPABASE_PUBLISHABLE_KEY = facetClientEnv.supabasePublishableKey
 
 export function getFacetDeploymentMode(): FacetDeploymentMode {
-  return import.meta.env.VITE_FACET_DEPLOYMENT_MODE === 'hosted'
-    ? 'hosted'
-    : 'self-hosted'
+  return facetClientEnv.deploymentMode
 }
 
 function getSupabaseClient() {
@@ -102,4 +100,3 @@ export async function getHostedAccessToken(): Promise<string | null> {
 
   return null
 }
-

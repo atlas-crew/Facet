@@ -6,6 +6,7 @@ import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import type { CoverLetterParagraph } from '../../types/coverLetter'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { generateCoverLetter } from '../../utils/coverLetterGenerator'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
@@ -36,7 +37,7 @@ export function LettersPage() {
     [pipelineEntries],
   )
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

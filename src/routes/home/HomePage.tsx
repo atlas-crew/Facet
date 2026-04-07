@@ -7,9 +7,10 @@ import { useLinkedInStore } from '../../store/linkedinStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useRecruiterStore } from '../../store/recruiterStore'
+import { facetClientEnv } from '../../utils/facetEnv'
 import './home.css'
 
-const AI_ENABLED = !!import.meta.env.VITE_ANTHROPIC_PROXY_URL
+const AI_ENABLED = Boolean(facetClientEnv.anthropicProxyUrl)
 
 const START_OPTIONS = [
   {

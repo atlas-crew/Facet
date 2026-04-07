@@ -9,6 +9,7 @@ import { useMatchStore } from '../../store/matchStore'
 import { usePrepStore } from '../../store/prepStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
@@ -51,7 +52,7 @@ export function PrepPage() {
   }, [activeDeckId, decks, setActiveDeck])
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

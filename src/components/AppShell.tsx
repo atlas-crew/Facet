@@ -30,6 +30,7 @@ import {
 import { createRemotePersistenceBackend } from '../persistence/remoteBackend'
 import { useHostedAppStore } from '../store/hostedAppStore'
 import { isFacetApiError } from '../utils/facetApiErrors'
+import { facetClientEnv } from '../utils/facetEnv'
 import { getHostedPersistenceEndpoint } from '../utils/hostedApi'
 import { reloadPage } from '../utils/windowLocation'
 import { signInWithGitHub } from '../utils/hostedSession'
@@ -39,7 +40,7 @@ import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
 import { WorkspaceBackupReminder } from './WorkspaceBackupReminder'
 
 const CURRENT_YEAR = new Date().getFullYear()
-const AI_ENABLED = !!import.meta.env.VITE_ANTHROPIC_PROXY_URL
+const AI_ENABLED = Boolean(facetClientEnv.anthropicProxyUrl)
 
 const AI_ROUTES: ReadonlySet<string> = new Set([
   '/identity', '/match', '/research', '/prep', '/letters', '/linkedin', '/debrief',

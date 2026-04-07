@@ -14,6 +14,7 @@ import type {
 } from '../../types/debrief'
 import { buildDebriefCorrectionNotes, buildDebriefIdentityDraft } from '../../utils/debriefIdentityDraft'
 import { generateDebriefReport } from '../../utils/debriefGenerator'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { summarizeDebriefPatterns } from '../../utils/debriefPatterns'
 import './debrief.css'
@@ -87,7 +88,7 @@ export function DebriefPage() {
   const [generationError, setGenerationError] = useState<string | null>(null)
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

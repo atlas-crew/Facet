@@ -1,5 +1,6 @@
 import type { FacetAiFeatureKey } from '../types/hosted'
 import { readAiProxyError } from './aiProxyErrors'
+import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
 
 /**
@@ -88,9 +89,10 @@ export async function callLlmProxy(
     }
 
     const bearerToken = await getHostedAccessToken()
+    const configuredProxyApiKey = facetClientEnv.anthropicProxyApiKey || undefined
     const resolvedProxyApiKey =
       options.proxyApiKey ??
-      (import.meta.env.VITE_ANTHROPIC_PROXY_API_KEY as string | undefined) ??
+      configuredProxyApiKey ??
       (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
     const response = await fetch(endpoint, {
       method: 'POST',

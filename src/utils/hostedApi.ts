@@ -1,7 +1,9 @@
+import { facetClientEnv } from './facetEnv'
+
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '')
 
 export function getHostedApiBaseUrl(): string {
-  const configured = (import.meta.env.VITE_FACET_API_BASE_URL as string | undefined)?.trim()
+  const configured = facetClientEnv.facetApiBaseUrl
   if (configured) {
     return trimTrailingSlash(configured)
   }

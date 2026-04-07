@@ -10,6 +10,7 @@ import type {
   SearchResultEntry,
   SkillCatalogEntry,
 } from '../../types/search'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { executeSearch } from '../../utils/searchExecutor'
 import { inferSearchProfile } from '../../utils/searchProfileInference'
@@ -68,7 +69,7 @@ export function ResearchPage() {
   const [pageError, setPageError] = useState<string | null>(null)
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

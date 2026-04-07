@@ -5,6 +5,7 @@ import type {
   SearchTokenUsage,
 } from '../types/search'
 import { readAiProxyError } from './aiProxyErrors'
+import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
 import { createId } from './idUtils'
 
@@ -75,8 +76,9 @@ export async function callSearchProxy(
 
   try {
     const bearerToken = await getHostedAccessToken()
+    const configuredProxyApiKey = facetClientEnv.anthropicProxyApiKey || undefined
     const resolvedProxyApiKey =
-      (import.meta.env.VITE_ANTHROPIC_PROXY_API_KEY as string | undefined) ??
+      configuredProxyApiKey ??
       (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
     const response = await fetch(endpoint, {
       method: 'POST',

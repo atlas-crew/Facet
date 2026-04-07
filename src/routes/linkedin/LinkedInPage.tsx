@@ -3,6 +3,7 @@ import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useIdentityStore } from '../../store/identityStore'
 import { useLinkedInStore } from '../../store/linkedinStore'
 import type { LinkedInProfileDraft } from '../../types/linkedin'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { generateLinkedInProfile } from '../../utils/linkedinProfileGenerator'
 import './linkedin.css'
@@ -46,7 +47,7 @@ export function LinkedInPage() {
   const [generationError, setGenerationError] = useState<string | null>(null)
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl((import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''),
+    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
   )
 

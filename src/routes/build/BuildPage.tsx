@@ -36,6 +36,7 @@ import { ComparisonDiff } from '../../components/ComparisonDiff'
 import { useResumeStore } from '../../store/resumeStore'
 import { toVectorKey, useUiStore } from '../../store/uiStore'
 import { componentKeys } from '../../utils/componentKeys'
+import { facetClientEnv } from '../../utils/facetEnv'
 import { VectorBar } from '../../components/VectorBar'
 import { UndoRedoControls } from '../../components/UndoRedoControls'
 import { ComponentLibrary } from '../../components/ComponentLibrary'
@@ -223,7 +224,7 @@ export function BuildPage() {
   const bulletOrders = data.bulletOrders ?? EMPTY_BULLET_ORDERS
   const vectorKey = toVectorKey(selectedVector)
 
-  const jdAnalysisEndpointRaw = (import.meta.env.VITE_ANTHROPIC_PROXY_URL as string | undefined) ?? ''
+  const jdAnalysisEndpointRaw = facetClientEnv.anthropicProxyUrl
   const jdAnalysisEndpoint = useMemo(() => sanitizeEndpointUrl(jdAnalysisEndpointRaw), [jdAnalysisEndpointRaw])
 
   const themeState = useMemo(() => normalizeThemeState(data.theme), [data.theme])
