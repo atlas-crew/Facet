@@ -17,23 +17,26 @@ references:
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031956.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-032434.md
+  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033156.md
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031956.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-032434.md.
+Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031956.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-032434.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033156.md.
 
 Remaining medium-severity browser acceptance gaps:
-- P2-001: image-only PDFs without text layers fall back cleanly
-- P2-002: extremely long parsed values do not destabilize the UI
+- P2-001: loading-state and disabled-input assertions during scan
+- P2-002: partial extraction coverage for contact-only or sparse resumes
+- P2-003: extremely long parsed values do not destabilize the UI
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The suite covers an image-only PDF and verifies graceful fallback or explicit unsupported messaging.
-- [ ] #2 The suite covers very long parsed values without crashing or breaking core form rendering.
+- [ ] #1 The suite asserts visible loading-state behavior while a scan is in progress.
+- [ ] #2 The suite covers contact-only or otherwise partial extractions without a full fallback.
+- [ ] #3 The suite covers very long parsed values without crashing or breaking core form rendering.
 <!-- AC:END -->
 
 ## Implementation Plan
