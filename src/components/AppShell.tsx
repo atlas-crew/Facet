@@ -578,11 +578,22 @@ export function AppShell() {
               type="button"
               onClick={() => setWorkspaceDialogOpen(true)}
               aria-label="Hosted workspaces"
-              title="Hosted workspaces"
+              title="Workspaces"
             >
               <HardDrive size={18} strokeWidth={1.5} />
+              <span className="sidebar-nav-label">Workspaces</span>
             </button>
           ) : null}
+          <button
+            className="sidebar-nav-item"
+            type="button"
+            onClick={() => setBackupOpen(true)}
+            aria-label="Backup workspace"
+            title="Backup"
+          >
+            <Cloud size={18} strokeWidth={1.5} />
+            <span className="sidebar-nav-label">Backup</span>
+          </button>
         </div>
       </nav>
 
