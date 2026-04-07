@@ -3062,6 +3062,8 @@ select.component-input {
 
 .app-topbar-brand .facet-wordmark {
   font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 1px;
 }
 
 .app-topbar-divider {
@@ -3084,6 +3086,77 @@ select.component-input {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.app-topbar-link,
+.app-topbar-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing);
+}
+
+.app-topbar-link {
+  cursor: pointer;
+}
+
+.app-topbar-link:hover {
+  border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--border-default));
+  background: var(--bg-surface-hover);
+}
+
+.app-topbar-link.active {
+  border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--border-default));
+  background: var(--accent-primary-subtle);
+  color: var(--accent-primary);
+}
+
+.app-topbar-link span,
+.app-topbar-sync span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.app-topbar-sync {
+  color: var(--text-secondary);
+}
+
+.app-topbar-sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-topbar-sync-ready .app-topbar-sync-dot {
+  background: var(--success);
+}
+
+.app-topbar-sync-saving .app-topbar-sync-dot {
+  background: var(--accent-primary);
+}
+
+.app-topbar-sync-offline .app-topbar-sync-dot {
+  background: var(--warning);
+}
+
+.app-topbar-sync-error .app-topbar-sync-dot {
+  background: var(--critical);
 }
 
 .app-topbar-theme-toggle {
@@ -3236,6 +3309,10 @@ select.component-input {
     gap: var(--space-3);
   }
 
+  .app-topbar-actions {
+    gap: 6px;
+  }
+
   .app-topbar-title {
     font-size: 18px;
   }
@@ -3245,6 +3322,8 @@ select.component-input {
     display: none;
   }
 
+  .app-topbar-link span,
+  .app-topbar-sync span,
   .app-topbar-theme-toggle span {
     display: none;
   }

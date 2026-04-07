@@ -316,6 +316,26 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('link', { name: /facet home/i }).getAttribute('href')).toBe('/')
   })
 
+  it('renders docs, account, and sync controls in the topbar', () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('link', { name: /help and docs/i }).getAttribute('href')).toBe('/help')
+    expect(screen.getByRole('button', { name: /account placeholder/i })).toBeTruthy()
+    expect(document.querySelector('.app-topbar-sync')?.textContent).toContain('Ready')
+  })
+
   it('blocks the editor and surfaces an error when the hosted runtime fails to load', async () => {
     setHostedStore({})
     setPersistenceHydration(true, 'ws-previous')

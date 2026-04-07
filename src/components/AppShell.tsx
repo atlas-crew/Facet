@@ -14,6 +14,7 @@ import {
   BadgeCheck,
   MessageSquareQuote,
   HelpCircle,
+  CircleUserRound,
   Moon,
   Sun,
   Monitor,
@@ -314,6 +315,14 @@ export function AppShell() {
   const syncLabel =
     syncLabelByPhase[persistenceState.status.phase] ??
     (persistenceState.hydrated ? 'Ready' : 'Starting')
+  const syncTone =
+    persistenceState.status.phase === 'error'
+      ? 'error'
+      : persistenceState.status.phase === 'offline'
+        ? 'offline'
+        : persistenceState.status.phase === 'saving'
+          ? 'saving'
+          : 'ready'
 
   const renderMainContent = () => {
     if (hostedApp.deploymentMode !== 'hosted') {
@@ -557,13 +566,6 @@ export function AppShell() {
               <HardDrive size={18} strokeWidth={1.5} />
             </button>
           ) : null}
-          <Link
-            to={HELP_ROUTE}
-            className={`sidebar-nav-item ${isHelpRoute ? 'active' : ''}`}
-            title="Help"
-          >
-            <HelpCircle size={18} strokeWidth={1.5} />
-          </Link>
         </div>
       </nav>
 
@@ -579,6 +581,33 @@ export function AppShell() {
             </div>
           </div>
           <div className="app-topbar-actions">
+            <div
+              className={`app-topbar-sync app-topbar-sync-${syncTone}`}
+              role="status"
+              aria-live="polite"
+              title={persistenceState.status.lastSavedAt ?? undefined}
+            >
+              <span className="app-topbar-sync-dot" aria-hidden="true" />
+              <span>{syncLabel}</span>
+            </div>
+            <Link
+              to={HELP_ROUTE}
+              className={`app-topbar-link ${isHelpRoute ? 'active' : ''}`}
+              aria-label="Help and docs"
+              title="Help and docs"
+            >
+              <HelpCircle size={16} strokeWidth={1.75} />
+              <span>Docs</span>
+            </Link>
+            <button
+              className="app-topbar-link"
+              type="button"
+              aria-label="Account placeholder"
+              title="Account controls coming soon"
+            >
+              <CircleUserRound size={16} strokeWidth={1.75} />
+              <span>Account</span>
+            </button>
             <button
               className="app-topbar-theme-toggle"
               type="button"
@@ -607,13 +636,6 @@ export function AppShell() {
               Workspace: {displayedHostedWorkspace.name}
             </span>
           ) : null}
-          <span
-            role="status"
-            aria-live="polite"
-            title={persistenceState.status.lastSavedAt ?? undefined}
-          >
-            Sync: {syncLabel}
-          </span>
           <nav className="app-footer-links" aria-label="Footer links">
             {hostedApp.deploymentMode === 'hosted' ? (
               <button
