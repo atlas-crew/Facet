@@ -196,6 +196,14 @@ const maliciousLinksPdf = () =>
     '- Built the first platform.',
   ])
 
+const contactOnlyPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    '727.266.8813',
+    'Tampa, FL',
+  ])
+
 const unstructuredPdf = () =>
   buildPdf([
     'Meeting notes from Tuesday',
@@ -643,6 +651,22 @@ test('parses project and education content from the second page of a pdf', async
   await expect(projectsSection.locator('textarea')).toHaveValue('Vector-based job search platform.')
   await expect(educationSection.locator('input[value="St. Petersburg College"]')).toBeVisible()
   await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
+})
+
+test('falls back to paste mode for contact-only pdfs without role structure', async ({ page }) => {
+  await page.goto('/identity')
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'contact-only.pdf',
+    mimeType: 'application/pdf',
+    buffer: contactOnlyPdf(),
+  })
+
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+  await expect(page.getByText(/role parsing did not|structural role parsing failed/i)).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Source Material' })).toHaveValue(
+    /NICK FERGUSON[\s\S]*nick@atlascrew.dev[\s\S]*727.266.8813[\s\S]*Tampa, FL/,
+  )
 })
 
 test('falls back to paste mode for a valid pdf with no recognizable resume structure', async ({
