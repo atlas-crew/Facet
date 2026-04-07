@@ -3130,6 +3130,16 @@ select.component-input {
   background: var(--bg-surface-hover);
 }
 
+.app-topbar-link-warning {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.app-topbar-link-danger {
+  border-color: var(--critical, #dc2626);
+  color: var(--critical, #dc2626);
+}
+
 .app-topbar-link.active,
 .app-topbar-icon-link.active {
   border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--border-default));

@@ -188,10 +188,10 @@ export function HomePage() {
       <section className="home-hero">
         <div className="home-hero-copy">
           <p className="home-eyebrow">Resume operating system</p>
-          <h2>Facet gives new users a place to start and returning users a place to resume.</h2>
+          <h2>A place to start. A place to resume.</h2>
           <p className="home-lede">
-            Start with the artifact you already have. Facet turns resumes, job descriptions, and
-            interview feedback into one connected workflow instead of separate docs.
+            Facet turns resumes, job descriptions, and interview feedback into one connected
+            workflow. Start with the artifact you already have.
           </p>
           <div className="home-hero-actions">
             {resumeRoute ? (
@@ -220,14 +220,14 @@ export function HomePage() {
                 ? `${scanResult.counts.deepenedBullets}/${scanResult.counts.bullets} bullets deepened`
                 : currentIdentity
                   ? `${currentIdentity.roles.length} roles modeled`
-                  : 'Not started'}
+                  : 'Add your resume to begin'}
             </strong>
             <p>
               {scanResult
                 ? `${scanResult.fileName} scanned locally`
                 : sourceMaterial.trim()
                   ? 'Source material saved and ready to process'
-                  : 'Resume intake and identity modeling'}
+                  : 'Upload a resume or paste source material to build your identity model'}
             </p>
           </div>
           <div className="home-signal-card">
@@ -237,12 +237,12 @@ export function HomePage() {
                 ? `${Math.round(currentReport.matchScore * 100)}% fit score`
                 : jobDescription.trim()
                   ? 'JD loaded'
-                  : 'Not started'}
+                  : 'Paste a JD to start scoring'}
             </strong>
             <p>
               {currentReport
                 ? `${currentReport.role} at ${currentReport.company}`
-                : 'Compare the current model against a target job'}
+                : 'Compare your identity model against a target job description'}
             </p>
           </div>
           <div className="home-signal-card">
@@ -255,26 +255,6 @@ export function HomePage() {
             <strong>{outputCount}</strong>
             <p>Letters, LinkedIn drafts, recruiter cards, and debrief sessions saved</p>
           </div>
-        </div>
-      </section>
-
-      <section className="home-section">
-        <div className="home-section-header">
-          <p className="home-eyebrow">Entry points</p>
-          <h3>Choose the artifact you have right now.</h3>
-        </div>
-        <div className="home-cta-grid">
-          {START_OPTIONS.map((option) => (
-            <Link
-              key={option.to}
-              className={`home-cta-card home-cta-card-${option.accent}`}
-              to={option.to}
-            >
-              <span className="home-cta-eyebrow">{option.eyebrow}</span>
-              <strong>{option.label}</strong>
-              <p>{option.body}</p>
-            </Link>
-          ))}
         </div>
       </section>
 
@@ -293,6 +273,26 @@ export function HomePage() {
                 <strong>{title}</strong>
                 <p>{detail}</p>
               </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-header">
+          <p className="home-eyebrow">Entry points</p>
+          <h3>Choose the artifact you have right now.</h3>
+        </div>
+        <div className="home-cta-grid">
+          {START_OPTIONS.map((option) => (
+            <Link
+              key={option.to}
+              className={`home-cta-card home-cta-card-${option.accent}`}
+              to={option.to}
+            >
+              <span className="home-cta-eyebrow">{option.eyebrow}</span>
+              <strong>{option.label}</strong>
+              <p>{option.body}</p>
             </Link>
           ))}
         </div>

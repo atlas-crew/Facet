@@ -76,20 +76,36 @@ export function AppShell() {
     (isHelpRoute ? 'Help' : isRouteActive(currentPath, '/account') ? 'Account' : 'Facet')
 
   const entitlement = hostedApp.context?.entitlement ?? null
+  const accountDaysLeft = useMemo(() => {
+    if (!entitlement?.effectiveThrough) return null
+    return Math.max(0, Math.ceil(
+      (new Date(entitlement.effectiveThrough).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    ))
+  }, [entitlement])
+
   const accountLabel = useMemo(() => {
     if (hostedApp.deploymentMode !== 'hosted') return 'Account'
     if (!entitlement || entitlement.status === 'inactive') return 'Free'
-    if (entitlement.status === 'active' && entitlement.effectiveThrough) {
-      const daysLeft = Math.max(0, Math.ceil(
-        (new Date(entitlement.effectiveThrough).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-      ))
-      return daysLeft > 0 ? `Pro · ${daysLeft}d` : 'Expired'
+    if (entitlement.status === 'active' && accountDaysLeft !== null) {
+      if (accountDaysLeft === 0) return 'Expired'
+      if (accountDaysLeft <= 3) return `Pro · ${accountDaysLeft}d · Renew`
+      if (accountDaysLeft <= 14) return `Pro · ${accountDaysLeft}d`
+      return `Pro · ${accountDaysLeft}d`
     }
     if (entitlement.status === 'delinquent') return 'Billing issue'
     if (entitlement.status === 'grace') return 'Grace'
     if (entitlement.status === 'trial') return 'Trial'
     return 'Pro'
-  }, [hostedApp.deploymentMode, entitlement])
+  }, [hostedApp.deploymentMode, entitlement, accountDaysLeft])
+
+  const accountTone = useMemo(() => {
+    if (hostedApp.deploymentMode !== 'hosted' || !entitlement) return ''
+    if (entitlement.status === 'inactive') return ''
+    if (entitlement.status === 'delinquent') return 'app-topbar-link-danger'
+    if (accountDaysLeft !== null && accountDaysLeft <= 3) return 'app-topbar-link-danger'
+    if (accountDaysLeft !== null && accountDaysLeft <= 14) return 'app-topbar-link-warning'
+    return ''
+  }, [hostedApp.deploymentMode, entitlement, accountDaysLeft])
 
   const [backupOpen, setBackupOpen] = useState(false)
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false)
@@ -641,7 +657,7 @@ export function AppShell() {
             </Link>
             <Link
               to="/account"
-              className={`app-topbar-link ${isRouteActive(currentPath, '/account') ? 'active' : ''}`}
+              className={`app-topbar-link ${accountTone} ${isRouteActive(currentPath, '/account') ? 'active' : ''}`}
               aria-label="Account"
               title="Account and AI access"
             >
