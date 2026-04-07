@@ -100,6 +100,59 @@ const unstructuredPdf = () =>
     'Risk review next week',
   ])
 
+const circularPageTreePdf = () =>
+  Buffer.from(
+    `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [2 0 R] /Count 1 >>
+endobj
+xref
+0 3
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+trailer
+<< /Size 3 /Root 1 0 R >>
+startxref
+115
+%%EOF
+`,
+    'utf8',
+  )
+
+const zeroBulletRolePdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    'Projects',
+    'Facet: Vector-based job search platform.',
+  ])
+
+const contactXssPdf = () =>
+  buildPdf([
+    '<img src=x onerror=alert(1)>',
+    '"><script>alert(2)</script>',
+    '<svg onload=alert(3)>',
+    'Remote',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Preserved contact payloads safely.',
+  ])
+
+const roleXssPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    '<img src=x onerror=alert(1)> | A10 Networks | Feb 2025 - Mar 2026',
+    '- <script>alert(2)</script>',
+  ])
+
 test('uploads, parses, clears, and rescans a resume PDF with projects and education', async ({
   page,
 }) => {
@@ -189,6 +242,36 @@ test('shows an error for malformed pdf uploads without rendering scanned section
   })
 
   await expect(page.getByRole('alert')).toContainText(/resume scan failed|invalid pdf|invalid root reference|malformed/i)
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+})
+
+test('shows an error for zero-byte pdf uploads without rendering scanned sections', async ({ page }) => {
+  await page.goto('/identity')
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'empty.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.alloc(0),
+  })
+
+  await expect(page.getByRole('alert')).toContainText(/resume scan failed|invalid pdf|unexpected server response|missing pdf|empty/i)
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+})
+
+test('shows an error for circular-reference pdf uploads without rendering scanned sections', async ({
+  page,
+}) => {
+  await page.goto('/identity')
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'circular-page-tree.pdf',
+    mimeType: 'application/pdf',
+    buffer: circularPageTreePdf(),
+  })
+
+  await expect(page.getByRole('alert')).toContainText(
+    /resume scan failed|circular reference|pages tree contains circular reference|invalid pdf/i,
+  )
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 })
 
@@ -393,4 +476,78 @@ test('falls back to paste mode for a valid pdf with no recognizable resume struc
   await expect(page.getByRole('textbox', { name: 'Source Material' })).toHaveValue(
     /Meeting notes from Tuesday[\s\S]*Follow up with the vendor about pricing[\s\S]*Risk review next week/,
   )
+})
+
+test('renders a role header even when no bullets follow it', async ({ page }) => {
+  await page.goto('/identity')
+
+  const scanStatus = page.locator('.identity-scan-status')
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'zero-bullet-role.pdf',
+    mimeType: 'application/pdf',
+    buffer: zeroBulletRolePdf(),
+  })
+
+  await expect(page.getByLabel('Roles: 1')).toBeVisible()
+  await expect(scanStatus.getByRole('group', { name: 'Bullets: 0', exact: true })).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toBeVisible()
+  await expect(rolesSection.getByLabel(/Bullet \d+ Source/)).toHaveCount(0)
+  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+})
+
+test('renders html-like contact payloads as inert field values', async ({ page }) => {
+  let dialogSeen = false
+  page.on('dialog', async (dialog) => {
+    dialogSeen = true
+    await dialog.dismiss()
+  })
+
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'contact-xss.pdf',
+    mimeType: 'application/pdf',
+    buffer: contactXssPdf(),
+  })
+
+  await expect(contactSection.getByLabel('Name')).toHaveValue('<img src=x onerror=alert(1)>')
+  await expect(contactSection.getByLabel('Email')).toHaveValue('')
+  await expect(contactSection.getByLabel('Phone')).toHaveValue('')
+  expect(dialogSeen).toBe(false)
+})
+
+test('renders html-like role and bullet payloads as inert field values', async ({ page }) => {
+  let dialogSeen = false
+  page.on('dialog', async (dialog) => {
+    dialogSeen = true
+    await dialog.dismiss()
+  })
+
+  await page.goto('/identity')
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'role-xss.pdf',
+    mimeType: 'application/pdf',
+    buffer: roleXssPdf(),
+  })
+
+  await expect(rolesSection.locator('input[value="<img src=x onerror=alert(1)>"]')).toBeVisible()
+  await expect(rolesSection.getByLabel('Bullet 1 Source')).toHaveValue('<script>alert(2)</script>')
+  expect(dialogSeen).toBe(false)
 })
