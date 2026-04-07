@@ -146,6 +146,33 @@ const multiBulletResumePdf = () =>
     '- Stabilized the third service.',
   ])
 
+const multiSkillGroupsPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Built the first platform.',
+    'SKILLS',
+    'Languages: TypeScript, Rust',
+    'Platforms: AWS, Kubernetes',
+  ])
+
+const multiProjectsAndEducationPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Built the first platform.',
+    'Projects',
+    'Facet: Vector-based job search platform.',
+    'Orbit: Internal developer portal.',
+    'Education',
+    'St. Petersburg College, Clearwater, FL. AAS, Computer Information Systems',
+    'University of South Florida, Tampa, FL. BS, Information Studies',
+  ])
+
 const multiPageResumePdf = () =>
   buildMultiPagePdf([
     [
@@ -212,6 +239,15 @@ const oversizedPdf = () =>
     Buffer.alloc(OVERSIZED_PDF_BYTES - Buffer.byteLength('%PDF-1.4\n%%EOF\n', 'utf8'), 0x20),
   ])
 
+const boundarySizedPdf = () => {
+  const validPdf = sampleResumePdf()
+  if (validPdf.length >= OVERSIZED_PDF_BYTES) {
+    throw new Error('Sample resume fixture already exceeds the max size boundary.')
+  }
+
+  return Buffer.concat([validPdf, Buffer.alloc(OVERSIZED_PDF_BYTES - validPdf.length - 1, 0x20)])
+}
+
 const tooManyPagesPdf = () =>
   buildMultiPagePdf(
     Array.from({ length: OVERLONG_PAGE_COUNT }, (_, index) =>
@@ -224,6 +260,32 @@ const tooManyPagesPdf = () =>
           ]
         : [`Page ${index + 1}`],
     ),
+  )
+
+const boundaryPageCountPdf = () =>
+  buildMultiPagePdf(
+    Array.from({ length: 10 }, (_, index) => {
+      if (index === 0) {
+        return [
+          'NICK FERGUSON',
+          'nick@atlascrew.dev',
+          'PROFESSIONAL EXPERIENCE',
+          'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+          '- Built the first platform.',
+        ]
+      }
+
+      if (index === 9) {
+        return [
+          'Projects',
+          'Facet: Vector-based job search platform.',
+          'Education',
+          'St. Petersburg College, Clearwater, FL. AAS, Computer Information Systems',
+        ]
+      }
+
+      return [`Page ${index + 1}`]
+    }),
   )
 
 const unstructuredPdf = () =>
@@ -286,6 +348,36 @@ const roleXssPdf = () =>
     '- <script>alert(2)</script>',
   ])
 
+const skillAndEducationXssPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Preserved structured payloads safely.',
+    'SKILLS',
+    '<img src=x onerror=alert(3)>: <script>alert(4)</script>, Terraform',
+    'Education',
+    '<svg onload=alert(5)> Academy, Tampa, FL. BS, <img src=x onerror=alert(6)> Security',
+  ])
+
+const multiPageRoleBulletsPdf = () =>
+  buildMultiPagePdf([
+    [
+      'NICK FERGUSON',
+      'nick@atlascrew.dev',
+      'PROFESSIONAL EXPERIENCE',
+      'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+      '- Built the first platform.',
+    ],
+    [
+      '- Automated the second workflow.',
+      '- Stabilized the third service.',
+      'Projects',
+      'Facet: Vector-based job search platform.',
+    ],
+  ])
+
 test('uploads, parses, clears, and rescans a resume PDF with projects and education', async ({
   page,
 }) => {
@@ -312,6 +404,9 @@ test('uploads, parses, clears, and rescans a resume PDF with projects and educat
     buffer: sampleResumePdf(),
   })
 
+  await expect(page.locator('.identity-notice')).toContainText(
+    /scanned scanner-acceptance.pdf into a structured identity shell/i,
+  )
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
   await expect(contactSection.locator('input[value="nick@atlascrew.dev"]')).toBeVisible()
   await expect(contactSection.locator('input[value="727.266.8813"]')).toBeVisible()
@@ -328,6 +423,7 @@ test('uploads, parses, clears, and rescans a resume PDF with projects and educat
   await expect(skillsSection.locator('input[value="Languages"]')).toBeVisible()
   await expect(skillsSection.locator('input[value="TypeScript"]')).toBeVisible()
   await expect(skillsSection.locator('input[value="Rust"]')).toBeVisible()
+  await expect(page.getByLabel('Skill groups: 1')).toBeVisible()
   await expect(page.getByLabel('Projects: 1')).toBeVisible()
   await expect(page.getByLabel('Education: 1')).toBeVisible()
   await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
@@ -412,6 +508,141 @@ test('recovers with a valid pdf after a rejected upload', async ({ page }) => {
   await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
 })
 
+test('renders uploaded filenames inertly in the success notice', async ({ page }) => {
+  let dialogSeen = false
+  page.on('dialog', async (dialog) => {
+    dialogSeen = true
+    await dialog.dismiss()
+  })
+
+  await page.goto('/identity')
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: '<img src=x onerror=alert(1)>.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(page.locator('.identity-notice')).toContainText(
+    /scanned <img src=x onerror=alert\(1\)>\.pdf into a structured identity shell\./i,
+  )
+  expect(dialogSeen).toBe(false)
+})
+
+test('keeps representative scanned fields editable after parsing', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const skillsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Skills' }) })
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+  const educationSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Education' }) })
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  const nameInput = contactSection.locator('input').nth(0)
+  const companyInput = rolesSection.locator('input').nth(0)
+  const skillGroupInput = skillsSection.locator('input').nth(0)
+  const projectDescriptionInput = projectsSection.locator('textarea').nth(0)
+  const educationLocationInput = educationSection.locator('input').nth(2)
+
+  await nameInput.fill('NICHOLAS FERGUSON')
+  await companyInput.fill('A10 Networks and ThreatX')
+  await skillGroupInput.fill('Languages and Platforms')
+  await projectDescriptionInput.fill('Targeted job search platform.')
+  await educationLocationInput.fill('St. Petersburg, FL')
+
+  await nameInput.blur()
+  await companyInput.blur()
+  await skillGroupInput.blur()
+  await projectDescriptionInput.blur()
+  await educationLocationInput.blur()
+
+  await expect(nameInput).toHaveValue('NICHOLAS FERGUSON')
+  await expect(companyInput).toHaveValue('A10 Networks and ThreatX')
+  await expect(skillGroupInput).toHaveValue('Languages and Platforms')
+  await expect(projectDescriptionInput).toHaveValue('Targeted job search platform.')
+  await expect(educationLocationInput).toHaveValue('St. Petersburg, FL')
+
+  await page.reload()
+
+  await expect(nameInput).toHaveValue('NICHOLAS FERGUSON')
+  await expect(companyInput).toHaveValue('A10 Networks and ThreatX')
+  await expect(skillGroupInput).toHaveValue('Languages and Platforms')
+  await expect(projectDescriptionInput).toHaveValue('Targeted job search platform.')
+  await expect(educationLocationInput).toHaveValue('St. Petersburg, FL')
+})
+
+test('preserves scanned data across a page reload', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const skillsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Skills' }) })
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+  const educationSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Education' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await page.reload()
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Languages"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
+})
+
+test('keeps the current scan when the file picker is cleared', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await uploadInput.setInputFiles([])
+  await expect(page.locator('.identity-alert')).toHaveText('')
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+})
+
 test('shows an error for zero-byte pdf uploads without rendering scanned sections', async ({ page }) => {
   await page.goto('/identity')
 
@@ -457,6 +688,27 @@ test('shows an error for oversized pdf uploads before rendering scanned sections
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 })
 
+test('accepts pdf uploads exactly at the size limit', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'boundary-sized.pdf',
+    mimeType: 'application/pdf',
+    buffer: boundarySizedPdf(),
+  })
+
+  await expect(page.locator('.identity-alert')).toHaveText('')
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
+})
+
 test('shows an error for password-protected pdf uploads without rendering scanned sections', async ({
   page,
 }) => {
@@ -487,6 +739,27 @@ test('shows an error for pdfs that exceed the page-count limit without rendering
 
   await expect(page.getByRole('alert')).toContainText(/10 pages|shorter pdf|split the resume/i)
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+})
+
+test('accepts pdf uploads exactly at the page-count limit', async ({ page }) => {
+  await page.goto('/identity')
+
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+  const educationSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Education' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'boundary-pages.pdf',
+    mimeType: 'application/pdf',
+    buffer: boundaryPageCountPdf(),
+  })
+
+  await expect(page.locator('.identity-alert')).toHaveText('')
+  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
 })
 
 test('shows an error for textless pdf uploads without rendering scanned sections', async ({
@@ -672,6 +945,56 @@ test('preserves encoded payloads as inert scanned values', async ({ page }) => {
   expect(dialogSeen).toBe(false)
 })
 
+test('parses multiple skill groups from a single resume pdf', async ({ page }) => {
+  await page.goto('/identity')
+
+  const skillsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Skills' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'multi-skills.pdf',
+    mimeType: 'application/pdf',
+    buffer: multiSkillGroupsPdf(),
+  })
+
+  await expect(page.getByLabel('Skill groups: 2')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Languages"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Platforms"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="TypeScript"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Rust"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="AWS"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Kubernetes"]')).toBeVisible()
+})
+
+test('parses multiple projects and education entries from a single resume pdf', async ({ page }) => {
+  await page.goto('/identity')
+
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+  const educationSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Education' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'multi-project-education.pdf',
+    mimeType: 'application/pdf',
+    buffer: multiProjectsAndEducationPdf(),
+  })
+
+  await expect(page.getByLabel('Projects: 2')).toBeVisible()
+  await expect(page.getByLabel('Education: 2')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Orbit"]')).toBeVisible()
+  await expect(projectsSection.locator('textarea').nth(0)).toHaveValue('Vector-based job search platform.')
+  await expect(projectsSection.locator('textarea').nth(1)).toHaveValue('Internal developer portal.')
+  await expect(educationSection.locator('input[value="St. Petersburg College"]')).toBeVisible()
+  await expect(educationSection.locator('input[value="University of South Florida"]')).toBeVisible()
+  await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
+  await expect(educationSection.locator('input[value="Tampa, FL"]')).toBeVisible()
+})
+
 test('parses multiple roles from a single resume pdf', async ({ page }) => {
   await page.goto('/identity')
 
@@ -753,6 +1076,43 @@ test('falls back to paste mode for contact-only pdfs without role structure', as
   await expect(page.getByRole('textbox', { name: 'Source Material' })).toHaveValue(
     /NICK FERGUSON[\s\S]*nick@atlascrew.dev[\s\S]*727.266.8813[\s\S]*Tampa, FL/,
   )
+})
+
+test('replaces paste fallback mode with a full scan when a valid pdf is uploaded next', async ({
+  page,
+}) => {
+  await page.goto('/identity')
+
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+  const sourceMaterial = page.getByRole('textbox', { name: 'Source Material' })
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await uploadInput.setInputFiles({
+    name: 'contact-only.pdf',
+    mimeType: 'application/pdf',
+    buffer: contactOnlyPdf(),
+  })
+
+  await expect(sourceMaterial).toBeVisible()
+
+  await page.getByRole('button', { name: 'Upload Resume' }).click()
+
+  const resumedUploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await resumedUploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(sourceMaterial).toHaveCount(0)
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
 })
 
 test('falls back to paste mode for a valid pdf with no recognizable resume structure', async ({
@@ -845,4 +1205,201 @@ test('renders html-like role and bullet payloads as inert field values', async (
   await expect(rolesSection.locator('input[value="<img src=x onerror=alert(1)>"]')).toBeVisible()
   await expect(rolesSection.getByLabel('Bullet 1 Source')).toHaveValue('<script>alert(2)</script>')
   expect(dialogSeen).toBe(false)
+})
+
+test('renders html-like skill and education payloads as inert field values', async ({ page }) => {
+  let dialogSeen = false
+  page.on('dialog', async (dialog) => {
+    dialogSeen = true
+    await dialog.dismiss()
+  })
+
+  await page.goto('/identity')
+
+  const skillsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Skills' }) })
+  const educationSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Education' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'skill-education-xss.pdf',
+    mimeType: 'application/pdf',
+    buffer: skillAndEducationXssPdf(),
+  })
+
+  await expect(skillsSection.locator('input').nth(0)).toHaveValue('<img src=x onerror=alert(3)>')
+  await expect(skillsSection.locator('input').nth(1)).toHaveValue('<script>alert(4)</script>')
+  await expect(skillsSection.locator('input').nth(2)).toHaveValue('Terraform')
+  const educationValues = await educationSection
+    .locator('input')
+    .evaluateAll((elements) => elements.map((element) => (element as HTMLInputElement).value))
+  expect(educationValues).toContain('<svg onload=alert(5)> Academy')
+  expect(dialogSeen).toBe(false)
+})
+
+test('keeps role bullets attached when they continue onto the next page', async ({ page }) => {
+  await page.goto('/identity')
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const bulletSources = rolesSection.getByLabel(/Bullet \d+ Source/)
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'multi-page-role-bullets.pdf',
+    mimeType: 'application/pdf',
+    buffer: multiPageRoleBulletsPdf(),
+  })
+
+  await expect(page.getByLabel('Roles: 1')).toBeVisible()
+  await expect(page.getByLabel('Bullets: 3')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
+  await expect(bulletSources).toHaveCount(3)
+  await expect(bulletSources.nth(0)).toHaveValue('Built the first platform.')
+  await expect(bulletSources.nth(1)).toHaveValue('Automated the second workflow.')
+  await expect(bulletSources.nth(2)).toHaveValue('Stabilized the third service.')
+})
+
+test('prefers the latest file when uploads overlap', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalArrayBuffer = File.prototype.arrayBuffer
+    File.prototype.arrayBuffer = function patchedArrayBuffer() {
+      if (this.name === 'boundary-sized.pdf') {
+        return new Promise((resolve, reject) => {
+          window.setTimeout(() => {
+            originalArrayBuffer.call(this).then(resolve, reject)
+          }, 250)
+        })
+      }
+
+      return originalArrayBuffer.call(this)
+    }
+  })
+
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'boundary-sized.pdf',
+    mimeType: 'application/pdf',
+    buffer: boundarySizedPdf(),
+  })
+
+  await uploadInput.setInputFiles({
+    name: 'alternate.pdf',
+    mimeType: 'application/pdf',
+    buffer: alternateResumePdf(),
+  })
+
+  await expect(contactSection.locator('input[value="JANE PLATFORM"]')).toBeVisible()
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toHaveCount(0)
+  await expect(projectsSection.locator('input[value="Orbit"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveCount(0)
+})
+
+test('does not restore a delayed rescan after Clear Scan is clicked', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalArrayBuffer = File.prototype.arrayBuffer
+    File.prototype.arrayBuffer = function patchedArrayBuffer() {
+      if (this.name === 'delayed-rescan.pdf') {
+        return new Promise((resolve, reject) => {
+          window.setTimeout(() => {
+            originalArrayBuffer.call(this).then(resolve, reject)
+          }, 250)
+        })
+      }
+
+      return originalArrayBuffer.call(this)
+    }
+  })
+
+  await page.goto('/identity')
+
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(page.getByRole('button', { name: 'Clear Scan' })).toBeVisible()
+
+  const delayedUpload = uploadInput.setInputFiles({
+    name: 'delayed-rescan.pdf',
+    mimeType: 'application/pdf',
+    buffer: alternateResumePdf(),
+  })
+
+  await page.getByRole('button', { name: 'Clear Scan' }).click()
+  await delayedUpload
+
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Source Material' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Upload Resume' })).toBeVisible()
+})
+
+test('re-parses when the same file is uploaded again after clear', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const projectsSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Projects' }) })
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Clear Scan' }).click()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveCount(0)
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+})
+
+test('preserves scanned data across route navigation', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await page.getByRole('link', { name: 'Build' }).click()
+  await expect(page).toHaveURL(/\/build$/)
+  await page.getByRole('link', { name: 'Identity' }).click()
+  await expect(page).toHaveURL(/\/identity$/)
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
 })

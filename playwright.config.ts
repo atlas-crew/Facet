@@ -76,6 +76,10 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: {
     command: 'npm run build && npx vite preview --host 127.0.0.1 --port 4173',
+    env: {
+      ...process.env,
+      VITE_FACET_DEPLOYMENT_MODE: process.env.VITE_FACET_DEPLOYMENT_MODE || 'self-hosted',
+    },
     url: 'http://127.0.0.1:4173',
     // Default to a fresh preview server so tests run against the current build output.
     // Set PLAYWRIGHT_REUSE_SERVER=1 to opt back into local reuse when you explicitly want it.
