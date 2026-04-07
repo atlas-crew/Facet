@@ -78,6 +78,7 @@ export function IdentityPage() {
   const finishScanBulkDeepen = useIdentityStore((state) => state.finishScanBulkDeepen)
   const updateScannedSkillGroupLabel = useIdentityStore((state) => state.updateScannedSkillGroupLabel)
   const updateScannedSkillItemName = useIdentityStore((state) => state.updateScannedSkillItemName)
+  const updateScannedProjectEntry = useIdentityStore((state) => state.updateScannedProjectEntry)
   const updateScannedEducationEntry = useIdentityStore((state) => state.updateScannedEducationEntry)
   const importIdentity = useIdentityStore((state) => state.importIdentity)
   const applyDraft = useIdentityStore((state) => state.applyDraft)
@@ -671,6 +672,7 @@ export function IdentityPage() {
           onDeepenBullet={handleDeepenBullet}
           onUpdateSkillGroupLabel={updateScannedSkillGroupLabel}
           onUpdateSkillItemName={updateScannedSkillItemName}
+          onUpdateProjectEntry={updateScannedProjectEntry}
           onUpdateEducationEntry={updateScannedEducationEntry}
         />
 

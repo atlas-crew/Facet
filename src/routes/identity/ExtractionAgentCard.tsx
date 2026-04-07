@@ -60,6 +60,11 @@ interface ExtractionAgentCardProps {
   onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>
   onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void
   onUpdateSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
+  onUpdateProjectEntry: (
+    projectIndex: number,
+    field: 'name' | 'description' | 'url',
+    value: string,
+  ) => void
   onUpdateEducationEntry: (
     educationIndex: number,
     field: keyof ProfessionalIdentityV3['education'][number],
@@ -98,6 +103,7 @@ export function ExtractionAgentCard({
   onDeepenBullet,
   onUpdateSkillGroupLabel,
   onUpdateSkillItemName,
+  onUpdateProjectEntry,
   onUpdateEducationEntry,
 }: ExtractionAgentCardProps) {
   const hasRunningBullet = scanResult
@@ -208,6 +214,14 @@ export function ExtractionAgentCard({
                   <div
                     className="identity-stat"
                     role="group"
+                    aria-label={'Projects: ' + scanResult.counts.projects}
+                  >
+                    <span className="identity-stat-label">Projects</span>
+                    <strong>{scanResult.counts.projects}</strong>
+                  </div>
+                  <div
+                    className="identity-stat"
+                    role="group"
                     aria-label={'Education: ' + scanResult.counts.education}
                   >
                     <span className="identity-stat-label">Education</span>
@@ -285,6 +299,7 @@ export function ExtractionAgentCard({
                 onDeepenBullet={onDeepenBullet}
                 onUpdateSkillGroupLabel={onUpdateSkillGroupLabel}
                 onUpdateSkillItemName={onUpdateSkillItemName}
+                onUpdateProjectEntry={onUpdateProjectEntry}
                 onUpdateEducationEntry={onUpdateEducationEntry}
               />
             </>

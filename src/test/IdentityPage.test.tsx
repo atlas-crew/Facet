@@ -48,6 +48,22 @@ const scanFixture = (): ResumeScanResult => {
   identity.roles[0].bullets[0].impact = []
   identity.roles[0].bullets[0].source_text =
     'Ported the platform to Kubernetes-based installs.'
+  identity.projects = [
+    {
+      id: 'facet',
+      name: 'Facet',
+      description: 'Vector-based job search platform.',
+      url: 'https://facet.test',
+      tags: [],
+    },
+  ]
+  identity.education = [
+    {
+      school: 'St. Petersburg College',
+      degree: 'AAS, Computer Information Systems',
+      location: 'Clearwater, FL',
+    },
+  ]
 
   return {
     fileName: 'resume.pdf',
@@ -65,8 +81,9 @@ const scanFixture = (): ResumeScanResult => {
     counts: {
       roles: 1,
       bullets: 1,
+      projects: 1,
       skillGroups: 1,
-      education: 0,
+      education: 1,
       extractedBullets: 1,
       decomposedBullets: 0,
       scannedBullets: 1,
@@ -235,6 +252,11 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
     })
 
+    expect(screen.getByDisplayValue('Facet')).toBeTruthy()
+    expect(screen.getByDisplayValue('Vector-based job search platform.')).toBeTruthy()
+    expect(screen.getByDisplayValue('Clearwater, FL')).toBeTruthy()
+    expect(screen.getByLabelText('Projects: 1')).toBeTruthy()
+
     fireEvent.change(
       screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'),
       {
@@ -245,6 +267,10 @@ describe('IdentityPage', () => {
     expect(
       useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.source_text,
     ).toBe('Ported the platform to Kubernetes-based installs for on-prem customers.')
+    fireEvent.change(screen.getByDisplayValue('Facet'), {
+      target: { value: 'Facet OSS' },
+    })
+    expect(useIdentityStore.getState().scanResult?.identity.projects[0]?.name).toBe('Facet OSS')
     expect(screen.getByText(/two-column layout/i)).toBeTruthy()
 
     fireEvent.click(screen.getByText('Generate Draft'))
@@ -309,6 +335,7 @@ describe('IdentityPage', () => {
     fallback.identity.roles = []
     fallback.counts.roles = 0
     fallback.counts.bullets = 0
+    fallback.counts.projects = 1
     fallback.counts.extractedBullets = 0
     fallback.warnings = [
       {

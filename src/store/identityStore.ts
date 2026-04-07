@@ -72,6 +72,11 @@ interface IdentityState {
   finishScanBulkDeepen: () => void
   updateScannedSkillGroupLabel: (groupIndex: number, value: string) => void
   updateScannedSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
+  updateScannedProjectEntry: (
+    projectIndex: number,
+    field: 'name' | 'description' | 'url',
+    value: string,
+  ) => void
   updateScannedEducationEntry: (
     educationIndex: number,
     field: keyof ProfessionalIdentityV3['education'][number],
@@ -217,6 +222,7 @@ const recalculateScanCounts = (
   return {
     roles: identity.roles.length,
     bullets: bullets.length,
+    projects: identity.projects.length,
     skillGroups: identity.skills.groups.length,
     education: identity.education.length,
     extractedBullets: bullets.filter((bullet) => Boolean(bullet.source_text?.trim())).length,
@@ -699,6 +705,20 @@ export const useIdentityStore = create<IdentityState>()(
                   : group,
               ),
             },
+          })),
+        ),
+      updateScannedProjectEntry: (projectIndex, field, value) =>
+        set((state) =>
+          updateScanIdentity(state, (identity) => ({
+            ...identity,
+            projects: identity.projects.map((project, index) =>
+              index === projectIndex
+                ? {
+                    ...project,
+                    [field]: value,
+                  }
+                : project,
+            ),
           })),
         ),
       updateScannedEducationEntry: (educationIndex, field, value) =>

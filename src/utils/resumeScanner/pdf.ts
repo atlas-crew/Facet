@@ -86,6 +86,7 @@ export const scanResumePdf = async (
     counts: {
       roles: parsed.identity.roles.length,
       bullets: parsed.identity.roles.reduce((total, role) => total + role.bullets.length, 0),
+      projects: parsed.identity.projects.length,
       skillGroups: parsed.identity.skills.groups.length,
       education: parsed.identity.education.length,
       extractedBullets: parsed.identity.roles.reduce(

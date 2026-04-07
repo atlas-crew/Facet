@@ -35,6 +35,11 @@ interface ScannedIdentityEditorProps {
   onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>
   onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void
   onUpdateSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
+  onUpdateProjectEntry: (
+    projectIndex: number,
+    field: 'name' | 'description' | 'url',
+    value: string,
+  ) => void
   onUpdateEducationEntry: (
     educationIndex: number,
     field: keyof ProfessionalIdentityV3['education'][number],
@@ -236,6 +241,7 @@ export function ScannedIdentityEditor({
   onDeepenBullet,
   onUpdateSkillGroupLabel,
   onUpdateSkillItemName,
+  onUpdateProjectEntry,
   onUpdateEducationEntry,
 }: ScannedIdentityEditorProps) {
   const { identity, progress } = scanResult
@@ -520,6 +526,51 @@ export function ScannedIdentityEditor({
           </div>
         ) : (
           <p className="identity-muted">No skill groups were parsed from this PDF.</p>
+        )}
+      </section>
+
+      <section className="identity-scan-section">
+        <div>
+          <h3>Projects</h3>
+          <p>Projects stay editable in the scanned draft so downstream Build output can use them directly.</p>
+        </div>
+        {identity.projects.length > 0 ? (
+          <div className="identity-scan-stack">
+            {identity.projects.map((project, projectIndex) => (
+              <article className="identity-scan-card" key={project.id}>
+                <div className="identity-scan-form-grid">
+                  <label className="identity-field">
+                    <span className="identity-label">Name</span>
+                    <input
+                      className="identity-input"
+                      value={project.name}
+                      onChange={(event) => onUpdateProjectEntry(projectIndex, 'name', event.target.value)}
+                    />
+                  </label>
+                  <label className="identity-field">
+                    <span className="identity-label">URL</span>
+                    <input
+                      className="identity-input"
+                      value={project.url ?? ''}
+                      onChange={(event) => onUpdateProjectEntry(projectIndex, 'url', event.target.value)}
+                    />
+                  </label>
+                  <label className="identity-field identity-field-wide">
+                    <span className="identity-label">Description</span>
+                    <textarea
+                      className="identity-textarea"
+                      value={project.description}
+                      onChange={(event) =>
+                        onUpdateProjectEntry(projectIndex, 'description', event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="identity-muted">No projects were parsed from this PDF.</p>
         )}
       </section>
 

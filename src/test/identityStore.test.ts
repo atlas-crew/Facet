@@ -13,6 +13,15 @@ const createScanResult = () => {
   identity.roles[0].bullets[0].technologies = []
   identity.roles[0].bullets[0].source_text =
     'Ported the platform to Kubernetes-based installs for on-prem customers.'
+  identity.projects = [
+    {
+      id: 'facet',
+      name: 'Facet',
+      description: 'Vector-based job search platform.',
+      url: 'https://facet.test',
+      tags: [],
+    },
+  ]
 
   return {
     fileName: 'resume.pdf',
@@ -24,6 +33,7 @@ const createScanResult = () => {
     counts: {
       roles: 1,
       bullets: 1,
+      projects: 1,
       skillGroups: 1,
       education: 0,
       extractedBullets: 1,
@@ -120,6 +130,25 @@ describe('identityStore scan progress', () => {
       'Ported the platform to Kubernetes-based installs for on-prem customers.',
     )
     expect(useIdentityStore.getState().warnings).toContain('Normalized test warning.')
+  })
+
+  it('updates scanned project fields and keeps project counts in sync', () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().updateScannedProjectEntry(0, 'name', 'Facet OSS')
+    useIdentityStore.getState().updateScannedProjectEntry(
+      0,
+      'description',
+      'Targeted resume generation and pipeline tracking.',
+    )
+    useIdentityStore.getState().updateScannedProjectEntry(0, 'url', 'https://facet.atlascrew.dev')
+
+    const state = useIdentityStore.getState().scanResult
+    expect(state?.identity.projects[0]).toMatchObject({
+      name: 'Facet OSS',
+      description: 'Targeted resume generation and pipeline tracking.',
+      url: 'https://facet.atlascrew.dev',
+    })
+    expect(state?.counts.projects).toBe(1)
   })
 
   it('tracks failure, edit, and bulk cancellation state without clearing completed work', () => {

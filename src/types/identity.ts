@@ -84,6 +84,7 @@ export interface ResumeScanProgress {
 export interface ResumeScanCounts {
   roles: number
   bullets: number
+  projects: number
   skillGroups: number
   education: number
   extractedBullets: number
