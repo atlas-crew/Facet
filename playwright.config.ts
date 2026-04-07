@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const reusePreviewServer = !process.env.CI && process.env.PLAYWRIGHT_REUSE_SERVER === '1'
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
@@ -75,7 +77,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run build && npx vite preview --host 127.0.0.1 --port 4173',
     url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    // Default to a fresh preview server so tests run against the current build output.
+    // Set PLAYWRIGHT_REUSE_SERVER=1 to opt back into local reuse when you explicitly want it.
+    reuseExistingServer: reusePreviewServer,
     timeout: 120_000,
   },
 });
