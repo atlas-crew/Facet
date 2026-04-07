@@ -378,6 +378,40 @@ test('shows an error for malformed pdf uploads without rendering scanned section
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 })
 
+test('recovers with a valid pdf after a rejected upload', async ({ page }) => {
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'broken.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n', 'utf8'),
+  })
+
+  await expect(page.getByRole('alert')).toContainText(/resume scan failed|invalid pdf|invalid root reference|malformed/i)
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(page.locator('.identity-alert')).toHaveText('')
+  await expect(page.locator('.identity-notice')).toContainText(
+    /scanned scanner-acceptance.pdf into a structured identity shell/i,
+  )
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
+})
+
 test('shows an error for zero-byte pdf uploads without rendering scanned sections', async ({ page }) => {
   await page.goto('/identity')
 
