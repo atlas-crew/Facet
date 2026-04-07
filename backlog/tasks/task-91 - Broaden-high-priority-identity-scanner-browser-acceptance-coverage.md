@@ -15,30 +15,26 @@ references:
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-024540.md
+  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md
 priority: high
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-024540.md.
+Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-024540.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md.
 
 Remaining high-priority browser acceptance gaps:
-- P1-001: role entries with zero bullets
-- P1-002: resumes with contact info but no roles section
-- P1-003: malformed or missing role date ranges still render roles
-- P1-004: multiple skill groups parsed independently
-- P1-005: multiple projects parsed and counted
-- P1-006: multiple education entries parsed and counted
+- P1-001: multi-page PDF parsing across page boundaries
+- P1-002: max file size limits for oversized PDF uploads
+- P1-003: password-protected PDF handling with a descriptive error path
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The suite covers a role card with zero bullets and verifies the next section still parses correctly.
-- [ ] #2 The suite covers a resume with contact info but no roles section and verifies graceful partial parsing.
-- [ ] #3 The suite covers malformed or missing role date ranges without dropping the role card.
-- [ ] #4 The suite covers multiple skill groups and verifies they render independently.
-- [ ] #5 The suite covers multiple projects and multiple education entries with count assertions above 1.
+- [ ] #1 The suite covers a multi-page PDF and proves page-two content is parsed and rendered.
+- [ ] #2 The suite covers oversized PDF rejection with an explicit user-facing error path.
+- [ ] #3 The suite covers password-protected PDF rejection with a descriptive failure state.
 <!-- AC:END -->
 
 ## Implementation Plan

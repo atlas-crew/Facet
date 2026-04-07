@@ -14,29 +14,24 @@ references:
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md
+  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md.
+Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md.
 
 Remaining medium-severity browser acceptance gaps:
-- P2-001: scanned fields remain user-editable after parse
-- P2-002: very long field values
-- P2-003: scan persistence across route navigation
-- P2-004: contact info without links line
-- P2-005: skills section count label assertions
+- P2-001: image-only PDFs without text layers fall back cleanly
+- P2-002: extremely long parsed values do not destabilize the UI
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The suite proves scanned fields remain editable after parsing.
-- [ ] #2 The suite covers very long parsed values without truncation at the form-control level.
-- [ ] #3 The suite defines and verifies the expected scan persistence behavior across route navigation.
-- [ ] #4 The suite covers contact parsing when the links line is omitted.
-- [ ] #5 The suite asserts the skills section count label directly.
+- [ ] #1 The suite covers an image-only PDF and verifies graceful fallback or explicit unsupported messaging.
+- [ ] #2 The suite covers very long parsed values without crashing or breaking core form rendering.
 <!-- AC:END -->
 
 ## Implementation Plan
