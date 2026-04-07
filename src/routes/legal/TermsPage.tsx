@@ -20,7 +20,7 @@ export function TermsPage() {
       <section>
         <h3>2. Description of Service</h3>
         <p>
-          Facet is a strategic resume assembly tool for engineers. The Service allows you to define
+          Facet is a strategic resume assembly tool for professionals. The Service allows you to define
           career components, create positioning vectors, assemble targeted resumes, analyze job
           descriptions, generate cover letters, and produce other career materials. The Service
           includes both free features (resume assembly, pipeline tracking) and paid AI-powered
