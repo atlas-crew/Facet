@@ -20,25 +20,26 @@ references:
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-032434.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033156.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033718.md
+  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-105655.md
 priority: high
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-024540.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031956.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-032434.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033156.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033718.md.
+Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-024540.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031521.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-031956.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-032434.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033156.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-033718.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-105655.md.
 
 Remaining high-priority browser acceptance gaps:
-- P1-001: max file size limits for oversized PDF uploads
-- P1-002: network or server failure handling if scanning ever moves off the client path
-- P1-003: content bounds enforcement for pathological PDFs with extreme page or field counts
+- P1-001: error recovery when a valid upload follows a rejected PDF
+- P1-002: scanned field editability after parse
+- P1-003: multiple skill groups parsed and displayed with accurate counts
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The suite covers oversized PDF rejection with an explicit user-facing error path.
-- [ ] #2 If the scanner path gains network dependencies, the suite covers backend failure recovery explicitly.
-- [ ] #3 The suite covers content-boundary protection for pathological PDFs, either by graceful rejection or truncation.
+- [ ] #1 The suite proves a valid upload clears a prior scan error and renders structured sections normally.
+- [ ] #2 The suite proves representative scanned fields remain editable after parsing.
+- [ ] #3 The suite covers multiple skill groups and verifies both rendered content and status counts.
 <!-- AC:END -->
 
 ## Implementation Plan
