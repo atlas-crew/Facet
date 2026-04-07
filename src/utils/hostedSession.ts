@@ -44,7 +44,7 @@ export async function signInWithGitHub(): Promise<void> {
   const { data, error } = await client.auth.signInWithOAuth({
     provider: 'github',
     options: {
-      redirectTo: `${window.location.origin}/build`,
+      redirectTo: window.location.origin,
       skipBrowserRedirect: true,
     },
   })
