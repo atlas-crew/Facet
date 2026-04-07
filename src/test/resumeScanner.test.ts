@@ -538,6 +538,36 @@ describe('resumeScanner parser', () => {
     expect(contact.location).toBe('Tampa, FL')
   })
 
+  it('extracts bare-domain links from the header without treating them as the title', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('github.com/NickCrew | linkedin.com/in/ncferguson | portfolio.atlascrew.dev', 744),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.title).toBeUndefined()
+    expect(contact.links).toEqual([
+      { id: 'github-com', url: 'https://github.com/NickCrew' },
+      { id: 'linkedin-com', url: 'https://linkedin.com/in/ncferguson' },
+      { id: 'portfolio-atlascrew-dev', url: 'https://portfolio.atlascrew.dev' },
+    ])
+  })
+
+  it('collapses spaced-cap names in the header into a usable name candidate', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('N I C H O L A S F E R G U S O N', 760),
+      ...buildLine('Platform Engineer', 744),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const contact = extractContact(sections)
+
+    expect(contact.name).toBe('NICHOLAS FERGUSON')
+    expect(contact.title).toBe('Platform Engineer')
+  })
+
   it('extracts the name when the first header line also contains multiple URLs', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Nick Ferguson — https://nick.dev — https://github.com/nick', 760),
@@ -741,6 +771,22 @@ describe('resumeScanner parser', () => {
     ])
   })
 
+  it('does not promote phone, location, or link lines into roles during fallback parsing', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('727.266.8813 | Tampa Bay Area, FL (Remote)', 744),
+      ...buildLine('github.com/NickCrew | linkedin.com/in/ncferguson', 728),
+      ...buildLine('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026', 696),
+      ...buildLine('• Ported the platform to Kubernetes-based installs.', 680),
+    ]
+
+    const parsed = parseResumeTextItems(items)
+
+    expect(parsed.identity.roles).toHaveLength(1)
+    expect(parsed.identity.roles[0]?.company).toBe('A10 Networks')
+    expect(parsed.identity.roles[0]?.title).toBe('Senior Platform Engineer')
+  })
+
   it('extracts stacked role headers that split title, company, and dates across lines', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Experience', 700),
@@ -760,6 +806,44 @@ describe('resumeScanner parser', () => {
         dates: 'Feb 2025 - Mar 2026',
         bullets: ['Ported the platform to Kubernetes-based installs.'],
       },
+    ])
+  })
+
+  it('extracts company-first stacked role headers when the title/date line follows', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Experience', 700),
+      ...buildLine('ThreatX (acquired by A10 Networks, Feb 2025)', 684),
+      ...buildLine('Senior Platform Engineer Jan 2022 - Feb 2025', 668),
+      ...buildLine('• Built the internal developer platform.', 652),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const roles = extractRoles(sections)
+
+    expect(roles).toEqual([
+      {
+        company: 'ThreatX (acquired by A10 Networks, Feb 2025)',
+        title: 'Senior Platform Engineer',
+        dates: 'Jan 2022 - Feb 2025',
+        bullets: ['Built the internal developer platform.'],
+      },
+    ])
+  })
+
+  it('detects spaced section headings for projects and education', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('P R O J E C T S', 700),
+      ...buildLine('Facet: Vector-based job search platform.', 684),
+      ...buildLine('E D U C A T I O N', 652),
+      ...buildLine('St. Petersburg College | AAS, Computer Information Systems | 2020', 636),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+
+    expect(sections.map((section) => section.key)).toEqual([
+      'header',
+      'projects',
+      'education',
     ])
   })
 

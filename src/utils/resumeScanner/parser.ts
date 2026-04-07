@@ -44,6 +44,9 @@ const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
 // g-flag: safe with .match() and .replace(); avoid .test()/.exec() which retain lastIndex state.
 const URL_MATCH_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/gi
 const URL_TEST_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/i
+const DOMAIN_MATCH_PATTERN = /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/gi
+const DOMAIN_TEST_PATTERN = /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/i
+const SPACED_CAPS_PATTERN = /^(?:[A-Z]\s+){2,}[A-Z]$/i
 // Resume Scanner v1 intentionally tunes location detection to US state codes plus Remote/Hybrid.
 // Matches: "Tampa, FL", "FL", "Remote", "Tampa, FL (Remote)", "Remote - Tampa, FL".
 const LOCATION_LINE_PATTERN = new RegExp(
@@ -66,12 +69,30 @@ const slugify = (value: string): string =>
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim()
 
+const collapseSpacedCaps = (value: string): string =>
+  SPACED_CAPS_PATTERN.test(value.trim()) ? value.replace(/\s+/g, '') : value
+
+const normalizeNameLine = (value: string): string => {
+  if (!SPACED_CAPS_PATTERN.test(value.trim())) {
+    return value
+  }
+
+  const letters = value.trim().split(/\s+/).filter(Boolean)
+  if (letters.length >= 12 && letters.length % 2 === 0) {
+    const midpoint = letters.length / 2
+    return `${letters.slice(0, midpoint).join('')} ${letters.slice(midpoint).join('')}`
+  }
+
+  return letters.join('')
+}
+
 const extractNameCandidate = (line: string): string => {
   const stripped = normalizeWhitespace(
-    line
+    normalizeNameLine(line)
       .replace(EMAIL_PATTERN, ' ')
       .replace(PHONE_PATTERN, ' ')
       .replace(URL_MATCH_PATTERN, ' ')
+      .replace(DOMAIN_MATCH_PATTERN, ' ')
       .replace(/\s+[|•–—-]\s+/g, ' '),
   )
   const cleaned = normalizeWhitespace(stripped.replace(/^[|•–—-]+|[|•–—-]+$/g, ' '))
@@ -163,7 +184,7 @@ export const detectAmbiguousColumnLayout = (lines: ResumeLine[]): boolean => {
 }
 
 const identifySection = (text: string): ResumeSection['key'] | null => {
-  const normalized = text
+  const normalized = collapseSpacedCaps(text)
     .toLowerCase()
     .replace(/[^a-z0-9 ]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -205,10 +226,15 @@ export const splitLinesIntoSections = (lines: ResumeLine[]): ResumeSection[] => 
 }
 
 const parseLinks = (text: string): ProfessionalIdentityV3['identity']['links'] => {
-  const matches = text.match(URL_MATCH_PATTERN) ?? []
-  const deduped = Array.from(new Set(matches))
-  return deduped.map((url, index) => {
-    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  const urlMatches = text.match(URL_MATCH_PATTERN) ?? []
+  const domainMatches = text.replace(URL_MATCH_PATTERN, ' ').match(DOMAIN_MATCH_PATTERN) ?? []
+  const matches = [...urlMatches, ...domainMatches]
+  const normalizedUrls = Array.from(
+    new Set(
+      matches.map((url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)),
+    ),
+  )
+  return normalizedUrls.map((normalized, index) => {
     const hostname = (() => {
       try {
         return new URL(normalized).hostname.replace(/^www\./, '')
@@ -236,6 +262,7 @@ export const extractContact = (sections: ResumeSection[]): ParsedResumeContact =
       !EMAIL_PATTERN.test(line) &&
       !PHONE_PATTERN.test(line) &&
       !URL_TEST_PATTERN.test(line) &&
+      !DOMAIN_TEST_PATTERN.test(line) &&
       !LOCATION_LINE_PATTERN.test(line) &&
       line.length < MAX_HEADER_DETAIL_LENGTH,
   )
@@ -248,7 +275,10 @@ export const extractContact = (sections: ResumeSection[]): ParsedResumeContact =
         line.length < MAX_HEADER_DETAIL_LENGTH &&
         LOCATION_LINE_PATTERN.test(line),
     ) ?? ''
-  const thesis = summaryLines.map((line) => line.text).join(' ').trim() || title || ''
+  const thesis =
+    summaryLines.map((line) => line.text).join(' ').trim() ||
+    (title && !DOMAIN_TEST_PATTERN.test(title) ? title : '') ||
+    ''
 
   return {
     name,
@@ -265,12 +295,34 @@ const isBulletLine = (text: string): boolean => BULLET_PREFIX.test(text)
 
 const cleanBulletText = (text: string): string => normalizeWhitespace(text.replace(BULLET_PREFIX, ''))
 
+const isLikelyMetadataLine = (text: string): boolean => {
+  const segments = text.split(/\s*[|•]\s*/).map((entry) => normalizeWhitespace(entry)).filter(Boolean)
+  if (segments.length === 0) {
+    return false
+  }
+
+  return segments.every((segment) =>
+    looksLikeContactDetail(segment) || DOMAIN_TEST_PATTERN.test(segment) || LOCATION_LINE_PATTERN.test(segment),
+  )
+}
+
 const looksLikeRoleHeader = (text: string): boolean => {
   if (!text || isBulletLine(text)) {
     return false
   }
 
-  return DATE_PATTERN.test(text) || /\s+\bat\b\s+/i.test(text) || /[|•]/.test(text)
+  if (isLikelyMetadataLine(text)) {
+    return false
+  }
+
+  const segments = text.split(/\s*[|•]\s*/).map((entry) => normalizeWhitespace(entry)).filter(Boolean)
+
+  return (
+    DATE_PATTERN.test(text) ||
+    /\s+\bat\b\s+/i.test(text) ||
+    (/[|•]/.test(text) &&
+      segments.some((segment) => isLikelyRoleKeyword(segment) || FULL_DATE_SEGMENT_PATTERN.test(segment)))
+  )
 }
 
 const isLikelyRoleKeyword = (value: string): boolean => ROLE_KEYWORD_PATTERN.test(value)
@@ -278,7 +330,7 @@ const isLikelyRoleKeyword = (value: string): boolean => ROLE_KEYWORD_PATTERN.tes
 const endsWithRoleKeyword = (value: string): boolean => ROLE_KEYWORD_END_PATTERN.test(value.trim())
 
 const looksLikeContactDetail = (value: string): boolean =>
-  EMAIL_PATTERN.test(value) || PHONE_PATTERN.test(value) || URL_TEST_PATTERN.test(value)
+  EMAIL_PATTERN.test(value) || PHONE_PATTERN.test(value) || URL_TEST_PATTERN.test(value) || DOMAIN_TEST_PATTERN.test(value)
 
 const trimRoleSeparators = (value: string): string =>
   normalizeWhitespace(value.replace(/^[|•–—-]+\s*|\s*[|•–—-]+$/g, ''))
@@ -483,6 +535,34 @@ const parseStackedRoleHeader = (
   return null
 }
 
+const parseCompanyFirstRoleHeader = (
+  line: string,
+  nextLine?: string,
+): { company: string; title: string; dates: string; consumedLines: number } | null => {
+  const company = normalizeWhitespace(line)
+  const detailLine = normalizeWhitespace(nextLine ?? '')
+
+  if (!company || identifySection(company) || isLikelyMetadataLine(company) || isLikelyRoleKeyword(company)) {
+    return null
+  }
+
+  if (!detailLine || isBulletLine(detailLine) || identifySection(detailLine)) {
+    return null
+  }
+
+  const parsed = parseRoleHeader(detailLine)
+  if (!parsed.title || !parsed.dates || parsed.company || !isLikelyRoleKeyword(parsed.title)) {
+    return null
+  }
+
+  return {
+    company,
+    title: parsed.title,
+    dates: parsed.dates,
+    consumedLines: 1,
+  }
+}
+
 const extractRolesFromLines = (lines: ResumeLine[]): ParsedResumeRole[] => {
   const roles: ParsedResumeRole[] = []
   let currentRole: ParsedResumeRole | null = null
@@ -493,6 +573,19 @@ const extractRolesFromLines = (lines: ResumeLine[]): ParsedResumeRole[] => {
     const followingLine = lines[index + 2]?.text
     const text = line.text
     if (!text) {
+      continue
+    }
+
+    const companyFirstHeader = parseCompanyFirstRoleHeader(text, nextLine)
+    if (companyFirstHeader) {
+      currentRole = {
+        company: companyFirstHeader.company,
+        title: companyFirstHeader.title,
+        dates: companyFirstHeader.dates,
+        bullets: [],
+      }
+      roles.push(currentRole)
+      index += companyFirstHeader.consumedLines
       continue
     }
 
