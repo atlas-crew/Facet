@@ -619,16 +619,17 @@ export function AppShell() {
           <div className="app-topbar-actions">
             {displayedHostedWorkspace ? (
               <span className="app-topbar-workspace" title={displayedHostedWorkspace.workspaceId}>
-                {displayedHostedWorkspace.name}
+                <span className="app-topbar-workspace-label">Workspace:</span> {displayedHostedWorkspace.name}
               </span>
             ) : null}
             <div
               className={`app-topbar-sync app-topbar-sync-${syncTone}`}
               role="status"
               aria-live="polite"
-              title={`Sync: ${syncLabel}${persistenceState.status.lastSavedAt ? ` — ${persistenceState.status.lastSavedAt}` : ''}`}
+              title={persistenceState.status.lastSavedAt ?? undefined}
             >
               <span className="app-topbar-sync-dot" aria-hidden="true" />
+              <span className="app-topbar-sync-label">{syncLabel}</span>
             </div>
             <Link
               to={HELP_ROUTE}
