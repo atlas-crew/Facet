@@ -13,30 +13,31 @@ references:
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md
+  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md
 priority: high
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md.
+Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md.
 
 Remaining high-priority browser acceptance gaps:
-- P1-001: multiple bullet points per role preserve order
-- P1-002: multiple skill groups parsed independently
-- P1-003: multiple projects parsed and counted
-- P1-004: multiple education entries parsed and counted
-- P1-005: valid PDF with no parseable resume structure
-- P1-006: role entries with zero bullets
+- P1-001: valid PDF with no parseable resume structure
+- P1-002: role entries with zero bullets
+- P1-003: clear-scan control unavailable before first scan
+- P1-004: multiple skill groups parsed independently
+- P1-005: multiple projects parsed and counted
+- P1-006: multiple education entries parsed and counted
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The browser acceptance suite covers multiple bullets in one role and verifies bullet ordering.
-- [ ] #2 The suite covers multiple skill groups and verifies they render independently.
-- [ ] #3 The suite covers multiple projects and multiple education entries with count assertions above 1.
-- [ ] #4 The suite covers a valid PDF with no resume structure and verifies graceful fallback or empty-state behavior.
-- [ ] #5 The suite covers a role card with zero bullets and verifies the next section still parses correctly.
+- [ ] #1 The suite covers a valid PDF with no resume structure and verifies graceful fallback or empty-state behavior.
+- [ ] #2 The suite covers a role card with zero bullets and verifies the next section still parses correctly.
+- [ ] #3 The suite verifies the Clear Scan control is absent or disabled before any scan exists.
+- [ ] #4 The suite covers multiple skill groups and verifies they render independently.
+- [ ] #5 The suite covers multiple projects and multiple education entries with count assertions above 1.
 <!-- AC:END -->
 
 ## Implementation Plan

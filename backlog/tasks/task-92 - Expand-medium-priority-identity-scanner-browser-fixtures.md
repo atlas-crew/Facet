@@ -13,27 +13,30 @@ references:
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md
   - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md
+  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md.
+Deferred from test audit artifacts /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-020456.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022233.md, /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-022611.md, and /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-023903.md.
 
 Remaining medium-severity browser acceptance gaps:
-- P2-001: clear scan when no scan is loaded
-- P2-002: scanned fields remain user-editable after parse
-- P2-003: very long field values
-- P2-004: scan persistence across route navigation
+- P2-001: scanned fields remain user-editable after parse
+- P2-002: very long field values
+- P2-003: scan persistence across route navigation
+- P2-004: contact info without links line
+- P2-005: skills section count label assertions
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The suite proves the page handles Clear Scan safely when no scan is loaded.
-- [ ] #2 The suite proves scanned fields remain editable after parsing.
-- [ ] #3 The suite covers very long parsed values without truncation at the form-control level.
-- [ ] #4 The suite defines and verifies the expected scan persistence behavior across route navigation.
+- [ ] #1 The suite proves scanned fields remain editable after parsing.
+- [ ] #2 The suite covers very long parsed values without truncation at the form-control level.
+- [ ] #3 The suite defines and verifies the expected scan persistence behavior across route navigation.
+- [ ] #4 The suite covers contact parsing when the links line is omitted.
+- [ ] #5 The suite asserts the skills section count label directly.
 <!-- AC:END -->
 
 ## Implementation Plan
