@@ -184,6 +184,18 @@ const encryptedResumePdf = () => {
   }
 }
 
+const textlessPdf = () => buildPdf([])
+
+const maliciousLinksPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'javascript:alert(1) | data:text/html,<script>alert(2)</script> | github.com/NickCrew',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Built the first platform.',
+  ])
+
 const unstructuredPdf = () =>
   buildPdf([
     'Meeting notes from Tuesday',
@@ -381,6 +393,47 @@ test('shows an error for password-protected pdf uploads without rendering scanne
     /resume scan failed|password|encrypted|no password given|incorrect password/i,
   )
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+})
+
+test('shows an error for textless pdf uploads without rendering scanned sections', async ({
+  page,
+}) => {
+  await page.goto('/identity')
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'textless.pdf',
+    mimeType: 'application/pdf',
+    buffer: textlessPdf(),
+  })
+
+  await expect(page.getByRole('alert')).toContainText(
+    /image-only|unreadable|paste text instead|resume scan failed/i,
+  )
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+})
+
+test('drops malicious link schemes while preserving valid extracted links', async ({ page }) => {
+  let dialogSeen = false
+  page.on('dialog', async (dialog) => {
+    dialogSeen = true
+    await dialog.dismiss()
+  })
+
+  await page.goto('/identity')
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'malicious-links.pdf',
+    mimeType: 'application/pdf',
+    buffer: maliciousLinksPdf(),
+  })
+
+  await expect(contactSection.getByLabel('Links')).toHaveValue(/https:\/\/github\.com\/NickCrew/)
+  await expect(contactSection.getByLabel('Links')).not.toHaveValue(/javascript:|data:text\/html/i)
+  expect(dialogSeen).toBe(false)
 })
 
 test('preserves escaped parentheses and backslashes from pdf text', async ({ page }) => {
