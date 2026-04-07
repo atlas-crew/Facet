@@ -76,15 +76,15 @@ export function FacetGemMark({ size = 20, active = false }: { size?: number; act
 }
 
 /**
- * FacetWordmark — The [F]acet logo lockup.
- * F mark doubles as the letter F, followed by "acet" in the brand font.
+ * FacetWordmark — Gem mark + "Facet" in Instrument Serif.
+ * The serif's thin/thick stroke contrast mirrors the gem's two-tone split.
  */
 export function FacetWordmark() {
   return (
     <div className="facet-lockup" role="img" aria-label="Facet">
-      <FacetFMark />
+      <FacetGemMark size={18} active />
       <span className="facet-wordmark" aria-hidden="true">
-        acet
+        Facet
       </span>
     </div>
   )
