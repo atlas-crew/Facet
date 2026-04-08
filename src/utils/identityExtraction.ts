@@ -784,6 +784,7 @@ export const generateIdentityDraft = async ({
     EXTRACTION_SYSTEM_PROMPT,
     buildExtractionPrompt({ sourceMaterial, correctionNotes, existingDraft, seedIdentity }),
     {
+      feature: 'identity.extract',
       model: 'sonnet',
       temperature: 0.2,
       timeoutMs: IDENTITY_EXTRACTION_TIMEOUT_MS,
@@ -814,6 +815,7 @@ export const deepenIdentityBullet = async ({
     BULLET_DEEPENING_SYSTEM_PROMPT,
     buildDeepenBulletPrompt({ identity, roleId, bulletId, correctionNotes }),
     {
+      feature: 'identity.deepen',
       model: 'sonnet',
       temperature: 0.1,
       timeoutMs: IDENTITY_EXTRACTION_TIMEOUT_MS,
