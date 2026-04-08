@@ -4,7 +4,7 @@ title: Execute Wave 1 hosted beta QA and staged rollout readiness
 status: In Progress
 assignee: []
 created_date: '2026-03-12 16:07'
-updated_date: '2026-04-08 08:28'
+updated_date: '2026-04-08 09:45'
 labels:
   - feature
   - billing
@@ -44,6 +44,8 @@ Create the final release gate for Wave 1 hosted accounts. This task should bundl
 2026-04-08: Refreshed docs/development/platform/wave-1-beta-readiness-gate.md with a current local validation snapshot. Current gate remains no-go. Fresh local receipts: npm run typecheck -> pass, npm run build -> pass. The older focused Wave 1 Vitest pack is no longer a clean release receipt because src/test/AppShell.test.tsx now fails after later shell/header changes. Launch is still blocked primarily on missing hosted staging env, Supabase JWT validation config, billing credentials, and a real staged browser validation pass.
 
 2026-04-08: Verified the hosted env contract is now present in this checkout: browser hosted vars exist in .env/.env.production/.vercel/.env.production.local and proxy auth or billing vars exist in proxy/.env. Fresh local receipts: npm run typecheck -> pass, npm run build -> pass, and npx vitest run src/test/facetServer.test.ts src/test/billingApi.test.ts src/test/hostedAppStore.test.ts src/test/AppShell.test.tsx src/test/windowLocation.test.ts -> pass (80 passed across 5 files). Launch remains no-go because no authenticated staged browser pass, Stripe sandbox exercise, or restore/rollback rehearsal has been recorded yet.
+
+2026-04-08: Operator reports that hosted sign-in and Stripe sandbox checkout were already validated outside this session. Those flows are no longer treated as missing setup blockers in the readiness gate. Remaining no-go items are the unrecorded hosted workspace or persistence or migration or recovery pass and the missing restore or rollback rehearsal.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

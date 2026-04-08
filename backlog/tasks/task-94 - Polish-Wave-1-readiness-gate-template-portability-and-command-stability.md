@@ -4,6 +4,7 @@ title: Polish Wave 1 readiness gate template portability and command stability
 status: To Do
 assignee: []
 created_date: '2026-04-08 06:54'
+updated_date: '2026-04-08 09:52'
 labels:
   - documentation
 dependencies: []
@@ -32,6 +33,14 @@ Deferred from review artifact /Users/nick/Developer/Facet/.agents/reviews/review
 2. If portability matters, replace the current multi-line blocker formatting with a more portable representation.
 3. Add a stable scripted Wave 1 validation command or explicitly document why the manual command remains acceptable.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-04-08: Follow-on readiness-gate review /Users/nick/Developer/Facet/.agents/reviews/review-20260408-054907.md flagged one deferred evidence-quality item: operator-reported validations should eventually link to a traceable artifact instead of only naming the release thread.
+
+2026-04-08: Additional deferred readiness-gate review /Users/nick/Developer/Facet/.agents/reviews/review-20260408-055106.md noted that operator-reported validations should eventually point at a durable reference, and that template guidance could be made more visually prominent.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
