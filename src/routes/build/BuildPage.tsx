@@ -822,7 +822,7 @@ export function BuildPage() {
     }
 
     const importLabel =
-      sourceKind === 'professional-identity-v3' ? 'Professional Identity v3' : 'resume config'
+      sourceKind === 'professional-identity-v3' ? 'Professional Identity v3.1' : 'resume config'
 
     if (warnings.length > 0) {
       showNotice(

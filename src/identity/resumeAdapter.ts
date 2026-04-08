@@ -57,7 +57,7 @@ export const professionalIdentityToResumeData = (
   identity: ProfessionalIdentityV3,
 ): { data: ResumeData; warnings: string[] } => {
   const warnings = [
-    `Imported Professional Identity Schema v3 using synthesized vector "${SYNTHETIC_VECTOR_ID}". Dynamic tag scoring and JD matching are not wired yet.`,
+    `Imported Professional Identity Schema v3.1 using synthesized vector "${SYNTHETIC_VECTOR_ID}". Dynamic tag scoring and JD matching are not wired yet.`,
   ]
   const educationIdCounts = new Map<string, number>()
 

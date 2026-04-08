@@ -78,7 +78,7 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
     try {
       const parsed = importResumeConfig(input, format)
       if (parsed.sourceKind === 'professional-identity-v3' && importMode === 'merge') {
-        setError('Professional Identity Schema v3 imports currently support Replace All only.')
+        setError('Professional Identity Schema v3.1 imports currently support Replace All only.')
         setValidationWarnings(null)
         return
       }
@@ -210,13 +210,13 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
                 setError(null)
                 setValidationWarnings(null)
               }}
-              placeholder={`Paste ${format.toUpperCase()} resume config or Professional Identity v3 here...`}
+              placeholder={`Paste ${format.toUpperCase()} resume config or Professional Identity v3.1 here...`}
               className="import-textarea"
               aria-label="Imported configuration input"
             />
             {detectedSourceKind === 'professional-identity-v3' ? (
               <p className="warning-text" style={{ margin: 0 }}>
-                Professional Identity v3 imports are adapted into the current Facet resume model and currently support
+                Professional Identity v3.1 imports are adapted into the current Facet resume model and currently support
                 {' '}<strong>Replace All</strong> only.
               </p>
             ) : null}
@@ -251,7 +251,7 @@ export function ImportExport({ open, mode, data, onClose, onImport }: ImportExpo
               </a>
               {' '}or{' '}
               <a href="/identity-schema-v3.json" download style={{ color: 'var(--accent-primary)' }}>
-                Professional Identity v3 schema
+                Professional Identity v3.1 schema
               </a>
               {' '}for IDE autocomplete
             </p>

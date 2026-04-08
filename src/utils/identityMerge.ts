@@ -155,10 +155,13 @@ export const mergeProfessionalIdentity = (
 
   const merged: ProfessionalIdentityV3 = {
     ...current,
+    schema_revision: incoming.schema_revision,
     identity: incoming.identity,
     self_model: incoming.self_model,
     preferences: incoming.preferences,
     generator_rules: incoming.generator_rules,
+    search_vectors: incoming.search_vectors,
+    awareness: incoming.awareness,
     skills: {
       groups: skillGroups.items,
     },
@@ -170,10 +173,13 @@ export const mergeProfessionalIdentity = (
 
   const normalized = importProfessionalIdentity(merged)
   const details = [
+    ...describeScalarReplacement('schema revision', current.schema_revision, incoming.schema_revision),
     ...describeScalarReplacement('identity core', current.identity, incoming.identity),
     ...describeScalarReplacement('self model', current.self_model, incoming.self_model),
     ...describeScalarReplacement('preferences', current.preferences, incoming.preferences),
     ...describeScalarReplacement('generator rules', current.generator_rules, incoming.generator_rules),
+    ...describeScalarReplacement('search vectors', current.search_vectors, incoming.search_vectors),
+    ...describeScalarReplacement('awareness', current.awareness, incoming.awareness),
     ...describeIdChanges('skill groups', skillGroups.addedIds, skillGroups.updatedIds),
     ...describeIdChanges('profiles', profiles.addedIds, profiles.updatedIds),
     ...describeIdChanges('roles', roles.addedIds, roles.updatedIds),

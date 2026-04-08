@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://atlascrew.dev/schemas/identity.json",
-  "title": "Professional Identity Schema v3",
+  "$id": "https://atlascrew.dev/schemas/identity-v3.1.json",
+  "title": "Professional Identity Schema v3.1",
   "description": "Portable professional identity model for Facet and related agent workflows.",
   "type": "object",
   "required": [
@@ -20,6 +20,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "version": { "type": "number", "const": 3 },
+    "schema_revision": { "type": "string", "enum": ["3.1"] },
     "identity": { "$ref": "#/$defs/IdentityCore" },
     "self_model": { "$ref": "#/$defs/SelfModel" },
     "preferences": { "$ref": "#/$defs/Preferences" },
@@ -40,7 +41,12 @@
       "type": "array",
       "items": { "$ref": "#/$defs/EducationEntry" }
     },
-    "generator_rules": { "$ref": "#/$defs/GeneratorRules" }
+    "generator_rules": { "$ref": "#/$defs/GeneratorRules" },
+    "search_vectors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SearchVector" }
+    },
+    "awareness": { "$ref": "#/$defs/Awareness" }
   },
   "$defs": {
     "TagList": {
@@ -57,6 +63,30 @@
     },
     "MetricValue": {
       "type": ["string", "number", "boolean"]
+    },
+    "SkillDepth": {
+      "type": "string",
+      "enum": ["expert", "strong", "working", "basic", "avoid"]
+    },
+    "SkillEnrichedBy": {
+      "type": "string",
+      "enum": ["user", "user-edited-llm", "llm-accepted"]
+    },
+    "SearchVectorPriority": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "AwarenessSeverity": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "MatchingWeight": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "MatchingSeverity": {
+      "type": "string",
+      "enum": ["hard", "soft"]
     },
     "IdentityLink": {
       "type": "object",
@@ -177,6 +207,73 @@
         "evaluation_criteria": { "$ref": "#/$defs/TagList" }
       }
     },
+    "MatchingPriority": {
+      "type": "object",
+      "required": ["id", "label", "description", "weight"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "weight": { "$ref": "#/$defs/MatchingWeight" }
+      }
+    },
+    "MatchingAvoid": {
+      "type": "object",
+      "required": ["id", "label", "description", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "severity": { "$ref": "#/$defs/MatchingSeverity" }
+      }
+    },
+    "MatchingPreferences": {
+      "type": "object",
+      "required": ["prioritize", "avoid"],
+      "additionalProperties": false,
+      "properties": {
+        "prioritize": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MatchingPriority" }
+        },
+        "avoid": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MatchingAvoid" }
+        }
+      }
+    },
+    "ClearanceConstraint": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string" },
+        "willing_to_obtain": { "type": "boolean" },
+        "exclude_required": { "type": "boolean" }
+      }
+    },
+    "EducationConstraint": {
+      "type": "object",
+      "required": ["highest"],
+      "additionalProperties": false,
+      "properties": {
+        "highest": { "type": "string" },
+        "in_progress": { "type": "string" },
+        "show_on_resume": { "type": "boolean" },
+        "filter_risk": { "type": "string" }
+      }
+    },
+    "PreferenceConstraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clearance": { "$ref": "#/$defs/ClearanceConstraint" },
+        "education": { "$ref": "#/$defs/EducationConstraint" },
+        "title_flexibility": { "$ref": "#/$defs/TagList" }
+      }
+    },
     "Preferences": {
       "type": "object",
       "required": ["compensation", "work_model", "role_fit"],
@@ -184,7 +281,9 @@
       "properties": {
         "compensation": { "$ref": "#/$defs/CompensationPreferences" },
         "work_model": { "$ref": "#/$defs/WorkModelPreferences" },
-        "role_fit": { "$ref": "#/$defs/RoleFitPreferences" }
+        "role_fit": { "$ref": "#/$defs/RoleFitPreferences" },
+        "constraints": { "$ref": "#/$defs/PreferenceConstraints" },
+        "matching": { "$ref": "#/$defs/MatchingPreferences" }
       }
     },
     "SkillItem": {
@@ -193,8 +292,14 @@
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
+        "depth": { "$ref": "#/$defs/SkillDepth" },
         "proficiency": { "type": "string" },
-        "tags": { "$ref": "#/$defs/TagList" }
+        "context": { "type": "string" },
+        "search_signal": { "type": "string" },
+        "tags": { "$ref": "#/$defs/TagList" },
+        "enriched_at": { "type": "string" },
+        "enriched_by": { "$ref": "#/$defs/SkillEnrichedBy" },
+        "skipped_at": { "type": "string" }
       }
     },
     "SkillGroup": {
@@ -204,6 +309,8 @@
       "properties": {
         "id": { "type": "string" },
         "label": { "type": "string" },
+        "positioning": { "type": "string" },
+        "is_differentiator": { "type": "boolean" },
         "items": {
           "type": "array",
           "items": { "$ref": "#/$defs/SkillItem" }
@@ -257,7 +364,8 @@
         "metrics": { "$ref": "#/$defs/BulletMetrics" },
         "technologies": { "$ref": "#/$defs/TechnologyList" },
         "portfolio_dive": { "type": ["string", "null"] },
-        "tags": { "$ref": "#/$defs/TagList" }
+        "tags": { "$ref": "#/$defs/TagList" },
+        "source_text": { "type": "string" }
       }
     },
     "Role": {
@@ -319,6 +427,54 @@
               }
             ]
           }
+        }
+      }
+    },
+    "SearchVectorKeywords": {
+      "type": "object",
+      "required": ["primary", "secondary"],
+      "additionalProperties": false,
+      "properties": {
+        "primary": { "$ref": "#/$defs/TagList" },
+        "secondary": { "$ref": "#/$defs/TagList" }
+      }
+    },
+    "SearchVector": {
+      "type": "object",
+      "required": ["id", "title", "priority", "thesis", "target_roles", "keywords"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "priority": { "$ref": "#/$defs/SearchVectorPriority" },
+        "subtitle": { "type": "string" },
+        "thesis": { "type": "string" },
+        "target_roles": { "$ref": "#/$defs/TagList" },
+        "keywords": { "$ref": "#/$defs/SearchVectorKeywords" },
+        "supporting_skills": { "$ref": "#/$defs/TagList" },
+        "supporting_bullets": { "$ref": "#/$defs/TagList" }
+      }
+    },
+    "OpenQuestion": {
+      "type": "object",
+      "required": ["id", "topic", "description", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "topic": { "type": "string" },
+        "description": { "type": "string" },
+        "action": { "type": "string" },
+        "severity": { "$ref": "#/$defs/AwarenessSeverity" }
+      }
+    },
+    "Awareness": {
+      "type": "object",
+      "required": ["open_questions"],
+      "additionalProperties": false,
+      "properties": {
+        "open_questions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OpenQuestion" }
         }
       }
     }

@@ -150,11 +150,142 @@ describe('professional identity schema', () => {
   it('normalizes and deduplicates tags during identity import', () => {
     const parsed = importProfessionalIdentity(clone(baseIdentityFixture))
 
+    expect(parsed.data.schema_revision).toBe('3.1')
     expect(parsed.data.self_model.philosophy[0]?.tags).toEqual(['leadership'])
     expect(parsed.data.skills.groups[0]?.items[0]?.tags).toEqual(['platform', 'devex'])
     expect(parsed.data.profiles[0]?.tags).toEqual(['general', 'platform'])
     expect(parsed.data.roles[0]?.bullets[0]?.tags).toEqual(['security', 'product'])
     expect(parsed.warnings.some((warning) => warning.includes('duplicate tag "platform"'))).toBe(true)
+  })
+
+  it('derives v3.1 migration defaults from legacy v3 fields', () => {
+    const parsed = importProfessionalIdentity(clone(baseIdentityFixture))
+
+    expect(parsed.data.schema_revision).toBe('3.1')
+    expect(parsed.data.skills.groups[0]?.items[0]?.depth).toBe('strong')
+    expect(parsed.data.skills.groups[0]?.items[1]?.depth).toBe('strong')
+    expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBeUndefined()
+    expect(parsed.data.preferences.matching).toEqual({
+      prioritize: [
+        {
+          id: 'prioritize-platform-roles',
+          label: 'Platform roles',
+          description: 'Platform roles',
+          weight: 'medium',
+        },
+      ],
+      avoid: [
+        {
+          id: 'avoid-pure-ticket-queue-work',
+          label: 'Pure ticket queue work',
+          description: 'Pure ticket queue work',
+          severity: 'soft',
+        },
+      ],
+    })
+    expect(parsed.data.awareness).toEqual({ open_questions: [] })
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        'Upgraded Professional Identity document to schema_revision "3.1".',
+        'Derived default skill depth values from legacy proficiency fields.',
+        'Derived preferences.matching from legacy preferences.role_fit values.',
+        'Added empty awareness.open_questions for schema v3.1 compatibility.',
+      ]),
+    )
+  })
+
+  it('preserves explicit v3.1 fields when they are already present', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.schema_revision = '3.1'
+    enriched.preferences.matching = {
+      prioritize: [
+        {
+          id: 'builder-friendly',
+          label: 'Builder-friendly process',
+          description: 'Take-homes and practical screens.',
+          weight: 'high',
+        },
+      ],
+      avoid: [
+        {
+          id: 'leetcode-gauntlet',
+          label: 'Leetcode gauntlet',
+          description: 'Extended algorithm interview loops.',
+          severity: 'hard',
+        },
+      ],
+    }
+    enriched.preferences.constraints = {
+      clearance: {
+        status: 'none',
+        willing_to_obtain: false,
+        exclude_required: true,
+      },
+      education: {
+        highest: 'AAS',
+        in_progress: 'BAS',
+        show_on_resume: false,
+        filter_risk: 'Some companies filter on bachelors requirements.',
+      },
+      title_flexibility: ['Senior Platform Engineer', 'Staff Engineer'],
+    }
+    enriched.skills.groups[0].positioning = 'Primary differentiator.'
+    enriched.skills.groups[0].is_differentiator = true
+    enriched.skills.groups[0].items[0] = {
+      ...enriched.skills.groups[0].items[0],
+      depth: 'expert',
+      context: 'Primary language across multiple platform roles.',
+      search_signal: 'Strong match signal. List first.',
+      enriched_at: '2026-04-08T14:23:17Z',
+      enriched_by: 'user-edited-llm',
+    }
+    enriched.skills.groups[1].items[0] = {
+      ...enriched.skills.groups[1].items[0],
+      depth: 'avoid',
+      skipped_at: '2026-04-08T14:25:01Z',
+    }
+    enriched.search_vectors = [
+      {
+        id: 'v1-security-platform',
+        title: 'Security Platform Engineer',
+        priority: 'high',
+        subtitle: 'Deepest moat',
+        thesis: 'Blend of security and platform systems work.',
+        target_roles: ['Platform Engineer', 'Security Tooling Engineer'],
+        keywords: {
+          primary: ['security platform'],
+          secondary: ['tooling'],
+        },
+        supporting_skills: ['sg-languages'],
+        supporting_bullets: ['a10-delivery'],
+      },
+    ]
+    enriched.awareness = {
+      open_questions: [
+        {
+          id: 'degree-filter-risk',
+          topic: 'Degree filter risk',
+          description: 'Some companies filter on bachelors.',
+          action: 'Check requirements before applying.',
+          severity: 'medium',
+        },
+      ],
+    }
+
+    const parsed = importProfessionalIdentity(enriched)
+
+    expect(parsed.data.schema_revision).toBe('3.1')
+    expect(parsed.data.skills.groups[0]?.positioning).toBe('Primary differentiator.')
+    expect(parsed.data.skills.groups[0]?.is_differentiator).toBe(true)
+    expect(parsed.data.skills.groups[0]?.items[0]?.depth).toBe('expert')
+    expect(parsed.data.skills.groups[0]?.items[0]?.context).toContain('Primary language')
+    expect(parsed.data.skills.groups[0]?.items[0]?.search_signal).toContain('List first')
+    expect(parsed.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
+    expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBe('avoid')
+    expect(parsed.data.preferences.constraints?.clearance?.status).toBe('none')
+    expect(parsed.data.preferences.matching?.avoid[0]?.severity).toBe('hard')
+    expect(parsed.data.search_vectors?.[0]?.id).toBe('v1-security-platform')
+    expect(parsed.data.awareness?.open_questions[0]?.id).toBe('degree-filter-risk')
   })
 
   it('bridges identity.json into the current resume data model', () => {
@@ -175,7 +306,7 @@ describe('professional identity schema', () => {
       'Legacy cloud-only architecture limited deployment options. Rebuilt the product as a standalone edge sensor. Product deployable anywhere.',
     )
     expect(parsed.data.skill_groups[0]?.content).toBe('TypeScript, Python')
-    expect(parsed.warnings.some((warning) => warning.includes('Schema v3'))).toBe(true)
+    expect(parsed.warnings.some((warning) => warning.includes('Schema v3.1'))).toBe(true)
   })
 
   it('rejects unsupported schema versions', () => {

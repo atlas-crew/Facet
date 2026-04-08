@@ -1,3 +1,17 @@
+export type ProfessionalSchemaRevision = '3.1'
+
+export type ProfessionalSkillDepth = 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
+
+export type ProfessionalSkillEnrichedBy = 'user' | 'user-edited-llm' | 'llm-accepted'
+
+export type ProfessionalAwarenessSeverity = 'high' | 'medium' | 'low'
+
+export type ProfessionalMatchingWeight = 'high' | 'medium' | 'low'
+
+export type ProfessionalMatchingSeverity = 'hard' | 'soft'
+
+export type ProfessionalSearchVectorPriority = 'high' | 'medium' | 'low'
+
 export interface ProfessionalIdentityLink {
   id: string
   url: string
@@ -65,21 +79,69 @@ export interface ProfessionalRoleFitPreferences {
   evaluation_criteria: string[]
 }
 
+export interface ProfessionalMatchingPriority {
+  id: string
+  label: string
+  description: string
+  weight: ProfessionalMatchingWeight
+}
+
+export interface ProfessionalMatchingAvoid {
+  id: string
+  label: string
+  description: string
+  severity: ProfessionalMatchingSeverity
+}
+
+export interface ProfessionalMatchingPreferences {
+  prioritize: ProfessionalMatchingPriority[]
+  avoid: ProfessionalMatchingAvoid[]
+}
+
+export interface ProfessionalClearanceConstraint {
+  status: string
+  willing_to_obtain?: boolean
+  exclude_required?: boolean
+}
+
+export interface ProfessionalEducationConstraint {
+  highest: string
+  in_progress?: string
+  show_on_resume?: boolean
+  filter_risk?: string
+}
+
+export interface ProfessionalPreferenceConstraints {
+  clearance?: ProfessionalClearanceConstraint
+  education?: ProfessionalEducationConstraint
+  title_flexibility?: string[]
+}
+
 export interface ProfessionalPreferences {
   compensation: ProfessionalCompensationPreferences
   work_model: ProfessionalWorkModelPreferences
   role_fit: ProfessionalRoleFitPreferences
+  constraints?: ProfessionalPreferenceConstraints
+  matching?: ProfessionalMatchingPreferences
 }
 
 export interface ProfessionalSkillItem {
   name: string
+  depth?: ProfessionalSkillDepth
   proficiency?: string
+  context?: string
+  search_signal?: string
   tags: string[]
+  enriched_at?: string
+  enriched_by?: ProfessionalSkillEnrichedBy
+  skipped_at?: string
 }
 
 export interface ProfessionalSkillGroup {
   id: string
   label: string
+  positioning?: string
+  is_differentiator?: boolean
   items: ProfessionalSkillItem[]
 }
 
@@ -138,9 +200,39 @@ export interface ProfessionalGeneratorRules {
   accuracy?: Record<string, string | string[]>
 }
 
+export interface ProfessionalSearchVectorKeywords {
+  primary: string[]
+  secondary: string[]
+}
+
+export interface ProfessionalSearchVector {
+  id: string
+  title: string
+  priority: ProfessionalSearchVectorPriority
+  subtitle?: string
+  thesis: string
+  target_roles: string[]
+  keywords: ProfessionalSearchVectorKeywords
+  supporting_skills?: string[]
+  supporting_bullets?: string[]
+}
+
+export interface ProfessionalOpenQuestion {
+  id: string
+  topic: string
+  description: string
+  action: string
+  severity?: ProfessionalAwarenessSeverity
+}
+
+export interface ProfessionalAwareness {
+  open_questions: ProfessionalOpenQuestion[]
+}
+
 export interface ProfessionalIdentityV3 {
   $schema?: string
   version: 3
+  schema_revision?: ProfessionalSchemaRevision
   identity: ProfessionalIdentityCore
   self_model: ProfessionalSelfModel
   preferences: ProfessionalPreferences
@@ -150,11 +242,30 @@ export interface ProfessionalIdentityV3 {
   projects: ProfessionalProject[]
   education: ProfessionalEducationEntry[]
   generator_rules: ProfessionalGeneratorRules
+  search_vectors?: ProfessionalSearchVector[]
+  awareness?: ProfessionalAwareness
 }
 
 export type ProfessionalIdentityDocument = ProfessionalIdentityV3
 
 const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
+const SKILL_DEPTH_VALUES = new Set<ProfessionalSkillDepth>([
+  'expert',
+  'strong',
+  'working',
+  'basic',
+  'avoid',
+])
+const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
+  'user',
+  'user-edited-llm',
+  'llm-accepted',
+])
+const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
+const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft'])
+const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
+const SEARCH_VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
+const SCHEMA_REVISION_VALUES = new Set<ProfessionalSchemaRevision>(['3.1'])
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' &&
@@ -231,6 +342,30 @@ const assertBoolean = (value: unknown, context: string): boolean => {
 const assertStringArray = (value: unknown, context: string): string[] =>
   assertArray(value, context).map((entry, index) => assertString(entry, `${context}[${index}]`))
 
+const assertEnumString = <T extends string>(
+  value: unknown,
+  allowedValues: Set<T>,
+  context: string,
+): T => {
+  const parsed = assertString(value, context) as T
+  if (!allowedValues.has(parsed)) {
+    throw new Error(`${context} must be one of ${Array.from(allowedValues).join(', ')}.`)
+  }
+  return parsed
+}
+
+const assertOptionalEnumString = <T extends string>(
+  value: unknown,
+  allowedValues: Set<T>,
+  context: string,
+): T | undefined => {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+
+  return assertEnumString(value, allowedValues, context)
+}
+
 const normalizeTagArray = (value: unknown, context: string, warnings: string[]): string[] => {
   const tags = assertStringArray(value, context)
   const normalized: string[] = []
@@ -263,6 +398,55 @@ const assertUniqueId = (seen: Set<string>, id: string, context: string): void =>
   seen.add(id)
 }
 
+const slugifyFragment = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const createDerivedId = (prefix: string, value: string, index: number): string =>
+  [prefix, slugifyFragment(value) || String(index + 1)].join('-')
+
+export const deriveDepth = (
+  skill: Pick<ProfessionalSkillItem, 'depth' | 'proficiency'>,
+): ProfessionalSkillDepth | undefined => {
+  if (skill.depth) {
+    return skill.depth
+  }
+
+  if (skill.proficiency === 'primary') {
+    return 'strong'
+  }
+
+  if (skill.proficiency === 'secondary') {
+    return 'working'
+  }
+
+  return undefined
+}
+
+export const deriveMatching = (
+  roleFit: ProfessionalRoleFitPreferences,
+): ProfessionalMatchingPreferences => ({
+  prioritize: roleFit.ideal.map((entry, index) => ({
+    id: createDerivedId('prioritize', entry, index),
+    label: entry,
+    description: entry,
+    weight: 'medium',
+  })),
+  avoid: roleFit.red_flags.map((entry, index) => ({
+    id: createDerivedId('avoid', entry, index),
+    label: entry,
+    description: entry,
+    severity: 'soft',
+  })),
+})
+
+export const stubAwareness = (): ProfessionalAwareness => ({
+  open_questions: [],
+})
+
 export const looksLikeProfessionalIdentity = (value: unknown): boolean => {
   if (!isRecord(value)) {
     return false
@@ -280,6 +464,263 @@ export const looksLikeProfessionalIdentity = (value: unknown): boolean => {
     'education' in value &&
     'generator_rules' in value
   )
+}
+
+const parseMatchingPreferences = (
+  value: unknown,
+  context: string,
+): ProfessionalMatchingPreferences => {
+  const record = assertRecord(value, context)
+
+  return {
+    prioritize: assertArray(record.prioritize, `${context}.prioritize`).map((entry, index) => {
+      const item = assertRecord(entry, `${context}.prioritize[${index}]`)
+      return {
+        id: assertString(item.id, `${context}.prioritize[${index}].id`),
+        label: assertString(item.label, `${context}.prioritize[${index}].label`),
+        description: assertString(item.description, `${context}.prioritize[${index}].description`),
+        weight: assertEnumString(
+          item.weight,
+          MATCHING_WEIGHT_VALUES,
+          `${context}.prioritize[${index}].weight`,
+        ),
+      }
+    }),
+    avoid: assertArray(record.avoid, `${context}.avoid`).map((entry, index) => {
+      const item = assertRecord(entry, `${context}.avoid[${index}]`)
+      return {
+        id: assertString(item.id, `${context}.avoid[${index}].id`),
+        label: assertString(item.label, `${context}.avoid[${index}].label`),
+        description: assertString(item.description, `${context}.avoid[${index}].description`),
+        severity: assertEnumString(
+          item.severity,
+          MATCHING_SEVERITY_VALUES,
+          `${context}.avoid[${index}].severity`,
+        ),
+      }
+    }),
+  }
+}
+
+const parseConstraints = (
+  value: unknown,
+  context: string,
+): ProfessionalPreferenceConstraints => {
+  const record = assertRecord(value, context)
+
+  return {
+    ...(record.clearance !== undefined
+      ? {
+          clearance: (() => {
+            const clearance = assertRecord(record.clearance, `${context}.clearance`)
+            return {
+              status: assertString(clearance.status, `${context}.clearance.status`),
+              ...(clearance.willing_to_obtain !== undefined
+                ? {
+                    willing_to_obtain: assertBoolean(
+                      clearance.willing_to_obtain,
+                      `${context}.clearance.willing_to_obtain`,
+                    ),
+                  }
+                : {}),
+              ...(clearance.exclude_required !== undefined
+                ? {
+                    exclude_required: assertBoolean(
+                      clearance.exclude_required,
+                      `${context}.clearance.exclude_required`,
+                    ),
+                  }
+                : {}),
+            }
+          })(),
+        }
+      : {}),
+    ...(record.education !== undefined
+      ? {
+          education: (() => {
+            const education = assertRecord(record.education, `${context}.education`)
+            return {
+              highest: assertString(education.highest, `${context}.education.highest`),
+              ...(education.in_progress !== undefined
+                ? {
+                    in_progress: assertOptionalString(
+                      education.in_progress,
+                      `${context}.education.in_progress`,
+                    ),
+                  }
+                : {}),
+              ...(education.show_on_resume !== undefined
+                ? {
+                    show_on_resume: assertBoolean(
+                      education.show_on_resume,
+                      `${context}.education.show_on_resume`,
+                    ),
+                  }
+                : {}),
+              ...(education.filter_risk !== undefined
+                ? {
+                    filter_risk: assertOptionalString(
+                      education.filter_risk,
+                      `${context}.education.filter_risk`,
+                    ),
+                  }
+                : {}),
+            }
+          })(),
+        }
+      : {}),
+    ...(record.title_flexibility !== undefined
+      ? { title_flexibility: assertStringArray(record.title_flexibility, `${context}.title_flexibility`) }
+      : {}),
+  }
+}
+
+const parseSkillItem = (
+  value: unknown,
+  context: string,
+  warnings: string[],
+): ProfessionalSkillItem => {
+  const item = assertRecord(value, context)
+
+  return {
+    name: assertString(item.name, `${context}.name`),
+    ...(item.depth !== undefined
+      ? { depth: assertEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
+      : {}),
+    ...(item.proficiency !== undefined
+      ? { proficiency: assertOptionalString(item.proficiency, `${context}.proficiency`) }
+      : {}),
+    ...(item.context !== undefined ? { context: assertOptionalString(item.context, `${context}.context`) } : {}),
+    ...(item.search_signal !== undefined
+      ? { search_signal: assertOptionalString(item.search_signal, `${context}.search_signal`) }
+      : {}),
+    tags: normalizeTagArray(item.tags, `${context}.tags`, warnings),
+    ...(item.enriched_at !== undefined
+      ? { enriched_at: assertOptionalString(item.enriched_at, `${context}.enriched_at`) }
+      : {}),
+    ...(item.enriched_by !== undefined
+      ? {
+          enriched_by: assertOptionalEnumString(
+            item.enriched_by,
+            ENRICHED_BY_VALUES,
+            `${context}.enriched_by`,
+          ),
+        }
+      : {}),
+    ...(item.skipped_at !== undefined
+      ? { skipped_at: assertOptionalString(item.skipped_at, `${context}.skipped_at`) }
+      : {}),
+  }
+}
+
+const parseSearchVector = (value: unknown, context: string): ProfessionalSearchVector => {
+  const vector = assertRecord(value, context)
+  const keywords = assertRecord(vector.keywords, `${context}.keywords`)
+
+  return {
+    id: assertString(vector.id, `${context}.id`),
+    title: assertString(vector.title, `${context}.title`),
+    priority: assertEnumString(vector.priority, SEARCH_VECTOR_PRIORITY_VALUES, `${context}.priority`),
+    ...(vector.subtitle !== undefined
+      ? { subtitle: assertOptionalString(vector.subtitle, `${context}.subtitle`) }
+      : {}),
+    thesis: assertString(vector.thesis, `${context}.thesis`),
+    target_roles: assertStringArray(vector.target_roles, `${context}.target_roles`),
+    keywords: {
+      primary: assertStringArray(keywords.primary, `${context}.keywords.primary`),
+      secondary: assertStringArray(keywords.secondary, `${context}.keywords.secondary`),
+    },
+    ...(vector.supporting_skills !== undefined
+      ? { supporting_skills: assertStringArray(vector.supporting_skills, `${context}.supporting_skills`) }
+      : {}),
+    ...(vector.supporting_bullets !== undefined
+      ? { supporting_bullets: assertStringArray(vector.supporting_bullets, `${context}.supporting_bullets`) }
+      : {}),
+  }
+}
+
+const parseAwareness = (value: unknown, context: string): ProfessionalAwareness => {
+  const record = assertRecord(value, context)
+
+  return {
+    open_questions: assertArray(record.open_questions, `${context}.open_questions`).map((entry, index) => {
+      const item = assertRecord(entry, `${context}.open_questions[${index}]`)
+      return {
+        id: assertString(item.id, `${context}.open_questions[${index}].id`),
+        topic: assertString(item.topic, `${context}.open_questions[${index}].topic`),
+        description: assertString(item.description, `${context}.open_questions[${index}].description`),
+        action: assertString(item.action, `${context}.open_questions[${index}].action`),
+        ...(item.severity !== undefined
+          ? {
+              severity: assertEnumString(
+                item.severity,
+                AWARENESS_SEVERITY_VALUES,
+                `${context}.open_questions[${index}].severity`,
+              ),
+            }
+          : {}),
+      }
+    }),
+  }
+}
+
+export const migrateProfessionalIdentityToV31 = (
+  identity: ProfessionalIdentityV3,
+): { data: ProfessionalIdentityV3; warnings: string[] } => {
+  const warnings: string[] = []
+  let derivedDepth = false
+
+  const data: ProfessionalIdentityV3 = {
+    ...identity,
+    schema_revision: '3.1',
+    preferences: {
+      ...identity.preferences,
+      ...(identity.preferences.constraints !== undefined
+        ? { constraints: identity.preferences.constraints }
+        : {}),
+      matching: identity.preferences.matching ?? deriveMatching(identity.preferences.role_fit),
+    },
+    skills: {
+      groups: identity.skills.groups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => {
+          if (item.depth !== undefined) {
+            return item
+          }
+
+          const nextDepth = deriveDepth(item)
+          if (!nextDepth) {
+            return item
+          }
+
+          derivedDepth = true
+          return {
+            ...item,
+            depth: nextDepth,
+          }
+        }),
+      })),
+    },
+    awareness: identity.awareness ?? stubAwareness(),
+  }
+
+  if (identity.schema_revision !== '3.1') {
+    warnings.push('Upgraded Professional Identity document to schema_revision "3.1".')
+  }
+
+  if (derivedDepth) {
+    warnings.push('Derived default skill depth values from legacy proficiency fields.')
+  }
+
+  if (identity.preferences.matching === undefined) {
+    warnings.push('Derived preferences.matching from legacy preferences.role_fit values.')
+  }
+
+  if (identity.awareness === undefined) {
+    warnings.push('Added empty awareness.open_questions for schema v3.1 compatibility.')
+  }
+
+  return { data, warnings }
 }
 
 export const importProfessionalIdentity = (
@@ -313,6 +754,15 @@ export const importProfessionalIdentity = (
   const parsed: ProfessionalIdentityV3 = {
     ...(root.$schema ? { $schema: assertString(root.$schema, '$schema') } : {}),
     version: 3,
+    ...(root.schema_revision !== undefined
+      ? {
+          schema_revision: assertEnumString(
+            root.schema_revision,
+            SCHEMA_REVISION_VALUES,
+            'schema_revision',
+          ),
+        }
+      : {}),
     identity: {
       name: assertString(identity.name, 'identity.name'),
       ...(identity.display_name !== undefined
@@ -411,6 +861,12 @@ export const importProfessionalIdentity = (
           'preferences.role_fit.evaluation_criteria',
         ),
       },
+      ...(preferences.constraints !== undefined
+        ? { constraints: parseConstraints(preferences.constraints, 'preferences.constraints') }
+        : {}),
+      ...(preferences.matching !== undefined
+        ? { matching: parseMatchingPreferences(preferences.matching, 'preferences.matching') }
+        : {}),
     },
     skills: {
       groups: assertArray(skills.groups, 'skills.groups').map((entry, index) => {
@@ -421,25 +877,20 @@ export const importProfessionalIdentity = (
         return {
           id,
           label: assertString(group.label, `skills.groups[${index}].label`),
-          items: assertArray(group.items, `skills.groups[${index}].items`).map((itemEntry, itemIndex) => {
-            const item = assertRecord(itemEntry, `skills.groups[${index}].items[${itemIndex}]`)
-            return {
-              name: assertString(item.name, `skills.groups[${index}].items[${itemIndex}].name`),
-              ...(item.proficiency !== undefined
-                ? {
-                    proficiency: assertOptionalString(
-                      item.proficiency,
-                      `skills.groups[${index}].items[${itemIndex}].proficiency`,
-                    ),
-                  }
-                : {}),
-              tags: normalizeTagArray(
-                item.tags,
-                `skills.groups[${index}].items[${itemIndex}].tags`,
-                warnings,
-              ),
-            }
-          }),
+          ...(group.positioning !== undefined
+            ? { positioning: assertOptionalString(group.positioning, `skills.groups[${index}].positioning`) }
+            : {}),
+          ...(group.is_differentiator !== undefined
+            ? {
+                is_differentiator: assertBoolean(
+                  group.is_differentiator,
+                  `skills.groups[${index}].is_differentiator`,
+                ),
+              }
+            : {}),
+          items: assertArray(group.items, `skills.groups[${index}].items`).map((itemEntry, itemIndex) =>
+            parseSkillItem(itemEntry, `skills.groups[${index}].items[${itemIndex}]`, warnings),
+          ),
         }
       }),
     },
@@ -496,7 +947,9 @@ export const importProfessionalIdentity = (
                 (typeof metricValue !== 'number' || !Number.isFinite(metricValue)) &&
                 typeof metricValue !== 'boolean'
               ) {
-                throw new Error(`roles[${index}].bullets[${bulletIndex}].metrics.${key} must be a string, number, or boolean.`)
+                throw new Error(
+                  `roles[${index}].bullets[${bulletIndex}].metrics.${key} must be a string, number, or boolean.`,
+                )
               }
 
               return [key, metricValue]
@@ -588,7 +1041,16 @@ export const importProfessionalIdentity = (
           }
         : {}),
     },
+    ...(root.search_vectors !== undefined
+      ? {
+          search_vectors: assertArray(root.search_vectors, 'search_vectors').map((entry, index) =>
+            parseSearchVector(entry, `search_vectors[${index}]`),
+          ),
+        }
+      : {}),
+    ...(root.awareness !== undefined ? { awareness: parseAwareness(root.awareness, 'awareness') } : {}),
   }
 
-  return { data: parsed, warnings }
+  const migrated = migrateProfessionalIdentityToV31(parsed)
+  return { data: migrated.data, warnings: [...warnings, ...migrated.warnings] }
 }
