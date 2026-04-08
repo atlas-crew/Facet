@@ -295,6 +295,8 @@ describe('identityMerge', () => {
     expect(merged.data.preferences.constraints).toEqual(current.preferences.constraints)
     expect(merged.data.preferences.matching).toEqual(current.preferences.matching)
     expect(merged.data.awareness).toEqual(current.awareness)
+    expect(merged.details).not.toContain('Removed search vectors: v1-platform.')
+    expect(merged.details).not.toContain('Removed awareness items: degree-filter-risk.')
   })
 
   it('preserves enriched skill metadata when a legacy draft omits it', () => {
@@ -327,6 +329,76 @@ describe('identityMerge', () => {
     expect(merged.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
   })
 
+  it('removes omitted skills from a provided group during merge', () => {
+    const current = createIdentity()
+    current.skills.groups[0].items.push({ name: 'Go', tags: ['infrastructure'] })
+
+    const incoming = createIdentity()
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.skills.groups[0]?.items).toEqual([
+      { name: 'TypeScript', tags: ['platform'] },
+    ])
+  })
+
+  it('clears skill enrichment fields when the draft explicitly sets them to null', () => {
+    const current = createIdentity()
+    current.skills.groups[0] = {
+      ...current.skills.groups[0],
+      positioning: 'Primary differentiator.',
+      is_differentiator: true,
+      items: [
+        {
+          ...current.skills.groups[0].items[0],
+          depth: 'expert',
+          context: 'Primary language across platform roles.',
+          search_signal: 'Lead with this skill.',
+          enriched_at: '2026-04-08T14:23:17Z',
+          enriched_by: 'user-edited-llm',
+          skipped_at: '2026-04-08T14:25:01Z',
+        },
+      ],
+    }
+
+    const incoming = importProfessionalIdentity({
+      ...createIdentity(),
+      skills: {
+        groups: [
+          {
+            id: 'languages',
+            label: 'Languages',
+            positioning: null,
+            is_differentiator: null,
+            items: [
+              {
+                name: 'TypeScript',
+                depth: null,
+                context: null,
+                search_signal: null,
+                tags: ['platform'],
+                enriched_at: null,
+                enriched_by: null,
+                skipped_at: null,
+              },
+            ],
+          },
+        ],
+      },
+    }).data
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.skills.groups[0]?.positioning).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.is_differentiator).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.depth).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.context).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.search_signal).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.enriched_at).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.enriched_by).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.skipped_at).toBeUndefined()
+  })
+
   it('refreshes derived matching when a legacy draft changes role_fit', () => {
     const current = createIdentity()
     current.preferences.matching = {
@@ -357,6 +429,41 @@ describe('identityMerge', () => {
 
     expect(merged.data.preferences.role_fit).toEqual(legacyDraft.preferences.role_fit)
     expect(merged.data.preferences.matching).toEqual(incoming.preferences.matching)
+  })
+
+  it('honors preference field masks even when the current value is undefined', () => {
+    const current = createIdentity()
+    const incomingDraft = createIdentity()
+    incomingDraft.preferences.matching = {
+      prioritize: [
+        {
+          id: 'builder-friendly',
+          label: 'Builder-friendly process',
+          description: 'Practical screening.',
+          weight: 'high',
+        },
+      ],
+      avoid: [],
+    }
+    incomingDraft.preferences.constraints = {
+      education: {
+        highest: 'B.S.',
+        show_on_resume: true,
+      },
+    }
+    const incoming = importProfessionalIdentity(incomingDraft).data
+    const currentMatching = importProfessionalIdentity(current).data.preferences.matching
+
+    const merged = mergeProfessionalIdentity(current, incoming, {
+      preferences: {
+        constraints: false,
+        matching: false,
+      },
+    })
+
+    expect(merged.data.preferences.constraints).toBeUndefined()
+    expect(merged.data.preferences.matching).toEqual(currentMatching)
+    expect(merged.data.preferences.matching).not.toEqual(incoming.preferences.matching)
   })
 
   it('merges vectors and awareness items by id instead of replacing them wholesale', () => {

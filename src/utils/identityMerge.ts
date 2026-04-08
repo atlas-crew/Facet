@@ -179,32 +179,12 @@ const mergeSkillItems = (
   current: ProfessionalSkillItem[],
   incoming: ProfessionalSkillItem[],
 ): ProfessionalSkillItem[] => {
-  const merged = [...current]
-  const indexByKey = new Map(merged.map((item, index) => [skillItemKey(item), index]))
+  const currentByKey = new Map(current.map((item) => [skillItemKey(item), item]))
 
-  for (const item of incoming) {
-    const existingIndex = indexByKey.get(skillItemKey(item))
-    if (existingIndex === undefined) {
-      indexByKey.set(skillItemKey(item), merged.length)
-      merged.push(item)
-      continue
-    }
-
-    const existing = merged[existingIndex]
-    merged[existingIndex] = {
-      ...existing,
-      ...item,
-      depth: item.depth ?? existing.depth,
-      proficiency: item.proficiency ?? existing.proficiency,
-      context: item.context ?? existing.context,
-      search_signal: item.search_signal ?? existing.search_signal,
-      enriched_at: item.enriched_at ?? existing.enriched_at,
-      enriched_by: item.enriched_by ?? existing.enriched_by,
-      skipped_at: item.skipped_at ?? existing.skipped_at,
-    }
-  }
-
-  return merged
+  return incoming.map((item) => {
+    const existing = currentByKey.get(skillItemKey(item))
+    return existing ? { ...existing, ...item } : item
+  })
 }
 
 const mergeSkillGroups = (
@@ -229,8 +209,6 @@ const mergeSkillGroups = (
     const nextGroup: ProfessionalSkillGroup = {
       ...existing,
       ...group,
-      positioning: group.positioning ?? existing.positioning,
-      is_differentiator: group.is_differentiator ?? existing.is_differentiator,
       items: mergeSkillItems(existing.items, group.items),
     }
 
@@ -282,8 +260,6 @@ export const mergeProfessionalIdentity = (
   const incomingSearchVectors = incoming.search_vectors ?? []
   const currentOpenQuestions = current.awareness?.open_questions ?? []
   const incomingOpenQuestions = incoming.awareness?.open_questions ?? []
-  const searchVectorChanges = diffById(currentSearchVectors, incomingSearchVectors)
-  const awarenessChanges = diffById(currentOpenQuestions, incomingOpenQuestions)
   const preserveCurrentMatching =
     fieldPresence.preferences?.matching === false &&
     !hasMeaningfulChange(current.preferences.role_fit, incoming.preferences.role_fit)
@@ -291,20 +267,14 @@ export const mergeProfessionalIdentity = (
     ...current.preferences,
     ...incoming.preferences,
     ...(fieldPresence.preferences?.constraints === false
-      ? (current.preferences.constraints !== undefined
-          ? { constraints: current.preferences.constraints }
-          : {})
+      ? { constraints: current.preferences.constraints }
       : (incoming.preferences.constraints !== undefined
           ? { constraints: incoming.preferences.constraints }
           : (current.preferences.constraints !== undefined
               ? { constraints: current.preferences.constraints }
               : {}))),
     ...(preserveCurrentMatching
-      ? (current.preferences.matching !== undefined
-          ? { matching: current.preferences.matching }
-          : (incoming.preferences.matching !== undefined
-              ? { matching: incoming.preferences.matching }
-              : {}))
+      ? { matching: current.preferences.matching }
       : (incoming.preferences.matching !== undefined
           ? { matching: incoming.preferences.matching }
           : {})
@@ -324,6 +294,11 @@ export const mergeProfessionalIdentity = (
       : ((fieldPresence.search_vectors ?? incoming.search_vectors !== undefined)
           ? incomingSearchVectors
           : current.search_vectors)
+  const mergedSearchVectorChanges = diffById(currentSearchVectors, mergedSearchVectors ?? [])
+  const mergedAwarenessChanges = diffById(
+    currentOpenQuestions,
+    mergedAwareness?.open_questions ?? [],
+  )
 
   const merged: ProfessionalIdentityV3 = {
     ...current,
@@ -358,10 +333,10 @@ export const mergeProfessionalIdentity = (
     ...describeIdChanges('profiles', profiles.addedIds, profiles.updatedIds),
     ...describeIdChanges('roles', roles.addedIds, roles.updatedIds),
     ...describeIdChanges('projects', projects.addedIds, projects.updatedIds),
-    ...describeIdChanges('search vectors', searchVectorChanges.addedIds, searchVectorChanges.updatedIds),
-    ...describeRemovedIds('search vectors', searchVectorChanges.removedIds),
-    ...describeIdChanges('awareness items', awarenessChanges.addedIds, awarenessChanges.updatedIds),
-    ...describeRemovedIds('awareness items', awarenessChanges.removedIds),
+    ...describeIdChanges('search vectors', mergedSearchVectorChanges.addedIds, mergedSearchVectorChanges.updatedIds),
+    ...describeRemovedIds('search vectors', mergedSearchVectorChanges.removedIds),
+    ...describeIdChanges('awareness items', mergedAwarenessChanges.addedIds, mergedAwarenessChanges.updatedIds),
+    ...describeRemovedIds('awareness items', mergedAwarenessChanges.removedIds),
     ...(education.added > 0 ? [`Added ${education.added} education entr${education.added === 1 ? 'y' : 'ies'}.`] : []),
     ...(education.updated > 0 ? [`Updated ${education.updated} education entr${education.updated === 1 ? 'y' : 'ies'}.`] : []),
   ]

@@ -339,6 +339,14 @@ const assertBoolean = (value: unknown, context: string): boolean => {
   return value
 }
 
+const assertOptionalBoolean = (value: unknown, context: string): boolean | undefined => {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+
+  return assertBoolean(value, context)
+}
+
 const assertStringArray = (value: unknown, context: string): string[] =>
   assertArray(value, context).map((entry, index) => assertString(entry, `${context}[${index}]`))
 
@@ -614,7 +622,7 @@ const parseSkillItem = (
   return {
     name: assertString(item.name, `${context}.name`),
     ...(item.depth !== undefined
-      ? { depth: assertEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
+      ? { depth: assertOptionalEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
       : {}),
     ...(item.proficiency !== undefined
       ? { proficiency: assertOptionalString(item.proficiency, `${context}.proficiency`) }
@@ -912,7 +920,7 @@ export const importProfessionalIdentity = (
             : {}),
           ...(group.is_differentiator !== undefined
             ? {
-                is_differentiator: assertBoolean(
+                is_differentiator: assertOptionalBoolean(
                   group.is_differentiator,
                   `skills.groups[${index}].is_differentiator`,
                 ),
