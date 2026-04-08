@@ -37,7 +37,28 @@
   padding: var(--space-2);
   display: flex;
   flex-direction: column;
+  gap: 0;
+}
+
+.help-toc-section {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
+}
+
+.help-toc-section + .help-toc-section {
+  margin-top: var(--space-3);
+}
+
+.help-toc-section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  user-select: none;
 }
 
 .help-toc-item {
