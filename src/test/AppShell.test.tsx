@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { AppShell } from '../components/AppShell'
 import { usePersistenceRuntimeStore } from '../persistence/runtime'
@@ -268,7 +268,54 @@ describe('AppShell hosted workspace bootstrap', () => {
       endpoint: 'https://facet.example/api/persistence',
       bearerToken: 'token-123',
     })
-    expect(screen.getByText(/workspace: hosted workspace/i)).toBeTruthy()
+    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Workspace:')
+    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Hosted Workspace')
+  })
+
+  it('bootstraps hosted mode without a local migration snapshot', async () => {
+    runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(null)
+
+    const bootstrap = vi.fn().mockImplementation(async ({ localMigrationSnapshot }) => {
+      useHostedAppStore.setState({
+        bootstrapStatus: 'ready',
+        bearerToken: 'token-123',
+        context: hostedContext,
+        workspaces: [baseWorkspace],
+        selectedWorkspaceId: 'ws-1',
+        localMigrationSnapshot: localMigrationSnapshot ?? null,
+        lastError: null,
+      })
+    })
+
+    setHostedStore({
+      bootstrapStatus: 'idle',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      bootstrap,
+    })
+
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    await waitFor(() => {
+      expect(bootstrap).toHaveBeenCalledWith({
+        localMigrationSnapshot: null,
+      })
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+    })
   })
 
   it('cycles appearance from the header theme button', () => {
@@ -332,7 +379,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     render(<AppShell />)
 
     expect(screen.getByRole('link', { name: /help and docs/i }).getAttribute('href')).toBe('/help')
-    expect(screen.getByRole('button', { name: /account placeholder/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /account/i }).getAttribute('href')).toBe('/account')
     expect(document.querySelector('.app-topbar-sync')?.textContent).toContain('Ready')
   })
 
@@ -356,7 +403,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
 
     expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
-    expect(screen.queryByText(/workspace: hosted workspace/i)).toBeNull()
+    expect(document.querySelector('.app-topbar-workspace')?.textContent ?? '').not.toContain('Hosted Workspace')
     expect(screen.getByRole('alert').textContent).toContain('Remote load failed')
     expect(useHostedAppStore.getState().lastError).toBe('Remote load failed')
   })
@@ -374,6 +421,23 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     expect(screen.getByRole('alert').textContent).toContain('Hosted billing state unavailable')
     expect(screen.getByRole('button', { name: /refresh billing state/i })).toBeTruthy()
+  })
+
+  it('surfaces generic bootstrap failures with retry recovery', () => {
+    setHostedStore({
+      bootstrapStatus: 'error',
+      selectedWorkspaceId: null,
+      workspaces: [],
+      lastError: 'Something went wrong',
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('alert').textContent).toContain('Hosted bootstrap failed')
+    expect(screen.getByRole('alert').textContent).toContain('Something went wrong')
+    expect(screen.getByRole('button', { name: /retry hosted bootstrap/i })).toBeTruthy()
   })
 
   it('reloads the session when the hosted billing recovery button is clicked', async () => {
@@ -450,7 +514,34 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
 
     expect(screen.getByRole('button', { name: /refresh session/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /backup workspace/i })).toBeTruthy()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i })).toBeTruthy()
+  })
+
+  it('reloads the session when hosted runtime auth expires', async () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-previous')
+    locationMocks.reloadPage.mockReset()
+
+    runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(null)
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn().mockRejectedValue(
+        new FacetApiError('Hosted session expired (401)', {
+          status: 401,
+          code: 'auth_required',
+        }),
+      ),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    const alert = await waitFor(() => screen.getByRole('alert'))
+    fireEvent.click(within(alert).getByRole('button', { name: /refresh session/i }))
+
+    expect(locationMocks.reloadPage).toHaveBeenCalledTimes(1)
   })
 
   it('opens the backup dialog from the hosted runtime recovery screen', async () => {
@@ -477,7 +568,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       expect(screen.getByRole('button', { name: /backup workspace/i })).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /backup workspace/i }))
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i }))
     expect(screen.getByTestId('workspace-backup-dialog')).toBeTruthy()
   })
 
@@ -793,7 +884,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     resolveFirstStart()
 
     await waitFor(() => {
-      expect(screen.getByText(/workspace: recovery workspace/i)).toBeTruthy()
+      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Recovery Workspace')
     })
 
     expect(runtimeOne.importWorkspaceSnapshot).not.toHaveBeenCalled()
