@@ -145,37 +145,37 @@ For the actual launch decision, record:
 Date: 2026-04-08
 
 Scope executed from this checkout:
-- local repository validation only
-- no staging frontend, API, Supabase auth session, or Stripe test environment was exercised from this machine
+- local repository validation plus hosted environment-contract verification
+- required hosted browser env keys are present in `.env`, `.env.production`, and `.vercel/.env.production.local`
+- required hosted proxy auth and billing keys are present in `proxy/.env`
+- no authenticated staging browser session, hosted workspace bootstrap, or Stripe checkout flow was exercised from this machine
 
-Environment blockers found before attempting a staging pass:
-- no frontend hosted env is configured in this checkout for `VITE_FACET_DEPLOYMENT_MODE=hosted`, `VITE_SUPABASE_URL`, or `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `proxy/.env` is missing `SUPABASE_JWKS_URL` and `SUPABASE_JWT_ISSUER`, so hosted bearer-token validation cannot run locally against the proxy
-- `proxy/.env` is missing `STRIPE_SECRET_KEY` and `STRIPE_PRICE_AI_PRO`, so the hosted billing path cannot be exercised honestly
-- the browser app has no in-repo sign-in flow; hosted bootstrap expects an existing Supabase browser session
+Open blockers before declaring the staging pass complete:
+- no recorded authenticated browser pass yet for hosted sign-in, session reuse, or expired-session recovery against the current Supabase environment
+- no recorded staged browser pass yet for hosted workspace bootstrap, persistence, local-to-hosted migration, or workspace recovery flows
+- no recorded staged browser pass yet for AI entitlement gating, Stripe checkout, or billing-state recovery flows
+- no restore or rollback rehearsal has been recorded yet against the current hosted backing store
 
 Local evidence captured:
 - `npm run typecheck` -> pass
 - `npm run build` -> pass
-- `npx vitest run src/test/facetServer.test.ts src/test/billingApi.test.ts src/test/hostedAppStore.test.ts src/test/AppShell.test.tsx src/test/windowLocation.test.ts` -> fail
-  - test count increased from the prior `74` to `77` because later shell and AppShell coverage landed after the previous snapshot
-  - current result: `72` passed and `5` failed across `5` test files; all `5` failures are in `src/test/AppShell.test.tsx`
-  - current failure shape: `src/test/AppShell.test.tsx` no longer matches the current shell/header output and reports `5` failing tests
-  - implication: this older focused Wave 1 test pack is no longer a clean release receipt without refreshing the AppShell expectations
+- `npx vitest run src/test/facetServer.test.ts src/test/billingApi.test.ts src/test/hostedAppStore.test.ts src/test/AppShell.test.tsx src/test/windowLocation.test.ts` -> pass
+  - current result: `80` passed across `5` test files
+  - the focused Wave 1 local receipt is clean again after refreshing the AppShell expectations to the current shell contract
 
 Implication:
-- the hosted implementation still passes current local type-check and build validation
-- the older targeted Wave 1 Vitest pack needs maintenance before it can be reused as a release receipt
-- the staging validation pass defined above is still incomplete, because the required hosted staging environment and credentials were not available from this checkout
+- the hosted implementation currently passes local type-check, build, and focused Wave 1 test validation
+- the hosted env and billing/auth configuration required for a real staged pass are present in this checkout
+- launch is still a no-go until the staged browser validation pass, billing exercise, and restore or rollback rehearsal are recorded
 
 ## Decision Log
 
 | Field | Value |
 |---|---|
-| Candidate build | `d33edb2` |
+| Candidate build | `b9d99e7` |
 | Validation date | `2026-04-08` |
 | Validator or owner | Codex local validation pass |
-| Validation environment | local repository evidence only; staging not exercised |
+| Validation environment | local repository evidence plus hosted env-contract verification; staged browser pass not yet exercised |
 | Auth validation | fail |
 | Persistence validation | fail |
 | Migration validation | fail |
@@ -183,8 +183,8 @@ Implication:
 | Restore rehearsal | fail |
 | Rollback rehearsal | fail |
 | Launch decision | no-go |
-| Blocking issues | 1. staging-hosted validation was not executed because hosted frontend env, Supabase JWT validation config, and billing credentials were unavailable from this checkout<br>2. the older focused Wave 1 Vitest pack needs refresh before it can serve as a clean local release receipt |
-| Blocking owners | 1. hosted platform or release owner<br>2. application UI or test owner responsible for refreshing AppShell expectations |
+| Blocking issues | 1. staged hosted validation has not been executed yet with a real authenticated browser session, hosted workspace flow, and Stripe sandbox exercise<br>2. restore and rollback rehearsal has not been recorded yet against the current hosted backing store |
+| Blocking owners | 1. release owner or staged validator with hosted account access<br>2. hosted platform or release owner |
 
 ## Decision Log Template
 
