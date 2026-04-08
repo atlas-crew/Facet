@@ -187,3 +187,157 @@ describe('identityStore scan progress', () => {
     })
   })
 })
+
+describe('identityStore skill enrichment', () => {
+  const createIdentity = () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [
+          { name: 'Kubernetes', tags: ['platform', 'kubernetes'] },
+          {
+            name: 'Terraform',
+            tags: ['platform', 'iac'],
+            context: 'Provisioned cloud and on-prem infrastructure.',
+            search_signal: 'Infrastructure as code and platform automation.',
+          },
+        ],
+      },
+    ]
+    return identity
+  }
+
+  it('saves manual enrichment and updates the draft document when no draft is active', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Kubernetes',
+      {
+        depth: 'strong',
+        context: 'Used for customer-hosted and internal platform delivery.',
+        search_signal: 'Platform modernization and Kubernetes operations.',
+      },
+      'user',
+    )
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill).toMatchObject({
+      depth: 'strong',
+      context: 'Used for customer-hosted and internal platform delivery.',
+      search_signal: 'Platform modernization and Kubernetes operations.',
+      enriched_by: 'user',
+    })
+    expect(skill?.enriched_at).toBeTruthy()
+    expect(skill?.skipped_at).toBeUndefined()
+    expect(useIdentityStore.getState().draftDocument).toContain('"Kubernetes"')
+  })
+
+  it('stores llm-accepted and user-edited-llm enrichment sources', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Kubernetes',
+      {
+        depth: 'strong',
+        context: 'Used for customer-hosted and internal platform delivery.',
+        search_signal: 'Platform modernization and Kubernetes operations.',
+      },
+      'llm-accepted',
+    )
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Terraform',
+      {
+        depth: 'working',
+        context: 'Provisioned cloud and on-prem infrastructure.',
+        search_signal: 'Infrastructure as code and platform automation.',
+      },
+      'user-edited-llm',
+    )
+
+    const items = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items ?? []
+    expect(items[0]?.enriched_by).toBe('llm-accepted')
+    expect(items[1]?.enriched_by).toBe('user-edited-llm')
+  })
+
+  it('marks a skill skipped without clearing any existing enrichment fields', () => {
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[1]!.depth = 'working'
+    useIdentityStore.setState({
+      currentIdentity: identity,
+    })
+
+    useIdentityStore.getState().skipSkillEnrichment('platform', 'Terraform')
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
+    expect(skill?.depth).toBe('working')
+    expect(skill?.context).toBe('Provisioned cloud and on-prem infrastructure.')
+    expect(skill?.search_signal).toBe('Infrastructure as code and platform automation.')
+    expect(skill?.skipped_at).toBeTruthy()
+  })
+
+  it('clears skipped_at when a skipped skill is saved again', () => {
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[0]!.skipped_at = '2026-04-08T00:00:00.000Z'
+    useIdentityStore.setState({
+      currentIdentity: identity,
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Kubernetes',
+      {
+        depth: 'strong',
+        context: 'Used for customer-hosted and internal platform delivery.',
+        search_signal: 'Platform modernization and Kubernetes operations.',
+      },
+      'user',
+    )
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill?.skipped_at).toBeUndefined()
+  })
+
+  it('rehydrates persisted enrichment state from storage', async () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Kubernetes',
+      {
+        depth: 'strong',
+        context: 'Used for customer-hosted and internal platform delivery.',
+        search_signal: 'Platform modernization and Kubernetes operations.',
+      },
+      'user',
+    )
+
+    const persisted = await resolveStorage().getItem('facet-identity-workspace')
+    expect(persisted).toContain('"Kubernetes"')
+
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draftDocument: '',
+    })
+    await resolveStorage().setItem('facet-identity-workspace', persisted ?? '')
+
+    await useIdentityStore.persist.rehydrate()
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill).toMatchObject({
+      depth: 'strong',
+      enriched_by: 'user',
+    })
+  })
+})

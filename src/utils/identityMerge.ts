@@ -181,6 +181,7 @@ const mergeSkillItems = (
 ): ProfessionalSkillItem[] => {
   const currentByKey = new Map(current.map((item) => [skillItemKey(item), item]))
 
+  // Within a provided group, incoming items define membership; omitted fields stay intact and explicit null clears.
   return incoming.map((item) => {
     const existing = currentByKey.get(skillItemKey(item))
     return existing ? { ...existing, ...item } : item

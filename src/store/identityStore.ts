@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { importProfessionalIdentity, type ProfessionalIdentityV3 } from '../identity/schema'
+import {
+  importProfessionalIdentity,
+  type ProfessionalIdentityV3,
+  type ProfessionalSkillDepth,
+  type ProfessionalSkillEnrichedBy,
+} from '../identity/schema'
 import type {
   IdentityApplyMode,
   IdentityApplyResult,
@@ -14,6 +19,7 @@ import type {
   ResumeScanResult,
 } from '../types/identity'
 import { createId } from '../utils/idUtils'
+import { updateIdentityEnrichmentSkill } from '../utils/identityEnrichment'
 import { parseJsonWithRepair } from '../utils/jsonParsing'
 import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils/identityMerge'
 import { resolveStorage } from './storage'
@@ -87,6 +93,18 @@ interface IdentityState {
     field: keyof ProfessionalIdentityV3['education'][number],
     value: string,
   ) => void
+  saveSkillEnrichment: (
+    groupId: string,
+    skillName: string,
+    updates: {
+      depth: ProfessionalSkillDepth
+      context: string
+      search_signal: string
+    },
+    enrichedBy: ProfessionalSkillEnrichedBy,
+  ) => void
+  skipSkillEnrichment: (groupId: string, skillName: string) => void
+  clearSkillSkip: (groupId: string, skillName: string) => void
   clearDraft: () => void
   clearScanResult: () => void
   clearLastError: () => void
@@ -329,6 +347,15 @@ const normalizeScannedProjectFieldValue = (
 
   return value
 }
+
+const syncIdentityDocument = (
+  state: IdentityState,
+  identity: ProfessionalIdentityV3,
+): Pick<IdentityState, 'currentIdentity' | 'draftDocument' | 'lastError'> => ({
+  currentIdentity: identity,
+  draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
+  lastError: null,
+})
 
 export const useIdentityStore = create<IdentityState>()(
   persist(
@@ -780,6 +807,65 @@ export const useIdentityStore = create<IdentityState>()(
             ),
           })),
         ),
+      saveSkillEnrichment: (groupId, skillName, updates, enrichedBy) =>
+        set((state) => {
+          if (!state.currentIdentity) {
+            return {}
+          }
+
+          const nextIdentity = updateIdentityEnrichmentSkill(
+            state.currentIdentity,
+            groupId,
+            skillName,
+            (skill) => ({
+              ...skill,
+              depth: updates.depth,
+              context: updates.context.trim(),
+              search_signal: updates.search_signal.trim(),
+              enriched_at: new Date().toISOString(),
+              enriched_by: enrichedBy,
+              skipped_at: undefined,
+            }),
+          )
+
+          return syncIdentityDocument(state, nextIdentity)
+        }),
+      skipSkillEnrichment: (groupId, skillName) =>
+        set((state) => {
+          if (!state.currentIdentity) {
+            return {}
+          }
+
+          const nextIdentity = updateIdentityEnrichmentSkill(
+            state.currentIdentity,
+            groupId,
+            skillName,
+            (skill) => ({
+              ...skill,
+              skipped_at: new Date().toISOString(),
+            }),
+          )
+
+          return syncIdentityDocument(state, nextIdentity)
+        }),
+      clearSkillSkip: (groupId, skillName) =>
+        set((state) => {
+          if (!state.currentIdentity) {
+            return {}
+          }
+
+          const nextIdentity = updateIdentityEnrichmentSkill(
+            state.currentIdentity,
+            groupId,
+            skillName,
+            (skill) => ({
+              ...skill,
+              skipped_at: undefined,
+            }),
+          )
+
+          return syncIdentityDocument(state, nextIdentity)
+        }),
       clearDraft: () => set({ draft: null, draftDocument: '', lastError: null }),
       clearScanResult: () =>
         set({

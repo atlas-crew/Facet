@@ -39,6 +39,23 @@ export type IdentityApplyMode = 'replace' | 'merge'
 
 export type IdentityIntakeMode = 'upload' | 'paste'
 
+export type IdentityEnrichmentStatus = 'pending' | 'complete' | 'skipped'
+
+export interface IdentityEnrichmentSkillRef {
+  groupId: string
+  skillName: string
+  groupLabel: string
+  tags: string[]
+  status: IdentityEnrichmentStatus
+}
+
+export interface IdentityEnrichmentProgress {
+  total: number
+  pending: number
+  complete: number
+  skipped: number
+}
+
 export interface IdentityApplyResult {
   data: ProfessionalIdentityV3
   warnings: string[]

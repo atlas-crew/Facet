@@ -821,4 +821,37 @@ describe('IdentityPage', () => {
 
     expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:identity-export')
   })
+
+  it('shows the enrichment banner counts and CTA when an identity model exists', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups[0]!.items = [
+      {
+        name: 'Kubernetes',
+        tags: ['platform', 'kubernetes'],
+        depth: 'strong',
+        context: 'Used for customer-hosted deployments.',
+        search_signal: 'Platform modernization and Kubernetes operations.',
+      },
+      {
+        name: 'Terraform',
+        tags: ['platform', 'iac'],
+        skipped_at: '2026-04-08T00:00:00.000Z',
+      },
+      {
+        name: 'TypeScript',
+        tags: ['backend', 'typescript'],
+      },
+    ]
+    useIdentityStore.setState({
+      currentIdentity,
+    })
+
+    render(<IdentityPage />)
+
+    expect(screen.getByText('Skill Enrichment')).toBeTruthy()
+    expect(screen.getByText(/Pending 1/i)).toBeTruthy()
+    expect(screen.getByText(/Complete 1/i)).toBeTruthy()
+    expect(screen.getByText(/Skipped 1/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Continue Skill Enrichment' })).toBeTruthy()
+  })
 })

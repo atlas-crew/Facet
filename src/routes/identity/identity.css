@@ -123,6 +123,10 @@
   gap: var(--space-4);
 }
 
+.identity-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .identity-card {
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
@@ -132,6 +136,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.identity-enrichment-banner {
+  gap: var(--space-2);
 }
 
 .identity-card-header {
@@ -335,6 +343,24 @@
   color: var(--text-tertiary);
 }
 
+.identity-chip-pending {
+  background: #fff1c4;
+  color: #704900;
+  border-color: #c89829;
+}
+
+.identity-chip-skipped {
+  background: #e8edf5;
+  color: #355070;
+  border-color: #9cb3cf;
+}
+
+.identity-chip-complete {
+  background: #e5f6ea;
+  color: #1d6b34;
+  border-color: #7ec391;
+}
+
 .identity-upload-zone {
   border: 1px dashed color-mix(in srgb, var(--accent-primary) 45%, var(--border-subtle));
   border-radius: 14px;
@@ -369,6 +395,49 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-inset) 86%, transparent);
   padding: var(--space-3);
+}
+
+.identity-enrichment-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.identity-enrichment-skill {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-inset) 86%, transparent);
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing);
+}
+
+.identity-enrichment-skill:hover {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
+}
+
+.identity-enrichment-skill strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.identity-enrichment-skill-copy {
+  display: block;
+}
+
+.identity-enrichment-skill-meta {
+  display: block;
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
 }
 
 .identity-scan-status-row {
@@ -440,6 +509,24 @@
   background: #5b211d;
   color: #ffe3e0;
   border-color: #d56d63;
+}
+
+[data-theme='dark'] .identity-chip-pending {
+  background: #4c3700;
+  color: #fff1c4;
+  border-color: #c89829;
+}
+
+[data-theme='dark'] .identity-chip-skipped {
+  background: #27374f;
+  color: #dce6f5;
+  border-color: #6f87a8;
+}
+
+[data-theme='dark'] .identity-chip-complete {
+  background: #123b27;
+  color: #d7f3df;
+  border-color: #4e9b69;
 }
 
 .identity-question-list {

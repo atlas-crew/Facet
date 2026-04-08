@@ -8,6 +8,14 @@ import { RecruiterPage } from './routes/recruiter/RecruiterPage'
 const LazyHomePage = lazy(() => import('./routes/home/HomePage').then((m) => ({ default: m.HomePage })))
 // AI-dependent routes — lazy-loaded so they code-split into separate chunks
 const LazyIdentityPage = lazy(() => import('./routes/identity/IdentityPage').then((m) => ({ default: m.IdentityPage })))
+const LazyIdentityEnrichmentPage = lazy(() =>
+  import('./routes/identity/IdentityEnrichmentPage').then((m) => ({ default: m.IdentityEnrichmentPage })),
+)
+const LazyIdentityEnrichmentSkillPage = lazy(() =>
+  import('./routes/identity/IdentityEnrichmentSkillPage').then((m) => ({
+    default: m.IdentityEnrichmentSkillPage,
+  })),
+)
 const LazyMatchPage = lazy(() => import('./routes/match/MatchPage').then((m) => ({ default: m.MatchPage })))
 const LazyResearchPage = lazy(() => import('./routes/research/ResearchPage').then((m) => ({ default: m.ResearchPage })))
 const LazyPrepPage = lazy(() => import('./routes/prep/PrepPage').then((m) => ({ default: m.PrepPage })))
@@ -39,6 +47,18 @@ const identityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/identity',
   component: LazyIdentityPage,
+})
+
+const identityEnrichmentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/identity/enrich',
+  component: LazyIdentityEnrichmentPage,
+})
+
+const identityEnrichmentSkillRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/identity/enrich/$groupId/$skillName',
+  component: LazyIdentityEnrichmentSkillPage,
 })
 
 const matchRoute = createRoute({
@@ -122,6 +142,8 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   buildRoute,
   identityRoute,
+  identityEnrichmentRoute,
+  identityEnrichmentSkillRoute,
   matchRoute,
   pipelineRoute,
   researchRoute,

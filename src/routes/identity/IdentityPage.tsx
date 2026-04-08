@@ -19,6 +19,10 @@ import {
   resolveSelectedVectorAfterReplaceImport,
 } from '../../utils/importSelection'
 import { parseJsonWithRepair } from '../../utils/jsonParsing'
+import {
+  findNextPendingIdentitySkill,
+  getIdentityEnrichmentProgress,
+} from '../../utils/identityEnrichment'
 import { BulletConfidenceCard } from './BulletConfidenceCard'
 import { DraftSummaryCard } from './DraftSummaryCard'
 import { ExtractionAgentCard } from './ExtractionAgentCard'
@@ -118,6 +122,15 @@ export function IdentityPage() {
       skillGroups: identity.skills.groups.length,
     }
   }, [currentIdentity, draft])
+
+  const enrichmentProgress = useMemo(
+    () => (currentIdentity ? getIdentityEnrichmentProgress(currentIdentity) : null),
+    [currentIdentity],
+  )
+  const nextEnrichmentSkill = useMemo(
+    () => (currentIdentity ? findNextPendingIdentitySkill(currentIdentity) : null),
+    [currentIdentity],
+  )
 
   const scanCompletion = useMemo(() => {
     if (!scanResult) {
@@ -635,6 +648,52 @@ export function IdentityPage() {
         <div className="identity-warning" role="alert">
           <strong>Warnings:</strong> {warnings.join(' ')}
         </div>
+      ) : null}
+      {currentIdentity && !draft && enrichmentProgress && enrichmentProgress.total > 0 ? (
+        <section className="identity-card identity-enrichment-banner">
+          <div className="identity-card-header">
+            <div>
+              <h2>Skill Enrichment</h2>
+              <p>
+                Pending {enrichmentProgress.pending} · Complete {enrichmentProgress.complete} · Skipped{' '}
+                {enrichmentProgress.skipped}
+              </p>
+            </div>
+
+            <div className="identity-card-actions">
+              <button
+                className="identity-btn identity-btn-primary"
+                type="button"
+                onClick={() =>
+                  void navigate(
+                    nextEnrichmentSkill
+                      ? {
+                          to: '/identity/enrich/$groupId/$skillName',
+                          params: {
+                            groupId: nextEnrichmentSkill.groupId,
+                            skillName: nextEnrichmentSkill.skillName,
+                          },
+                        }
+                      : {
+                          to: '/identity/enrich',
+                        },
+                  )
+                }
+              >
+                Continue Skill Enrichment
+              </button>
+              {enrichmentProgress.pending === 0 ? (
+                <button
+                  className="identity-btn"
+                  type="button"
+                  onClick={() => void navigate({ to: '/identity/enrich' })}
+                >
+                  Review Enriched Skills
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </section>
       ) : null}
 
       <div className="identity-grid">
