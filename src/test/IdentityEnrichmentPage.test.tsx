@@ -90,4 +90,19 @@ describe('IdentityEnrichmentPage', () => {
       },
     })
   })
+
+  it('shows a zero-skill message when the identity has nothing enrichable', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = []
+    useIdentityStore.setState({
+      currentIdentity,
+    })
+
+    render(<IdentityEnrichmentPage />)
+
+    expect(screen.getByText('No Enrichable Skills Found')).toBeTruthy()
+    expect(
+      screen.getByText("This identity model doesn't currently include any skills that need enrichment metadata."),
+    ).toBeTruthy()
+  })
 })

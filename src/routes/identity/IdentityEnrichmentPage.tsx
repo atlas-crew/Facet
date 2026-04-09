@@ -14,8 +14,43 @@ const STATUS_LABELS = {
   complete: 'Complete',
 } as const
 
+const getProgressCopy = (progress: {
+  total: number
+  pending: number
+  skipped: number
+  complete: number
+}) => {
+  if (progress.total === 0) {
+    return {
+      heading: 'No Enrichable Skills Found',
+      description:
+        "This identity model doesn't currently include any skills that need enrichment metadata.",
+    }
+  }
+
+  if (progress.complete === progress.total) {
+    return {
+      heading: 'All Skills Enriched',
+      description: 'Every current skill now has enough metadata for enrichment-aware workflows.',
+    }
+  }
+
+  if (progress.pending === 0) {
+    return {
+      heading: 'No Pending Skills',
+      description:
+        'Nothing is currently pending, but skipped skills still need enrichment before downstream workflows can rely on them.',
+    }
+  }
+
+  return {
+    heading: 'Enrichment Progress',
+    description: 'Review the queue, skip what can wait, and move through the remaining pending skills.',
+  }
+}
+
 export function IdentityEnrichmentPage() {
-  const navigate = useNavigate()
+  const navigate = useNavigate({ from: '/identity/enrich' })
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
 
   const progress = useMemo(
@@ -76,7 +111,7 @@ export function IdentityEnrichmentPage() {
     )
   }
 
-  const isFullyComplete = progress.complete === progress.total && progress.total > 0
+  const progressCopy = getProgressCopy(progress)
 
   return (
     <div className="identity-page">
@@ -109,20 +144,8 @@ export function IdentityEnrichmentPage() {
       <section className="identity-card">
         <div className="identity-card-header">
           <div>
-            <h2>
-              {isFullyComplete
-                ? 'All Skills Enriched'
-                : progress.pending === 0
-                  ? 'No Pending Skills'
-                  : 'Enrichment Progress'}
-            </h2>
-            <p>
-              {isFullyComplete
-                ? 'Every current skill now has enough metadata for enrichment-aware workflows.'
-                : progress.pending === 0
-                  ? 'Nothing is currently pending, but skipped skills still need enrichment before downstream workflows can rely on them.'
-                  : 'Review the queue, skip what can wait, and move through the remaining pending skills.'}
-            </p>
+            <h2>{progressCopy.heading}</h2>
+            <p>{progressCopy.description}</p>
           </div>
         </div>
 
@@ -156,34 +179,35 @@ export function IdentityEnrichmentPage() {
               </div>
             </div>
 
-            <div className="identity-enrichment-list">
+            <ul className="identity-enrichment-list">
               {skillsByStatus[status].length === 0 ? (
-                <div className="identity-empty">
+                <li className="identity-empty">
                   <h3>No {STATUS_LABELS[status].toLowerCase()} skills</h3>
                   <p>This section will populate as you move through the wizard.</p>
-                </div>
+                </li>
               ) : (
                 skillsByStatus[status].map((skill) => (
-                  <button
-                    key={`${skill.groupId}::${skill.skillName}`}
-                    className="identity-enrichment-skill"
-                    type="button"
-                    onClick={() => void openSkill(skill.groupId, skill.skillName)}
-                  >
-                    <span className="identity-enrichment-skill-copy">
-                      <strong>{skill.skillName}</strong>
-                      <span className="identity-enrichment-skill-meta">
-                        {skill.groupLabel}
-                        {skill.tags.length > 0 ? ` • ${skill.tags.join(', ')}` : ''}
+                  <li key={`${skill.groupId}::${skill.skillName}`}>
+                    <button
+                      className="identity-enrichment-skill"
+                      type="button"
+                      onClick={() => void openSkill(skill.groupId, skill.skillName)}
+                    >
+                      <span className="identity-enrichment-skill-copy">
+                        <strong>{skill.skillName}</strong>
+                        <span className="identity-enrichment-skill-meta">
+                          {skill.groupLabel}
+                          {skill.tags.length > 0 ? ` • ${skill.tags.join(', ')}` : ''}
+                        </span>
                       </span>
-                    </span>
-                    <span className={`identity-chip identity-chip-${skill.status}`}>
-                      {STATUS_LABELS[skill.status]}
-                    </span>
-                  </button>
+                      <span className={`identity-chip identity-chip-${skill.status}`}>
+                        {STATUS_LABELS[skill.status]}
+                      </span>
+                    </button>
+                  </li>
                 ))
               )}
-            </div>
+            </ul>
           </section>
         ))}
       </div>

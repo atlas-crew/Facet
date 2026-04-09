@@ -6,6 +6,7 @@ import { useMatchStore } from '../../store/matchStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { useHandoffStore } from '../../store/handoffStore'
+import type { SkillMatch, VectorAwareMatchResult, WatchOut } from '../../types/match'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from '../../utils/jobMatch'
 import { applyMatchReportToResumeData } from '../../utils/matchAssembler'
 import { facetClientEnv } from '../../utils/facetEnv'
@@ -33,11 +34,12 @@ export function MatchPage() {
   const resumeData = useResumeStore((state) => state.data)
   const setResumeData = useResumeStore((state) => state.setData)
   const jobDescription = useMatchStore((state) => state.jobDescription)
+  const currentAnalysis = useMatchStore((state) => state.currentAnalysis)
   const currentReport = useMatchStore((state) => state.currentReport)
   const warnings = useMatchStore((state) => state.warnings)
   const history = useMatchStore((state) => state.history)
   const setJobDescription = useMatchStore((state) => state.setJobDescription)
-  const setReport = useMatchStore((state) => state.setReport)
+  const setResults = useMatchStore((state) => state.setResults)
   const setSelectedVector = useUiStore((state) => state.setSelectedVector)
   const setComparisonVector = useUiStore((state) => state.setComparisonVector)
   const setPendingAnalysis = useHandoffStore((state) => state.setPendingAnalysis)
@@ -84,13 +86,13 @@ export function MatchPage() {
       setIsGenerating(true)
       setPageError(null)
       setPageNotice(null)
-      const report = await analyzeIdentityJobMatch({
+      const { analysis, report } = await analyzeIdentityJobMatch({
         endpoint: aiEndpoint,
         identity: currentIdentity,
         jobDescription,
       })
-      setReport(report)
-      setPageNotice('Generated a JD match report from the current identity model.')
+      setResults(analysis, report)
+      setPageNotice('Generated a vector-aware JD match report from the current identity model.')
     } catch (error) {
       setPageNotice(null)
       setPageError(error instanceof Error ? error.message : 'JD matching failed.')
@@ -100,13 +102,23 @@ export function MatchPage() {
   }
 
   const handleExport = () => {
-    if (!currentReport) {
+    if (!currentReport && !currentAnalysis) {
       setPageNotice(null)
       setPageError('Run JD matching before exporting a report.')
       return
     }
 
-    downloadJson('match-report.json', JSON.stringify(currentReport, null, 2))
+    downloadJson(
+      'match-report.json',
+      JSON.stringify(
+        {
+          analysis: currentAnalysis,
+          report: currentReport,
+        },
+        null,
+        2,
+      ),
+    )
     setPageError(null)
     setPageNotice('Exported the current match report.')
   }
@@ -228,6 +240,65 @@ export function MatchPage() {
 
       {currentReport ? (
         <>
+          {currentAnalysis ? (
+            <>
+              <section className="match-overview-grid match-analysis-overview-grid">
+                <article className="match-overview-card">
+                  <div className="match-overview-label">Overall fit</div>
+                  <div className="match-overview-value">{currentAnalysis.overallFit}</div>
+                  <p>{currentAnalysis.recommendation} recommendation · {currentAnalysis.confidence} confidence</p>
+                </article>
+                <article className="match-overview-card">
+                  <div className="match-overview-label">Primary vector</div>
+                  <div className="match-overview-value">
+                    {currentAnalysis.matchedVectors[0]?.title ?? 'None'}
+                  </div>
+                  <p>
+                    {currentAnalysis.matchedVectors[0]
+                      ? currentAnalysis.matchedVectors[0].matchStrength
+                      : 'Skill-first fallback'}
+                  </p>
+                </article>
+                <article className="match-overview-card">
+                  <div className="match-overview-label">Fit score</div>
+                  <div className="match-overview-value">{formatPercent(currentAnalysis.fitScore)}</div>
+                  <p>{currentAnalysis.oneLineSummary}</p>
+                </article>
+              </section>
+
+              <section className="match-panel">
+                <div className="match-panel-header">
+                  <div>
+                    <h2>Vector-Aware Summary</h2>
+                    <p>{currentAnalysis.rationale}</p>
+                  </div>
+                </div>
+
+                <div className="match-analysis-grid">
+                  <article className="match-analysis-card">
+                    <div className="match-analysis-label">Matched vectors</div>
+                    <VectorMatchList analysis={currentAnalysis} />
+                  </article>
+
+                  <article className="match-analysis-card">
+                    <div className="match-analysis-label">Skill matches</div>
+                    <SkillMatchList skillMatches={currentAnalysis.skillMatches} />
+                  </article>
+
+                  <article className="match-analysis-card">
+                    <div className="match-analysis-label">Watch-outs</div>
+                    <WatchOutList watchOuts={currentAnalysis.watchOuts} />
+                  </article>
+
+                  <article className="match-analysis-card">
+                    <div className="match-analysis-label">Filters and awareness</div>
+                    <FilterAwarenessSummary analysis={currentAnalysis} />
+                  </article>
+                </div>
+              </section>
+            </>
+          ) : null}
+
           <section className="match-overview-grid">
             <article className="match-overview-card">
               <div className="match-overview-label">Match score</div>
@@ -484,5 +555,139 @@ function AssetGroup({
         <div className="match-empty-inline">No high-confidence {title.toLowerCase()} for this JD yet.</div>
       )}
     </section>
+  )
+}
+
+function VectorMatchList({
+  analysis,
+}: {
+  analysis: VectorAwareMatchResult
+}) {
+  if (analysis.matchedVectors.length === 0) {
+    return <div className="match-empty-inline">No search vectors matched this JD.</div>
+  }
+
+  return (
+    <div className="match-analysis-list">
+      {analysis.matchedVectors.map((vector) => (
+        <article key={vector.vectorId} className="match-analysis-item">
+          <div className="match-analysis-topline">
+            <strong>{vector.title}</strong>
+            <span>{vector.matchStrength}</span>
+          </div>
+          <div className="match-analysis-meta">
+            {vector.priority} priority{vector.thesisApplies ? ' · thesis applies' : ''}
+          </div>
+          <p>{vector.thesisFitExplanation || 'No additional thesis note.'}</p>
+          {vector.evidence.length > 0 ? (
+            <ul className="match-list">
+              {vector.evidence.map((entry, index) => (
+                <li key={vector.vectorId + '-evidence-' + index}>{entry}</li>
+              ))}
+            </ul>
+          ) : null}
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function SkillMatchList({
+  skillMatches,
+}: {
+  skillMatches: SkillMatch[]
+}) {
+  if (skillMatches.length === 0) {
+    return <div className="match-empty-inline">No JD-linked skill matches were identified.</div>
+  }
+
+  return (
+    <div className="match-analysis-list">
+      {skillMatches.map((skillMatch) => (
+        <article key={skillMatch.skillName} className="match-analysis-item">
+          <div className="match-analysis-topline">
+            <strong>{skillMatch.skillName}</strong>
+            <span>{skillMatch.matchQuality}</span>
+          </div>
+          <div className="match-analysis-meta">
+            {skillMatch.requirementStrength} requirement · {skillMatch.userDepth} depth
+          </div>
+          <p>{skillMatch.jdRequirement}</p>
+          <p className="match-analysis-guidance">{skillMatch.presentationGuidance}</p>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function WatchOutList({
+  watchOuts,
+}: {
+  watchOuts: WatchOut[]
+}) {
+  if (watchOuts.length === 0) {
+    return <div className="match-empty-inline">No watch-outs flagged in this pass.</div>
+  }
+
+  return (
+    <div className="match-analysis-list">
+      {watchOuts.map((watchOut) => (
+        <article key={watchOut.referenceId + watchOut.type} className="match-analysis-item">
+          <div className="match-analysis-topline">
+            <strong>{watchOut.type.replace(/_/g, ' ')}</strong>
+            <span>{watchOut.severity}</span>
+          </div>
+          <p>{watchOut.description}</p>
+          <p className="match-analysis-guidance">{watchOut.suggestedAction}</p>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function FilterAwarenessSummary({
+  analysis,
+}: {
+  analysis: VectorAwareMatchResult
+}) {
+  if (
+    analysis.triggeredPrioritize.length === 0 &&
+    analysis.triggeredAvoid.length === 0 &&
+    analysis.relevantAwareness.length === 0
+  ) {
+    return <div className="match-empty-inline">No matching filters or awareness items were triggered.</div>
+  }
+
+  return (
+    <div className="match-analysis-list">
+      {analysis.triggeredPrioritize.map((trigger) => (
+        <article key={'prioritize-' + trigger.filterId} className="match-analysis-item">
+          <div className="match-analysis-topline">
+            <strong>{trigger.label}</strong>
+            <span>prioritize · {trigger.weight}</span>
+          </div>
+          <p>{trigger.jdEvidence}</p>
+        </article>
+      ))}
+      {analysis.triggeredAvoid.map((trigger) => (
+        <article key={'avoid-' + trigger.filterId} className="match-analysis-item">
+          <div className="match-analysis-topline">
+            <strong>{trigger.label}</strong>
+            <span>avoid · {trigger.severity}</span>
+          </div>
+          <p>{trigger.jdEvidence}</p>
+        </article>
+      ))}
+      {analysis.relevantAwareness.map((item) => (
+        <article key={'awareness-' + item.awarenessId} className="match-analysis-item">
+          <div className="match-analysis-topline">
+            <strong>{item.topic}</strong>
+            <span>awareness · {item.severity}</span>
+          </div>
+          <p>{item.appliesBecause}</p>
+          <p className="match-analysis-guidance">{item.action}</p>
+        </article>
+      ))}
+    </div>
   )
 }

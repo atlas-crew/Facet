@@ -4,6 +4,22 @@ export type MatchAssetKind = 'bullet' | 'skill' | 'project' | 'profile' | 'philo
 
 export type MatchGapSeverity = 'high' | 'medium' | 'low'
 
+export type MatchOverallFit = 'strong' | 'moderate' | 'weak' | 'filter-out'
+
+export type MatchConfidence = 'high' | 'medium' | 'low'
+
+export type MatchRecommendation = 'apply' | 'consider' | 'skip'
+
+export type MatchVectorStrength = 'strong' | 'moderate' | 'weak'
+
+export type SkillRequirementStrength = 'required' | 'preferred' | 'nice-to-have'
+
+export type SkillMatchQuality = 'strong' | 'moderate' | 'weak' | 'negative'
+
+export type WatchOutType = 'avoid_skill' | 'filter_risk' | 'awareness_item' | 'comp_concern'
+
+export type WatchOutSeverity = 'hard' | 'soft'
+
 export interface MatchRequirement {
   id: string
   label: string
@@ -17,6 +33,80 @@ export interface MatchAdvantageHypothesis {
   id: string
   claim: string
   requirementIds: string[]
+}
+
+export interface MatchedVector {
+  vectorId: string
+  title: string
+  priority: 'high' | 'medium' | 'low'
+  matchStrength: MatchVectorStrength
+  evidence: string[]
+  thesisApplies: boolean
+  thesisFitExplanation: string
+}
+
+export interface SkillMatch {
+  skillName: string
+  jdRequirement: string
+  requirementStrength: SkillRequirementStrength
+  userDepth: 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
+  userSearchSignal: string
+  matchQuality: SkillMatchQuality
+  presentationGuidance: string
+}
+
+export interface FilterTrigger {
+  filterId: string
+  label: string
+  weight: 'high' | 'medium' | 'low'
+  jdEvidence: string
+}
+
+export interface AvoidTrigger {
+  filterId: string
+  label: string
+  severity: 'hard' | 'soft'
+  jdEvidence: string
+}
+
+export interface RelevantAwareness {
+  awarenessId: string
+  topic: string
+  severity: 'high' | 'medium' | 'low'
+  appliesBecause: string
+  action: string
+}
+
+export interface WatchOut {
+  type: WatchOutType
+  referenceId: string
+  description: string
+  severity: WatchOutSeverity
+  suggestedAction: string
+}
+
+export interface VectorAwareMatchResult {
+  id: string
+  generatedAt: string
+  identityVersion: number
+  company: string
+  role: string
+  jobDescription: string
+  overallFit: MatchOverallFit
+  fitScore: number
+  confidence: MatchConfidence
+  oneLineSummary: string
+  matchedVectors: MatchedVector[]
+  primaryVectorId: string | null
+  skillMatches: SkillMatch[]
+  strengthsToLead: string[]
+  watchOuts: WatchOut[]
+  triggeredPrioritize: FilterTrigger[]
+  triggeredAvoid: AvoidTrigger[]
+  relevantAwareness: RelevantAwareness[]
+  recommendation: MatchRecommendation
+  rationale: string
+  warnings: string[]
 }
 
 export interface MatchRequirementCoverage extends MatchRequirement {

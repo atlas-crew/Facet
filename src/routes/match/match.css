@@ -123,6 +123,21 @@
   gap: 16px;
 }
 
+.match-analysis-overview-grid,
+.match-analysis-grid,
+.match-analysis-list {
+  display: grid;
+}
+
+.match-analysis-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.match-analysis-list {
+  gap: 12px;
+}
+
 .match-editor-grid,
 .match-two-column {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -164,6 +179,7 @@
 
 .match-context-card,
 .match-overview-card,
+.match-analysis-card,
 .match-advantage-card,
 .match-requirement-card,
 .match-gap-card,
@@ -176,6 +192,7 @@
 
 .match-context-card,
 .match-overview-card,
+.match-analysis-card,
 .match-gap-card,
 .match-history-card,
 .match-asset-card,
@@ -235,11 +252,19 @@
   gap: 12px;
 }
 
+.match-analysis-item {
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-base) 84%, transparent);
+  padding: 14px;
+}
+
 .match-requirement-topline,
 .match-gap-topline,
 .match-history-topline,
 .match-asset-topline,
-.match-evidence-title {
+.match-evidence-title,
+.match-analysis-topline {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -249,10 +274,28 @@
 .match-requirement-foot,
 .match-history-meta,
 .match-asset-meta,
-.match-evidence-meta {
+.match-evidence-meta,
+.match-analysis-meta {
   margin-top: 10px;
   color: var(--text-secondary);
   font-size: 0.92rem;
+}
+
+.match-analysis-item p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+}
+
+.match-analysis-guidance {
+  color: var(--text-primary);
+}
+
+.match-analysis-label {
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
 }
 
 .match-chip-row {
@@ -349,7 +392,8 @@
 
   .match-overview-grid,
   .match-editor-grid,
-  .match-two-column {
+  .match-two-column,
+  .match-analysis-grid {
     grid-template-columns: 1fr;
   }
 }
