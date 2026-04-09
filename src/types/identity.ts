@@ -26,6 +26,11 @@ export interface IdentityDeepenedBullet {
   warnings: string[]
 }
 
+export type ResumeScanBulletExplanation = Pick<
+  IdentityDeepenedBullet,
+  'summary' | 'rewrite' | 'assumptions' | 'warnings'
+>
+
 export interface IdentityExtractionDraft {
   generatedAt: string
   summary: string
@@ -82,6 +87,7 @@ export interface ResumeScanBulletProgress {
   status: ResumeScanBulletStatus
   confidence: IdentityConfidence
   lastError: string | null
+  explanation: ResumeScanBulletExplanation | null
   updatedAt: string
 }
 

@@ -115,6 +115,13 @@ const STATUS_CLASSNAMES: Record<ResumeScanBulletProgress['status'], string> = {
   edited: 'identity-chip-corrected',
 }
 
+const CONFIDENCE_LABELS: Record<ResumeScanBulletProgress['confidence'], string> = {
+  stated: 'Stated',
+  confirmed: 'Confirmed',
+  guessing: 'Guessing',
+  corrected: 'Corrected',
+}
+
 const hasDecomposition = (bullet: ProfessionalIdentityV3['roles'][number]['bullets'][number]): boolean =>
   [bullet.problem, bullet.action, bullet.outcome].some((entry) => entry.trim()) ||
   bullet.impact.length > 0 ||
@@ -363,6 +370,19 @@ export function ScannedIdentityEditor({
                   {role.bullets.map((bullet, bulletIndex) => {
                     const key = `${role.id}::${bullet.id}`
                     const bulletProgress = progress.bullets[key]
+                    const bulletExplanation = bulletProgress?.explanation
+                    const showGuessingFallback =
+                      bulletProgress?.confidence === 'guessing' &&
+                      !bulletExplanation?.summary &&
+                      !bulletExplanation?.rewrite &&
+                      !bulletExplanation?.assumptions?.length &&
+                      !bulletExplanation?.warnings?.length
+                    const showGuidance =
+                      bulletProgress?.confidence === 'guessing' ||
+                      Boolean(bulletExplanation?.summary) ||
+                      Boolean(bulletExplanation?.rewrite) ||
+                      Boolean(bulletExplanation?.assumptions?.length) ||
+                      Boolean(bulletExplanation?.warnings?.length)
                     const showDecomposition =
                       hasDecomposition(bullet) ||
                       bulletProgress?.status === 'completed' ||
@@ -375,7 +395,7 @@ export function ScannedIdentityEditor({
                               {STATUS_LABELS[bulletProgress?.status ?? 'idle']}
                             </span>
                             <span className={`identity-chip identity-chip-${bulletProgress?.confidence ?? 'stated'}`}>
-                              {bulletProgress?.confidence ?? 'stated'}
+                              {CONFIDENCE_LABELS[bulletProgress?.confidence ?? 'stated']}
                             </span>
                           </div>
                           <button
@@ -412,71 +432,134 @@ export function ScannedIdentityEditor({
                           <p className="identity-muted">{bulletProgress.lastError}</p>
                         ) : null}
                         {showDecomposition ? (
-                          <div className="identity-scan-form-grid">
-                            <label className="identity-field identity-field-wide">
-                              <span className="identity-label">Problem</span>
-                              <textarea
-                                className="identity-textarea"
-                                value={bullet.problem}
-                                onChange={(event) =>
-                                  onUpdateBulletTextField(role.id, bullet.id, 'problem', event.target.value)
+                          <>
+                            {showGuidance ? (
+                              <section className="identity-scan-guidance" aria-label="AI explanation">
+                                {showGuessingFallback ? (
+                                  <p className="identity-scan-guidance-text">
+                                    This decomposition was inferred from the scanned source text. Review and
+                                    edit the fields below to confirm any guessed details. Your first edit
+                                    will switch this bullet from Guessing to Corrected.
+                                  </p>
+                                ) : bulletExplanation?.summary ? (
+                                  <p className="identity-scan-guidance-text">{bulletExplanation.summary}</p>
+                                ) : bulletProgress?.confidence === 'guessing' ? (
+                                  <p className="identity-scan-guidance-text">
+                                    This decomposition was inferred from the scanned source text.
+                                  </p>
+                                ) : null}
+                                {bulletExplanation?.rewrite ? (
+                                  <div className="identity-scan-guess-block">
+                                    <span className="identity-label">Current AI rewrite</span>
+                                    <p className="identity-scan-guess-text">{bulletExplanation.rewrite}</p>
+                                  </div>
+                                ) : null}
+                                {bulletExplanation?.assumptions?.length ? (
+                                  <div className="identity-chip-row">
+                                    {bulletExplanation.assumptions.map((assumption, index) => (
+                                      <span
+                                        key={`${bullet.id}:assumption:${index}`}
+                                        className={`identity-chip identity-chip-${assumption.confidence}`}
+                                      >
+                                        {assumption.label} · {CONFIDENCE_LABELS[assumption.confidence]}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {bulletExplanation?.warnings?.length ? (
+                                  <p className="identity-muted">
+                                    {bulletExplanation.warnings.join(' ')}
+                                  </p>
+                                ) : null}
+                                {bulletProgress?.confidence === 'guessing' && !showGuessingFallback ? (
+                                  <p className="identity-muted">
+                                    Edit the fields below to correct any guessed details. Your first edit will
+                                    switch this bullet from Guessing to Corrected.
+                                  </p>
+                                ) : null}
+                              </section>
+                            ) : null}
+                            <div className="identity-scan-form-grid">
+                              <label className="identity-field identity-field-wide">
+                                <span className="identity-label">Problem</span>
+                                <textarea
+                                  className="identity-textarea"
+                                  value={bullet.problem}
+                                  onChange={(event) =>
+                                    onUpdateBulletTextField(
+                                      role.id,
+                                      bullet.id,
+                                      'problem',
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label className="identity-field identity-field-wide">
+                                <span className="identity-label">Action</span>
+                                <textarea
+                                  className="identity-textarea"
+                                  value={bullet.action}
+                                  onChange={(event) =>
+                                    onUpdateBulletTextField(
+                                      role.id,
+                                      bullet.id,
+                                      'action',
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label className="identity-field identity-field-wide">
+                                <span className="identity-label">Outcome</span>
+                                <textarea
+                                  className="identity-textarea"
+                                  value={bullet.outcome}
+                                  onChange={(event) =>
+                                    onUpdateBulletTextField(
+                                      role.id,
+                                      bullet.id,
+                                      'outcome',
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                              <DeferredListField
+                                label="Impact"
+                                value={bullet.impact}
+                                splitOnComma={false}
+                                onCommit={(nextValue) =>
+                                  onUpdateBulletListField(role.id, bullet.id, 'impact', nextValue)
                                 }
                               />
-                            </label>
-                            <label className="identity-field identity-field-wide">
-                              <span className="identity-label">Action</span>
-                              <textarea
-                                className="identity-textarea"
-                                value={bullet.action}
-                                onChange={(event) =>
-                                  onUpdateBulletTextField(role.id, bullet.id, 'action', event.target.value)
+                              <DeferredListField
+                                label="Technologies"
+                                value={bullet.technologies}
+                                onCommit={(nextValue) =>
+                                  onUpdateBulletListField(role.id, bullet.id, 'technologies', nextValue)
                                 }
                               />
-                            </label>
-                            <label className="identity-field identity-field-wide">
-                              <span className="identity-label">Outcome</span>
-                              <textarea
-                                className="identity-textarea"
-                                value={bullet.outcome}
-                                onChange={(event) =>
-                                  onUpdateBulletTextField(role.id, bullet.id, 'outcome', event.target.value)
+                              <DeferredListField
+                                label="Tags"
+                                value={bullet.tags}
+                                onCommit={(nextValue) =>
+                                  onUpdateBulletListField(
+                                    role.id,
+                                    bullet.id,
+                                    'tags',
+                                    nextValue.map((entry) => entry.toLowerCase()),
+                                  )
                                 }
                               />
-                            </label>
-                            <DeferredListField
-                              label="Impact"
-                              value={bullet.impact}
-                              splitOnComma={false}
-                              onCommit={(nextValue) =>
-                                onUpdateBulletListField(role.id, bullet.id, 'impact', nextValue)
-                              }
-                            />
-                            <DeferredListField
-                              label="Technologies"
-                              value={bullet.technologies}
-                              onCommit={(nextValue) =>
-                                onUpdateBulletListField(role.id, bullet.id, 'technologies', nextValue)
-                              }
-                            />
-                            <DeferredListField
-                              label="Tags"
-                              value={bullet.tags}
-                              onCommit={(nextValue) =>
-                                onUpdateBulletListField(
-                                  role.id,
-                                  bullet.id,
-                                  'tags',
-                                  nextValue.map((entry) => entry.toLowerCase()),
-                                )
-                              }
-                            />
-                            <DeferredMetricsField
-                              roleId={role.id}
-                              bulletId={bullet.id}
-                              metrics={bullet.metrics}
-                              onCommit={onUpdateBulletMetrics}
-                            />
-                          </div>
+                              <DeferredMetricsField
+                                roleId={role.id}
+                                bulletId={bullet.id}
+                                metrics={bullet.metrics}
+                                onCommit={onUpdateBulletMetrics}
+                              />
+                            </div>
+                          </>
                         ) : null}
                       </article>
                     )

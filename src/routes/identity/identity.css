@@ -49,6 +49,25 @@
   flex-wrap: wrap;
 }
 
+.identity-scan-guidance {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
+}
+
+.identity-scan-guidance-text,
+.identity-scan-guess-text {
+  margin: 0;
+}
+
+.identity-scan-guess-block {
+  display: grid;
+  gap: var(--space-1);
+}
+
 .identity-btn {
   display: inline-flex;
   align-items: center;

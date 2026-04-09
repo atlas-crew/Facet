@@ -520,6 +520,77 @@ describe('IdentityPage', () => {
     expect((screen.getByLabelText('Technologies') as HTMLTextAreaElement).value).toContain('Kubernetes')
   })
 
+  it('shows guessed rewrite details and correction guidance after deepening a bullet', async () => {
+    identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
+      summary: 'Guessed the customer-facing rollout context from the scanned bullet.',
+      roleId: 'a10',
+      bulletId: 'platform-migration',
+      bullet: {
+        id: 'platform-migration',
+        problem: 'Cloud-only delivery blocked on-prem installs.',
+        action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        outcome: 'Made the product deployable in customer environments.',
+        impact: ['Unlocked customer-hosted deployments'],
+        metrics: { installs: 12 },
+        technologies: ['Kubernetes'],
+        source_text: 'ignored',
+        tags: ['platform', 'kubernetes'],
+      },
+      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+      assumptions: [
+        {
+          label: 'Assumed the installs were customer-hosted',
+          confidence: 'guessing',
+        },
+      ],
+      warnings: ['Double-check whether the rollout was customer-hosted or internal-only.'],
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Current AI rewrite')).toBeTruthy()
+    })
+
+    expect(
+      screen.getAllByText('Guessed the customer-facing rollout context from the scanned bullet.').length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByText('Assumed the installs were customer-hosted · Guessing')).toBeTruthy()
+    expect(
+      screen.getAllByText('Double-check whether the rollout was customer-hosted or internal-only.').length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByText(/Edit the fields below to correct any guessed details/i)).toBeTruthy()
+  })
+
+  it('shows correction guidance for scanned bullets that already start in guessing mode', async () => {
+    const guessedScan = scanFixture()
+    guessedScan.identity.roles[0].bullets[0].problem = 'Legacy delivery path blocked on-prem installs.'
+    guessedScan.identity.roles[0].bullets[0].action = 'Ported the platform to Kubernetes-based installs.'
+    guessedScan.identity.roles[0].bullets[0].outcome = 'Made the product deployable in customer environments.'
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(guessedScan)
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Legacy delivery path blocked on-prem installs.')).toBeTruthy()
+    })
+
+    expect(screen.getAllByText('Guessing').length).toBeGreaterThan(0)
+    expect(
+      screen.getByText(
+        'This decomposition was inferred from the scanned source text. Review and edit the fields below to confirm any guessed details. Your first edit will switch this bullet from Guessing to Corrected.',
+      ),
+    ).toBeTruthy()
+  })
+
   it('disables bullet deepening when the scanned source text is blank', async () => {
     const { container } = render(<IdentityPage />)
     uploadPdf(container)

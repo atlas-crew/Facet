@@ -13,6 +13,7 @@ import type {
   IdentityDeepenedBullet,
   IdentityIntakeMode,
   IdentityExtractionDraft,
+  ResumeScanBulletExplanation,
   ResumeScanBulletProgress,
   ResumeScanBulletStatus,
   ResumeScanProgress,
@@ -134,12 +135,16 @@ const createBulletProgress = (
   status: ResumeScanBulletStatus,
   confidence: ResumeScanBulletProgress['confidence'],
   lastError: string | null,
-  updatedAt = new Date().toISOString(),
+  options: {
+    updatedAt?: string
+    explanation?: ResumeScanBulletExplanation | null
+  } = {},
 ): ResumeScanBulletProgress => ({
   status,
   confidence,
   lastError,
-  updatedAt,
+  explanation: options.explanation ?? null,
+  updatedAt: options.updatedAt ?? new Date().toISOString(),
 })
 
 const createScanProgress = (identity: ProfessionalIdentityV3): ResumeScanProgress => {
@@ -181,7 +186,15 @@ const normalizeScanProgress = (
       const derived = hasDecomposition(bullet)
         ? createBulletProgress('completed', 'guessing', null)
         : createBulletProgress('idle', 'stated', null)
-      return [key, existing ?? derived]
+      const normalizedExplanation = existing?.explanation
+        ? {
+            summary: existing.explanation.summary,
+            rewrite: existing.explanation.rewrite,
+            assumptions: existing.explanation.assumptions ?? [],
+            warnings: existing.explanation.warnings ?? [],
+          }
+        : null
+      return [key, existing ? { ...existing, explanation: normalizedExplanation } : derived]
     }),
   )
 
@@ -552,7 +565,14 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           const progress = normalizeScanProgress(state.scanResult.identity, state.scanResult.progress)
-          progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress('running', 'stated', null)
+          const key = getScanBulletKey(roleId, bulletId)
+          const existing = progress.bullets[key]
+          progress.bullets[key] = createBulletProgress(
+            'running',
+            'stated',
+            null,
+            { explanation: existing?.explanation ?? null },
+          )
 
           return {
             scanResult: {
@@ -593,6 +613,14 @@ export const useIdentityStore = create<IdentityState>()(
             'completed',
             'guessing',
             null,
+            {
+              explanation: {
+                summary: value.summary,
+                rewrite: value.rewrite,
+                assumptions: value.assumptions,
+                warnings: value.warnings,
+              },
+            },
           )
           if (progress.bulk.status === 'running') {
             progress.bulk.completed += 1
@@ -617,10 +645,13 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           const progress = normalizeScanProgress(state.scanResult.identity, state.scanResult.progress)
-          progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
+          const key = getScanBulletKey(roleId, bulletId)
+          const existing = progress.bullets[key]
+          progress.bullets[key] = createBulletProgress(
             'failed',
             'stated',
             message,
+            { explanation: existing?.explanation ?? null },
           )
           if (progress.bulk.status === 'running') {
             progress.bulk.lastUpdatedAt = new Date().toISOString()
@@ -641,10 +672,13 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           const progress = normalizeScanProgress(state.scanResult.identity, state.scanResult.progress)
-          progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
+          const key = getScanBulletKey(roleId, bulletId)
+          const existing = progress.bullets[key]
+          progress.bullets[key] = createBulletProgress(
             'edited',
             'corrected',
             null,
+            { explanation: existing?.explanation ?? null },
           )
 
           return {
