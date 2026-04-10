@@ -944,11 +944,24 @@ describe('IdentityPage', () => {
 
   it('uses a wider workbench layout and keeps the model builder compact before a draft exists', () => {
     const { container } = render(<IdentityPage />)
-    const validateButton = screen.getByRole('button', { name: 'Validate Draft' }) as HTMLButtonElement
+    const editorRegion = container.querySelector('.identity-model-builder-editor-region') as HTMLDivElement
 
     expect(container.querySelector('.identity-grid.identity-grid-workbench')).toBeTruthy()
+    const openButton = screen.getByRole('button', { name: 'Open JSON Editor' })
+
+    expect(openButton.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByText(/stays compact so the extraction workflow has room to breathe/i)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Validate Draft' })).toBeNull()
+    expect(editorRegion.hidden).toBe(true)
+  })
+
+  it('opens the json editor from the compact builder state', () => {
+    const { container } = render(<IdentityPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open JSON Editor' }))
+
+    expect(screen.getByRole('button', { name: 'Collapse Editor' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Validate Draft' })).toBeTruthy()
     expect(container.querySelector('.identity-textarea-code-empty')).toBeTruthy()
-    expect(screen.getByText(/Generate or import a draft first/i)).toBeTruthy()
-    expect(validateButton.disabled).toBe(true)
   })
 })

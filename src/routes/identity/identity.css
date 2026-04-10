@@ -684,7 +684,7 @@
 }
 
 .identity-grid-workbench {
-  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(0, 1.85fr) minmax(280px, 340px);
   align-items: start;
 }
 
@@ -692,8 +692,25 @@
   min-width: 0;
 }
 
+.identity-model-builder-card {
+  align-self: start;
+}
+
+.identity-model-builder-empty-state {
+  border: 1px dashed var(--border-subtle);
+  border-radius: 12px;
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--bg-inset) 84%, transparent);
+}
+
+.identity-model-builder-empty-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 .identity-textarea-code-empty {
-  min-height: 168px;
+  min-height: 140px;
 }
 
 @media (max-width: 1080px) {
