@@ -491,6 +491,61 @@ describe('identityStore skill enrichment', () => {
     expect(skill?.skipped_at).toBeUndefined()
   })
 
+  it('matches enrichment updates case-insensitively within the same group', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'kubernetes',
+      {
+        depth: 'strong',
+        context: 'Used for customer-hosted and internal platform delivery.',
+        positioning: 'Platform modernization and Kubernetes operations.',
+      },
+      'user',
+    )
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill).toMatchObject({
+      name: 'Kubernetes',
+      depth: 'strong',
+      enriched_by: 'user',
+    })
+  })
+
+  it('adds and removes skills on the current identity', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().addSkillToCurrentIdentity('platform', 'Docker')
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[2]).toMatchObject({
+      name: 'Docker',
+      tags: [],
+    })
+
+    useIdentityStore.getState().removeSkillFromCurrentIdentity('platform', 'Docker')
+    expect(
+      useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items.some(
+        (skill) => skill.name === 'Docker',
+      ),
+    ).toBe(false)
+  })
+
+  it('does not add duplicate skills within the same group', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().addSkillToCurrentIdentity('platform', 'kubernetes')
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(2)
+  })
+
   it('rehydrates persisted enrichment state from storage', async () => {
     useIdentityStore.setState({
       currentIdentity: createIdentity(),

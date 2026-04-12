@@ -664,15 +664,9 @@
   justify-content: space-between;
   gap: var(--space-3);
   text-align: left;
-  cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--easing),
     background var(--duration-fast) var(--easing);
-}
-
-.identity-enrichment-skill:hover {
-  border-color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
 }
 
 .identity-enrichment-skill strong {
@@ -682,6 +676,26 @@
 
 .identity-enrichment-skill-copy {
   display: block;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.identity-enrichment-skill-copy:hover,
+.identity-enrichment-skill-copy:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.identity-enrichment-skill:has(.identity-enrichment-skill-copy:hover),
+.identity-enrichment-skill:has(.identity-enrichment-skill-copy:focus-visible) {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
 }
 
 .identity-enrichment-skill-meta {

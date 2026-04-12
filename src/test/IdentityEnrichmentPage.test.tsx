@@ -77,19 +77,174 @@ describe('IdentityEnrichmentPage', () => {
     expect(screen.getByRole('heading', { name: 'Pending' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Skipped' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Complete' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Manage Skills' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Continue next skill' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /TypeScript/i })).toBeTruthy()
+    expect(screen.getByText('TypeScript').closest('button')).toBeTruthy()
+    expect(screen.getByText('Terraform').closest('button')).toBeTruthy()
+    expect(screen.getByText('Kubernetes').closest('button')).toBeTruthy()
     expect(screen.getByText('Needs refresh')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /TypeScript/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue next skill' }))
+    fireEvent.click(screen.getByText('TypeScript').closest('button')!)
 
-    expect(navigateMock).toHaveBeenCalledWith({
+    expect(navigateMock).toHaveBeenNthCalledWith(1, {
       to: '/identity/enrich/$groupId/$skillName',
       params: {
         groupId: 'backend',
         skillName: 'TypeScript',
       },
     })
+    expect(navigateMock).toHaveBeenNthCalledWith(2, {
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'backend',
+        skillName: 'TypeScript',
+      },
+    })
+  })
+
+  it('adds a skill to the selected group and shows it in the pending list', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+
+    render(<IdentityEnrichmentPage />)
+
+    fireEvent.change(screen.getByLabelText('New skill'), {
+      target: { value: 'Docker' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add skill' }))
+
+    expect(screen.getByRole('status').textContent).toContain('Added Docker to Platform.')
+    expect((screen.getByLabelText('New skill') as HTMLInputElement).value).toBe('')
+    expect(screen.getByText('Docker').closest('button')).toBeTruthy()
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+      name: 'Docker',
+      tags: [],
+    })
+  })
+
+  it('adds a skill to the selected group when multiple groups exist', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [],
+      },
+      {
+        id: 'backend',
+        label: 'Backend',
+        items: [],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+
+    render(<IdentityEnrichmentPage />)
+
+    fireEvent.change(screen.getByLabelText('Group'), {
+      target: { value: 'backend' },
+    })
+    fireEvent.change(screen.getByLabelText('New skill'), {
+      target: { value: 'Node.js' },
+    })
+    fireEvent.submit(screen.getByLabelText('New skill').closest('form')!)
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(0)
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[1]?.items[0]).toMatchObject({
+      name: 'Node.js',
+    })
+  })
+
+  it('blocks duplicate skills in the same group', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [{ name: 'Docker', tags: [] }],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+
+    render(<IdentityEnrichmentPage />)
+
+    fireEvent.change(screen.getByLabelText('New skill'), {
+      target: { value: 'Docker' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add skill' }))
+
+    expect(screen.getByRole('alert').textContent).toContain('already exists')
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(1)
+  })
+
+  it('rejects blank skill names', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+
+    render(<IdentityEnrichmentPage />)
+
+    fireEvent.change(screen.getByLabelText('New skill'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add skill' }))
+
+    expect(screen.getByRole('alert').textContent).toContain('Enter a skill name')
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(0)
+  })
+
+  it('removes a skill after confirmation', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [{ name: 'Docker', tags: [] }],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<IdentityEnrichmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Docker' }))
+
+    expect(screen.getByRole('status').textContent).toContain('Removed Docker.')
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(0)
+    confirmSpy.mockRestore()
+  })
+
+  it('keeps a skill when removal is cancelled', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [{ name: 'Docker', tags: [] }],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    render(<IdentityEnrichmentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Docker' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(1)
+    confirmSpy.mockRestore()
   })
 
   it('shows a zero-skill message when the identity has nothing enrichable', () => {
@@ -105,5 +260,12 @@ describe('IdentityEnrichmentPage', () => {
     expect(
       screen.getByText("This identity model doesn't currently include any skills that need enrichment metadata."),
     ).toBeTruthy()
+  })
+
+  it('shows the load-first empty state when no identity is available', () => {
+    render(<IdentityEnrichmentPage />)
+
+    expect(screen.getByText('No Identity Model Loaded')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Back to Identity' })).toBeTruthy()
   })
 })

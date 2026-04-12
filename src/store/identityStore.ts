@@ -26,7 +26,7 @@ import type {
   ResumeScanResult,
 } from '../types/identity'
 import { createId } from '../utils/idUtils'
-import { updateIdentityEnrichmentSkill } from '../utils/identityEnrichment'
+import { skillNamesMatch, updateIdentityEnrichmentSkill } from '../utils/identityEnrichment'
 import { parseJsonWithRepair } from '../utils/jsonParsing'
 import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils/identityMerge'
 import { resolveStorage } from './storage'
@@ -122,6 +122,8 @@ interface IdentityState {
   ) => void
   skipSkillEnrichment: (groupId: string, skillName: string) => void
   clearSkillSkip: (groupId: string, skillName: string) => void
+  addSkillToCurrentIdentity: (groupId: string, skillName: string) => void
+  removeSkillFromCurrentIdentity: (groupId: string, skillName: string) => void
   clearDraft: () => void
   clearScanResult: () => void
   clearLastError: () => void
@@ -1107,6 +1109,70 @@ export const useIdentityStore = create<IdentityState>()(
               skipped_at: undefined,
             }),
           )
+
+          return syncIdentityDocument(state, nextIdentity)
+        }),
+      addSkillToCurrentIdentity: (groupId, skillName) =>
+        set((state) => {
+          if (!state.currentIdentity) {
+            return {}
+          }
+
+          const nextName = skillName.trim()
+          if (!nextName) {
+            return {}
+          }
+
+          const nextIdentity = {
+            ...state.currentIdentity,
+            skills: {
+              ...state.currentIdentity.skills,
+              groups: state.currentIdentity.skills.groups.map((group) => {
+                if (group.id !== groupId) {
+                  return group
+                }
+
+                const alreadyExists = group.items.some((skill) => skillNamesMatch(skill.name, nextName))
+                if (alreadyExists) {
+                  return group
+                }
+
+                return {
+                  ...group,
+                  items: [
+                    ...group.items,
+                    {
+                      name: nextName,
+                      tags: [],
+                    },
+                  ],
+                }
+              }),
+            },
+          }
+
+          return syncIdentityDocument(state, nextIdentity)
+        }),
+      removeSkillFromCurrentIdentity: (groupId, skillName) =>
+        set((state) => {
+          if (!state.currentIdentity) {
+            return {}
+          }
+
+          const nextIdentity = {
+            ...state.currentIdentity,
+            skills: {
+              ...state.currentIdentity.skills,
+              groups: state.currentIdentity.skills.groups.map((group) =>
+                group.id === groupId
+                  ? {
+                      ...group,
+                      items: group.items.filter((skill) => !skillNamesMatch(skill.name, skillName)),
+                    }
+                  : group,
+              ),
+            },
+          }
 
           return syncIdentityDocument(state, nextIdentity)
         }),

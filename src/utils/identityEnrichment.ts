@@ -10,6 +10,14 @@ export interface IdentityEnrichmentResolvedSkill extends IdentityEnrichmentSkill
   skill: ProfessionalSkillItem
 }
 
+export const skillNamesMatch = (left: string, right: string): boolean =>
+  left.localeCompare(right, undefined, { sensitivity: 'accent' }) === 0
+
+export const skillGroupHasSkillName = (
+  group: Pick<ProfessionalSkillGroup, 'items'>,
+  skillName: string,
+): boolean => group.items.some((skill) => skillNamesMatch(skill.name, skillName))
+
 export const updateIdentityEnrichmentSkill = (
   identity: ProfessionalIdentityV3,
   groupId: string,
@@ -23,7 +31,9 @@ export const updateIdentityEnrichmentSkill = (
       group.id === groupId
         ? {
             ...group,
-            items: group.items.map((skill) => (skill.name === skillName ? updater(skill) : skill)),
+            items: group.items.map((skill) =>
+              skillNamesMatch(skill.name, skillName) ? updater(skill) : skill,
+            ),
           }
         : group,
     ),
