@@ -392,7 +392,11 @@ export function IdentityPage() {
 
   const handleRequestUpload = () => {
     setIntakeMode("upload");
-    uploadRef.current?.click();
+    // Preserve the historical gesture flow: let the upload workspace settle
+    // before opening the chooser so paste-mode transitions do not swallow it.
+    globalThis.setTimeout(() => {
+      uploadRef.current?.click();
+    }, 0);
   };
 
   const handleContinueSkillEnrichment = () => {
