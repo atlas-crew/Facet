@@ -443,16 +443,20 @@ export const useIdentityStore = create<IdentityState>()(
             }
           }
 
-          const progress = normalizeScanProgress(scanResult.identity, scanResult.progress)
+          const identity = normalizeRuntimeIdentitySchemaRevision(
+            scanResult.identity,
+          )
+          const progress = normalizeScanProgress(identity, scanResult.progress)
           const nextScanResult: ResumeScanResult = {
             ...scanResult,
+            identity,
             progress,
-            counts: recalculateScanCounts(scanResult.identity, progress),
+            counts: recalculateScanCounts(identity, progress),
           }
 
           return {
             scanResult: nextScanResult,
-            draftDocument: formatIdentityDocument(nextScanResult.identity),
+            draftDocument: formatIdentityDocument(identity),
             warnings: nextScanResult.warnings.map((warning) => warning.message),
             lastError: null,
           }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
+import { parseDeepenIdentityBulletResponse } from '../utils/identityExtraction'
 
 const createScanResult = () => {
   const identity = cloneIdentityFixture()
@@ -89,6 +90,38 @@ describe('identityStore scan progress', () => {
       editedBullets: 0,
       failedBullets: 0,
     })
+  })
+
+  it('normalizes numeric schema_revision values during live scan ingestion', () => {
+    const scanResult = createScanResult()
+    ;(scanResult.identity as { schema_revision: string | number }).schema_revision =
+      3.1
+
+    useIdentityStore.getState().setScanResult(scanResult)
+
+    const storedIdentity = useIdentityStore.getState().scanResult?.identity
+    expect(storedIdentity?.schema_revision).toBe('3.1')
+
+    expect(() =>
+      parseDeepenIdentityBulletResponse(
+        JSON.stringify({
+          summary: 'Deepened the migration bullet.',
+          bullet: {
+            role_id: 'a10',
+            bullet_id: 'platform-migration',
+            problem: 'Cloud-only delivery blocked on-prem installs.',
+            action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+            outcome: 'Made the product deployable in customer environments.',
+            impact: ['Unlocked customer-hosted deployments'],
+            metrics: { installs: 12 },
+            technologies: ['Kubernetes'],
+            tags: ['platform', 'kubernetes'],
+            rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+          },
+        }),
+        storedIdentity!,
+      ),
+    ).not.toThrow()
   })
 
   it('marks a scanned bullet as deepened and updates counts', () => {

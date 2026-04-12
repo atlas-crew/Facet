@@ -292,7 +292,7 @@ const assertRecord = (value: unknown, context: string): Record<string, unknown> 
   return value
 }
 
-export const normalizeRuntimeIdentitySchemaRevision = (value: unknown): unknown => {
+export const normalizeRuntimeIdentitySchemaRevision = <T>(value: T): T => {
   if (!isRecord(value) || value.schema_revision !== 3.1) {
     return value
   }
@@ -300,7 +300,9 @@ export const normalizeRuntimeIdentitySchemaRevision = (value: unknown): unknown 
   return {
     ...value,
     schema_revision: '3.1',
-  }
+    // This runtime repair intentionally narrows stale numeric persisted data
+    // into the canonical ProfessionalIdentity schema revision string.
+  } as T
 }
 
 const assertArray = (value: unknown, context: string): unknown[] => {
