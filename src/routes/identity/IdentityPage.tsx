@@ -67,7 +67,7 @@ export function IdentityPage() {
   const importRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const primaryActionButtonRef = useRef<HTMLButtonElement>(null);
-  const draftSectionRef = useRef<HTMLDivElement>(null);
+  const draftPanelRef = useRef<HTMLDivElement>(null);
   const generateAbortRef = useRef<AbortController | null>(null);
   const scanAbortRef = useRef<AbortController | null>(null);
   // Single-bullet and bulk deepening are intentionally mutually exclusive in the UI.
@@ -176,6 +176,10 @@ export function IdentityPage() {
   useEffect(() => {
     if (!currentIdentity && activeWorkspace === "strategy") {
       setActiveWorkspace("model");
+      // Strategy unmounts when the current identity disappears, and the tab bar
+      // collapses away entirely in single-workspace mode. Fall back to the
+      // primary Model action so keyboard users stay within the active workspace
+      // controls.
       primaryActionButtonRef.current?.focus();
     }
   }, [activeWorkspace, currentIdentity]);
@@ -186,7 +190,7 @@ export function IdentityPage() {
     }
 
     const frame = window.requestAnimationFrame(() => {
-      draftSectionRef.current?.scrollIntoView({
+      draftPanelRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -875,6 +879,34 @@ export function IdentityPage() {
     status: headerStatus,
   } = primaryActionState;
   const isPrimaryActionDisabled = isGenerating || isScanning;
+  const sourceIntakeStatus = useMemo(() => {
+    if (isScanning) {
+      return "Scanning source material";
+    }
+
+    if (scanResult) {
+      return `${scanResult.fileName} is ready for review`;
+    }
+
+    if (sourceMaterial.trim().length > 0) {
+      return intakeMode === "paste"
+        ? "Pasted source text is ready to draft"
+        : "Source material is ready to draft";
+    }
+
+    return "No source loaded yet";
+  }, [intakeMode, isScanning, scanResult, sourceMaterial]);
+  const draftReviewStatus = useMemo(() => {
+    if (draft) {
+      return "Draft is ready for review and apply";
+    }
+
+    if (currentIdentity) {
+      return "Current identity is available for editing";
+    }
+
+    return "No draft generated yet";
+  }, [currentIdentity, draft]);
 
   const handlePrimaryAction = () => {
     switch (primaryAction) {
@@ -942,12 +974,11 @@ export function IdentityPage() {
     <div className="identity-page">
       <header className="identity-header identity-header-sticky">
         <div className="identity-header-main">
-          <p className="identity-eyebrow">Phase 0</p>
+          <p className="identity-eyebrow">Identity Workspace</p>
           <h1>Professional Identity</h1>
           <p className="identity-copy">
-            Build the write-layer and extraction loop for identity.json: draft
-            from raw source material, correct it, validate it, then push the
-            resulting model into Build.
+            Build the identity model, refine it, then use it to shape search
+            strategy and Build.
           </p>
           <p className="identity-header-status" aria-live="polite">
             {headerStatus}
@@ -1110,6 +1141,7 @@ export function IdentityPage() {
 
           <div className="identity-grid identity-grid-workbench">
             <ExtractionAgentCard
+              statusLabel={sourceIntakeStatus}
               intakeMode={intakeMode}
               sourceMaterial={sourceMaterial}
               correctionNotes={correctionNotes}
@@ -1148,11 +1180,13 @@ export function IdentityPage() {
               onUpdateEducationEntry={updateScannedEducationEntry}
             />
 
-            <div ref={draftSectionRef}>
+            <div ref={draftPanelRef}>
               <IdentityModelBuilderCard
+                key={draft?.generatedAt ?? "identity-model-builder"}
                 counts={counts}
                 draftDocument={draftDocument}
                 hasCurrentIdentity={Boolean(currentIdentity)}
+                statusLabel={draftReviewStatus}
                 onSetDraftDocument={setDraftDocument}
                 onValidateDraft={handleValidateDraft}
                 onApply={handleApply}
@@ -1160,9 +1194,25 @@ export function IdentityPage() {
             </div>
           </div>
 
-          <div className="identity-grid">
-            <BulletConfidenceCard draft={draft} />
-            <DraftSummaryCard draft={draft} changelog={changelog} />
+          <div className="identity-inspection-region">
+            <div className="identity-inspection-header">
+              <div>
+                <h2>Inspection Panels</h2>
+                <p>
+                  Use these secondary surfaces when you want to audit generated
+                  bullets or track recent builder changes without interrupting
+                  the main model flow.
+                </p>
+              </div>
+              <p className="identity-section-status">
+                Secondary review surfaces
+              </p>
+            </div>
+
+            <div className="identity-grid identity-inspection-grid">
+              <BulletConfidenceCard draft={draft} />
+              <DraftSummaryCard draft={draft} changelog={changelog} />
+            </div>
           </div>
         </div>
       </div>

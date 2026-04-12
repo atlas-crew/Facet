@@ -12,6 +12,7 @@ interface IdentityModelBuilderCardProps {
   } | null;
   draftDocument: string;
   hasCurrentIdentity: boolean;
+  statusLabel?: string;
   onSetDraftDocument: (value: string) => void;
   onValidateDraft: () => void;
   onApply: (mode: IdentityApplyMode) => void;
@@ -21,12 +22,15 @@ export function IdentityModelBuilderCard({
   counts,
   draftDocument,
   hasCurrentIdentity,
+  statusLabel,
   onSetDraftDocument,
   onValidateDraft,
   onApply,
 }: IdentityModelBuilderCardProps) {
   const hasDraftDocument = draftDocument.trim().length > 0;
   const hasCounts = counts !== null;
+  // Once a user explicitly opens or closes the advanced editor, keep that
+  // preference sticky until a newly generated draft remounts this card.
   const [isEditorExpanded, setIsEditorExpanded] = useState<boolean | null>(
     hasDraftDocument ? true : null,
   );
@@ -45,6 +49,9 @@ export function IdentityModelBuilderCard({
             Check the current draft, validate it, and apply it as a fresh
             identity or a merge.
           </p>
+          {statusLabel ? (
+            <p className="identity-section-status">{statusLabel}</p>
+          ) : null}
         </div>
         <div className="identity-card-actions">
           <button
@@ -52,6 +59,7 @@ export function IdentityModelBuilderCard({
             type="button"
             aria-expanded={editorExpanded}
             aria-controls={editorRegionId}
+            aria-description="Controls the advanced JSON editor only."
             onClick={() =>
               setIsEditorExpanded((current) => !(current ?? hasDraftDocument))
             }

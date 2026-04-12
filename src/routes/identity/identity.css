@@ -24,8 +24,11 @@
   padding: var(--space-4);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
 }
 
 .identity-header-main {
@@ -200,6 +203,38 @@
   display: none;
 }
 
+.identity-inspection-region {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent-primary) 3%, var(--bg-surface));
+}
+
+.identity-inspection-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.identity-inspection-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.identity-inspection-header p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.identity-inspection-grid {
+  gap: var(--space-3);
+}
+
 .identity-workspace-tabs {
   justify-content: flex-end;
 }
@@ -211,12 +246,23 @@
 .identity-card {
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.identity-card-secondary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-surface) 92%, var(--accent-primary) 8%) 0%,
+    var(--bg-surface) 100%
+  );
 }
 
 .identity-enrichment-banner {
@@ -238,6 +284,22 @@
   margin: var(--space-2) 0 0;
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+.identity-section-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-surface));
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .identity-field {
@@ -270,7 +332,9 @@
   padding: var(--space-3);
   resize: vertical;
   min-height: 120px;
-  transition: border-color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
 .identity-input {
@@ -282,19 +346,23 @@
   font-size: 13px;
   line-height: 1.4;
   padding: var(--space-2) var(--space-3);
-  transition: border-color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
 .identity-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--accent-primary) 16%, transparent);
 }
 
 .identity-textarea:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--accent-primary) 16%, transparent);
 }
 
 .identity-textarea-lg {
@@ -303,7 +371,7 @@
 
 .identity-textarea-code {
   min-height: 380px;
-  font-family: var(--font-mono, 'SFMono-Regular', monospace);
+  font-family: var(--font-mono, "SFMono-Regular", monospace);
 }
 
 .identity-stats {
@@ -542,7 +610,8 @@
 }
 
 .identity-upload-zone {
-  border: 1px dashed color-mix(in srgb, var(--accent-primary) 45%, var(--border-subtle));
+  border: 1px dashed
+    color-mix(in srgb, var(--accent-primary) 45%, var(--border-subtle));
   border-radius: 14px;
   background: color-mix(in srgb, var(--accent-primary) 6%, var(--bg-surface));
   color: var(--text-primary);
@@ -553,7 +622,9 @@
   gap: var(--space-2);
   cursor: pointer;
   text-align: left;
-  transition: border-color var(--duration-fast) var(--easing), background var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing);
 }
 
 .identity-upload-zone:hover {
@@ -708,7 +779,8 @@
 .identity-scan-bullet-row-active {
   border-color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--accent-primary) 22%, transparent);
 }
 
 .identity-scan-role-summary,
@@ -770,49 +842,49 @@
   }
 }
 
-[data-theme='dark'] .identity-chip-stated {
+[data-theme="dark"] .identity-chip-stated {
   background: #12305e;
   color: #d9e5ff;
   border-color: #4d78d8;
 }
 
-[data-theme='dark'] .identity-chip-confirmed {
+[data-theme="dark"] .identity-chip-confirmed {
   background: #123b27;
   color: #d7f3df;
   border-color: #4e9b69;
 }
 
-[data-theme='dark'] .identity-chip-guessing {
+[data-theme="dark"] .identity-chip-guessing {
   background: #4c3700;
   color: #fff1c4;
   border-color: #c89829;
 }
 
-[data-theme='dark'] .identity-chip-corrected {
+[data-theme="dark"] .identity-chip-corrected {
   background: #5b211d;
   color: #ffe3e0;
   border-color: #d56d63;
 }
 
-[data-theme='dark'] .identity-chip-failed {
+[data-theme="dark"] .identity-chip-failed {
   background: #5b211d;
   color: #ffe3e0;
   border-color: #d56d63;
 }
 
-[data-theme='dark'] .identity-chip-pending {
+[data-theme="dark"] .identity-chip-pending {
   background: #4c3700;
   color: #fff1c4;
   border-color: #c89829;
 }
 
-[data-theme='dark'] .identity-chip-skipped {
+[data-theme="dark"] .identity-chip-skipped {
   background: #27374f;
   color: #dce6f5;
   border-color: #6f87a8;
 }
 
-[data-theme='dark'] .identity-chip-complete {
+[data-theme="dark"] .identity-chip-complete {
   background: #123b27;
   color: #d7f3df;
   border-color: #4e9b69;

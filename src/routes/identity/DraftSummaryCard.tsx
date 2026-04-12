@@ -1,27 +1,40 @@
-import type { IdentityChangeLogEntry, IdentityExtractionDraft } from '../../types/identity'
+import type {
+  IdentityChangeLogEntry,
+  IdentityExtractionDraft,
+} from "../../types/identity";
 
 interface DraftSummaryCardProps {
-  draft: IdentityExtractionDraft | null
-  changelog: IdentityChangeLogEntry[]
+  draft: IdentityExtractionDraft | null;
+  changelog: IdentityChangeLogEntry[];
 }
 
 export function DraftSummaryCard({ draft, changelog }: DraftSummaryCardProps) {
+  const statusLabel = changelog.length
+    ? `${changelog.length} builder event(s) recorded`
+    : draft?.summary
+      ? "Draft summary available"
+      : "No builder events yet";
+
   return (
-    <section className="identity-card">
+    <section className="identity-card identity-card-secondary">
       <div className="identity-card-header">
         <div>
-          <h2>Draft Summary And Changelog</h2>
-          <p>Track what the extraction loop generated and what the write layer actually applied.</p>
+          <h2>What Changed</h2>
+          <p>
+            Track what the draft generator produced and what the builder
+            actually recorded while you refine the identity model.
+          </p>
+          <p className="identity-section-status">{statusLabel}</p>
         </div>
       </div>
 
       <div className="identity-summary-block">
         <h3>Draft Summary</h3>
-        <p>{draft?.summary ?? 'No draft summary yet.'}</p>
+        <p>{draft?.summary ?? "No draft summary yet."}</p>
         {draft?.followUpQuestions.length ? (
           <ul className="identity-question-list">
             {draft.followUpQuestions.map((question, index) => (
-              <li key={index + ':' + question}>{question}</li>
+              <li key={index + ":" + question}>{question}</li>
             ))}
           </ul>
         ) : null}
@@ -38,7 +51,7 @@ export function DraftSummaryCard({ draft, changelog }: DraftSummaryCardProps) {
                   <span>{new Date(entry.createdAt).toLocaleString()}</span>
                 </div>
                 {entry.details.map((detail, index) => (
-                  <p key={index + ':' + detail}>{detail}</p>
+                  <p key={index + ":" + detail}>{detail}</p>
                 ))}
               </article>
             ))}
@@ -48,5 +61,5 @@ export function DraftSummaryCard({ draft, changelog }: DraftSummaryCardProps) {
         )}
       </div>
     </section>
-  )
+  );
 }

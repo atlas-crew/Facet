@@ -9,6 +9,7 @@ import type {
 import { ScannedIdentityEditor } from "./ScannedIdentityEditor";
 
 interface ExtractionAgentCardProps {
+  statusLabel?: string;
   intakeMode: IdentityIntakeMode;
   sourceMaterial: string;
   correctionNotes: string;
@@ -84,6 +85,7 @@ interface ExtractionAgentCardProps {
 }
 
 export function ExtractionAgentCard({
+  statusLabel,
   intakeMode,
   sourceMaterial,
   correctionNotes,
@@ -132,6 +134,9 @@ export function ExtractionAgentCard({
             Bring in a resume first, then fall back to pasted source text when
             the scan needs clarification.
           </p>
+          {statusLabel ? (
+            <p className="identity-section-status">{statusLabel}</p>
+          ) : null}
         </div>
         <div className="identity-card-actions">
           <button

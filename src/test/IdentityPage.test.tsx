@@ -1164,16 +1164,28 @@ describe("IdentityPage", () => {
         name: "Upload Resume",
       }),
     ).toBeTruthy();
+    expect(screen.getByText("Identity Workspace")).toBeTruthy();
+    expect(
+      screen.getByText(
+        /build the identity model, refine it, then use it to shape search strategy and build/i,
+      ),
+    ).toBeTruthy();
     expect(
       container.querySelector(".identity-grid.identity-grid-workbench"),
     ).toBeTruthy();
+    expect(container.querySelector(".identity-inspection-region")).toBeTruthy();
     const openButton = screen.getByRole("button", {
       name: "Open Advanced JSON",
     });
 
     expect(openButton.getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByText("Source Intake")).toBeTruthy();
+    expect(screen.getByText("No source loaded yet")).toBeTruthy();
     expect(screen.getByText("Apply / Review Draft")).toBeTruthy();
+    expect(screen.getByText("No draft generated yet")).toBeTruthy();
+    expect(screen.getByText("Inspection Panels")).toBeTruthy();
+    expect(screen.getByText("Confidence Review")).toBeTruthy();
+    expect(screen.getByText("What Changed")).toBeTruthy();
     expect(
       screen.getByText(/advanced json stays tucked away until you need it/i),
     ).toBeTruthy();
