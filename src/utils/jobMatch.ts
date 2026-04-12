@@ -469,13 +469,13 @@ const buildIdentityContext = (identity: ProfessionalIdentityV3) => ({
     items: group.items.map((item) => ({
       name: item.name,
       tags: item.tags,
-      depth: item.depth ?? item.proficiency ?? null,
+      depth: item.depth ?? null,
       search_signal: item.search_signal ?? null,
     })),
   })),
   search_vectors: identity.search_vectors ?? [],
   awareness: identity.awareness?.open_questions ?? [],
-  matching: identity.preferences.matching ?? { prioritize: [], avoid: [] },
+  matching: identity.preferences.matching,
 })
 
 const flattenIdentityAssets = (identity: ProfessionalIdentityV3): FlattenedMatchAsset[] => {
@@ -510,9 +510,9 @@ const flattenIdentityAssets = (identity: ProfessionalIdentityV3): FlattenedMatch
         id: group.id + '::' + slugify(item.name),
         label: item.name,
         sourceLabel: group.label,
-        text: item.proficiency ? item.name + ' (' + item.proficiency + ')' : item.name,
+        text: item.depth ? item.name + ' (' + item.depth + ')' : item.name,
         tags: dedupeNormalized([...item.tags, item.name, group.label]),
-        searchTerms: tokenizeText(group.label + ' ' + item.name + ' ' + (item.proficiency ?? '') + ' ' + (item.context ?? '')),
+        searchTerms: tokenizeText(group.label + ' ' + item.name + ' ' + (item.depth ?? '') + ' ' + (item.context ?? '')),
       })
     }
   }
@@ -798,17 +798,6 @@ const parseSalaryValues = (text: string): number[] => {
 const deriveUserDepth = (item: ProfessionalSkillItem): ProfessionalSkillDepth => {
   if (item.depth) {
     return item.depth
-  }
-
-  const proficiency = item.proficiency?.toLowerCase().trim() ?? ''
-  if (proficiency === 'primary') {
-    return 'strong'
-  }
-  if (proficiency === 'secondary') {
-    return 'working'
-  }
-  if (proficiency === 'avoid') {
-    return 'avoid'
   }
 
   return 'basic'

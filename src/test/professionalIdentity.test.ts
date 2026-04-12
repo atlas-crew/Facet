@@ -10,6 +10,7 @@ import {
 const baseIdentityFixture: ProfessionalIdentityV3 = {
   $schema: 'https://atlascrew.dev/schemas/identity.json',
   version: 3,
+  schema_revision: '3.1',
   identity: {
     name: 'Nicholas Ferguson',
     display_name: 'Nicholas Crew Ferguson',
@@ -62,10 +63,23 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
       preference: 'remote',
       hard_no: 'On-site required without relocation assistance',
     },
-    role_fit: {
-      ideal: ['Platform roles'],
-      red_flags: ['Pure ticket queue work'],
-      evaluation_criteria: ['Can I build something here?'],
+    matching: {
+      prioritize: [
+        {
+          id: 'platform-roles',
+          label: 'Platform roles',
+          description: 'Platform roles',
+          weight: 'medium',
+        },
+      ],
+      avoid: [
+        {
+          id: 'pure-ticket-queue-work',
+          label: 'Pure ticket queue work',
+          description: 'Pure ticket queue work',
+          severity: 'soft',
+        },
+      ],
     },
   },
   skills: {
@@ -74,8 +88,8 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
         id: 'sg-languages',
         label: 'Languages',
         items: [
-          { name: 'TypeScript', proficiency: 'primary', tags: ['Platform', 'platform', ' DevEx '] },
-          { name: 'Python', proficiency: 'primary', tags: ['backend', 'data'] },
+          { name: 'TypeScript', depth: 'strong', tags: ['Platform', 'platform', ' DevEx '] },
+          { name: 'Python', depth: 'strong', tags: ['backend', 'data'] },
         ],
       },
       {
@@ -158,67 +172,32 @@ describe('professional identity schema', () => {
     expect(parsed.warnings.some((warning) => warning.includes('duplicate tag "platform"'))).toBe(true)
   })
 
-  it('derives v3.1 migration defaults from legacy v3 fields', () => {
+  it('imports native v3.1 fields without migration warnings', () => {
     const parsed = importProfessionalIdentity(clone(baseIdentityFixture))
 
     expect(parsed.data.schema_revision).toBe('3.1')
     expect(parsed.data.skills.groups[0]?.items[0]?.depth).toBe('strong')
     expect(parsed.data.skills.groups[0]?.items[1]?.depth).toBe('strong')
     expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBeUndefined()
-    expect(parsed.data.preferences.matching).toEqual({
-      prioritize: [
-        {
-          id: 'prioritize-platform-roles',
-          label: 'Platform roles',
-          description: 'Platform roles',
-          weight: 'medium',
-        },
-      ],
-      avoid: [
-        {
-          id: 'avoid-pure-ticket-queue-work',
-          label: 'Pure ticket queue work',
-          description: 'Pure ticket queue work',
-          severity: 'soft',
-        },
-      ],
-    })
-    expect(parsed.data.awareness).toEqual({ open_questions: [] })
-    expect(parsed.warnings).toEqual(
-      expect.arrayContaining([
-        'Upgraded Professional Identity document to schema_revision "3.1".',
-        'Derived default skill depth values from legacy proficiency fields.',
-        'Derived preferences.matching from legacy preferences.role_fit values.',
-        'Added empty awareness.open_questions for schema v3.1 compatibility.',
-      ]),
-    )
+    expect(parsed.data.preferences.matching).toEqual(baseIdentityFixture.preferences.matching)
+    expect(parsed.data.awareness).toBeUndefined()
+    expect(parsed.warnings.some((warning) => warning.includes('schema_revision'))).toBe(false)
+    expect(parsed.warnings.some((warning) => warning.includes('role_fit'))).toBe(false)
+    expect(parsed.warnings.some((warning) => warning.includes('proficiency'))).toBe(false)
   })
 
-  it('upgrades an explicitly tagged 3.0 revision to 3.1', () => {
-    const legacyRevision = clone(baseIdentityFixture)
-    legacyRevision.schema_revision = '3.0'
+  it('requires schema_revision to be present and native', () => {
+    const missingRevision = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    delete missingRevision.schema_revision
 
-    const parsed = importProfessionalIdentity(legacyRevision)
-
-    expect(parsed.data.schema_revision).toBe('3.1')
-    expect(parsed.warnings).toContain('Upgraded Professional Identity document to schema_revision "3.1".')
+    expect(() => importProfessionalIdentity(missingRevision)).toThrow(/schema_revision/i)
   })
 
-  it('creates stable unique derived ids when role_fit labels repeat', () => {
-    const duplicateRoleFit = clone(baseIdentityFixture)
-    duplicateRoleFit.preferences.role_fit.ideal = ['Platform roles', 'Platform roles']
-    duplicateRoleFit.preferences.role_fit.red_flags = ['Pure ticket queue work', 'Pure ticket queue work']
+  it('requires preferences.matching in the native v3.1 contract', () => {
+    const missingMatching = clone(baseIdentityFixture)
+    delete (missingMatching.preferences as unknown as Record<string, unknown>).matching
 
-    const parsed = importProfessionalIdentity(duplicateRoleFit)
-
-    expect(parsed.data.preferences.matching?.prioritize.map((entry) => entry.id)).toEqual([
-      'prioritize-platform-roles',
-      'prioritize-platform-roles--2',
-    ])
-    expect(parsed.data.preferences.matching?.avoid.map((entry) => entry.id)).toEqual([
-      'avoid-pure-ticket-queue-work',
-      'avoid-pure-ticket-queue-work--2',
-    ])
+    expect(() => importProfessionalIdentity(missingMatching)).toThrow(/preferences\.matching/i)
   })
 
   it('preserves explicit v3.1 fields when they are already present', () => {
@@ -466,7 +445,7 @@ describe('professional identity schema', () => {
     delete (minimal.identity as unknown as Record<string, unknown>).title
     delete (minimal.identity as unknown as Record<string, unknown>).elaboration
     delete (minimal.identity as unknown as Record<string, unknown>).origin
-    delete (minimal.skills.groups[0]?.items[0] as unknown as Record<string, unknown>).proficiency
+    delete (minimal.skills.groups[0]?.items[0] as unknown as Record<string, unknown>).depth
     delete (minimal.roles[0] as unknown as Record<string, unknown>).subtitle
     delete (minimal.roles[0] as unknown as Record<string, unknown>).portfolio_anchor
     delete (minimal.roles[0]?.bullets[0] as unknown as Record<string, unknown>).portfolio_dive

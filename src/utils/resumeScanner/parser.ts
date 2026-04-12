@@ -827,6 +827,7 @@ export const extractProjects = (sections: ResumeSection[]): ParsedResumeProject[
 
 const createEmptyIdentity = (): ProfessionalIdentityV3 => ({
   version: 3,
+  schema_revision: '3.1',
   identity: {
     name: '',
     email: '',
@@ -851,11 +852,8 @@ const createEmptyIdentity = (): ProfessionalIdentityV3 => ({
     work_model: {
       preference: '',
     },
-    role_fit: {
-      ideal: [],
-      red_flags: [],
-      evaluation_criteria: [],
-    },
+    matching: { prioritize: [], avoid: [] },
+    constraints: {},
   },
   skills: {
     groups: [],
@@ -868,6 +866,8 @@ const createEmptyIdentity = (): ProfessionalIdentityV3 => ({
     voice_skill: '',
     resume_skill: '',
   },
+  search_vectors: [],
+  awareness: { open_questions: [] },
 })
 
 const createWarning = (

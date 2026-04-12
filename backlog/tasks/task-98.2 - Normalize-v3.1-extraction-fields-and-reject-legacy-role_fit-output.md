@@ -1,11 +1,11 @@
 ---
 id: TASK-98.2
 title: Normalize v3.1 extraction fields and reject legacy role_fit output
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-04-09 23:45'
-updated_date: '2026-04-10 18:07'
+updated_date: '2026-04-12 00:22'
 labels:
   - refactor
   - identity
@@ -29,10 +29,10 @@ This work should default missing search_vectors and awareness, normalize prefere
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Missing or invalid search_vectors normalize to an array.
-- [ ] #2 Missing or invalid awareness normalizes to { open_questions: [] }.
-- [ ] #3 Missing or invalid preferences.matching normalizes to { prioritize: [], avoid: [] } and missing subarrays are added.
-- [ ] #4 Legacy preferences.role_fit is removed during normalization with a warning instead of reaching the schema importer.
+- [x] #1 Missing or invalid search_vectors normalize to an array.
+- [x] #2 Missing or invalid awareness normalizes to { open_questions: [] }.
+- [x] #3 Missing or invalid preferences.matching normalizes to { prioritize: [], avoid: [] } and missing subarrays are added.
+- [x] #4 Legacy preferences.role_fit is removed during normalization with a warning instead of reaching the schema importer.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -49,15 +49,21 @@ Coordinate test updates with TASK-98.1 so prompt fixtures and normalization asse
 Normalization now covers schema_revision, native matching defaults, legacy role_fit migration, and importer compatibility. Current blocker is the last review pass requesting more resilient handling for partial matching rows and malformed search_vectors/awareness entries.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Normalized native v3.1 extraction payloads by defaulting missing search_vectors, awareness, preferences.matching, and constraints while stripping legacy role_fit during extraction repair. The completed slice shipped in commit 5f48748 with focused extraction, typecheck, and build receipts.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
+- [x] #1 Regression tests were created for new behaviors
 - [ ] #2 Documentation has been created/modified/removed as needed.
 - [ ] #3 Documentation changes were approved by the docs-architect (8/10 score required)
-- [ ] #4 Test changes were approved by a test gap analysis review
-- [ ] #5 Changes to integration points are covered by tests
-- [ ] #6 All tests pass successfully
+- [x] #4 Test changes were approved by a test gap analysis review
+- [x] #5 Changes to integration points are covered by tests
+- [x] #6 All tests pass successfully
 - [ ] #7 Automatic formatting was applied.
 - [ ] #8 Linters report no WARNINGS or ERRORS
-- [ ] #9 The project builds successfully
+- [x] #9 The project builds successfully
 <!-- DOD:END -->

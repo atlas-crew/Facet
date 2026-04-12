@@ -261,9 +261,7 @@ export const mergeProfessionalIdentity = (
   const incomingSearchVectors = incoming.search_vectors ?? []
   const currentOpenQuestions = current.awareness?.open_questions ?? []
   const incomingOpenQuestions = incoming.awareness?.open_questions ?? []
-  const preserveCurrentMatching =
-    fieldPresence.preferences?.matching === false &&
-    !hasMeaningfulChange(current.preferences.role_fit, incoming.preferences.role_fit)
+  const preserveCurrentMatching = fieldPresence.preferences?.matching === false
   const mergedPreferences: ProfessionalIdentityV3['preferences'] = {
     ...current.preferences,
     ...incoming.preferences,
@@ -276,9 +274,7 @@ export const mergeProfessionalIdentity = (
               : {}))),
     ...(preserveCurrentMatching
       ? { matching: current.preferences.matching }
-      : (incoming.preferences.matching !== undefined
-          ? { matching: incoming.preferences.matching }
-          : {})
+      : { matching: incoming.preferences.matching }
       ),
   }
   const mergedAwareness =

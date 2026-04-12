@@ -5,6 +5,7 @@ import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils
 const createIdentity = (): ProfessionalIdentityV3 => ({
   $schema: 'https://atlascrew.dev/schemas/identity.json',
   version: 3,
+  schema_revision: '3.1',
   identity: {
     name: 'Jordan Example',
     email: 'jordan@example.com',
@@ -31,11 +32,7 @@ const createIdentity = (): ProfessionalIdentityV3 => ({
     work_model: {
       preference: 'remote',
     },
-    role_fit: {
-      ideal: ['platform'],
-      red_flags: ['bait-and-switch'],
-      evaluation_criteria: ['scope'],
-    },
+    matching: { prioritize: [], avoid: [] },
   },
   skills: {
     groups: [
@@ -399,7 +396,7 @@ describe('identityMerge', () => {
     expect(merged.data.skills.groups[0]?.items[0]?.skipped_at).toBeUndefined()
   })
 
-  it('refreshes derived matching when a legacy draft changes role_fit', () => {
+  it('applies incoming matching updates when the merge draft provides them', () => {
     const current = createIdentity()
     current.preferences.matching = {
       prioritize: [
@@ -413,21 +410,32 @@ describe('identityMerge', () => {
       avoid: [],
     }
 
-    const legacyDraft = createIdentity()
-    legacyDraft.preferences.role_fit = {
-      ideal: ['security tooling'],
-      red_flags: ['bureaucratic approvals'],
-      evaluation_criteria: ['ownership'],
+    const incoming = createIdentity()
+    incoming.preferences.matching = {
+      prioritize: [
+        {
+          id: 'security-tooling',
+          label: 'Security tooling',
+          description: 'Hands-on platform security work.',
+          weight: 'medium',
+        },
+      ],
+      avoid: [
+        {
+          id: 'bureaucratic-approvals',
+          label: 'Bureaucratic approvals',
+          description: 'Heavy approval chains slow delivery.',
+          severity: 'soft',
+        },
+      ],
     }
-    const incoming = importProfessionalIdentity(legacyDraft).data
 
     const merged = mergeProfessionalIdentity(current, incoming, {
       preferences: {
-        matching: false,
+        matching: true,
       },
     })
 
-    expect(merged.data.preferences.role_fit).toEqual(legacyDraft.preferences.role_fit)
     expect(merged.data.preferences.matching).toEqual(incoming.preferences.matching)
   })
 

@@ -1,4 +1,11 @@
-import { deriveMatching, importProfessionalIdentity, type ProfessionalIdentityV3 } from '../identity/schema'
+import {
+  AWARENESS_SEVERITY_VALUES,
+  MATCHING_SEVERITY_VALUES,
+  MATCHING_WEIGHT_VALUES,
+  SEARCH_VECTOR_PRIORITY_VALUES,
+  importProfessionalIdentity,
+  type ProfessionalIdentityV3,
+} from '../identity/schema'
 import type {
   IdentityDeepenedBullet,
   IdentityAssumptionTag,
@@ -475,11 +482,6 @@ const normalizeSchemaRevision = (
   }
 }
 
-const MATCHING_WEIGHT_VALUES = new Set(['high', 'medium', 'low'])
-const MATCHING_SEVERITY_VALUES = new Set(['hard', 'soft'])
-const SEARCH_VECTOR_PRIORITY_VALUES = new Set(['high', 'medium', 'low'])
-const AWARENESS_SEVERITY_VALUES = new Set(['high', 'medium', 'low'])
-
 const slugifyFragment = (value: string): string =>
   value
     .trim()
@@ -561,32 +563,34 @@ const normalizeDerivedEntryId = (
 const isMatchingPriorityEntry = (value: unknown): boolean =>
   isRecord(value) &&
   typeof value.id === 'string' &&
+  value.id.trim().length > 0 &&
   typeof value.label === 'string' &&
+  value.label.trim().length > 0 &&
   typeof value.description === 'string' &&
+  value.description.trim().length > 0 &&
   typeof value.weight === 'string' &&
-  MATCHING_WEIGHT_VALUES.has(value.weight)
+  MATCHING_WEIGHT_VALUES.has(value.weight as never)
 
 const isMatchingAvoidEntry = (value: unknown): boolean =>
   isRecord(value) &&
   typeof value.id === 'string' &&
+  value.id.trim().length > 0 &&
   typeof value.label === 'string' &&
+  value.label.trim().length > 0 &&
   typeof value.description === 'string' &&
+  value.description.trim().length > 0 &&
   typeof value.severity === 'string' &&
-  MATCHING_SEVERITY_VALUES.has(value.severity)
+  MATCHING_SEVERITY_VALUES.has(value.severity as never)
 
 const normalizeMatchingPreferences = (
   value: unknown,
 ): {
   value: { prioritize: unknown[]; avoid: unknown[] }
   warnings: string[]
-  hasPrioritize: boolean
-  hasAvoid: boolean
 } => {
   if (!isRecord(value)) {
     return {
       value: { prioritize: [], avoid: [] },
-      hasPrioritize: false,
-      hasAvoid: false,
       warnings:
         value === undefined
           ? ['Added missing preferences.matching object with empty defaults for AI extraction output.']
@@ -601,11 +605,19 @@ const normalizeMatchingPreferences = (
     Array.isArray(value.prioritize)
       ? value.prioritize.flatMap((entry, index) => {
           if (isMatchingPriorityEntry(entry)) {
-            const id = createUniqueId(prioritizeSeen, entry.id)
+            const baseId = entry.id.trim()
+            const id = createUniqueId(prioritizeSeen, baseId)
+            if (id !== baseId) {
+              warnings.push(
+                `Normalized duplicate preferences.matching.prioritize[${index}].id "${baseId}" to "${id}" for AI extraction output.`,
+              )
+            }
             return [
               {
-                ...entry,
                 id,
+                label: entry.label.trim(),
+                description: entry.description.trim(),
+                weight: entry.weight,
               },
             ]
           }
@@ -626,7 +638,7 @@ const normalizeMatchingPreferences = (
             prioritizeSeen,
           )
           warnings.push(...id.warnings)
-          if (!(typeof entry.weight === 'string' && MATCHING_WEIGHT_VALUES.has(entry.weight))) {
+          if (!(typeof entry.weight === 'string' && MATCHING_WEIGHT_VALUES.has(entry.weight as never))) {
             warnings.push(
               `Normalized invalid preferences.matching.prioritize[${index}].weight to "medium" for AI extraction output.`,
             )
@@ -641,7 +653,7 @@ const normalizeMatchingPreferences = (
                   ? entry.description.trim()
                   : entry.label.trim(),
               weight:
-                typeof entry.weight === 'string' && MATCHING_WEIGHT_VALUES.has(entry.weight)
+                typeof entry.weight === 'string' && MATCHING_WEIGHT_VALUES.has(entry.weight as never)
                   ? entry.weight
                   : 'medium',
             },
@@ -652,11 +664,19 @@ const normalizeMatchingPreferences = (
     Array.isArray(value.avoid)
       ? value.avoid.flatMap((entry, index) => {
           if (isMatchingAvoidEntry(entry)) {
-            const id = createUniqueId(avoidSeen, entry.id)
+            const baseId = entry.id.trim()
+            const id = createUniqueId(avoidSeen, baseId)
+            if (id !== baseId) {
+              warnings.push(
+                `Normalized duplicate preferences.matching.avoid[${index}].id "${baseId}" to "${id}" for AI extraction output.`,
+              )
+            }
             return [
               {
-                ...entry,
                 id,
+                label: entry.label.trim(),
+                description: entry.description.trim(),
+                severity: entry.severity,
               },
             ]
           }
@@ -675,7 +695,7 @@ const normalizeMatchingPreferences = (
             avoidSeen,
           )
           warnings.push(...id.warnings)
-          if (!(typeof entry.severity === 'string' && MATCHING_SEVERITY_VALUES.has(entry.severity))) {
+          if (!(typeof entry.severity === 'string' && MATCHING_SEVERITY_VALUES.has(entry.severity as never))) {
             warnings.push(
               `Normalized invalid preferences.matching.avoid[${index}].severity to "soft" for AI extraction output.`,
             )
@@ -690,7 +710,7 @@ const normalizeMatchingPreferences = (
                   ? entry.description.trim()
                   : entry.label.trim(),
               severity:
-                typeof entry.severity === 'string' && MATCHING_SEVERITY_VALUES.has(entry.severity)
+                typeof entry.severity === 'string' && MATCHING_SEVERITY_VALUES.has(entry.severity as never)
                   ? entry.severity
                   : 'soft',
             },
@@ -719,39 +739,7 @@ const normalizeMatchingPreferences = (
       prioritize,
       avoid,
     },
-    hasPrioritize: Array.isArray(value.prioritize) && (value.prioritize.length === 0 || prioritize.length > 0),
-    hasAvoid: Array.isArray(value.avoid) && (value.avoid.length === 0 || avoid.length > 0),
     warnings,
-  }
-}
-
-const deriveMatchingFromLegacyRoleFit = (
-  value: unknown,
-): { value?: { prioritize: unknown[]; avoid: unknown[] }; invalid: boolean } => {
-  if (!isRecord(value)) {
-    return { invalid: false }
-  }
-
-  if (
-    !Array.isArray(value.ideal) ||
-    !value.ideal.every((entry) => typeof entry === 'string') ||
-    !Array.isArray(value.red_flags) ||
-    !value.red_flags.every((entry) => typeof entry === 'string')
-  ) {
-    return { invalid: true }
-  }
-
-  return {
-    value: deriveMatching({
-      ideal: value.ideal,
-      red_flags: value.red_flags,
-      evaluation_criteria:
-        Array.isArray(value.evaluation_criteria) &&
-        value.evaluation_criteria.every((entry) => typeof entry === 'string')
-          ? value.evaluation_criteria
-          : [],
-    }),
-    invalid: false,
   }
 }
 
@@ -847,7 +835,6 @@ const normalizePreferences = (
 
   const compensation = normalizeCompensationPreferences(source.compensation)
   const workModel = normalizeWorkModelPreferences(source.work_model)
-  const legacyMatching = deriveMatchingFromLegacyRoleFit(legacyRoleFit)
   const matching = normalizeMatchingPreferences(source.matching)
   const constraints = normalizePreferenceConstraints(source.constraints)
 
@@ -858,30 +845,6 @@ const normalizePreferences = (
     ...constraints.warnings,
   )
 
-  if (legacyMatching.invalid) {
-    warnings.push('Dropped invalid legacy preferences.role_fit values that could not be migrated for AI extraction output.')
-  }
-
-  const mergedMatching = {
-    prioritize:
-      matching.hasPrioritize
-        ? matching.value.prioritize
-        : (legacyMatching.value?.prioritize ?? []),
-    avoid:
-      matching.hasAvoid
-        ? matching.value.avoid
-        : (legacyMatching.value?.avoid ?? []),
-  }
-
-  if (
-    legacyMatching.value &&
-    (!matching.hasPrioritize || !matching.hasAvoid)
-  ) {
-    warnings.push(
-      'Derived missing preferences.matching entries from legacy preferences.role_fit values while normalizing extraction output.',
-    )
-  }
-
   if (legacyRoleFit !== undefined) {
     warnings.push('Dropped legacy preferences.role_fit from AI extraction output before schema import.')
   }
@@ -891,7 +854,7 @@ const normalizePreferences = (
       ...preferencesWithoutRoleFit,
       compensation: compensation.value,
       work_model: workModel.value,
-      matching: mergedMatching,
+      matching: matching.value,
       constraints: constraints.value,
     },
     warnings,
@@ -950,7 +913,7 @@ const normalizeSearchVectors = (
     if (!isRecord(entry.keywords)) {
       warnings.push(`Normalized invalid search_vectors[${index}].keywords into empty keyword arrays for AI extraction output.`)
     }
-    if (!(typeof entry.priority === 'string' && SEARCH_VECTOR_PRIORITY_VALUES.has(entry.priority))) {
+    if (!(typeof entry.priority === 'string' && SEARCH_VECTOR_PRIORITY_VALUES.has(entry.priority as never))) {
       warnings.push(`Normalized invalid search_vectors[${index}].priority to "medium" for AI extraction output.`)
     }
 
@@ -959,7 +922,7 @@ const normalizeSearchVectors = (
         id: id.value,
         title: entry.title.trim(),
         priority:
-          typeof entry.priority === 'string' && SEARCH_VECTOR_PRIORITY_VALUES.has(entry.priority)
+          typeof entry.priority === 'string' && SEARCH_VECTOR_PRIORITY_VALUES.has(entry.priority as never)
             ? entry.priority
             : 'medium',
         ...(typeof entry.subtitle === 'string' ? { subtitle: entry.subtitle.trim() } : {}),
@@ -1016,7 +979,7 @@ const normalizeAwareness = (
       warnings.push(...id.warnings)
       if (
         entry.severity !== undefined &&
-        !(typeof entry.severity === 'string' && AWARENESS_SEVERITY_VALUES.has(entry.severity))
+        !(typeof entry.severity === 'string' && AWARENESS_SEVERITY_VALUES.has(entry.severity as never))
       ) {
         warnings.push(
           `Dropped invalid awareness.open_questions[${index}].severity value for AI extraction output.`,
@@ -1029,7 +992,7 @@ const normalizeAwareness = (
           topic: entry.topic.trim(),
           description: entry.description.trim(),
           action: entry.action.trim(),
-          ...(typeof entry.severity === 'string' && AWARENESS_SEVERITY_VALUES.has(entry.severity)
+          ...(typeof entry.severity === 'string' && AWARENESS_SEVERITY_VALUES.has(entry.severity as never)
             ? { severity: entry.severity }
             : {}),
         },

@@ -488,6 +488,7 @@ describe('persistence foundation', () => {
           followUpQuestions: ['What was the rollout size?'],
           identity: {
             version: 3,
+            schema_revision: '3.1',
             identity: {
               name: 'Jane Smith',
               email: '',
@@ -508,7 +509,7 @@ describe('persistence foundation', () => {
             preferences: {
               compensation: { priorities: [] },
               work_model: { preference: 'remote' },
-              role_fit: { ideal: [], red_flags: [], evaluation_criteria: [] },
+              matching: { prioritize: [], avoid: [] },
             },
             skills: { groups: [] },
             profiles: [],

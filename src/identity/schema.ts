@@ -1,4 +1,4 @@
-export type ProfessionalSchemaRevision = '3.0' | '3.1'
+export type ProfessionalSchemaRevision = '3.1'
 
 export type ProfessionalSkillDepth = 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
 
@@ -73,12 +73,6 @@ export interface ProfessionalWorkModelPreferences {
   hard_no?: string
 }
 
-export interface ProfessionalRoleFitPreferences {
-  ideal: string[]
-  red_flags: string[]
-  evaluation_criteria: string[]
-}
-
 export interface ProfessionalMatchingPriority {
   id: string
   label: string
@@ -120,15 +114,13 @@ export interface ProfessionalPreferenceConstraints {
 export interface ProfessionalPreferences {
   compensation: ProfessionalCompensationPreferences
   work_model: ProfessionalWorkModelPreferences
-  role_fit: ProfessionalRoleFitPreferences
   constraints?: ProfessionalPreferenceConstraints
-  matching?: ProfessionalMatchingPreferences
+  matching: ProfessionalMatchingPreferences
 }
 
 export interface ProfessionalSkillItem {
   name: string
   depth?: ProfessionalSkillDepth
-  proficiency?: string
   context?: string
   search_signal?: string
   tags: string[]
@@ -232,7 +224,7 @@ export interface ProfessionalAwareness {
 export interface ProfessionalIdentityV3 {
   $schema?: string
   version: 3
-  schema_revision?: ProfessionalSchemaRevision
+  schema_revision: ProfessionalSchemaRevision
   identity: ProfessionalIdentityCore
   self_model: ProfessionalSelfModel
   preferences: ProfessionalPreferences
@@ -261,11 +253,11 @@ const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
   'user-edited-llm',
   'llm-accepted',
 ])
-const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
-const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft'])
-const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
-const SEARCH_VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
-const SCHEMA_REVISION_VALUES = new Set<ProfessionalSchemaRevision>(['3.0', '3.1'])
+export const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
+export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft'])
+export const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
+export const SEARCH_VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
+const SCHEMA_REVISION_VALUES = new Set<ProfessionalSchemaRevision>(['3.1'])
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' &&
@@ -405,82 +397,6 @@ const assertUniqueId = (seen: Set<string>, id: string, context: string): void =>
 
   seen.add(id)
 }
-
-const slugifyFragment = (value: string): string =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-const createDerivedId = (prefix: string, value: string, index: number): string =>
-  [prefix, slugifyFragment(value) || String(index + 1)].join('-')
-
-const createUniqueDerivedEntries = <T extends { id: string }>(
-  entries: Omit<T, 'id'>[],
-  makeBaseId: (entry: Omit<T, 'id'>, index: number) => string,
-): T[] => {
-  const counts = new Map<string, number>()
-
-  return entries.map((entry, index) => {
-    const baseId = makeBaseId(entry, index)
-    const nextCount = (counts.get(baseId) ?? 0) + 1
-    counts.set(baseId, nextCount)
-
-    return {
-      ...entry,
-      id: nextCount === 1 ? baseId : `${baseId}--${nextCount}`,
-    } as T
-  })
-}
-
-export const deriveDepth = (
-  skill: Pick<ProfessionalSkillItem, 'depth' | 'proficiency'>,
-): ProfessionalSkillDepth | undefined => {
-  if (skill.depth) {
-    return skill.depth
-  }
-
-  // Unknown legacy proficiency values remain unset so imports stay backward-compatible.
-  if (skill.proficiency === 'primary') {
-    return 'strong'
-  }
-
-  if (skill.proficiency === 'secondary') {
-    return 'working'
-  }
-
-  return undefined
-}
-
-export const deriveMatching = (
-  roleFit: ProfessionalRoleFitPreferences,
-): ProfessionalMatchingPreferences => ({
-  prioritize: createUniqueDerivedEntries<ProfessionalMatchingPriority>(
-    roleFit.ideal.map((entry) => ({
-      label: entry,
-      description: entry,
-      weight: 'medium',
-    })),
-    (entry, index) => createDerivedId('prioritize', entry.label, index),
-  ),
-  avoid: createUniqueDerivedEntries<ProfessionalMatchingAvoid>(
-    roleFit.red_flags.map((entry) => ({
-      label: entry,
-      description: entry,
-      severity: 'soft',
-    })),
-    (entry, index) => createDerivedId('avoid', entry.label, index),
-  ),
-})
-
-const deriveRoleFitFromMatching = (
-  matching?: ProfessionalMatchingPreferences,
-): ProfessionalRoleFitPreferences => ({
-  ideal: matching?.prioritize.map((entry) => entry.label) ?? [],
-  red_flags: matching?.avoid.map((entry) => entry.label) ?? [],
-  evaluation_criteria: [],
-})
 
 export const stubAwareness = (): ProfessionalAwareness => ({
   open_questions: [],
@@ -632,9 +548,6 @@ const parseSkillItem = (
     ...(item.depth !== undefined
       ? { depth: assertOptionalEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
       : {}),
-    ...(item.proficiency !== undefined
-      ? { proficiency: assertOptionalString(item.proficiency, `${context}.proficiency`) }
-      : {}),
     ...(item.context !== undefined ? { context: assertOptionalString(item.context, `${context}.context`) } : {}),
     ...(item.search_signal !== undefined
       ? { search_signal: assertOptionalString(item.search_signal, `${context}.search_signal`) }
@@ -712,62 +625,6 @@ const parseAwareness = (value: unknown, context: string): ProfessionalAwareness 
   }
 }
 
-export const migrateProfessionalIdentityToV31 = (
-  identity: ProfessionalIdentityV3,
-): { data: ProfessionalIdentityV3; warnings: string[] } => {
-  const warnings: string[] = []
-  let didDeriveDepth = false
-
-  const data: ProfessionalIdentityV3 = {
-    ...identity,
-    schema_revision: '3.1',
-    preferences: {
-      ...identity.preferences,
-      matching: identity.preferences.matching ?? deriveMatching(identity.preferences.role_fit),
-    },
-    skills: {
-      groups: identity.skills.groups.map((group) => ({
-        ...group,
-        items: group.items.map((item) => {
-          if (item.depth !== undefined) {
-            return item
-          }
-
-          const nextDepth = deriveDepth(item)
-          if (!nextDepth) {
-            return item
-          }
-
-          didDeriveDepth = true
-          return {
-            ...item,
-            depth: nextDepth,
-          }
-        }),
-      })),
-    },
-    awareness: identity.awareness ?? stubAwareness(),
-  }
-
-  if (identity.schema_revision !== '3.1') {
-    warnings.push('Upgraded Professional Identity document to schema_revision "3.1".')
-  }
-
-  if (didDeriveDepth) {
-    warnings.push('Derived default skill depth values from legacy proficiency fields.')
-  }
-
-  if (identity.preferences.matching === undefined) {
-    warnings.push('Derived preferences.matching from legacy preferences.role_fit values.')
-  }
-
-  if (identity.awareness === undefined) {
-    warnings.push('Added empty awareness.open_questions for schema v3.1 compatibility.')
-  }
-
-  return { data, warnings }
-}
-
 export const importProfessionalIdentity = (
   value: unknown,
 ): { data: ProfessionalIdentityV3; warnings: string[] } => {
@@ -778,24 +635,13 @@ export const importProfessionalIdentity = (
     throw new Error('version must be 3.')
   }
 
-  const schemaRevision =
-    root.schema_revision !== undefined
-      ? assertEnumString(
-          root.schema_revision,
-          SCHEMA_REVISION_VALUES,
-          'schema_revision',
-        )
-      : undefined
+  const schemaRevision = assertEnumString(root.schema_revision, SCHEMA_REVISION_VALUES, 'schema_revision')
   const identity = assertRecord(root.identity, 'identity')
   const selfModel = assertRecord(root.self_model, 'self_model')
   const interviewStyle = assertRecord(selfModel.interview_style, 'self_model.interview_style')
   const preferences = assertRecord(root.preferences, 'preferences')
   const compensation = assertRecord(preferences.compensation, 'preferences.compensation')
   const workModel = assertRecord(preferences.work_model, 'preferences.work_model')
-  const roleFit =
-    preferences.role_fit === undefined
-      ? (schemaRevision === '3.1' ? undefined : assertRecord(preferences.role_fit, 'preferences.role_fit'))
-      : assertRecord(preferences.role_fit, 'preferences.role_fit')
   const skills = assertRecord(root.skills, 'skills')
   const generatorRules = assertRecord(root.generator_rules, 'generator_rules')
 
@@ -807,17 +653,12 @@ export const importProfessionalIdentity = (
   const bulletIds = new Set<string>()
   const projectIds = new Set<string>()
   const searchVectorIds = new Set<string>()
-  const parsedMatching =
-    preferences.matching !== undefined
-      ? parseMatchingPreferences(preferences.matching, 'preferences.matching')
-      : undefined
+  const parsedMatching = parseMatchingPreferences(preferences.matching, 'preferences.matching')
 
   const parsed: ProfessionalIdentityV3 = {
     ...(root.$schema ? { $schema: assertString(root.$schema, '$schema') } : {}),
     version: 3,
-    ...(root.schema_revision !== undefined
-      ? { schema_revision: schemaRevision }
-      : {}),
+    schema_revision: schemaRevision,
     identity: {
       name: assertString(identity.name, 'identity.name'),
       ...(identity.display_name !== undefined
@@ -908,22 +749,9 @@ export const importProfessionalIdentity = (
           ? { hard_no: assertOptionalString(workModel.hard_no, 'preferences.work_model.hard_no') }
           : {}),
       },
-      role_fit:
-        roleFit === undefined
-          ? deriveRoleFitFromMatching(parsedMatching)
-          : {
-              ideal: assertStringArray(roleFit.ideal, 'preferences.role_fit.ideal'),
-              red_flags: assertStringArray(roleFit.red_flags, 'preferences.role_fit.red_flags'),
-              evaluation_criteria: assertStringArray(
-                roleFit.evaluation_criteria,
-                'preferences.role_fit.evaluation_criteria',
-              ),
-            },
+      matching: parsedMatching,
       ...(preferences.constraints !== undefined
         ? { constraints: parseConstraints(preferences.constraints, 'preferences.constraints') }
-        : {}),
-      ...(preferences.matching !== undefined
-        ? { matching: parsedMatching }
         : {}),
     },
     skills: {
@@ -1111,6 +939,5 @@ export const importProfessionalIdentity = (
     ...(root.awareness !== undefined ? { awareness: parseAwareness(root.awareness, 'awareness') } : {}),
   }
 
-  const migrated = migrateProfessionalIdentityToV31(parsed)
-  return { data: migrated.data, warnings: [...warnings, ...migrated.warnings] }
+  return { data: parsed, warnings }
 }

@@ -16,6 +16,7 @@ import {
 
 const identityFixture: ProfessionalIdentityV3 = {
   version: 3,
+  schema_revision: '3.1',
   identity: {
     name: 'Nick Ferguson',
     email: 'nick@example.com',
@@ -47,11 +48,6 @@ const identityFixture: ProfessionalIdentityV3 = {
     work_model: {
       preference: 'remote',
       hard_no: 'five days onsite',
-    },
-    role_fit: {
-      ideal: ['platform engineering'],
-      red_flags: ['maintenance-only'],
-      evaluation_criteria: ['ownership'],
     },
     constraints: {
       clearance: {
@@ -92,11 +88,11 @@ const identityFixture: ProfessionalIdentityV3 = {
         items: [
           {
             name: 'Kubernetes',
-            proficiency: 'primary',
+            depth: 'strong',
             search_signal: 'Lead with Kubernetes platform migration stories.',
             tags: ['platform', 'kubernetes', 'infrastructure'],
           },
-          { name: 'Terraform', proficiency: 'secondary', tags: ['terraform', 'infrastructure'] },
+          { name: 'Terraform', depth: 'working', tags: ['terraform', 'infrastructure'] },
           { name: 'Linux', depth: 'strong', tags: ['linux', 'systems'] },
           { name: 'COBOL', depth: 'avoid', tags: ['legacy', 'cobol'] },
         ],
@@ -502,7 +498,7 @@ describe('jobMatch', () => {
         {
           name: 'Terraform',
           groupLabel: 'Platform',
-          item: { name: 'Terraform', proficiency: 'secondary', tags: ['terraform'] },
+          item: { name: 'Terraform', depth: 'working', tags: ['terraform'] },
           relatedRequirements: [buildExtraction().requirements[0]!],
           requirementStrength: 'required',
         },

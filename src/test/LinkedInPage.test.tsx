@@ -10,6 +10,7 @@ import type { ProfessionalIdentityV3 } from '../identity/schema'
 
 const identityFixture: ProfessionalIdentityV3 = {
   version: 3,
+  schema_revision: '3.1',
   identity: {
     name: 'Nick Ferguson',
     email: 'nick@example.com',
@@ -40,11 +41,7 @@ const identityFixture: ProfessionalIdentityV3 = {
     work_model: {
       preference: 'remote',
     },
-    role_fit: {
-      ideal: ['platform engineering'],
-      red_flags: ['maintenance-only'],
-      evaluation_criteria: ['ownership'],
-    },
+    matching: { prioritize: [], avoid: [] },
   },
   skills: {
     groups: [
