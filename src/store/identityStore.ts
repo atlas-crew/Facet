@@ -567,10 +567,12 @@ export const useIdentityStore = create<IdentityState>()(
             return {}
           }
 
-          const identity = updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
-            ...bullet,
-            [field]: value,
-          }))
+          const identity = normalizeRuntimeProfessionalIdentity(
+            updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
+              ...bullet,
+              [field]: value,
+            })),
+          )
           const progress = normalizeScanProgress(identity, state.scanResult.progress)
           progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
             'edited',
@@ -594,10 +596,12 @@ export const useIdentityStore = create<IdentityState>()(
             return {}
           }
 
-          const identity = updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
-            ...bullet,
-            [field]: value,
-          }))
+          const identity = normalizeRuntimeProfessionalIdentity(
+            updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
+              ...bullet,
+              [field]: value,
+            })),
+          )
           const progress = normalizeScanProgress(identity, state.scanResult.progress)
           progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
             'edited',
@@ -621,10 +625,12 @@ export const useIdentityStore = create<IdentityState>()(
             return {}
           }
 
-          const identity = updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
-            ...bullet,
-            metrics: value,
-          }))
+          const identity = normalizeRuntimeProfessionalIdentity(
+            updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
+              ...bullet,
+              metrics: value,
+            })),
+          )
           const progress = normalizeScanProgress(identity, state.scanResult.progress)
           progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
             'edited',
@@ -673,7 +679,7 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           const progress = normalizeScanProgress(state.scanResult.identity, state.scanResult.progress)
-          const identity = {
+          const identity = normalizeRuntimeProfessionalIdentity({
             ...state.scanResult.identity,
             roles: state.scanResult.identity.roles.map((role) =>
               role.id === value.roleId
@@ -691,7 +697,7 @@ export const useIdentityStore = create<IdentityState>()(
                   }
                 : role,
             ),
-          }
+          })
 
           progress.bullets[getScanBulletKey(value.roleId, value.bulletId)] = createBulletProgress(
             'completed',

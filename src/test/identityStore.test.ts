@@ -185,6 +185,43 @@ describe('identityStore scan progress', () => {
     expect(useIdentityStore.getState().warnings).toContain('Normalized test warning.')
   })
 
+  it('normalizes numeric schema_revision values when completing deepen against stale scan state', () => {
+    const scanResult = createScanResult()
+    ;(scanResult.identity as { schema_revision: string | number }).schema_revision = 3.1
+
+    useIdentityStore.setState({
+      scanResult,
+      draftDocument: '',
+      draft: null,
+      warnings: [],
+      lastError: null,
+    })
+
+    useIdentityStore.getState().completeScannedBulletDeepen({
+      summary: 'Deepened the migration bullet.',
+      roleId: 'a10',
+      bulletId: 'platform-migration',
+      bullet: {
+        id: 'platform-migration',
+        problem: 'Cloud-only delivery blocked on-prem installs.',
+        action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        outcome: 'Made the product deployable in customer environments.',
+        impact: ['Unlocked customer-hosted deployments'],
+        metrics: { installs: 12 },
+        technologies: ['Kubernetes'],
+        source_text: 'ignored',
+        tags: ['platform', 'kubernetes'],
+      },
+      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+      assumptions: [],
+      warnings: [],
+    })
+
+    expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe(
+      '3.1',
+    )
+  })
+
   it('updates scanned project fields and keeps project counts in sync', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().updateScannedProjectEntry(0, 'name', 'Facet OSS')
