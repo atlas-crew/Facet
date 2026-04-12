@@ -439,6 +439,7 @@ export function ScannedIdentityEditor({
   const [expandedSkillGroupIds, setExpandedSkillGroupIds] = useState<string[]>(
     [],
   )
+  const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
 
   useEffect(() => {
     setSelectedBulletKey((current) =>
@@ -518,6 +519,14 @@ export function ScannedIdentityEditor({
       current.includes(groupId)
         ? current.filter((entry) => entry !== groupId)
         : [...current, groupId],
+    )
+  }
+
+  const toggleProject = (projectId: string) => {
+    setExpandedProjectIds((current) =>
+      current.includes(projectId)
+        ? current.filter((entry) => entry !== projectId)
+        : [...current, projectId],
     )
   }
 
@@ -1230,54 +1239,87 @@ export function ScannedIdentityEditor({
         </div>
         {identity.projects.length > 0 ? (
           <div className="identity-scan-stack">
-            {identity.projects.map((project, projectIndex) => (
-              <article className="identity-scan-card" key={project.id}>
-                <div className="identity-scan-form-grid">
-                  <label className="identity-field">
-                    <span className="identity-label">Name</span>
-                    <input
-                      className="identity-input"
-                      value={project.name}
-                      onChange={(event) =>
-                        onUpdateProjectEntry(
-                          projectIndex,
-                          'name',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="identity-field">
-                    <span className="identity-label">URL</span>
-                    <input
-                      className="identity-input"
-                      value={project.url ?? ''}
-                      onChange={(event) =>
-                        onUpdateProjectEntry(
-                          projectIndex,
-                          'url',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="identity-field identity-field-wide">
-                    <span className="identity-label">Description</span>
-                    <textarea
-                      className="identity-textarea"
-                      value={project.description}
-                      onChange={(event) =>
-                        onUpdateProjectEntry(
-                          projectIndex,
-                          'description',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-              </article>
-            ))}
+            {identity.projects.map((project, projectIndex) => {
+              const isExpanded = expandedProjectIds.includes(project.id)
+
+              return (
+                <section className="identity-scan-role-group" key={project.id}>
+                  <button
+                    className="identity-scan-role-toggle"
+                    id={project.id + '-project-toggle'}
+                    type="button"
+                    onClick={() => toggleProject(project.id)}
+                    aria-expanded={isExpanded}
+                    aria-controls={project.id + '-project-panel'}
+                  >
+                    <span className="identity-scan-role-summary">
+                      <strong>{project.name || 'Untitled project'}</strong>
+                      <span>
+                        {project.url
+                          ? 'Project link included'
+                          : 'No project link yet'}
+                      </span>
+                    </span>
+                    <span className="identity-chip identity-chip-empty">
+                      {isExpanded ? 'Collapse' : 'Expand'}
+                    </span>
+                  </button>
+
+                  <article
+                    className="identity-scan-card identity-scan-role-panel"
+                    id={project.id + '-project-panel'}
+                    role="region"
+                    aria-labelledby={project.id + '-project-toggle'}
+                    hidden={!isExpanded}
+                  >
+                    <div className="identity-scan-form-grid">
+                      <label className="identity-field">
+                        <span className="identity-label">Name</span>
+                        <input
+                          className="identity-input"
+                          value={project.name}
+                          onChange={(event) =>
+                            onUpdateProjectEntry(
+                              projectIndex,
+                              'name',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="identity-field">
+                        <span className="identity-label">URL</span>
+                        <input
+                          className="identity-input"
+                          value={project.url ?? ''}
+                          onChange={(event) =>
+                            onUpdateProjectEntry(
+                              projectIndex,
+                              'url',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="identity-field identity-field-wide">
+                        <span className="identity-label">Description</span>
+                        <textarea
+                          className="identity-textarea"
+                          value={project.description}
+                          onChange={(event) =>
+                            onUpdateProjectEntry(
+                              projectIndex,
+                              'description',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </article>
+                </section>
+              )
+            })}
           </div>
         ) : (
           <p className="identity-muted">

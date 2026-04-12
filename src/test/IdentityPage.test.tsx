@@ -290,6 +290,16 @@ describe("IdentityPage", () => {
       "Kubernetes",
     );
 
+    const projectToggle = screen.getByRole("button", {
+      name: /Facet.*Project link included.*Expand/i,
+    });
+    expect(projectToggle.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(projectToggle);
+
+    expect(projectToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByDisplayValue("Facet")).toBeTruthy();
+
     fireEvent.change(
       screen.getByDisplayValue(
         "Ported the platform to Kubernetes-based installs.",
