@@ -1,81 +1,91 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { IdentityPage } from '../routes/identity/IdentityPage'
-import { useIdentityStore } from '../store/identityStore'
-import { useResumeStore } from '../store/resumeStore'
-import { useUiStore } from '../store/uiStore'
-import { resolveStorage } from '../store/storage'
-import { cloneIdentityFixture } from './fixtures/identityFixture'
-import type { ResumeScanResult } from '../types/identity'
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { IdentityPage } from "../routes/identity/IdentityPage";
+import { useIdentityStore } from "../store/identityStore";
+import { useResumeStore } from "../store/resumeStore";
+import { useUiStore } from "../store/uiStore";
+import { resolveStorage } from "../store/storage";
+import { cloneIdentityFixture } from "./fixtures/identityFixture";
+import type { ResumeScanResult } from "../types/identity";
 
-const navigateMock = vi.fn(async () => undefined)
+const navigateMock = vi.fn(async () => undefined);
 const identityExtractionMocks = vi.hoisted(() => ({
   generateIdentityDraftMock: vi.fn(),
   deepenIdentityBulletMock: vi.fn(),
-}))
+}));
 const resumeScannerMocks = vi.hoisted(() => ({
   scanResumePdfMock: vi.fn(),
-}))
+}));
 
-vi.mock('@tanstack/react-router', () => ({
+vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
-}))
+}));
 
-vi.mock('../utils/identityExtraction', async () => {
-  const actual = await vi.importActual<typeof import('../utils/identityExtraction')>(
-    '../utils/identityExtraction',
-  )
+vi.mock("../utils/identityExtraction", async () => {
+  const actual = await vi.importActual<
+    typeof import("../utils/identityExtraction")
+  >("../utils/identityExtraction");
 
   return {
     ...actual,
     generateIdentityDraft: identityExtractionMocks.generateIdentityDraftMock,
     deepenIdentityBullet: identityExtractionMocks.deepenIdentityBulletMock,
-  }
-})
+  };
+});
 
-vi.mock('../utils/resumeScanner', () => ({
+vi.mock("../utils/resumeScanner", () => ({
   scanResumePdf: resumeScannerMocks.scanResumePdfMock,
-}))
+}));
 
 const scanFixture = (): ResumeScanResult => {
-  const identity = cloneIdentityFixture()
-  identity.identity.name = 'Nick Ferguson'
-  identity.roles[0].bullets[0].problem = ''
-  identity.roles[0].bullets[0].action = ''
-  identity.roles[0].bullets[0].outcome = ''
-  identity.roles[0].bullets[0].impact = []
+  const identity = cloneIdentityFixture();
+  identity.identity.name = "Nick Ferguson";
+  identity.roles[0].bullets[0].problem = "";
+  identity.roles[0].bullets[0].action = "";
+  identity.roles[0].bullets[0].outcome = "";
+  identity.roles[0].bullets[0].impact = [];
   identity.roles[0].bullets[0].source_text =
-    'Ported the platform to Kubernetes-based installs.'
+    "Ported the platform to Kubernetes-based installs.";
   identity.projects = [
     {
-      id: 'facet',
-      name: 'Facet',
-      description: 'Vector-based job search platform.',
-      url: 'https://facet.test',
+      id: "facet",
+      name: "Facet",
+      description: "Vector-based job search platform.",
+      url: "https://facet.test",
       tags: [],
     },
-  ]
+  ];
   identity.education = [
     {
-      school: 'St. Petersburg College',
-      degree: 'AAS, Computer Information Systems',
-      location: 'Clearwater, FL',
+      school: "St. Petersburg College",
+      degree: "AAS, Computer Information Systems",
+      location: "Clearwater, FL",
     },
-  ]
+  ];
 
   return {
-    fileName: 'resume.pdf',
+    fileName: "resume.pdf",
     pageCount: 1,
-    scannedAt: '2026-04-05T00:00:00.000Z',
-    rawText: 'Nick Ferguson\nExperience\n• Ported the platform to Kubernetes-based installs.',
+    scannedAt: "2026-04-05T00:00:00.000Z",
+    rawText:
+      "Nick Ferguson\nExperience\n• Ported the platform to Kubernetes-based installs.",
     identity,
     warnings: [
       {
-        code: 'two-column-layout',
-        severity: 'warning',
-        message: 'This PDF looks like a two-column layout. Resume Scanner v1 only supports single-column resumes, so review the extracted structure carefully.',
+        code: "two-column-layout",
+        severity: "warning",
+        message:
+          "This PDF looks like a two-column layout. Resume Scanner v1 only supports single-column resumes, so review the extracted structure carefully.",
       },
     ],
     counts: {
@@ -91,96 +101,103 @@ const scanFixture = (): ResumeScanResult => {
       editedBullets: 0,
       failedBullets: 0,
     },
-    layout: 'ambiguous-columns',
+    layout: "ambiguous-columns",
     progress: {
       bullets: {},
       bulk: {
-        status: 'idle',
+        status: "idle",
         total: 0,
         completed: 0,
         currentBulletKey: null,
         lastUpdatedAt: null,
       },
     },
-  }
-}
+  };
+};
 
 const scanFixtureWithTwoBullets = (): ResumeScanResult => {
-  const result = scanFixture()
+  const result = scanFixture();
   result.identity.roles[0].bullets.push({
-    id: 'second-migration',
-    source_text: 'Migrated workloads to EKS with Helm charts.',
-    problem: '',
-    action: '',
-    outcome: '',
+    id: "second-migration",
+    source_text: "Migrated workloads to EKS with Helm charts.",
+    problem: "",
+    action: "",
+    outcome: "",
     impact: [],
     metrics: {},
     technologies: [],
     tags: [],
-  })
-  result.counts.bullets = 2
-  result.counts.extractedBullets = 2
-  result.counts.scannedBullets = 2
-  result.rawText += '\n• Migrated workloads to EKS with Helm charts.'
-  return result
-}
+  });
+  result.counts.bullets = 2;
+  result.counts.extractedBullets = 2;
+  result.counts.scannedBullets = 2;
+  result.rawText += "\n• Migrated workloads to EKS with Helm charts.";
+  return result;
+};
 
-const createAbortError = (): DOMException => new DOMException('The operation was aborted.', 'AbortError')
+const createAbortError = (): DOMException =>
+  new DOMException("The operation was aborted.", "AbortError");
 
-const uploadPdf = (container: HTMLElement, fileName = 'resume.pdf') => {
-  const uploadInput = container.querySelector('input[type="file"][accept="application/pdf,.pdf"]')
+const uploadPdf = (container: HTMLElement, fileName = "resume.pdf") => {
+  const uploadInput = container.querySelector(
+    'input[type="file"][accept="application/pdf,.pdf"]',
+  );
   if (!uploadInput) {
-    throw new Error('PDF upload input not found. IdentityPage may not have rendered the upload intake.')
+    throw new Error(
+      "PDF upload input not found. IdentityPage may not have rendered the upload intake.",
+    );
   }
   fireEvent.change(uploadInput as HTMLInputElement, {
     target: {
       // Content is irrelevant here because scanResumePdf is fully mocked in this test file.
-      files: [new File(['%PDF-1.4'], fileName, { type: 'application/pdf' })],
+      files: [new File(["%PDF-1.4"], fileName, { type: "application/pdf" })],
     },
-  })
-}
+  });
+};
 
 const flushMicrotasks = async (count = 3) => {
   // rejection handler -> store write -> React/store follow-on microtask before assertions
   for (let index = 0; index < count; index += 1) {
-    await Promise.resolve()
+    await Promise.resolve();
   }
-}
+};
 
 const rejectWithAbort = async (reject: (reason?: unknown) => void) => {
   await act(async () => {
-    reject(createAbortError())
+    reject(createAbortError());
     // Flush the rejection handler and the follow-on React/store microtasks before asserting.
-    await flushMicrotasks()
-  })
-}
+    await flushMicrotasks();
+  });
+};
 
 const expectBlob = (value: Blob | MediaSource | undefined): Blob => {
-  expect(value).toBeInstanceOf(Blob)
-  return value as Blob
-}
+  expect(value).toBeInstanceOf(Blob);
+  return value as Blob;
+};
 
 const setupExportMocks = (url: string, expectedFilename: string) => ({
-  createObjectUrlMock: vi.spyOn(URL, 'createObjectURL').mockReturnValue(url),
-  revokeObjectUrlMock: vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined),
-  anchorClickMock: vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-    this: HTMLAnchorElement,
-  ) {
-    expect(this.href).toContain(url)
-    expect(this.download).toBe(expectedFilename)
-  }),
-})
+  createObjectUrlMock: vi.spyOn(URL, "createObjectURL").mockReturnValue(url),
+  revokeObjectUrlMock: vi
+    .spyOn(URL, "revokeObjectURL")
+    .mockImplementation(() => undefined),
+  anchorClickMock: vi
+    .spyOn(HTMLAnchorElement.prototype, "click")
+    .mockImplementation(function (this: HTMLAnchorElement) {
+      expect(this.href).toContain(url);
+      expect(this.download).toBe(expectedFilename);
+    }),
+});
 
-describe('IdentityPage', () => {
+describe("IdentityPage", () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
-    resolveStorage().removeItem('facet-identity-workspace')
-    useResumeStore.setState((state) => ({ ...state }))
+    vi.stubEnv("VITE_ANTHROPIC_PROXY_URL", "https://ai.example/proxy");
+    resolveStorage().removeItem("facet-identity-workspace");
+    useResumeStore.setState((state) => ({ ...state }));
     useUiStore.setState({
-      selectedVector: 'all',
+      selectedVector: "all",
       panelRatio: 0.45,
-      appearance: 'system',
-      viewMode: 'pdf',
+      appearance: "system",
+      viewMode: "pdf",
       showHeatmap: false,
       showDesignHealth: false,
       suggestionModeActive: false,
@@ -190,787 +207,995 @@ describe('IdentityPage', () => {
       backupReminderSnoozedUntil: null,
       lastBackupAt: null,
       tourCompleted: false,
-    })
+    });
     useIdentityStore.setState({
-      intakeMode: 'upload',
-      sourceMaterial: '',
-      correctionNotes: '',
+      intakeMode: "upload",
+      sourceMaterial: "",
+      correctionNotes: "",
       currentIdentity: null,
       draft: null,
-      draftDocument: '',
+      draftDocument: "",
       scanResult: null,
       warnings: [],
       changelog: [],
       lastError: null,
-    })
+    });
 
-    identityExtractionMocks.generateIdentityDraftMock.mockReset()
+    identityExtractionMocks.generateIdentityDraftMock.mockReset();
     identityExtractionMocks.generateIdentityDraftMock.mockResolvedValue({
-      generatedAt: '2026-04-05T00:00:00.000Z',
-      summary: 'Generated from scan.',
+      generatedAt: "2026-04-05T00:00:00.000Z",
+      summary: "Generated from scan.",
       followUpQuestions: [],
       identity: cloneIdentityFixture(),
       bullets: [],
       warnings: [],
-    })
-    identityExtractionMocks.deepenIdentityBulletMock.mockReset()
+    });
+    identityExtractionMocks.deepenIdentityBulletMock.mockReset();
     identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValue({
-      summary: 'Deepened the migration bullet.',
-      roleId: 'a10',
-      bulletId: 'platform-migration',
+      summary: "Deepened the migration bullet.",
+      roleId: "a10",
+      bulletId: "platform-migration",
       bullet: {
-        id: 'platform-migration',
-        problem: 'Cloud-only delivery blocked on-prem installs.',
-        action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        outcome: 'Made the product deployable in customer environments.',
-        impact: ['Unlocked customer-hosted deployments'],
+        id: "platform-migration",
+        problem: "Cloud-only delivery blocked on-prem installs.",
+        action:
+          "Ported the platform to Kubernetes-based installs for on-prem customers.",
+        outcome: "Made the product deployable in customer environments.",
+        impact: ["Unlocked customer-hosted deployments"],
         metrics: { installs: 12 },
-        technologies: ['Kubernetes'],
-        source_text: 'ignored',
-        tags: ['platform', 'kubernetes'],
+        technologies: ["Kubernetes"],
+        source_text: "ignored",
+        tags: ["platform", "kubernetes"],
       },
-      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+      rewrite:
+        "Ported the platform to Kubernetes-based installs for on-prem customers.",
       assumptions: [],
       warnings: [],
-    })
-    resumeScannerMocks.scanResumePdfMock.mockResolvedValue(scanFixture())
-  })
+    });
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValue(scanFixture());
+  });
 
   afterEach(() => {
-    cleanup()
-    vi.unstubAllEnvs()
-    vi.useRealTimers()
-    vi.restoreAllMocks()
-    navigateMock.mockReset()
-  })
+    cleanup();
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    navigateMock.mockReset();
+  });
 
-  it('uploads a PDF, populates the scan editor, and uses the scanned identity as the AI seed', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
+  it("uploads a PDF, populates the scan editor, and uses the scanned identity as the AI seed", async () => {
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    expect(screen.getByDisplayValue('Facet')).toBeTruthy()
-    expect(screen.getByDisplayValue('Vector-based job search platform.')).toBeTruthy()
-    expect(screen.getByDisplayValue('Clearwater, FL')).toBeTruthy()
-    expect(screen.getByLabelText('Projects: 1')).toBeTruthy()
+    expect(screen.getByDisplayValue("Facet")).toBeTruthy();
+    expect(
+      screen.getByDisplayValue("Vector-based job search platform."),
+    ).toBeTruthy();
+    expect(screen.getByDisplayValue("Clearwater, FL")).toBeTruthy();
+    expect(screen.getByLabelText("Projects: 1")).toBeTruthy();
 
     fireEvent.change(
-      screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'),
+      screen.getByDisplayValue(
+        "Ported the platform to Kubernetes-based installs.",
+      ),
       {
-        target: { value: 'Ported the platform to Kubernetes-based installs for on-prem customers.' },
+        target: {
+          value:
+            "Ported the platform to Kubernetes-based installs for on-prem customers.",
+        },
       },
-    )
+    );
 
     expect(
-      useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.source_text,
-    ).toBe('Ported the platform to Kubernetes-based installs for on-prem customers.')
-    fireEvent.change(screen.getByDisplayValue('Facet'), {
-      target: { value: 'Facet OSS' },
-    })
-    expect(useIdentityStore.getState().scanResult?.identity.projects[0]?.name).toBe('Facet OSS')
-    expect(screen.getByText(/two-column layout/i)).toBeTruthy()
+      useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]
+        ?.source_text,
+    ).toBe(
+      "Ported the platform to Kubernetes-based installs for on-prem customers.",
+    );
+    fireEvent.change(screen.getByDisplayValue("Facet"), {
+      target: { value: "Facet OSS" },
+    });
+    expect(
+      useIdentityStore.getState().scanResult?.identity.projects[0]?.name,
+    ).toBe("Facet OSS");
+    expect(screen.getByText(/two-column layout/i)).toBeTruthy();
 
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Generate Draft' }))
+    fireEvent.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Generate Draft",
+      }),
+    );
 
     await waitFor(() => {
-      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
-    })
+      expect(
+        identityExtractionMocks.generateIdentityDraftMock,
+      ).toHaveBeenCalledTimes(1);
+    });
 
-    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledWith(
+    expect(
+      identityExtractionMocks.generateIdentityDraftMock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
-        sourceMaterial: 'Nick Ferguson\nExperience\n• Ported the platform to Kubernetes-based installs.',
+        sourceMaterial:
+          "Nick Ferguson\nExperience\n• Ported the platform to Kubernetes-based installs.",
         seedIdentity: expect.objectContaining({
           roles: [
             expect.objectContaining({
               bullets: [
                 expect.objectContaining({
-                  source_text: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+                  source_text:
+                    "Ported the platform to Kubernetes-based installs for on-prem customers.",
                 }),
               ],
             }),
           ],
         }),
       }),
-    )
-  })
+    );
+  });
 
-  it('opens the file chooser immediately when Upload Resume is clicked from paste mode', () => {
+  it("opens the file chooser immediately when Upload Resume is clicked from paste mode", () => {
     const inputClickMock = vi
-      .spyOn(HTMLInputElement.prototype, 'click')
-      .mockImplementation(() => undefined)
+      .spyOn(HTMLInputElement.prototype, "click")
+      .mockImplementation(() => undefined);
 
     useIdentityStore.setState({
-      intakeMode: 'paste',
-    })
+      intakeMode: "paste",
+    });
 
-    render(<IdentityPage />)
+    render(<IdentityPage />);
 
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Upload Resume' }))
+    fireEvent.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Upload Resume",
+      }),
+    );
 
-    expect(useIdentityStore.getState().intakeMode).toBe('upload')
-    expect(inputClickMock).toHaveBeenCalledTimes(1)
-  })
+    expect(useIdentityStore.getState().intakeMode).toBe("upload");
+    expect(inputClickMock).toHaveBeenCalledTimes(1);
+  });
 
-  it('scans a dropped PDF from the upload zone', async () => {
-    render(<IdentityPage />)
+  it("scans a dropped PDF from the upload zone", async () => {
+    render(<IdentityPage />);
 
-    fireEvent.drop(screen.getByText('Drag a resume PDF here or click to browse'), {
-      dataTransfer: {
-        files: [new File(['%PDF-1.4'], 'resume.pdf', { type: 'application/pdf' })],
+    fireEvent.drop(
+      screen.getByText("Drag a resume PDF here or click to browse"),
+      {
+        dataTransfer: {
+          files: [
+            new File(["%PDF-1.4"], "resume.pdf", { type: "application/pdf" }),
+          ],
+        },
       },
-    })
+    );
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-  })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
+  });
 
-  it('falls back to paste-text mode when scan text exists but role parsing fails', async () => {
-    const fallback = scanFixture()
-    fallback.identity.roles = []
-    fallback.counts.roles = 0
-    fallback.counts.bullets = 0
-    fallback.counts.projects = 1
-    fallback.counts.extractedBullets = 0
+  it("falls back to paste-text mode when scan text exists but role parsing fails", async () => {
+    const fallback = scanFixture();
+    fallback.identity.roles = [];
+    fallback.counts.roles = 0;
+    fallback.counts.bullets = 0;
+    fallback.counts.projects = 1;
+    fallback.counts.extractedBullets = 0;
     fallback.warnings = [
       {
-        code: 'role-parse-fallback',
-        severity: 'warning',
+        code: "role-parse-fallback",
+        severity: "warning",
         message:
-          'Resume text extraction succeeded, but role parsing did not. The app will fall back to paste-text mode with the raw extracted text.',
+          "Resume text extraction succeeded, but role parsing did not. The app will fall back to paste-text mode with the raw extracted text.",
       },
-    ]
-    resumeScannerMocks.scanResumePdfMock.mockResolvedValue(fallback)
+    ];
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValue(fallback);
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Source Material')).toBeTruthy()
-    })
+      expect(screen.getByLabelText("Source Material")).toBeTruthy();
+    });
 
-    expect(useIdentityStore.getState().intakeMode).toBe('paste')
-    expect(useIdentityStore.getState().scanResult).toBeNull()
-    expect(useIdentityStore.getState().sourceMaterial).toContain('Experience')
-  })
+    expect(useIdentityStore.getState().intakeMode).toBe("paste");
+    expect(useIdentityStore.getState().scanResult).toBeNull();
+    expect(useIdentityStore.getState().sourceMaterial).toContain("Experience");
+  });
 
-  it('cancels in-flight scan work on unmount without leaving stale UI state', async () => {
-    let rejectScan!: (reason?: unknown) => void
+  it("cancels in-flight scan work on unmount without leaving stale UI state", async () => {
+    let rejectScan!: (reason?: unknown) => void;
     resumeScannerMocks.scanResumePdfMock.mockImplementation(
       () =>
         new Promise<ResumeScanResult>((_resolve, reject) => {
-          rejectScan = reject
+          rejectScan = reject;
         }),
-    )
+    );
 
-    const { container, unmount } = render(<IdentityPage />)
-    uploadPdf(container)
+    const { container, unmount } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByText('Scanning PDF…')).toBeTruthy()
-    })
+      expect(screen.getByText("Scanning PDF…")).toBeTruthy();
+    });
 
-    unmount()
-    await rejectWithAbort(rejectScan)
+    expect(screen.queryByText("Extraction Review")).toBeNull();
 
-    expect(useIdentityStore.getState().scanResult).toBeNull()
-    expect(useIdentityStore.getState().sourceMaterial).toBe('')
-  })
+    unmount();
+    await rejectWithAbort(rejectScan);
 
-  it('cancels in-flight draft generation on unmount without persisting stale notices', async () => {
-    let rejectGenerate!: (reason?: unknown) => void
+    expect(useIdentityStore.getState().scanResult).toBeNull();
+    expect(useIdentityStore.getState().sourceMaterial).toBe("");
+  });
+
+  it("cancels in-flight draft generation on unmount without persisting stale notices", async () => {
+    let rejectGenerate!: (reason?: unknown) => void;
     identityExtractionMocks.generateIdentityDraftMock.mockImplementation(
       () =>
         new Promise((_resolve, reject) => {
-          rejectGenerate = reject
+          rejectGenerate = reject;
         }),
-    )
+    );
 
-    const { container, unmount } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Generate Draft' }))
+    const { container, unmount } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Generating…' })).toBeTruthy()
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
+
+    fireEvent.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Generate Draft",
+      }),
+    );
+
+    await waitFor(() => {
       expect(
-        within(screen.getByRole('banner')).getByRole('button', { name: 'Generating…' }).hasAttribute('disabled'),
-      ).toBe(true)
-      expect(screen.getByText('Generating a draft from your source material.')).toBeTruthy()
-    })
+        within(screen.getByRole("banner")).getByRole("button", {
+          name: "Generating…",
+        }),
+      ).toBeTruthy();
+      expect(
+        within(screen.getByRole("banner"))
+          .getByRole("button", { name: "Generating…" })
+          .hasAttribute("disabled"),
+      ).toBe(true);
+      expect(
+        screen.getByText("Generating a draft from your source material."),
+      ).toBeTruthy();
+    });
 
-    unmount()
-    await rejectWithAbort(rejectGenerate)
+    unmount();
+    await rejectWithAbort(rejectGenerate);
 
-    expect(useIdentityStore.getState().draft).toBeNull()
-  })
+    expect(useIdentityStore.getState().draft).toBeNull();
+  });
 
-  it('exports the current draft document and revokes the object URL after download', async () => {
+  it("exports the current draft document and revokes the object URL after download", async () => {
     const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } =
-      setupExportMocks('blob:draft-export', 'identity-draft.json')
-    const draftDocument = JSON.stringify(cloneIdentityFixture(), null, 2)
+      setupExportMocks("blob:draft-export", "identity-draft.json");
+    const draftDocument = JSON.stringify(cloneIdentityFixture(), null, 2);
 
     useIdentityStore.setState({
       draft: {
-        generatedAt: '2026-04-05T00:00:00.000Z',
-        summary: 'Draft ready.',
+        generatedAt: "2026-04-05T00:00:00.000Z",
+        summary: "Draft ready.",
         followUpQuestions: [],
         identity: cloneIdentityFixture(),
         bullets: [],
         warnings: [],
       },
       draftDocument,
-    })
+    });
 
-    vi.useFakeTimers()
-    render(<IdentityPage />)
+    vi.useFakeTimers();
+    render(<IdentityPage />);
 
-    const exportDraftButton = screen.getByText('Export Draft')
-    fireEvent.click(exportDraftButton)
+    const exportDraftButton = screen.getByText("Export Draft");
+    fireEvent.click(exportDraftButton);
 
-    expect(createObjectUrlMock).toHaveBeenCalledTimes(1)
-    const draftBlob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0])
-    expect(draftBlob.type).toBe('application/json')
-    await expect(draftBlob.text()).resolves.toBe(draftDocument)
-    expect(anchorClickMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Exported the current draft document.')).toBeTruthy()
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1);
+    const draftBlob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0]);
+    expect(draftBlob.type).toBe("application/json");
+    await expect(draftBlob.text()).resolves.toBe(draftDocument);
+    expect(anchorClickMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText("Exported the current draft document."),
+    ).toBeTruthy();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000)
-    })
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
 
-    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:draft-export')
-  })
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith("blob:draft-export");
+  });
 
-  it('deepens a scanned bullet inline and marks manual edits as corrected', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
+  it("deepens a scanned bullet inline and marks manual edits as corrected", async () => {
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        roleId: 'a10',
-        bulletId: 'platform-migration',
-      }),
-    )
+    fireEvent.click(screen.getByText("Deepen"));
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.')).toBeTruthy()
-    })
+      expect(
+        identityExtractionMocks.deepenIdentityBulletMock,
+      ).toHaveBeenCalledTimes(1);
+    });
 
-    fireEvent.change(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.'), {
-      target: { value: 'Cloud-only delivery blocked on-prem customer installs.' },
-    })
-
-    expect(useIdentityStore.getState().scanResult?.counts.editedBullets).toBe(1)
     expect(
-      useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.problem,
-    ).toBe('Cloud-only delivery blocked on-prem customer installs.')
-    expect(screen.getAllByText('Edited').length).toBeGreaterThan(0)
-  })
+      identityExtractionMocks.deepenIdentityBulletMock,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: "a10",
+        bulletId: "platform-migration",
+      }),
+    );
 
-  it('shows structured-only deepen results inline even when prose fields stay empty', async () => {
-    identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
-      summary: 'Extracted structured details from the migration bullet.',
-      roleId: 'a10',
-      bulletId: 'platform-migration',
-      bullet: {
-        id: 'platform-migration',
-        problem: '',
-        action: '',
-        outcome: '',
-        impact: ['Unlocked customer-hosted deployments'],
-        metrics: { installs: 12 },
-        technologies: ['Kubernetes'],
-        source_text: 'ignored',
-        tags: ['platform', 'kubernetes'],
+    await waitFor(() => {
+      expect(
+        screen.getByDisplayValue(
+          "Cloud-only delivery blocked on-prem installs.",
+        ),
+      ).toBeTruthy();
+    });
+
+    fireEvent.change(
+      screen.getByDisplayValue("Cloud-only delivery blocked on-prem installs."),
+      {
+        target: {
+          value: "Cloud-only delivery blocked on-prem customer installs.",
+        },
       },
-      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+    );
+
+    expect(useIdentityStore.getState().scanResult?.counts.editedBullets).toBe(
+      1,
+    );
+    expect(
+      useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]
+        ?.problem,
+    ).toBe("Cloud-only delivery blocked on-prem customer installs.");
+    expect(screen.getAllByText("Edited").length).toBeGreaterThan(0);
+  });
+
+  it("shows structured-only deepen results inline even when prose fields stay empty", async () => {
+    identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
+      summary: "Extracted structured details from the migration bullet.",
+      roleId: "a10",
+      bulletId: "platform-migration",
+      bullet: {
+        id: "platform-migration",
+        problem: "",
+        action: "",
+        outcome: "",
+        impact: ["Unlocked customer-hosted deployments"],
+        metrics: { installs: 12 },
+        technologies: ["Kubernetes"],
+        source_text: "ignored",
+        tags: ["platform", "kubernetes"],
+      },
+      rewrite:
+        "Ported the platform to Kubernetes-based installs for on-prem customers.",
       assumptions: [],
       warnings: [],
-    })
+    });
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Technologies')).toBeTruthy()
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    expect((screen.getByLabelText('Technologies') as HTMLTextAreaElement).value).toContain('Kubernetes')
-  })
+    fireEvent.click(screen.getByText("Deepen"));
 
-  it('shows guessed rewrite details and correction guidance after deepening a bullet', async () => {
+    await waitFor(() => {
+      expect(screen.getByLabelText("Technologies")).toBeTruthy();
+    });
+
+    expect(
+      (screen.getByLabelText("Technologies") as HTMLTextAreaElement).value,
+    ).toContain("Kubernetes");
+  });
+
+  it("shows guessed rewrite details and correction guidance after deepening a bullet", async () => {
     identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
-      summary: 'Guessed the customer-facing rollout context from the scanned bullet.',
-      roleId: 'a10',
-      bulletId: 'platform-migration',
+      summary:
+        "Guessed the customer-facing rollout context from the scanned bullet.",
+      roleId: "a10",
+      bulletId: "platform-migration",
       bullet: {
-        id: 'platform-migration',
-        problem: 'Cloud-only delivery blocked on-prem installs.',
-        action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        outcome: 'Made the product deployable in customer environments.',
-        impact: ['Unlocked customer-hosted deployments'],
+        id: "platform-migration",
+        problem: "Cloud-only delivery blocked on-prem installs.",
+        action:
+          "Ported the platform to Kubernetes-based installs for on-prem customers.",
+        outcome: "Made the product deployable in customer environments.",
+        impact: ["Unlocked customer-hosted deployments"],
         metrics: { installs: 12 },
-        technologies: ['Kubernetes'],
-        source_text: 'ignored',
-        tags: ['platform', 'kubernetes'],
+        technologies: ["Kubernetes"],
+        source_text: "ignored",
+        tags: ["platform", "kubernetes"],
       },
-      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+      rewrite:
+        "Ported the platform to Kubernetes-based installs for on-prem customers.",
       assumptions: [
         {
-          label: 'Assumed the installs were customer-hosted',
-          confidence: 'guessing',
+          label: "Assumed the installs were customer-hosted",
+          confidence: "guessing",
         },
       ],
-      warnings: ['Double-check whether the rollout was customer-hosted or internal-only.'],
-    })
+      warnings: [
+        "Double-check whether the rollout was customer-hosted or internal-only.",
+      ],
+    });
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByText('Current AI rewrite')).toBeTruthy()
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText("Deepen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Current AI rewrite")).toBeTruthy();
+    });
 
     expect(
-      screen.getAllByText('Guessed the customer-facing rollout context from the scanned bullet.').length,
-    ).toBeGreaterThan(0)
-    expect(screen.getByText('Assumed the installs were customer-hosted · Guessing')).toBeTruthy()
+      screen.getAllByText(
+        "Guessed the customer-facing rollout context from the scanned bullet.",
+      ).length,
+    ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText('Double-check whether the rollout was customer-hosted or internal-only.').length,
-    ).toBeGreaterThan(0)
-    expect(screen.getByText(/Edit the fields below to correct any guessed details/i)).toBeTruthy()
-  })
+      screen.getByText("Assumed the installs were customer-hosted · Guessing"),
+    ).toBeTruthy();
+    expect(
+      screen.getAllByText(
+        "Double-check whether the rollout was customer-hosted or internal-only.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Edit the fields below to correct any guessed details/i),
+    ).toBeTruthy();
+  });
 
-  it('shows correction guidance for scanned bullets that already start in guessing mode', async () => {
-    const guessedScan = scanFixture()
-    guessedScan.identity.roles[0].bullets[0].problem = 'Legacy delivery path blocked on-prem installs.'
-    guessedScan.identity.roles[0].bullets[0].action = 'Ported the platform to Kubernetes-based installs.'
-    guessedScan.identity.roles[0].bullets[0].outcome = 'Made the product deployable in customer environments.'
-    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(guessedScan)
+  it("shows correction guidance for scanned bullets that already start in guessing mode", async () => {
+    const guessedScan = scanFixture();
+    guessedScan.identity.roles[0].bullets[0].problem =
+      "Legacy delivery path blocked on-prem installs.";
+    guessedScan.identity.roles[0].bullets[0].action =
+      "Ported the platform to Kubernetes-based installs.";
+    guessedScan.identity.roles[0].bullets[0].outcome =
+      "Made the product deployable in customer environments.";
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(guessedScan);
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Legacy delivery path blocked on-prem installs.')).toBeTruthy()
-    })
+      expect(
+        screen.getByDisplayValue(
+          "Legacy delivery path blocked on-prem installs.",
+        ),
+      ).toBeTruthy();
+    });
 
-    expect(screen.getAllByText('Guessing').length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Guessing").length).toBeGreaterThan(0);
     expect(
       screen.getByText(
-        'This decomposition was inferred from the scanned source text. Review and edit the fields below to confirm any guessed details. Your first edit will switch this bullet from Guessing to Corrected.',
+        "This decomposition was inferred from the scanned source text. Review and edit the fields below to confirm any guessed details. Your first edit will switch this bullet from Guessing to Corrected.",
       ),
-    ).toBeTruthy()
-  })
+    ).toBeTruthy();
+  });
 
-  it('disables bullet deepening when the scanned source text is blank', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
+  it("disables bullet deepening when the scanned source text is blank", async () => {
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    fireEvent.change(screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'), {
-      target: { value: '' },
-    })
+    fireEvent.change(
+      screen.getByDisplayValue(
+        "Ported the platform to Kubernetes-based installs.",
+      ),
+      {
+        target: { value: "" },
+      },
+    );
 
-    const deepenButton = screen.getByText('Deepen') as HTMLButtonElement
-    expect(deepenButton.disabled).toBe(true)
+    const deepenButton = screen.getByText("Deepen") as HTMLButtonElement;
+    expect(deepenButton.disabled).toBe(true);
 
-    fireEvent.click(deepenButton)
-    expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(0)
-  })
+    fireEvent.click(deepenButton);
+    expect(
+      identityExtractionMocks.deepenIdentityBulletMock,
+    ).toHaveBeenCalledTimes(0);
+  });
 
-  it('disables Deepen All while a single bullet deepen is running', async () => {
-    let resolveDeepen!: (value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>) => void
+  it("disables Deepen All while a single bullet deepen is running", async () => {
+    let resolveDeepen!: (
+      value: Awaited<
+        ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>
+      >,
+    ) => void;
     identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          resolveDeepen = resolve
+          resolveDeepen = resolve;
         }),
-    )
+    );
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    const deepenAllButton = screen.getByText('Deepen All')
-    expect((deepenAllButton as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByText("Deepen"));
+
+    await waitFor(() => {
+      expect(
+        identityExtractionMocks.deepenIdentityBulletMock,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    const deepenAllButton = screen.getByText("Deepen All");
+    expect((deepenAllButton as HTMLButtonElement).disabled).toBe(true);
 
     await act(async () => {
       resolveDeepen({
-        summary: 'Deepened the migration bullet.',
-        roleId: 'a10',
-        bulletId: 'platform-migration',
+        summary: "Deepened the migration bullet.",
+        roleId: "a10",
+        bulletId: "platform-migration",
         bullet: {
-          id: 'platform-migration',
-          problem: 'Cloud-only delivery blocked on-prem installs.',
-          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-          outcome: 'Made the product deployable in customer environments.',
-          impact: ['Unlocked customer-hosted deployments'],
+          id: "platform-migration",
+          problem: "Cloud-only delivery blocked on-prem installs.",
+          action:
+            "Ported the platform to Kubernetes-based installs for on-prem customers.",
+          outcome: "Made the product deployable in customer environments.",
+          impact: ["Unlocked customer-hosted deployments"],
           metrics: { installs: 12 },
-          technologies: ['Kubernetes'],
-          source_text: 'ignored',
-          tags: ['platform', 'kubernetes'],
+          technologies: ["Kubernetes"],
+          source_text: "ignored",
+          tags: ["platform", "kubernetes"],
         },
-        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        rewrite:
+          "Ported the platform to Kubernetes-based installs for on-prem customers.",
         assumptions: [],
         warnings: [],
-      })
-      await flushMicrotasks()
-    })
+      });
+      await flushMicrotasks();
+    });
 
     await waitFor(() => {
-      expect(screen.getByText('Deepen All')).toBeTruthy()
-    })
-  })
+      expect(screen.getByText("Deepen All")).toBeTruthy();
+    });
+  });
 
-  it('ignores overlapping single-bullet deepen requests while one is already running', async () => {
-    let resolveFirstDeepen!: (value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>) => void
-    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(scanFixtureWithTwoBullets())
+  it("ignores overlapping single-bullet deepen requests while one is already running", async () => {
+    let resolveFirstDeepen!: (
+      value: Awaited<
+        ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>
+      >,
+    ) => void;
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(
+      scanFixtureWithTwoBullets(),
+    );
     identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          resolveFirstDeepen = resolve
+          resolveFirstDeepen = resolve;
         }),
-    )
+    );
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
-    fireEvent.click(screen.getByText('Migrated workloads to EKS with Helm charts.'))
-    fireEvent.click(screen.getByText('Deepen'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText("Deepen"));
+    fireEvent.click(
+      screen.getByText("Migrated workloads to EKS with Helm charts."),
+    );
+    fireEvent.click(screen.getByText("Deepen"));
+
+    await waitFor(() => {
+      expect(
+        identityExtractionMocks.deepenIdentityBulletMock,
+      ).toHaveBeenCalledTimes(1);
+    });
 
     await act(async () => {
       resolveFirstDeepen({
-        summary: 'Deepened the migration bullet.',
-        roleId: 'a10',
-        bulletId: 'platform-migration',
+        summary: "Deepened the migration bullet.",
+        roleId: "a10",
+        bulletId: "platform-migration",
         bullet: {
-          id: 'platform-migration',
-          problem: 'Cloud-only delivery blocked on-prem installs.',
-          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-          outcome: 'Made the product deployable in customer environments.',
-          impact: ['Unlocked customer-hosted deployments'],
+          id: "platform-migration",
+          problem: "Cloud-only delivery blocked on-prem installs.",
+          action:
+            "Ported the platform to Kubernetes-based installs for on-prem customers.",
+          outcome: "Made the product deployable in customer environments.",
+          impact: ["Unlocked customer-hosted deployments"],
           metrics: { installs: 12 },
-          technologies: ['Kubernetes'],
-          source_text: 'ignored',
-          tags: ['platform', 'kubernetes'],
+          technologies: ["Kubernetes"],
+          source_text: "ignored",
+          tags: ["platform", "kubernetes"],
         },
-        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        rewrite:
+          "Ported the platform to Kubernetes-based installs for on-prem customers.",
         assumptions: [],
         warnings: [],
-      })
-      await flushMicrotasks()
-    })
+      });
+      await flushMicrotasks();
+    });
 
     await waitFor(() => {
-      expect(useIdentityStore.getState().scanResult?.progress.bullets['a10::platform-migration']?.status).toBe(
-        'completed',
-      )
-    })
+      expect(
+        useIdentityStore.getState().scanResult?.progress.bullets[
+          "a10::platform-migration"
+        ]?.status,
+      ).toBe("completed");
+    });
 
-    expect(useIdentityStore.getState().scanResult?.progress.bullets['a10::second-migration']?.status).toBe(
-      'idle',
-    )
-    expect((screen.getByText('Deepen All') as HTMLButtonElement).disabled).toBe(false)
-  })
+    expect(
+      useIdentityStore.getState().scanResult?.progress.bullets[
+        "a10::second-migration"
+      ]?.status,
+    ).toBe("idle");
+    expect((screen.getByText("Deepen All") as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
 
-  it('switches the detail pane when a different scanned bullet is selected', async () => {
-    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(scanFixtureWithTwoBullets())
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Migrated workloads to EKS with Helm charts.'))
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Migrated workloads to EKS with Helm charts.')).toBeTruthy()
-    })
-  })
-
-  it('deepens all scanned bullets sequentially from the scanner card', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
+  it("switches the detail pane when a different scanned bullet is selected", async () => {
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(
+      scanFixtureWithTwoBullets(),
+    );
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
+      expect(
+        screen.getByDisplayValue(
+          "Ported the platform to Kubernetes-based installs.",
+        ),
+      ).toBeTruthy();
+    });
 
-    fireEvent.click(screen.getByText('Deepen All'))
-
-    await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
-
-    expect(useIdentityStore.getState().scanResult?.counts.deepenedBullets).toBe(1)
-    expect(screen.getByText('Deepened 1 scanned bullet(s).')).toBeTruthy()
-  })
-
-  it('preserves focused impact edits across progress updates and keeps comma-bearing statements intact', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
+    fireEvent.click(
+      screen.getByText("Migrated workloads to EKS with Helm charts."),
+    );
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
+      expect(
+        screen.getByDisplayValue("Migrated workloads to EKS with Helm charts."),
+      ).toBeTruthy();
+    });
+  });
 
-    fireEvent.click(screen.getByText('Deepen'))
+  it("deepens all scanned bullets sequentially from the scanner card", async () => {
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.')).toBeTruthy()
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    const impactField = screen.getByLabelText('Impact')
-    const impactValue = 'Reduced latency by 40%, improving p99 to 12ms'
+    fireEvent.click(screen.getByText("Deepen All"));
 
-    fireEvent.focus(impactField)
+    await waitFor(() => {
+      expect(
+        identityExtractionMocks.deepenIdentityBulletMock,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    expect(useIdentityStore.getState().scanResult?.counts.deepenedBullets).toBe(
+      1,
+    );
+    expect(screen.getByText("Deepened 1 scanned bullet(s).")).toBeTruthy();
+  });
+
+  it("preserves focused impact edits across progress updates and keeps comma-bearing statements intact", async () => {
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText("Deepen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByDisplayValue(
+          "Cloud-only delivery blocked on-prem installs.",
+        ),
+      ).toBeTruthy();
+    });
+
+    const impactField = screen.getByLabelText("Impact");
+    const impactValue = "Reduced latency by 40%, improving p99 to 12ms";
+
+    fireEvent.focus(impactField);
     fireEvent.change(impactField, {
       target: { value: impactValue },
-    })
+    });
 
     act(() => {
-      useIdentityStore.getState().startScanBulkDeepen()
-    })
+      useIdentityStore.getState().startScanBulkDeepen();
+    });
 
-    expect((screen.getByLabelText('Impact') as HTMLTextAreaElement).value).toBe(impactValue)
+    expect((screen.getByLabelText("Impact") as HTMLTextAreaElement).value).toBe(
+      impactValue,
+    );
 
-    fireEvent.blur(impactField)
+    fireEvent.blur(impactField);
 
-    expect(useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.impact).toEqual([impactValue])
-  })
+    expect(
+      useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]
+        ?.impact,
+    ).toEqual([impactValue]);
+  });
 
-  it('cancels bulk deepening without failing the current bullet', async () => {
-    let rejectDeepen!: (reason?: unknown) => void
+  it("cancels bulk deepening without failing the current bullet", async () => {
+    let rejectDeepen!: (reason?: unknown) => void;
     identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
       () =>
         new Promise((_resolve, reject) => {
-          rejectDeepen = reject
+          rejectDeepen = reject;
         }),
-    )
+    );
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen All'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByText('Cancel')).toBeTruthy()
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    fireEvent.click(screen.getByText('Cancel'))
-    await rejectWithAbort(rejectDeepen)
+    fireEvent.click(screen.getByText("Deepen All"));
 
-    expect(useIdentityStore.getState().scanResult?.progress.bulk.status).toBe('idle')
-    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(0)
-  })
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeTruthy();
+    });
 
-  it('does not finalize a bulk deepening run after the scan is cleared', async () => {
-    let rejectDeepen!: (reason?: unknown) => void
+    fireEvent.click(screen.getByText("Cancel"));
+    await rejectWithAbort(rejectDeepen);
+
+    expect(useIdentityStore.getState().scanResult?.progress.bulk.status).toBe(
+      "idle",
+    );
+    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(
+      0,
+    );
+  });
+
+  it("does not finalize a bulk deepening run after the scan is cleared", async () => {
+    let rejectDeepen!: (reason?: unknown) => void;
     identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
       () =>
         new Promise((_resolve, reject) => {
-          rejectDeepen = reject
+          rejectDeepen = reject;
         }),
-    )
+    );
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen All'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    fireEvent.click(screen.getByText('Clear Scan'))
-    await rejectWithAbort(rejectDeepen)
+    fireEvent.click(screen.getByText("Deepen All"));
 
-    expect(useIdentityStore.getState().scanResult).toBeNull()
-    expect(screen.getByText('Cleared the scanned resume structure.')).toBeTruthy()
-    expect(screen.queryByText('Deepened 1 scanned bullet(s).')).toBeNull()
-    expect(screen.queryByText('Stopped bulk deepening after completing 0 bullet(s).')).toBeNull()
-  })
+    await waitFor(() => {
+      expect(
+        identityExtractionMocks.deepenIdentityBulletMock,
+      ).toHaveBeenCalledTimes(1);
+    });
 
-  it('aborts an in-flight bullet deepen when the scan is cleared', async () => {
-    let rejectDeepen!: (reason?: unknown) => void
+    fireEvent.click(screen.getByText("Clear Scan"));
+    await rejectWithAbort(rejectDeepen);
+
+    expect(useIdentityStore.getState().scanResult).toBeNull();
+    expect(
+      screen.getByText("Cleared the scanned resume structure."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Deepened 1 scanned bullet(s).")).toBeNull();
+    expect(
+      screen.queryByText(
+        "Stopped bulk deepening after completing 0 bullet(s).",
+      ),
+    ).toBeNull();
+  });
+
+  it("aborts an in-flight bullet deepen when the scan is cleared", async () => {
+    let rejectDeepen!: (reason?: unknown) => void;
     identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
       () =>
         new Promise((_resolve, reject) => {
-          rejectDeepen = reject
+          rejectDeepen = reject;
         }),
-    )
+    );
 
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
 
     await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
+      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+    });
 
-    fireEvent.click(screen.getByText('Clear Scan'))
-    await rejectWithAbort(rejectDeepen)
+    fireEvent.click(screen.getByText("Deepen"));
 
-    expect(useIdentityStore.getState().scanResult).toBeNull()
-    expect(screen.queryByText('Bullet deepening failed.')).toBeNull()
-  })
+    await waitFor(() => {
+      expect(
+        identityExtractionMocks.deepenIdentityBulletMock,
+      ).toHaveBeenCalledTimes(1);
+    });
 
-  it('exports the current identity model and revokes the object URL after download', async () => {
+    fireEvent.click(screen.getByText("Clear Scan"));
+    await rejectWithAbort(rejectDeepen);
+
+    expect(useIdentityStore.getState().scanResult).toBeNull();
+    expect(screen.queryByText("Bullet deepening failed.")).toBeNull();
+  });
+
+  it("exports the current identity model and revokes the object URL after download", async () => {
     const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } =
-      setupExportMocks('blob:identity-export', 'identity.json')
-    const currentIdentity = cloneIdentityFixture()
-    const expectedIdentityDocument = JSON.stringify(currentIdentity, null, 2)
+      setupExportMocks("blob:identity-export", "identity.json");
+    const currentIdentity = cloneIdentityFixture();
+    const expectedIdentityDocument = JSON.stringify(currentIdentity, null, 2);
 
     useIdentityStore.setState({
       currentIdentity,
-    })
+    });
 
-    vi.useFakeTimers()
-    render(<IdentityPage />)
+    vi.useFakeTimers();
+    render(<IdentityPage />);
 
-    const exportIdentityButton = screen.getByText('Export Identity')
-    fireEvent.click(exportIdentityButton)
+    const exportIdentityButton = screen.getByText("Export Identity");
+    fireEvent.click(exportIdentityButton);
 
-    expect(createObjectUrlMock).toHaveBeenCalledTimes(1)
-    const identityBlob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0])
-    expect(identityBlob.type).toBe('application/json')
-    await expect(identityBlob.text()).resolves.toBe(expectedIdentityDocument)
-    expect(anchorClickMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Exported the current identity model.')).toBeTruthy()
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1);
+    const identityBlob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0]);
+    expect(identityBlob.type).toBe("application/json");
+    await expect(identityBlob.text()).resolves.toBe(expectedIdentityDocument);
+    expect(anchorClickMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText("Exported the current identity model."),
+    ).toBeTruthy();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000)
-    })
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
 
-    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:identity-export')
-  })
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith("blob:identity-export");
+  });
 
-  it('shows the enrichment banner counts and CTA when an identity model exists', () => {
-    const currentIdentity = cloneIdentityFixture()
+  it("shows the enrichment banner counts and CTA when an identity model exists", () => {
+    const currentIdentity = cloneIdentityFixture();
     currentIdentity.skills.groups[0]!.items = [
       {
-        name: 'Kubernetes',
-        tags: ['platform', 'kubernetes'],
-        depth: 'strong',
-        context: 'Used for customer-hosted deployments.',
-        search_signal: 'Platform modernization and Kubernetes operations.',
+        name: "Kubernetes",
+        tags: ["platform", "kubernetes"],
+        depth: "strong",
+        context: "Used for customer-hosted deployments.",
+        search_signal: "Platform modernization and Kubernetes operations.",
       },
       {
-        name: 'Terraform',
-        tags: ['platform', 'iac'],
-        skipped_at: '2026-04-08T00:00:00.000Z',
+        name: "Terraform",
+        tags: ["platform", "iac"],
+        skipped_at: "2026-04-08T00:00:00.000Z",
       },
       {
-        name: 'TypeScript',
-        tags: ['backend', 'typescript'],
+        name: "TypeScript",
+        tags: ["backend", "typescript"],
       },
-    ]
+    ];
     useIdentityStore.setState({
       currentIdentity,
-    })
+    });
 
-    render(<IdentityPage />)
+    render(<IdentityPage />);
 
-    expect(screen.getByRole('tab', { name: 'Model' }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByRole('tab', { name: 'Strategy' })).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Continue Skill Enrichment' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Skill Enrichment')).toBeTruthy()
-    expect(screen.getByText(/Pending 1/i)).toBeTruthy()
-    expect(screen.getByText(/Complete 1/i)).toBeTruthy()
-    expect(screen.getByText(/Skipped 1/i)).toBeTruthy()
-  })
+    expect(
+      screen.getByRole("tab", { name: "Model" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(screen.getByRole("tab", { name: "Strategy" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Continue Skill Enrichment" })
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Skill Enrichment")).toBeTruthy();
+    expect(screen.getByText(/Pending 1/i)).toBeTruthy();
+    expect(screen.getByText(/Complete 1/i)).toBeTruthy();
+    expect(screen.getByText(/Skipped 1/i)).toBeTruthy();
 
-  it('uses a wider workbench layout and keeps the model builder compact before a draft exists', () => {
-    const { container } = render(<IdentityPage />)
-    const editorRegion = container.querySelector('.identity-model-builder-editor-region') as HTMLDivElement
+    fireEvent.click(screen.getByRole("tab", { name: "Strategy" }));
 
-    expect(screen.queryByRole('tablist', { name: 'Identity workspaces' })).toBeNull()
-    expect(screen.queryByRole('tab', { name: 'Model' })).toBeNull()
-    expect(screen.queryByRole('tab', { name: 'Strategy' })).toBeNull()
-    expect(screen.queryByRole('tabpanel')).toBeNull()
-    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Upload Resume' })).toBeTruthy()
-    expect(container.querySelector('.identity-grid.identity-grid-workbench')).toBeTruthy()
-    const openButton = screen.getByRole('button', { name: 'Open JSON Editor' })
+    expect(
+      screen.getByRole("heading", { name: "Strategy", level: 2 }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Suggest Search Angles" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Find Open Questions" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Export Search Brief" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "Search Preferences" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Search Brief" })).toBeTruthy();
+  });
 
-    expect(openButton.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByText(/stays compact so the extraction workflow has room to breathe/i)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Validate Draft' })).toBeNull()
-    expect(editorRegion.hidden).toBe(true)
-  })
+  it("uses a wider workbench layout and keeps the model builder compact before a draft exists", () => {
+    const { container } = render(<IdentityPage />);
+    const editorRegion = container.querySelector(
+      ".identity-model-builder-editor-region",
+    ) as HTMLDivElement;
 
-  it('opens the json editor from the compact builder state', () => {
-    const { container } = render(<IdentityPage />)
+    expect(
+      screen.queryByRole("tablist", { name: "Identity workspaces" }),
+    ).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Model" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Strategy" })).toBeNull();
+    expect(screen.queryByRole("tabpanel")).toBeNull();
+    expect(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Upload Resume",
+      }),
+    ).toBeTruthy();
+    expect(
+      container.querySelector(".identity-grid.identity-grid-workbench"),
+    ).toBeTruthy();
+    const openButton = screen.getByRole("button", {
+      name: "Open Advanced JSON",
+    });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open JSON Editor' }))
+    expect(openButton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByText("Source Intake")).toBeTruthy();
+    expect(screen.getByText("Apply / Review Draft")).toBeTruthy();
+    expect(
+      screen.getByText(/advanced json stays tucked away until you need it/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Validate Draft" })).toBeNull();
+    expect(editorRegion.hidden).toBe(true);
+  });
 
-    expect(screen.getByRole('button', { name: 'Collapse Editor' }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Validate Draft' })).toBeTruthy()
-    expect(container.querySelector('.identity-textarea-code-empty')).toBeTruthy()
-  })
-})
+  it("opens the json editor from the compact builder state", () => {
+    const { container } = render(<IdentityPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Advanced JSON" }));
+
+    expect(
+      screen
+        .getByRole("button", { name: "Hide Advanced JSON" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(screen.getByRole("button", { name: "Validate Draft" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Merge Instead" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Apply Identity" })).toBeTruthy();
+    expect(
+      container.querySelector(".identity-textarea-code-empty"),
+    ).toBeTruthy();
+  });
+});

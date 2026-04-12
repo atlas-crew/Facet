@@ -1,75 +1,86 @@
-import { RefreshCcw, ScanSearch, Sparkles, Upload, X } from 'lucide-react'
-import type { ChangeEvent, DragEvent, RefObject } from 'react'
-import type { ProfessionalIdentityV3 } from '../../identity/schema'
+import { RefreshCcw, ScanSearch, Sparkles, Upload, X } from "lucide-react";
+import type { ChangeEvent, DragEvent, RefObject } from "react";
+import type { ProfessionalIdentityV3 } from "../../identity/schema";
 import type {
   IdentityIntakeMode,
   IdentityExtractionDraft,
   ResumeScanResult,
-} from '../../types/identity'
-import { ScannedIdentityEditor } from './ScannedIdentityEditor'
+} from "../../types/identity";
+import { ScannedIdentityEditor } from "./ScannedIdentityEditor";
 
 interface ExtractionAgentCardProps {
-  intakeMode: IdentityIntakeMode
-  sourceMaterial: string
-  correctionNotes: string
-  currentIdentity: ProfessionalIdentityV3 | null
-  draft: IdentityExtractionDraft | null
-  scanResult: ResumeScanResult | null
-  scanCompletion: { extractedBullets: number; decomposedBullets: number } | null
-  bulkStatus: ResumeScanResult['progress']['bulk']['status'] | null
-  isGenerating: boolean
-  isScanning: boolean
-  uploadRef: RefObject<HTMLInputElement | null>
-  onRequestUpload: () => void
-  onSetIntakeMode: (mode: IdentityIntakeMode) => void
-  onSetSourceMaterial: (value: string) => void
-  onSetCorrectionNotes: (value: string) => void
-  onGenerate: (mode: 'fresh' | 'regenerate') => Promise<void>
-  onDeepenAll: () => Promise<void>
-  onCancelDeepenAll: () => void
-  onUploadChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
-  onDrop: (event: DragEvent<HTMLDivElement>) => Promise<void>
-  onClearScan: () => void
+  intakeMode: IdentityIntakeMode;
+  sourceMaterial: string;
+  correctionNotes: string;
+  currentIdentity: ProfessionalIdentityV3 | null;
+  draft: IdentityExtractionDraft | null;
+  scanResult: ResumeScanResult | null;
+  scanCompletion: {
+    extractedBullets: number;
+    decomposedBullets: number;
+  } | null;
+  bulkStatus: ResumeScanResult["progress"]["bulk"]["status"] | null;
+  isGenerating: boolean;
+  isScanning: boolean;
+  uploadRef: RefObject<HTMLInputElement | null>;
+  onRequestUpload: () => void;
+  onSetIntakeMode: (mode: IdentityIntakeMode) => void;
+  onSetSourceMaterial: (value: string) => void;
+  onSetCorrectionNotes: (value: string) => void;
+  onGenerate: (mode: "fresh" | "regenerate") => Promise<void>;
+  onDeepenAll: () => Promise<void>;
+  onCancelDeepenAll: () => void;
+  onUploadChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  onDrop: (event: DragEvent<HTMLDivElement>) => Promise<void>;
+  onClearScan: () => void;
   onUpdateIdentityCore: (
-    field: keyof ProfessionalIdentityV3['identity'],
-    value: string | boolean | ProfessionalIdentityV3['identity']['links'],
-  ) => void
+    field: keyof ProfessionalIdentityV3["identity"],
+    value: string | boolean | ProfessionalIdentityV3["identity"]["links"],
+  ) => void;
   onUpdateRole: (
     roleIndex: number,
-    field: 'company' | 'title' | 'dates' | 'subtitle',
+    field: "company" | "title" | "dates" | "subtitle",
     value: string,
-  ) => void
-  onUpdateBulletSourceText: (roleIndex: number, bulletIndex: number, value: string) => void
+  ) => void;
+  onUpdateBulletSourceText: (
+    roleIndex: number,
+    bulletIndex: number,
+    value: string,
+  ) => void;
   onUpdateBulletTextField: (
     roleId: string,
     bulletId: string,
-    field: 'problem' | 'action' | 'outcome',
+    field: "problem" | "action" | "outcome",
     value: string,
-  ) => void
+  ) => void;
   onUpdateBulletListField: (
     roleId: string,
     bulletId: string,
-    field: 'impact' | 'technologies' | 'tags',
+    field: "impact" | "technologies" | "tags",
     value: string[],
-  ) => void
+  ) => void;
   onUpdateBulletMetrics: (
     roleId: string,
     bulletId: string,
     value: Record<string, string | number | boolean>,
-  ) => void
-  onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>
-  onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void
-  onUpdateSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
+  ) => void;
+  onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>;
+  onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void;
+  onUpdateSkillItemName: (
+    groupIndex: number,
+    itemIndex: number,
+    value: string,
+  ) => void;
   onUpdateProjectEntry: (
     projectIndex: number,
-    field: 'name' | 'description' | 'url',
+    field: "name" | "description" | "url",
     value: string,
-  ) => void
+  ) => void;
   onUpdateEducationEntry: (
     educationIndex: number,
-    field: keyof ProfessionalIdentityV3['education'][number],
+    field: keyof ProfessionalIdentityV3["education"][number],
     value: string,
-  ) => void
+  ) => void;
 }
 
 export function ExtractionAgentCard({
@@ -107,19 +118,24 @@ export function ExtractionAgentCard({
   onUpdateEducationEntry,
 }: ExtractionAgentCardProps) {
   const hasRunningBullet = scanResult
-    ? Object.values(scanResult.progress.bullets).some((progress) => progress.status === 'running')
-    : false
+    ? Object.values(scanResult.progress.bullets).some(
+        (progress) => progress.status === "running",
+      )
+    : false;
 
   return (
     <section className="identity-card">
       <div className="identity-card-header">
         <div>
-          <h2>Extraction Agent</h2>
-          <p>Upload a resume PDF first. Fall back to pasted text when the scan is ambiguous or unsupported.</p>
+          <h2>Source Intake</h2>
+          <p>
+            Bring in a resume first, then fall back to pasted source text when
+            the scan needs clarification.
+          </p>
         </div>
         <div className="identity-card-actions">
           <button
-            className={`identity-btn ${intakeMode === 'upload' ? 'identity-btn-primary' : ''}`}
+            className={`identity-btn ${intakeMode === "upload" ? "identity-btn-primary" : ""}`}
             type="button"
             onClick={onRequestUpload}
           >
@@ -127,27 +143,29 @@ export function ExtractionAgentCard({
             Upload Resume
           </button>
           <button
-            className={`identity-btn ${intakeMode === 'paste' ? 'identity-btn-primary' : ''}`}
+            className={`identity-btn ${intakeMode === "paste" ? "identity-btn-primary" : ""}`}
             type="button"
-            onClick={() => onSetIntakeMode('paste')}
+            onClick={() => onSetIntakeMode("paste")}
           >
             <Upload size={16} />
-            Paste Text Instead
+            Paste Source Text
           </button>
           <button
             className="identity-btn identity-btn-primary"
             type="button"
-            onClick={() => void onGenerate('fresh')}
+            onClick={() => void onGenerate("fresh")}
             disabled={isGenerating || isScanning}
           >
             <Sparkles size={16} />
-            {isGenerating ? 'Generating…' : 'Generate Draft'}
+            {isGenerating ? "Generating…" : "Generate Draft"}
           </button>
           <button
             className="identity-btn"
             type="button"
-            onClick={() => void onGenerate('regenerate')}
-            disabled={isGenerating || isScanning || (!draft && !currentIdentity)}
+            onClick={() => void onGenerate("regenerate")}
+            disabled={
+              isGenerating || isScanning || (!draft && !currentIdentity)
+            }
           >
             <RefreshCcw size={16} />
             Regenerate
@@ -163,7 +181,7 @@ export function ExtractionAgentCard({
         onChange={(event) => void onUploadChange(event)}
       />
 
-      {intakeMode === 'upload' ? (
+      {intakeMode === "upload" ? (
         <>
           <div
             className="identity-upload-zone"
@@ -171,9 +189,9 @@ export function ExtractionAgentCard({
             tabIndex={0}
             onClick={onRequestUpload}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onRequestUpload()
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onRequestUpload();
               }
             }}
             onDragEnter={(event) => event.preventDefault()}
@@ -181,32 +199,54 @@ export function ExtractionAgentCard({
             onDrop={(event) => void onDrop(event)}
           >
             <Upload size={22} aria-hidden="true" />
-            <strong>{isScanning ? 'Scanning PDF…' : 'Drag a resume PDF here or click to browse'}</strong>
+            <strong>
+              {isScanning
+                ? "Scanning PDF…"
+                : "Drag a resume PDF here or click to browse"}
+            </strong>
           </div>
           <p className="identity-muted">
-            Resume Scanner v1 is PDF-only and performs a local structural parse before any AI call. Use a
-            text-based, single-column PDF. OCR and image-only resumes are out of scope for this pass.
+            Resume Scanner v1 is PDF-only and performs a local structural parse
+            before any AI call. Use a text-based, single-column PDF. OCR and
+            image-only resumes are out of scope for this pass.
           </p>
           {scanResult ? (
             <>
+              <div className="identity-stack">
+                <h3>Extraction Review</h3>
+                <p className="identity-muted">
+                  Inspect the scanned structure, deepen weak bullets, and
+                  correct anything before applying the draft.
+                </p>
+              </div>
               <div className="identity-scan-status">
                 <div className="identity-scan-status-row">
                   <strong>{scanResult.fileName}</strong>
                   <span>{scanResult.pageCount} page(s)</span>
                 </div>
                 <div className="identity-stats identity-stats-compact">
-                  <div className="identity-stat" role="group" aria-label={'Roles: ' + scanResult.counts.roles}>
+                  <div
+                    className="identity-stat"
+                    role="group"
+                    aria-label={"Roles: " + scanResult.counts.roles}
+                  >
                     <span className="identity-stat-label">Roles</span>
                     <strong>{scanResult.counts.roles}</strong>
                   </div>
-                  <div className="identity-stat" role="group" aria-label={'Bullets: ' + scanResult.counts.bullets}>
+                  <div
+                    className="identity-stat"
+                    role="group"
+                    aria-label={"Bullets: " + scanResult.counts.bullets}
+                  >
                     <span className="identity-stat-label">Bullets</span>
                     <strong>{scanResult.counts.bullets}</strong>
                   </div>
                   <div
                     className="identity-stat"
                     role="group"
-                    aria-label={'Skill groups: ' + scanResult.counts.skillGroups}
+                    aria-label={
+                      "Skill groups: " + scanResult.counts.skillGroups
+                    }
                   >
                     <span className="identity-stat-label">Skill Groups</span>
                     <strong>{scanResult.counts.skillGroups}</strong>
@@ -214,7 +254,7 @@ export function ExtractionAgentCard({
                   <div
                     className="identity-stat"
                     role="group"
-                    aria-label={'Projects: ' + scanResult.counts.projects}
+                    aria-label={"Projects: " + scanResult.counts.projects}
                   >
                     <span className="identity-stat-label">Projects</span>
                     <strong>{scanResult.counts.projects}</strong>
@@ -222,7 +262,7 @@ export function ExtractionAgentCard({
                   <div
                     className="identity-stat"
                     role="group"
-                    aria-label={'Education: ' + scanResult.counts.education}
+                    aria-label={"Education: " + scanResult.counts.education}
                   >
                     <span className="identity-stat-label">Education</span>
                     <strong>{scanResult.counts.education}</strong>
@@ -231,23 +271,37 @@ export function ExtractionAgentCard({
                     className="identity-stat"
                     role="group"
                     aria-label={
-                      'Decomposed bullets: ' +
+                      "Decomposed bullets: " +
                       (scanCompletion?.decomposedBullets ?? 0) +
-                      ' of ' +
-                      (scanCompletion?.extractedBullets ?? scanResult.counts.extractedBullets)
+                      " of " +
+                      (scanCompletion?.extractedBullets ??
+                        scanResult.counts.extractedBullets)
                     }
                   >
                     <span className="identity-stat-label">Deepened</span>
                     <strong>
                       {scanCompletion?.decomposedBullets ?? 0}/
-                      {scanCompletion?.extractedBullets ?? scanResult.counts.extractedBullets}
+                      {scanCompletion?.extractedBullets ??
+                        scanResult.counts.extractedBullets}
                     </strong>
                   </div>
-                  <div className="identity-stat" role="group" aria-label={'Edited bullets: ' + scanResult.counts.editedBullets}>
+                  <div
+                    className="identity-stat"
+                    role="group"
+                    aria-label={
+                      "Edited bullets: " + scanResult.counts.editedBullets
+                    }
+                  >
                     <span className="identity-stat-label">Edited</span>
                     <strong>{scanResult.counts.editedBullets}</strong>
                   </div>
-                  <div className="identity-stat" role="group" aria-label={'Failed bullets: ' + scanResult.counts.failedBullets}>
+                  <div
+                    className="identity-stat"
+                    role="group"
+                    aria-label={
+                      "Failed bullets: " + scanResult.counts.failedBullets
+                    }
+                  >
                     <span className="identity-stat-label">Failed</span>
                     <strong>{scanResult.counts.failedBullets}</strong>
                   </div>
@@ -259,28 +313,40 @@ export function ExtractionAgentCard({
                     onClick={() => void onDeepenAll()}
                     disabled={
                       hasRunningBullet ||
-                      bulkStatus === 'running' ||
-                      bulkStatus === 'cancelling' ||
+                      bulkStatus === "running" ||
+                      bulkStatus === "cancelling" ||
                       scanResult.counts.extractedBullets === 0
                     }
                   >
                     <Sparkles size={16} />
-                    {bulkStatus === 'running' || bulkStatus === 'cancelling' ? 'Deepening…' : 'Deepen All'}
+                    {bulkStatus === "running" || bulkStatus === "cancelling"
+                      ? "Deepening…"
+                      : "Deepen All"}
                   </button>
                   <button
                     className="identity-btn"
                     type="button"
                     onClick={onCancelDeepenAll}
-                    disabled={bulkStatus !== 'running' && bulkStatus !== 'cancelling'}
+                    disabled={
+                      bulkStatus !== "running" && bulkStatus !== "cancelling"
+                    }
                   >
                     <X size={16} />
-                    {bulkStatus === 'cancelling' ? 'Cancelling…' : 'Cancel'}
+                    {bulkStatus === "cancelling" ? "Cancelling…" : "Cancel"}
                   </button>
-                  <button className="identity-btn" type="button" onClick={() => uploadRef.current?.click()}>
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={() => uploadRef.current?.click()}
+                  >
                     <RefreshCcw size={16} />
                     Rescan PDF
                   </button>
-                  <button className="identity-btn" type="button" onClick={onClearScan}>
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={onClearScan}
+                  >
                     <X size={16} />
                     Clear Scan
                   </button>
@@ -289,7 +355,7 @@ export function ExtractionAgentCard({
 
               <ScannedIdentityEditor
                 scanResult={scanResult}
-                bulkStatus={bulkStatus ?? 'idle'}
+                bulkStatus={bulkStatus ?? "idle"}
                 onUpdateIdentityCore={onUpdateIdentityCore}
                 onUpdateRole={onUpdateRole}
                 onUpdateBulletSourceText={onUpdateBulletSourceText}
@@ -307,8 +373,9 @@ export function ExtractionAgentCard({
             <div className="identity-empty">
               <h3>No scanned resume yet</h3>
               <p>
-                Upload a text-based PDF to build a partial identity shell without a network call.
-                If the parser cannot recover a reliable structure, switch to paste-text mode and continue there.
+                Upload a text-based PDF to build a partial identity shell
+                without a network call. If the parser cannot recover a reliable
+                structure, switch to paste-text mode and continue there.
               </p>
             </div>
           )}
@@ -335,5 +402,5 @@ export function ExtractionAgentCard({
         />
       </label>
     </section>
-  )
+  );
 }
