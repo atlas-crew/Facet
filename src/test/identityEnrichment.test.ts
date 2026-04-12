@@ -19,7 +19,7 @@ const createIdentity = () => {
           name: 'Kubernetes',
           depth: 'strong',
           context: 'Used for on-prem and hosted platform delivery.',
-          search_signal: 'Platform and infrastructure modernization.',
+          positioning: 'Platform and infrastructure modernization.',
           tags: ['platform', 'kubernetes'],
         },
         {
@@ -49,7 +49,7 @@ describe('identityEnrichment helpers', () => {
       getSkillEnrichmentStatus({
         depth: 'strong',
         context: 'Built platform systems.',
-        search_signal: 'Platform engineering',
+        positioning: 'Platform engineering',
         skipped_at: '2026-04-08T00:00:00.000Z',
       }),
     ).toBe('complete')
@@ -57,7 +57,7 @@ describe('identityEnrichment helpers', () => {
       getSkillEnrichmentStatus({
         depth: undefined,
         context: '',
-        search_signal: '',
+        positioning: '',
         skipped_at: '2026-04-08T00:00:00.000Z',
       }),
     ).toBe('skipped')
@@ -65,7 +65,7 @@ describe('identityEnrichment helpers', () => {
       getSkillEnrichmentStatus({
         depth: 'working',
         context: '',
-        search_signal: '',
+        positioning: '',
         skipped_at: undefined,
       }),
     ).toBe('pending')

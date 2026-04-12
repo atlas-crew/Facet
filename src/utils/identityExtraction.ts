@@ -130,7 +130,7 @@ Rules:
 - matching.avoid entries must use { id, label, description, severity } with severity in "hard" | "soft".
 - search_vectors must always be present as an array, using [] when the source is silent.
 - awareness must always be present as { open_questions: [] } when the source is silent.
-- For first-pass extraction, keep skill items limited to { name, tags }. Do not emit depth, proficiency, context, or search_signal.
+- For first-pass extraction, keep skill items limited to { name, tags }. Do not emit depth, proficiency, context, or positioning.
 - Use empty arrays/objects/strings when the source is silent instead of inventing alternate keys.
 - Prefer a strong first draft over sparse placeholders.
 - Use "guessing" only when the source implies something but does not state it directly.

@@ -131,7 +131,7 @@ export interface ProfessionalSkillItem {
   name: string
   depth?: ProfessionalSkillDepth
   context?: string
-  search_signal?: string
+  positioning?: string
   tags: string[]
   enriched_at?: string
   enriched_by?: ProfessionalSkillEnrichedBy
@@ -307,7 +307,39 @@ export const normalizeRuntimeIdentitySchemaRevision = <T>(value: T): T => {
 
 export const normalizeRuntimeProfessionalIdentity = (
   identity: ProfessionalIdentityV3,
-): ProfessionalIdentityV3 => normalizeRuntimeIdentitySchemaRevision(identity)
+): ProfessionalIdentityV3 => {
+  const normalizedIdentity = normalizeRuntimeIdentitySchemaRevision(identity)
+  const groups = (normalizedIdentity.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined)
+    ?.groups
+
+  if (!Array.isArray(groups)) {
+    return normalizedIdentity
+  }
+
+  return {
+    ...normalizedIdentity,
+    skills: {
+      ...normalizedIdentity.skills,
+      groups: groups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => {
+          const { search_signal: legacyPositioning, ...rest } = item as ProfessionalSkillItem & {
+            search_signal?: string
+          }
+
+          return {
+            ...rest,
+            ...(rest.positioning !== undefined
+              ? { positioning: rest.positioning }
+              : legacyPositioning !== undefined
+                ? { positioning: legacyPositioning }
+                : {}),
+          }
+        }),
+      })),
+    },
+  }
+}
 
 const assertArray = (value: unknown, context: string): unknown[] => {
   if (!Array.isArray(value)) {
@@ -598,8 +630,13 @@ const parseSkillItem = (
       ? { depth: assertOptionalEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
       : {}),
     ...(item.context !== undefined ? { context: assertOptionalString(item.context, `${context}.context`) } : {}),
-    ...(item.search_signal !== undefined
-      ? { search_signal: assertOptionalString(item.search_signal, `${context}.search_signal`) }
+    ...((item.positioning !== undefined || item.search_signal !== undefined)
+      ? {
+          positioning: assertOptionalString(
+            item.positioning !== undefined ? item.positioning : item.search_signal,
+            item.positioning !== undefined ? `${context}.positioning` : `${context}.search_signal`,
+          ),
+        }
       : {}),
     tags: normalizeTagArray(item.tags, `${context}.tags`, warnings),
     ...(item.enriched_at !== undefined

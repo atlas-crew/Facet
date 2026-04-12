@@ -50,7 +50,7 @@ export interface SkillMatch {
   jdRequirement: string
   requirementStrength: SkillRequirementStrength
   userDepth: 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
-  userSearchSignal: string
+  userPositioning: string
   matchQuality: SkillMatchQuality
   presentationGuidance: string
 }

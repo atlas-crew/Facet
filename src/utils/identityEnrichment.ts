@@ -33,9 +33,9 @@ export const updateIdentityEnrichmentSkill = (
 const hasContent = (value: string | undefined): boolean => Boolean(value?.trim())
 
 export const getSkillEnrichmentStatus = (
-  skill: Pick<ProfessionalSkillItem, 'depth' | 'context' | 'search_signal' | 'skipped_at'>,
+  skill: Pick<ProfessionalSkillItem, 'depth' | 'context' | 'positioning' | 'skipped_at'>,
 ): IdentityEnrichmentStatus => {
-  if (skill.depth && hasContent(skill.context) && hasContent(skill.search_signal)) {
+  if (skill.depth && hasContent(skill.context) && hasContent(skill.positioning)) {
     return 'complete'
   }
 

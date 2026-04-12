@@ -40,7 +40,7 @@ export interface SkillCatalogEntry {
   category: SearchSkillCategory
   depth: SearchSkillDepth
   context?: string
-  searchSignal?: string
+  positioning?: string
 }
 
 export interface VectorSearchConfig {

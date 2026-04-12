@@ -250,7 +250,7 @@ describe('professional identity schema', () => {
       ...enriched.skills.groups[0].items[0],
       depth: 'expert',
       context: 'Primary language across multiple platform roles.',
-      search_signal: 'Strong match signal. List first.',
+      positioning: 'Strong match signal. List first.',
       enriched_at: '2026-04-08T14:23:17Z',
       enriched_by: 'user-edited-llm',
     }
@@ -294,7 +294,7 @@ describe('professional identity schema', () => {
     expect(parsed.data.skills.groups[0]?.is_differentiator).toBe(true)
     expect(parsed.data.skills.groups[0]?.items[0]?.depth).toBe('expert')
     expect(parsed.data.skills.groups[0]?.items[0]?.context).toContain('Primary language')
-    expect(parsed.data.skills.groups[0]?.items[0]?.search_signal).toContain('List first')
+    expect(parsed.data.skills.groups[0]?.items[0]?.positioning).toContain('List first')
     expect(parsed.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
     expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBe('avoid')
     expect(parsed.data.preferences.constraints?.clearance?.status).toBe('none')
@@ -322,6 +322,24 @@ describe('professional identity schema', () => {
     )
     expect(parsed.data.skill_groups[0]?.content).toBe('TypeScript, Python')
     expect(parsed.warnings.some((warning) => warning.includes('Schema v3.1'))).toBe(true)
+  })
+
+  it('imports legacy search_signal data as positioning', () => {
+    const legacy = clone(baseIdentityFixture) as typeof baseIdentityFixture & {
+      skills: {
+        groups: Array<{
+          items: Array<Record<string, unknown>>
+        }>
+      }
+    }
+    legacy.skills.groups[0]!.items[0] = {
+      ...legacy.skills.groups[0]!.items[0],
+      search_signal: 'Strong match signal. List first.',
+    }
+
+    const parsed = importProfessionalIdentity(legacy)
+
+    expect(parsed.data.skills.groups[0]?.items[0]?.positioning).toBe('Strong match signal. List first.')
   })
 
   it('rejects unsupported schema versions', () => {

@@ -114,7 +114,7 @@ interface IdentityState {
     updates: {
       depth: ProfessionalSkillDepth
       context: string
-      search_signal: string
+      positioning: string
     },
     enrichedBy: ProfessionalSkillEnrichedBy,
   ) => void
@@ -405,12 +405,23 @@ const normalizePersistedIdentityState = (
           ...state.draft,
           identity: normalizeRuntimeProfessionalIdentity(state.draft.identity),
         }
+  const resolveDraftDocument = (fallbackIdentity?: ProfessionalIdentityV3) =>
+    draft === null || draft === undefined
+      ? currentIdentity
+        ? formatIdentityDocument(currentIdentity)
+        : fallbackIdentity
+          ? formatIdentityDocument(fallbackIdentity)
+          : state.draftDocument
+      : state.draftDocument?.includes('"search_signal"')
+        ? formatIdentityDocument(draft.identity)
+        : state.draftDocument
 
   if (!state.scanResult) {
     return {
       ...state,
       currentIdentity,
       draft,
+      draftDocument: resolveDraftDocument(),
     }
   }
 
@@ -421,6 +432,7 @@ const normalizePersistedIdentityState = (
     ...state,
     currentIdentity,
     draft,
+    draftDocument: resolveDraftDocument(identity),
     scanResult: {
       ...state.scanResult,
       identity,
@@ -428,6 +440,23 @@ const normalizePersistedIdentityState = (
       counts: recalculateScanCounts(identity, progress),
     },
   }
+}
+
+const unwrapPersistedIdentityState = (
+  persistedState: unknown,
+): (Partial<IdentityState> & { scanResult?: ResumeScanResult | null }) | null => {
+  if (typeof persistedState !== 'object' || persistedState === null) {
+    return null
+  }
+
+  if ('state' in persistedState) {
+    const envelope = persistedState as { state?: unknown }
+    if (typeof envelope.state === 'object' && envelope.state !== null) {
+      return envelope.state as Partial<IdentityState> & { scanResult?: ResumeScanResult | null }
+    }
+  }
+
+  return persistedState as Partial<IdentityState> & { scanResult?: ResumeScanResult | null }
 }
 
 const updateCurrentIdentity = (
@@ -1021,7 +1050,7 @@ export const useIdentityStore = create<IdentityState>()(
               ...skill,
               depth: updates.depth,
               context: updates.context.trim(),
-              search_signal: updates.search_signal.trim(),
+              positioning: updates.positioning.trim(),
               enriched_at: new Date().toISOString(),
               enriched_by: enrichedBy,
               skipped_at: undefined,
@@ -1146,20 +1175,22 @@ export const useIdentityStore = create<IdentityState>()(
         changelog: state.changelog,
       }),
       migrate: (persistedState: unknown) => {
-        if (typeof persistedState !== 'object' || persistedState === null) {
+        const state = unwrapPersistedIdentityState(persistedState)
+        if (!state) {
           return persistedState
         }
-
-        const state = persistedState as Partial<IdentityState> & { scanResult?: ResumeScanResult | null }
         return normalizePersistedIdentityState(state)
       },
       merge: (persistedState, currentState) => {
-        if (
-          typeof persistedState !== 'object' ||
-          persistedState === null ||
-          !('currentIdentity' in persistedState || 'draft' in persistedState || 'scanResult' in persistedState)
-        ) {
-          const state = persistedState as Partial<IdentityState>
+        const state = unwrapPersistedIdentityState(persistedState)
+        if (!state) {
+          return {
+            ...currentState,
+            ...(persistedState as Partial<IdentityState>),
+          }
+        }
+
+        if (!('currentIdentity' in state || 'draft' in state || 'scanResult' in state)) {
           return {
             ...currentState,
             ...state,
@@ -1167,9 +1198,6 @@ export const useIdentityStore = create<IdentityState>()(
         }
 
         // Same-version persisted snapshots skip migrate(), so merge() must normalize too.
-        const state = persistedState as Partial<IdentityState> & {
-          scanResult?: ResumeScanResult | null
-        }
         return {
           ...currentState,
           ...normalizePersistedIdentityState(state),

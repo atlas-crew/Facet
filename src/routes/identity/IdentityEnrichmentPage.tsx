@@ -120,7 +120,7 @@ export function IdentityEnrichmentPage() {
           <p className="identity-eyebrow">Phase 0</p>
           <h1>Skill Enrichment</h1>
           <p className="identity-copy">
-            Let AI draft skill depth, grounded context, and recruiter-readable search signals, then
+            Let AI draft skill depth, grounded context, and recruiter-readable positioning notes, then
             correct anything before you save. Downstream workflows should only trust the skills you
             have reviewed.
           </p>

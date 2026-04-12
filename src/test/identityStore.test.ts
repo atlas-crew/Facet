@@ -291,7 +291,7 @@ describe('identityStore skill enrichment', () => {
             name: 'Terraform',
             tags: ['platform', 'iac'],
             context: 'Provisioned cloud and on-prem infrastructure.',
-            search_signal: 'Infrastructure as code and platform automation.',
+            positioning: 'Infrastructure as code and platform automation.',
           },
         ],
       },
@@ -352,7 +352,7 @@ describe('identityStore skill enrichment', () => {
       {
         depth: 'strong',
         context: 'Used for customer-hosted and internal platform delivery.',
-        search_signal: 'Platform modernization and Kubernetes operations.',
+        positioning: 'Platform modernization and Kubernetes operations.',
       },
       'user',
     )
@@ -361,7 +361,7 @@ describe('identityStore skill enrichment', () => {
     expect(skill).toMatchObject({
       depth: 'strong',
       context: 'Used for customer-hosted and internal platform delivery.',
-      search_signal: 'Platform modernization and Kubernetes operations.',
+      positioning: 'Platform modernization and Kubernetes operations.',
       enriched_by: 'user',
     })
     expect(skill?.enriched_at).toBeTruthy()
@@ -380,7 +380,7 @@ describe('identityStore skill enrichment', () => {
       {
         depth: 'strong',
         context: 'Used for customer-hosted and internal platform delivery.',
-        search_signal: 'Platform modernization and Kubernetes operations.',
+        positioning: 'Platform modernization and Kubernetes operations.',
       },
       'llm-accepted',
     )
@@ -390,7 +390,7 @@ describe('identityStore skill enrichment', () => {
       {
         depth: 'working',
         context: 'Provisioned cloud and on-prem infrastructure.',
-        search_signal: 'Infrastructure as code and platform automation.',
+        positioning: 'Infrastructure as code and platform automation.',
       },
       'user-edited-llm',
     )
@@ -412,7 +412,7 @@ describe('identityStore skill enrichment', () => {
     const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
     expect(skill?.depth).toBe('working')
     expect(skill?.context).toBe('Provisioned cloud and on-prem infrastructure.')
-    expect(skill?.search_signal).toBe('Infrastructure as code and platform automation.')
+    expect(skill?.positioning).toBe('Infrastructure as code and platform automation.')
     expect(skill?.skipped_at).toBeTruthy()
   })
 
@@ -429,7 +429,7 @@ describe('identityStore skill enrichment', () => {
       {
         depth: 'strong',
         context: 'Used for customer-hosted and internal platform delivery.',
-        search_signal: 'Platform modernization and Kubernetes operations.',
+        positioning: 'Platform modernization and Kubernetes operations.',
       },
       'user',
     )
@@ -449,7 +449,7 @@ describe('identityStore skill enrichment', () => {
       {
         depth: 'strong',
         context: 'Used for customer-hosted and internal platform delivery.',
-        search_signal: 'Platform modernization and Kubernetes operations.',
+        positioning: 'Platform modernization and Kubernetes operations.',
       },
       'user',
     )
@@ -468,8 +468,93 @@ describe('identityStore skill enrichment', () => {
     const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
     expect(skill).toMatchObject({
       depth: 'strong',
+      positioning: 'Platform modernization and Kubernetes operations.',
       enriched_by: 'user',
     })
+  })
+
+  it('migrates legacy search_signal enrichment data into positioning on rehydrate', async () => {
+    const legacyIdentity = createIdentity()
+    const legacySkill = legacyIdentity.skills.groups[0]!.items[0] as typeof legacyIdentity.skills.groups[0]['items'][number] & {
+      search_signal?: string
+    }
+    legacySkill.search_signal = 'Legacy positioning copy.'
+
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draftDocument: '',
+    })
+
+    await resolveStorage().setItem(
+      'facet-identity-workspace',
+      JSON.stringify({
+        state: {
+          intakeMode: 'upload',
+          sourceMaterial: '',
+          correctionNotes: '',
+          currentIdentity: legacyIdentity,
+          draft: null,
+          draftDocument: '',
+          scanResult: null,
+          warnings: [],
+          changelog: [],
+        },
+        version: 4,
+      }),
+    )
+
+    await useIdentityStore.persist.rehydrate()
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill?.positioning).toBe('Legacy positioning copy.')
+    expect(useIdentityStore.getState().draftDocument).toContain('"positioning": "Legacy positioning copy."')
+  })
+
+  it('refreshes draftDocument when a persisted draft still uses search_signal', async () => {
+    const legacyDraftIdentity = createIdentity()
+    const legacyDraftSkill = legacyDraftIdentity.skills.groups[0]!.items[0] as typeof legacyDraftIdentity.skills.groups[0]['items'][number] & {
+      search_signal?: string
+    }
+    legacyDraftSkill.search_signal = 'Legacy draft positioning.'
+
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draft: null,
+      draftDocument: '',
+    })
+
+    await resolveStorage().setItem(
+      'facet-identity-workspace',
+      JSON.stringify({
+        state: {
+          intakeMode: 'upload',
+          sourceMaterial: '',
+          correctionNotes: '',
+          currentIdentity: null,
+          draft: {
+            generatedAt: '2026-04-12T15:00:00.000Z',
+            summary: 'Draft summary',
+            followUpQuestions: [],
+            identity: legacyDraftIdentity,
+            bullets: [],
+            warnings: [],
+          },
+          draftDocument: JSON.stringify(legacyDraftIdentity, null, 2),
+          scanResult: null,
+          warnings: [],
+          changelog: [],
+        },
+        version: 4,
+      }),
+    )
+
+    await useIdentityStore.persist.rehydrate()
+
+    expect(useIdentityStore.getState().draft?.identity.skills.groups[0]?.items[0]?.positioning).toBe(
+      'Legacy draft positioning.',
+    )
+    expect(useIdentityStore.getState().draftDocument).toContain('"positioning": "Legacy draft positioning."')
+    expect(useIdentityStore.getState().draftDocument).not.toContain('"search_signal"')
   })
 
   it('normalizes persisted numeric schema_revision values on rehydrate', async () => {

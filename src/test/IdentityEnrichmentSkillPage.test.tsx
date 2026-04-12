@@ -60,7 +60,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValue({
       depth: 'strong',
       context: 'Used for customer-hosted and internal platform delivery.',
-      searchSignal: 'Platform modernization and Kubernetes operations.',
+      positioning: 'Platform modernization and Kubernetes operations.',
     })
     resolveStorage().removeItem('facet-identity-workspace')
     facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
@@ -93,7 +93,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     expect(screen.getByText(/The AI should draft all three fields first/i)).toBeTruthy()
     expect(screen.getByLabelText('Depth')).toBeTruthy()
     expect(screen.getByLabelText('Context')).toBeTruthy()
-    expect(screen.getByLabelText('Search Signal')).toBeTruthy()
+    expect(screen.getByLabelText('Positioning')).toBeTruthy()
   })
 
   it('lets users navigate to the previous and next skills in sequence', async () => {
@@ -128,7 +128,7 @@ describe('IdentityEnrichmentSkillPage', () => {
                   name: 'Kubernetes',
                   depth: 'strong',
                   context: 'Used for customer-hosted and internal platform delivery.',
-                  search_signal: 'Platform modernization and Kubernetes operations.',
+                  positioning: 'Platform modernization and Kubernetes operations.',
                   tags: ['platform', 'kubernetes'],
                 },
                 {
@@ -156,7 +156,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     fireEvent.change(screen.getByLabelText('Context'), {
       target: { value: 'Used for customer-hosted and internal platform delivery.' },
     })
-    fireEvent.change(screen.getByLabelText('Search Signal'), {
+    fireEvent.change(screen.getByLabelText('Positioning'), {
       target: { value: 'Platform modernization and Kubernetes operations.' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Save and continue' })[0]!)
@@ -207,7 +207,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     fireEvent.change(screen.getByLabelText('Context'), {
       target: { value: 'Used for customer-hosted and internal platform delivery.' },
     })
-    fireEvent.change(screen.getByLabelText('Search Signal'), {
+    fireEvent.change(screen.getByLabelText('Positioning'), {
       target: { value: 'Platform modernization and Kubernetes operations.' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
@@ -240,7 +240,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
       depth: 'strong',
       context: 'Used for customer-hosted and internal platform delivery.',
-      search_signal: 'Platform modernization and Kubernetes operations.',
+      positioning: 'Platform modernization and Kubernetes operations.',
       enriched_by: 'llm-accepted',
     })
   })

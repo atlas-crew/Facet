@@ -307,7 +307,7 @@ describe('identityMerge', () => {
           ...current.skills.groups[0].items[0],
           depth: 'expert',
           context: 'Primary language across platform roles.',
-          search_signal: 'Lead with this skill.',
+          positioning: 'Lead with this skill.',
           enriched_at: '2026-04-08T14:23:17Z',
           enriched_by: 'user-edited-llm',
         },
@@ -322,7 +322,7 @@ describe('identityMerge', () => {
     expect(merged.data.skills.groups[0]?.is_differentiator).toBe(true)
     expect(merged.data.skills.groups[0]?.items[0]?.depth).toBe('expert')
     expect(merged.data.skills.groups[0]?.items[0]?.context).toContain('Primary language')
-    expect(merged.data.skills.groups[0]?.items[0]?.search_signal).toContain('Lead with this skill')
+    expect(merged.data.skills.groups[0]?.items[0]?.positioning).toContain('Lead with this skill')
     expect(merged.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
   })
 
@@ -350,7 +350,7 @@ describe('identityMerge', () => {
           ...current.skills.groups[0].items[0],
           depth: 'expert',
           context: 'Primary language across platform roles.',
-          search_signal: 'Lead with this skill.',
+          positioning: 'Lead with this skill.',
           enriched_at: '2026-04-08T14:23:17Z',
           enriched_by: 'user-edited-llm',
           skipped_at: '2026-04-08T14:25:01Z',
@@ -372,7 +372,7 @@ describe('identityMerge', () => {
                 name: 'TypeScript',
                 depth: null,
                 context: null,
-                search_signal: null,
+                positioning: null,
                 tags: ['platform'],
                 enriched_at: null,
                 enriched_by: null,
@@ -390,7 +390,7 @@ describe('identityMerge', () => {
     expect(merged.data.skills.groups[0]?.is_differentiator).toBeUndefined()
     expect(merged.data.skills.groups[0]?.items[0]?.depth).toBeUndefined()
     expect(merged.data.skills.groups[0]?.items[0]?.context).toBeUndefined()
-    expect(merged.data.skills.groups[0]?.items[0]?.search_signal).toBeUndefined()
+    expect(merged.data.skills.groups[0]?.items[0]?.positioning).toBeUndefined()
     expect(merged.data.skills.groups[0]?.items[0]?.enriched_at).toBeUndefined()
     expect(merged.data.skills.groups[0]?.items[0]?.enriched_by).toBeUndefined()
     expect(merged.data.skills.groups[0]?.items[0]?.skipped_at).toBeUndefined()

@@ -46,7 +46,7 @@ describe('IdentityEnrichmentPage', () => {
             name: 'Kubernetes',
             depth: 'strong',
             context: 'Used for customer-hosted deployments.',
-            search_signal: 'Platform modernization and Kubernetes operations.',
+            positioning: 'Platform modernization and Kubernetes operations.',
             tags: ['platform', 'kubernetes'],
           },
           {

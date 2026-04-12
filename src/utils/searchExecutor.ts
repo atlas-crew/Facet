@@ -253,7 +253,7 @@ export function buildSearchPrompt(profile: SearchProfile, request: SearchRequest
       name: skill.name,
       depth: skill.depth,
       category: skill.category,
-      searchSignal: skill.searchSignal,
+      positioning: skill.positioning,
     }))
 
   const activeVectors =

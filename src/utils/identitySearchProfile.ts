@@ -86,7 +86,7 @@ const buildSkills = (
       category: inferSkillCategory(group.label, item.tags),
       depth: item.depth ?? 'working',
       context: item.context,
-      searchSignal: item.search_signal,
+      positioning: item.positioning,
     })),
   )
 

@@ -88,7 +88,7 @@ const analysisFixture: VectorAwareMatchResult = {
       jdRequirement: 'Own Kubernetes-backed platform delivery.',
       requirementStrength: 'required',
       userDepth: 'strong',
-      userSearchSignal: 'Lead with Kubernetes platform migration stories.',
+      userPositioning: 'Lead with Kubernetes platform migration stories.',
       matchQuality: 'strong',
       presentationGuidance: 'Lead with Kubernetes platform migration stories.',
     },

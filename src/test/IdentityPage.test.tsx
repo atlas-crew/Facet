@@ -1118,7 +1118,7 @@ describe("IdentityPage", () => {
         tags: ["platform", "kubernetes"],
         depth: "strong",
         context: "Used for customer-hosted deployments.",
-        search_signal: "Platform modernization and Kubernetes operations.",
+        positioning: "Platform modernization and Kubernetes operations.",
       },
       {
         name: "Terraform",
@@ -1141,13 +1141,16 @@ describe("IdentityPage", () => {
     ).toBe("true");
     expect(screen.getByRole("tab", { name: "Strategy" })).toBeTruthy();
     expect(
-      screen.getAllByRole("button", { name: "Continue Skill Enrichment" })
+      screen.getAllByRole("button", { name: "Open Skill Depth Wizard" })
         .length,
     ).toBeGreaterThan(0);
     expect(screen.getByText("Skill Enrichment")).toBeTruthy();
     expect(screen.getByText(/Pending 1/i)).toBeTruthy();
     expect(screen.getByText(/Complete 1/i)).toBeTruthy();
     expect(screen.getByText(/Skipped 1/i)).toBeTruthy();
+    expect(
+      screen.getByText(/Open the skill depth wizard to review depth, context, and search signals/i),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Strategy" }));
 
@@ -1167,6 +1170,35 @@ describe("IdentityPage", () => {
       screen.getByRole("tab", { name: "Search Preferences" }),
     ).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Search Brief" })).toBeTruthy();
+  });
+
+  it("keeps the skill depth wizard entry visible when a draft exists alongside the current identity", () => {
+    const currentIdentity = cloneIdentityFixture();
+    currentIdentity.skills.groups[0].items = [
+      {
+        name: "Kubernetes",
+        tags: ["platform", "cloud"],
+      },
+    ];
+
+    useIdentityStore.setState({
+      currentIdentity,
+      draft: {
+        generatedAt: "2026-04-12T14:00:00.000Z",
+        summary: "Draft ready.",
+        followUpQuestions: [],
+        identity: cloneIdentityFixture(),
+        bullets: [],
+        warnings: [],
+      },
+    });
+
+    render(<IdentityPage />);
+
+    expect(screen.getByText("Skill Enrichment")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open Skill Depth Wizard" }),
+    ).toBeTruthy();
   });
 
   it("uses a wider workbench layout and keeps the model builder compact before a draft exists", () => {

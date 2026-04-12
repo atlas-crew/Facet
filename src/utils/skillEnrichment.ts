@@ -14,7 +14,7 @@ export { JsonExtractionError }
 export interface SkillEnrichmentSuggestion {
   depth: ProfessionalSkillDepth
   context: string
-  searchSignal: string
+  positioning: string
 }
 
 interface SkillEvidenceSnippet {
@@ -135,7 +135,7 @@ const collectEvidence = (
         [
           group.positioning ? `Positioning: ${group.positioning}` : '',
           skill.context ? `Existing context: ${skill.context}` : '',
-          skill.search_signal ? `Existing search signal: ${skill.search_signal}` : '',
+          skill.positioning ? `Existing positioning: ${skill.positioning}` : '',
         ]
           .filter(Boolean)
           .join(' '),
@@ -172,7 +172,7 @@ const buildPrompt = (
         tags: skill.tags,
         existingDepth: skill.depth ?? null,
         existingContext: skill.context ?? null,
-        existingSearchSignal: skill.search_signal ?? null,
+        existingPositioning: skill.positioning ?? null,
       },
       evidence,
     },
@@ -185,8 +185,8 @@ const normalizeSuggestion = (payload: unknown): SkillEnrichmentSuggestion => {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const depth = isString(record.depth) ? record.depth.trim().toLowerCase() : ''
   const context = isString(record.context) ? normalizeSpace(record.context) : ''
-  const rawSearchSignal = record.searchSignal ?? record.search_signal
-  const searchSignal = isString(rawSearchSignal) ? normalizeSpace(rawSearchSignal) : ''
+  const rawPositioning = record.positioning ?? record.searchSignal ?? record.search_signal
+  const positioning = isString(rawPositioning) ? normalizeSpace(rawPositioning) : ''
 
   if (!VALID_DEPTHS.has(depth as ProfessionalSkillDepth)) {
     throw new Error(`Invalid skill depth in enrichment suggestion: "${depth || 'missing'}".`)
@@ -196,14 +196,14 @@ const normalizeSuggestion = (payload: unknown): SkillEnrichmentSuggestion => {
     throw new Error('Missing required field in enrichment suggestion: context.')
   }
 
-  if (!searchSignal) {
-    throw new Error('Missing required field in enrichment suggestion: searchSignal.')
+  if (!positioning) {
+    throw new Error('Missing required field in enrichment suggestion: positioning.')
   }
 
   return {
     depth: depth as ProfessionalSkillDepth,
     context,
-    searchSignal,
+    positioning,
   }
 }
 
@@ -224,7 +224,7 @@ Response schema:
 {
   "depth": "expert|strong|working|basic|avoid",
   "context": "string",
-  "searchSignal": "string"
+  "positioning": "string"
 }`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildPrompt(identity, group, skill), {

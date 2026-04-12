@@ -85,7 +85,11 @@ function normalizeSkills(value: unknown): SkillCatalogEntry[] {
         category,
         depth: depth as SearchSkillDepth,
         context: isString(record.context) ? record.context.trim() : undefined,
-        searchSignal: isString(record.searchSignal) ? record.searchSignal.trim() : undefined,
+        positioning: isString(record.positioning)
+          ? record.positioning.trim()
+          : isString(record.searchSignal)
+            ? record.searchSignal.trim()
+            : undefined,
       },
     ]
   })
@@ -237,7 +241,7 @@ Response schema:
       "category": "backend|frontend|platform|devops|cloud|data|ai-ml|security|architecture|leadership|product|domain|other",
       "depth": "expert|strong|working|basic|avoid",
       "context": "optional string",
-      "searchSignal": "optional string"
+      "positioning": "optional string"
     }
   ],
   "vectors": [

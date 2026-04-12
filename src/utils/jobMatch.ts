@@ -322,7 +322,7 @@ const tokenizeText = (value: string): string[] =>
   )
 
 const escapeRegExp = (value: string): string =>
-  value.replace(/[|\\{}()\[\]^$+*?.-]/g, '\\$&')
+  value.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&')
 
 const containsNormalizedPhrase = (haystack: string, needle: string): boolean => {
   const normalizedNeedle = normalizeSearchText(needle)
@@ -470,7 +470,7 @@ const buildIdentityContext = (identity: ProfessionalIdentityV3) => ({
       name: item.name,
       tags: item.tags,
       depth: item.depth ?? null,
-      search_signal: item.search_signal ?? null,
+      positioning: item.positioning ?? null,
     })),
   })),
   search_vectors: identity.search_vectors ?? [],
@@ -1300,7 +1300,7 @@ const buildSkillPrompt = ({
         group: candidate.groupLabel,
         user_depth: deriveUserDepth(candidate.item),
         context: candidate.item.context ?? '',
-        search_signal: candidate.item.search_signal ?? '',
+        positioning: candidate.item.positioning ?? '',
         jd_requirement_strength: candidate.requirementStrength,
         related_requirements: candidate.relatedRequirements.map((requirement) => ({
           label: requirement.label,
@@ -1346,7 +1346,7 @@ export const normalizeSkillMatchPayload = ({
     }
     seen.add(candidate.name.toLowerCase())
     const userDepth = deriveUserDepth(candidate.item)
-    const userSearchSignal = candidate.item.search_signal?.trim() ?? ''
+    const userPositioning = candidate.item.positioning?.trim() ?? ''
 
     skillMatches.push({
       skillName: candidate.name,
@@ -1356,7 +1356,7 @@ export const normalizeSkillMatchPayload = ({
         'JD mentions or implies ' + candidate.name + '.',
       requirementStrength: candidate.requirementStrength,
       userDepth,
-      userSearchSignal,
+      userPositioning,
       matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
       presentationGuidance:
         String(record.presentation_guidance ?? '').trim() ||
@@ -1364,7 +1364,7 @@ export const normalizeSkillMatchPayload = ({
           candidate.name,
           userDepth,
           candidate.requirementStrength,
-          userSearchSignal,
+          userPositioning,
         ),
     })
   }
@@ -1372,7 +1372,7 @@ export const normalizeSkillMatchPayload = ({
   for (const candidate of candidates) {
     if (seen.has(candidate.name.toLowerCase())) continue
     const userDepth = deriveUserDepth(candidate.item)
-    const userSearchSignal = candidate.item.search_signal?.trim() ?? ''
+    const userPositioning = candidate.item.positioning?.trim() ?? ''
     skillMatches.push({
       skillName: candidate.name,
       jdRequirement:
@@ -1380,13 +1380,13 @@ export const normalizeSkillMatchPayload = ({
         'JD mentions or implies ' + candidate.name + '.',
       requirementStrength: candidate.requirementStrength,
       userDepth,
-      userSearchSignal,
+      userPositioning,
       matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
       presentationGuidance: buildFallbackSkillGuidance(
         candidate.name,
         userDepth,
         candidate.requirementStrength,
-        userSearchSignal,
+        userPositioning,
       ),
     })
   }
@@ -1948,13 +1948,13 @@ export const analyzeIdentityJobMatch = async ({
                     'JD mentions or implies ' + candidate.name + '.',
                   requirementStrength: candidate.requirementStrength,
                   userDepth,
-                  userSearchSignal: candidate.item.search_signal?.trim() ?? '',
+                  userPositioning: candidate.item.positioning?.trim() ?? '',
                   matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
                   presentationGuidance: buildFallbackSkillGuidance(
                     candidate.name,
                     userDepth,
                     candidate.requirementStrength,
-                    candidate.item.search_signal?.trim() ?? '',
+                    candidate.item.positioning?.trim() ?? '',
                   ),
                 }
               }),

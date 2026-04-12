@@ -23,11 +23,11 @@ const DEPTH_OPTIONS: ProfessionalSkillDepth[] = ['expert', 'strong', 'working', 
 const toSuggestion = (
   depth: ProfessionalSkillDepth,
   context: string,
-  searchSignal: string,
+  positioning: string,
 ): SkillEnrichmentSuggestion => ({
   depth,
   context: context.trim(),
-  searchSignal: searchSignal.trim(),
+  positioning: positioning.trim(),
 })
 
 const areSuggestionsEqual = (
@@ -38,7 +38,7 @@ const areSuggestionsEqual = (
     left &&
       left.depth === right.depth &&
       left.context === right.context &&
-      left.searchSignal === right.searchSignal,
+      left.positioning === right.positioning,
   )
 
 export function IdentityEnrichmentSkillPage() {
@@ -61,15 +61,22 @@ export function IdentityEnrichmentSkillPage() {
     () => (currentIdentity ? getIdentityEnrichmentProgress(currentIdentity) : null),
     [currentIdentity],
   )
+  const adjacentSkills = useMemo(
+    () =>
+      currentIdentity
+        ? findAdjacentIdentityEnrichmentSkills(currentIdentity, { groupId, skillName })
+        : { previous: null, next: null },
+    [currentIdentity, groupId, skillName],
+  )
   const fieldBaseId = useId()
   const depthFieldId = `${fieldBaseId}-depth`
   const contextFieldId = `${fieldBaseId}-context`
-  const searchSignalFieldId = `${fieldBaseId}-search-signal`
+  const positioningFieldId = `${fieldBaseId}-positioning`
   const errorId = `${fieldBaseId}-error`
 
   const [depth, setDepth] = useState<ProfessionalSkillDepth>('working')
   const [context, setContext] = useState('')
-  const [searchSignal, setSearchSignal] = useState('')
+  const [positioning, setPositioning] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -84,7 +91,7 @@ export function IdentityEnrichmentSkillPage() {
 
     setDepth(resolved.skill.depth ?? 'working')
     setContext(resolved.skill.context ?? '')
-    setSearchSignal(resolved.skill.search_signal ?? '')
+    setPositioning(resolved.skill.positioning ?? '')
     setNotice(null)
     setError(null)
     setLastSuggestion(null)
@@ -120,20 +127,16 @@ export function IdentityEnrichmentSkillPage() {
   const currentStatus = getSkillEnrichmentStatus({
     depth,
     context,
-    search_signal: searchSignal,
+    positioning,
     skipped_at: resolved.skill.skipped_at,
   })
   const skipDisabled = resolved.status === 'complete'
   const isDirty =
     depth !== (resolved.skill.depth ?? 'working') ||
     context !== (resolved.skill.context ?? '') ||
-    searchSignal !== (resolved.skill.search_signal ?? '')
+    positioning !== (resolved.skill.positioning ?? '')
   const isContextInvalid = Boolean(error && !context.trim())
-  const isSearchSignalInvalid = Boolean(error && !searchSignal.trim())
-  const adjacentSkills = useMemo(
-    () => findAdjacentIdentityEnrichmentSkills(currentIdentity, { groupId, skillName }),
-    [currentIdentity, groupId, skillName],
-  )
+  const isPositioningInvalid = Boolean(error && !positioning.trim())
   const previousSkill = adjacentSkills.previous
   const nextSkill = adjacentSkills.next
 
@@ -163,7 +166,7 @@ export function IdentityEnrichmentSkillPage() {
       ...skill,
       depth,
       context: context.trim(),
-      search_signal: searchSignal.trim(),
+      positioning: positioning.trim(),
       skipped_at: undefined,
     }))
 
@@ -196,7 +199,7 @@ export function IdentityEnrichmentSkillPage() {
 
       setDepth(suggestion.depth)
       setContext(suggestion.context)
-      setSearchSignal(suggestion.searchSignal)
+      setPositioning(suggestion.positioning)
       setLastSuggestion(suggestion)
       setNotice('Applied AI suggestions. Review them before saving.')
     } catch (caughtError) {
@@ -215,14 +218,14 @@ export function IdentityEnrichmentSkillPage() {
 
   const handleSave = (mode: 'continue' | 'exit') => {
     const nextContext = context.trim()
-    const nextSearchSignal = searchSignal.trim()
-    if (!nextContext || !nextSearchSignal) {
-      setError('Context and search signal are required before saving this skill.')
+    const nextPositioning = positioning.trim()
+    if (!nextContext || !nextPositioning) {
+      setError('Context and positioning are required before saving this skill.')
       setNotice(null)
       return
     }
 
-    const suggestion = toSuggestion(depth, nextContext, nextSearchSignal)
+    const suggestion = toSuggestion(depth, nextContext, nextPositioning)
     const enrichedBy = !lastSuggestion
       ? 'user'
       : areSuggestionsEqual(lastSuggestion, suggestion)
@@ -235,7 +238,7 @@ export function IdentityEnrichmentSkillPage() {
       {
         depth,
         context: nextContext,
-        search_signal: nextSearchSignal,
+        positioning: nextPositioning,
       },
       enrichedBy,
     )
@@ -360,7 +363,7 @@ export function IdentityEnrichmentSkillPage() {
           </p>
           <p className="identity-scan-guess-text">
             <strong>Depth</strong> and <strong>Context</strong> are first-pass guesses you can
-            correct. <strong>Search Signal</strong> is an AI-derived positioning line that you can
+            correct. <strong>Positioning</strong> is an AI-derived positioning line that you can
             refine before saving.
           </p>
         </div>
@@ -394,16 +397,16 @@ export function IdentityEnrichmentSkillPage() {
           />
         </label>
 
-        <label className="identity-field" htmlFor={searchSignalFieldId}>
-          <span className="identity-label">Search Signal</span>
+        <label className="identity-field" htmlFor={positioningFieldId}>
+          <span className="identity-label">Positioning</span>
           <textarea
-            id={searchSignalFieldId}
+            id={positioningFieldId}
             className="identity-textarea"
             placeholder="AI should draft the recruiter-readable signal this skill should send in search and matching."
-            aria-invalid={isSearchSignalInvalid || undefined}
-            aria-describedby={isSearchSignalInvalid ? errorId : undefined}
-            value={searchSignal}
-            onChange={(event) => setSearchSignal(event.target.value)}
+            aria-invalid={isPositioningInvalid || undefined}
+            aria-describedby={isPositioningInvalid ? errorId : undefined}
+            value={positioning}
+            onChange={(event) => setPositioning(event.target.value)}
           />
         </label>
 
