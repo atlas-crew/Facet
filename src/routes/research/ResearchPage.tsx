@@ -117,7 +117,7 @@ export function ResearchPage() {
             openQuestions: profile?.source?.kind === 'identity' ? profile.openQuestions : undefined,
           })
         : null,
-    [currentIdentity, profile?.openQuestions, profile?.source?.kind, profile?.workSummary, resumeData.version],
+    [currentIdentity, profile, resumeData.version],
   )
 
   const effectiveProfile = currentIdentity ? identityDerivedProfile : profile ?? null
@@ -128,18 +128,7 @@ export function ResearchPage() {
     }
 
     return serializeIdentityProfile(profile)
-  }, [
-    profileSourceKind,
-    profile?.constraints,
-    profile?.filters,
-    profile?.inferredFromResumeVersion,
-    profile?.interviewPrefs,
-    profile?.openQuestions,
-    profile?.skills,
-    profile?.source?.label,
-    profile?.vectors,
-    profile?.workSummary,
-  ])
+  }, [profile, profileSourceKind])
   const isIdentitySource = effectiveProfile?.source?.kind === 'identity'
   const executableProfile = useMemo(
     () =>

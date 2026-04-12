@@ -197,13 +197,8 @@ const AccuracyRuleRow = ({ ruleKey, value, onCommit, onRemove }: {
   onCommit: (currentKey: string, nextKey: string, nextValue: string) => void
   onRemove: (currentKey: string) => void
 }) => {
-  const [keyDraft, setKeyDraft] = useState(ruleKey)
-  const [valueDraft, setValueDraft] = useState(formatAccuracyValue(value))
-
-  useEffect(() => {
-    setKeyDraft(ruleKey)
-    setValueDraft(formatAccuracyValue(value))
-  }, [ruleKey, value])
+  const [keyDraft, setKeyDraft] = useState(() => ruleKey)
+  const [valueDraft, setValueDraft] = useState(() => formatAccuracyValue(value))
 
   const commit = () => onCommit(ruleKey, keyDraft, valueDraft)
 
@@ -855,7 +850,7 @@ export function IdentityStrategyWorkbench({
             <div className="identity-stack">
               {accuracyEntries.map(([key, value]) => (
                 <AccuracyRuleRow
-                  key={key}
+                  key={`${key}:${formatAccuracyValue(value)}`}
                   ruleKey={key}
                   value={value}
                   onCommit={commitAccuracyRule}
