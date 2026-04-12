@@ -305,6 +305,10 @@ export const normalizeRuntimeIdentitySchemaRevision = <T>(value: T): T => {
   } as T
 }
 
+export const normalizeRuntimeProfessionalIdentity = (
+  identity: ProfessionalIdentityV3,
+): ProfessionalIdentityV3 => normalizeRuntimeIdentitySchemaRevision(identity)
+
 const assertArray = (value: unknown, context: string): unknown[] => {
   if (!Array.isArray(value)) {
     throw new Error(`${context} must be an array.`)

@@ -4,6 +4,7 @@ import {
   MATCHING_WEIGHT_VALUES,
   SEARCH_VECTOR_PRIORITY_VALUES,
   importProfessionalIdentity,
+  normalizeRuntimeProfessionalIdentity,
   type ProfessionalIdentityV3,
 } from '../identity/schema'
 import type {
@@ -1390,10 +1391,16 @@ export const deepenIdentityBullet = async ({
   correctionNotes?: string
   signal?: AbortSignal
 }): Promise<IdentityDeepenedBullet> => {
+  const normalizedIdentity = normalizeRuntimeProfessionalIdentity(identity)
   const rawResponse = await callLlmProxy(
     endpoint,
     BULLET_DEEPENING_SYSTEM_PROMPT,
-    buildDeepenBulletPrompt({ identity, roleId, bulletId, correctionNotes }),
+    buildDeepenBulletPrompt({
+      identity: normalizedIdentity,
+      roleId,
+      bulletId,
+      correctionNotes,
+    }),
     {
       feature: 'identity.deepen',
       model: 'sonnet',
@@ -1403,7 +1410,7 @@ export const deepenIdentityBullet = async ({
     },
   )
 
-  const result = parseDeepenIdentityBulletResponse(rawResponse, identity)
+  const result = parseDeepenIdentityBulletResponse(rawResponse, normalizedIdentity)
   if (result.roleId !== roleId || result.bulletId !== bulletId) {
     throw new Error(
       `Deepening response targeted ${result.roleId}/${result.bulletId}, expected ${roleId}/${bulletId}.`,

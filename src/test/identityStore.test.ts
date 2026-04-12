@@ -124,6 +124,26 @@ describe('identityStore scan progress', () => {
     ).not.toThrow()
   })
 
+  it('normalizes numeric schema_revision values when a stale scan identity is edited in place', () => {
+    const scanResult = createScanResult()
+    ;(scanResult.identity as { schema_revision: string | number }).schema_revision =
+      3.1
+
+    useIdentityStore.setState({
+      scanResult,
+      draftDocument: '',
+      draft: null,
+      warnings: [],
+      lastError: null,
+    })
+
+    useIdentityStore.getState().updateScannedProjectEntry(0, 'name', 'Facet OSS')
+
+    expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe(
+      '3.1',
+    )
+  })
+
   it('marks a scanned bullet as deepened and updates counts', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().completeScannedBulletDeepen({
@@ -241,6 +261,47 @@ describe('identityStore skill enrichment', () => {
     ]
     return identity
   }
+
+  it('normalizes numeric schema_revision values when setting a draft directly', () => {
+    const draftIdentity = createIdentity()
+    ;(draftIdentity as { schema_revision: string | number }).schema_revision = 3.1
+
+    useIdentityStore.getState().setDraft({
+      generatedAt: '2026-04-05T00:00:00.000Z',
+      summary: 'Draft summary',
+      followUpQuestions: [],
+      identity: draftIdentity,
+      bullets: [],
+      warnings: [],
+    })
+
+    expect(useIdentityStore.getState().draft?.identity.schema_revision).toBe('3.1')
+    expect(useIdentityStore.getState().draftDocument).toContain(
+      '"schema_revision": "3.1"',
+    )
+  })
+
+  it('normalizes numeric schema_revision values when current identity updates run on stale state', () => {
+    const staleIdentity = createIdentity()
+    ;(staleIdentity as { schema_revision: string | number }).schema_revision = 3.1
+
+    useIdentityStore.setState({
+      currentIdentity: staleIdentity,
+      draftDocument: '',
+      draft: null,
+    })
+
+    useIdentityStore.getState().updateCurrentWorkModel({
+      preference: 'hybrid',
+    })
+
+    expect(useIdentityStore.getState().currentIdentity?.schema_revision).toBe(
+      '3.1',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.preferences.work_model).toEqual({
+      preference: 'hybrid',
+    })
+  })
 
   it('saves manual enrichment and updates the draft document when no draft is active', () => {
     useIdentityStore.setState({

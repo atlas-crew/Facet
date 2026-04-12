@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   importProfessionalIdentity,
   normalizeRuntimeIdentitySchemaRevision,
+  normalizeRuntimeProfessionalIdentity,
   type ProfessionalIdentityV3,
   type ProfessionalInterviewProcessPreferences,
   type ProfessionalMatchingPreferences,
@@ -329,7 +330,9 @@ const updateScanIdentity = (
     }
   }
 
-  const identity = updater(state.scanResult.identity)
+  const identity = normalizeRuntimeProfessionalIdentity(
+    updater(state.scanResult.identity),
+  )
   const progress = normalizeScanProgress(identity, state.scanResult.progress)
   const nextScanResult: ResumeScanResult = {
     ...state.scanResult,
@@ -378,11 +381,17 @@ const normalizeScannedProjectFieldValue = (
 const syncIdentityDocument = (
   state: IdentityState,
   identity: ProfessionalIdentityV3,
-): Pick<IdentityState, 'currentIdentity' | 'draftDocument' | 'lastError'> => ({
-  currentIdentity: identity,
-  draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
-  lastError: null,
-})
+): Pick<IdentityState, 'currentIdentity' | 'draftDocument' | 'lastError'> => {
+  const normalized = normalizeRuntimeProfessionalIdentity(identity)
+
+  return {
+    currentIdentity: normalized,
+    draftDocument: state.draft
+      ? state.draftDocument
+      : formatIdentityDocument(normalized),
+    lastError: null,
+  }
+}
 
 const updateCurrentIdentity = (
   state: IdentityState,
@@ -412,25 +421,34 @@ export const useIdentityStore = create<IdentityState>()(
       setSourceMaterial: (value) => set({ sourceMaterial: value }),
       setCorrectionNotes: (value) => set({ correctionNotes: value }),
       setDraft: (draft) =>
-        set((state) => ({
-          draft,
-          draftDocument: formatIdentityDocument(draft.identity),
-          warnings: draft.warnings,
-          lastError: null,
-          changelog: appendChangelog(
-            state.changelog,
-            createChangeLogEntry({
-              action: 'draft-generated',
-              summary: `Generated extraction draft with ${draft.identity.roles.length} roles.`,
-              details: [
-                draft.summary,
-                ...(draft.followUpQuestions.length > 0
-                  ? [`Follow-up questions: ${draft.followUpQuestions.join(' | ')}`]
-                  : []),
-              ],
-            }),
-          ),
-        })),
+        set((state) => {
+          const identity = normalizeRuntimeProfessionalIdentity(draft.identity)
+
+          return {
+            draft: {
+              // Normalize the stored draft identity while preserving the rest of
+              // the draft payload exactly as generated.
+              ...draft,
+              identity,
+            },
+            draftDocument: formatIdentityDocument(identity),
+            warnings: draft.warnings,
+            lastError: null,
+            changelog: appendChangelog(
+              state.changelog,
+              createChangeLogEntry({
+                action: 'draft-generated',
+                summary: `Generated extraction draft with ${identity.roles.length} roles.`,
+                details: [
+                  draft.summary,
+                  ...(draft.followUpQuestions.length > 0
+                    ? [`Follow-up questions: ${draft.followUpQuestions.join(' | ')}`]
+                    : []),
+                ],
+              }),
+            ),
+          }
+        }),
       setDraftDocument: (value) => set({ draftDocument: value }),
       setScanResult: (scanResult) =>
         set(() => {
@@ -443,7 +461,7 @@ export const useIdentityStore = create<IdentityState>()(
             }
           }
 
-          const identity = normalizeRuntimeIdentitySchemaRevision(
+          const identity = normalizeRuntimeProfessionalIdentity(
             scanResult.identity,
           )
           const progress = normalizeScanProgress(identity, scanResult.progress)

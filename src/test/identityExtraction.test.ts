@@ -1,12 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../utils/llmProxy', async () => {
+  const actual = await vi.importActual<typeof import('../utils/llmProxy')>(
+    '../utils/llmProxy',
+  )
+
+  return {
+    ...actual,
+    callLlmProxy: vi.fn(),
+  }
+})
+
 import { importProfessionalIdentity } from '../identity/schema'
 import {
   BULLET_DEEPENING_SYSTEM_PROMPT,
   EXTRACTION_SYSTEM_PROMPT,
   buildDeepenBulletPrompt,
+  deepenIdentityBullet,
   parseDeepenIdentityBulletResponse,
   parseIdentityExtractionResponse,
 } from '../utils/identityExtraction'
+import { callLlmProxy } from '../utils/llmProxy'
 
 const responseIdentityResult = importProfessionalIdentity({
   $schema: 'https://atlascrew.dev/schemas/identity.json',
@@ -134,6 +147,10 @@ const responseBody = {
   follow_up_questions: ['What was the scope of the migration?'],
   identity: responseIdentity,
 }
+
+beforeEach(() => {
+  vi.mocked(callLlmProxy).mockReset()
+})
 
 const cloneIdentityAsRecord = (): Record<string, unknown> =>
   structuredClone(responseBody.identity) as unknown as Record<string, unknown>
@@ -863,6 +880,50 @@ describe('identity bullet deepening', () => {
 
     expect(parsed.bulletId).toBe('acme-1')
     expect(parsed.bullet.tags).toEqual(['platform', 'delivery'])
+  })
+
+  it('normalizes numeric schema_revision values before sending a deepen request', async () => {
+    const identity = structuredClone(responseBody.identity) as unknown as Record<
+      string,
+      unknown
+    >
+    identity.schema_revision = 3.1
+    vi.mocked(callLlmProxy).mockResolvedValueOnce(
+      JSON.stringify({
+        summary: 'Deepened the deployment migration bullet.',
+        bullet: {
+          role_id: 'acme',
+          bullet_id: 'acme-1',
+          problem: 'Deployment workflow was fragmented across EKS clusters.',
+          action:
+            'Led a migration to EKS with Helm charts and Terraform modules.',
+          outcome: 'Teams shipped through one deployment workflow.',
+          impact: ['Standardized delivery across 12 pipelines'],
+          metrics: { pipelines: 12 },
+          technologies: ['EKS', 'Helm', 'Terraform'],
+          tags: ['platform', 'delivery'],
+          rewrite:
+            'Led a migration to EKS with Helm charts and Terraform modules, standardizing delivery across 12 pipelines.',
+          assumptions: [],
+        },
+      }),
+    )
+
+    await expect(
+      deepenIdentityBullet({
+        endpoint: 'https://facet.test/api/ai',
+        identity: identity as unknown as typeof responseBody.identity,
+        roleId: 'acme',
+        bulletId: 'acme-1',
+      }),
+    ).resolves.toMatchObject({
+      roleId: 'acme',
+      bulletId: 'acme-1',
+    })
+
+    const prompt = vi.mocked(callLlmProxy).mock.calls[0]?.[2]
+    expect(prompt).toContain('"schema_revision": "3.1"')
+    expect(prompt).not.toContain('"schema_revision": 3.1')
   })
 
   it('rejects an unknown role when deepening a bullet', () => {
