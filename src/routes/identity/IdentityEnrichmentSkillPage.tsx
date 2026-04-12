@@ -21,6 +21,8 @@ import {
 import './identity.css'
 
 type EditableSkillDepth = ProfessionalSkillDepth | ''
+type PositioningPreset = (typeof POSITIONING_EXAMPLES)[number]
+type PositioningSelection = '' | PositioningPreset | typeof CUSTOM_POSITIONING_VALUE
 
 const DEPTH_OPTIONS: ProfessionalSkillDepth[] = ['expert', 'strong', 'working', 'basic', 'avoid']
 const CONTEXT_EXAMPLES = [
@@ -38,6 +40,19 @@ const POSITIONING_EXAMPLES = [
   "Don't lead with this.",
   'Can apply if other signals are strong. Flag as ramping.',
 ] as const
+const CUSTOM_POSITIONING_VALUE = '__custom__'
+
+const isPositioningPreset = (value: string): value is PositioningPreset =>
+  POSITIONING_EXAMPLES.includes(value as PositioningPreset)
+
+const resolvePositioningSelection = (value: string): PositioningSelection => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  return isPositioningPreset(trimmed) ? trimmed : CUSTOM_POSITIONING_VALUE
+}
 
 const toSuggestion = (
   depth: EditableSkillDepth,
@@ -98,13 +113,16 @@ export function IdentityEnrichmentSkillPage() {
   const depthLabelId = `${fieldBaseId}-depth-label`
   const contextFieldId = `${fieldBaseId}-context`
   const positioningFieldId = `${fieldBaseId}-positioning`
+  const customPositioningFieldId = `${fieldBaseId}-positioning-custom`
   const contextLabelId = `${fieldBaseId}-context-label`
   const positioningLabelId = `${fieldBaseId}-positioning-label`
+  const customPositioningLabelId = `${fieldBaseId}-positioning-custom-label`
   const errorId = `${fieldBaseId}-error`
 
   const [depth, setDepth] = useState<EditableSkillDepth>('')
   const [context, setContext] = useState('')
   const [positioning, setPositioning] = useState('')
+  const [positioningSelection, setPositioningSelection] = useState<PositioningSelection>('')
   const [contextStale, setContextStale] = useState(false)
   const [positioningStale, setPositioningStale] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -122,6 +140,7 @@ export function IdentityEnrichmentSkillPage() {
     setDepth(resolved.skill.depth ?? '')
     setContext(resolved.skill.context ?? '')
     setPositioning(resolved.skill.positioning ?? '')
+    setPositioningSelection(resolvePositioningSelection(resolved.skill.positioning ?? ''))
     setContextStale(Boolean(resolved.skill.context_stale && resolved.skill.context?.trim()))
     setPositioningStale(
       Boolean(resolved.skill.positioning_stale && resolved.skill.positioning?.trim()),
@@ -215,21 +234,38 @@ export function IdentityEnrichmentSkillPage() {
   const buildSavedIdentity = () => {
     const nextContext = context.trim()
     const nextPositioning = positioning.trim()
+    const patch: Partial<typeof resolved.skill> = {
+      skipped_at: undefined,
+    }
+
+    if (depth) {
+      patch.depth = depth
+    }
+
+    if (nextContext) {
+      patch.context = nextContext
+      patch.context_stale = contextStale ? true : undefined
+    } else {
+      patch.context = undefined
+      patch.context_stale = undefined
+    }
+
+    if (nextPositioning) {
+      patch.positioning = nextPositioning
+      patch.positioning_stale = positioningStale ? true : undefined
+    } else {
+      patch.positioning = undefined
+      patch.positioning_stale = undefined
+    }
 
     return updateIdentityEnrichmentSkill(currentIdentity, groupId, skillName, (skill) => ({
       ...skill,
-      ...(depth ? { depth } : {}),
-      ...(nextContext ? { context: nextContext } : { context: undefined }),
-      ...(nextContext ? { context_stale: contextStale ? true : undefined } : { context_stale: undefined }),
-      ...(nextPositioning ? { positioning: nextPositioning } : { positioning: undefined }),
-      ...(nextPositioning
-        ? { positioning_stale: positioningStale ? true : undefined }
-        : { positioning_stale: undefined }),
-      skipped_at: undefined,
+      ...patch,
     }))
   }
 
   const applyDepthChange = (nextDepth: EditableSkillDepth) => {
+    suggestAbortRef.current?.abort()
     setDepth(nextDepth)
     setError(null)
 
@@ -241,6 +277,23 @@ export function IdentityEnrichmentSkillPage() {
 
     setContextStale(Boolean(context.trim()))
     setPositioningStale(Boolean(positioning.trim()))
+  }
+
+  const applyPositioningSelection = (nextSelection: PositioningSelection) => {
+    setPositioningSelection(nextSelection)
+    setPositioningStale(false)
+    setError(null)
+
+    if (!nextSelection) {
+      setPositioning('')
+      return
+    }
+
+    if (nextSelection === CUSTOM_POSITIONING_VALUE) {
+      return
+    }
+
+    setPositioning(nextSelection)
   }
 
   const handleSuggest = async () => {
@@ -289,6 +342,7 @@ export function IdentityEnrichmentSkillPage() {
       }
       setContext(nextContext)
       setPositioning(nextPositioning)
+      setPositioningSelection(resolvePositioningSelection(nextPositioning))
       setContextStale(false)
       setPositioningStale(false)
       setLastSuggestion(appliedSuggestion)
@@ -519,7 +573,6 @@ export function IdentityEnrichmentSkillPage() {
             className="identity-textarea"
             placeholder="Optional. Capture the domain, patterns, or unusual shape of engagement with this skill."
             aria-labelledby={contextLabelId}
-            aria-describedby={error ? errorId : undefined}
             value={context}
             onChange={(event) => {
               setContext(event.target.value)
@@ -557,41 +610,58 @@ export function IdentityEnrichmentSkillPage() {
                 className="identity-btn identity-btn-ghost"
                 type="button"
                 onClick={() => {
-                  setPositioning('')
-                  setPositioningStale(false)
-                  setError(null)
+                  applyPositioningSelection('')
                 }}
               >
                 Not needed
               </button>
             </div>
           </div>
-          <textarea
+          <select
             id={positioningFieldId}
-            className="identity-textarea"
-            placeholder="Optional. Add a short directive for how generators should surface this skill."
+            className="identity-input"
             aria-labelledby={positioningLabelId}
-            aria-describedby={error ? errorId : undefined}
-            value={positioning}
-            onChange={(event) => {
-              setPositioning(event.target.value)
-              setPositioningStale(false)
-              setError(null)
-            }}
-          />
+            value={positioningSelection}
+            onChange={(event) => applyPositioningSelection(event.target.value as PositioningSelection)}
+          >
+            <option value="">Select positioning</option>
+            {POSITIONING_EXAMPLES.map((example) => (
+              <option key={example} value={example}>
+                {example}
+              </option>
+            ))}
+            <option value={CUSTOM_POSITIONING_VALUE}>Custom...</option>
+          </select>
+          <span className="identity-field-help">Choose a preset or select Custom to write your own.</span>
+          {positioningSelection === CUSTOM_POSITIONING_VALUE ? (
+            <>
+              <label
+                htmlFor={customPositioningFieldId}
+                id={customPositioningLabelId}
+                className="identity-label"
+              >
+                Custom positioning
+              </label>
+              <textarea
+                id={customPositioningFieldId}
+                className="identity-textarea"
+                placeholder="Optional. Add a short directive for how generators should surface this skill."
+                aria-labelledby={customPositioningLabelId}
+                value={positioning}
+                onChange={(event) => {
+                  setPositioning(event.target.value)
+                  setPositioningSelection(CUSTOM_POSITIONING_VALUE)
+                  setPositioningStale(false)
+                  setError(null)
+                }}
+              />
+            </>
+          ) : null}
           {positioningStale && positioning.trim() ? (
             <span className="identity-field-help">
               Depth changed. Re-draft or confirm this positioning still fits.
             </span>
           ) : null}
-          <details className="identity-field-examples">
-            <summary>Examples</summary>
-            <ul className="identity-example-list">
-              {POSITIONING_EXAMPLES.map((example) => (
-                <li key={example}>{example}</li>
-              ))}
-            </ul>
-          </details>
         </div>
 
         <div className="identity-card-actions">

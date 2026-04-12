@@ -7,6 +7,8 @@ import { resolveStorage } from '../store/storage'
 import { facetClientEnv } from '../utils/facetEnv'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
+const CUSTOM_POSITIONING_VALUE = '__custom__'
+
 const navigateMock = vi.fn(async () => undefined)
 const routeParams = { groupId: 'platform', skillName: 'Kubernetes' }
 const skillEnrichmentMocks = vi.hoisted(() => ({
@@ -109,10 +111,14 @@ describe('IdentityEnrichmentSkillPage', () => {
     expect((screen.getByLabelText('Context') as HTMLTextAreaElement).value).toContain(
       'customer-hosted and internal platform delivery',
     )
-    expect((screen.getByLabelText('Positioning') as HTMLTextAreaElement).value).toContain(
+    expect((screen.getByRole('combobox', { name: 'Positioning' }) as HTMLSelectElement).value).toBe(
+      CUSTOM_POSITIONING_VALUE,
+    )
+    expect((screen.getByLabelText('Custom positioning') as HTMLTextAreaElement).value).toContain(
       'Platform modernization and Kubernetes operations.',
     )
-    expect(screen.getAllByText('Examples')).toHaveLength(2)
+    expect(screen.getByText(/Choose a preset or select Custom/i)).toBeTruthy()
+    expect(screen.getByText('Examples')).toBeTruthy()
   })
 
   it('renders persisted stale indicators on initial load', async () => {
@@ -186,6 +192,71 @@ describe('IdentityEnrichmentSkillPage', () => {
     })
     expect(skill?.enriched_at).toBeTruthy()
     expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
+  })
+
+  it('lets users pick a positioning preset without opening custom entry', async () => {
+    routeParams.skillName = 'Terraform'
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Positioning' }), {
+      target: { value: 'Strong match signal. List first.' },
+    })
+
+    expect(screen.queryByLabelText('Custom positioning')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]).toMatchObject({
+      depth: 'working',
+      positioning: 'Strong match signal. List first.',
+      enriched_by: 'user',
+    })
+  })
+
+  it('lets users choose a custom positioning value from the preset control', async () => {
+    routeParams.skillName = 'Terraform'
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Positioning' }), {
+      target: { value: CUSTOM_POSITIONING_VALUE },
+    })
+    fireEvent.change(screen.getByLabelText('Custom positioning'), {
+      target: { value: 'Lead with Kubernetes migration wins.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]).toMatchObject({
+      depth: 'working',
+      positioning: 'Lead with Kubernetes migration wins.',
+      enriched_by: 'user',
+    })
+  })
+
+  it('preserves custom positioning values and allows editing them in custom mode', async () => {
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    expect((screen.getByRole('combobox', { name: 'Positioning' }) as HTMLSelectElement).value).toBe(
+      CUSTOM_POSITIONING_VALUE,
+    )
+
+    fireEvent.change(screen.getByLabelText('Custom positioning'), {
+      target: { value: 'Lead with platform modernization work.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+      positioning: 'Lead with platform modernization work.',
+      enriched_by: 'user',
+    })
   })
 
   it('keeps manual save available when the AI endpoint is missing', async () => {
@@ -414,7 +485,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     expect((screen.getByLabelText('Context') as HTMLTextAreaElement).value).toContain(
       'customer-hosted and internal platform delivery',
     )
-    expect((screen.getByLabelText('Positioning') as HTMLTextAreaElement).value).toContain(
+    expect((screen.getByLabelText('Custom positioning') as HTMLTextAreaElement).value).toContain(
       'Platform modernization and Kubernetes operations.',
     )
   })
@@ -450,5 +521,44 @@ describe('IdentityEnrichmentSkillPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Regenerate AI draft' })).toBeTruthy()
     })
+  })
+
+  it('keeps stale indicators when depth changes during an in-flight AI draft', async () => {
+    const deferred = deferredPromise<{
+      depth?: 'strong'
+      context?: string
+      positioning?: string
+    }>()
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Generating...' }).hasAttribute('disabled')).toBe(
+        true,
+      )
+    })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
+    })
+
+    deferred.resolve({
+      depth: 'strong',
+      context: 'Used for customer-hosted and internal platform delivery.',
+      positioning: 'Platform modernization and Kubernetes operations.',
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Generating...' })).toBeNull()
+    })
+
+    expect(screen.getByText('Needs refresh')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })).toHaveLength(2)
+    expect((screen.getByRole('combobox', { name: 'Depth' }) as HTMLSelectElement).value).toBe(
+      'working',
+    )
   })
 })
