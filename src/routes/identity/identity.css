@@ -721,6 +721,10 @@
   gap: var(--space-3);
 }
 
+.identity-scan-role-panel[hidden] {
+  display: none;
+}
+
 .identity-scan-browser-summary {
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
