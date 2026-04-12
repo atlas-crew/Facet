@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityPage } from '../routes/identity/IdentityPage'
 import { useIdentityStore } from '../store/identityStore'
 import { useResumeStore } from '../store/resumeStore'
@@ -273,7 +273,7 @@ describe('IdentityPage', () => {
     expect(useIdentityStore.getState().scanResult?.identity.projects[0]?.name).toBe('Facet OSS')
     expect(screen.getByText(/two-column layout/i)).toBeTruthy()
 
-    fireEvent.click(screen.getByText('Generate Draft'))
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Generate Draft' }))
 
     await waitFor(() => {
       expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
@@ -308,7 +308,7 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    fireEvent.click(screen.getByText('Upload Resume'))
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Upload Resume' }))
 
     expect(useIdentityStore.getState().intakeMode).toBe('upload')
     expect(inputClickMock).toHaveBeenCalledTimes(1)
@@ -396,10 +396,14 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Nick Ferguson')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Generate Draft'))
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Generate Draft' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Generating…')).toBeTruthy()
+      expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Generating…' })).toBeTruthy()
+      expect(
+        within(screen.getByRole('banner')).getByRole('button', { name: 'Generating…' }).hasAttribute('disabled'),
+      ).toBe(true)
+      expect(screen.getByText('Generating a draft from your source material.')).toBeTruthy()
     })
 
     unmount()
@@ -933,17 +937,24 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
+    expect(screen.getByRole('tab', { name: 'Model' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tab', { name: 'Strategy' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Continue Skill Enrichment' }).length).toBeGreaterThan(0)
     expect(screen.getByText('Skill Enrichment')).toBeTruthy()
     expect(screen.getByText(/Pending 1/i)).toBeTruthy()
     expect(screen.getByText(/Complete 1/i)).toBeTruthy()
     expect(screen.getByText(/Skipped 1/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Continue Skill Enrichment' })).toBeTruthy()
   })
 
   it('uses a wider workbench layout and keeps the model builder compact before a draft exists', () => {
     const { container } = render(<IdentityPage />)
     const editorRegion = container.querySelector('.identity-model-builder-editor-region') as HTMLDivElement
 
+    expect(screen.queryByRole('tablist', { name: 'Identity workspaces' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Model' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Strategy' })).toBeNull()
+    expect(screen.queryByRole('tabpanel')).toBeNull()
+    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Upload Resume' })).toBeTruthy()
     expect(container.querySelector('.identity-grid.identity-grid-workbench')).toBeTruthy()
     const openButton = screen.getByRole('button', { name: 'Open JSON Editor' })
 

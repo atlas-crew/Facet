@@ -17,6 +17,43 @@
   flex-wrap: wrap;
 }
 
+.identity-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+}
+
+.identity-header-main {
+  flex: 1 1 520px;
+  min-width: min(100%, 320px);
+}
+
+.identity-header-controls {
+  flex: 1 1 320px;
+  min-width: min(100%, 280px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.identity-header-actions-shell {
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.identity-header-secondary-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .identity-eyebrow {
   margin: 0 0 var(--space-1);
   font-size: 11px;
@@ -38,6 +75,13 @@
   margin: var(--space-2) 0 0;
   max-width: 72ch;
   color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.identity-header-status {
+  margin: var(--space-2) 0 0;
+  color: var(--text-primary);
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -140,6 +184,24 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+.identity-section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.identity-workspace-panel {
+  display: block;
+}
+
+.identity-workspace-panel[hidden] {
+  display: none;
+}
+
+.identity-workspace-tabs {
+  justify-content: flex-end;
 }
 
 .identity-grid-single {
@@ -329,6 +391,19 @@
 }
 
 @media (max-width: 960px) {
+  .identity-header-sticky {
+    padding: var(--space-3);
+  }
+
+  .identity-header-controls,
+  .identity-header-actions-shell,
+  .identity-header-secondary-actions,
+  .identity-workspace-tabs {
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
   .identity-form-grid,
   .identity-strategy-grid,
   .identity-inline-grid {
@@ -749,9 +824,15 @@
   color: var(--text-primary);
 }
 
-@media (max-width: 1080px) {
+@media (min-width: 961px) and (max-width: 1080px) {
   .identity-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .identity-header-controls,
+  .identity-header-actions-shell {
+    width: 100%;
+    align-items: flex-start;
   }
 
   .identity-stats {

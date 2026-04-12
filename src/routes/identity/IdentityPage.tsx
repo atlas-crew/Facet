@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Download, FileJson, Upload } from 'lucide-react'
 import { professionalIdentityToResumeData } from '../../identity/resumeAdapter'
@@ -42,14 +42,30 @@ const downloadJson = (filename: string, content: string) => {
   globalThis.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+type IdentityWorkspaceTab = 'model' | 'strategy'
+type IdentityPrimaryAction =
+  | 'upload'
+  | 'generate'
+  | 'reviewDraft'
+  | 'continueEnrichment'
+  | 'pushToBuild'
+
+const assertNever = (value: never): never => {
+  throw new Error(`Unexpected identity action: ${String(value)}`)
+}
+
 export function IdentityPage() {
   const navigate = useNavigate()
   const importRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
+  const primaryActionButtonRef = useRef<HTMLButtonElement>(null)
+  const draftSectionRef = useRef<HTMLElement>(null)
   const generateAbortRef = useRef<AbortController | null>(null)
   const scanAbortRef = useRef<AbortController | null>(null)
   // Single-bullet and bulk deepening are intentionally mutually exclusive in the UI.
   const deepenAbortRef = useRef<AbortController | null>(null)
+  const [activeWorkspace, setActiveWorkspace] = useState<IdentityWorkspaceTab>('model')
+  const [pendingModelScrollTarget, setPendingModelScrollTarget] = useState<'draft' | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
@@ -108,6 +124,31 @@ export function IdentityPage() {
     [],
   )
 
+  useEffect(() => {
+    if (!currentIdentity && activeWorkspace === 'strategy') {
+      setActiveWorkspace('model')
+      const modelTab = document.getElementById('identity-workspace-model-tab')
+      if (modelTab instanceof HTMLButtonElement) {
+        modelTab.focus()
+      } else {
+        primaryActionButtonRef.current?.focus()
+      }
+    }
+  }, [activeWorkspace, currentIdentity])
+
+  useEffect(() => {
+    if (activeWorkspace !== 'model' || pendingModelScrollTarget !== 'draft') {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      draftSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setPendingModelScrollTarget(null)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeWorkspace, pendingModelScrollTarget])
+
   const counts = useMemo(() => {
     const identity = draft?.identity ?? currentIdentity ?? null
     if (!identity) {
@@ -144,6 +185,13 @@ export function IdentityPage() {
   }, [scanResult])
 
   const bulkStatus = scanResult?.progress.bulk.status ?? null
+  const hasSourceMaterial = useMemo(() => sourceMaterial.trim().length > 0 || Boolean(scanResult), [
+    scanResult,
+    sourceMaterial,
+  ])
+  const availableWorkspaces: IdentityWorkspaceTab[] = currentIdentity
+    ? ['model', 'strategy']
+    : ['model']
 
   const ensureEndpoint = () => {
     if (!aiEndpoint) {
@@ -267,6 +315,22 @@ export function IdentityPage() {
   const handleRequestUpload = () => {
     setIntakeMode('upload')
     uploadRef.current?.click()
+  }
+
+  const handleContinueSkillEnrichment = () => {
+    void navigate(
+      nextEnrichmentSkill
+        ? {
+            to: '/identity/enrich/$groupId/$skillName',
+            params: {
+              groupId: nextEnrichmentSkill.groupId,
+              skillName: nextEnrichmentSkill.skillName,
+            },
+          }
+        : {
+            to: '/identity/enrich',
+          },
+    )
   }
 
   const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
@@ -594,31 +658,198 @@ export function IdentityPage() {
     void navigate({ to: '/build' })
   }
 
+  const scrollToDraftSection = () => {
+    setPendingModelScrollTarget('draft')
+    // Ensure the model workspace is active before the deferred scroll runs.
+    setActiveWorkspace('model')
+  }
+
+  const primaryActionState = useMemo<{ action: IdentityPrimaryAction; label: string; status: string }>(() => {
+    if (isScanning) {
+      return {
+        action: 'upload',
+        label: 'Scanning…',
+        status: 'Scanning the uploaded resume to prepare source material.',
+      }
+    }
+
+    if (isGenerating) {
+      return {
+        action: 'generate',
+        label: 'Generating…',
+        status: 'Generating a draft from your source material.',
+      }
+    }
+
+    if (draft) {
+      return {
+        action: 'reviewDraft',
+        label: 'Review Draft',
+        status: 'A draft is ready to review and apply to the current identity model.',
+      }
+    }
+
+    if (currentIdentity) {
+      const pending = enrichmentProgress?.pending ?? 0
+      if (pending > 0) {
+        return {
+          action: 'continueEnrichment',
+          label: 'Continue Skill Enrichment',
+          status: `${pending} skill${pending === 1 ? '' : 's'} still need enrichment before the model is fully shaped.`,
+        }
+      }
+
+      return {
+        action: 'pushToBuild',
+        label: 'Push To Build',
+        status: 'Current identity is ready to use in Build or as the basis for search strategy.',
+      }
+    }
+
+    if (hasSourceMaterial) {
+      return {
+        action: 'generate',
+        label: 'Generate Draft',
+        status: 'Source material is loaded. Generate a draft when you are ready.',
+      }
+    }
+
+    return {
+      action: 'upload',
+      label: 'Upload Resume',
+      status: 'Upload a resume or paste source material to start building the identity model.',
+    }
+  }, [currentIdentity, draft, enrichmentProgress?.pending, hasSourceMaterial, isGenerating, isScanning])
+
+  const { action: primaryAction, label: primaryActionLabel, status: headerStatus } = primaryActionState
+  const isPrimaryActionDisabled = isGenerating || isScanning
+
+  const handlePrimaryAction = () => {
+    switch (primaryAction) {
+      case 'continueEnrichment':
+        handleContinueSkillEnrichment()
+        break
+      case 'generate':
+        void runGenerate('fresh')
+        break
+      case 'pushToBuild':
+        handlePushToBuild()
+        break
+      case 'reviewDraft':
+        scrollToDraftSection()
+        break
+      case 'upload':
+        handleRequestUpload()
+        break
+      default:
+        assertNever(primaryAction)
+    }
+  }
+
+  const handleWorkspaceTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, tab: IdentityWorkspaceTab) => {
+    const currentIndex = availableWorkspaces.indexOf(tab)
+    if (currentIndex === -1) {
+      return
+    }
+
+    let nextTab: IdentityWorkspaceTab | null = null
+    if (event.key === 'ArrowRight') {
+      nextTab = availableWorkspaces[(currentIndex + 1) % availableWorkspaces.length] ?? null
+    } else if (event.key === 'ArrowLeft') {
+      nextTab =
+        availableWorkspaces[(currentIndex - 1 + availableWorkspaces.length) % availableWorkspaces.length] ??
+        null
+    } else if (event.key === 'Home') {
+      nextTab = availableWorkspaces[0] ?? null
+    } else if (event.key === 'End') {
+      nextTab = availableWorkspaces[availableWorkspaces.length - 1] ?? null
+    }
+
+    if (!nextTab) {
+      return
+    }
+
+    event.preventDefault()
+    setActiveWorkspace(nextTab)
+    const nextButton = document.getElementById(`identity-workspace-${nextTab}-tab`)
+    if (nextButton instanceof HTMLButtonElement) {
+      nextButton.focus()
+    }
+  }
+
   return (
     <div className="identity-page">
-      <header className="identity-header">
-        <div>
+      <header className="identity-header identity-header-sticky">
+        <div className="identity-header-main">
           <p className="identity-eyebrow">Phase 0</p>
           <h1>Professional Identity</h1>
           <p className="identity-copy">
             Build the write-layer and extraction loop for identity.json: draft from raw
             source material, correct it, validate it, then push the resulting model into Build.
           </p>
+          <p className="identity-header-status" aria-live="polite">
+            {headerStatus}
+          </p>
         </div>
 
-        <div className="identity-header-actions">
-          <button className="identity-btn" type="button" onClick={() => importRef.current?.click()}>
-            <Upload size={16} />
-            Import JSON
-          </button>
-          <button className="identity-btn" type="button" onClick={handleExportDraft}>
-            <Download size={16} />
-            Export Draft
-          </button>
-          <button className="identity-btn identity-btn-primary" type="button" onClick={handleExportCurrent}>
-            <FileJson size={16} />
-            Export Identity
-          </button>
+        <div className="identity-header-controls">
+          {availableWorkspaces.length > 1 ? (
+            <div className="identity-tabs identity-workspace-tabs" role="tablist" aria-label="Identity workspaces">
+              <button
+                id="identity-workspace-model-tab"
+                type="button"
+                role="tab"
+                aria-selected={activeWorkspace === 'model'}
+                aria-controls="identity-workspace-model"
+                tabIndex={activeWorkspace === 'model' ? 0 : -1}
+                className={`identity-tab ${activeWorkspace === 'model' ? 'active' : ''}`}
+                onClick={() => setActiveWorkspace('model')}
+                onKeyDown={(event) => handleWorkspaceTabKeyDown(event, 'model')}
+              >
+                Model
+              </button>
+              <button
+                id="identity-workspace-strategy-tab"
+                type="button"
+                role="tab"
+                aria-selected={activeWorkspace === 'strategy'}
+                aria-controls="identity-workspace-strategy"
+                tabIndex={activeWorkspace === 'strategy' ? 0 : -1}
+                className={`identity-tab ${activeWorkspace === 'strategy' ? 'active' : ''}`}
+                onClick={() => setActiveWorkspace('strategy')}
+                onKeyDown={(event) => handleWorkspaceTabKeyDown(event, 'strategy')}
+              >
+                Strategy
+              </button>
+            </div>
+          ) : null}
+
+          <div className="identity-header-actions identity-header-actions-shell">
+            <button
+              ref={primaryActionButtonRef}
+              className="identity-btn identity-btn-primary"
+              type="button"
+              onClick={handlePrimaryAction}
+              disabled={isPrimaryActionDisabled}
+              aria-busy={isPrimaryActionDisabled}
+            >
+              {primaryActionLabel}
+            </button>
+            <div className="identity-header-secondary-actions">
+              <button className="identity-btn" type="button" onClick={() => importRef.current?.click()}>
+                <Upload size={16} />
+                Import JSON
+              </button>
+              <button className="identity-btn" type="button" onClick={handleExportDraft}>
+                <Download size={16} />
+                Export Draft
+              </button>
+              <button className="identity-btn" type="button" onClick={handleExportCurrent}>
+                <FileJson size={16} />
+                Export Identity
+              </button>
+            </div>
+          </div>
           <input
             ref={importRef}
             hidden
@@ -648,116 +879,123 @@ export function IdentityPage() {
           <strong>Warnings:</strong> {warnings.join(' ')}
         </div>
       ) : null}
-      {currentIdentity && !draft && enrichmentProgress && enrichmentProgress.total > 0 ? (
-        <section className="identity-card identity-enrichment-banner">
-          <div className="identity-card-header">
-            <div>
-              <h2>Skill Enrichment</h2>
-              <p>
-                Pending {enrichmentProgress.pending} · Complete {enrichmentProgress.complete} · Skipped{' '}
-                {enrichmentProgress.skipped}
-              </p>
-            </div>
+      <div
+        id="identity-workspace-model"
+        role={availableWorkspaces.length > 1 ? 'tabpanel' : undefined}
+        aria-labelledby={availableWorkspaces.length > 1 ? 'identity-workspace-model-tab' : undefined}
+        className="identity-workspace-panel"
+        hidden={activeWorkspace !== 'model' && Boolean(currentIdentity)}
+      >
+        <div className="identity-section-stack">
+          {currentIdentity && !draft && enrichmentProgress && enrichmentProgress.total > 0 ? (
+            <section className="identity-card identity-enrichment-banner">
+              <div className="identity-card-header">
+                <div>
+                  <h2>Skill Enrichment</h2>
+                  <p>
+                    Pending {enrichmentProgress.pending} · Complete {enrichmentProgress.complete} · Skipped{' '}
+                    {enrichmentProgress.skipped}
+                  </p>
+                </div>
 
-            <div className="identity-card-actions">
-              <button
-                className="identity-btn identity-btn-primary"
-                type="button"
-                onClick={() =>
-                  void navigate(
-                    nextEnrichmentSkill
-                      ? {
-                          to: '/identity/enrich/$groupId/$skillName',
-                          params: {
-                            groupId: nextEnrichmentSkill.groupId,
-                            skillName: nextEnrichmentSkill.skillName,
-                          },
-                        }
-                      : {
-                          to: '/identity/enrich',
-                        },
-                  )
-                }
-              >
-                Continue Skill Enrichment
-              </button>
-              {enrichmentProgress.pending === 0 ? (
-                <button
-                  className="identity-btn"
-                  type="button"
-                  onClick={() => void navigate({ to: '/identity/enrich' })}
-                >
-                  Review Enriched Skills
-                </button>
-              ) : null}
-            </div>
+                <div className="identity-card-actions">
+                  <button
+                    className="identity-btn identity-btn-primary"
+                    type="button"
+                    onClick={handleContinueSkillEnrichment}
+                  >
+                    Continue Skill Enrichment
+                  </button>
+                  {enrichmentProgress.pending === 0 ? (
+                    <button
+                      className="identity-btn"
+                      type="button"
+                      onClick={() => void navigate({ to: '/identity/enrich' })}
+                    >
+                      Review Enriched Skills
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          <div className="identity-grid identity-grid-workbench">
+            <ExtractionAgentCard
+              intakeMode={intakeMode}
+              sourceMaterial={sourceMaterial}
+              correctionNotes={correctionNotes}
+              currentIdentity={currentIdentity}
+              draft={draft}
+              scanResult={scanResult}
+              scanCompletion={scanCompletion}
+              bulkStatus={bulkStatus}
+              isGenerating={isGenerating}
+              isScanning={isScanning}
+              uploadRef={uploadRef}
+              onRequestUpload={handleRequestUpload}
+              onSetIntakeMode={setIntakeMode}
+              onSetSourceMaterial={setSourceMaterial}
+              onSetCorrectionNotes={setCorrectionNotes}
+              onGenerate={runGenerate}
+              onDeepenAll={handleDeepenAll}
+              onCancelDeepenAll={handleCancelDeepenAll}
+              onUploadChange={handleUploadChange}
+              onDrop={handleDrop}
+              onClearScan={() => {
+                deepenAbortRef.current?.abort()
+                setScanResult(null)
+                setPageNotice('Cleared the scanned resume structure.')
+              }}
+              onUpdateIdentityCore={updateScannedIdentityCore}
+              onUpdateRole={updateScannedRole}
+              onUpdateBulletSourceText={updateScannedBulletSourceText}
+              onUpdateBulletTextField={updateScannedBulletTextField}
+              onUpdateBulletListField={updateScannedBulletListField}
+              onUpdateBulletMetrics={updateScannedBulletMetrics}
+              onDeepenBullet={handleDeepenBullet}
+              onUpdateSkillGroupLabel={updateScannedSkillGroupLabel}
+              onUpdateSkillItemName={updateScannedSkillItemName}
+              onUpdateProjectEntry={updateScannedProjectEntry}
+              onUpdateEducationEntry={updateScannedEducationEntry}
+            />
+
+            <section ref={draftSectionRef}>
+              <IdentityModelBuilderCard
+                counts={counts}
+                draftDocument={draftDocument}
+                hasCurrentIdentity={Boolean(currentIdentity)}
+                onSetDraftDocument={setDraftDocument}
+                onValidateDraft={handleValidateDraft}
+                onApply={handleApply}
+                onPushToBuild={handlePushToBuild}
+              />
+            </section>
           </div>
-        </section>
-      ) : null}
 
+          <div className="identity-grid">
+            <BulletConfidenceCard draft={draft} />
+            <DraftSummaryCard draft={draft} changelog={changelog} />
+          </div>
+        </div>
+      </div>
+
+      {/* Strategy workspace requires a current identity model, so unmounting is intentional here. */}
       {currentIdentity ? (
-        <IdentityStrategyWorkbench
-          aiEndpoint={aiEndpoint}
-          onError={setPageError}
-          onNotice={setPageNotice}
-        />
+        <div
+          id="identity-workspace-strategy"
+          role="tabpanel"
+          aria-labelledby="identity-workspace-strategy-tab"
+          className="identity-workspace-panel"
+          hidden={activeWorkspace !== 'strategy'}
+        >
+          <IdentityStrategyWorkbench
+            aiEndpoint={aiEndpoint}
+            onError={setPageError}
+            onNotice={setPageNotice}
+          />
+        </div>
       ) : null}
-
-      <div className="identity-grid identity-grid-workbench">
-        <ExtractionAgentCard
-          intakeMode={intakeMode}
-          sourceMaterial={sourceMaterial}
-          correctionNotes={correctionNotes}
-          currentIdentity={currentIdentity}
-          draft={draft}
-          scanResult={scanResult}
-          scanCompletion={scanCompletion}
-          bulkStatus={bulkStatus}
-          isGenerating={isGenerating}
-          isScanning={isScanning}
-          uploadRef={uploadRef}
-          onRequestUpload={handleRequestUpload}
-          onSetIntakeMode={setIntakeMode}
-          onSetSourceMaterial={setSourceMaterial}
-          onSetCorrectionNotes={setCorrectionNotes}
-          onGenerate={runGenerate}
-          onDeepenAll={handleDeepenAll}
-          onCancelDeepenAll={handleCancelDeepenAll}
-          onUploadChange={handleUploadChange}
-          onDrop={handleDrop}
-          onClearScan={() => {
-            deepenAbortRef.current?.abort()
-            setScanResult(null)
-            setPageNotice('Cleared the scanned resume structure.')
-          }}
-          onUpdateIdentityCore={updateScannedIdentityCore}
-          onUpdateRole={updateScannedRole}
-          onUpdateBulletSourceText={updateScannedBulletSourceText}
-          onUpdateBulletTextField={updateScannedBulletTextField}
-          onUpdateBulletListField={updateScannedBulletListField}
-          onUpdateBulletMetrics={updateScannedBulletMetrics}
-          onDeepenBullet={handleDeepenBullet}
-          onUpdateSkillGroupLabel={updateScannedSkillGroupLabel}
-          onUpdateSkillItemName={updateScannedSkillItemName}
-          onUpdateProjectEntry={updateScannedProjectEntry}
-          onUpdateEducationEntry={updateScannedEducationEntry}
-        />
-
-        <IdentityModelBuilderCard
-          counts={counts}
-          draftDocument={draftDocument}
-          hasCurrentIdentity={Boolean(currentIdentity)}
-          onSetDraftDocument={setDraftDocument}
-          onValidateDraft={handleValidateDraft}
-          onApply={handleApply}
-          onPushToBuild={handlePushToBuild}
-        />
-      </div>
-
-      <div className="identity-grid">
-        <BulletConfidenceCard draft={draft} />
-        <DraftSummaryCard draft={draft} changelog={changelog} />
-      </div>
     </div>
   )
 }
