@@ -1,10 +1,10 @@
 ---
 id: TASK-102.7
 title: Move Research inference to identity-native prompts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 06:14'
-updated_date: '2026-04-11 08:28'
+updated_date: '2026-04-12 01:36'
 labels:
   - refactor
   - identity

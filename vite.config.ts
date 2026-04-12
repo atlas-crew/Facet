@@ -1,10 +1,13 @@
-import { defineConfig } from 'vite'
+import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.BASE_PATH || '/',
   plugins: [react()],
+  test: {
+    exclude: [...configDefaults.exclude, 'tests/**'],
+  },
   worker: {
     format: 'es',
   },

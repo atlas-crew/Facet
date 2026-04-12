@@ -1,9 +1,10 @@
 ---
 id: TASK-102.9
 title: Add standalone parameters doc export
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 06:14'
+updated_date: '2026-04-12 01:36'
 labels:
   - feature
   - identity

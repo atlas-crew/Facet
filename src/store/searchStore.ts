@@ -50,6 +50,7 @@ const now = () => new Date().toISOString()
 
 const hydrateProfile = (profile: SearchProfileInput): SearchProfile => ({
   ...profile,
+  source: profile.source ?? { kind: 'resume', label: 'Resume fallback' },
   id: profile.id ?? createId('sprof'),
   inferredAt: profile.inferredAt ?? now(),
   durableMeta: ensureDurableMetadata(profile.durableMeta, profile.inferredAt ?? now()),

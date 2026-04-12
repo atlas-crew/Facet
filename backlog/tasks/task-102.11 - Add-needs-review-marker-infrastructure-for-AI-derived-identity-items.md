@@ -1,10 +1,10 @@
 ---
 id: TASK-102.11
 title: Add needs-review marker infrastructure for AI-derived identity items
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 07:15'
-updated_date: '2026-04-11 08:28'
+updated_date: '2026-04-12 01:36'
 labels:
   - feature
   - identity

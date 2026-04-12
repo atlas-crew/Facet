@@ -3,6 +3,11 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   importProfessionalIdentity,
   type ProfessionalIdentityV3,
+  type ProfessionalInterviewProcessPreferences,
+  type ProfessionalMatchingPreferences,
+  type ProfessionalOpenQuestion,
+  type ProfessionalPreferenceConstraints,
+  type ProfessionalSearchVector,
   type ProfessionalSkillDepth,
   type ProfessionalSkillEnrichedBy,
 } from '../identity/schema'
@@ -94,6 +99,14 @@ interface IdentityState {
     field: keyof ProfessionalIdentityV3['education'][number],
     value: string,
   ) => void
+  updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
+  updateCurrentWorkModel: (value: ProfessionalIdentityV3['preferences']['work_model']) => void
+  updateCurrentConstraints: (value: ProfessionalPreferenceConstraints | undefined) => void
+  updateCurrentMatching: (value: ProfessionalMatchingPreferences) => void
+  updateCurrentInterviewProcess: (value: ProfessionalInterviewProcessPreferences | undefined) => void
+  updateCurrentSearchVectors: (value: ProfessionalSearchVector[]) => void
+  updateCurrentAwarenessQuestions: (value: ProfessionalOpenQuestion[]) => void
+  updateCurrentAccuracyRules: (value: Record<string, string | string[]> | undefined) => void
   saveSkillEnrichment: (
     groupId: string,
     skillName: string,
@@ -369,6 +382,17 @@ const syncIdentityDocument = (
   draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
   lastError: null,
 })
+
+const updateCurrentIdentity = (
+  state: IdentityState,
+  updater: (identity: ProfessionalIdentityV3) => ProfessionalIdentityV3,
+) => {
+  if (!state.currentIdentity) {
+    return {}
+  }
+
+  return syncIdentityDocument(state, updater(state.currentIdentity))
+}
 
 export const useIdentityStore = create<IdentityState>()(
   persist(
@@ -839,6 +863,82 @@ export const useIdentityStore = create<IdentityState>()(
                   }
                 : entry,
             ),
+          })),
+        ),
+      updateCurrentCompensation: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            preferences: {
+              ...identity.preferences,
+              compensation: value,
+            },
+          })),
+        ),
+      updateCurrentWorkModel: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            preferences: {
+              ...identity.preferences,
+              work_model: value,
+            },
+          })),
+        ),
+      updateCurrentConstraints: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            preferences: {
+              ...identity.preferences,
+              constraints: value,
+            },
+          })),
+        ),
+      updateCurrentMatching: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            preferences: {
+              ...identity.preferences,
+              matching: value,
+            },
+          })),
+        ),
+      updateCurrentInterviewProcess: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            preferences: {
+              ...identity.preferences,
+              interview_process: value,
+            },
+          })),
+        ),
+      updateCurrentSearchVectors: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            search_vectors: value,
+          })),
+        ),
+      updateCurrentAwarenessQuestions: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            awareness: {
+              open_questions: value,
+            },
+          })),
+        ),
+      updateCurrentAccuracyRules: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            generator_rules: {
+              ...identity.generator_rules,
+              accuracy: value,
+            },
           })),
         ),
       saveSkillEnrichment: (groupId, skillName, updates, enrichedBy) =>

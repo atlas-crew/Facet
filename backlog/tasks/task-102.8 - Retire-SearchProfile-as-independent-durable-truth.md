@@ -1,10 +1,10 @@
 ---
 id: TASK-102.8
 title: Retire SearchProfile as independent durable truth
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 06:14'
-updated_date: '2026-04-11 06:14'
+updated_date: '2026-04-12 01:36'
 labels:
   - refactor
   - identity

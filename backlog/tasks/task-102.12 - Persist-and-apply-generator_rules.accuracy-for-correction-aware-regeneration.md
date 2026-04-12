@@ -1,9 +1,10 @@
 ---
 id: TASK-102.12
 title: Persist and apply generator_rules.accuracy for correction-aware regeneration
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 08:28'
+updated_date: '2026-04-12 01:36'
 labels:
   - feature
   - identity

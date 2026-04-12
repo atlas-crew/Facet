@@ -111,10 +111,19 @@ export interface ProfessionalPreferenceConstraints {
   title_flexibility?: string[]
 }
 
+export interface ProfessionalInterviewProcessPreferences {
+  accepted_formats: string[]
+  strong_fit_signals: string[]
+  red_flags: string[]
+  max_rounds?: number
+  onsite_preferences?: string
+}
+
 export interface ProfessionalPreferences {
   compensation: ProfessionalCompensationPreferences
   work_model: ProfessionalWorkModelPreferences
   constraints?: ProfessionalPreferenceConstraints
+  interview_process?: ProfessionalInterviewProcessPreferences
   matching: ProfessionalMatchingPreferences
 }
 
@@ -207,6 +216,8 @@ export interface ProfessionalSearchVector {
   keywords: ProfessionalSearchVectorKeywords
   supporting_skills?: string[]
   supporting_bullets?: string[]
+  evidence?: string[]
+  needs_review?: boolean
 }
 
 export interface ProfessionalOpenQuestion {
@@ -215,6 +226,8 @@ export interface ProfessionalOpenQuestion {
   description: string
   action: string
   severity?: ProfessionalAwarenessSeverity
+  evidence?: string[]
+  needs_review?: boolean
 }
 
 export interface ProfessionalAwareness {
@@ -536,6 +549,25 @@ const parseConstraints = (
   }
 }
 
+const parseInterviewProcessPreferences = (
+  value: unknown,
+  context: string,
+): ProfessionalInterviewProcessPreferences => {
+  const record = assertRecord(value, context)
+
+  return {
+    accepted_formats: assertStringArray(record.accepted_formats, `${context}.accepted_formats`),
+    strong_fit_signals: assertStringArray(record.strong_fit_signals, `${context}.strong_fit_signals`),
+    red_flags: assertStringArray(record.red_flags, `${context}.red_flags`),
+    ...(record.max_rounds !== undefined
+      ? { max_rounds: assertNumber(record.max_rounds, `${context}.max_rounds`) }
+      : {}),
+    ...(record.onsite_preferences !== undefined
+      ? { onsite_preferences: assertString(record.onsite_preferences, `${context}.onsite_preferences`) }
+      : {}),
+  }
+}
+
 const parseSkillItem = (
   value: unknown,
   context: string,
@@ -594,6 +626,12 @@ const parseSearchVector = (value: unknown, context: string): ProfessionalSearchV
     ...(vector.supporting_bullets !== undefined
       ? { supporting_bullets: assertStringArray(vector.supporting_bullets, `${context}.supporting_bullets`) }
       : {}),
+    ...(vector.evidence !== undefined
+      ? { evidence: assertStringArray(vector.evidence, `${context}.evidence`) }
+      : {}),
+    ...(vector.needs_review !== undefined
+      ? { needs_review: assertBoolean(vector.needs_review, `${context}.needs_review`) }
+      : {}),
   }
 }
 
@@ -617,6 +655,22 @@ const parseAwareness = (value: unknown, context: string): ProfessionalAwareness 
                 item.severity,
                 AWARENESS_SEVERITY_VALUES,
                 `${context}.open_questions[${index}].severity`,
+              ),
+            }
+          : {}),
+        ...(item.evidence !== undefined
+          ? {
+              evidence: assertStringArray(
+                item.evidence,
+                `${context}.open_questions[${index}].evidence`,
+              ),
+            }
+          : {}),
+        ...(item.needs_review !== undefined
+          ? {
+              needs_review: assertBoolean(
+                item.needs_review,
+                `${context}.open_questions[${index}].needs_review`,
               ),
             }
           : {}),
@@ -752,6 +806,14 @@ export const importProfessionalIdentity = (
       matching: parsedMatching,
       ...(preferences.constraints !== undefined
         ? { constraints: parseConstraints(preferences.constraints, 'preferences.constraints') }
+        : {}),
+      ...(preferences.interview_process !== undefined
+        ? {
+            interview_process: parseInterviewProcessPreferences(
+              preferences.interview_process,
+              'preferences.interview_process',
+            ),
+          }
         : {}),
     },
     skills: {

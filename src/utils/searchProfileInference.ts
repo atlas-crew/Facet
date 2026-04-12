@@ -1,3 +1,4 @@
+import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type { ResumeData } from '../types'
 import type {
   SearchProfile,
@@ -18,6 +19,8 @@ type InferredSearchProfile = Pick<
   SearchProfile,
   'skills' | 'vectors' | 'workSummary' | 'openQuestions'
 >
+
+type IdentitySearchEnhancement = Pick<SearchProfile, 'workSummary' | 'openQuestions'>
 
 const VALID_SKILL_CATEGORIES = new Set<SearchSkillCategory>([
   'backend',
@@ -184,6 +187,40 @@ export function normalizeInferredProfile(
   }
 }
 
+export function buildIdentityInferencePrompt(identity: ProfessionalIdentityV3): string {
+  return `Professional identity:
+${JSON.stringify(
+    {
+      identity: identity.identity,
+      self_model: identity.self_model,
+      preferences: identity.preferences,
+      skills: identity.skills,
+      profiles: identity.profiles,
+      roles: identity.roles,
+      projects: identity.projects,
+      education: identity.education,
+      generator_rules: identity.generator_rules,
+      search_vectors: identity.search_vectors,
+      awareness: identity.awareness,
+    },
+    null,
+    2,
+  )}
+
+Return JSON only.`
+}
+
+export function normalizeIdentitySearchEnhancement(
+  payload: unknown,
+): IdentitySearchEnhancement {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+
+  return {
+    workSummary: normalizeWorkSummary(record.workSummary),
+    openQuestions: normalizeStringArray(record.openQuestions),
+  }
+}
+
 export async function inferSearchProfile(
   resumeData: ResumeData,
   endpoint: string,
@@ -234,5 +271,48 @@ Response schema:
       throw error
     }
     throw new Error('Failed to parse inferred search profile.')
+  }
+}
+
+export async function inferSearchProfileFromIdentity(
+  identity: ProfessionalIdentityV3,
+  endpoint: string,
+): Promise<IdentitySearchEnhancement> {
+  const systemPrompt = `You are a career positioning strategist helping a candidate search for strong-fit jobs. Return JSON only.
+The identity document already stores durable strategic data such as matching filters, constraints, vectors, and awareness items. Do not rewrite or duplicate those stored fields.
+Use the identity document only to infer lightweight search-facing narrative:
+- concise workSummary entries that help search explain the candidate's recent scope
+- openQuestions only when the identity still has meaningful unresolved gaps
+Any factual correction constraints in generator_rules.accuracy are authoritative and must be respected.
+
+Response schema:
+{
+  "workSummary": [
+    {
+      "title": "string",
+      "summary": "string"
+    }
+  ],
+  "openQuestions": ["string"]
+}`
+
+  const rawResponse = await callLlmProxy(
+    endpoint,
+    systemPrompt,
+    buildIdentityInferencePrompt(identity),
+    {
+      feature: 'research.profile-inference',
+      model: PROFILE_INFERENCE_MODEL,
+      timeoutMs: 45000,
+    },
+  )
+
+  try {
+    return normalizeIdentitySearchEnhancement(JSON.parse(extractJsonBlock(rawResponse)))
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw new Error('Failed to parse identity-native search enhancement.')
   }
 }

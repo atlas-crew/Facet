@@ -114,9 +114,11 @@ export const extractPdfTextItems = async (
       pageCount,
     }
   } finally {
-    await pdfDocument?.destroy().catch((error) => {
-      console.warn('pdf.js document cleanup failed', error)
-    })
+    if (pdfDocument && typeof pdfDocument.destroy === 'function') {
+      await pdfDocument.destroy().catch((error) => {
+        console.warn('pdf.js document cleanup failed', error)
+      })
+    }
   }
 }
 

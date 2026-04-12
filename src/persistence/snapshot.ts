@@ -7,6 +7,7 @@ import { useRecruiterStore } from '../store/recruiterStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { useUiStore } from '../store/uiStore'
+import type { SearchProfile } from '../types/search'
 import { cloneValue } from './clone'
 import type {
   FacetArtifactSnapshot,
@@ -21,6 +22,9 @@ import {
   FACET_WORKSPACE_SNAPSHOT_VERSION,
 } from './contracts'
 import type { PersistenceSnapshotRequest } from './coordinator'
+
+const persistableResearchProfile = (profile: SearchProfile | null) =>
+  profile?.source?.kind === 'identity' ? null : cloneValue(profile)
 
 export interface PersistenceBoundaryDefinition {
   source: string
@@ -300,7 +304,7 @@ export const createWorkspaceSnapshotFromStores = (
         'research',
         workspaceId,
         {
-          profile: cloneValue(searchState.profile),
+          profile: persistableResearchProfile(searchState.profile),
           requests: cloneValue(searchState.requests),
           runs: cloneValue(searchState.runs),
         },

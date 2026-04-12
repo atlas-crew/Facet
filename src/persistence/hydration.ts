@@ -28,6 +28,7 @@ import {
   migrateSearchState,
   useSearchStore,
 } from '../store/searchStore'
+import type { SearchProfile } from '../types/search'
 import { resolveStorage } from '../store/storage'
 import { useUiStore } from '../store/uiStore'
 import type { DebriefSession } from '../types/debrief'
@@ -53,6 +54,9 @@ const LEGACY_COVER_LETTER_KEY = 'facet-cover-letter-data'
 const LEGACY_LINKEDIN_KEY = 'facet-linkedin-workspace'
 const LEGACY_DEBRIEF_KEY = 'facet-debrief-workspace'
 const LEGACY_SEARCH_KEY = 'facet-search-data'
+
+const persistedResearchProfile = (profile: SearchProfile | null) =>
+  profile?.source?.kind === 'identity' ? null : cloneValue(profile)
 // Recruiter cards shipped after unified workspace persistence, so there is no
 // standalone legacy local-storage key to migrate here.
 
@@ -136,7 +140,7 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
   }))
 
   useSearchStore.setState({
-    profile: cloneValue(snapshot.artifacts.research.payload.profile),
+    profile: persistedResearchProfile(cloneValue(snapshot.artifacts.research.payload.profile)),
     requests: cloneValue(snapshot.artifacts.research.payload.requests),
     runs: cloneValue(snapshot.artifacts.research.payload.runs),
   })
@@ -276,7 +280,7 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
   }))
 
   useSearchStore.setState({
-    profile: cloneValue(migratedSearch.profile ?? null),
+    profile: persistedResearchProfile(cloneValue(migratedSearch.profile ?? null)),
     requests: cloneValue(migratedSearch.requests ?? []),
     runs: cloneValue(migratedSearch.runs ?? []),
   })

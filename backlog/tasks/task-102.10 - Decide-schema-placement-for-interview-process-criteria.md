@@ -1,9 +1,10 @@
 ---
 id: TASK-102.10
 title: Decide schema placement for interview process criteria
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 07:15'
+updated_date: '2026-04-12 01:36'
 labels:
   - refactor
   - identity

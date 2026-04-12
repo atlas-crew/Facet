@@ -5,7 +5,7 @@ import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepCard, PrepDeck } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
-import type { SearchRequest, SearchRun } from '../types/search'
+import type { SearchProfile, SearchRequest, SearchRun } from '../types/search'
 import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
 import {
@@ -13,6 +13,9 @@ import {
   createEmptyLinkedInArtifactSnapshot,
   createEmptyRecruiterArtifactSnapshot,
 } from './normalization'
+
+const persistableResearchProfile = (profile: SearchProfile | null) =>
+  profile?.source?.kind === 'identity' ? null : cloneValue(profile)
 
 const mergeById = <T extends { id: string }>(existing: T[], incoming: T[]): T[] => {
   const knownIds = new Set(existing.map((item) => item.id))
@@ -191,8 +194,8 @@ export const mergeWorkspaceSnapshots = (
         ...cloneValue(current.artifacts.research),
         payload: {
           profile:
-            current.artifacts.research.payload.profile ??
-            cloneValue(imported.artifacts.research.payload.profile),
+            persistableResearchProfile(current.artifacts.research.payload.profile) ??
+            persistableResearchProfile(imported.artifacts.research.payload.profile),
           requests: mergeSearchRequests(
             current.artifacts.research.payload.requests,
             imported.artifacts.research.payload.requests,

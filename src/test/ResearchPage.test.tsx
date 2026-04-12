@@ -3,10 +3,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { defaultResumeData } from '../store/defaultData'
+import { useIdentityStore } from '../store/identityStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
+import { adaptIdentityToSearchProfile } from '../utils/identitySearchProfile'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const { mockNavigate } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
@@ -66,6 +69,14 @@ describe('ResearchPage', () => {
       sortField: 'tier',
       sortDir: 'asc',
       filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draftDocument: '',
+      scanResult: null,
+      lastError: null,
+      warnings: [],
     })
 
     useSearchStore.setState({
@@ -200,6 +211,69 @@ describe('ResearchPage', () => {
     render(<ResearchPage />)
 
     expect(screen.getByRole('status').textContent).toContain('current resume data is version 2')
+  })
+
+  it('does not resync an identity-backed profile when the derived payload is unchanged', async () => {
+    const identity = cloneIdentityFixture()
+    const identityProfile = adaptIdentityToSearchProfile(identity, {
+      resumeVersion: defaultResumeData.version,
+    })
+    const originalSetProfile = useSearchStore.getState().setProfile
+    const setProfileSpy = vi.fn((nextProfile: Parameters<typeof originalSetProfile>[0]) =>
+      originalSetProfile(nextProfile),
+    )
+
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      profile: {
+        ...identityProfile,
+        id: 'sprof-identity',
+        inferredAt: '2026-04-11T12:00:00.000Z',
+      },
+      setProfile: setProfileSpy,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Active source: Identity model/i)).toBeTruthy()
+    })
+
+    expect(setProfileSpy).not.toHaveBeenCalled()
+  })
+
+  it('restores the prior resume-backed profile after leaving identity mode', async () => {
+    const resumeProfile = structuredClone(useSearchStore.getState().profile)
+    const identity = cloneIdentityFixture()
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+
+    render(<ResearchPage />)
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.source?.kind).toBe('identity')
+    })
+
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draftDocument: '',
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.source?.kind).toBe('resume')
+    })
+
+    expect(useSearchStore.getState().profile?.vectors).toEqual(resumeProfile?.vectors)
+    expect(useSearchStore.getState().profile?.constraints).toEqual(resumeProfile?.constraints)
   })
 
   it('wires tabs to their tabpanel content', async () => {

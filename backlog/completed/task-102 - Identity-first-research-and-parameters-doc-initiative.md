@@ -1,10 +1,10 @@
 ---
 id: TASK-102
 title: Identity-first research and parameters doc initiative
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-11 06:13'
-updated_date: '2026-04-11 08:28'
+updated_date: '2026-04-12 01:36'
 labels:
   - feature
   - identity
@@ -52,6 +52,12 @@ TASK-102.9 is future polish for standalone export and is intentionally last.
 
 TASK-102.12 adds factual-correction persistence through generator_rules.accuracy so AI-derived regeneration and identity-native prompt flows inherit user-established truth constraints across sessions.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented the identity-first research and parameters doc initiative end to end. Added an identity-to-search-profile adapter, moved Research bootstrap/inference to the identity path with resume fallback preservation, built the Identity strategy workbench for preferences, vectors, awareness, and parameters-doc export, added needs-review/evidence metadata for AI-derived identity items, and stopped identity-derived SearchProfile data from persisting as durable truth. Verification: targeted vitest slices passed during implementation, final `npm run test` passed with 95 files / 881 tests, and `npm run build` passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

@@ -21,6 +21,10 @@ export function joinTags(values: string[]): string {
 
 export function emptyProfile(resumeVersion: number): Omit<SearchProfile, 'id' | 'inferredAt'> {
   return {
+    source: {
+      kind: 'resume',
+      label: 'Resume fallback',
+    },
     skills: [],
     vectors: [],
     workSummary: [],
@@ -63,7 +67,7 @@ export function upsertVectorConfig(
 }
 
 export function buildRequestDraft(
-  profile: SearchProfile | null,
+  profile: Pick<SearchProfile, 'vectors' | 'constraints'> | null,
 ): Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'> {
   const focusVectors = profile?.vectors
     .slice()

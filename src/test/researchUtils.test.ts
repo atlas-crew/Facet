@@ -91,6 +91,10 @@ describe('researchUtils', () => {
       vectors: [],
       workSummary: [],
       openQuestions: [],
+      source: {
+        kind: 'resume',
+        label: 'Resume fallback',
+      },
       constraints: {
         compensation: '',
         locations: [],

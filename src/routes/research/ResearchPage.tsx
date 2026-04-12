@@ -1,19 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'lucide-react'
+import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useSearchStore } from '../../store/searchStore'
 import type {
   SearchCompanySize,
+  SearchProfile,
   SearchResultEntry,
   SkillCatalogEntry,
 } from '../../types/search'
-import { facetClientEnv } from '../../utils/facetEnv'
+import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { executeSearch } from '../../utils/searchExecutor'
-import { inferSearchProfile } from '../../utils/searchProfileInference'
+import {
+  inferSearchProfile,
+  inferSearchProfileFromIdentity,
+} from '../../utils/searchProfileInference'
+import { adaptIdentityToSearchProfile } from '../../utils/identitySearchProfile'
 import {
   buildRequestDraft,
   createPipelineEntryDraft,
@@ -39,9 +45,33 @@ const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string
   { value: 'any', label: 'Any size' },
 ]
 
+const serializeIdentityProfile = (profile: {
+  inferredFromResumeVersion: number
+  skills: SearchProfile['skills']
+  vectors: SearchProfile['vectors']
+  workSummary: SearchProfile['workSummary']
+  openQuestions: SearchProfile['openQuestions']
+  constraints: SearchProfile['constraints']
+  filters: SearchProfile['filters']
+  interviewPrefs: SearchProfile['interviewPrefs']
+  source?: SearchProfile['source']
+}) =>
+  JSON.stringify({
+    inferredFromResumeVersion: profile.inferredFromResumeVersion,
+    skills: profile.skills,
+    vectors: profile.vectors,
+    workSummary: profile.workSummary,
+    openQuestions: profile.openQuestions,
+    constraints: profile.constraints,
+    filters: profile.filters,
+    interviewPrefs: profile.interviewPrefs,
+    source: profile.source,
+  })
+
 export function ResearchPage() {
   const navigate = useNavigate()
   const resumeData = useResumeStore((state) => state.data)
+  const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const addPipelineEntry = usePipelineStore((state) => state.addEntry)
   const {
@@ -67,14 +97,63 @@ export function ResearchPage() {
   const [isInferring, setIsInferring] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
+  const identityProfileRef = useRef({
+    id: createId('sprof'),
+    inferredAt: new Date().toISOString(),
+  })
+  const preservedResumeProfileRef = useRef<SearchProfile | null>(null)
 
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
+    () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
     [],
   )
 
-  const effectiveProfile = profile ?? null
+  const identityDerivedProfile = useMemo(
+    () =>
+      currentIdentity
+        ? adaptIdentityToSearchProfile(currentIdentity, {
+            resumeVersion: resumeData.version,
+            workSummary: profile?.source?.kind === 'identity' ? profile.workSummary : undefined,
+            openQuestions: profile?.source?.kind === 'identity' ? profile.openQuestions : undefined,
+          })
+        : null,
+    [currentIdentity, profile?.openQuestions, profile?.source?.kind, profile?.workSummary, resumeData.version],
+  )
+
+  const effectiveProfile = currentIdentity ? identityDerivedProfile : profile ?? null
+  const profileSourceKind = profile?.source?.kind ?? null
+  const identityProfileKey = useMemo(() => {
+    if (profileSourceKind !== 'identity' || !profile) {
+      return profileSourceKind ?? 'none'
+    }
+
+    return serializeIdentityProfile(profile)
+  }, [
+    profileSourceKind,
+    profile?.constraints,
+    profile?.filters,
+    profile?.inferredFromResumeVersion,
+    profile?.interviewPrefs,
+    profile?.openQuestions,
+    profile?.skills,
+    profile?.source?.label,
+    profile?.vectors,
+    profile?.workSummary,
+  ])
+  const isIdentitySource = effectiveProfile?.source?.kind === 'identity'
+  const executableProfile = useMemo(
+    () =>
+      effectiveProfile
+        ? {
+            ...effectiveProfile,
+            id: profile?.id ?? identityProfileRef.current.id,
+            inferredAt: profile?.inferredAt ?? identityProfileRef.current.inferredAt,
+          }
+        : null,
+    [effectiveProfile, profile?.id, profile?.inferredAt],
+  )
   const profileIsStale =
+    !currentIdentity &&
     effectiveProfile != null &&
     effectiveProfile.inferredFromResumeVersion !== resumeData.version
 
@@ -95,14 +174,19 @@ export function ResearchPage() {
 
   const activeRequest = activeRun ? requestById.get(activeRun.requestId) ?? null : null
 
-  const vectorOptions = useMemo(
-    () =>
-      resumeData.vectors.map((vector) => ({
-        id: vector.id,
-        label: vector.label,
-      })),
-    [resumeData.vectors],
-  )
+  const vectorOptions = useMemo(() => {
+    if (isIdentitySource) {
+      return (effectiveProfile?.vectors ?? []).map((vector) => ({
+        id: vector.vectorId,
+        label: vector.description || vector.targetRoleTitles[0] || vector.vectorId,
+      }))
+    }
+
+    return resumeData.vectors.map((vector) => ({
+      id: vector.id,
+      label: vector.label,
+    }))
+  }, [effectiveProfile?.vectors, isIdentitySource, resumeData.vectors])
 
   const displayVectorConfigs = useMemo(() => {
     const current = effectiveProfile?.vectors ?? []
@@ -119,6 +203,10 @@ export function ResearchPage() {
       )
     })
   }, [effectiveProfile?.vectors, vectorOptions])
+  const vectorLabelById = useMemo(
+    () => new Map(vectorOptions.map((vector) => [vector.id, vector.label])),
+    [vectorOptions],
+  )
 
   const closedPipelineCompanies = useMemo(
     () =>
@@ -147,8 +235,53 @@ export function ResearchPage() {
   }, [activeRunId, runs, sortedRuns])
 
   useEffect(() => {
-    setRequestDraft(buildRequestDraft(profile))
-  }, [profile])
+    setRequestDraft(buildRequestDraft(effectiveProfile))
+  }, [effectiveProfile])
+
+  useEffect(() => {
+    if (currentIdentity && profileSourceKind !== 'identity' && profile) {
+      preservedResumeProfileRef.current = profile
+    }
+  }, [currentIdentity, profile, profileSourceKind])
+
+  useEffect(() => {
+    if (!identityDerivedProfile) {
+      if (profileSourceKind === 'identity') {
+        const preservedResumeProfile = preservedResumeProfileRef.current
+        preservedResumeProfileRef.current = null
+        if (preservedResumeProfile) {
+          setProfile(preservedResumeProfile)
+        } else {
+          clearProfile()
+        }
+      }
+      return
+    }
+
+    const syncedIdentityProfile = {
+      ...identityDerivedProfile,
+      id: profile?.id ?? identityProfileRef.current.id,
+      inferredAt: profile?.inferredAt ?? identityProfileRef.current.inferredAt,
+    }
+
+    if (profileSourceKind !== 'identity') {
+      setProfile(syncedIdentityProfile)
+      return
+    }
+
+    const nextSerialized = serializeIdentityProfile(syncedIdentityProfile)
+    if (identityProfileKey !== nextSerialized) {
+      setProfile(syncedIdentityProfile)
+    }
+  }, [
+    clearProfile,
+    identityDerivedProfile,
+    identityProfileKey,
+    profile?.id,
+    profile?.inferredAt,
+    profileSourceKind,
+    setProfile,
+  ])
 
   const ensureEndpoint = () => {
     if (!aiEndpoint) {
@@ -183,9 +316,29 @@ export function ResearchPage() {
 
   const handleInfer = async () => {
     try {
-      ensureEndpoint()
       setPageError(null)
       setIsInferring(true)
+      if (currentIdentity) {
+        const baseProfile = adaptIdentityToSearchProfile(currentIdentity, {
+          resumeVersion: resumeData.version,
+        })
+        const enhancement = aiEndpoint
+          ? await inferSearchProfileFromIdentity(currentIdentity, aiEndpoint)
+          : {
+              workSummary: baseProfile.workSummary,
+              openQuestions: baseProfile.openQuestions,
+            }
+
+        setProfile({
+          ...baseProfile,
+          ...enhancement,
+          inferredFromResumeVersion: resumeData.version,
+        })
+        setActiveTab('search')
+        return
+      }
+
+      ensureEndpoint()
       const inferred = await inferSearchProfile(resumeData, aiEndpoint)
       const baseProfile = effectiveProfile ?? emptyProfile(resumeData.version)
       setProfile({
@@ -202,7 +355,7 @@ export function ResearchPage() {
   }
 
   const handleLaunchSearch = async () => {
-    if (!effectiveProfile) {
+    if (!effectiveProfile || !executableProfile) {
       setPageError('Build or restore a search profile before launching search.')
       setActiveTab('profile')
       return
@@ -230,7 +383,7 @@ export function ResearchPage() {
       setActiveRunId(run.id)
       setActiveTab('results')
 
-      const result = await executeSearch(effectiveProfile, request, aiEndpoint)
+      const result = await executeSearch(executableProfile, request, aiEndpoint)
       updateRun(run.id, {
         status: 'completed',
         results: result.results,
@@ -300,8 +453,8 @@ export function ResearchPage() {
           <p className="research-eyebrow">Deep Job Research</p>
           <h1>Research</h1>
           <p className="research-copy">
-            Build a search profile from your resume, launch targeted AI-assisted searches,
-            and push the best matches into your pipeline.
+            Build a search profile from your identity model or resume, launch targeted
+            AI-assisted searches, and push the best matches into your pipeline.
           </p>
         </div>
         <div className="research-header-actions">
@@ -312,9 +465,13 @@ export function ResearchPage() {
             disabled={isInferring}
           >
             <Sparkles size={16} />
-            {isInferring ? 'Inferring…' : 'Build Profile from Resume'}
+            {isInferring
+              ? 'Inferring…'
+              : currentIdentity
+                ? 'Refresh from Identity'
+                : 'Build Profile from Resume'}
           </button>
-          {effectiveProfile ? (
+          {effectiveProfile && !currentIdentity ? (
             <button
               type="button"
               className="research-btn"
@@ -337,6 +494,15 @@ export function ResearchPage() {
         <div className="research-warning" role="status">
           Your search profile was inferred from resume version {effectiveProfile?.inferredFromResumeVersion}.
           The current resume data is version {resumeData.version}. Rebuild the profile if you want the latest resume content reflected in search.
+        </div>
+      ) : null}
+
+      {effectiveProfile ? (
+        <div className="research-warning">
+          Active source: {isIdentitySource ? 'Identity model' : 'Resume fallback'}.
+          {isIdentitySource
+            ? ' Strategic fields are now edited in Identity, and your last resume-backed profile is preserved for this session if you switch back.'
+            : ' This workspace is still using the resume-driven bootstrap path.'}
         </div>
       ) : null}
 
@@ -374,8 +540,9 @@ export function ResearchPage() {
             <div className="research-empty">
               <h2>No search profile yet</h2>
               <p>
-                Use your resume data to infer skills, vector search strategies, work summaries,
-                and open questions you may want to refine before searching.
+                {currentIdentity
+                  ? 'Apply or import an identity model to bootstrap research from identity-backed search data.'
+                  : 'Use your resume data to infer skills, vector search strategies, work summaries, and open questions you may want to refine before searching.'}
               </p>
             </div>
           ) : (
@@ -385,13 +552,23 @@ export function ResearchPage() {
                   <div className="research-card-header">
                     <div>
                       <h2>Skills</h2>
-                      <p>Review and refine the search-facing skills catalog.</p>
+                      <p>
+                        {isIdentitySource
+                          ? 'Identity-derived skills flow into Research automatically.'
+                          : 'Review and refine the search-facing skills catalog.'}
+                      </p>
                     </div>
-                    <button type="button" className="research-btn" onClick={addSkill}>
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={addSkill}
+                      disabled={isIdentitySource}
+                    >
                       Add Skill
                     </button>
                   </div>
-                  <div className="research-skill-table">
+                  <fieldset className="research-fieldset" disabled={isIdentitySource}>
+                    <div className="research-skill-table">
                     {effectiveProfile.skills.length === 0 ? (
                       <p className="research-muted">No inferred skills yet.</p>
                     ) : (
@@ -438,18 +615,24 @@ export function ResearchPage() {
                         </div>
                       ))
                     )}
-                  </div>
+                    </div>
+                  </fieldset>
                 </section>
 
                 <section className="research-card">
                   <div className="research-card-header">
                     <div>
                       <h2>Constraints & Preferences</h2>
-                      <p>Use these to steer search quality before launching runs.</p>
+                      <p>
+                        {isIdentitySource
+                          ? 'Identity owns these strategic fields. Review them here and update them from Identity.'
+                          : 'Use these to steer search quality before launching runs.'}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="research-form-grid">
+                  <fieldset className="research-fieldset" disabled={isIdentitySource}>
+                    <div className="research-form-grid">
                     <label className="research-field">
                       <span>Compensation anchor</span>
                       <input
@@ -574,7 +757,8 @@ export function ResearchPage() {
                         placeholder="Noisy on-call, unclear scope"
                       />
                     </label>
-                  </div>
+                    </div>
+                  </fieldset>
                 </section>
               </div>
 
@@ -583,17 +767,21 @@ export function ResearchPage() {
                   <div className="research-card-header">
                     <div>
                       <h2>Vector Search Config</h2>
-                      <p>Guide role-title targeting and search keyword emphasis per vector.</p>
+                      <p>
+                        {isIdentitySource
+                          ? 'Identity-managed search vectors flow into Research automatically.'
+                          : 'Guide role-title targeting and search keyword emphasis per vector.'}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="research-stack">
+                  <fieldset className="research-fieldset" disabled={isIdentitySource}>
+                    <div className="research-stack">
                     {displayVectorConfigs.map((config) => {
-                      const vector = resumeData.vectors.find((item) => item.id === config.vectorId)
                       return (
                         <div key={config.vectorId} className="research-vector-card">
                           <div className="research-vector-card-header">
-                            <h3>{vector?.label ?? config.vectorId}</h3>
+                            <h3>{vectorLabelById.get(config.vectorId) ?? config.vectorId}</h3>
                             <span className="research-pill">Priority {config.priority}</span>
                           </div>
 
@@ -670,14 +858,19 @@ export function ResearchPage() {
                         </div>
                       )
                     })}
-                  </div>
+                    </div>
+                  </fieldset>
                 </section>
 
                 <section className="research-card">
                   <div className="research-card-header">
                     <div>
                       <h2>Inference Notes</h2>
-                      <p>Summaries and open questions generated from resume data.</p>
+                      <p>
+                        {isIdentitySource
+                          ? 'Narrative summaries can be refreshed from the identity model without creating a second source of truth.'
+                          : 'Summaries and open questions generated from resume data.'}
+                      </p>
                     </div>
                   </div>
 
@@ -712,6 +905,12 @@ export function ResearchPage() {
                   </div>
                 </section>
               </div>
+
+              {isIdentitySource ? (
+                <p className="research-muted">
+                  Need to change vectors, filters, or awareness items? Use the Identity page.
+                </p>
+              ) : null}
             </>
           )}
       </section>

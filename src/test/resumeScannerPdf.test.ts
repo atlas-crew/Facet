@@ -173,10 +173,15 @@ describe('resumeScanner pdf', () => {
     expect(result.counts).toEqual({
       roles: 1,
       bullets: 2,
+      projects: 0,
       skillGroups: 2,
       education: 1,
       extractedBullets: 2,
       decomposedBullets: 0,
+      scannedBullets: 2,
+      deepenedBullets: 0,
+      editedBullets: 0,
+      failedBullets: 0,
     })
     expect(result.identity.identity.name).toBe('Nick Ferguson')
     expect(result.identity.roles[0]?.bullets[0]?.source_text).toBe(
@@ -241,10 +246,15 @@ describe('resumeScanner pdf', () => {
     expect(result.counts).toEqual({
       roles: 1,
       bullets: 2,
+      projects: 0,
       skillGroups: 1,
       education: 0,
       extractedBullets: 2,
       decomposedBullets: 0,
+      scannedBullets: 2,
+      deepenedBullets: 0,
+      editedBullets: 0,
+      failedBullets: 0,
     })
     expect(result.identity.roles).toEqual([
       expect.objectContaining({

@@ -27,6 +27,13 @@ export type SearchCompanySize =
 
 export type SearchRunStatus = 'pending' | 'running' | 'completed' | 'failed'
 
+export type SearchProfileSourceKind = 'identity' | 'resume'
+
+export interface SearchProfileSource {
+  kind: SearchProfileSourceKind
+  label: string
+}
+
 export interface SkillCatalogEntry {
   id: string
   name: string
@@ -69,6 +76,7 @@ export interface SearchInterviewPrefs {
 export interface SearchProfile {
   id: string
   durableMeta?: DurableMetadata
+  source?: SearchProfileSource
   skills: SkillCatalogEntry[]
   vectors: VectorSearchConfig[]
   workSummary: SearchWorkSummaryEntry[]

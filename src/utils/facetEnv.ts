@@ -53,29 +53,33 @@ const buildSupabasePublishableKey =
     ? __SUPABASE_PUBLISHABLE_KEY__
     : undefined
 
-export const facetClientEnv: FacetClientEnv = {
-  deploymentMode: resolveFacetDeploymentModeValue(
-    buildFacetDeploymentMode,
-    import.meta.env.VITE_FACET_DEPLOYMENT_MODE,
-  ),
-  facetApiBaseUrl: resolveClientEnvValue(
-    buildFacetApiBaseUrl,
-    import.meta.env.VITE_FACET_API_BASE_URL,
-  ),
-  anthropicProxyUrl: resolveClientEnvValue(
-    buildAnthropicProxyUrl,
-    import.meta.env.VITE_ANTHROPIC_PROXY_URL,
-  ),
-  anthropicProxyApiKey: resolveClientEnvValue(
-    buildAnthropicProxyApiKey,
-    import.meta.env.VITE_ANTHROPIC_PROXY_API_KEY,
-  ),
-  supabaseUrl: resolveClientEnvValue(
-    buildSupabaseUrl,
-    import.meta.env.VITE_SUPABASE_URL,
-  ),
-  supabasePublishableKey: resolveClientEnvValue(
-    buildSupabasePublishableKey,
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  ),
+export function getFacetClientEnv(): FacetClientEnv {
+  return {
+    deploymentMode: resolveFacetDeploymentModeValue(
+      buildFacetDeploymentMode,
+      import.meta.env.VITE_FACET_DEPLOYMENT_MODE,
+    ),
+    facetApiBaseUrl: resolveClientEnvValue(
+      buildFacetApiBaseUrl,
+      import.meta.env.VITE_FACET_API_BASE_URL,
+    ),
+    anthropicProxyUrl: resolveClientEnvValue(
+      buildAnthropicProxyUrl,
+      import.meta.env.VITE_ANTHROPIC_PROXY_URL,
+    ),
+    anthropicProxyApiKey: resolveClientEnvValue(
+      buildAnthropicProxyApiKey,
+      import.meta.env.VITE_ANTHROPIC_PROXY_API_KEY,
+    ),
+    supabaseUrl: resolveClientEnvValue(
+      buildSupabaseUrl,
+      import.meta.env.VITE_SUPABASE_URL,
+    ),
+    supabasePublishableKey: resolveClientEnvValue(
+      buildSupabasePublishableKey,
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    ),
+  }
 }
+
+export const facetClientEnv: FacetClientEnv = getFacetClientEnv()

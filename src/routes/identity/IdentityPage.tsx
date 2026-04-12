@@ -27,6 +27,7 @@ import { BulletConfidenceCard } from './BulletConfidenceCard'
 import { DraftSummaryCard } from './DraftSummaryCard'
 import { ExtractionAgentCard } from './ExtractionAgentCard'
 import { IdentityModelBuilderCard } from './IdentityModelBuilderCard'
+import { IdentityStrategyWorkbench } from './IdentityStrategyWorkbench'
 import './identity.css'
 
 const downloadJson = (filename: string, content: string) => {
@@ -692,6 +693,14 @@ export function IdentityPage() {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {currentIdentity ? (
+        <IdentityStrategyWorkbench
+          aiEndpoint={aiEndpoint}
+          onError={setPageError}
+          onNotice={setPageNotice}
+        />
       ) : null}
 
       <div className="identity-grid identity-grid-workbench">
