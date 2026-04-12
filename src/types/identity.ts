@@ -52,6 +52,7 @@ export interface IdentityEnrichmentSkillRef {
   groupLabel: string
   tags: string[]
   status: IdentityEnrichmentStatus
+  stale: boolean
 }
 
 export interface IdentityEnrichmentProgress {

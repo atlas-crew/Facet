@@ -758,10 +758,6 @@
 .identity-scan-role-toggle,
 .identity-scan-bullet-row {
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-inset) 86%, transparent);
-  padding: var(--space-3);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -770,20 +766,42 @@
   cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--easing),
-    background var(--duration-fast) var(--easing);
+    background var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
-.identity-scan-role-toggle:hover,
-.identity-scan-bullet-row:hover {
+.identity-scan-role-toggle {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: var(--space-3);
+  box-shadow: inset 3px 0 0 var(--accent-primary-subtle);
+}
+
+.identity-scan-role-toggle:hover {
   border-color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
+  background: color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface));
+  box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+.identity-scan-bullet-row {
+  border: 0;
+  border-left: 2px solid var(--border-subtle);
+  border-radius: 0 8px 8px 0;
+  background: transparent;
+  margin-left: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+}
+
+.identity-scan-bullet-row:hover {
+  border-left-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 6%, transparent);
 }
 
 .identity-scan-bullet-row-active {
-  border-color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface));
-  box-shadow: 0 0 0 1px
-    color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  border-left: 2px solid var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  box-shadow: none;
 }
 
 .identity-scan-role-summary,
@@ -959,4 +977,48 @@
   .identity-grid-workbench {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.identity-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.identity-field-actions-inline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.identity-btn-ghost {
+  border-style: dashed;
+  background: transparent;
+}
+
+.identity-field-help {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.identity-field-examples {
+  margin-top: var(--space-2);
+}
+
+.identity-field-examples summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.identity-example-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  color: var(--text-secondary);
 }

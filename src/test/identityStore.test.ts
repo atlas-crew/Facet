@@ -369,6 +369,33 @@ describe('identityStore skill enrichment', () => {
     expect(useIdentityStore.getState().draftDocument).toContain('"Kubernetes"')
   })
 
+  it('stores optional enrichment fields as undefined when a depth-only review is saved', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Kubernetes',
+      {
+        depth: 'working',
+        context: '   ',
+        positioning: '   ',
+      },
+      'user',
+    )
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill).toMatchObject({
+      depth: 'working',
+      context: undefined,
+      positioning: undefined,
+      context_stale: undefined,
+      positioning_stale: undefined,
+    })
+  })
+
   it('stores llm-accepted and user-edited-llm enrichment sources', () => {
     useIdentityStore.setState({
       currentIdentity: createIdentity(),
@@ -398,6 +425,32 @@ describe('identityStore skill enrichment', () => {
     const items = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items ?? []
     expect(items[0]?.enriched_by).toBe('llm-accepted')
     expect(items[1]?.enriched_by).toBe('user-edited-llm')
+  })
+
+  it('persists stale flags when depth changes invalidate optional fields', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+    })
+
+    useIdentityStore.getState().saveSkillEnrichment(
+      'platform',
+      'Terraform',
+      {
+        depth: 'working',
+        context: 'Provisioned cloud and on-prem infrastructure.',
+        positioning: 'Infrastructure as code and platform automation.',
+        contextStale: true,
+        positioningStale: true,
+      },
+      'user',
+    )
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
+    expect(skill).toMatchObject({
+      depth: 'working',
+      context_stale: true,
+      positioning_stale: true,
+    })
   })
 
   it('marks a skill skipped without clearing any existing enrichment fields', () => {

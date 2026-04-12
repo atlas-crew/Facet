@@ -7,14 +7,14 @@ import type {
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 const SKILL_ENRICHMENT_MODEL = 'haiku'
-const VALID_DEPTHS = new Set<ProfessionalSkillDepth>(['expert', 'strong', 'working', 'basic', 'avoid'])
+const AI_DEPTH_VALUES = new Set<ProfessionalSkillDepth>(['expert', 'strong', 'working', 'basic'])
 
 export { JsonExtractionError }
 
 export interface SkillEnrichmentSuggestion {
-  depth: ProfessionalSkillDepth
-  context: string
-  positioning: string
+  depth?: ProfessionalSkillDepth
+  context?: string
+  positioning?: string
 }
 
 interface SkillEvidenceSnippet {
@@ -32,6 +32,8 @@ export interface GenerateSkillEnrichmentInput {
   identity: ProfessionalIdentityV3
   group: ProfessionalSkillGroup
   skill: ProfessionalSkillItem
+  draftDepth?: ProfessionalSkillDepth
+  preserveDepth?: boolean
   signal?: AbortSignal
 }
 
@@ -39,8 +41,11 @@ const normalizeSpace = (value: string): string => value.replace(/\s+/g, ' ').tri
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^$()|[\]{}]/g, '\\$&')
 
-const buildNeedles = (skill: ProfessionalSkillItem): SkillNeedle[] => {
-  const rawTerms = [skill.name, ...(skill.tags ?? [])]
+const buildNeedles = (
+  skill: ProfessionalSkillItem,
+  options?: { includeTags?: boolean },
+): SkillNeedle[] => {
+  const rawTerms = options?.includeTags === false ? [skill.name] : [skill.name, ...(skill.tags ?? [])]
   const needles: SkillNeedle[] = []
   const seen = new Set<string>()
 
@@ -65,12 +70,11 @@ const matchesSkill = (text: string, needles: SkillNeedle[]): boolean => {
   return needles.some(({ matcher }) => matcher.test(normalized))
 }
 
-const collectEvidence = (
+const collectBulletEvidence = (
   identity: ProfessionalIdentityV3,
-  group: ProfessionalSkillGroup,
   skill: ProfessionalSkillItem,
 ): SkillEvidenceSnippet[] => {
-  const needles = buildNeedles(skill)
+  const needles = buildNeedles(skill, { includeTags: false })
   const snippets: SkillEvidenceSnippet[] = []
 
   for (const role of identity.roles) {
@@ -107,6 +111,18 @@ const collectEvidence = (
       })
     }
   }
+
+  return snippets
+}
+
+const collectContextEvidence = (
+  identity: ProfessionalIdentityV3,
+  group: ProfessionalSkillGroup,
+  skill: ProfessionalSkillItem,
+  bulletEvidence: SkillEvidenceSnippet[],
+): SkillEvidenceSnippet[] => {
+  const needles = buildNeedles(skill)
+  const snippets = [...bulletEvidence]
 
   for (const project of identity.projects) {
     const fragments = [project.name, project.description, ...(project.tags ?? [])]
@@ -146,12 +162,21 @@ const collectEvidence = (
   return snippets.slice(0, 8)
 }
 
+export const hasSkillEnrichmentBulletEvidence = (
+  identity: ProfessionalIdentityV3,
+  _group: ProfessionalSkillGroup,
+  skill: ProfessionalSkillItem,
+): boolean => collectBulletEvidence(identity, skill).length > 0
+
 const buildPrompt = (
   identity: ProfessionalIdentityV3,
   group: ProfessionalSkillGroup,
   skill: ProfessionalSkillItem,
+  draftDepth?: ProfessionalSkillDepth,
+  preserveDepth?: boolean,
 ): string => {
-  const evidence = collectEvidence(identity, group, skill)
+  const bulletEvidence = collectBulletEvidence(identity, skill)
+  const contextEvidence = collectContextEvidence(identity, group, skill, bulletEvidence)
 
   return JSON.stringify(
     {
@@ -170,11 +195,13 @@ const buildPrompt = (
       skill: {
         name: skill.name,
         tags: skill.tags,
-        existingDepth: skill.depth ?? null,
+        chosenDepth: draftDepth ?? null,
+        preserveDepth: Boolean(preserveDepth),
         existingContext: skill.context ?? null,
         existingPositioning: skill.positioning ?? null,
       },
-      evidence,
+      bulletEvidence,
+      contextEvidence,
     },
     null,
     2,
@@ -183,27 +210,24 @@ const buildPrompt = (
 
 const normalizeSuggestion = (payload: unknown): SkillEnrichmentSuggestion => {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
-  const depth = isString(record.depth) ? record.depth.trim().toLowerCase() : ''
-  const context = isString(record.context) ? normalizeSpace(record.context) : ''
+  const rawDepth = isString(record.depth) ? record.depth.trim().toLowerCase() : ''
+  const hasContext = Object.hasOwn(record, 'context')
+  const hasPositioning =
+    Object.hasOwn(record, 'positioning') ||
+    Object.hasOwn(record, 'searchSignal') ||
+    Object.hasOwn(record, 'search_signal')
+  const context = hasContext && isString(record.context) ? normalizeSpace(record.context) : ''
   const rawPositioning = record.positioning ?? record.searchSignal ?? record.search_signal
-  const positioning = isString(rawPositioning) ? normalizeSpace(rawPositioning) : ''
+  const positioning = hasPositioning && isString(rawPositioning) ? normalizeSpace(rawPositioning) : ''
 
-  if (!VALID_DEPTHS.has(depth as ProfessionalSkillDepth)) {
-    throw new Error(`Invalid skill depth in enrichment suggestion: "${depth || 'missing'}".`)
-  }
-
-  if (!context) {
-    throw new Error('Missing required field in enrichment suggestion: context.')
-  }
-
-  if (!positioning) {
-    throw new Error('Missing required field in enrichment suggestion: positioning.')
+  if (rawDepth && !AI_DEPTH_VALUES.has(rawDepth as ProfessionalSkillDepth)) {
+    throw new Error(`Invalid AI-inferred skill depth in enrichment suggestion: "${rawDepth}".`)
   }
 
   return {
-    depth: depth as ProfessionalSkillDepth,
-    context,
-    positioning,
+    ...(rawDepth ? { depth: rawDepth as ProfessionalSkillDepth } : {}),
+    ...(hasContext ? { context } : {}),
+    ...(hasPositioning ? { positioning } : {}),
   }
 }
 
@@ -212,27 +236,67 @@ export async function generateSkillEnrichmentSuggestion({
   identity,
   group,
   skill,
+  draftDepth,
+  preserveDepth,
   signal,
 }: GenerateSkillEnrichmentInput): Promise<SkillEnrichmentSuggestion> {
   const systemPrompt = `You are enriching a professional identity skill record for job search and writing workflows.
 Return JSON only.
 Use only the provided source material.
-Pick the lowest defensible depth if the evidence is ambiguous.
-Write concise, specific prose that would help downstream search and matching.
+
+Depth rules:
+- Never infer "avoid". Only a human can set avoid.
+- Only infer depth when bulletEvidence is non-empty.
+- If bulletEvidence is empty, return null for depth.
+- If skill.preserveDepth is true, return null for depth and use skill.chosenDepth when writing context and positioning.
+- If you do infer depth, choose only from expert, strong, working, or basic.
+
+Context rules:
+- Describe in one or two sentences how this person uses the skill in practice.
+- Focus on shape of engagement: domain, patterns, or what is unusual.
+- Do not restate accomplishments from bullets.
+- Do not use first-person narrative.
+- If there is nothing distinctive to say beyond generic usage, return an empty string.
+
+Examples of good context:
+- Ansible: "writes libraries/plugins in Python, uses roles/skills architecture"
+- Rust: "primarily for proxy/server infrastructure and CLI tools, not embedded"
+- Python: "primary language for platform backends, automation, custom Ansible modules"
+- C#: "full platform work - ASP.NET, SQL Server, build systems, tooling"
+
+Positioning rules:
+- Write a short positioning directive for downstream generators.
+- One sentence, maximum 15 words.
+- Consider the chosen depth, context, and whether the skill is differentiating, expected, or ramping.
+- If the skill does not need special positioning, return an empty string.
+
+Examples of good positioning:
+- "Strong match signal. List first."
+- "Strong match signal, especially with Python. Rare combo."
+- "Standard. Don't oversell."
+- "Expected for Linux roles."
+- "Can mention. Avoid deep Rust required roles."
+- "Don't lead with this."
+- "Can apply if other signals are strong. Flag as ramping."
 
 Response schema:
 {
-  "depth": "expert|strong|working|basic|avoid",
+  "depth": "expert|strong|working|basic" | null,
   "context": "string",
   "positioning": "string"
 }`
 
-  const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildPrompt(identity, group, skill), {
+  const rawResponse = await callLlmProxy(
+    endpoint,
+    systemPrompt,
+    buildPrompt(identity, group, skill, draftDepth, preserveDepth),
+    {
     feature: 'identity.extract',
     model: SKILL_ENRICHMENT_MODEL,
     timeoutMs: 45000,
     signal,
-  })
+    },
+  )
 
   try {
     return normalizeSuggestion(JSON.parse(extractJsonBlock(rawResponse)))

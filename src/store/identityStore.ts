@@ -115,6 +115,8 @@ interface IdentityState {
       depth: ProfessionalSkillDepth
       context: string
       positioning: string
+      contextStale?: boolean
+      positioningStale?: boolean
     },
     enrichedBy: ProfessionalSkillEnrichedBy,
   ) => void
@@ -1046,15 +1048,28 @@ export const useIdentityStore = create<IdentityState>()(
             state.currentIdentity,
             groupId,
             skillName,
-            (skill) => ({
-              ...skill,
-              depth: updates.depth,
-              context: updates.context.trim(),
-              positioning: updates.positioning.trim(),
-              enriched_at: new Date().toISOString(),
-              enriched_by: enrichedBy,
-              skipped_at: undefined,
-            }),
+            (skill) => {
+              const nextContext = updates.context.trim()
+              const nextPositioning = updates.positioning.trim()
+
+              return {
+                ...skill,
+                depth: updates.depth,
+                ...(nextContext ? { context: nextContext } : { context: undefined }),
+                ...(nextContext
+                  ? { context_stale: updates.contextStale ? true : undefined }
+                  : { context_stale: undefined }),
+                ...(nextPositioning
+                  ? { positioning: nextPositioning }
+                  : { positioning: undefined }),
+                ...(nextPositioning
+                  ? { positioning_stale: updates.positioningStale ? true : undefined }
+                  : { positioning_stale: undefined }),
+                enriched_at: new Date().toISOString(),
+                enriched_by: enrichedBy,
+                skipped_at: undefined,
+              }
+            },
           )
 
           return syncIdentityDocument(state, nextIdentity)

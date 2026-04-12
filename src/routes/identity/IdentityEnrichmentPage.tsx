@@ -92,8 +92,8 @@ export function IdentityEnrichmentPage() {
             <p className="identity-eyebrow">Phase 0</p>
             <h1>Skill Enrichment</h1>
             <p className="identity-copy">
-              Import or build an identity model first. The wizard stores depth, context, and search
-              signals directly on your skill records.
+              Import or build an identity model first. The wizard stores depth and any optional
+              context or positioning notes directly on your skill records.
             </p>
           </div>
         </header>
@@ -120,9 +120,9 @@ export function IdentityEnrichmentPage() {
           <p className="identity-eyebrow">Phase 0</p>
           <h1>Skill Enrichment</h1>
           <p className="identity-copy">
-            Let AI draft skill depth, grounded context, and recruiter-readable positioning notes, then
-            correct anything before you save. Downstream workflows should only trust the skills you
-            have reviewed.
+            Let AI draft depth-supported context and recruiter-readable positioning notes, then
+            correct anything before you save. Only depth is required; the other fields are optional
+            and can be revisited when they become useful.
           </p>
         </div>
 
@@ -201,8 +201,13 @@ export function IdentityEnrichmentPage() {
                           {skill.tags.length > 0 ? ` • ${skill.tags.join(', ')}` : ''}
                         </span>
                       </span>
-                      <span className={`identity-chip identity-chip-${skill.status}`}>
-                        {STATUS_LABELS[skill.status]}
+                      <span className="identity-chip-row">
+                        <span className={`identity-chip identity-chip-${skill.status}`}>
+                          {STATUS_LABELS[skill.status]}
+                        </span>
+                        {skill.stale ? (
+                          <span className="identity-chip identity-chip-empty">Needs refresh</span>
+                        ) : null}
                       </span>
                     </button>
                   </li>

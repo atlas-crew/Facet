@@ -48,11 +48,11 @@ describe('identityEnrichment helpers', () => {
     expect(
       getSkillEnrichmentStatus({
         depth: 'strong',
-        context: 'Built platform systems.',
-        positioning: 'Platform engineering',
+        context: '',
+        positioning: '',
         skipped_at: '2026-04-08T00:00:00.000Z',
       }),
-    ).toBe('complete')
+    ).toBe('skipped')
     expect(
       getSkillEnrichmentStatus({
         depth: undefined,
@@ -68,7 +68,7 @@ describe('identityEnrichment helpers', () => {
         positioning: '',
         skipped_at: undefined,
       }),
-    ).toBe('pending')
+    ).toBe('complete')
   })
 
   it('computes progress counts from the current identity', () => {
@@ -111,11 +111,38 @@ describe('identityEnrichment helpers', () => {
     const identity = createIdentity()
     const skills = listIdentityEnrichmentSkills(identity)
     expect(skills).toHaveLength(3)
+    expect(skills[0]).toMatchObject({
+      skillName: 'Kubernetes',
+      status: 'complete',
+      stale: false,
+    })
+    expect(skills[1]).toMatchObject({
+      skillName: 'Terraform',
+      status: 'skipped',
+      stale: false,
+    })
+    expect(skills[2]).toMatchObject({
+      skillName: 'TypeScript',
+      status: 'pending',
+      stale: false,
+    })
     expect(resolveIdentityEnrichmentSkill(identity, 'platform', 'Kubernetes')).toMatchObject({
       groupId: 'platform',
       skillName: 'Kubernetes',
       groupLabel: 'Platform',
       status: 'complete',
+      stale: false,
+    })
+  })
+
+  it('marks stale skills without changing their completion status', () => {
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[0]!.context_stale = true
+
+    expect(listIdentityEnrichmentSkills(identity)[0]).toMatchObject({
+      skillName: 'Kubernetes',
+      status: 'complete',
+      stale: true,
     })
   })
 })

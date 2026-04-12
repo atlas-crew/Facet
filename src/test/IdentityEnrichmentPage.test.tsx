@@ -45,8 +45,8 @@ describe('IdentityEnrichmentPage', () => {
           {
             name: 'Kubernetes',
             depth: 'strong',
-            context: 'Used for customer-hosted deployments.',
             positioning: 'Platform modernization and Kubernetes operations.',
+            positioning_stale: true,
             tags: ['platform', 'kubernetes'],
           },
           {
@@ -79,6 +79,7 @@ describe('IdentityEnrichmentPage', () => {
     expect(screen.getByRole('heading', { name: 'Complete' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Continue next skill' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /TypeScript/i })).toBeTruthy()
+    expect(screen.getByText('Needs refresh')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /TypeScript/i }))
 

@@ -131,7 +131,9 @@ export interface ProfessionalSkillItem {
   name: string
   depth?: ProfessionalSkillDepth
   context?: string
+  context_stale?: boolean
   positioning?: string
+  positioning_stale?: boolean
   tags: string[]
   enriched_at?: string
   enriched_by?: ProfessionalSkillEnrichedBy
@@ -630,11 +632,22 @@ const parseSkillItem = (
       ? { depth: assertOptionalEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
       : {}),
     ...(item.context !== undefined ? { context: assertOptionalString(item.context, `${context}.context`) } : {}),
+    ...(item.context_stale !== undefined
+      ? { context_stale: assertOptionalBoolean(item.context_stale, `${context}.context_stale`) }
+      : {}),
     ...((item.positioning !== undefined || item.search_signal !== undefined)
       ? {
           positioning: assertOptionalString(
             item.positioning !== undefined ? item.positioning : item.search_signal,
             item.positioning !== undefined ? `${context}.positioning` : `${context}.search_signal`,
+          ),
+        }
+      : {}),
+    ...(item.positioning_stale !== undefined
+      ? {
+          positioning_stale: assertOptionalBoolean(
+            item.positioning_stale,
+            `${context}.positioning_stale`,
           ),
         }
       : {}),

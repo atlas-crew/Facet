@@ -41,6 +41,9 @@ const createIdentity = () => {
       items: [
         {
           name: 'Kubernetes',
+          depth: 'strong',
+          context: 'Used for customer-hosted and internal platform delivery.',
+          positioning: 'Platform modernization and Kubernetes operations.',
           tags: ['platform', 'kubernetes'],
         },
         {
@@ -51,6 +54,16 @@ const createIdentity = () => {
     },
   ]
   return identity
+}
+
+const deferredPromise = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
 }
 
 describe('IdentityEnrichmentSkillPage', () => {
@@ -90,16 +103,57 @@ describe('IdentityEnrichmentSkillPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Kubernetes' })).toBeTruthy()
     expect(screen.getByText(/Core platform systems and delivery infrastructure/i)).toBeTruthy()
-    expect(screen.getByText(/The AI should draft all three fields first/i)).toBeTruthy()
-    expect(screen.getByLabelText('Depth')).toBeTruthy()
-    expect(screen.getByLabelText('Context')).toBeTruthy()
-    expect(screen.getByLabelText('Positioning')).toBeTruthy()
+    expect((screen.getByRole('combobox', { name: 'Depth' }) as HTMLSelectElement).value).toBe(
+      'strong',
+    )
+    expect((screen.getByLabelText('Context') as HTMLTextAreaElement).value).toContain(
+      'customer-hosted and internal platform delivery',
+    )
+    expect((screen.getByLabelText('Positioning') as HTMLTextAreaElement).value).toContain(
+      'Platform modernization and Kubernetes operations.',
+    )
+    expect(screen.getAllByText('Examples')).toHaveLength(2)
   })
 
-  it('lets users navigate to the previous and next skills in sequence', async () => {
+  it('renders persisted stale indicators on initial load', async () => {
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[0]!.context_stale = true
+    useIdentityStore.setState({ currentIdentity: identity })
+
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    expect(screen.getByText('Needs refresh')).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Depth changed - re-draft all fields?' }),
+    ).toBeTruthy()
+  })
+
+  it('disables previous navigation on the first skill and navigates forward', async () => {
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    expect(screen.getByRole('button', { name: 'Previous skill' }).hasAttribute('disabled')).toBe(
+      true,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next skill' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'Terraform',
+      },
+    })
+  })
+
+  it('shows the no-bullet-evidence helper and navigates backward from the second skill', async () => {
     routeParams.skillName = 'Terraform'
     const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
+
+    expect(screen.getByText(/No bullet evidence for this skill/i)).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Previous skill' }))
 
@@ -113,87 +167,30 @@ describe('IdentityEnrichmentSkillPage', () => {
     expect(screen.getByRole('button', { name: 'Next skill' }).hasAttribute('disabled')).toBe(true)
   })
 
-  it('disables skipping for already complete skills', async () => {
-    useIdentityStore.setState({
-      currentIdentity: {
-        ...createIdentity(),
-        skills: {
-          groups: [
-            {
-              id: 'platform',
-              label: 'Platform',
-              positioning: 'Core platform systems and delivery infrastructure.',
-              items: [
-                {
-                  name: 'Kubernetes',
-                  depth: 'strong',
-                  context: 'Used for customer-hosted and internal platform delivery.',
-                  positioning: 'Platform modernization and Kubernetes operations.',
-                  tags: ['platform', 'kubernetes'],
-                },
-                {
-                  name: 'Terraform',
-                  tags: ['platform', 'iac'],
-                },
-              ],
-            },
-          ],
-        },
-      },
-    })
-
+  it('allows saving depth without optional context or positioning', async () => {
+    routeParams.skillName = 'Terraform'
     const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
-    expect(screen.getByRole('button', { name: 'Skip for now' }).hasAttribute('disabled')).toBe(true)
-  })
-
-  it('saves manual edits and advances to the next pending skill', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
-    render(<IdentityEnrichmentSkillPage />)
-
-    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: 'strong' } })
-    fireEvent.change(screen.getByLabelText('Context'), {
-      target: { value: 'Used for customer-hosted and internal platform delivery.' },
-    })
-    fireEvent.change(screen.getByLabelText('Positioning'), {
-      target: { value: 'Platform modernization and Kubernetes operations.' },
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Save and continue' })[0]!)
 
-    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
     expect(skill).toMatchObject({
-      depth: 'strong',
+      depth: 'working',
+      context: undefined,
+      positioning: undefined,
       enriched_by: 'user',
     })
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/identity/enrich/$groupId/$skillName',
-      params: {
-        groupId: 'platform',
-        skillName: 'Terraform',
-      },
-    })
-  })
-
-  it('skips the current skill and advances to the next pending skill', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
-    render(<IdentityEnrichmentSkillPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
-
-    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
-    expect(skill?.skipped_at).toBeTruthy()
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/identity/enrich/$groupId/$skillName',
-      params: {
-        groupId: 'platform',
-        skillName: 'Terraform',
-      },
-    })
+    expect(skill?.enriched_at).toBeTruthy()
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
   })
 
   it('keeps manual save available when the AI endpoint is missing', async () => {
     facetClientEnv.anthropicProxyUrl = ''
+    routeParams.skillName = 'Terraform'
     const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
@@ -203,19 +200,16 @@ describe('IdentityEnrichmentSkillPage', () => {
       expect(screen.getByRole('alert').textContent).toContain('AI suggestions are disabled')
     })
 
-    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: 'working' } })
-    fireEvent.change(screen.getByLabelText('Context'), {
-      target: { value: 'Used for customer-hosted and internal platform delivery.' },
-    })
-    fireEvent.change(screen.getByLabelText('Positioning'), {
-      target: { value: 'Platform modernization and Kubernetes operations.' },
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
 
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]).toMatchObject({
       depth: 'working',
       enriched_by: 'user',
     })
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]?.enriched_at).toBeTruthy()
     expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
   })
 
@@ -226,7 +220,14 @@ describe('IdentityEnrichmentSkillPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
 
     await waitFor(() => {
-      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          group: expect.objectContaining({ id: 'platform', label: 'Platform' }),
+          skill: expect.objectContaining({ name: 'Kubernetes' }),
+          draftDepth: 'strong',
+          preserveDepth: true,
+        }),
+      )
     })
 
     await waitFor(() => {
@@ -237,11 +238,217 @@ describe('IdentityEnrichmentSkillPage', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Save and continue' })[0]!)
 
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'Terraform',
+      },
+    })
     expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
       depth: 'strong',
       context: 'Used for customer-hosted and internal platform delivery.',
       positioning: 'Platform modernization and Kubernetes operations.',
       enriched_by: 'llm-accepted',
+    })
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]?.enriched_at).toBeTruthy()
+  })
+
+  it('marks edited AI suggestions as user-edited-llm', async () => {
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.change(screen.getByLabelText('Context'), {
+      target: { value: 'Edited after AI suggestion.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+      enriched_by: 'user-edited-llm',
+      context: 'Edited after AI suggestion.',
+    })
+  })
+
+  it('marks context and positioning stale when depth changes and clears stale on manual edit', async () => {
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
+    })
+
+    expect(screen.getByText('Needs refresh')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })).toHaveLength(2)
+
+    fireEvent.change(screen.getByLabelText('Context'), {
+      target: { value: 'Updated platform operating context.' },
+    })
+
+    expect(screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+      depth: 'working',
+      context: 'Updated platform operating context.',
+      context_stale: undefined,
+      positioning_stale: true,
+      enriched_by: 'user',
+    })
+  })
+
+  it('re-drafts stale fields with the selected depth preserved', async () => {
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
+    })
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })[0]!,
+    )
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          draftDepth: 'working',
+          preserveDepth: true,
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Depth changed - re-draft all fields?' }),
+      ).toBeNull()
+    })
+
+    expect((screen.getByRole('combobox', { name: 'Depth' }) as HTMLSelectElement).value).toBe(
+      'working',
+    )
+  })
+
+  it('updates depth when the AI proposes one for an unset skill', async () => {
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValueOnce({
+      depth: 'expert',
+      context: '',
+      positioning: '',
+    })
+    routeParams.skillName = 'Terraform'
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect((screen.getByRole('combobox', { name: 'Depth' }) as HTMLSelectElement).value).toBe(
+        'expert',
+      )
+    })
+  })
+
+  it('surfaces AI failures without blocking manual save', async () => {
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockRejectedValueOnce(
+      new Error('Proxy timed out'),
+    )
+    routeParams.skillName = 'Terraform'
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Proxy timed out')
+    })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'basic' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]).toMatchObject({
+      depth: 'basic',
+      enriched_by: 'user',
+    })
+  })
+
+  it('redirects to the overview when the routed skill cannot be found', async () => {
+    routeParams.skillName = 'Missing Skill'
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
+    })
+  })
+
+  it('redirects to the overview when no identity is loaded', async () => {
+    useIdentityStore.setState({ currentIdentity: null })
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
+    })
+  })
+
+  it('keeps existing optional fields when the AI omits them entirely', async () => {
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValueOnce({
+      depth: 'strong',
+    })
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+
+    expect((screen.getByLabelText('Context') as HTMLTextAreaElement).value).toContain(
+      'customer-hosted and internal platform delivery',
+    )
+    expect((screen.getByLabelText('Positioning') as HTMLTextAreaElement).value).toContain(
+      'Platform modernization and Kubernetes operations.',
+    )
+  })
+
+  it('disables duplicate AI requests while generation is in flight', async () => {
+    const deferred = deferredPromise<{
+      depth?: 'strong'
+      context?: string
+      positioning?: string
+    }>()
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    const draftButton = screen.getByRole('button', { name: 'Draft with AI' })
+    fireEvent.click(draftButton)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Generating...' }).hasAttribute('disabled')).toBe(
+        true,
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generating...' }))
+    expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+
+    deferred.resolve({
+      depth: 'strong',
+      context: 'Used for customer-hosted and internal platform delivery.',
+      positioning: 'Platform modernization and Kubernetes operations.',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Regenerate AI draft' })).toBeTruthy()
     })
   })
 })

@@ -250,7 +250,9 @@ describe('professional identity schema', () => {
       ...enriched.skills.groups[0].items[0],
       depth: 'expert',
       context: 'Primary language across multiple platform roles.',
+      context_stale: true,
       positioning: 'Strong match signal. List first.',
+      positioning_stale: true,
       enriched_at: '2026-04-08T14:23:17Z',
       enriched_by: 'user-edited-llm',
     }
@@ -294,7 +296,9 @@ describe('professional identity schema', () => {
     expect(parsed.data.skills.groups[0]?.is_differentiator).toBe(true)
     expect(parsed.data.skills.groups[0]?.items[0]?.depth).toBe('expert')
     expect(parsed.data.skills.groups[0]?.items[0]?.context).toContain('Primary language')
+    expect(parsed.data.skills.groups[0]?.items[0]?.context_stale).toBe(true)
     expect(parsed.data.skills.groups[0]?.items[0]?.positioning).toContain('List first')
+    expect(parsed.data.skills.groups[0]?.items[0]?.positioning_stale).toBe(true)
     expect(parsed.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
     expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBe('avoid')
     expect(parsed.data.preferences.constraints?.clearance?.status).toBe('none')

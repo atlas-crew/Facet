@@ -32,15 +32,24 @@ export const updateIdentityEnrichmentSkill = (
 
 const hasContent = (value: string | undefined): boolean => Boolean(value?.trim())
 
+export const isSkillEnrichmentStale = (
+  skill: Pick<
+    ProfessionalSkillItem,
+    'context' | 'context_stale' | 'positioning' | 'positioning_stale'
+  >,
+): boolean =>
+  (Boolean(skill.context_stale) && hasContent(skill.context)) ||
+  (Boolean(skill.positioning_stale) && hasContent(skill.positioning))
+
 export const getSkillEnrichmentStatus = (
   skill: Pick<ProfessionalSkillItem, 'depth' | 'context' | 'positioning' | 'skipped_at'>,
 ): IdentityEnrichmentStatus => {
-  if (skill.depth && hasContent(skill.context) && hasContent(skill.positioning)) {
-    return 'complete'
-  }
-
   if (hasContent(skill.skipped_at)) {
     return 'skipped'
+  }
+
+  if (skill.depth) {
+    return 'complete'
   }
 
   return 'pending'
@@ -56,6 +65,7 @@ export const listIdentityEnrichmentSkills = (
       groupLabel: group.label,
       tags: [...(skill.tags ?? [])],
       status: getSkillEnrichmentStatus(skill),
+      stale: isSkillEnrichmentStale(skill),
     })),
   )
 
@@ -98,6 +108,7 @@ export const resolveIdentityEnrichmentSkill = (
     groupLabel: group.label,
     tags: [...(skill.tags ?? [])],
     status: getSkillEnrichmentStatus(skill),
+    stale: isSkillEnrichmentStale(skill),
     group,
     skill,
   }
