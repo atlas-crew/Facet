@@ -7,6 +7,7 @@ import type {
   VectorSearchConfig,
 } from '../../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../../types/search'
+import { createSeededPipelineResearchSnapshot } from '../../utils/pipelineResearch'
 
 export function splitTags(value: string): string[] {
   return value
@@ -115,6 +116,7 @@ export function toPipelineTier(tier: SearchResultEntry['tier'] | number): '1' | 
 export function createPipelineEntryDraft(
   entry: SearchResultEntry,
   vectorId: string,
+  options: { searchQueries?: string[] } = {},
 ): Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'> | null {
   const pipelineTier = toPipelineTier(entry.tier)
   if (!pipelineTier) {
@@ -147,5 +149,8 @@ export function createPipelineEntryDraft(
     offerAmount: '',
     dateApplied: '',
     dateClosed: '',
+    research: createSeededPipelineResearchSnapshot(entry, {
+      searchQueries: options.searchQueries,
+    }),
   }
 }

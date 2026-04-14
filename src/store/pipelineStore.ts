@@ -12,6 +12,7 @@ import {
   touchDurableMetadata,
 } from './durableMetadata'
 import { createId } from '../utils/idUtils'
+import { normalizePipelineResearchSnapshot } from '../utils/pipelineResearch'
 
 interface PipelineFilters {
   tier: PipelineTier | 'all'
@@ -47,6 +48,7 @@ const normalizeEntry = (
 
   return {
     ...entry,
+    research: normalizePipelineResearchSnapshot(entry.research),
     durableMeta: options.touch
       ? touchDurableMetadata(entry.durableMeta, timestamp())
       : ensureDurableMetadata(entry.durableMeta, fallbackTimestamp),

@@ -396,7 +396,9 @@ export function ResearchPage() {
   }
 
   const handlePushToPipeline = (entry: SearchResultEntry, vectorId: string) => {
-    const pipelineEntry = createPipelineEntryDraft(entry, vectorId)
+    const pipelineEntry = createPipelineEntryDraft(entry, vectorId, {
+      searchQueries: activeRun?.searchLog,
+    })
     if (!pipelineEntry) {
       setPageError('Search result tier was invalid and could not be pushed to the pipeline.')
       return

@@ -1,5 +1,6 @@
 import type { InterviewFormat, PipelineEntry } from '../types/pipeline'
 import { sanitizeUrl } from './sanitizeUrl'
+import { normalizePipelineResearchSnapshot } from './pipelineResearch'
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
 
@@ -70,6 +71,7 @@ function validateEntry(raw: unknown): PipelineEntry | null {
           .filter((h): h is { date: string; note: string } =>
             h && typeof h === 'object' && typeof h.date === 'string' && typeof h.note === 'string')
       : [],
+    research: normalizePipelineResearchSnapshot(e.research),
   }
 }
 

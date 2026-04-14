@@ -150,6 +150,34 @@ describe('pipelineStore', () => {
           createdAt: '2026-01-01',
           lastAction: '2026-01-01',
           history: [],
+          research: {
+            status: 'investigated',
+            summary: 'Fetched public job and company context',
+            jobDescriptionSummary: '',
+            interviewSignals: ['Recruiter screen is likely'],
+            people: [
+              {
+                name: 'Alex Smith',
+                title: 'Director of Platform',
+                company: 'Legacy',
+                profileUrl: 'https://www.linkedin.com/in/alex-smith',
+                relevance: 'Likely org lead',
+              },
+            ],
+            sources: [
+              {
+                label: 'Legacy job posting',
+                url: 'https://example.com/jobs/legacy',
+                kind: 'job-posting',
+              },
+              {
+                label: '',
+                kind: 'other',
+              },
+            ],
+            searchQueries: ['Legacy staff engineer job'],
+            lastInvestigatedAt: '2026-01-03T12:00:00.000Z',
+          },
         },
       ],
     })
@@ -157,9 +185,59 @@ describe('pipelineStore', () => {
     expect(migrated.entries).toHaveLength(1)
     expect(migrated.entries[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(migrated.entries[0].durableMeta?.createdAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(migrated.entries[0].research).toEqual({
+      status: 'investigated',
+      summary: 'Fetched public job and company context',
+      jobDescriptionSummary: '',
+      interviewSignals: ['Recruiter screen is likely'],
+      people: [
+        {
+          name: 'Alex Smith',
+          title: 'Director of Platform',
+          company: 'Legacy',
+          profileUrl: 'https://www.linkedin.com/in/alex-smith',
+          relevance: 'Likely org lead',
+        },
+      ],
+      sources: [
+        {
+          label: 'Legacy job posting',
+          url: 'https://example.com/jobs/legacy',
+          kind: 'job-posting',
+        },
+      ],
+      searchQueries: ['Legacy staff engineer job'],
+      lastInvestigatedAt: '2026-01-03T12:00:00.000Z',
+    })
     expect(migrated.sortField).toBe('tier')
     expect(migrated.sortDir).toBe('asc')
 
     expect(migratePipelineState('bad-state').entries).toEqual([])
+  })
+
+  it('drops research snapshots that only preserve timestamp metadata', () => {
+    const migrated = migratePipelineState({
+      entries: [
+        {
+          ...makeEntry({ company: 'Timestamp Only' }),
+          id: 'pipe-legacy-2',
+          createdAt: '2026-01-01',
+          lastAction: '2026-01-01',
+          history: [],
+          research: {
+            status: 'investigated',
+            summary: '',
+            jobDescriptionSummary: '',
+            interviewSignals: [],
+            people: [],
+            sources: [],
+            searchQueries: [],
+            lastInvestigatedAt: '2026-01-03T12:00:00.000Z',
+          },
+        },
+      ],
+    })
+
+    expect(migrated.entries[0]?.research).toBeUndefined()
   })
 })

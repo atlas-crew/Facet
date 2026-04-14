@@ -61,6 +61,41 @@ export interface PipelineHistoryEntry {
   note: string
 }
 
+export type PipelineResearchStatus = 'seeded' | 'investigated'
+
+export type PipelineResearchSourceKind =
+  | 'job-posting'
+  | 'search-result'
+  | 'company'
+  | 'people'
+  | 'review'
+  | 'other'
+
+export interface PipelineResearchSource {
+  label: string
+  url?: string
+  kind: PipelineResearchSourceKind
+}
+
+export interface PipelineResearchPerson {
+  name: string
+  title: string
+  company: string
+  profileUrl?: string
+  relevance: string
+}
+
+export interface PipelineResearchSnapshot {
+  status: PipelineResearchStatus
+  summary: string
+  jobDescriptionSummary: string
+  interviewSignals: string[]
+  people: PipelineResearchPerson[]
+  sources: PipelineResearchSource[]
+  searchQueries: string[]
+  lastInvestigatedAt: string
+}
+
 export interface PipelineEntry {
   id: string
   durableMeta?: DurableMetadata
@@ -102,4 +137,5 @@ export interface PipelineEntry {
 
   // History
   history: PipelineHistoryEntry[]
+  research?: PipelineResearchSnapshot
 }

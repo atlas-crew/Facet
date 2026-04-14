@@ -212,6 +212,26 @@ describe('researchUtils', () => {
       offerAmount: '',
       dateApplied: '',
       dateClosed: '',
+      research: {
+        status: 'seeded',
+        summary: 'Strong platform fit Risks: Smaller team',
+        jobDescriptionSummary: '',
+        interviewSignals: [],
+        people: [],
+        sources: [
+          {
+            label: 'Acme Corp job posting',
+            url: 'https://example.com/jobs/1',
+            kind: 'job-posting',
+          },
+          {
+            label: 'Search result via greenhouse',
+            kind: 'search-result',
+          },
+        ],
+        searchQueries: [],
+        lastInvestigatedAt: '',
+      },
     })
 
     expect(
@@ -221,10 +241,20 @@ describe('researchUtils', () => {
       ),
     ).toBeNull()
 
-    expect(createPipelineEntryDraft({ ...searchResult, estimatedComp: undefined, risks: [] }, '')).toMatchObject({
+    expect(
+      createPipelineEntryDraft(
+        { ...searchResult, estimatedComp: undefined, risks: [] },
+        '',
+        { searchQueries: ['Acme staff engineer remote'] },
+      ),
+    ).toMatchObject({
       comp: '',
       notes: '',
       vectorId: null,
+      research: {
+        status: 'seeded',
+        searchQueries: ['Acme staff engineer remote'],
+      },
     })
   })
 })
