@@ -50,4 +50,31 @@ describe('readAiProxyError', () => {
     expect((error as FacetAiProxyError).reason).toBe('temporary_capacity')
     expect((error as FacetAiProxyError).status).toBe(529)
   })
+
+  it('maps provider rate-limit payloads to a friendly retryable error', async () => {
+    const response = new Response(
+      JSON.stringify({
+        type: 'error',
+        error: {
+          type: 'rate_limit_error',
+          message:
+            "This request would exceed your organization's rate limit of 30,000 input tokens per minute.",
+        },
+      }),
+      {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
+
+    const error = await readAiProxyError(response)
+
+    expect(error).toBeInstanceOf(FacetAiProxyError)
+    expect(error.message).toBe(
+      'AI provider rate limit reached. Please wait a minute and try again.',
+    )
+    expect((error as FacetAiProxyError).code).toBe('ai_rate_limited')
+    expect((error as FacetAiProxyError).reason).toBe('rate_limited')
+    expect((error as FacetAiProxyError).status).toBe(429)
+  })
 })

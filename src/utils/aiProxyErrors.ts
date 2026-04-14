@@ -3,8 +3,15 @@ import type { FacetAiAccessDenialReason, FacetAiFeatureKey } from '../types/host
 type FacetAiProxyErrorCode =
   | 'ai_access_denied'
   | 'ai_overloaded'
+  | 'ai_rate_limited'
   | 'auth_required'
   | 'auth_internal_error'
+
+type FacetAiProxyErrorReason =
+  | FacetAiAccessDenialReason
+  | 'auth_required'
+  | 'temporary_capacity'
+  | 'rate_limited'
 
 interface FacetAiProxyErrorPayload {
   error?: unknown
@@ -20,7 +27,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export class FacetAiProxyError extends Error {
   status: number
   code: FacetAiProxyErrorCode | null
-  reason: FacetAiAccessDenialReason | 'auth_required' | 'temporary_capacity' | null
+  reason: FacetAiProxyErrorReason | null
   feature: FacetAiFeatureKey | null
 
   constructor(
@@ -28,7 +35,7 @@ export class FacetAiProxyError extends Error {
     options: {
       status: number
       code?: FacetAiProxyErrorCode | null
-      reason?: FacetAiAccessDenialReason | 'auth_required' | 'temporary_capacity' | null
+      reason?: FacetAiProxyErrorReason | null
       feature?: FacetAiFeatureKey | null
     },
   ) {
@@ -82,6 +89,16 @@ function isTemporaryCapacityMessage(message: string): boolean {
   )
 }
 
+function isRateLimitMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('rate limit') ||
+    normalized.includes('too many requests') ||
+    normalized.includes('input tokens per minute') ||
+    normalized.includes('output tokens per minute')
+  )
+}
+
 export async function readAiProxyError(response: Response): Promise<Error> {
   const text = await response.text()
   let parsed: unknown = null
@@ -108,6 +125,7 @@ export async function readAiProxyError(response: Response): Promise<Error> {
   const code =
     payload?.code === 'ai_access_denied' ||
     payload?.code === 'ai_overloaded' ||
+    payload?.code === 'ai_rate_limited' ||
     payload?.code === 'auth_required' ||
     payload?.code === 'auth_internal_error'
       ? payload.code
@@ -118,6 +136,7 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     payload?.reason === 'billing_issue' ||
     payload?.reason === 'self_hosted_proxy_unavailable' ||
     payload?.reason === 'temporary_capacity' ||
+    payload?.reason === 'rate_limited' ||
     payload?.reason === 'auth_required'
       ? payload.reason
       : code === 'auth_required'
@@ -145,6 +164,18 @@ export async function readAiProxyError(response: Response): Promise<Error> {
         code: 'ai_access_denied',
         reason: 'billing_issue',
         feature: null,
+      },
+    )
+  }
+
+  if (response.status === 429 || isRateLimitMessage(errorMessage)) {
+    return new FacetAiProxyError(
+      'AI provider rate limit reached. Please wait a minute and try again.',
+      {
+        status: response.status,
+        code: 'ai_rate_limited',
+        reason: 'rate_limited',
+        feature,
       },
     )
   }
