@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import type { PrepCard, PrepDeck, PrepCategory } from '../types/prep'
+import type {
+  PrepCard,
+  PrepCardConfidence,
+  PrepCardStudyState,
+  PrepDeck,
+  PrepCategory,
+  PrepWorkspaceMode,
+} from '../types/prep'
+import { PREP_CARD_CONFIDENCE_VALUES, PREP_CATEGORY_VALUES } from '../types/prep'
 import {
   ensureDurableMetadata,
   stripDurableMetadataPatch,
@@ -31,12 +39,15 @@ interface CreateDeckInput {
 interface PrepState {
   decks: PrepDeck[]
   activeDeckId: string | null
+  activeMode: PrepWorkspaceMode
   setActiveDeck: (deckId: string | null) => void
+  setActiveMode: (mode: PrepWorkspaceMode) => void
   createDeck: (input: CreateDeckInput) => string
   updateDeck: (deckId: string, patch: Partial<Omit<PrepDeck, 'id' | 'cards'>>) => void
   replaceDeckCards: (deckId: string, cards: PrepCard[]) => void
   addCard: (deckId: string, partial?: Partial<PrepCard>) => string
   updateCard: (deckId: string, cardId: string, patch: Partial<PrepCard>) => void
+  recordCardReview: (deckId: string, cardId: string, confidence: PrepCardConfidence) => void
   duplicateCard: (deckId: string, cardId: string) => void
   removeCard: (deckId: string, cardId: string) => void
   deleteDeck: (deckId: string) => void
@@ -68,11 +79,13 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
 }
 
 function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
+  const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
+
   return {
     ...createEmptyCard(deckId, card),
     id: card.id,
     deckId,
-    category: card.category,
+    category,
     title: card.title.trim() || 'Untitled Prep Card',
     tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
     followUps: card.followUps?.map((item) => ({
@@ -96,6 +109,22 @@ function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
 
 function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean } = {}): PrepDeck {
   const timestamp = now()
+  const cards = deck.cards.map((card) => sanitizeCard(deck.id, card))
+  const validCardIds = new Set(cards.map((card) => card.id))
+  const studyProgress = Object.fromEntries(
+    Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
+      if (!validCardIds.has(cardId) || !state || typeof state !== 'object') return []
+      const record = state as PrepCardStudyState
+      return [[cardId, {
+        confidence: PREP_CARD_CONFIDENCE_VALUES.includes(record.confidence as PrepCardConfidence)
+          ? record.confidence
+          : undefined,
+        attempts: Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
+        needsWorkCount: Number.isFinite(record.needsWorkCount) ? Math.max(0, record.needsWorkCount) : 0,
+        lastReviewedAt: typeof record.lastReviewedAt === 'string' ? record.lastReviewedAt : undefined,
+      } satisfies PrepCardStudyState]]
+    }),
+  )
 
   return {
     ...deck,
@@ -115,7 +144,8 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean } = {}): PrepDe
     jobDescription: deck.jobDescription?.trim() || undefined,
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
-    cards: deck.cards.map((card) => sanitizeCard(deck.id, card)),
+    cards,
+    studyProgress,
   }
 }
 
@@ -164,6 +194,7 @@ export const migratePrepState = (persistedState: unknown) => {
       ? (persistedState as {
           decks?: PrepDeck[]
           activeDeckId?: string | null
+          activeMode?: PrepWorkspaceMode
         })
       : undefined
 
@@ -175,14 +206,20 @@ export const migratePrepState = (persistedState: unknown) => {
     ...state,
     decks,
     activeDeckId: state?.activeDeckId ?? decks[0]?.id ?? null,
+    activeMode:
+      state?.activeMode === 'homework' || state?.activeMode === 'live' || state?.activeMode === 'edit'
+        ? state.activeMode
+        : 'edit',
   }
 }
 
 export const usePrepStore = create<PrepState>()((set, get) => ({
       decks: [],
       activeDeckId: null,
+      activeMode: 'edit',
 
       setActiveDeck: (deckId) => set({ activeDeckId: deckId }),
+      setActiveMode: (activeMode) => set({ activeMode }),
 
       createDeck: (input) => {
         const deckId = createId('prep-deck')
@@ -255,6 +292,29 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
         }))
       },
 
+      recordCardReview: (deckId, cardId, confidence) => {
+        set((state) => ({
+          decks: updateDeckCollection(state.decks, deckId, (deck) => {
+            if (!deck.cards.some((card) => card.id === cardId)) {
+              return deck
+            }
+            const current = deck.studyProgress?.[cardId]
+            return {
+              ...deck,
+              studyProgress: {
+                ...(deck.studyProgress ?? {}),
+                [cardId]: {
+                  confidence,
+                  attempts: (current?.attempts ?? 0) + 1,
+                  needsWorkCount: (current?.needsWorkCount ?? 0) + (confidence === 'needs_work' ? 1 : 0),
+                  lastReviewedAt: now(),
+                },
+              },
+            }
+          }),
+        }))
+      },
+
       duplicateCard: (deckId, cardId) => {
         set((state) => ({
           decks: updateDeckCollection(state.decks, deckId, (deck) => {
@@ -275,12 +335,22 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
       },
 
       removeCard: (deckId, cardId) => {
-        set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({
-            ...deck,
-            cards: deck.cards.filter((card) => card.id !== cardId),
-          })),
-        }))
+        set((state) => {
+          let shouldResetMode = false
+          const decks = updateDeckCollection(state.decks, deckId, (deck) => {
+            const cards = deck.cards.filter((card) => card.id !== cardId)
+            shouldResetMode = cards.length === 0
+            return {
+              ...deck,
+              cards,
+            }
+          })
+
+          return {
+            decks,
+            activeMode: shouldResetMode ? 'edit' : state.activeMode,
+          }
+        })
       },
 
       deleteDeck: (deckId) => {
@@ -290,15 +360,21 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
             decks: remaining,
             activeDeckId:
               state.activeDeckId === deckId ? remaining[0]?.id ?? null : state.activeDeckId,
+            activeMode:
+              state.activeDeckId === deckId && remaining.length === 0
+                ? 'edit'
+                : state.activeMode,
           }
         })
       },
 
       importDecks: (decks) => {
         const sanitized = decks.map((deck) => sanitizeDeck(deck))
+        const nextActiveDeck = sanitized[0] ?? null
         set({
           decks: sanitized,
-          activeDeckId: sanitized[0]?.id ?? null,
+          activeDeckId: nextActiveDeck?.id ?? null,
+          activeMode: nextActiveDeck && nextActiveDeck.cards.length > 0 ? get().activeMode : 'edit',
         })
       },
 

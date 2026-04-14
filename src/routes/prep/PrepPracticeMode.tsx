@@ -72,10 +72,10 @@ export function PrepPracticeMode({ cards, onExit }: PrepPracticeModeProps) {
 
   if (shuffledCards.length === 0) {
     return (
-      <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Practice mode">
+      <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
         <div className="prep-empty">
           <h2>No cards available</h2>
-          <button className="prep-btn" onClick={onExit}>Exit</button>
+          <button className="prep-btn" onClick={onExit}>Back to Edit</button>
         </div>
       </div>
     )
@@ -85,7 +85,7 @@ export function PrepPracticeMode({ cards, onExit }: PrepPracticeModeProps) {
   const isEnd = currentIndex === shuffledCards.length - 1
 
   return (
-    <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Practice mode">
+    <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
       <div className="prep-practice-header">
         <div className="prep-practice-progress" role="status" aria-label={`Card ${currentIndex + 1} of ${shuffledCards.length}`}>
           Card {currentIndex + 1} of {shuffledCards.length}
@@ -95,7 +95,7 @@ export function PrepPracticeMode({ cards, onExit }: PrepPracticeModeProps) {
             <Shuffle size={16} /> Shuffle
           </button>
           <button className="prep-btn" onClick={onExit}>
-            <X size={16} /> Exit Practice Mode
+            <X size={16} /> Back to Edit
           </button>
         </div>
       </div>

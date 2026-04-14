@@ -137,6 +137,61 @@
   flex-wrap: wrap;
 }
 
+.prep-mode-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-inset) 84%, transparent);
+  border: 1px solid var(--border-subtle);
+}
+
+.prep-mode-tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+}
+
+.prep-mode-tab:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.prep-mode-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prep-mode-tab-active {
+  background: var(--bg-surface);
+  color: var(--accent-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.prep-mode-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.prep-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 20%, var(--border-subtle));
+}
+
 .prep-generator-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -378,6 +433,43 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: var(--space-4);
+}
+
+.prep-live-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.prep-live-preview-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prep-live-preview-card h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+}
+
+.prep-live-preview-card p,
+.prep-live-preview-card li {
+  font-size: 12px;
+  margin: 0;
+}
+
+.prep-live-preview-card ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 18px;
+  margin: 0;
 }
 
 /* ── Card ── */

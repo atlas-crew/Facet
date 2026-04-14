@@ -8,6 +8,21 @@ export type PrepCategory =
   | 'metrics'
   | 'situational'
 
+export const PREP_CATEGORY_VALUES = [
+  'opener',
+  'behavioral',
+  'technical',
+  'project',
+  'metrics',
+  'situational',
+] as const satisfies readonly PrepCategory[]
+
+export type PrepWorkspaceMode = 'edit' | 'homework' | 'live'
+
+export type PrepCardConfidence = 'nailed_it' | 'okay' | 'needs_work'
+
+export const PREP_CARD_CONFIDENCE_VALUES = ['nailed_it', 'okay', 'needs_work'] as const satisfies readonly PrepCardConfidence[]
+
 export interface PrepDeepDive {
   id?: string
   title: string
@@ -51,6 +66,13 @@ export interface PrepCard {
   }
 }
 
+export interface PrepCardStudyState {
+  confidence?: PrepCardConfidence
+  attempts: number
+  needsWorkCount: number
+  lastReviewedAt?: string
+}
+
 export interface PrepDeck {
   id: string
   durableMeta?: DurableMetadata
@@ -68,6 +90,7 @@ export interface PrepDeck {
   generatedAt?: string
   updatedAt: string
   cards: PrepCard[]
+  studyProgress?: Record<string, PrepCardStudyState>
 }
 
 export interface PrepGenerationRequest {

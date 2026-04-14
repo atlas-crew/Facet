@@ -20,7 +20,7 @@ describe('PrepPage', () => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     resolveStorage().removeItem('facet-prep-workspace')
     resolveStorage().removeItem('vector-resume-data')
-    usePrepStore.setState({ decks: [], activeDeckId: null })
+    usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'edit' })
     useMatchStore.setState({ jobDescription: '', currentReport: null, warnings: [], history: [] })
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
@@ -132,6 +132,51 @@ describe('PrepPage', () => {
     })
 
     expect(screen.getByDisplayValue('New Prep Card')).toBeTruthy()
+  })
+
+  it('switches between edit, homework, and live cheatsheet modes from the same deck', async () => {
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getAllByText('Blank Set')[0])
+    fireEvent.click(screen.getByText('Add Card'))
+
+    expect(screen.getByRole('tab', { name: 'Edit' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Homework' }))
+    expect(usePrepStore.getState().activeMode).toBe('homework')
+    expect(screen.getByLabelText('Homework mode')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Edit' }))
+    expect(usePrepStore.getState().activeMode).toBe('edit')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Live Cheatsheet' }))
+    expect(usePrepStore.getState().activeMode).toBe('live')
+    expect(screen.getByText('Live Cheatsheet Preview')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Live Cheatsheet' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('supports arrow-key focus movement across workspace mode tabs', () => {
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getAllByText('Blank Set')[0])
+    fireEvent.click(screen.getByText('Add Card'))
+
+    const editTab = screen.getByRole('tab', { name: 'Edit' })
+    const homeworkTab = screen.getByRole('tab', { name: 'Homework' })
+
+    editTab.focus()
+    fireEvent.keyDown(screen.getByRole('tablist', { name: 'Prep workspace modes' }), { key: 'ArrowRight' })
+
+    expect(document.activeElement).toBe(homeworkTab)
+  })
+
+  it('falls back to a single edit empty state when no active deck exists', () => {
+    usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'live' })
+
+    render(<PrepPage />)
+
+    expect(screen.getByText('No prep sets yet')).toBeTruthy()
+    expect(screen.queryByText('No deck ready yet')).toBeNull()
   })
 
   it('shows hosted upgrade messaging without blocking manual prep creation', async () => {

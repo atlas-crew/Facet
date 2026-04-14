@@ -349,6 +349,7 @@ export const createLocalPreferencesSnapshotFromStores = (
     },
     prep: {
       activeDeckId: prepState.activeDeckId,
+      activeMode: prepState.activeMode,
     },
     linkedin: {
       selectedDraftId: linkedInState.selectedDraftId,

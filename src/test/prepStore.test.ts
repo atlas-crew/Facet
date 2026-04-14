@@ -12,7 +12,7 @@ describe('prepStore', () => {
   beforeEach(() => {
     resolveStorage().removeItem('facet-prep-workspace')
     resolveStorage().removeItem('facet-prep-data')
-    usePrepStore.setState({ decks: [], activeDeckId: null })
+    usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'edit' })
   })
 
   it('creates a deck and makes it active', () => {
@@ -26,6 +26,7 @@ describe('prepStore', () => {
 
     const state = usePrepStore.getState()
     expect(state.activeDeckId).toBe(deckId)
+    expect(state.activeMode).toBe('edit')
     expect(state.decks[0].title).toBe('Acme Staff Prep')
     expect(state.decks[0].company).toBe('Acme')
     expect(state.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
@@ -62,6 +63,68 @@ describe('prepStore', () => {
     expect(deck.cards[0].title).toContain('Copy')
     expect(deck.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(deck.durableMeta?.revision).toBe(4)
+  })
+
+  it('tracks homework mode and card review progress in shared prep state', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Leadership example',
+      category: 'behavioral',
+      tags: ['leadership'],
+    })
+
+    usePrepStore.getState().setActiveMode('homework')
+    usePrepStore.getState().recordCardReview(deckId, cardId, 'needs_work')
+
+    let deck = usePrepStore.getState().decks[0]
+    expect(usePrepStore.getState().activeMode).toBe('homework')
+    expect(deck.studyProgress?.[cardId]).toMatchObject({
+      confidence: 'needs_work',
+      attempts: 1,
+      needsWorkCount: 1,
+    })
+
+    usePrepStore.getState().removeCard(deckId, cardId)
+    deck = usePrepStore.getState().decks[0]
+    expect(usePrepStore.getState().activeMode).toBe('edit')
+    expect(deck.studyProgress).toEqual({})
+  })
+
+  it('ignores review updates for cards that are not in the deck', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    usePrepStore.getState().recordCardReview(deckId, 'missing-card', 'okay')
+
+    expect(usePrepStore.getState().decks[0].studyProgress).toEqual({})
+  })
+
+  it('resets back to edit mode when the active deck is deleted', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    usePrepStore.getState().setActiveMode('live')
+    usePrepStore.getState().deleteDeck(deckId)
+
+    expect(usePrepStore.getState().activeDeckId).toBeNull()
+    expect(usePrepStore.getState().activeMode).toBe('edit')
   })
 
   it('updateDeck ignores incoming durable metadata patches and preserves ownership metadata', () => {
@@ -116,7 +179,27 @@ describe('prepStore', () => {
     expect(migrated.decks[0].vectorId).toBe('backend')
     expect(migrated.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(migrated.activeDeckId).toBe('prep-deck-legacy')
+    expect(migrated.activeMode).toBe('edit')
 
     expect(migratePrepState('bad-state').decks).toEqual([])
+  })
+
+  it('resets active mode to edit when imported decks have no cards', () => {
+    usePrepStore.getState().setActiveMode('live')
+
+    usePrepStore.getState().importDecks([
+      {
+        id: 'prep-deck-imported',
+        title: 'Imported',
+        company: 'Acme',
+        role: 'Staff Engineer',
+        vectorId: 'backend',
+        pipelineEntryId: null,
+        updatedAt: '2025-01-02T00:00:00.000Z',
+        cards: [],
+      },
+    ])
+
+    expect(usePrepStore.getState().activeMode).toBe('edit')
   })
 })

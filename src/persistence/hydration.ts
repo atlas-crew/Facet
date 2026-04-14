@@ -174,6 +174,7 @@ export const applyLocalPreferencesSnapshotToStores = (
   usePrepStore.setState((state) => ({
     ...state,
     activeDeckId: snapshot.prep.activeDeckId,
+    activeMode: snapshot.prep.activeMode ?? 'edit',
   }))
 
   useLinkedInStore.setState((state) => ({

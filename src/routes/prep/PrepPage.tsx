@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
-import { BookOpen, Download, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Download, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
@@ -13,14 +13,22 @@ import { useResumeStore } from '../../store/resumeStore'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
+import { derivePrepCheatsheetSections } from '../../utils/prepCheatsheet'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
-import type { PrepCard, PrepCategory, PrepDeck } from '../../types/prep'
+import type { PrepCard, PrepCategory, PrepDeck, PrepWorkspaceMode } from '../../types/prep'
 import './prep.css'
+
+const MODE_LABELS: Record<PrepWorkspaceMode, string> = {
+  edit: 'Edit',
+  homework: 'Homework',
+  live: 'Live Cheatsheet',
+}
 
 export function PrepPage() {
   const search = useSearch({ strict: false }) as { vector?: string; skills?: string; q?: string }
   const importRef = useRef<HTMLInputElement>(null)
+  const modeTabListRef = useRef<HTMLDivElement>(null)
   const currentReport = useMatchStore((state) => state.currentReport)
   const [query, setQuery] = useState(search.q ?? '')
   const [category, setCategory] = useState<PrepCategory | 'all'>('all')
@@ -29,12 +37,25 @@ export function PrepPage() {
   const [selectedEntryId, setSelectedEntryId] = useState<string>('')
   const [selectedVectorId, setSelectedVectorId] = useState(search.vector ?? '')
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
-  const [isPracticeMode, setIsPracticeMode] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
 
-  const { decks, activeDeckId, setActiveDeck, createDeck, updateDeck, addCard, updateCard, duplicateCard, removeCard, deleteDeck, importDecks, exportDecks } =
-    usePrepStore()
+  const {
+    decks,
+    activeDeckId,
+    activeMode,
+    setActiveDeck,
+    setActiveMode,
+    createDeck,
+    updateDeck,
+    addCard,
+    updateCard,
+    duplicateCard,
+    removeCard,
+    deleteDeck,
+    importDecks,
+    exportDecks,
+  } = usePrepStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const resumeData = useResumeStore((state) => state.data)
   const matchMaterial = useMemo(
@@ -45,12 +66,26 @@ export function PrepPage() {
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [decks, activeDeckId],
   )
+  const liveSections = useMemo(
+    () => (activeMode === 'live' && activeDeck ? derivePrepCheatsheetSections(activeDeck) : []),
+    [activeDeck, activeMode],
+  )
 
   useEffect(() => {
     if (!activeDeckId && decks.length > 0) {
       setActiveDeck(decks[0].id)
     }
   }, [activeDeckId, decks, setActiveDeck])
+
+  useEffect(() => {
+    if (!activeDeck && activeMode !== 'edit') {
+      setActiveMode('edit')
+      return
+    }
+    if (activeMode !== 'edit' && (activeDeck?.cards.length ?? 0) === 0) {
+      setActiveMode('edit')
+    }
+  }, [activeDeck, activeMode, setActiveMode])
 
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
@@ -403,6 +438,21 @@ export function PrepPage() {
     deleteDeck(activeDeck.id)
   }, [activeDeck, deleteDeck])
 
+  const handleModeTabKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
+
+    const tabs = modeTabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)')
+    if (!tabs || tabs.length === 0) return
+
+    const currentIndex = Array.from(tabs).findIndex((tab) => tab === document.activeElement)
+    if (currentIndex === -1) return
+
+    event.preventDefault()
+    const delta = event.key === 'ArrowRight' ? 1 : -1
+    const nextIndex = (currentIndex + delta + tabs.length) % tabs.length
+    tabs[nextIndex]?.focus()
+  }, [])
+
   const updateActiveDeck = useCallback(
     (patch: Partial<Omit<PrepDeck, 'id' | 'cards'>>) => {
       if (!activeDeck) return
@@ -411,29 +461,17 @@ export function PrepPage() {
     [activeDeck, updateDeck],
   )
 
-  if (isPracticeMode && activeDeck) {
-    return <PrepPracticeMode cards={filteredCards} onExit={() => setIsPracticeMode(false)} />
-  }
-
   return (
     <div className="prep-page">
       <div className="prep-header">
         <div>
           <h1>Interview Prep</h1>
           <p className="prep-header-copy">
-            Generate editable prep sets from the current match report or a pipeline entry, then refine them before practice mode.
+            Build one prep deck, then switch between editing, homework rehearsal, and a live interview cheatsheet from the same source.
           </p>
         </div>
 
         <div className="prep-header-actions">
-          <button
-            className="prep-btn prep-btn-primary"
-            onClick={() => setIsPracticeMode(true)}
-            disabled={!activeDeck || filteredCards.length === 0}
-          >
-            <BookOpen size={16} />
-            Practice Mode
-          </button>
           <button className="prep-btn" onClick={handleAddCard} disabled={!activeDeck}>
             <Plus size={16} />
             Add Card
@@ -453,6 +491,68 @@ export function PrepPage() {
           </button>
         </div>
       </div>
+
+      <section className="prep-panel prep-mode-shell">
+        <div className="prep-panel-header">
+          <div>
+            <h2>Workspace Mode</h2>
+            <p>Edit the deck, rehearse with flash cards, or open a compact cheatsheet view tuned for the live interview.</p>
+          </div>
+          <div
+            ref={modeTabListRef}
+            className="prep-mode-tabs"
+            role="tablist"
+            aria-label="Prep workspace modes"
+            onKeyDown={handleModeTabKeyDown}
+          >
+            <button
+              type="button"
+              className={`prep-mode-tab ${activeMode === 'edit' ? 'prep-mode-tab-active' : ''}`}
+              role="tab"
+              id="prep-mode-tab-edit"
+              aria-selected={activeMode === 'edit'}
+              aria-controls="prep-mode-panel-edit"
+              tabIndex={activeMode === 'edit' ? 0 : -1}
+              onClick={() => setActiveMode('edit')}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className={`prep-mode-tab ${activeMode === 'homework' ? 'prep-mode-tab-active' : ''}`}
+              role="tab"
+              id="prep-mode-tab-homework"
+              aria-selected={activeMode === 'homework'}
+              aria-controls="prep-mode-panel-homework"
+              tabIndex={activeMode === 'homework' ? 0 : -1}
+              onClick={() => setActiveMode('homework')}
+              disabled={!activeDeck || filteredCards.length === 0}
+            >
+              Homework
+            </button>
+            <button
+              type="button"
+              className={`prep-mode-tab ${activeMode === 'live' ? 'prep-mode-tab-active' : ''}`}
+              role="tab"
+              id="prep-mode-tab-live"
+              aria-selected={activeMode === 'live'}
+              aria-controls="prep-mode-panel-live"
+              tabIndex={activeMode === 'live' ? 0 : -1}
+              onClick={() => setActiveMode('live')}
+              disabled={!activeDeck || activeDeck.cards.length === 0}
+            >
+              Live Cheatsheet
+            </button>
+          </div>
+        </div>
+        <div className="prep-mode-summary">
+          <span className="prep-mode-chip">Deck: {activeDeck?.title ?? 'No active deck yet'}</span>
+          <span className="prep-mode-chip">Cards: {activeDeck?.cards.length ?? 0}</span>
+          <span className="prep-mode-chip">
+            Mode: {MODE_LABELS[activeMode]}
+          </span>
+        </div>
+      </section>
 
       <section className="prep-panel">
         <div className="prep-panel-header">
@@ -601,13 +701,67 @@ export function PrepPage() {
         {generationError && <div className="prep-error-banner">{generationError}</div>}
       </section>
 
-      {activeDeck ? (
-        <>
+      {activeMode === 'homework' && activeDeck ? (
+        <section
+          id="prep-mode-panel-homework"
+          role="tabpanel"
+          aria-labelledby="prep-mode-tab-homework"
+        >
+          <PrepPracticeMode cards={filteredCards} onExit={() => setActiveMode('edit')} />
+        </section>
+      ) : null}
+
+      {activeMode === 'live' ? (
+        <section
+          id="prep-mode-panel-live"
+          role="tabpanel"
+          aria-labelledby="prep-mode-tab-live"
+          className="prep-panel"
+        >
+          <div className="prep-panel-header">
+            <div>
+              <h2>Live Cheatsheet Preview</h2>
+              <p>The next slice will turn these sections into a timer-first, keyboard-driven interview surface.</p>
+            </div>
+          </div>
+          {activeDeck ? (
+            <div className="prep-live-preview">
+              {liveSections.map((section) => (
+                <article key={section.id} className="prep-live-preview-card">
+                  <h3>{section.title}</h3>
+                  <p>{section.description}</p>
+                  <ul>
+                    {section.items.slice(0, 3).map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.title}</strong>
+                        {item.detail ? <span> — {item.detail}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="prep-empty">
+              <h2>No deck ready yet</h2>
+              <p>Generate or create a prep deck first, then the live cheatsheet can compile quick-reference sections from it.</p>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {activeMode === 'edit' && activeDeck ? (
+        <div
+          id="prep-mode-panel-edit"
+          role="tabpanel"
+          aria-labelledby="prep-mode-tab-edit"
+          className="prep-mode-panel"
+        >
           <section className="prep-panel">
             <div className="prep-panel-header">
               <div>
                 <h2>Active Prep Set</h2>
-                <p>Edit the generated deck, keep adding cards, and tailor the narratives before practice mode.</p>
+                <p>Edit the generated deck, keep adding cards, and tailor the narratives before switching into homework or live mode.</p>
               </div>
               <label className="prep-field prep-field-inline">
                 <span className="prep-field-label">Prep set</span>
@@ -688,8 +842,8 @@ export function PrepPage() {
               <p>Adjust the filters above or add a new card to keep building out this prep set.</p>
             </div>
           )}
-        </>
-      ) : (
+        </div>
+      ) : activeMode === 'edit' ? (
         <div className="prep-empty">
           <h2>No prep sets yet</h2>
           <p>Generate a prep set from a pipeline entry or start a blank one. Once created, every card is fully editable.</p>
@@ -704,7 +858,7 @@ export function PrepPage() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

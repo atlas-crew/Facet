@@ -30,7 +30,7 @@ describe('PrepPracticeMode', () => {
     const handleExit = vi.fn()
     render(<PrepPracticeMode cards={[]} onExit={handleExit} />)
     expect(screen.getByText('No cards available')).toBeTruthy()
-    fireEvent.click(screen.getByText('Exit'))
+    fireEvent.click(screen.getByText('Back to Edit'))
     expect(handleExit).toHaveBeenCalled()
   })
 
@@ -153,7 +153,7 @@ describe('PrepPracticeMode', () => {
     
     const wrapper = container.firstChild as HTMLElement
     expect(wrapper.getAttribute('role')).toBe('region')
-    expect(wrapper.getAttribute('aria-label')).toBe('Practice mode')
+    expect(wrapper.getAttribute('aria-label')).toBe('Homework mode')
     
     expect(document.activeElement).toBe(wrapper)
     

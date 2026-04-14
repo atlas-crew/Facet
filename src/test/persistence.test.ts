@@ -592,6 +592,7 @@ describe('persistence foundation', () => {
       },
       prep: {
         activeDeckId: 'deck-1',
+        activeMode: 'edit',
       },
       linkedin: {
         selectedDraftId: 'linkedin-1',

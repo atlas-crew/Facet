@@ -74,6 +74,7 @@ const localPreferencesSnapshot: FacetLocalPreferencesSnapshot = {
   },
   prep: {
     activeDeckId: 'deck-1',
+    activeMode: 'edit',
   },
   linkedin: {
     selectedDraftId: 'linkedin-1',

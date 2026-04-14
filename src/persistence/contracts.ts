@@ -3,7 +3,7 @@ import type { CoverLetterTemplate } from '../types/coverLetter'
 import type { DebriefSession } from '../types/debrief'
 import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
-import type { PrepDeck } from '../types/prep'
+import type { PrepDeck, PrepWorkspaceMode } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
 import type { SearchProfile, SearchRequest, SearchRun } from '../types/search'
 import type { ResumeData, VectorSelection } from '../types'
@@ -125,6 +125,7 @@ export interface FacetPipelineLocalPreferences {
 
 export interface FacetPrepLocalPreferences {
   activeDeckId: string | null
+  activeMode: PrepWorkspaceMode
 }
 
 export interface FacetLinkedInLocalPreferences {
