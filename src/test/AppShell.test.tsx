@@ -173,6 +173,7 @@ describe('AppShell hosted workspace bootstrap', () => {
   beforeEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    routerMocks.currentPath = '/build'
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockReturnValue({
@@ -407,6 +408,122 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('link', { name: /account/i }).getAttribute('href')).toBe('/account')
     expect(document.querySelector('.app-topbar-sync')?.textContent).toContain('Ready')
   })
+
+  it('renders AppShell in local mode without hosted bootstrap', () => {
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(true, 'facet-local-workspace')
+
+    render(<AppShell />)
+
+    expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+    expect(runtimeMocks.captureLocalWorkspaceSnapshotForMigration).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /hosted workspaces/i })).toBeNull()
+  })
+
+  it('shows bootstrap loading while hosted account context is still connecting', () => {
+    setHostedStore({
+      bootstrapStatus: 'loading',
+      workspaces: [],
+      selectedWorkspaceId: null,
+      context: null,
+      bearerToken: null,
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByText('Connecting your hosted account…')).toBeTruthy()
+    expect(screen.getByText(/Loading account context, workspaces, and local migration state/)).toBeTruthy()
+    expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('clears stale hosted error state after a successful runtime recovery', async () => {
+    const { clearError } = setHostedStore({
+      bootstrapStatus: 'ready',
+      workspaces: [baseWorkspace],
+      selectedWorkspaceId: 'ws-1',
+      lastError: 'Old hosted error',
+      lastErrorCode: 'offline',
+      lastErrorReason: null,
+    })
+
+    runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(null)
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+    })
+
+    expect(clearError).toHaveBeenCalled()
+    expect(useHostedAppStore.getState().lastError).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it.each([
+    ['saving', 'Saving'],
+    ['error', 'Sync error'],
+    ['offline', 'Offline'],
+  ] as const)('renders %s sync state in the topbar', (phase, expectedLabel) => {
+    setHostedStore({})
+    usePersistenceRuntimeStore.setState({
+      hydrated: true,
+      usingLegacyMigration: false,
+      status: {
+        phase,
+        backend: 'remote',
+        activeWorkspaceId: 'ws-1',
+        lastHydratedAt: '2026-03-14T12:00:00.000Z',
+        lastSavedAt: '2026-03-14T12:00:00.000Z',
+        lastError: phase === 'error' ? 'Sync failed' : null,
+      },
+    })
+
+    render(<AppShell />)
+
+    expect(document.querySelector('.app-topbar-sync')?.textContent).toContain(expectedLabel)
+  })
+
+  it.each([
+    ['/build', 'Build', 'Core Workspace', 'Build'],
+    ['/pipeline', 'Pipeline', 'Execution Workspace', 'Pipeline'],
+    ['/identity', 'Identity', 'Core Workspace', 'Identity'],
+  ] as const)(
+    'renders route context and active nav state for %s',
+    (pathname, heading, eyebrow, navLabel) => {
+      routerMocks.currentPath = pathname
+      setHostedStore({})
+      setPersistenceHydration(true, 'ws-1')
+
+      render(<AppShell />)
+
+      expect(screen.getByRole('heading', { name: heading })).toBeTruthy()
+      expect(screen.getByText(eyebrow)).toBeTruthy()
+      expect(screen.getByRole('link', { name: new RegExp(navLabel, 'i') }).className).toContain('active')
+    },
+  )
 
   it('blocks the editor and surfaces an error when the hosted runtime fails to load', async () => {
     setHostedStore({})
