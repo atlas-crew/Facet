@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
@@ -920,13 +921,18 @@ export function ResearchPage() {
                 </div>
                 <button
                   type="button"
-                  className="research-btn research-btn-primary"
+                  className="research-btn research-btn-primary ai-working-button"
                   onClick={() => void handleLaunchSearch()}
                   disabled={isSearching}
+                  aria-busy={isSearching}
                 >
                   <Search size={16} />
                   {isSearching ? 'Searching…' : 'Launch Search'}
                 </button>
+                <AiActivityIndicator
+                  active={isSearching}
+                  label="AI is searching the web and ranking results."
+                />
               </div>
 
               {!effectiveProfile ? (

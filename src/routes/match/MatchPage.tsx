@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AlertTriangle, ArrowRight, Download, Fingerprint, Search, Sparkles } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
 import { useResumeStore } from '../../store/resumeStore'
@@ -192,10 +193,20 @@ export function MatchPage() {
               {isGenerating ? 'Analyzing job description.' : ''}
             </span>
           </div>
-          <button className="match-btn match-btn-primary" type="button" onClick={() => void handleAnalyze()} disabled={isGenerating}>
+          <button
+            className="match-btn match-btn-primary ai-working-button"
+            type="button"
+            onClick={() => void handleAnalyze()}
+            disabled={isGenerating}
+            aria-busy={isGenerating}
+          >
             <Search size={16} />
             {isGenerating ? 'Analyzing…' : 'Generate Match Report'}
           </button>
+          <AiActivityIndicator
+            active={isGenerating}
+            label="AI is analyzing the job description against your identity."
+          />
         </div>
 
         <div className="match-editor-grid">

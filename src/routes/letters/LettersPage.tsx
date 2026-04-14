@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Sparkles, Trash2 } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useMatchStore } from '../../store/matchStore'
@@ -338,9 +339,10 @@ export function LettersPage() {
               </p>
             </div>
             <button
-              className="letters-btn letters-btn-primary"
+              className="letters-btn letters-btn-primary ai-working-button"
               onClick={() => void handleGenerate()}
               disabled={isGenerating || (generationSource === 'match' ? !matchMaterial : candidateEntries.length === 0)}
+              aria-busy={isGenerating}
               aria-describedby={[
                 helperMessage ? 'letters-generator-help' : null,
                 generationError ? 'letters-generator-error' : null,
@@ -348,6 +350,10 @@ export function LettersPage() {
             >
               <Sparkles size={14} /> {isGenerating ? 'Generating...' : 'Generate with AI'}
             </button>
+            <AiActivityIndicator
+              active={isGenerating}
+              label="AI is drafting the cover letter."
+            />
           </div>
 
           {(currentReport || candidateEntries.length > 0) ? (

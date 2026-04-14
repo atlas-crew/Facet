@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { useLinkedInStore } from '../../store/linkedinStore'
 import type { LinkedInProfileDraft } from '../../types/linkedin'
@@ -168,13 +169,18 @@ export function LinkedInPage() {
             </div>
             <button
               type="button"
-              className="linkedin-btn linkedin-btn-primary"
+              className="linkedin-btn linkedin-btn-primary ai-working-button"
               onClick={() => void handleGenerate()}
               disabled={isGenerating || !currentIdentity}
+              aria-busy={isGenerating}
             >
               <Sparkles size={16} />
               {isGenerating ? 'Generating...' : 'Generate with AI'}
             </button>
+            <AiActivityIndicator
+              active={isGenerating}
+              label="AI is drafting the LinkedIn profile."
+            />
           </div>
 
           <div className="linkedin-grid">

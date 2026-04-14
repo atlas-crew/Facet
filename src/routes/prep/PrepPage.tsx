@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { BookOpen, Download, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
 import { PrepPracticeMode } from './PrepPracticeMode'
@@ -464,10 +465,19 @@ export function PrepPage() {
               <Plus size={16} />
               Blank Set
             </button>
-            <button className="prep-btn prep-btn-primary" onClick={() => void handleGenerate()} disabled={isGenerating}>
+            <button
+              className="prep-btn prep-btn-primary ai-working-button"
+              onClick={() => void handleGenerate()}
+              disabled={isGenerating}
+              aria-busy={isGenerating}
+            >
               <Sparkles size={16} />
               {isGenerating ? 'Generating...' : 'Generate with AI'}
             </button>
+            <AiActivityIndicator
+              active={isGenerating}
+              label="AI is drafting prep cards and talking points."
+            />
           </div>
         </div>
 

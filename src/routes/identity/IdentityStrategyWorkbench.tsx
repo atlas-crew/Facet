@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Download, Sparkles } from "lucide-react";
+import { AiActivityIndicator } from "../../components/AiActivityIndicator";
 import type {
   ProfessionalIdentityV3,
   ProfessionalMatchingAvoid,
@@ -638,7 +639,7 @@ export function IdentityStrategyWorkbench({
             Fill Empty Fields
           </button>
           <button
-            className="identity-btn"
+            className="identity-btn ai-working-button"
             type="button"
             onClick={handleGenerateVectors}
             disabled={isGeneratingVectors}
@@ -649,8 +650,12 @@ export function IdentityStrategyWorkbench({
               ? "Suggesting Search Angles…"
               : "Suggest Search Angles"}
           </button>
+          <AiActivityIndicator
+            active={isGeneratingVectors}
+            label="AI is drafting search angles from the identity model."
+          />
           <button
-            className="identity-btn"
+            className="identity-btn ai-working-button"
             type="button"
             onClick={handleGenerateAwareness}
             disabled={isGeneratingAwareness}
@@ -661,6 +666,10 @@ export function IdentityStrategyWorkbench({
               ? "Finding Open Questions…"
               : "Find Open Questions"}
           </button>
+          <AiActivityIndicator
+            active={isGeneratingAwareness}
+            label="AI is surfacing open questions from the identity model."
+          />
           <button
             className="identity-btn identity-btn-primary"
             type="button"

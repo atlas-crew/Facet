@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
@@ -297,13 +298,18 @@ export function DebriefPage() {
             </div>
             <button
               type="button"
-              className="debrief-btn debrief-btn-primary"
+              className="debrief-btn debrief-btn-primary ai-working-button"
               onClick={() => void handleGenerate()}
               disabled={isGenerating || !currentIdentity || !context}
+              aria-busy={isGenerating}
             >
               <Sparkles size={16} />
               {isGenerating ? 'Generating...' : 'Generate Debrief'}
             </button>
+            <AiActivityIndicator
+              active={isGenerating}
+              label="AI is drafting the debrief and themes."
+            />
           </div>
 
           <div className="debrief-grid">

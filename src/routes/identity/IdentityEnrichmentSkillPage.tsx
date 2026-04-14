@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import type { ProfessionalIdentityV3, ProfessionalSkillDepth } from '../../identity/schema'
 import { useIdentityStore } from '../../store/identityStore'
 import { facetClientEnv } from '../../utils/facetEnv'
@@ -338,8 +339,8 @@ export function IdentityEnrichmentSkillPage() {
         return
       }
 
-      const nextContext = suggestion.context ?? context
-      const nextPositioning = suggestion.positioning ?? positioning
+      const nextContext = suggestion.context || context
+      const nextPositioning = suggestion.positioning || positioning
       const appliedSuggestion = toSuggestion(
         preserveCurrentDepth ? depth : suggestion.depth || '',
         nextContext,
@@ -688,13 +689,23 @@ export function IdentityEnrichmentSkillPage() {
         </div>
 
         <div className="identity-card-actions">
-          <button className="identity-btn" type="button" onClick={() => void handleSuggest()} disabled={isGenerating}>
+          <button
+            className="identity-btn ai-working-button"
+            type="button"
+            onClick={() => void handleSuggest()}
+            disabled={isGenerating}
+            aria-busy={isGenerating}
+          >
             {isGenerating
               ? 'Generating...'
               : lastSuggestion
                 ? 'Regenerate AI draft'
                 : 'Draft with AI'}
           </button>
+          <AiActivityIndicator
+            active={isGenerating}
+            label="AI is drafting a skill summary for this section."
+          />
           <button className="identity-btn identity-btn-primary" type="button" onClick={() => handleSave('continue')}>
             Save and continue
           </button>
