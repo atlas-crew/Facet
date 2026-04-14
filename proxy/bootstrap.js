@@ -1,9 +1,7 @@
-import { existsSync } from 'node:fs'
+import { applyEnvFile } from './envFile.js'
 
 const envPath = './.env'
 
-if (existsSync(envPath) && typeof process.loadEnvFile === 'function') {
-  process.loadEnvFile(envPath)
-}
+applyEnvFile(envPath, process.env, { override: true })
 
 await import('./server.js')
