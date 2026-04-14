@@ -3,6 +3,7 @@ import type {
   SearchProfile,
   SearchProfileConstraints,
   SearchSkillCategory,
+  SearchSkillDepth,
   SearchWorkSummaryEntry,
   SkillCatalogEntry,
   VectorSearchConfig,
@@ -32,6 +33,177 @@ const slugify = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+
+const normalizeTerm = (value: string) => value.trim().toLowerCase()
+
+const GENERIC_SKILL_TERMS = new Set([
+  'api',
+  'architecture',
+  'backend',
+  'cloud',
+  'data',
+  'database',
+  'databases',
+  'devops',
+  'frontend',
+  'leadership',
+  'platform',
+  'product',
+  'security',
+  'services',
+  'software',
+  'systems',
+  'web',
+])
+
+const ROLE_TECHNOLOGY_WEIGHT = 3
+const STRUCTURED_TAG_WEIGHT = 2
+const SUPPORTING_SKILL_WEIGHT = 2
+const PROFILE_TAG_WEIGHT = 1
+const FREE_TEXT_WEIGHT = 1
+const STRONG_DEPTH_THRESHOLD = 4
+const WORKING_DEPTH_THRESHOLD = 2
+
+const uniqueTerms = (values: string[]): string[] =>
+  Array.from(new Set(values.map(normalizeTerm).filter(Boolean)))
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const containsAlias = (
+  text: string | undefined | null,
+  aliases: string[],
+): boolean => {
+  if (!text) {
+    return false
+  }
+
+  const normalizedText = normalizeTerm(text)
+  const pattern = aliases
+    .filter((alias) => alias.length >= 4)
+    .map(escapeRegex)
+    .join('|')
+
+  if (!pattern) {
+    return false
+  }
+
+  return new RegExp(`\\b(?:${pattern})\\b`).test(normalizedText)
+}
+
+const includesAlias = (
+  values: string[] | undefined,
+  aliases: string[],
+): boolean =>
+  Boolean(values?.some((value) => aliases.includes(normalizeTerm(value))))
+
+const inferSkillDepth = (
+  identity: ProfessionalIdentityV3,
+  groupLabel: string,
+  item: ProfessionalIdentityV3['skills']['groups'][number]['items'][number],
+): SearchSkillDepth => {
+  if (item.depth) {
+    return item.depth
+  }
+
+  const groupAlias = normalizeTerm(groupLabel)
+  const exactAliases = uniqueTerms([item.name, ...(item.tags ?? [])]).filter(
+    (alias) => alias.length >= 2 && alias !== groupAlias && !GENERIC_SKILL_TERMS.has(alias),
+  )
+  const textAliases = exactAliases.filter((alias) => alias.length >= 4)
+
+  let score = 0
+  let directRoleTechnologyEvidence = false
+
+  for (const role of identity.roles) {
+    for (const bullet of role.bullets) {
+      if (includesAlias(bullet.technologies, exactAliases)) {
+        score += ROLE_TECHNOLOGY_WEIGHT
+        directRoleTechnologyEvidence = true
+      }
+
+      if (includesAlias(bullet.tags, exactAliases)) {
+        score += STRUCTURED_TAG_WEIGHT
+      }
+
+      if (
+        containsAlias(
+          [
+            bullet.problem,
+            bullet.action,
+            bullet.outcome,
+            bullet.source_text,
+            bullet.portfolio_dive,
+            ...(bullet.impact ?? []),
+          ]
+            .filter(Boolean)
+            .join(' '),
+          textAliases,
+        )
+      ) {
+        score += FREE_TEXT_WEIGHT
+      }
+    }
+  }
+
+  for (const project of identity.projects) {
+    if (includesAlias(project.tags, exactAliases)) {
+      score += STRUCTURED_TAG_WEIGHT
+    }
+
+    if (
+      containsAlias(
+        [project.description, project.portfolio_dive].filter(Boolean).join(' '),
+        textAliases,
+      )
+    ) {
+      score += FREE_TEXT_WEIGHT
+    }
+  }
+
+  for (const profile of identity.profiles) {
+    if (includesAlias(profile.tags, exactAliases)) {
+      score += PROFILE_TAG_WEIGHT
+    }
+
+    if (containsAlias(profile.text, textAliases)) {
+      score += FREE_TEXT_WEIGHT
+    }
+  }
+
+  for (const vector of identity.search_vectors ?? []) {
+    if (includesAlias(vector.supporting_skills, exactAliases)) {
+      score += SUPPORTING_SKILL_WEIGHT
+    }
+
+    if (
+      containsAlias(
+        [
+          vector.title,
+          vector.subtitle,
+          vector.thesis,
+          ...(vector.evidence ?? []),
+          ...vector.keywords.primary,
+          ...vector.keywords.secondary,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        textAliases,
+      )
+    ) {
+      score += FREE_TEXT_WEIGHT
+    }
+  }
+
+  if (directRoleTechnologyEvidence || score >= STRONG_DEPTH_THRESHOLD) {
+    return 'strong'
+  }
+
+  if (score >= WORKING_DEPTH_THRESHOLD) {
+    return 'working'
+  }
+
+  return 'basic'
+}
 
 const inferSkillCategory = (
   groupLabel: string,
@@ -84,7 +256,7 @@ const buildSkills = (
       id: `identity-skill-${group.id}-${slugify(item.name) || 'untitled'}`,
       name: item.name,
       category: inferSkillCategory(group.label, item.tags),
-      depth: item.depth ?? 'working',
+      depth: inferSkillDepth(identity, group.label, item),
       context: item.context,
       positioning: item.positioning,
     })),

@@ -247,6 +247,35 @@ describe('ResearchPage', () => {
     expect(setProfileSpy).not.toHaveBeenCalled()
   })
 
+  it('derives identity skill depths from available evidence instead of flattening to working', async () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [
+      { name: 'Kubernetes', tags: ['platform', 'kubernetes'] },
+      { name: 'Go', tags: ['go'] },
+      { name: 'React', depth: 'expert', tags: ['react'] },
+    ]
+
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.source?.kind).toBe('identity')
+    })
+
+    const skillDepths = Object.fromEntries(
+      (useSearchStore.getState().profile?.skills ?? []).map((skill) => [skill.name, skill.depth]),
+    )
+
+    expect(skillDepths.Kubernetes).toBe('strong')
+    expect(skillDepths.Go).toBe('basic')
+    expect(skillDepths.React).toBe('expert')
+  })
+
   it('restores the prior resume-backed profile after leaving identity mode', async () => {
     const resumeProfile = structuredClone(useSearchStore.getState().profile)
     const identity = cloneIdentityFixture()
