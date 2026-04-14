@@ -5,7 +5,10 @@ import { usePipelineStore } from '../../store/pipelineStore'
 import { useHandoffStore } from '../../store/handoffStore'
 import { useUiStore } from '../../store/uiStore'
 import type { PipelineEntry } from '../../types/pipeline'
+import { getFacetClientEnv } from '../../utils/facetEnv'
+import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
+import { investigatePipelineEntry } from '../../utils/pipelineInvestigation'
 import type { PipelineFilterState } from './PipelineFilters'
 import type { SortField } from './PipelineTable'
 import { PipelineStats } from './PipelineStats'
@@ -34,6 +37,7 @@ export function PipelinePage() {
   const deleteEntry = usePipelineStore((s) => s.deleteEntry)
   const importEntries = usePipelineStore((s) => s.importEntries)
   const setStatus = usePipelineStore((s) => s.setStatus)
+  const addHistoryNote = usePipelineStore((s) => s.addHistoryNote)
 
   const navigate = useNavigate()
 
@@ -43,8 +47,14 @@ export function PipelinePage() {
   const [filters, setFilters] = useState<PipelineFilterState>({ tiers: [], statuses: [], search: '' })
   const [sortField, setSortField] = useState<SortField>('tier')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [investigatingId, setInvestigatingId] = useState<string | null>(null)
+  const [investigationErrors, setInvestigationErrors] = useState<Record<string, string>>({})
 
   const importRef = useRef<HTMLInputElement>(null)
+  const aiEndpoint = useMemo(
+    () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
+    [],
+  )
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -139,6 +149,40 @@ export function PipelinePage() {
       })
     },
     [navigate]
+  )
+
+  const handleInvestigate = useCallback(
+    async (entry: PipelineEntry) => {
+      try {
+        if (!aiEndpoint) {
+          throw new Error('AI research is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+        }
+        setInvestigationErrors((current) => ({
+          ...current,
+          [entry.id]: '',
+        }))
+        setInvestigatingId(entry.id)
+
+        const update = await investigatePipelineEntry(entry, aiEndpoint)
+        updateEntry(entry.id, {
+          jobDescription: update.jobDescription,
+          format: update.format,
+          nextStep: update.nextStep,
+          research: update.research,
+        })
+        addHistoryNote(entry.id, 'Investigated with AI')
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Pipeline investigation failed.'
+        setInvestigationErrors((current) => ({
+          ...current,
+          [entry.id]: message,
+        }))
+      } finally {
+        setInvestigatingId((current) => (current === entry.id ? null : current))
+      }
+    },
+    [addHistoryNote, aiEndpoint, updateEntry],
   )
 
   const handleImport = useCallback(
@@ -292,6 +336,10 @@ export function PipelinePage() {
         onPrep={handlePrep}
         onStatusChange={setStatus}
         onOpenInBuilder={handleOpenInBuilder}
+        onInvestigate={handleInvestigate}
+        canInvestigate={Boolean(aiEndpoint)}
+        investigatingId={investigatingId}
+        investigationErrors={investigationErrors}
       />
 
       {(modal === 'add' || modalEntry || initialData) && (

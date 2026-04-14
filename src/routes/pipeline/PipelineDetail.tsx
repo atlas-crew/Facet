@@ -1,4 +1,5 @@
-import { Edit3, Trash2, Zap, BookOpen, ArrowRight } from 'lucide-react'
+import { Edit3, Trash2, Zap, BookOpen, ArrowRight, Search } from 'lucide-react'
+import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import type { PipelineEntry } from '../../types/pipeline'
 import { useResumeStore } from '../../store/resumeStore'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
@@ -10,9 +11,24 @@ interface PipelineDetailProps {
   onAnalyze: () => void
   onPrep: () => void
   onOpenInBuilder: () => void
+  onInvestigate: () => void
+  canInvestigate: boolean
+  isInvestigating: boolean
+  investigationError?: string
 }
 
-export function PipelineDetail({ entry, onEdit, onDelete, onAnalyze, onPrep, onOpenInBuilder }: PipelineDetailProps) {
+export function PipelineDetail({
+  entry,
+  onEdit,
+  onDelete,
+  onAnalyze,
+  onPrep,
+  onOpenInBuilder,
+  onInvestigate,
+  canInvestigate,
+  isInvestigating,
+  investigationError,
+}: PipelineDetailProps) {
   const activeStatuses = new Set(['screening', 'interviewing'])
   const linkedPreset = useResumeStore((s) =>
     entry.presetId ? (s.data.presets ?? []).find((p) => p.id === entry.presetId) ?? null : null
@@ -84,6 +100,116 @@ export function PipelineDetail({ entry, onEdit, onDelete, onAnalyze, onPrep, onO
         )}
       </div>
 
+      {(entry.research || investigationError) && (
+        <div className="pipeline-research">
+          <div className="pipeline-research-header">
+            <span className="pipeline-history-title">Research</span>
+            {entry.research && (
+              <span
+                className={`pipeline-research-status ${entry.research.status === 'investigated' ? 'is-investigated' : 'is-seeded'}`}
+              >
+                {entry.research.status === 'investigated' ? 'Investigated with AI' : 'Seeded from Research'}
+              </span>
+            )}
+          </div>
+
+          {investigationError && (
+            <div className="pipeline-research-error" role="alert">
+              {investigationError}
+            </div>
+          )}
+
+          {entry.research?.summary && (
+            <div className="pipeline-detail-field pipeline-detail-notes">
+              <span className="pipeline-detail-field-label">Research Summary</span>
+              <span className="pipeline-detail-field-value">{entry.research.summary}</span>
+            </div>
+          )}
+
+          {entry.research?.jobDescriptionSummary && (
+            <div className="pipeline-detail-field pipeline-detail-notes">
+              <span className="pipeline-detail-field-label">Role Snapshot</span>
+              <span className="pipeline-detail-field-value">{entry.research.jobDescriptionSummary}</span>
+            </div>
+          )}
+
+          {entry.research?.interviewSignals?.length ? (
+            <div className="pipeline-detail-field pipeline-detail-notes">
+              <span className="pipeline-detail-field-label">Interview Signals</span>
+              <ul className="pipeline-research-list">
+                {entry.research.interviewSignals.map((signal, index) => (
+                  <li key={`${signal}-${index}`}>{signal}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {entry.research?.people?.length ? (
+            <div className="pipeline-detail-field pipeline-detail-notes">
+              <span className="pipeline-detail-field-label">Relevant People</span>
+              <div className="pipeline-research-people">
+                {entry.research.people.map((person) => (
+                  (() => {
+                    const safeProfileUrl = sanitizeUrl(person.profileUrl)
+                    return (
+                      <div
+                        key={[
+                          person.name,
+                          person.title,
+                          person.company,
+                          person.profileUrl ?? '',
+                        ].join('|')}
+                        className="pipeline-research-person"
+                      >
+                        <strong>{person.name}</strong>
+                        <span>
+                          {[person.title, person.company].filter(Boolean).join(' · ') || 'Public profile'}
+                        </span>
+                        {person.relevance ? <span>{person.relevance}</span> : null}
+                        {safeProfileUrl ? (
+                          <a href={safeProfileUrl} target="_blank" rel="noopener noreferrer">
+                            View profile
+                          </a>
+                        ) : null}
+                      </div>
+                    )
+                  })()
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {entry.research?.sources?.length ? (
+            <div className="pipeline-detail-field pipeline-detail-notes">
+              <span className="pipeline-detail-field-label">Sources</span>
+              <ul className="pipeline-research-list">
+                {entry.research.sources.map((source) => (
+                  (() => {
+                    const safeSourceUrl = sanitizeUrl(source.url)
+                    return (
+                      <li key={[
+                        source.kind,
+                        source.label,
+                        source.url ?? '',
+                      ].join('|')}>
+                        {safeSourceUrl ? (
+                          <a href={safeSourceUrl} target="_blank" rel="noopener noreferrer">
+                            {source.label}
+                          </a>
+                        ) : (
+                          <span>{source.label}</span>
+                        )}
+                        <span className="pipeline-research-source-kind">{source.kind}</span>
+                      </li>
+                    )
+                  })()
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       {entry.history.length > 0 && (
         <div className="pipeline-history">
           <span className="pipeline-history-title">History</span>
@@ -100,6 +226,23 @@ export function PipelineDetail({ entry, onEdit, onDelete, onAnalyze, onPrep, onO
         <button className="pipeline-btn pipeline-btn-sm" onClick={onEdit}>
           <Edit3 size={14} /> Edit
         </button>
+        <button
+          className={`pipeline-btn pipeline-btn-sm ${isInvestigating ? 'ai-working-button' : ''}`}
+          onClick={onInvestigate}
+          disabled={isInvestigating || !canInvestigate}
+          aria-busy={isInvestigating}
+          title={canInvestigate ? undefined : 'Configure VITE_ANTHROPIC_PROXY_URL to investigate from the pipeline.'}
+        >
+          <Search size={14} /> {isInvestigating ? 'Investigating…' : entry.research?.status === 'investigated' ? 'Refresh Research' : 'Investigate with AI'}
+        </button>
+        <AiActivityIndicator
+          active={isInvestigating}
+          label="AI researching"
+          className="pipeline-investigation-indicator"
+        />
+        {!canInvestigate ? (
+          <span className="pipeline-action-hint">AI research unavailable until the proxy is configured.</span>
+        ) : null}
         {entry.vectorId && (
           <button className="pipeline-btn pipeline-btn-sm" onClick={onOpenInBuilder}>
             <ArrowRight size={14} /> Open in Builder

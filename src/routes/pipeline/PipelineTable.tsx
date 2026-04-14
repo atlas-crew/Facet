@@ -23,6 +23,10 @@ interface PipelineTableProps {
   onPrep: (entry: PipelineEntry) => void
   onStatusChange: (id: string, status: PipelineStatus) => void
   onOpenInBuilder: (entry: PipelineEntry) => void
+  onInvestigate: (entry: PipelineEntry) => void
+  canInvestigate: boolean
+  investigatingId: string | null
+  investigationErrors: Record<string, string>
 }
 
 const COLUMNS: { key: SortField; label: string }[] = [
@@ -52,6 +56,10 @@ export function PipelineTable({
   onPrep,
   onStatusChange,
   onOpenInBuilder,
+  onInvestigate,
+  canInvestigate,
+  investigatingId,
+  investigationErrors,
 }: PipelineTableProps) {
   return (
     <div className="pipeline-table-wrap">
@@ -108,6 +116,10 @@ export function PipelineTable({
                       onAnalyze={() => onAnalyze(entry)}
                       onPrep={() => onPrep(entry)}
                       onOpenInBuilder={() => onOpenInBuilder(entry)}
+                      onInvestigate={() => onInvestigate(entry)}
+                      canInvestigate={canInvestigate}
+                      isInvestigating={investigatingId === entry.id}
+                      investigationError={investigationErrors[entry.id]}
                     />
                   </td>
                 </tr>
