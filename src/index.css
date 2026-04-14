@@ -89,6 +89,9 @@
   --accent-primary-subtle: color-mix(in srgb, var(--accent-primary) 12%, transparent);
   --accent-primary-hover: #3d8ab8;
 
+  --focus-ring-color: var(--accent-primary);
+  --focus-ring-halo: color-mix(in srgb, var(--accent-primary) 28%, transparent);
+
   --priority-must: #0f172a;
   --priority-strong: #475569;
   --priority-optional: #4a5568;
@@ -125,6 +128,9 @@
   --accent-primary: #2d6a96;
   --accent-primary-subtle: color-mix(in srgb, var(--accent-primary) 12%, transparent);
   --accent-primary-hover: #3d8ab8;
+
+  --focus-ring-color: var(--accent-primary);
+  --focus-ring-halo: color-mix(in srgb, var(--accent-primary) 28%, transparent);
 
   --priority-must: #0f172a;
   --priority-strong: #475569;
@@ -169,6 +175,9 @@
   --accent-primary: #5ba4d9;
   --accent-primary-subtle: color-mix(in srgb, var(--accent-primary) 28%, transparent);
   --accent-primary-hover: #6cb8e8;
+
+  --focus-ring-color: #8ec5ec;
+  --focus-ring-halo: color-mix(in srgb, #8ec5ec 55%, transparent);
 
   --priority-must: #e8ecf2;
   --priority-strong: #c0c8d4;
@@ -217,6 +226,19 @@ input,
 textarea,
 select {
   font-family: inherit;
+}
+
+/*
+ * Global focus-visible halo. Uses :where() so specificity is (0,0,0) — any
+ * component that already defines its own :focus-visible style (e.g. inputs
+ * with custom border + ring) automatically wins. The halo box-shadow lifts
+ * focus contrast in dark theme where the bare outline alone can flatten
+ * into surface-hover backgrounds.
+ */
+:where(button, a, [role="button"], [role="tab"], [tabindex="0"]):focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 /* Scrollbar styling for dark theme */
@@ -2939,9 +2961,43 @@ select.component-input {
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-3);
   flex: 1;
   padding: 0 6px;
+}
+
+.sidebar-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sidebar-nav-group.active .sidebar-nav-group-label {
+  color: var(--accent-primary);
+}
+
+.sidebar-nav-group-label {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition:
+    opacity 0.15s var(--easing),
+    color 0.15s var(--easing);
+}
+
+.app-sidebar:hover .sidebar-nav-group-label {
+  opacity: 1;
+}
+
+.sidebar-nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .sidebar-nav-item {
@@ -3087,10 +3143,26 @@ select.component-input {
   min-width: 0;
 }
 
+.app-topbar-eyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
 .app-topbar-title {
   margin: 0;
   font-size: 20px;
   line-height: 1.2;
+}
+
+.app-topbar-description {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
 .app-topbar-actions {
@@ -3378,6 +3450,7 @@ select.component-input {
     font-size: 18px;
   }
 
+  .app-topbar-description,
   .app-topbar-brand .facet-wordmark,
   .app-topbar-divider {
     display: none;
@@ -3385,6 +3458,7 @@ select.component-input {
 
   .app-topbar-link span,
   .app-topbar-sync-label,
+  .app-topbar-eyebrow,
   .app-topbar-theme-toggle span,
   .app-topbar-workspace {
     display: none;

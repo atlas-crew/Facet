@@ -41,7 +41,6 @@ import { WorkspaceBackupReminder } from './WorkspaceBackupReminder'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const AI_ENABLED = Boolean(facetClientEnv.anthropicProxyUrl)
-
 const AI_ROUTES: ReadonlySet<string> = new Set([
   '/identity', '/match', '/research', '/prep', '/letters', '/linkedin', '/debrief',
 ])
@@ -49,16 +48,89 @@ const HELP_ROUTE = '/help' as const
 const HOME_ROUTE = '/' as const
 
 const NAV_ITEMS = [
-  { to: '/build' as const, icon: Layers, label: 'Build' },
-  { to: '/identity' as const, icon: Fingerprint, label: 'Identity' },
-  { to: '/match' as const, icon: Target, label: 'Match' },
-  { to: '/pipeline' as const, icon: ListChecks, label: 'Pipeline' },
-  { to: '/research' as const, icon: Search, label: 'Research' },
-  { to: '/prep' as const, icon: BookOpen, label: 'Prep' },
-  { to: '/letters' as const, icon: FileText, label: 'Letters' },
-  { to: '/linkedin' as const, icon: AtSign, label: 'LinkedIn' },
-  { to: '/recruiter' as const, icon: BadgeCheck, label: 'Recruiter' },
-  { to: '/debrief' as const, icon: MessageSquareQuote, label: 'Debrief' },
+  {
+    to: '/identity' as const,
+    icon: Fingerprint,
+    label: 'Identity',
+    description: 'Shape your professional identity, evidence, and search strategy.',
+  },
+  {
+    to: '/research' as const,
+    icon: Search,
+    label: 'Research',
+    description: 'Turn your identity into targeted searches and pipeline-ready opportunities.',
+  },
+  {
+    to: '/match' as const,
+    icon: Target,
+    label: 'Match',
+    description: 'Compare your profile to a role and analyze alignment before you tailor.',
+  },
+  {
+    to: '/build' as const,
+    icon: Layers,
+    label: 'Build',
+    description: 'Assemble and export tailored resumes from your identity and strategy.',
+  },
+  {
+    to: '/pipeline' as const,
+    icon: ListChecks,
+    label: 'Pipeline',
+    description: 'Track opportunities, investigate openings, and keep momentum across applications.',
+  },
+  {
+    to: '/prep' as const,
+    icon: BookOpen,
+    label: 'Prep',
+    description: 'Prepare for interviews with company context, likely questions, and story drills.',
+  },
+  {
+    to: '/debrief' as const,
+    icon: MessageSquareQuote,
+    label: 'Debrief',
+    description: 'Capture interview outcomes and feed learnings back into your identity.',
+  },
+  {
+    to: '/letters' as const,
+    icon: FileText,
+    label: 'Letters',
+    description: 'Draft role-specific outreach and cover letters from your current materials.',
+  },
+  {
+    to: '/linkedin' as const,
+    icon: AtSign,
+    label: 'LinkedIn',
+    description: 'Turn your identity into polished LinkedIn-ready profile language.',
+  },
+  {
+    to: '/recruiter' as const,
+    icon: BadgeCheck,
+    label: 'Recruiter',
+    description: 'Generate a concise recruiter-facing brief from your current match context.',
+  },
+] as const
+
+type NavRoute = (typeof NAV_ITEMS)[number]['to']
+
+const NAV_GROUPS = [
+  {
+    id: 'core',
+    label: 'Core',
+    eyebrow: 'Core Workspace',
+    routes: ['/identity', '/research', '/match', '/build'] satisfies readonly NavRoute[],
+  },
+  {
+    id: 'execution',
+    label: 'Execution',
+    eyebrow: 'Execution Workspace',
+    routes: ['/pipeline', '/prep', '/debrief'] satisfies readonly NavRoute[],
+  },
+  {
+    id: 'output',
+    label: 'Output',
+    eyebrow: 'Output Workspace',
+    routes: ['/letters', '/linkedin', '/recruiter'] satisfies readonly NavRoute[],
+  },
 ] as const
 
 const isRouteActive = (currentPath: string, route: string) =>
@@ -72,15 +144,78 @@ export function AppShell() {
   const currentPath = routerState.location.pathname
   const isHelpRoute = isRouteActive(currentPath, HELP_ROUTE)
   const isHomeRoute = currentPath === HOME_ROUTE
-  const currentNavLabel =
-    (isHomeRoute ? 'Overview' : NAV_ITEMS.find(({ to }) => isRouteActive(currentPath, to))?.label) ??
-    (isHelpRoute ? 'Help' : isRouteActive(currentPath, '/account') ? 'Account' : 'Facet')
+  const visibleNavItems = useMemo(
+    // Filter inputs are module constants, so this list is stable for the life of the app shell.
+    () => NAV_ITEMS.filter(({ to }) => AI_ENABLED || !AI_ROUTES.has(to)),
+    [],
+  )
+  const visibleNavGroups = useMemo(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.routes
+          .map((route) => visibleNavItems.find((item) => item.to === route))
+          .filter((item): item is (typeof NAV_ITEMS)[number] => Boolean(item)),
+      })).filter((group) => group.items.length > 0),
+    [visibleNavItems],
+  )
+  const activeNavItem = useMemo(
+    () => visibleNavItems.find(({ to }) => isRouteActive(currentPath, to)) ?? null,
+    [currentPath, visibleNavItems],
+  )
+  const activeNavGroup = useMemo(
+    () =>
+      visibleNavGroups.find((group) =>
+        group.items.some((item) => isRouteActive(currentPath, item.to)),
+      ) ?? null,
+    [currentPath, visibleNavGroups],
+  )
+  const routeContext = useMemo(() => {
+    if (isHomeRoute) {
+      return {
+        title: 'Overview',
+        eyebrow: 'Workspace Hub',
+        description: 'Jump into the next step of your search system and monitor overall readiness.',
+      }
+    }
+
+    if (activeNavItem) {
+      return {
+        title: activeNavItem.label,
+        eyebrow: activeNavGroup?.eyebrow ?? 'Workspace',
+        description: activeNavItem.description,
+      }
+    }
+
+    if (isHelpRoute) {
+      return {
+        title: 'Help',
+        eyebrow: 'Utility Workspace',
+        description: 'Find product guidance, troubleshooting notes, and usage details.',
+      }
+    }
+
+    if (isRouteActive(currentPath, '/account')) {
+      return {
+        title: 'Account',
+        eyebrow: 'Utility Workspace',
+        description: 'Manage hosted access, billing state, and account-level settings.',
+      }
+    }
+
+    return {
+      title: 'Facet',
+      eyebrow: 'Workspace',
+      description: 'Move through the core search workflow and supporting tools.',
+    }
+  }, [activeNavGroup, activeNavItem, currentPath, isHelpRoute, isHomeRoute])
 
   const entitlement = hostedApp.context?.entitlement ?? null
   const accountDaysLeft = useMemo(() => {
     if (!entitlement?.effectiveThrough) return null
+    const nowMs = new Date().getTime()
     return Math.max(0, Math.ceil(
-      (new Date(entitlement.effectiveThrough).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+      (new Date(entitlement.effectiveThrough).getTime() - nowMs) / (1000 * 60 * 60 * 24),
     ))
   }, [entitlement])
 
@@ -575,16 +710,29 @@ export function AppShell() {
     <div className="app-root">
       <nav className="app-sidebar" aria-label="Main navigation">
         <div className="sidebar-nav">
-          {NAV_ITEMS.filter(({ to }) => AI_ENABLED || !AI_ROUTES.has(to)).map(({ to, icon: Icon, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className={`sidebar-nav-item ${isRouteActive(currentPath, to) ? 'active' : ''}`}
-              title={label}
+          {visibleNavGroups.map((group) => (
+            <section
+              key={group.id}
+              className={`sidebar-nav-group ${activeNavGroup?.id === group.id ? 'active' : ''}`}
+              aria-labelledby={`sidebar-nav-group-${group.id}`}
             >
-              <Icon size={20} strokeWidth={1.5} />
-              <span className="sidebar-nav-label">{label}</span>
-            </Link>
+              <p id={`sidebar-nav-group-${group.id}`} className="sidebar-nav-group-label">
+                {group.label}
+              </p>
+              <div className="sidebar-nav-group-items">
+                {group.items.map(({ to, icon: Icon, label }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    className={`sidebar-nav-item ${isRouteActive(currentPath, to) ? 'active' : ''}`}
+                    title={label}
+                  >
+                    <Icon size={20} strokeWidth={1.5} />
+                    <span className="sidebar-nav-label">{label}</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
 
@@ -630,7 +778,9 @@ export function AppShell() {
             </Link>
             <div className="app-topbar-divider" aria-hidden="true" />
             <div className="app-topbar-copy">
-              <h1 className="app-topbar-title">{currentNavLabel}</h1>
+              <p className="app-topbar-eyebrow">{routeContext.eyebrow}</p>
+              <h1 className="app-topbar-title">{routeContext.title}</h1>
+              <p className="app-topbar-description">{routeContext.description}</p>
             </div>
           </div>
           <div className="app-topbar-actions">

@@ -346,6 +346,31 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('button', { name: 'Theme: light' })).toBeTruthy()
   })
 
+  it('groups workspace navigation and shows route context in the topbar', () => {
+    routerMocks.currentPath = '/research'
+    setHostedStore({})
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('heading', { name: 'Research' })).toBeTruthy()
+    expect(screen.getAllByText('Core')[0]).toBeTruthy()
+    expect(screen.getByText('Execution')).toBeTruthy()
+    expect(screen.getByText('Output')).toBeTruthy()
+    expect(screen.getByText('Core Workspace')).toBeTruthy()
+    expect(
+      screen.getByText('Turn your identity into targeted searches and pipeline-ready opportunities.')
+    ).toBeTruthy()
+  })
+
   it('links the topbar brand to the landing page', () => {
     setHostedStore({})
     runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
@@ -424,6 +449,7 @@ describe('AppShell hosted workspace bootstrap', () => {
   })
 
   it('surfaces generic bootstrap failures with retry recovery', () => {
+    const bootstrap = vi.fn().mockResolvedValue(undefined)
     setHostedStore({
       bootstrapStatus: 'error',
       selectedWorkspaceId: null,
@@ -431,13 +457,19 @@ describe('AppShell hosted workspace bootstrap', () => {
       lastError: 'Something went wrong',
       lastErrorCode: null,
       lastErrorReason: null,
+      bootstrap,
     })
 
     render(<AppShell />)
 
     expect(screen.getByRole('alert').textContent).toContain('Hosted bootstrap failed')
     expect(screen.getByRole('alert').textContent).toContain('Something went wrong')
-    expect(screen.getByRole('button', { name: /retry hosted bootstrap/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /retry hosted bootstrap/i }))
+
+    expect(bootstrap).toHaveBeenCalledTimes(1)
+    expect(bootstrap).toHaveBeenCalledWith({
+      localMigrationSnapshot: null,
+    })
   })
 
   it('reloads the session when the hosted billing recovery button is clicked', async () => {
