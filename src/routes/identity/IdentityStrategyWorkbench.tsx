@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Download, Sparkles } from "lucide-react";
 import type {
@@ -14,6 +14,7 @@ import {
   generateAwarenessFromIdentity,
   generateSearchVectorsFromIdentity,
 } from "../../utils/identityParametersGeneration";
+import { deriveStrategyAutofill } from "../../utils/strategyEditorAutofill";
 
 type StrategyTab = "preferences" | "vectors" | "awareness" | "parameters";
 
@@ -191,12 +192,14 @@ const DelimitedTextarea = ({
   onCommit,
   className,
   rows,
+  placeholder,
   ariaLabel,
 }: {
   value: string[] | undefined;
   onCommit: (nextValue: string[]) => void;
   className: string;
   rows: number;
+  placeholder?: string;
   ariaLabel?: string;
 }) => {
   const [draft, setDraft] = useState(joinList(value));
@@ -210,12 +213,30 @@ const DelimitedTextarea = ({
       className={className}
       rows={rows}
       value={draft}
+      placeholder={placeholder}
       aria-label={ariaLabel}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => onCommit(splitList(draft))}
     />
   );
 };
+
+const StrategyExamples = ({
+  summary,
+  items,
+}: {
+  summary: string;
+  items: string[];
+}) => (
+  <details className="identity-field-examples">
+    <summary>{summary}</summary>
+    <ul className="identity-example-list">
+      {items.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
+  </details>
+);
 
 const AccuracyRuleRow = ({
   ruleKey,
@@ -302,6 +323,7 @@ export function IdentityStrategyWorkbench({
   const [activeTab, setActiveTab] = useState<StrategyTab>("preferences");
   const [isGeneratingVectors, setIsGeneratingVectors] = useState(false);
   const [isGeneratingAwareness, setIsGeneratingAwareness] = useState(false);
+  const autofilledIdentityKeysRef = useRef(new Set<string>());
   const tabRefs = useRef<Record<StrategyTab, HTMLButtonElement | null>>({
     preferences: null,
     vectors: null,
@@ -326,6 +348,80 @@ export function IdentityStrategyWorkbench({
       total: vectors + awareness,
     };
   }, [currentIdentity]);
+
+  const strategyIdentityKey = useMemo(() => {
+    if (!currentIdentity) {
+      return null;
+    }
+
+    return [
+      currentIdentity.identity.email,
+      currentIdentity.identity.name,
+      currentIdentity.roles.map((role) => role.id).join("|"),
+      currentIdentity.skills.groups
+        .map((group) => `${group.id}:${group.items.length}`)
+        .join("|"),
+    ].join("::");
+  }, [currentIdentity]);
+
+  const applyAutofill = useCallback(
+    (identity: ProfessionalIdentityV3, announce: boolean) => {
+      const suggestions = deriveStrategyAutofill(identity);
+      if (suggestions.changedFields.length === 0) {
+        if (announce) {
+          onNotice("No empty strategy fields needed suggestions.");
+        }
+        return false;
+      }
+
+      onError(null);
+      if (suggestions.compensation) {
+        updateCurrentCompensation(suggestions.compensation);
+      }
+      if (suggestions.workModel) {
+        updateCurrentWorkModel(suggestions.workModel);
+      }
+      if (suggestions.constraints) {
+        updateCurrentConstraints(suggestions.constraints);
+      }
+      if (suggestions.matching) {
+        updateCurrentMatching(suggestions.matching);
+      }
+      if (suggestions.interviewProcess) {
+        updateCurrentInterviewProcess(suggestions.interviewProcess);
+      }
+
+      if (announce) {
+        const count = suggestions.changedFields.length;
+        onNotice(
+          `Filled ${count} empty strategy field${count === 1 ? "" : "s"} from the current identity. Review and edit anything that does not fit.`,
+        );
+      }
+
+      return true;
+    },
+    [
+      onError,
+      onNotice,
+      updateCurrentCompensation,
+      updateCurrentConstraints,
+      updateCurrentInterviewProcess,
+      updateCurrentMatching,
+      updateCurrentWorkModel,
+    ],
+  );
+
+  useEffect(() => {
+    if (!currentIdentity || !strategyIdentityKey) {
+      return;
+    }
+    if (autofilledIdentityKeysRef.current.has(strategyIdentityKey)) {
+      return;
+    }
+
+    applyAutofill(currentIdentity, false);
+    autofilledIdentityKeysRef.current.add(strategyIdentityKey);
+  }, [applyAutofill, currentIdentity, strategyIdentityKey]);
 
   if (!currentIdentity) {
     return null;
@@ -526,7 +622,8 @@ export function IdentityStrategyWorkbench({
           <h2>Strategy</h2>
           <p>
             Shape search preferences, targeting angles, and open questions
-            directly from the current identity model.
+            directly from the current identity model. Empty fields are
+            prefilled when Facet can infer a sensible starting point.
           </p>
         </div>
         <div className="identity-chip-row">
@@ -536,8 +633,16 @@ export function IdentityStrategyWorkbench({
           <button
             className="identity-btn"
             type="button"
+            onClick={() => applyAutofill(currentIdentity, true)}
+          >
+            Fill Empty Fields
+          </button>
+          <button
+            className="identity-btn"
+            type="button"
             onClick={handleGenerateVectors}
             disabled={isGeneratingVectors}
+            aria-busy={isGeneratingVectors}
           >
             <Sparkles size={16} />
             {isGeneratingVectors
@@ -549,6 +654,7 @@ export function IdentityStrategyWorkbench({
             type="button"
             onClick={handleGenerateAwareness}
             disabled={isGeneratingAwareness}
+            aria-busy={isGeneratingAwareness}
           >
             <Sparkles size={16} />
             {isGeneratingAwareness
@@ -605,16 +711,42 @@ export function IdentityStrategyWorkbench({
       >
         {activeTab === "preferences" ? (
           <div className="identity-strategy-grid">
+            <section
+              className="identity-strategy-section"
+              style={{ gridColumn: "1 / -1" }}
+            >
+              <h3>Start with suggestions, then tighten them</h3>
+              <p>
+                This editor is meant to be opinionated. Facet fills empty
+                fields from the current identity when it can, then you refine
+                the parts that matter most before anything flows downstream.
+              </p>
+              <StrategyExamples
+                summary="What strong strategy inputs usually include"
+                items={[
+                  "A concrete work-model stance, not just 'open to anything'.",
+                  "A few prioritize filters that describe the kind of role you want more of.",
+                  "A few avoid filters that describe the tradeoffs or loops you do not want to repeat.",
+                  "Interview criteria that tell recruiters how to evaluate fit before the loop gets expensive.",
+                ]}
+              />
+            </section>
             <section className="identity-strategy-section">
               <h3>Constraints</h3>
+              <p className="identity-field-help">
+                Use this section for search boundaries and negotiation anchors.
+                These fields should tell recruiters where to focus, not describe
+                every nice-to-have.
+              </p>
               <div className="identity-form-grid">
                 <label className="identity-field">
-                  <span className="identity-label">Comp floor</span>
+                  <span className="identity-label">Compensation floor</span>
                   <input
                     className="identity-input"
                     type="number"
                     min="0"
                     value={compensation.base_floor ?? ""}
+                    placeholder="Example: 210000"
                     onChange={(event) =>
                       updateCurrentCompensation({
                         ...compensation,
@@ -626,12 +758,13 @@ export function IdentityStrategyWorkbench({
                   />
                 </label>
                 <label className="identity-field">
-                  <span className="identity-label">Comp target</span>
+                  <span className="identity-label">Compensation target</span>
                   <input
                     className="identity-input"
                     type="number"
                     min="0"
                     value={compensation.base_target ?? ""}
+                    placeholder="Example: 235000"
                     onChange={(event) =>
                       updateCurrentCompensation({
                         ...compensation,
@@ -647,6 +780,7 @@ export function IdentityStrategyWorkbench({
                   <input
                     className="identity-input"
                     value={compensation.notes ?? ""}
+                    placeholder="Example: Remote-first staff roles in the 200s."
                     onChange={(event) =>
                       updateCurrentCompensation({
                         ...compensation,
@@ -654,12 +788,18 @@ export function IdentityStrategyWorkbench({
                       })
                     }
                   />
+                  <span className="identity-field-help">
+                    Use this for recruiter-facing framing: what range you are
+                    anchoring to, what part of the package matters most, and how
+                    flexible you are.
+                  </span>
                 </label>
                 <label className="identity-field">
                   <span className="identity-label">Work model</span>
                   <input
                     className="identity-input"
                     value={workModel.preference}
+                    placeholder="Example: remote-first"
                     onChange={(event) =>
                       updateCurrentWorkModel({
                         ...workModel,
@@ -673,6 +813,7 @@ export function IdentityStrategyWorkbench({
                   <input
                     className="identity-input"
                     value={workModel.flexibility ?? ""}
+                    placeholder="Example: Hybrid is fine for unusually strong scope."
                     onChange={(event) =>
                       updateCurrentWorkModel({
                         ...workModel,
@@ -680,12 +821,17 @@ export function IdentityStrategyWorkbench({
                       })
                     }
                   />
+                  <span className="identity-field-help">
+                    Explain what exceptions you will actually consider so people
+                    do not assume your preference is absolute.
+                  </span>
                 </label>
                 <label className="identity-field identity-field-wide">
                   <span className="identity-label">Title flexibility</span>
                   <DelimitedInput
                     className="identity-input"
                     value={constraints.title_flexibility}
+                    placeholder="Example: Platform Engineer, Infrastructure Engineer"
                     onCommit={(nextValue) =>
                       updateCurrentConstraints({
                         ...constraints,
@@ -693,12 +839,17 @@ export function IdentityStrategyWorkbench({
                       })
                     }
                   />
+                  <span className="identity-field-help">
+                    List adjacent titles you would genuinely take so search and
+                    recruiter screens do not stay too narrow.
+                  </span>
                 </label>
                 <label className="identity-field">
                   <span className="identity-label">Clearance status</span>
                   <input
                     className="identity-input"
                     value={constraints.clearance?.status ?? ""}
+                    placeholder="Example: active secret"
                     onChange={(event) =>
                       updateCurrentConstraints({
                         ...constraints,
@@ -715,6 +866,7 @@ export function IdentityStrategyWorkbench({
                   <input
                     className="identity-input"
                     value={constraints.education?.highest ?? ""}
+                    placeholder="Example: Bachelor's"
                     onChange={(event) =>
                       updateCurrentConstraints({
                         ...constraints,
@@ -727,16 +879,30 @@ export function IdentityStrategyWorkbench({
                   />
                 </label>
               </div>
+              <StrategyExamples
+                summary="Examples for constraints and boundaries"
+                items={[
+                  "Comp notes: 'Target staff-level platform roles in the low-to-mid 200s base range; total scope matters more than title inflation.'",
+                  "Work model flexibility: 'Remote-first; hybrid is fine when the team has a clear in-person cadence and the scope is exceptional.'",
+                  "Title flexibility: 'Platform Engineer, Infrastructure Engineer, Staff Platform Engineer'.",
+                ]}
+              />
             </section>
 
             <section className="identity-strategy-section">
               <h3>Matching Filters</h3>
+              <p className="identity-field-help">
+                Prioritize filters tell Facet what to lean toward. Avoid filters
+                describe the compromises, role shapes, or hiring patterns that
+                should trigger caution.
+              </p>
               <div className="identity-stack">
                 {currentIdentity.preferences.matching.prioritize.map((item) => (
                   <div key={item.id} className="identity-inline-grid">
                     <input
                       className="identity-input"
                       aria-label="Prioritize rule label"
+                      placeholder="Example: Platform scope"
                       value={item.label}
                       onChange={(event) =>
                         updateCurrentMatching({
@@ -754,6 +920,7 @@ export function IdentityStrategyWorkbench({
                     <input
                       className="identity-input"
                       aria-label="Prioritize rule description"
+                      placeholder="Example: Prioritize roles where platform, developer experience, or infrastructure foundations are central."
                       value={item.description}
                       onChange={(event) =>
                         updateCurrentMatching({
@@ -840,6 +1007,7 @@ export function IdentityStrategyWorkbench({
                     <input
                       className="identity-input"
                       aria-label="Avoid rule label"
+                      placeholder="Example: Trivia-heavy screens"
                       value={item.label}
                       onChange={(event) =>
                         updateCurrentMatching({
@@ -856,6 +1024,7 @@ export function IdentityStrategyWorkbench({
                     <input
                       className="identity-input"
                       aria-label="Avoid rule description"
+                      placeholder="Example: Avoid loops that reward puzzles or trivia over real engineering judgment."
                       value={item.description}
                       onChange={(event) =>
                         updateCurrentMatching({
@@ -931,16 +1100,32 @@ export function IdentityStrategyWorkbench({
                   Add Avoid Rule
                 </button>
               </div>
+              <StrategyExamples
+                summary="Examples for prioritize and avoid filters"
+                items={[
+                  "Prioritize: 'Platform scope' - 'Prioritize roles where internal platforms, delivery systems, or developer experience are central.'",
+                  "Prioritize: 'Hands-on delivery' - 'Prioritize roles that still expect direct implementation and measurable execution.'",
+                  "Avoid: 'On-site heavy roles' - 'Avoid roles that depend on constant in-office presence without a strong reason.'",
+                  "Avoid: 'Trivia-heavy screens' - 'Avoid interview loops that over-index on puzzles or whiteboard recall.'",
+                ]}
+              />
             </section>
 
             <section className="identity-strategy-section">
               <h3>Interview Process Criteria</h3>
+              <p className="identity-field-help">
+                Give recruiters and hiring managers a sharper definition of a
+                healthy loop. This section works best when it names the
+                evaluation formats you want and the signals that prove a team
+                understands your strengths.
+              </p>
               <div className="identity-form-grid">
                 <label className="identity-field identity-field-wide">
                   <span className="identity-label">Accepted formats</span>
                   <DelimitedInput
                     className="identity-input"
                     value={interviewProcess.accepted_formats}
+                    placeholder="Example: experience walkthrough, system design discussion, architecture deep dive"
                     onCommit={(nextValue) =>
                       updateCurrentInterviewProcess({
                         ...interviewProcess,
@@ -954,6 +1139,7 @@ export function IdentityStrategyWorkbench({
                   <DelimitedInput
                     className="identity-input"
                     value={interviewProcess.strong_fit_signals}
+                    placeholder="Example: the team wants architecture tradeoffs, detailed execution stories, and systems thinking"
                     onCommit={(nextValue) =>
                       updateCurrentInterviewProcess({
                         ...interviewProcess,
@@ -967,6 +1153,7 @@ export function IdentityStrategyWorkbench({
                   <DelimitedInput
                     className="identity-input"
                     value={interviewProcess.red_flags}
+                    placeholder="Example: trivia-heavy screens, vague role ownership, no room for deep technical discussion"
                     onCommit={(nextValue) =>
                       updateCurrentInterviewProcess({
                         ...interviewProcess,
@@ -982,6 +1169,7 @@ export function IdentityStrategyWorkbench({
                     type="number"
                     min="0"
                     value={interviewProcess.max_rounds ?? ""}
+                    placeholder="Example: 5"
                     onChange={(event) =>
                       updateCurrentInterviewProcess({
                         ...interviewProcess,
@@ -997,6 +1185,7 @@ export function IdentityStrategyWorkbench({
                   <input
                     className="identity-input"
                     value={interviewProcess.onsite_preferences ?? ""}
+                    placeholder="Example: Keep on-sites late and purposeful."
                     onChange={(event) =>
                       updateCurrentInterviewProcess({
                         ...interviewProcess,
@@ -1006,10 +1195,24 @@ export function IdentityStrategyWorkbench({
                   />
                 </label>
               </div>
+              <StrategyExamples
+                summary="Examples for interview process criteria"
+                items={[
+                  "Accepted formats: 'experience walkthrough, system design discussion, architecture deep dive'.",
+                  "Strong-fit signals: 'The team wants architecture tradeoffs, impact stories, and practical problem solving.'",
+                  "Red flags: 'The loop rewards trivia, hides the real collaboration model, or never gets into the actual work.'",
+                  "On-site preference: 'Keep on-sites late in the loop and make them clearly worth the trip.'",
+                ]}
+              />
             </section>
 
             <section className="identity-strategy-section">
               <h3>Correction-aware Rules</h3>
+              <p className="identity-field-help">
+                Use accuracy rules to pin facts that should stay stable when
+                Facet regenerates angles, summaries, or downstream search
+                materials.
+              </p>
               <div className="identity-stack">
                 {accuracyEntries.map(([key, value]) => (
                   <AccuracyRuleRow
@@ -1032,14 +1235,42 @@ export function IdentityStrategyWorkbench({
                   Add Accuracy Rule
                 </button>
               </div>
+              <StrategyExamples
+                summary="Examples for accuracy rules"
+                items={[
+                  "preferred-title: Platform Engineer",
+                  "avoid-company-name: Do not rewrite A10 Networks as a generic networking company",
+                  "location: Tampa, FL and remote-first",
+                ]}
+              />
             </section>
           </div>
         ) : null}
 
         {activeTab === "vectors" ? (
           <div className="identity-stack">
+            <section className="identity-strategy-section">
+              <h3>Build a few useful search angles</h3>
+              <p className="identity-field-help">
+                A targeting angle is a recruiter-facing narrative about where
+                you fit best. Good angles combine a job family, a point of view,
+                and evidence from the identity model.
+              </p>
+              <StrategyExamples
+                summary="What strong targeting angles usually include"
+                items={[
+                  "A crisp title such as 'Platform modernization programs' or 'Developer-experience infrastructure'.",
+                  "A thesis that explains why you fit that lane, not just what keywords you have.",
+                  "Target roles and keywords that make the angle searchable.",
+                  "Evidence that proves the angle is grounded in real work history.",
+                ]}
+              />
+            </section>
             {searchVectors.length === 0 ? (
-              <p className="identity-muted">No targeting angles yet.</p>
+              <p className="identity-muted">
+                No targeting angles yet. Start with Suggest Search Angles, then
+                tighten the generated titles, thesis, and evidence.
+              </p>
             ) : null}
             {searchVectors.map((vector) => (
               <section key={vector.id} className="identity-strategy-section">
@@ -1088,6 +1319,7 @@ export function IdentityStrategyWorkbench({
                     <input
                       className="identity-input"
                       value={vector.title}
+                      placeholder="Example: Platform modernization programs"
                       onChange={(event) =>
                         patchVector(vector.id, { title: event.target.value })
                       }
@@ -1115,6 +1347,7 @@ export function IdentityStrategyWorkbench({
                     <input
                       className="identity-input"
                       value={vector.subtitle ?? ""}
+                      placeholder="Example: Platform work that unlocks product delivery"
                       onChange={(event) =>
                         patchVector(vector.id, { subtitle: event.target.value })
                       }
@@ -1126,6 +1359,7 @@ export function IdentityStrategyWorkbench({
                       className="identity-textarea"
                       rows={3}
                       value={vector.thesis}
+                      placeholder="Example: Turn infrastructure tradeoffs into delivery momentum."
                       onChange={(event) =>
                         patchVector(vector.id, { thesis: event.target.value })
                       }
@@ -1136,6 +1370,7 @@ export function IdentityStrategyWorkbench({
                     <DelimitedInput
                       className="identity-input"
                       value={vector.target_roles}
+                      placeholder="Example: Platform Engineer, Staff Platform Engineer"
                       onCommit={(nextValue) =>
                         patchVector(vector.id, { target_roles: nextValue })
                       }
@@ -1146,6 +1381,7 @@ export function IdentityStrategyWorkbench({
                     <DelimitedInput
                       className="identity-input"
                       value={vector.keywords.primary}
+                      placeholder="Example: platform engineering, kubernetes, developer experience"
                       onCommit={(nextValue) =>
                         patchVector(vector.id, {
                           keywords: { ...vector.keywords, primary: nextValue },
@@ -1158,6 +1394,7 @@ export function IdentityStrategyWorkbench({
                     <DelimitedInput
                       className="identity-input"
                       value={vector.keywords.secondary}
+                      placeholder="Example: reliability, internal tools, release engineering"
                       onCommit={(nextValue) =>
                         patchVector(vector.id, {
                           keywords: {
@@ -1169,10 +1406,11 @@ export function IdentityStrategyWorkbench({
                     />
                   </label>
                   <label className="identity-field">
-                    <span className="identity-label">Supporting skill ids</span>
+                    <span className="identity-label">Supporting skills</span>
                     <DelimitedInput
                       className="identity-input"
                       value={vector.supporting_skills}
+                      placeholder="Example: Kubernetes, Terraform, CI/CD"
                       onCommit={(nextValue) =>
                         patchVector(vector.id, { supporting_skills: nextValue })
                       }
@@ -1184,6 +1422,7 @@ export function IdentityStrategyWorkbench({
                       className="identity-textarea"
                       rows={3}
                       value={vector.evidence}
+                      placeholder="Example: Ported 12 services to Kubernetes and unlocked on-prem delivery for customer environments"
                       onCommit={(nextValue) =>
                         patchVector(vector.id, { evidence: nextValue })
                       }
@@ -1216,8 +1455,29 @@ export function IdentityStrategyWorkbench({
 
         {activeTab === "awareness" ? (
           <div className="identity-stack">
+            <section className="identity-strategy-section">
+              <h3>Name the open questions before they become surprises</h3>
+              <p className="identity-field-help">
+                Open questions are the uncertainties you want to keep visible
+                during search and recruiter screens. They should point to a real
+                risk, missing signal, or calibration item.
+              </p>
+              <StrategyExamples
+                summary="Examples of useful open questions"
+                items={[
+                  "Comp calibration: 'Are staff-level ranges actually aligned with the scope they describe?'",
+                  "Work-model reality: 'Does remote-first still mean remote-first after the recruiter screen?'",
+                  "Interview fit: 'Will the loop make room for architecture tradeoffs and execution stories, or mostly trivia?'",
+                  "Role scope: 'Is this actually platform ownership, or just operational support under a platform title?'",
+                ]}
+              />
+            </section>
             {awarenessQuestions.length === 0 ? (
-              <p className="identity-muted">No open questions yet.</p>
+              <p className="identity-muted">
+                No open questions yet. Start with Find Open Questions, then
+                tighten the topic, action, and evidence so each item is worth
+                following up on.
+              </p>
             ) : null}
             {awarenessQuestions.map((question) => (
               <section key={question.id} className="identity-strategy-section">
@@ -1266,6 +1526,7 @@ export function IdentityStrategyWorkbench({
                     <input
                       className="identity-input"
                       value={question.topic}
+                      placeholder="Example: Work-model calibration"
                       onChange={(event) =>
                         patchAwareness(question.id, {
                           topic: event.target.value,
@@ -1297,6 +1558,7 @@ export function IdentityStrategyWorkbench({
                       className="identity-textarea"
                       rows={3}
                       value={question.description}
+                      placeholder="Example: Remote-first roles still hide heavy in-person expectations."
                       onChange={(event) =>
                         patchAwareness(question.id, {
                           description: event.target.value,
@@ -1310,6 +1572,7 @@ export function IdentityStrategyWorkbench({
                       className="identity-textarea"
                       rows={2}
                       value={question.action}
+                      placeholder="Example: Ask the recruiter how often the core team is together in person and what actually requires it."
                       onChange={(event) =>
                         patchAwareness(question.id, {
                           action: event.target.value,
@@ -1323,6 +1586,7 @@ export function IdentityStrategyWorkbench({
                       className="identity-textarea"
                       rows={3}
                       value={question.evidence}
+                      placeholder="Example: Current preference is remote-first and prior loops have drifted toward hybrid late in the process"
                       onCommit={(nextValue) =>
                         patchAwareness(question.id, { evidence: nextValue })
                       }
@@ -1354,6 +1618,17 @@ export function IdentityStrategyWorkbench({
 
         {activeTab === "parameters" ? (
           <div className="identity-strategy-grid">
+            <section
+              className="identity-strategy-section"
+              style={{ gridColumn: "1 / -1" }}
+            >
+              <h3>Use this as the outbound brief</h3>
+              <p>
+                The search brief is the condensed version of the strategy editor.
+                Once the preferences, angles, and open questions look right, this
+                is the view to export or hand to someone else.
+              </p>
+            </section>
             <section className="identity-strategy-section">
               <div className="identity-card-header">
                 <div>
