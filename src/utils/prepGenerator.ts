@@ -4,6 +4,7 @@ import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from '.
 
 /** Model used for interview prep — needs creative, detailed output. */
 const PREP_MODEL = 'sonnet'
+const PREP_TIMEOUT_MS = 90000
 
 interface PrepGenerationPayload {
   deckTitle: string
@@ -139,7 +140,7 @@ Return JSON only.`
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'prep.generate',
     model: PREP_MODEL,
-    timeoutMs: 45000,
+    timeoutMs: PREP_TIMEOUT_MS,
   })
 
   let parsed: PrepGenerationPayload
