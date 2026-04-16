@@ -328,4 +328,35 @@ describe('PrepPage identity generation', () => {
     ])
     expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
   })
+
+  it('does not guess a round type when the pipeline entry has multiple formats', async () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...usePipelineStore.getState().entries[0],
+          format: ['system-design', 'behavioral'],
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled()
+    })
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0]
+    const body = JSON.parse(String(init?.body ?? '{}')) as {
+      messages?: Array<{ content?: string }>
+    }
+    const prompt = body.messages?.[0]?.content ?? ''
+
+    expect(prompt).toContain('Target Round Type: Not provided')
+    expect(usePrepStore.getState().decks[0].roundType).toBeUndefined()
+  })
 })

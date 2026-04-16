@@ -263,7 +263,7 @@ Return JSON only.`
   }
 
   const cards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
-  if (!isString(parsed.deckTitle) || !isString(parsed.companyResearchSummary) || cards.length === 0) {
+  if (!isString(parsed.deckTitle) || cards.length === 0) {
     throw new Error('Interview prep response schema was invalid.')
   }
 

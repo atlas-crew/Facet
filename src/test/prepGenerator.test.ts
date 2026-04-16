@@ -233,4 +233,35 @@ describe('generateInterviewPrep', () => {
       { label: 'result', text: 'Reduced incidents by 38%.' },
     ])
   })
+
+  it('allows company research summary to be omitted', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.companyResearchSummary).toBe('')
+  })
 })

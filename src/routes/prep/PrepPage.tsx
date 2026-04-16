@@ -384,6 +384,7 @@ export function PrepPage() {
         setGenerationError('The selected vector could not be found in resume data.')
         return
       }
+      const selectedRoundType = selectedEntry.format.length === 1 ? selectedEntry.format[0] : undefined
 
       const assembled = assembleResume(freshResumeData, {
         selectedVector: vector.id,
@@ -398,7 +399,7 @@ export function PrepPage() {
         role: selectedEntry.role,
         vectorId: vector.id,
         vectorLabel: vector.label,
-        roundType: selectedEntry.format[0] ?? undefined,
+        roundType: selectedRoundType,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,
         positioning: selectedEntry.positioning || undefined,
@@ -421,7 +422,7 @@ export function PrepPage() {
         role: selectedEntry.role,
         vectorId: vector.id,
         pipelineEntryId: selectedEntry.id,
-        roundType: selectedEntry.format[0] ?? undefined,
+        roundType: selectedRoundType,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
         categoryGuidance: result.categoryGuidance,
