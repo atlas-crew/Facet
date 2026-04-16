@@ -74,6 +74,15 @@ describe('PrepLiveMode', () => {
     expect(shortcutBar?.textContent).toContain('Search')
   })
 
+  it('renders overview metadata from the deck in the live viewer', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    expect(screen.getByText('Acme is investing heavily in developer tooling.')).toBeTruthy()
+    expect(screen.getByText('platform leadership, distributed systems')).toBeTruthy()
+    expect(screen.getByText('Lead with reliability wins.')).toBeTruthy()
+    expect(screen.getByText('Build platform tooling and improve developer velocity.')).toBeTruthy()
+  })
+
   it('supports keyboard shortcuts for search focus and timer restart', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
     const keyboardSurface = document.body
@@ -128,6 +137,24 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('How do you debug a flaky distributed system?')).toBeTruthy()
   })
 
+  it('does not trigger shortcuts while typing in the search input', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+
+    fireEvent.focus(searchInput)
+    fireEvent.keyDown(searchInput, { key: ' ' })
+    fireEvent.keyDown(searchInput, { key: 'j' })
+    fireEvent.keyDown(searchInput, { key: '5' })
+    fireEvent.keyDown(searchInput, { key: 'e' })
+
+    expect(screen.getByText('00:00')).toBeTruthy()
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+
+    const overviewToggle = screen.getAllByRole('button', { name: 'Collapse' })[0]
+    const controlledSection = document.getElementById(overviewToggle.getAttribute('aria-controls')!)
+    expect(controlledSection?.hasAttribute('hidden')).toBe(false)
+  })
+
   it('uses the visible badge numbers when sections are filtered', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
     const keyboardSurface = document.body
@@ -164,6 +191,22 @@ describe('PrepLiveMode', () => {
 
     fireEvent.keyDown(keyboardSurface, { key: 'e' })
     expect(screen.getByText('How do you debug a flaky distributed system?')).toBeTruthy()
+  })
+
+  it('shows a no-results state and restores sections when search is cleared', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+    fireEvent.change(searchInput, { target: { value: 'zzz_nonexistent' } })
+
+    expect(screen.getByText('No cheatsheet sections match that search')).toBeTruthy()
+    expect(screen.queryByText('Tell me about yourself')).toBeNull()
+
+    fireEvent.keyDown(searchInput, { key: 'Escape' })
+
+    expect(screen.queryByText('No cheatsheet sections match that search')).toBeNull()
+    expect(screen.getByText('Tell me about yourself')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Behavioral Stories' })).toBeTruthy()
   })
 
   it('collapses and expands overview content from the section button', () => {
@@ -204,5 +247,25 @@ describe('PrepLiveMode', () => {
     const activeNav = container.querySelector('.prep-live-nav-link-active')
     expect(activeNav?.textContent).toContain('Overview')
     expect(screen.getByText('00:00')).toBeTruthy()
+  })
+
+  it('renders gracefully when the deck has no cards', () => {
+    render(<PrepLiveMode deck={{ ...mockDeck, cards: [] }} />)
+
+    expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
+    expect(screen.getByText('Interview timer')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
+    expect(screen.queryByText('Tell me about yourself')).toBeNull()
+  })
+
+  it('cleans up the timer interval on unmount', () => {
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+    const { unmount } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    unmount()
+
+    expect(clearIntervalSpy).toHaveBeenCalled()
+    clearIntervalSpy.mockRestore()
   })
 })

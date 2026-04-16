@@ -226,7 +226,7 @@ describe('PrepPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Atlas Security Prep/i }))
 
     expect(usePrepStore.getState().activeDeckId).toBe('deck-b')
-    expect(screen.getByRole('button', { name: /Atlas Security Prep/i }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: /Atlas Security Prep/i }).getAttribute('aria-current')).toBe('true')
   })
 
   it('shows hosted upgrade messaging without blocking manual prep creation', async () => {

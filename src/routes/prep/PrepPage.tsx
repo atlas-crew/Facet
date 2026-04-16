@@ -87,16 +87,6 @@ export function PrepPage() {
     }
   }, [activeDeckId, decks, setActiveDeck])
 
-  useEffect(() => {
-    if (!activeDeck && activeMode !== 'edit') {
-      setActiveMode('edit')
-      return
-    }
-    if (activeMode !== 'edit' && (activeDeck?.cards.length ?? 0) === 0) {
-      setActiveMode('edit')
-    }
-  }, [activeDeck, activeMode, setActiveMode])
-
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
     [],
@@ -185,6 +175,20 @@ export function PrepPage() {
 
     return result
   }, [activeDeck?.cards, category, query, search.skills, vectorFilter])
+
+  useEffect(() => {
+    if (!activeDeck && activeMode !== 'edit') {
+      setActiveMode('edit')
+      return
+    }
+    if (activeMode === 'homework' && (!activeDeck || filteredCards.length === 0)) {
+      setActiveMode('edit')
+      return
+    }
+    if (activeMode === 'live' && (!activeDeck || activeDeck.cards.length === 0)) {
+      setActiveMode('edit')
+    }
+  }, [activeDeck, activeMode, filteredCards.length, setActiveMode])
 
   const handleImport = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -462,8 +466,15 @@ export function PrepPage() {
 
     event.preventDefault()
     const delta = event.key === 'ArrowRight' ? 1 : -1
-    const nextIndex = (currentIndex + delta + tabs.length) % tabs.length
-    tabs[nextIndex]?.focus()
+    let nextIndex = currentIndex
+
+    for (let attempts = 0; attempts < tabs.length; attempts += 1) {
+      nextIndex = (nextIndex + delta + tabs.length) % tabs.length
+      if (tabs[nextIndex]?.getAttribute('aria-disabled') !== 'true') {
+        tabs[nextIndex]?.focus()
+        return
+      }
+    }
   }, [])
 
   const updateActiveDeck = useCallback(
@@ -524,8 +535,7 @@ export function PrepPage() {
                     type="button"
                     className={`prep-library-card ${isActive ? 'prep-library-card-active' : ''}`}
                     onClick={() => setActiveDeck(deck.id)}
-                    aria-pressed={isActive}
-                    aria-label={deck.title}
+                    aria-current={isActive ? 'true' : undefined}
                   >
                     <div className="prep-library-card-header">
                       <div>
@@ -568,6 +578,7 @@ export function PrepPage() {
               role="tab"
               id="prep-mode-tab-edit"
               aria-selected={activeMode === 'edit'}
+              // Panels mount only for the active mode, so aria-controls is only valid when present in the DOM.
               aria-controls={activeMode === 'edit' ? 'prep-mode-panel-edit' : undefined}
               tabIndex={activeMode === 'edit' ? 0 : -1}
               onClick={() => setActiveMode('edit')}
@@ -581,7 +592,7 @@ export function PrepPage() {
               id="prep-mode-tab-homework"
               aria-selected={activeMode === 'homework'}
               aria-controls={activeMode === 'homework' ? 'prep-mode-panel-homework' : undefined}
-              aria-disabled={isHomeworkDisabled}
+              aria-disabled={isHomeworkDisabled || undefined}
               tabIndex={activeMode === 'homework' ? 0 : -1}
               onClick={() => {
                 if (isHomeworkDisabled) return
@@ -597,7 +608,7 @@ export function PrepPage() {
               id="prep-mode-tab-live"
               aria-selected={activeMode === 'live'}
               aria-controls={activeMode === 'live' ? 'prep-mode-panel-live' : undefined}
-              aria-disabled={isLiveDisabled}
+              aria-disabled={isLiveDisabled || undefined}
               tabIndex={activeMode === 'live' ? 0 : -1}
               onClick={() => {
                 if (isLiveDisabled) return
@@ -771,6 +782,7 @@ export function PrepPage() {
           aria-labelledby="prep-mode-tab-homework"
         >
           <PrepPracticeMode
+            // Remount practice mode when the visible card set changes so the study queue resets with the filtered cards.
             key={`${activeDeck.id}:${filteredCards.map((card) => card.id).join(',')}`}
             cards={filteredCards}
             studyProgress={activeDeck.studyProgress}
