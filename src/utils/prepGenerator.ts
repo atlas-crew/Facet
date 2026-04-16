@@ -132,8 +132,13 @@ Company Research Notes: ${request.companyResearch ?? 'Not provided'}
 Job Description:
 ${request.jobDescription}
 
+Structured Identity Context:
+${request.identityContext ? JSON.stringify(request.identityContext, null, 2) : 'Not provided'}
+
 Tailored Resume Context:
 ${JSON.stringify(request.resumeContext, null, 2)}
+
+When structured identity context is provided, use it as the primary source of candidate evidence and fall back to the tailored resume context only for missing details.
 
 Return JSON only.`
 

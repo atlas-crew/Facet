@@ -134,6 +134,7 @@ export interface PrepGenerationRequest {
   notes?: string
   companyResearch?: string
   jobDescription: string
+  identityContext?: Record<string, unknown>
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   categoryGuidance?: Record<string, string>

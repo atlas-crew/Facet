@@ -63,4 +63,109 @@ describe('generateInterviewPrep', () => {
       }),
     )
   })
+
+  it('passes structured identity context to the prompt when available', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        cards: [
+          {
+            category: 'behavioral',
+            title: 'Leadership story',
+            tags: ['leadership'],
+            script: 'Lead with the incident response story.',
+          },
+        ],
+      }),
+    )
+
+    await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      identityContext: {
+        self_model: {
+          interview_style: {
+            strengths: ['incident response'],
+          },
+        },
+        roles: [
+          {
+            title: 'Principal Engineer',
+            bullets: [
+              {
+                problem: 'Latency was spiking during peak load.',
+                action: 'Redesigned the request pipeline.',
+                outcome: 'Stabilized the service.',
+              },
+            ],
+          },
+        ],
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(callLlmProxyMock).toHaveBeenCalledWith(
+      'https://ai.example/proxy',
+      expect.any(String),
+      expect.stringContaining('Structured Identity Context'),
+      expect.any(Object),
+    )
+    expect(callLlmProxyMock).toHaveBeenCalledWith(
+      'https://ai.example/proxy',
+      expect.any(String),
+      expect.stringContaining('Latency was spiking during peak load.'),
+      expect.any(Object),
+    )
+    expect(callLlmProxyMock).toHaveBeenCalledWith(
+      'https://ai.example/proxy',
+      expect.any(String),
+      expect.stringContaining('use it as the primary source of candidate evidence'),
+      expect.any(Object),
+    )
+  })
+
+  it('marks structured identity context as not provided when absent', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(callLlmProxyMock).toHaveBeenCalledWith(
+      'https://ai.example/proxy',
+      expect.any(String),
+      expect.stringContaining('Structured Identity Context:\nNot provided'),
+      expect.any(Object),
+    )
+  })
 })
