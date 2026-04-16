@@ -290,6 +290,43 @@ describe('PrepPage', () => {
     expect(screen.getByRole('button', { name: /Show less/i })).toBeTruthy()
   })
 
+  it('shows fallback labels for missing and unknown round types in the prep library', () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-general',
+          title: 'General Prep',
+          company: 'Beta',
+          role: 'Engineer',
+          roundType: undefined,
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: 'invalid-date',
+          cards: [],
+        } as any,
+        {
+          id: 'deck-unknown',
+          title: 'Unknown Round Prep',
+          company: 'Beta',
+          role: 'Engineer',
+          roundType: 'product-strategy',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-16T00:00:00.000Z',
+          cards: [],
+        } as any,
+      ],
+      activeDeckId: 'deck-general',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    expect(screen.getByText('General')).toBeTruthy()
+    expect(screen.getByText('Product Strategy')).toBeTruthy()
+    expect(screen.getByText('Updated recently')).toBeTruthy()
+  })
+
   it('shows hosted upgrade messaging without blocking manual prep creation', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
