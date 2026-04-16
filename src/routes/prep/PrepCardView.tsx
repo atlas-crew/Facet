@@ -1,6 +1,7 @@
-import { useState, type ReactElement } from 'react'
-import { Check, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
-import type { PrepCard, PrepDeepDive, PrepFollowUp, PrepMetric } from '../../types/prep'
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
+import { PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
+import type { PrepCard, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../../types/prep'
 import { createId } from '../../utils/idUtils'
 
 interface PrepCardViewProps {
@@ -19,6 +20,8 @@ export function PrepCardView({
   readOnly = false,
 }: PrepCardViewProps) {
   const [copied, setCopied] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isTableSectionOpen, setIsTableSectionOpen] = useState(Boolean(card.tableData))
 
   const copyScript = async () => {
     if (!card.script) return
@@ -30,6 +33,16 @@ export function PrepCardView({
       // Ignore clipboard failures in unsupported or restricted contexts.
     }
   }
+
+  useEffect(() => {
+    if (card.tableData) {
+      setIsTableSectionOpen(true)
+    }
+  }, [card.tableData])
+
+  const readOnlyFollowUps = (card.followUps ?? []).filter((item) => item.question.trim().length > 0 || item.answer.trim().length > 0)
+  const readOnlyDeepDives = (card.deepDives ?? []).filter((item) => item.title.trim().length > 0 || item.content.trim().length > 0)
+  const readOnlyMetrics = (card.metrics ?? []).filter((item) => item.value.trim().length > 0 || item.label.trim().length > 0)
 
   if (readOnly) {
     return (
@@ -73,9 +86,9 @@ export function PrepCardView({
           </div>
         )}
 
-        {card.followUps && card.followUps.length > 0 && (
+        {readOnlyFollowUps.length > 0 && (
           <div className="prep-followups">
-            {card.followUps.map((followUp, index) => (
+            {readOnlyFollowUps.map((followUp, index) => (
               <div key={index} className="prep-followup">
                 <div className="prep-followup-q">{followUp.question}</div>
                 <div className="prep-followup-a">{followUp.answer}</div>
@@ -84,9 +97,9 @@ export function PrepCardView({
           </div>
         )}
 
-        {card.deepDives && card.deepDives.length > 0 && (
+        {readOnlyDeepDives.length > 0 && (
           <div>
-            {card.deepDives.map((deepDive, index) => (
+            {readOnlyDeepDives.map((deepDive, index) => (
               <details key={index} className="prep-deepdive">
                 <summary>{deepDive.title}</summary>
                 <div className="prep-deepdive-content">{deepDive.content}</div>
@@ -95,9 +108,9 @@ export function PrepCardView({
           </div>
         )}
 
-        {card.metrics && card.metrics.length > 0 && (
+        {readOnlyMetrics.length > 0 && (
           <div className="prep-metrics">
-            {card.metrics.map((metric, index) => (
+            {readOnlyMetrics.map((metric, index) => (
               <div key={index} className="prep-metric">
                 <span className="prep-metric-value">{metric.value}</span>
                 <span className="prep-metric-label">{metric.label}</span>
@@ -132,8 +145,26 @@ export function PrepCardView({
     )
   }
 
+  const keyPointCount = (card.keyPoints ?? []).filter((point) => point.trim().length > 0).length
+  const followUpCount = (card.followUps ?? []).filter((item) => item.question.trim().length > 0 || item.answer.trim().length > 0).length
+  const deepDiveCount = (card.deepDives ?? []).filter((item) => item.title.trim().length > 0 || item.content.trim().length > 0).length
+  const metricCount = (card.metrics ?? []).filter((item) => item.value.trim().length > 0 || item.label.trim().length > 0).length
+  const storyBlockCount = (card.storyBlocks ?? []).filter((item) => item.text.trim().length > 0).length
+
+  const supportingCounts = [
+    card.tags.length > 0 ? `${card.tags.length} tag${card.tags.length === 1 ? '' : 's'}` : null,
+    keyPointCount > 0 ? `${keyPointCount} key point${keyPointCount === 1 ? '' : 's'}` : null,
+    followUpCount > 0 ? `${followUpCount} follow-up${followUpCount === 1 ? '' : 's'}` : null,
+    deepDiveCount > 0 ? `${deepDiveCount} deep dive${deepDiveCount === 1 ? '' : 's'}` : null,
+    metricCount > 0 ? `${metricCount} metric${metricCount === 1 ? '' : 's'}` : null,
+    storyBlockCount > 0 ? `${storyBlockCount} story block${storyBlockCount === 1 ? '' : 's'}` : null,
+    card.tableData ? 'table attached' : null,
+  ].filter(Boolean)
+
+  const previewText = summarizePrepCard(card)
+
   return (
-    <article className="prep-card">
+    <article className={`prep-card prep-card-editable${isExpanded ? ' prep-card-editable-expanded' : ' prep-card-editable-collapsed'}`}>
       <div className="prep-card-header">
         <div className="prep-card-header-main">
           <input
@@ -173,277 +204,443 @@ export function PrepCardView({
         </div>
       </div>
 
-      <label className="prep-field">
-        <span className="prep-field-label">Tags</span>
-        <input
-          className="prep-input"
-          value={card.tags.join(', ')}
-          onChange={(event) =>
-            onUpdateCard?.(card.id, {
-              tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean),
-            })
-          }
-          placeholder="behavioral, scale, leadership"
-        />
-      </label>
+      <div className="prep-card-overview">
+        <p className="prep-card-preview">{previewText}</p>
 
-      <label className="prep-field">
-        <span className="prep-field-label">Narrative</span>
-        <textarea
-          className="prep-textarea prep-textarea-lg"
-          value={card.script ?? ''}
-          onChange={(event) => onUpdateCard?.(card.id, { script: event.target.value })}
-          placeholder="What should the candidate actually say?"
-        />
-      </label>
-
-      <label className="prep-field">
-        <span className="prep-field-label">Notes</span>
-        <textarea
-          className="prep-textarea"
-          value={card.notes ?? ''}
-          onChange={(event) => onUpdateCard?.(card.id, { notes: event.target.value })}
-          placeholder="Internal prep notes, interviewer signals, or framing ideas."
-        />
-      </label>
-
-      <label className="prep-field">
-        <span className="prep-field-label">Risk / Caution</span>
-        <textarea
-          className="prep-textarea"
-          value={card.warning ?? ''}
-          onChange={(event) => onUpdateCard?.(card.id, { warning: event.target.value })}
-          placeholder="What should the candidate avoid saying or overclaiming?"
-        />
-      </label>
-
-      <EditableListSection<PrepFollowUp>
-        title="Follow-Ups"
-        items={card.followUps ?? []}
-        onAdd={() =>
-          onUpdateCard?.(card.id, {
-            followUps: [...(card.followUps ?? []), { id: createId('prep-follow-up'), question: '', answer: '' }],
-          })
-        }
-        onRemove={(index) =>
-          onUpdateCard?.(card.id, {
-            followUps: (card.followUps ?? []).filter((_, itemIndex) => itemIndex !== index),
-          })
-        }
-        renderItem={(item, index) => (
-          <div className="prep-inline-grid">
-            <input
-              className="prep-input"
-              value={item.question}
-              onChange={(event) =>
-                updateArrayItem(card.followUps ?? [], index, { ...item, question: event.target.value }, (followUps) =>
-                  onUpdateCard?.(card.id, { followUps }),
-                )
-              }
-              placeholder="Likely follow-up question"
-            />
-            <textarea
-              className="prep-textarea"
-              value={item.answer}
-              onChange={(event) =>
-                updateArrayItem(card.followUps ?? [], index, { ...item, answer: event.target.value }, (followUps) =>
-                  onUpdateCard?.(card.id, { followUps }),
-                )
-              }
-              placeholder="Answer outline"
-            />
+        {supportingCounts.length > 0 ? (
+          <div className="prep-card-summary-chips">
+            {supportingCounts.map((item) => (
+              <span key={item} className="prep-card-summary-chip">{item}</span>
+            ))}
           </div>
-        )}
-      />
+        ) : null}
 
-      <EditableListSection<PrepDeepDive>
-        title="Deep Dives"
-        items={card.deepDives ?? []}
-        onAdd={() =>
-          onUpdateCard?.(card.id, {
-            deepDives: [...(card.deepDives ?? []), { id: createId('prep-deep-dive'), title: '', content: '' }],
-          })
-        }
-        onRemove={(index) =>
-          onUpdateCard?.(card.id, {
-            deepDives: (card.deepDives ?? []).filter((_, itemIndex) => itemIndex !== index),
-          })
-        }
-        renderItem={(item, index) => (
-          <div className="prep-inline-grid">
+        <button
+          className="prep-btn prep-btn-secondary prep-card-expand-btn"
+          type="button"
+          aria-expanded={isExpanded}
+          onClick={() => setIsExpanded((current) => !current)}
+        >
+          <ChevronRight size={16} className={`prep-card-expand-icon${isExpanded ? ' prep-card-expand-icon-open' : ''}`} />
+          {isExpanded ? 'Collapse details' : 'Edit details'}
+        </button>
+      </div>
+
+      {isExpanded ? (
+        <>
+          <label className="prep-field">
+            <span className="prep-field-label">Tags</span>
             <input
               className="prep-input"
-              value={item.title}
+              value={card.tags.join(', ')}
               onChange={(event) =>
-                updateArrayItem(card.deepDives ?? [], index, { ...item, title: event.target.value }, (deepDives) =>
-                  onUpdateCard?.(card.id, { deepDives }),
-                )
+                onUpdateCard?.(card.id, {
+                  tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean),
+                })
               }
-              placeholder="Topic"
+              placeholder="behavioral, scale, leadership"
             />
-            <textarea
-              className="prep-textarea"
-              value={item.content}
-              onChange={(event) =>
-                updateArrayItem(card.deepDives ?? [], index, { ...item, content: event.target.value }, (deepDives) =>
-                  onUpdateCard?.(card.id, { deepDives }),
-                )
-              }
-              placeholder="Technical details, architecture, tradeoffs"
-            />
-          </div>
-        )}
-      />
+          </label>
 
-      <EditableListSection<PrepMetric>
-        title="Metrics"
-        items={card.metrics ?? []}
-        onAdd={() =>
-          onUpdateCard?.(card.id, {
-            metrics: [...(card.metrics ?? []), { id: createId('prep-metric'), value: '', label: '' }],
-          })
-        }
-        onRemove={(index) =>
-          onUpdateCard?.(card.id, {
-            metrics: (card.metrics ?? []).filter((_, itemIndex) => itemIndex !== index),
-          })
-        }
-        renderItem={(item, index) => (
-          <div className="prep-metric-editor">
-            <input
-              className="prep-input"
-              value={item.value}
-              onChange={(event) =>
-                updateArrayItem(card.metrics ?? [], index, { ...item, value: event.target.value }, (metrics) =>
-                  onUpdateCard?.(card.id, { metrics }),
-                )
-              }
-              placeholder="25%"
-            />
-            <input
-              className="prep-input"
-              value={item.label}
-              onChange={(event) =>
-                updateArrayItem(card.metrics ?? [], index, { ...item, label: event.target.value }, (metrics) =>
-                  onUpdateCard?.(card.id, { metrics }),
-                )
-              }
-              placeholder="Latency improvement"
-            />
-          </div>
-        )}
-      />
+          <p className="prep-card-hierarchy-hint">
+            Keep the headline tight, then expand the notes, evidence, and supporting prompts only when you need them.
+          </p>
 
-      <section className="prep-section">
-        <div className="prep-section-header">
-          <span className="prep-section-title">Table</span>
-          <button
-            className="prep-link-btn"
-            type="button"
-            onClick={() =>
+          <PrepCollapsibleSection
+            title="Core Story"
+            subtitle="The answer the candidate should be able to say smoothly out loud."
+            defaultOpen
+          >
+            <div className="prep-inline-grid">
+              <label className="prep-field">
+                <span className="prep-field-label">Script label</span>
+                <input
+                  className="prep-input"
+                  value={card.scriptLabel ?? ''}
+                  onChange={(event) => onUpdateCard?.(card.id, { scriptLabel: event.target.value })}
+                  placeholder="Say This"
+                />
+              </label>
+              <label className="prep-field">
+                <span className="prep-field-label">Narrative</span>
+                <textarea
+                  className="prep-textarea prep-textarea-lg"
+                  value={card.script ?? ''}
+                  onChange={(event) => onUpdateCard?.(card.id, { script: event.target.value })}
+                  placeholder="What should the candidate actually say?"
+                />
+              </label>
+            </div>
+          </PrepCollapsibleSection>
+
+          <EditableListSection<PrepStoryBlock>
+            title="Story Blocks"
+            subtitle="Structure the answer as problem, solution, result, or a short closer."
+            items={card.storyBlocks ?? []}
+            onAdd={() =>
               onUpdateCard?.(card.id, {
-                tableData: card.tableData ?? { headers: ['Prompt', 'Evidence'], rows: [['', '']] },
+                storyBlocks: [...(card.storyBlocks ?? []), { label: 'problem', text: '' }],
               })
             }
-          >
-            <Table2 size={14} />
-            {card.tableData ? 'Reset' : 'Add Table'}
-          </button>
-        </div>
+            onRemove={(index) =>
+              onUpdateCard?.(card.id, {
+                storyBlocks: (card.storyBlocks ?? []).filter((_, itemIndex) => itemIndex !== index),
+              })
+            }
+            renderItem={(item, index) => (
+              <div className="prep-inline-grid">
+                <label className="prep-field">
+                  <span className="prep-field-label">Label</span>
+                  <select
+                    className="prep-input"
+                    aria-label={`Story block label ${index + 1}`}
+                    value={item.label}
+                    onChange={(event) =>
+                      updateArrayItem(card.storyBlocks ?? [], index, { ...item, label: event.target.value as PrepStoryBlock['label'] }, (storyBlocks) =>
+                        onUpdateCard?.(card.id, { storyBlocks }),
+                      )
+                    }
+                  >
+                    {PREP_STORY_BLOCK_LABEL_VALUES.map((label) => (
+                      <option key={label} value={label}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="prep-field">
+                  <span className="prep-field-label">Block text</span>
+                  <textarea
+                    className="prep-textarea"
+                    value={item.text}
+                    onChange={(event) =>
+                      updateArrayItem(card.storyBlocks ?? [], index, { ...item, text: event.target.value }, (storyBlocks) =>
+                        onUpdateCard?.(card.id, { storyBlocks }),
+                      )
+                    }
+                    placeholder="Story block text"
+                  />
+                </label>
+              </div>
+            )}
+          />
 
-        {card.tableData ? (
-          <div className="prep-inline-grid">
-            <input
-              className="prep-input"
-              value={card.tableData.headers.join(', ')}
-              onChange={(event) =>
-                onUpdateCard?.(card.id, {
-                  tableData: {
-                    ...card.tableData!,
-                    headers: event.target.value.split(',').map((header) => header.trim()).filter(Boolean),
-                  },
-                })
-              }
-              placeholder="Header A, Header B"
-            />
-            <textarea
-              className="prep-textarea"
-              value={card.tableData.rows.map((row) => row.join(' | ')).join('\n')}
-              onChange={(event) =>
-                onUpdateCard?.(card.id, {
-                  tableData: {
-                    ...card.tableData!,
-                    rows: event.target.value
-                      .split('\n')
-                      .map((row) => row.split('|').map((cell) => cell.trim()))
-                      .filter((row) => row.some(Boolean)),
-                  },
-                })
-              }
-              placeholder="cell one | cell two"
-            />
-            <div className="prep-table-actions">
+          <EditableListSection<string>
+            title="Key Points"
+            subtitle="Short glance bullets for the live view."
+            items={card.keyPoints ?? []}
+            onAdd={() =>
+              onUpdateCard?.(card.id, {
+                keyPoints: [...(card.keyPoints ?? []), ''],
+              })
+            }
+            onRemove={(index) =>
+              onUpdateCard?.(card.id, {
+                keyPoints: (card.keyPoints ?? []).filter((_, itemIndex) => itemIndex !== index),
+              })
+            }
+            renderItem={(item, index) => (
+              <label className="prep-field">
+                <span className="prep-field-label">Key point</span>
+                <input
+                  className="prep-input"
+                  aria-label={`Key point ${index + 1}`}
+                  value={item}
+                  onChange={(event) =>
+                    updateArrayItem(card.keyPoints ?? [], index, event.target.value, (keyPoints) =>
+                      onUpdateCard?.(card.id, { keyPoints }),
+                    )
+                  }
+                  placeholder="Add a glanceable key point"
+                />
+              </label>
+            )}
+          />
+
+          <PrepCollapsibleSection
+            title="Notes & Risks"
+            subtitle="Keep internal coaching separate from the polished spoken answer."
+            defaultOpen={Boolean(card.notes || card.warning)}
+          >
+            <div className="prep-card-section-grid">
+              <label className="prep-field">
+                <span className="prep-field-label">Notes</span>
+                <textarea
+                  className="prep-textarea"
+                  value={card.notes ?? ''}
+                  onChange={(event) => onUpdateCard?.(card.id, { notes: event.target.value })}
+                  placeholder="Internal prep notes, interviewer signals, or framing ideas."
+                />
+              </label>
+
+              <label className="prep-field">
+                <span className="prep-field-label">Risk / Caution</span>
+                <textarea
+                  className="prep-textarea"
+                  value={card.warning ?? ''}
+                  onChange={(event) => onUpdateCard?.(card.id, { warning: event.target.value })}
+                  placeholder="What should the candidate avoid saying or overclaiming?"
+                />
+              </label>
+            </div>
+          </PrepCollapsibleSection>
+
+          <EditableListSection<PrepFollowUp>
+            title="Follow-Ups"
+            subtitle="Likely follow-up prompts and short answer outlines."
+            items={card.followUps ?? []}
+            onAdd={() =>
+              onUpdateCard?.(card.id, {
+                followUps: [...(card.followUps ?? []), { id: createId('prep-follow-up'), question: '', answer: '' }],
+              })
+            }
+            onRemove={(index) =>
+              onUpdateCard?.(card.id, {
+                followUps: (card.followUps ?? []).filter((_, itemIndex) => itemIndex !== index),
+              })
+            }
+            renderItem={(item, index) => (
+              <div className="prep-inline-grid">
+                <input
+                  className="prep-input"
+                  value={item.question}
+                  onChange={(event) =>
+                    updateArrayItem(card.followUps ?? [], index, { ...item, question: event.target.value }, (followUps) =>
+                      onUpdateCard?.(card.id, { followUps }),
+                    )
+                  }
+                  placeholder="Likely follow-up question"
+                />
+                <textarea
+                  className="prep-textarea"
+                  value={item.answer}
+                  onChange={(event) =>
+                    updateArrayItem(card.followUps ?? [], index, { ...item, answer: event.target.value }, (followUps) =>
+                      onUpdateCard?.(card.id, { followUps }),
+                    )
+                  }
+                  placeholder="Answer outline"
+                />
+              </div>
+            )}
+          />
+
+          <EditableListSection<PrepDeepDive>
+            title="Deep Dives"
+            subtitle="Extra depth for architecture, tradeoffs, or implementation specifics."
+            items={card.deepDives ?? []}
+            onAdd={() =>
+              onUpdateCard?.(card.id, {
+                deepDives: [...(card.deepDives ?? []), { id: createId('prep-deep-dive'), title: '', content: '' }],
+              })
+            }
+            onRemove={(index) =>
+              onUpdateCard?.(card.id, {
+                deepDives: (card.deepDives ?? []).filter((_, itemIndex) => itemIndex !== index),
+              })
+            }
+            renderItem={(item, index) => (
+              <div className="prep-inline-grid">
+                <input
+                  className="prep-input"
+                  value={item.title}
+                  onChange={(event) =>
+                    updateArrayItem(card.deepDives ?? [], index, { ...item, title: event.target.value }, (deepDives) =>
+                      onUpdateCard?.(card.id, { deepDives }),
+                    )
+                  }
+                  placeholder="Topic"
+                />
+                <textarea
+                  className="prep-textarea"
+                  value={item.content}
+                  onChange={(event) =>
+                    updateArrayItem(card.deepDives ?? [], index, { ...item, content: event.target.value }, (deepDives) =>
+                      onUpdateCard?.(card.id, { deepDives }),
+                    )
+                  }
+                  placeholder="Technical details, architecture, tradeoffs"
+                />
+              </div>
+            )}
+          />
+
+          <EditableListSection<PrepMetric>
+            title="Metrics"
+            subtitle="Outcomes, deltas, and proof points worth citing quickly."
+            items={card.metrics ?? []}
+            onAdd={() =>
+              onUpdateCard?.(card.id, {
+                metrics: [...(card.metrics ?? []), { id: createId('prep-metric'), value: '', label: '' }],
+              })
+            }
+            onRemove={(index) =>
+              onUpdateCard?.(card.id, {
+                metrics: (card.metrics ?? []).filter((_, itemIndex) => itemIndex !== index),
+              })
+            }
+            renderItem={(item, index) => (
+              <div className="prep-metric-editor">
+                <input
+                  className="prep-input"
+                  value={item.value}
+                  onChange={(event) =>
+                    updateArrayItem(card.metrics ?? [], index, { ...item, value: event.target.value }, (metrics) =>
+                      onUpdateCard?.(card.id, { metrics }),
+                    )
+                  }
+                  placeholder="25%"
+                />
+                <input
+                  className="prep-input"
+                  value={item.label}
+                  onChange={(event) =>
+                    updateArrayItem(card.metrics ?? [], index, { ...item, label: event.target.value }, (metrics) =>
+                      onUpdateCard?.(card.id, { metrics }),
+                    )
+                  }
+                  placeholder="Latency improvement"
+                />
+              </div>
+            )}
+          />
+
+          <PrepCollapsibleSection
+            title="Table"
+            subtitle="Useful when you want prompts, evidence, or comparisons to scan quickly."
+            countLabel={card.tableData ? `${card.tableData.rows.length} row${card.tableData.rows.length === 1 ? '' : 's'}` : undefined}
+            open={isTableSectionOpen}
+            onToggle={setIsTableSectionOpen}
+            actions={(
               <button
                 className="prep-link-btn"
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setIsTableSectionOpen(true)
                   onUpdateCard?.(card.id, {
-                    tableData: {
-                      ...card.tableData!,
-                      rows: [...card.tableData!.rows, new Array(card.tableData!.headers.length || 2).fill('')],
-                    },
+                    tableData: card.tableData ?? { headers: ['Prompt', 'Evidence'], rows: [['', '']] },
                   })
-                }
+                }}
               >
-                <Plus size={14} />
-                Add Row
+                <Table2 size={14} />
+                {card.tableData ? 'Reset' : 'Add Table'}
               </button>
-              <button
-                className="prep-link-btn prep-link-btn-danger"
-                type="button"
-                onClick={() => onUpdateCard?.(card.id, { tableData: undefined })}
-              >
-                <Trash2 size={14} />
-                Remove Table
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="prep-section-empty">No table attached to this card.</div>
-        )}
-      </section>
+            )}
+          >
+            {card.tableData ? (
+              <div className="prep-inline-grid">
+                <input
+                  className="prep-input"
+                  value={card.tableData.headers.join(', ')}
+                  onChange={(event) =>
+                    onUpdateCard?.(card.id, {
+                      tableData: {
+                        ...card.tableData!,
+                        headers: event.target.value.split(',').map((header) => header.trim()).filter(Boolean),
+                      },
+                    })
+                  }
+                  placeholder="Header A, Header B"
+                />
+                <textarea
+                  className="prep-textarea"
+                  value={card.tableData.rows.map((row) => row.join(' | ')).join('\n')}
+                  onChange={(event) =>
+                    onUpdateCard?.(card.id, {
+                      tableData: {
+                        ...card.tableData!,
+                        rows: event.target.value
+                          .split('\n')
+                          .map((row) => row.split('|').map((cell) => cell.trim()))
+                          .filter((row) => row.some(Boolean)),
+                      },
+                    })
+                  }
+                  placeholder="cell one | cell two"
+                />
+                <div className="prep-table-actions">
+                  <button
+                    className="prep-link-btn"
+                    type="button"
+                    onClick={() =>
+                      onUpdateCard?.(card.id, {
+                        tableData: {
+                          ...card.tableData!,
+                          rows: [...card.tableData!.rows, new Array(card.tableData!.headers.length || 2).fill('')],
+                        },
+                      })
+                    }
+                  >
+                    <Plus size={14} />
+                    Add Row
+                  </button>
+                  <button
+                    className="prep-link-btn prep-link-btn-danger"
+                    type="button"
+                    onClick={() => onUpdateCard?.(card.id, { tableData: undefined })}
+                  >
+                    <Trash2 size={14} />
+                    Remove Table
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="prep-section-empty">No table attached to this card.</div>
+            )}
+          </PrepCollapsibleSection>
 
-      <button className="prep-btn prep-btn-secondary" type="button" onClick={() => onDuplicateCard?.(card.id)}>
-        <Plus size={14} />
-        Duplicate for Another Angle
-      </button>
+          <button className="prep-btn prep-btn-secondary" type="button" onClick={() => onDuplicateCard?.(card.id)}>
+            <Plus size={14} />
+            Duplicate for Another Angle
+          </button>
+        </>
+      ) : null}
     </article>
   )
 }
 
 function EditableListSection<T>({
   title,
+  subtitle,
   items,
   onAdd,
   onRemove,
   renderItem,
 }: {
   title: string
+  subtitle?: string
   items: T[]
   onAdd: () => void
   onRemove: (index: number) => void
   renderItem: (item: T, index: number) => ReactElement
 }) {
+  const [isOpen, setIsOpen] = useState(items.length > 0)
+
+  const singularTitle = title.endsWith('s') ? title.slice(0, -1) : title
+  const countLabel = `${items.length} ${items.length === 1 ? singularTitle.toLowerCase() : 'entries'}`
+
   return (
-    <section className="prep-section">
-      <div className="prep-section-header">
-        <span className="prep-section-title">{title}</span>
-        <button className="prep-link-btn" type="button" onClick={onAdd}>
+    <PrepCollapsibleSection
+      title={title}
+      subtitle={subtitle}
+      countLabel={countLabel}
+      open={isOpen}
+      onToggle={setIsOpen}
+      actions={(
+        <button
+          className="prep-link-btn"
+          type="button"
+          aria-label={`Add ${singularTitle.toLowerCase()}`}
+          onClick={() => {
+            setIsOpen(true)
+            onAdd()
+          }}
+        >
           <Plus size={14} />
           Add
         </button>
-      </div>
-
+      )}
+    >
       {items.length > 0 ? (
         <div className="prep-section-body">
           {items.map((item, index) => (
@@ -453,7 +650,7 @@ function EditableListSection<T>({
                 className="prep-icon-btn prep-icon-btn-danger"
                 type="button"
                 onClick={() => onRemove(index)}
-                title={`Remove ${title.slice(0, -1).toLowerCase()}`}
+                title={`Remove ${singularTitle.toLowerCase()}`}
               >
                 <Trash2 size={14} />
               </button>
@@ -463,6 +660,65 @@ function EditableListSection<T>({
       ) : (
         <div className="prep-section-empty">No {title.toLowerCase()} yet.</div>
       )}
+    </PrepCollapsibleSection>
+  )
+}
+
+function PrepCollapsibleSection({
+  title,
+  subtitle,
+  countLabel,
+  children,
+  actions,
+  defaultOpen = false,
+  open,
+  onToggle,
+}: {
+  title: string
+  subtitle?: string
+  countLabel?: string
+  children: ReactNode
+  actions?: ReactNode
+  defaultOpen?: boolean
+  open?: boolean
+  onToggle?: (nextOpen: boolean) => void
+}) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen)
+  const isControlled = open !== undefined
+  const isOpen = isControlled ? open : internalOpen
+
+  const handleToggle = () => {
+    const nextOpen = !isOpen
+    if (!isControlled) {
+      setInternalOpen(nextOpen)
+    }
+    onToggle?.(nextOpen)
+  }
+
+  return (
+    <section className={`prep-section prep-section-collapsible${isOpen ? ' prep-section-collapsible-open' : ''}`}>
+      <div className="prep-section-header prep-section-header-collapsible">
+        <button className="prep-section-toggle" type="button" onClick={handleToggle} aria-expanded={isOpen} aria-label={title}>
+          <ChevronRight
+            size={16}
+            className={`prep-section-toggle-icon${isOpen ? ' prep-section-toggle-icon-open' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="prep-section-heading">
+            <span className="prep-section-title">{title}</span>
+            {subtitle ? <span className="prep-section-subtitle">{subtitle}</span> : null}
+          </span>
+        </button>
+
+        {(countLabel || actions) ? (
+          <div className="prep-section-actions">
+            {countLabel ? <span className="prep-section-count">{countLabel}</span> : null}
+            {actions}
+          </div>
+        ) : null}
+      </div>
+
+      {isOpen ? children : null}
     </section>
   )
 }
@@ -486,4 +742,15 @@ function getStableKey<T>(item: T, index: number) {
   }
 
   return index
+}
+
+function summarizePrepCard(card: PrepCard) {
+  const summarySource = card.script ?? card.notes ?? card.warning ?? ''
+  const normalized = summarySource.replace(/\s+/g, ' ').trim()
+
+  if (!normalized) {
+    return 'Open this card to shape the spoken answer, coaching notes, and supporting proof points.'
+  }
+
+  return normalized.length > 180 ? `${normalized.slice(0, 177).trimEnd()}...` : normalized
 }

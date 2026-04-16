@@ -104,17 +104,23 @@ function groupSectionsByGroup(sections: LiveSection[]): SectionGroupView[] {
 }
 
 function buildCardSearchText(card: PrepCard): string {
+  const keyPoints = (card.keyPoints ?? []).filter((point) => point.trim().length > 0)
+  const storyBlocks = (card.storyBlocks ?? []).filter((block) => block.text.trim().length > 0)
+  const metrics = (card.metrics ?? []).filter((metric) => metric.value.trim().length > 0 || metric.label.trim().length > 0)
+  const followUps = (card.followUps ?? []).filter((followUp) => followUp.question.trim().length > 0 || followUp.answer.trim().length > 0)
+  const deepDives = (card.deepDives ?? []).filter((deepDive) => deepDive.title.trim().length > 0 || deepDive.content.trim().length > 0)
+
   return [
     card.title,
     card.script ?? '',
     card.scriptLabel ?? '',
     card.warning ?? '',
     card.notes ?? '',
-    ...(card.keyPoints ?? []),
-    ...(card.storyBlocks ?? []).flatMap((block) => [block.label, block.text]),
-    ...(card.metrics ?? []).flatMap((metric) => [metric.value, metric.label]),
-    ...(card.followUps ?? []).flatMap((followUp) => [followUp.question, followUp.answer, followUp.context ?? '']),
-    ...(card.deepDives ?? []).flatMap((deepDive) => [deepDive.title, deepDive.content]),
+    ...keyPoints,
+    ...storyBlocks.flatMap((block) => [block.label, block.text]),
+    ...metrics.flatMap((metric) => [metric.value, metric.label]),
+    ...followUps.flatMap((followUp) => [followUp.question, followUp.answer, followUp.context ?? '']),
+    ...deepDives.flatMap((deepDive) => [deepDive.title, deepDive.content]),
     ...(card.tableData?.headers ?? []),
     ...(card.tableData?.rows.flat() ?? []),
   ]
@@ -262,8 +268,8 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
     const section = sectionRefs.current[pendingScrollSectionId]
     if (section) {
       scrollToSection(pendingScrollSectionId)
-      setPendingScrollSectionId(null)
     }
+    setPendingScrollSectionId(null)
   }, [pendingScrollSectionId, preInterviewOpen, scrollToSection])
 
   const toggleSection = useCallback((sectionId: string) => {
@@ -446,12 +452,10 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
           className={`prep-live-timer prep-live-timer-${timerState}`}
           role="button"
           tabIndex={0}
-          onClick={(event) => {
-            if (event.target !== event.currentTarget) return
+          onClick={() => {
             toggleTimer()
           }}
           onKeyDown={(event) => {
-            if (event.target !== event.currentTarget) return
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault()
               event.stopPropagation()
@@ -837,6 +841,10 @@ function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard
 }
 
 function renderCardBlock(card: PrepCard, section: LiveSection) {
+  const keyPoints = (card.keyPoints ?? []).filter((point) => point.trim().length > 0)
+  const storyBlocks = (card.storyBlocks ?? []).filter((block) => block.text.trim().length > 0)
+  const metrics = (card.metrics ?? []).filter((metric) => metric.value.trim().length > 0 || metric.label.trim().length > 0)
+
   return (
     <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}`}>
       <div className="prep-live-card-block-header">
@@ -849,9 +857,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection) {
         </div>
       </div>
 
-      {card.keyPoints?.length ? (
+      {keyPoints.length > 0 ? (
         <div className="prep-live-keypoints">
-          {card.keyPoints.map((point) => (
+          {keyPoints.map((point) => (
             <div key={point} className="prep-live-keypoint">
               <span className="prep-live-keypoint-marker" aria-hidden="true">
                 -
@@ -885,9 +893,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection) {
         ) : null}
       </div>
 
-      {card.storyBlocks?.length ? (
+      {storyBlocks.length > 0 ? (
         <div className="prep-live-story-blocks">
-          {card.storyBlocks.map((storyBlock) => (
+          {storyBlocks.map((storyBlock) => (
             <div
               key={`${card.id}-${storyBlock.label}-${storyBlock.text}`}
               className={`prep-live-story-block prep-live-story-block-${storyBlock.label}`}
@@ -899,9 +907,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection) {
         </div>
       ) : null}
 
-      {card.metrics?.length ? (
+      {metrics.length > 0 ? (
         <div className="prep-live-stat-grid">
-          {card.metrics.map((metric) => (
+          {metrics.map((metric) => (
             <div key={metric.id ?? `${card.id}-${metric.value}-${metric.label}`} className="prep-live-stat-box">
               <span className="prep-live-stat-value">{metric.value}</span>
               <span className="prep-live-stat-label">{metric.label}</span>

@@ -206,6 +206,17 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('00:02')).toBeTruthy()
   })
 
+  it('starts the timer when the visible timer display is clicked', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.click(screen.getByRole('timer'))
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(screen.getByText('00:02')).toBeTruthy()
+  })
+
   it('narrows search results to matching items inside a section', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
@@ -232,6 +243,51 @@ describe('PrepLiveMode', () => {
 
     expect(screen.getByRole('heading', { name: 'Behavioral Stories' })).toBeTruthy()
     expect(screen.getByText('Tell me about yourself')).toBeTruthy()
+  })
+
+  it('hides draft-only rich rows in live card rendering and search', () => {
+    const draftDeck: PrepDeck = {
+      ...mockDeck,
+      companyResearch: undefined,
+      notes: undefined,
+      cards: mockDeck.cards.map((card) => (
+        card.id === 'card-1'
+          ? {
+              ...card,
+              notes: undefined,
+              keyPoints: ['Scale', ''],
+              storyBlocks: [
+                { label: 'problem' as const, text: 'Platform was slowing product teams.' },
+                { label: 'note' as const, text: '' },
+              ],
+              metrics: [
+                { value: '45%', label: 'Lead time cut' },
+                { value: '', label: '' },
+              ],
+            }
+          : {
+              ...card,
+              notes: undefined,
+            }
+      )).filter((card) => card.id === 'card-1'),
+    }
+
+    const { container } = render(<PrepLiveMode deck={draftDeck} />)
+
+    const openerSection = getSectionContainer('Openers')
+    expect(openerSection?.querySelectorAll('.prep-live-keypoint')).toHaveLength(1)
+    expect(openerSection?.querySelectorAll('.prep-live-story-block')).toHaveLength(1)
+    expect(openerSection?.querySelectorAll('.prep-live-stat-box')).toHaveLength(1)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'lead time cut' },
+    })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Openers')
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'note' },
+    })
+    expect(screen.queryByRole('heading', { name: 'Openers' })).toBeNull()
   })
 
   it('collapses and expands a rich section', () => {

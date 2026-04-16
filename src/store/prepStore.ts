@@ -71,6 +71,10 @@ interface PrepState {
   exportDecks: () => PrepDeck[]
 }
 
+interface SanitizeOptions {
+  preserveDrafts?: boolean
+}
+
 function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepCard {
   return {
     id: partial.id ?? createId('prep-card'),
@@ -97,17 +101,21 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
   }
 }
 
-function sanitizeStringList(values?: string[]): string[] | undefined {
+function sanitizeStringList(values?: string[], options: SanitizeOptions = {}): string[] | undefined {
   if (!Array.isArray(values)) return undefined
   const sanitized = values.flatMap((value) => (
     typeof value === 'string'
       ? [value.trim()]
       : []
-  )).filter(Boolean)
-  return sanitized && sanitized.length > 0 ? sanitized : undefined
+  ))
+  if (options.preserveDrafts) {
+    return sanitized.length > 0 ? sanitized : undefined
+  }
+  const filtered = sanitized.filter(Boolean)
+  return filtered.length > 0 ? filtered : undefined
 }
 
-function sanitizeStoryBlocks(blocks?: PrepStoryBlock[]): PrepStoryBlock[] | undefined {
+function sanitizeStoryBlocks(blocks?: PrepStoryBlock[], options: SanitizeOptions = {}): PrepStoryBlock[] | undefined {
   if (!Array.isArray(blocks)) return undefined
   const sanitized = blocks.flatMap((block) => {
     if (!block || typeof block !== 'object') return []
@@ -116,26 +124,34 @@ function sanitizeStoryBlocks(blocks?: PrepStoryBlock[]): PrepStoryBlock[] | unde
       ? record.label
       : null
     const text = typeof record.text === 'string' ? record.text.trim() : ''
-    if (!label || !text) return []
+    if (!label || (!options.preserveDrafts && !text)) return []
     return [{ label, text }]
   })
   return sanitized && sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeQuestionsToAsk(entries?: PrepQuestionToAsk[]): PrepQuestionToAsk[] | undefined {
+function sanitizeQuestionsToAsk(entries?: PrepQuestionToAsk[], options: SanitizeOptions = {}): PrepQuestionToAsk[] | undefined {
   if (!Array.isArray(entries)) return undefined
   const sanitized = entries.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
     const record = entry as Partial<PrepQuestionToAsk>
-    const question = typeof record.question === 'string' ? record.question.trim() : ''
-    const context = typeof record.context === 'string' ? record.context.trim() : ''
+    const questionValue = typeof record.question === 'string' ? record.question : null
+    const contextValue = typeof record.context === 'string' ? record.context : null
+    const hasQuestion = questionValue != null
+    const hasContext = contextValue != null
+    const question = questionValue?.trim() ?? ''
+    const context = contextValue?.trim() ?? ''
+    if (options.preserveDrafts) {
+      if (!hasQuestion && !hasContext) return []
+      return [{ question, context }]
+    }
     if (!question || !context) return []
     return [{ question, context }]
   })
   return sanitized && sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>): Record<string, string> | undefined {
+function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>, options: SanitizeOptions = {}): Record<string, string> | undefined {
   if (!categoryGuidance || typeof categoryGuidance !== 'object' || Array.isArray(categoryGuidance)) {
     return undefined
   }
@@ -143,13 +159,15 @@ function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>): Re
     Object.entries(categoryGuidance).flatMap(([key, value]) => {
       const nextKey = key.trim()
       const nextValue = typeof value === 'string' ? value.trim() : ''
-      return nextKey && nextValue ? [[nextKey, nextValue]] : []
+      if (!nextKey) return []
+      if (!options.preserveDrafts && !nextValue) return []
+      return [[nextKey, nextValue]]
     }),
   )
   return Object.keys(sanitized).length > 0 ? sanitized : undefined
 }
 
-function sanitizeFollowUps(followUps?: PrepFollowUp[]): PrepFollowUp[] | undefined {
+function sanitizeFollowUps(followUps?: PrepFollowUp[], options: SanitizeOptions = {}): PrepFollowUp[] | undefined {
   if (!Array.isArray(followUps)) return undefined
   const sanitized = followUps.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
@@ -157,7 +175,7 @@ function sanitizeFollowUps(followUps?: PrepFollowUp[]): PrepFollowUp[] | undefin
     const question = typeof record.question === 'string' ? record.question.trim() : ''
     const answer = typeof record.answer === 'string' ? record.answer.trim() : ''
     const context = typeof record.context === 'string' ? record.context.trim() : undefined
-    if (!question && !answer) return []
+    if (!options.preserveDrafts && !question && !answer) return []
     return [{
       id: record.id,
       question,
@@ -168,14 +186,14 @@ function sanitizeFollowUps(followUps?: PrepFollowUp[]): PrepFollowUp[] | undefin
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeDeepDives(deepDives?: PrepDeepDive[]): PrepDeepDive[] | undefined {
+function sanitizeDeepDives(deepDives?: PrepDeepDive[], options: SanitizeOptions = {}): PrepDeepDive[] | undefined {
   if (!Array.isArray(deepDives)) return undefined
   const sanitized = deepDives.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
     const record = item as Partial<PrepDeepDive>
     const title = typeof record.title === 'string' ? record.title.trim() : ''
     const content = typeof record.content === 'string' ? record.content.trim() : ''
-    if (!title && !content) return []
+    if (!options.preserveDrafts && !title && !content) return []
     return [{
       id: record.id,
       title,
@@ -185,14 +203,14 @@ function sanitizeDeepDives(deepDives?: PrepDeepDive[]): PrepDeepDive[] | undefin
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeMetrics(metrics?: PrepMetric[]): PrepMetric[] | undefined {
+function sanitizeMetrics(metrics?: PrepMetric[], options: SanitizeOptions = {}): PrepMetric[] | undefined {
   if (!Array.isArray(metrics)) return undefined
   const sanitized = metrics.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
     const record = item as Partial<PrepMetric>
     const value = typeof record.value === 'string' ? record.value.trim() : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
-    if (!value && !label) return []
+    if (!options.preserveDrafts && !value && !label) return []
     return [{
       id: record.id,
       value,
@@ -202,7 +220,7 @@ function sanitizeMetrics(metrics?: PrepMetric[]): PrepMetric[] | undefined {
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
+function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions = {}): PrepCard {
   const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
 
   return {
@@ -213,17 +231,17 @@ function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
     title: card.title.trim() || 'Untitled Prep Card',
     tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
     scriptLabel: card.scriptLabel?.trim() || undefined,
-    storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
-    keyPoints: sanitizeStringList(card.keyPoints),
-    followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
+    storyBlocks: sanitizeStoryBlocks(card.storyBlocks, options),
+    keyPoints: sanitizeStringList(card.keyPoints, options),
+    followUps: sanitizeFollowUps(card.followUps, options)?.map((item) => ({
       ...item,
       id: item.id ?? createId('prep-follow-up'),
     })),
-    deepDives: sanitizeDeepDives(card.deepDives)?.map((item) => ({
+    deepDives: sanitizeDeepDives(card.deepDives, options)?.map((item) => ({
       ...item,
       id: item.id ?? createId('prep-deep-dive'),
     })),
-    metrics: sanitizeMetrics(card.metrics)?.map((item) => ({
+    metrics: sanitizeMetrics(card.metrics, options)?.map((item) => ({
       ...item,
       id: item.id ?? createId('prep-metric'),
     })),
@@ -231,9 +249,9 @@ function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
   }
 }
 
-function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean } = {}): PrepDeck {
+function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts?: boolean } = {}): PrepDeck {
   const timestamp = now()
-  const cards = deck.cards.map((card) => sanitizeCard(deck.id, card))
+  const cards = deck.cards.map((card) => sanitizeCard(deck.id, card, options))
   const validCardIds = new Set(cards.map((card) => card.id))
   const studyProgress = Object.fromEntries(
     Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
@@ -269,11 +287,88 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean } = {}): PrepDe
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    donts: sanitizeStringList(deck.donts, options),
+    questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
+    categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance, options),
+    generatedAt: deck.generatedAt,
+    updatedAt: timestamp,
+    cards,
+    studyProgress,
+  }
+}
+
+function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
+  const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
+
+  return {
+    ...card,
+    id: card.id,
+    deckId,
+    category,
+    title: card.title.trim() || 'Untitled Prep Card',
+    tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
+    notes: card.notes?.trim() || undefined,
+    source: card.source ?? 'manual',
+    company: card.company?.trim() || undefined,
+    role: card.role?.trim() || undefined,
+    pipelineEntryId: card.pipelineEntryId ?? null,
+    script: card.script?.trim() || undefined,
+    scriptLabel: card.scriptLabel?.trim() || undefined,
+    warning: card.warning?.trim() || undefined,
+    storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
+    keyPoints: sanitizeStringList(card.keyPoints),
+    followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-follow-up'),
+    })),
+    deepDives: sanitizeDeepDives(card.deepDives)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-deep-dive'),
+    })),
+    metrics: sanitizeMetrics(card.metrics)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-metric'),
+    })),
+  }
+}
+
+function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
+  const cards = deck.cards.map((card) => stripDraftCardForExport(deck.id, card))
+  const validCardIds = new Set(cards.map((card) => card.id))
+  const studyProgress = Object.fromEntries(
+    Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
+      if (!validCardIds.has(cardId) || !state || typeof state !== 'object') return []
+      const record = state as PrepCardStudyState
+      return [[cardId, {
+        confidence: PREP_CARD_CONFIDENCE_VALUES.includes(record.confidence as PrepCardConfidence)
+          ? record.confidence
+          : undefined,
+        attempts: Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
+        needsWorkCount: Number.isFinite(record.needsWorkCount) ? Math.max(0, record.needsWorkCount) : 0,
+        lastReviewedAt: typeof record.lastReviewedAt === 'string' ? record.lastReviewedAt : undefined,
+      } satisfies PrepCardStudyState]]
+    }),
+  )
+
+  return {
+    ...deck,
+    title: deck.title.trim() || 'Interview Prep',
+    company: deck.company.trim(),
+    role: deck.role.trim(),
+    vectorId: deck.vectorId.trim(),
+    pipelineEntryId: deck.pipelineEntryId ?? null,
+    companyUrl: deck.companyUrl?.trim() || undefined,
+    skillMatch: deck.skillMatch?.trim() || undefined,
+    positioning: deck.positioning?.trim() || undefined,
+    roundType: typeof deck.roundType === 'string' && INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
+      ? deck.roundType.trim() as InterviewFormat
+      : undefined,
+    notes: deck.notes?.trim() || undefined,
+    companyResearch: deck.companyResearch?.trim() || undefined,
+    jobDescription: deck.jobDescription?.trim() || undefined,
     donts: sanitizeStringList(deck.donts),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance),
-    generatedAt: deck.generatedAt,
-    updatedAt: timestamp,
     cards,
     studyProgress,
   }
@@ -312,9 +407,10 @@ function updateDeckCollection(
   decks: PrepDeck[],
   deckId: string,
   updater: (deck: PrepDeck) => PrepDeck,
+  options: SanitizeOptions = {},
 ): PrepDeck[] {
   return decks.map((deck) => (
-    deck.id === deckId ? sanitizeDeck(updater(deck), { touch: true }) : deck
+    deck.id === deckId ? sanitizeDeck(updater(deck), { touch: true, ...options }) : deck
   ))
 }
 
@@ -384,7 +480,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
       updateDeck: (deckId, patch) => {
         const restPatch = stripDurableMetadataPatch(patch)
         set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({ ...deck, ...restPatch })),
+          decks: updateDeckCollection(state.decks, deckId, (deck) => ({ ...deck, ...restPatch }), { preserveDrafts: true }),
         }))
       },
 
@@ -420,9 +516,9 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           decks: updateDeckCollection(state.decks, deckId, (deck) => ({
             ...deck,
             cards: deck.cards.map((card) =>
-              card.id === cardId ? sanitizeCard(deckId, { ...card, ...patch }) : card,
+              card.id === cardId ? { ...card, ...patch } : card,
             ),
-          })),
+          }), { preserveDrafts: true }),
         }))
       },
 
@@ -512,7 +608,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
         })
       },
 
-      exportDecks: () => get().decks,
+      exportDecks: () => get().decks.map((deck) => stripDraftDeckForExport(deck)),
     }))
 
 export const DEFAULT_PREP_CARD_CATEGORY: PrepCategory = 'behavioral'

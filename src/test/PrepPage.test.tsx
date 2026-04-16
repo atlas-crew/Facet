@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { PrepPage } from '../routes/prep/PrepPage'
 import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -196,6 +196,55 @@ describe('PrepPage', () => {
     expect(screen.getByText('Editable Cards')).toBeTruthy()
   })
 
+  it('persists round type, donts, questions, and category guidance from the active prep set editors', async () => {
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getAllByText('Blank Set')[0])
+    fireEvent.click(screen.getByText('Add Card'))
+
+    const editRoundTypeSelect = screen.getByLabelText('Round type') as HTMLSelectElement
+    fireEvent.change(editRoundTypeSelect, { target: { value: 'system-design' } })
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks[0]?.roundType).toBe('system-design')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: "Add Don't" }))
+    const dontInput = await screen.findByPlaceholderText('What should the candidate avoid?')
+    fireEvent.change(dontInput, { target: { value: 'Do not ramble.' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Question' }))
+    fireEvent.change(screen.getByPlaceholderText('What do you want to ask?'), { target: { value: 'What is the team optimizing for next?' } })
+    fireEvent.change(screen.getByPlaceholderText('Why does this question matter?'), { target: { value: 'Shows systems thinking.' } })
+    fireEvent.change(screen.getByLabelText('Behavioral guidance'), { target: { value: 'Lead with scope.' } })
+
+    await waitFor(() => {
+      const deck = usePrepStore.getState().decks[0]
+      expect(deck.roundType).toBe('system-design')
+      expect(deck.donts).toEqual(['Do not ramble.'])
+      expect(deck.questionsToAsk).toEqual([
+        { question: 'What is the team optimizing for next?', context: 'Shows systems thinking.' },
+      ])
+      expect(deck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
+    })
+  })
+
+  it('uses linked pipeline round options when a deck comes from a pipeline entry', async () => {
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks).toHaveLength(1)
+    })
+
+    const roundTypeSelect = screen.getByLabelText('Round type') as HTMLSelectElement
+    const options = Array.from(roundTypeSelect.options).map((option) => option.textContent)
+
+    expect(options).toContain('System Design')
+    expect(options).not.toContain('HR Screen')
+    expect(roundTypeSelect.value).toBe('system-design')
+  })
+
   it('shows round labels, next up, muted older decks, and overflow expansion in the prep library', () => {
     usePrepStore.setState({
       decks: [
@@ -272,8 +321,9 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
-    expect(screen.getByText('HM Screen')).toBeTruthy()
-    expect(screen.getByText('System Design')).toBeTruthy()
+    const acmeLibrary = screen.getByRole('list', { name: 'Acme prep sets' })
+    expect(within(acmeLibrary).getByText('HM Screen')).toBeTruthy()
+    expect(within(acmeLibrary).getByText('System Design')).toBeTruthy()
     expect(screen.getByText('Next Up')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current')).toBeNull()
     expect(screen.getByRole('button', { name: /Acme Systems Prep/i }).getAttribute('data-muted')).toBe('true')

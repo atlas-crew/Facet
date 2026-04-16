@@ -257,6 +257,167 @@ describe('prepStore', () => {
     ])
   })
 
+  it('strips draft-only rows from exported decks while preserving them in edit state', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      donts: [],
+      questionsToAsk: [],
+      cards: [{
+        id: 'card-1',
+        category: 'behavioral',
+        title: 'Leadership story',
+        tags: [],
+      }],
+    })
+
+    usePrepStore.getState().updateDeck(deckId, {
+      donts: ['Do not ramble', ''],
+      questionsToAsk: [
+        { question: 'What does success look like?', context: 'Align on goals' },
+        { question: '', context: '' },
+      ],
+    })
+
+    usePrepStore.getState().updateCard(deckId, 'card-1', {
+      keyPoints: ['Lead with scope', ''],
+      storyBlocks: [
+        { label: 'problem', text: 'Inherited a brittle release process.' },
+        { label: 'result', text: '' },
+      ],
+      metrics: [
+        { id: 'metric-1', value: '45%', label: 'Faster delivery' },
+        { id: 'metric-2', value: '', label: '' },
+      ],
+    })
+
+    const editingDeck = usePrepStore.getState().decks[0]
+    expect(editingDeck.donts).toEqual(['Do not ramble', ''])
+    expect(editingDeck.questionsToAsk).toEqual([
+      { question: 'What does success look like?', context: 'Align on goals' },
+      { question: '', context: '' },
+    ])
+    expect(editingDeck.cards[0].keyPoints).toEqual(['Lead with scope', ''])
+    expect(editingDeck.cards[0].storyBlocks).toEqual([
+      { label: 'problem', text: 'Inherited a brittle release process.' },
+      { label: 'result', text: '' },
+    ])
+    expect(editingDeck.cards[0].metrics).toEqual([
+      { id: 'metric-1', value: '45%', label: 'Faster delivery' },
+      { id: 'metric-2', value: '', label: '' },
+    ])
+
+    const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck.donts).toEqual(['Do not ramble'])
+    expect(exportedDeck.questionsToAsk).toEqual([
+      { question: 'What does success look like?', context: 'Align on goals' },
+    ])
+    expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
+    expect(exportedDeck.cards[0].storyBlocks).toEqual([
+      { label: 'problem', text: 'Inherited a brittle release process.' },
+    ])
+    expect(exportedDeck.cards[0].metrics).toEqual([
+      { id: 'metric-1', value: '45%', label: 'Faster delivery' },
+    ])
+  })
+
+  it('sanitizes study progress during migration and export', () => {
+    const migrated = migratePrepState({
+      decks: [
+        {
+          id: 'prep-deck-progress',
+          title: 'Progress Deck',
+          company: 'Acme',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: '2025-01-02T00:00:00.000Z',
+          cards: [
+            {
+              id: 'prep-card-valid',
+              category: 'behavioral',
+              title: 'Valid card',
+              tags: [],
+            },
+          ],
+          studyProgress: {
+            'prep-card-valid': {
+              confidence: 'not-real',
+              attempts: -4,
+              needsWorkCount: -2,
+              lastReviewedAt: 42,
+            },
+            'prep-card-stale': {
+              confidence: 'needs_work',
+              attempts: 7,
+              needsWorkCount: 3,
+              lastReviewedAt: '2025-01-03T00:00:00.000Z',
+            },
+          },
+        },
+      ],
+    })
+
+    expect(migrated.decks[0].studyProgress).toEqual({
+      'prep-card-valid': {
+        confidence: undefined,
+        attempts: 0,
+        needsWorkCount: 0,
+        lastReviewedAt: undefined,
+      },
+    })
+
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Export Deck',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [{
+        id: 'prep-card-export',
+        category: 'behavioral',
+        title: 'Export card',
+        tags: [],
+      }],
+    })
+
+    const deck = usePrepStore.getState().decks[0]
+    usePrepStore.setState({
+      decks: [
+        {
+          ...deck,
+          studyProgress: {
+            'prep-card-export': {
+              confidence: 'okay',
+              attempts: -1,
+              needsWorkCount: -9,
+              lastReviewedAt: '2025-01-04T00:00:00.000Z',
+            },
+            'missing-card': {
+              confidence: 'needs_work',
+              attempts: 4,
+              needsWorkCount: 4,
+              lastReviewedAt: '2025-01-05T00:00:00.000Z',
+            },
+          },
+        },
+      ],
+      activeDeckId: deckId,
+      activeMode: 'edit',
+    })
+
+    const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck.studyProgress).toEqual({
+      'prep-card-export': {
+        confidence: 'okay',
+        attempts: 0,
+        needsWorkCount: 0,
+        lastReviewedAt: '2025-01-04T00:00:00.000Z',
+      },
+    })
+  })
+
   it('sanitizes rich card and deck fields during import', () => {
     usePrepStore.getState().importDecks([
       {
@@ -328,7 +489,7 @@ describe('prepStore', () => {
     ])
   })
 
-  it('sanitizes rich fields through updateDeck, updateCard, and replaceDeckCards', () => {
+  it('preserves draft-rich rows through updateDeck and updateCard while editing', () => {
     const deckId = usePrepStore.getState().createDeck({
       title: 'Prep',
       company: 'Acme',
@@ -345,24 +506,57 @@ describe('prepStore', () => {
 
     usePrepStore.getState().updateDeck(deckId, {
       roundType: ' system-design ' as never,
-      donts: [' Be generic ', '', 7 as never] as never,
+      donts: [' Be generic ', ''] as never,
       questionsToAsk: [
         { question: ' Which partner team joins? ', context: ' Surface collaboration scope ' },
-        { question: ' ', context: 'ignored' },
+        { question: ' ', context: ' ' },
       ] as never,
       categoryGuidance: {
         project: ' Name the tradeoff ',
-        technical: 8 as never,
+        behavioral: ' ',
       } as never,
     })
 
     usePrepStore.getState().updateCard(deckId, cardId, {
       scriptLabel: ' Lead With ',
-      keyPoints: [' Keep it crisp ', '', false as never] as never,
+      keyPoints: [' Keep it crisp ', ''] as never,
       storyBlocks: [
         { label: 'problem', text: ' Latency spiked ' },
-        { label: 'invalid' as never, text: 'ignored' },
+        { label: 'result', text: ' ' },
       ] as never,
+    })
+
+    const deck = usePrepStore.getState().decks[0]
+    const card = deck.cards[0]
+
+    expect(deck.roundType).toBe('system-design')
+    expect(deck.donts).toEqual(['Be generic', ''])
+    expect(deck.questionsToAsk).toEqual([
+      { question: 'Which partner team joins?', context: 'Surface collaboration scope' },
+      { question: '', context: '' },
+    ])
+    expect(deck.categoryGuidance).toEqual({ project: 'Name the tradeoff', behavioral: '' })
+    expect(card.scriptLabel).toBe('Lead With')
+    expect(card.keyPoints).toEqual(['Keep it crisp', ''])
+    expect(card.storyBlocks).toEqual([
+      { label: 'problem', text: 'Latency spiked' },
+      { label: 'result', text: '' },
+    ])
+  })
+
+  it('sanitizes rich fields through replaceDeckCards', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Original card',
+      category: 'behavioral',
+      tags: [],
     })
 
     usePrepStore.getState().replaceDeckCards(deckId, [
@@ -383,12 +577,6 @@ describe('prepStore', () => {
     const deck = usePrepStore.getState().decks[0]
     const card = deck.cards[0]
 
-    expect(deck.roundType).toBe('system-design')
-    expect(deck.donts).toEqual(['Be generic'])
-    expect(deck.questionsToAsk).toEqual([
-      { question: 'Which partner team joins?', context: 'Surface collaboration scope' },
-    ])
-    expect(deck.categoryGuidance).toEqual({ project: 'Name the tradeoff' })
     expect(card.title).toBe('Replacement card')
     expect(card.tags).toEqual(['ownership'])
     expect(card.keyPoints).toEqual(['Close with the metric'])
