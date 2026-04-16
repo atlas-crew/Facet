@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearch } from '@tanstack/react-router'
-import { Download, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Download, ExternalLink, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
-import { PrepLiveMode } from './PrepLiveMode'
 import { PrepPracticeMode } from './PrepPracticeMode'
 import { PrepSearch } from './PrepSearch'
 import { useMatchStore } from '../../store/matchStore'
+import { useIdentityStore } from '../../store/identityStore'
 import { usePrepStore } from '../../store/prepStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
+import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -34,7 +35,31 @@ function formatPrepDeckUpdatedAt(updatedAt: string): string {
   })
 }
 
+const MAX_LIBRARY_DECKS_PER_GROUP = 5
+
+const ROUND_TYPE_LABELS: Record<string, string> = {
+  'hr-screen': 'HR Screen',
+  'hm-screen': 'HM Screen',
+  'tech-discussion': 'Technical',
+  'system-design': 'System Design',
+  'take-home': 'Take Home',
+  'live-coding': 'Live Coding',
+  leetcode: 'LeetCode',
+  'pair-programming': 'Pair Programming',
+  behavioral: 'Behavioral',
+  'peer-panel': 'Peer Panel',
+  'cross-team': 'Cross-Team',
+  exec: 'Exec',
+  presentation: 'Presentation',
+}
+
+function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
+  if (!roundType) return 'General'
+  return ROUND_TYPE_LABELS[roundType] ?? roundType.split('-').map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1)).join(' ')
+}
+
 export function PrepPage() {
+  const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { vector?: string; skills?: string; q?: string }
   const importRef = useRef<HTMLInputElement>(null)
   const modeTabListRef = useRef<HTMLDivElement>(null)
@@ -48,6 +73,7 @@ export function PrepPage() {
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [expandedLibraryGroups, setExpandedLibraryGroups] = useState<Record<string, boolean>>({})
 
   const {
     decks,
@@ -66,6 +92,7 @@ export function PrepPage() {
     importDecks,
     exportDecks,
   } = usePrepStore()
+  const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const resumeData = useResumeStore((state) => state.data)
   const matchMaterial = useMemo(
@@ -80,6 +107,29 @@ export function PrepPage() {
     () => [...decks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [decks],
   )
+  const groupedLibrary = useMemo(() => {
+    const groups = new Map<string, PrepDeck[]>()
+    for (const deck of deckLibrary) {
+      const key = deck.company?.trim() || ''
+      const existing = groups.get(key)
+      if (existing) {
+        existing.push(deck)
+      } else {
+        groups.set(key, [deck])
+      }
+    }
+    return [...groups.entries()]
+      .map(([companyKey, groupDecks]) => ({
+        companyKey: companyKey || '__ungrouped__',
+        company: companyKey || 'Ungrouped',
+        decks: groupDecks,
+      }))
+      .sort((a, b) => {
+        if (a.company === 'Ungrouped') return 1
+        if (b.company === 'Ungrouped') return -1
+        return b.decks[0].updatedAt.localeCompare(a.decks[0].updatedAt)
+      })
+  }, [deckLibrary])
 
   useEffect(() => {
     if (!activeDeckId && decks.length > 0) {
@@ -183,10 +233,6 @@ export function PrepPage() {
     }
     if (activeMode === 'homework' && (!activeDeck || filteredCards.length === 0)) {
       setActiveMode('edit')
-      return
-    }
-    if (activeMode === 'live' && (!activeDeck || activeDeck.cards.length === 0)) {
-      setActiveMode('edit')
     }
   }, [activeDeck, activeMode, filteredCards.length, setActiveMode])
 
@@ -283,6 +329,9 @@ export function PrepPage() {
           notes: activeMatchMaterial.notes,
           companyResearch: companyResearchDraft || undefined,
           jobDescription: activeMatchMaterial.jobDescription,
+          identityContext: currentIdentity
+            ? buildPrepIdentityContext(currentIdentity, activeMatchMaterial.vector.id, activeMatchMaterial.vector.label)
+            : undefined,
           resumeContext: {
             candidate: freshResumeData.meta,
             vector: activeMatchMaterial.vector,
@@ -352,6 +401,9 @@ export function PrepPage() {
         notes: selectedEntry.notes || undefined,
         companyResearch: companyResearchDraft || undefined,
         jobDescription: selectedEntry.jobDescription,
+        identityContext: currentIdentity
+          ? buildPrepIdentityContext(currentIdentity, vector.id, vector.label)
+          : undefined,
         resumeContext: {
           candidate: freshResumeData.meta,
           vector,
@@ -386,7 +438,7 @@ export function PrepPage() {
     } finally {
       setIsGenerating(false)
     }
-  }, [aiEndpoint, companyResearchDraft, createDeck, currentReport, generationSource, selectedEntry, selectedVectorId])
+  }, [aiEndpoint, companyResearchDraft, createDeck, currentIdentity, currentReport, generationSource, selectedEntry, selectedVectorId])
 
   const handleGenerationSourceChange = useCallback((nextSource: 'match' | 'pipeline') => {
     setGenerationSource(nextSource)
@@ -521,37 +573,82 @@ export function PrepPage() {
           <div className="prep-panel-header">
             <div>
               <h2>Prep Library</h2>
-              <p>Keep multiple interview sets around and jump between them without digging through a select menu.</p>
+              <p>Interview prep sets organized by company. Select a set to load it into the workspace.</p>
             </div>
             <span className="prep-mode-chip">{deckLibrary.length} saved</span>
           </div>
 
-          <div className="prep-library-grid" role="list" aria-label="Saved prep sets">
-            {deckLibrary.map((deck) => {
-              const isActive = deck.id === activeDeckId
+          <div className="prep-library-groups">
+            {groupedLibrary.map((group) => {
+              const isExpanded = expandedLibraryGroups[group.companyKey] ?? false
+              const visibleDecks = isExpanded
+                ? group.decks
+                : group.decks.slice(0, MAX_LIBRARY_DECKS_PER_GROUP)
+              const hiddenCount = group.decks.length - visibleDecks.length
+
               return (
-                <div key={deck.id} role="listitem">
-                  <button
-                    type="button"
-                    className={`prep-library-card ${isActive ? 'prep-library-card-active' : ''}`}
-                    onClick={() => setActiveDeck(deck.id)}
-                    aria-current={isActive ? 'true' : undefined}
-                  >
-                    <div className="prep-library-card-header">
-                      <div>
-                        <div className="prep-library-card-title">{deck.title}</div>
-                        <div className="prep-library-card-subtitle">
-                          {[deck.company, deck.role].filter(Boolean).join(' · ') || 'Untitled prep set'}
+                <div key={group.companyKey} className="prep-library-group">
+                  <div className="prep-library-group-header">
+                    <h3 className="prep-library-group-title">{group.company}</h3>
+                    <span className="prep-library-group-count">{group.decks.length} {group.decks.length === 1 ? 'set' : 'sets'}</span>
+                  </div>
+                  <div className="prep-library-group-decks" role="list" aria-label={`${group.company} prep sets`}>
+                    {visibleDecks.map((deck, index) => {
+                      const isActive = deck.id === activeDeckId
+                      const isNextUp = index === 0
+                      const isMuted = !isNextUp && !isActive
+
+                      return (
+                        <div key={deck.id} role="listitem">
+                          <button
+                            type="button"
+                            className={`prep-library-card ${isActive ? 'prep-library-card-active' : ''}`}
+                            data-muted={isMuted ? 'true' : undefined}
+                            onClick={() => setActiveDeck(deck.id)}
+                            aria-current={isActive ? 'true' : undefined}
+                          >
+                            <div className="prep-library-card-header">
+                              <div>
+                                <div className="prep-library-card-title">{deck.title}</div>
+                                <div className="prep-library-card-subtitle">
+                                  {deck.role || 'Untitled prep set'}
+                                </div>
+                                <div className="prep-library-card-badges">
+                                  <span className="prep-library-card-badge prep-library-card-badge-round">
+                                    {formatPrepRoundTypeLabel(deck.roundType)}
+                                  </span>
+                                  {isNextUp ? <span className="prep-library-card-badge prep-library-card-badge-next-up">Next Up</span> : null}
+                                </div>
+                              </div>
+                              {isActive ? <span className="prep-mode-chip">Active</span> : null}
+                            </div>
+                            <div className="prep-library-card-meta">
+                              <span>{deck.cards.length} cards</span>
+                              <span>{deck.vectorId || 'No vector'}</span>
+                              <span>{formatPrepDeckUpdatedAt(deck.updatedAt)}</span>
+                            </div>
+                          </button>
                         </div>
-                      </div>
-                      {isActive ? <span className="prep-mode-chip">Active</span> : null}
-                    </div>
-                    <div className="prep-library-card-meta">
-                      <span>{deck.cards.length} cards</span>
-                      <span>{deck.vectorId || 'No vector'}</span>
-                      <span>{formatPrepDeckUpdatedAt(deck.updatedAt)}</span>
-                    </div>
-                  </button>
+                      )
+                    })}
+                  </div>
+                  {group.decks.length > MAX_LIBRARY_DECKS_PER_GROUP ? (
+                    <button
+                      type="button"
+                      className="prep-library-group-more"
+                      aria-label={expandedLibraryGroups[group.companyKey]
+                        ? `Show less prep sets for ${group.company}`
+                        : `Show ${hiddenCount} more prep sets for ${group.company}`}
+                      onClick={() =>
+                        setExpandedLibraryGroups((current) => ({
+                          ...current,
+                          [group.companyKey]: !(current[group.companyKey] ?? false),
+                        }))
+                      }
+                    >
+                      {expandedLibraryGroups[group.companyKey] ? 'Show less' : `${hiddenCount} more`}
+                    </button>
+                  ) : null}
                 </div>
               )
             })}
@@ -603,18 +700,14 @@ export function PrepPage() {
             </button>
             <button
               type="button"
-              className={`prep-mode-tab ${activeMode === 'live' ? 'prep-mode-tab-active' : ''}`}
-              role="tab"
-              id="prep-mode-tab-live"
-              aria-selected={activeMode === 'live'}
-              aria-controls={activeMode === 'live' ? 'prep-mode-panel-live' : undefined}
-              aria-disabled={isLiveDisabled || undefined}
-              tabIndex={activeMode === 'live' ? 0 : -1}
+              className="prep-mode-tab prep-mode-tab-launch"
+              disabled={isLiveDisabled}
               onClick={() => {
                 if (isLiveDisabled) return
-                setActiveMode('live')
+                void navigate({ to: '/prep/live' })
               }}
             >
+              <ExternalLink size={14} />
               Live Cheatsheet
             </button>
           </div>
@@ -789,24 +882,6 @@ export function PrepPage() {
             onExit={() => setActiveMode('edit')}
             onRecordReview={(cardId, confidence) => recordCardReview(activeDeck.id, cardId, confidence)}
           />
-        </section>
-      ) : null}
-
-      {activeMode === 'live' ? (
-        <section
-          id="prep-mode-panel-live"
-          role="tabpanel"
-          aria-labelledby="prep-mode-tab-live"
-          className="prep-panel"
-        >
-          {activeDeck ? (
-            <PrepLiveMode deck={activeDeck} />
-          ) : (
-            <div className="prep-empty">
-              <h2>No deck ready yet</h2>
-              <p>Generate or create a prep deck first, then the live cheatsheet can compile quick-reference sections from it.</p>
-            </div>
-          )}
         </section>
       ) : null}
 
