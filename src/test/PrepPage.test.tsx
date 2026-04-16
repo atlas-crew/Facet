@@ -11,7 +11,10 @@ import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
 import type { MatchReport } from '../types/match'
 
+const navigateMock = vi.fn()
+
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock,
   useSearch: () => ({ vector: 'backend', skills: '', q: '' }),
 }))
 
@@ -20,6 +23,7 @@ describe('PrepPage', () => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     resolveStorage().removeItem('facet-prep-workspace')
     resolveStorage().removeItem('vector-resume-data')
+    navigateMock.mockClear()
     usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'edit' })
     useMatchStore.setState({ jobDescription: '', currentReport: null, warnings: [], history: [] })
     useResumeStore.setState({
@@ -149,11 +153,10 @@ describe('PrepPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to Edit' }))
     expect(usePrepStore.getState().activeMode).toBe('edit')
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Live Cheatsheet' }))
-    expect(usePrepStore.getState().activeMode).toBe('live')
-    expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
-    expect(screen.getByText('Interview timer')).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Live Cheatsheet' }).getAttribute('aria-selected')).toBe('true')
+    const liveLaunch = screen.getByRole('button', { name: 'Live Cheatsheet' })
+    fireEvent.click(liveLaunch)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/prep/live' })
+    expect(usePrepStore.getState().activeMode).toBe('edit')
   })
 
   it('supports arrow-key focus movement across workspace mode tabs', () => {
@@ -193,40 +196,98 @@ describe('PrepPage', () => {
     expect(screen.getByText('Editable Cards')).toBeTruthy()
   })
 
-  it('shows a prep library and lets the user switch the active set from it', () => {
+  it('shows round labels, next up, muted older decks, and overflow expansion in the prep library', () => {
     usePrepStore.setState({
       decks: [
         {
-          id: 'deck-a',
-          title: 'Acme Platform Prep',
+          id: 'deck-1',
+          title: 'Acme Legacy Prep',
           company: 'Acme',
           role: 'Platform Engineer',
+          roundType: 'hm-screen',
           vectorId: 'backend',
           pipelineEntryId: null,
-          updatedAt: '2026-04-10T00:00:00.000Z',
+          updatedAt: '2026-04-11T00:00:00.000Z',
           cards: [],
         },
         {
-          id: 'deck-b',
-          title: 'Atlas Security Prep',
-          company: 'Atlas',
+          id: 'deck-2',
+          title: 'Acme Mid Prep',
+          company: 'Acme',
           role: 'Security Engineer',
+          roundType: 'tech-discussion',
           vectorId: 'security',
           pipelineEntryId: null,
           updatedAt: '2026-04-12T00:00:00.000Z',
           cards: [],
         },
+        {
+          id: 'deck-3',
+          title: 'Acme Technical Prep',
+          company: 'Acme',
+          role: 'Systems Engineer',
+          roundType: 'system-design',
+          vectorId: 'systems',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-13T00:00:00.000Z',
+          cards: [],
+        },
+        {
+          id: 'deck-4',
+          title: 'Acme Behavioral Prep',
+          company: 'Acme',
+          role: 'Staff Engineer',
+          roundType: 'behavioral',
+          vectorId: 'behavioral',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-14T00:00:00.000Z',
+          cards: [],
+        },
+        {
+          id: 'deck-5',
+          title: 'Acme Systems Prep',
+          company: 'Acme',
+          role: 'Senior Engineer',
+          roundType: 'take-home',
+          vectorId: 'takehome',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-15T00:00:00.000Z',
+          cards: [],
+        },
+        {
+          id: 'deck-6',
+          title: 'Acme Most Recent Prep',
+          company: 'Acme',
+          role: 'Principal Engineer',
+          roundType: 'hm-screen',
+          vectorId: 'principal',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-16T00:00:00.000Z',
+          cards: [],
+        },
       ],
-      activeDeckId: 'deck-a',
+      activeDeckId: 'deck-1',
       activeMode: 'edit',
     })
 
     render(<PrepPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Atlas Security Prep/i }))
+    expect(screen.getByText('HM Screen')).toBeTruthy()
+    expect(screen.getByText('System Design')).toBeTruthy()
+    expect(screen.getByText('Next Up')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('button', { name: /Acme Systems Prep/i }).getAttribute('data-muted')).toBe('true')
+    expect(screen.getAllByRole('button', { name: /Acme .* Prep/i })).toHaveLength(5)
 
-    expect(usePrepStore.getState().activeDeckId).toBe('deck-b')
-    expect(screen.getByRole('button', { name: /Atlas Security Prep/i }).getAttribute('aria-current')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: /Acme Most Recent Prep/i }))
+
+    expect(usePrepStore.getState().activeDeckId).toBe('deck-6')
+    expect(screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: /1 more/i }))
+
+    expect(screen.getAllByRole('button', { name: /Acme .* Prep/i })).toHaveLength(6)
+    expect(screen.getByRole('button', { name: /Show less/i })).toBeTruthy()
   })
 
   it('shows hosted upgrade messaging without blocking manual prep creation', async () => {
