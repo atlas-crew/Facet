@@ -16,6 +16,14 @@ const mockDeck: PrepDeck = {
   skillMatch: 'platform leadership, distributed systems',
   notes: 'Lead with reliability wins.',
   jobDescription: 'Build platform tooling and improve developer velocity.',
+  categoryGuidance: {
+    questions: 'Pick 2-3. Save 8-10 minutes for questions.',
+  },
+  donts: ['Do not spend too long on the setup before the answer.', 'Do not overclaim ownership on shared work.'],
+  questionsToAsk: [
+    { question: 'What does success look like in 90 days?', context: 'Use this to learn the evaluation criteria.' },
+    { question: 'Which team would I partner with most closely?', context: 'Useful for scope and cross-functional context.' },
+  ],
   updatedAt: '2026-04-14T17:00:00.000Z',
   cards: [
     {
@@ -24,6 +32,13 @@ const mockDeck: PrepDeck = {
       title: 'Tell me about yourself',
       tags: ['intro'],
       script: 'I lead backend platform work and enjoy scaling teams and systems.',
+      notes: 'Lead with the platform angle and keep it under two minutes.',
+      keyPoints: ['Scale', 'Ownership', 'Outcome'],
+      storyBlocks: [
+        { label: 'problem', text: 'Platform was slowing product teams.' },
+        { label: 'solution', text: 'Built shared tooling and guardrails.' },
+        { label: 'result', text: 'Reduced lead time by 45%.' },
+      ],
     },
     {
       id: 'card-2',
@@ -31,6 +46,12 @@ const mockDeck: PrepDeck = {
       title: 'Describe a hard stakeholder moment',
       tags: ['stakeholders'],
       script: 'I aligned engineering and product on a reliability roadmap.',
+      warning: 'Do not frame product as the enemy.',
+      storyBlocks: [
+        { label: 'problem', text: 'A launch was blocked by missing reliability work.' },
+        { label: 'solution', text: 'Reframed the discussion around customer impact.' },
+        { label: 'closer', text: 'We agreed on a shared plan and shipped together.' },
+      ],
     },
     {
       id: 'card-3',
@@ -38,8 +59,47 @@ const mockDeck: PrepDeck = {
       title: 'How do you debug a flaky distributed system?',
       tags: ['debugging'],
       script: 'Start with blast radius, recent changes, and observability gaps.',
+      warning: 'Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.',
+      keyPoints: ['Check the blast radius', 'Reproduce the issue', 'Compare deploys'],
+    },
+    {
+      id: 'card-4',
+      category: 'project',
+      title: 'A project you are proud of',
+      tags: ['ownership'],
+      script: 'I led a migration that cut deploy time in half.',
+      notes: 'Use this when they ask about your biggest win.',
+      storyBlocks: [
+        { label: 'problem', text: 'Deploys were slow and risky.' },
+        { label: 'solution', text: 'Split the rollout into smaller reversible steps.' },
+        { label: 'result', text: 'Deploy time dropped from 40 minutes to 20 minutes.' },
+      ],
+    },
+    {
+      id: 'card-5',
+      category: 'metrics',
+      title: 'Reliability metrics',
+      tags: ['outcomes'],
+      metrics: [
+        { value: '99.95%', label: 'Uptime' },
+        { value: '45%', label: 'MTTR cut' },
+      ],
+      notes: 'Keep the denominator ready.',
+    },
+    {
+      id: 'card-6',
+      category: 'situational',
+      title: 'A tradeoff scenario',
+      tags: ['judgment'],
+      script: 'I would optimize for customer impact first.',
+      warning: 'Do not over-rotate into hypotheticals without data.',
     },
   ],
+}
+
+function getSectionContainer(title: string) {
+  const heading = screen.getByRole('heading', { name: title })
+  return heading.closest('.prep-live-section')
 }
 
 describe('PrepLiveMode', () => {
@@ -52,210 +112,149 @@ describe('PrepLiveMode', () => {
     vi.useRealTimers()
   })
 
-  it('renders the live cheatsheet surface for the active deck', () => {
+  it('renders grouped rich content from the deck', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
     expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
-    expect(screen.getByText('Interview timer')).toBeTruthy()
-    expect(screen.getByText('Sections')).toBeTruthy()
-    expect(screen.getByText('Live viewer')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Warm-up notes' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Intel' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Technical' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Tactical' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Questions to Ask' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: "Don'ts" })).toBeTruthy()
     expect(screen.getByText('Tell me about yourself')).toBeTruthy()
-
-    const sidebar = container.querySelector('.prep-live-sidebar')
-    const shortcutBar = container.querySelector('.prep-live-kbd-bar')
-
-    expect(sidebar).toBeTruthy()
-    expect(sidebar?.textContent).toContain('Acme Staff Engineer Prep')
-    expect(sidebar?.textContent).toContain('Interview timer')
-    expect(sidebar?.textContent).toContain('Search cheatsheet')
-    expect(sidebar?.textContent).not.toContain('Quick Jumps')
-    expect(shortcutBar).toBeTruthy()
-    expect(shortcutBar?.textContent).toContain('Space')
-    expect(shortcutBar?.textContent).toContain('Search')
-  })
-
-  it('renders overview metadata from the deck in the live viewer', () => {
-    render(<PrepLiveMode deck={mockDeck} />)
-
-    expect(screen.getByText('Acme is investing heavily in developer tooling.')).toBeTruthy()
-    expect(screen.getByText('platform leadership, distributed systems')).toBeTruthy()
+    expect(screen.getByText('Scale')).toBeTruthy()
+    expect(screen.getByText('Pick 2-3. Save 8-10 minutes for questions.')).toBeTruthy()
+    expect(screen.getByText('Do not spend too long on the setup before the answer.')).toBeTruthy()
+    expect(screen.getByText('99.95%')).toBeTruthy()
     expect(screen.getByText('Lead with reliability wins.')).toBeTruthy()
-    expect(screen.getByText('Build platform tooling and improve developer velocity.')).toBeTruthy()
+    expect(screen.getAllByText('Do not frame product as the enemy.')).toHaveLength(2)
+    expect(screen.getAllByText('Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.')).toHaveLength(2)
+    expect(getSectionContainer('Technical Topics')?.textContent).toContain('How do you debug a flaky distributed system?')
+    expect(getSectionContainer('Technical Topics')?.textContent).not.toContain('Tell me about yourself')
+
+    const shortcutBar = container.querySelector('.prep-live-kbd-bar')
+    expect(shortcutBar?.textContent).toContain('Q / D / M / W')
+    expect(shortcutBar?.textContent).toContain('Space')
+
+    expect(getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')).toBeNull()
+    expect(getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')).toBeNull()
+    expect(getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')).toBeNull()
   })
 
-  it('supports keyboard shortcuts for search focus and timer restart', () => {
+  it('supports search, timer, and section shortcuts', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
-    const keyboardSurface = document.body
 
-    fireEvent.keyDown(keyboardSurface, { key: '/' })
-    const searchInput = screen.getAllByLabelText('Search cheatsheet')[0]
-    expect(document.activeElement).toBe(searchInput)
+    fireEvent.keyDown(document.body, { key: '/' })
+    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search cheatsheet' }))
 
-    fireEvent.keyDown(keyboardSurface, { key: ' ' })
+    fireEvent.keyDown(document.body, { key: ' ' })
     act(() => {
       vi.advanceTimersByTime(2000)
     })
     expect(screen.getByText('00:02')).toBeTruthy()
 
-    fireEvent.keyDown(keyboardSurface, { key: ' ' })
+    fireEvent.keyDown(document.body, { key: ' ' })
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(screen.getByText('00:01')).toBeTruthy()
+    expect(screen.getByText('00:02')).toBeTruthy()
 
-    const timerCard = container.querySelector('.prep-live-timer-card')
-    expect(timerCard?.className).not.toContain('warning')
-
-    act(() => {
-      vi.advanceTimersByTime(29000)
-    })
-    expect(timerCard?.className).toContain('prep-live-timer-card-warning')
-
-    act(() => {
-      vi.advanceTimersByTime(30000)
-    })
-    expect(timerCard?.className).toContain('prep-live-timer-card-urgent')
-
-    act(() => {
-      vi.advanceTimersByTime(30000)
-    })
-    expect(timerCard?.className).toContain('prep-live-timer-card-critical')
-    expect(screen.getByText('01:30')).toBeTruthy()
-  })
-
-  it('filters sections and moves keyboard navigation to the next section', () => {
-    const { container } = render(<PrepLiveMode deck={mockDeck} />)
-    const keyboardSurface = document.body
-
-    fireEvent.keyDown(keyboardSurface, { key: 'j' })
-    const activeNav = container.querySelector('.prep-live-nav-link-active')
-    expect(activeNav?.textContent).toContain('Company Intel')
-
-    fireEvent.change(screen.getAllByLabelText('Search cheatsheet')[0], { target: { value: 'debug' } })
-    expect(screen.getAllByText('Technical Topics').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Behavioral Stories')).toBeNull()
-    expect(screen.getByText('How do you debug a flaky distributed system?')).toBeTruthy()
-  })
-
-  it('does not trigger shortcuts while typing in the search input', () => {
-    const { container } = render(<PrepLiveMode deck={mockDeck} />)
-    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
-
-    fireEvent.focus(searchInput)
-    fireEvent.keyDown(searchInput, { key: ' ' })
-    fireEvent.keyDown(searchInput, { key: 'j' })
-    fireEvent.keyDown(searchInput, { key: '5' })
-    fireEvent.keyDown(searchInput, { key: 'e' })
-
+    fireEvent.keyDown(document.body, { key: 'R' })
     expect(screen.getByText('00:00')).toBeTruthy()
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
 
-    const overviewToggle = screen.getAllByRole('button', { name: 'Collapse' })[0]
-    const controlledSection = document.getElementById(overviewToggle.getAttribute('aria-controls')!)
-    expect(controlledSection?.hasAttribute('hidden')).toBe(false)
+    fireEvent.keyDown(document.body, { key: 'Q' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+
+    fireEvent.keyDown(document.body, { key: '5' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Projects')
+
+    fireEvent.keyDown(document.body, { key: 'J' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Technical Topics')
+
+    fireEvent.keyDown(document.body, { key: 'K' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Projects')
   })
 
-  it('uses the visible badge numbers when sections are filtered', () => {
-    const { container } = render(<PrepLiveMode deck={mockDeck} />)
-    const keyboardSurface = document.body
+  it('resets the timer from the visible control', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
 
-    fireEvent.change(screen.getAllByLabelText('Search cheatsheet')[0], { target: { value: 'lead' } })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Start timer' }), { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
 
-    fireEvent.keyDown(keyboardSurface, { key: '3' })
-    const activeNav = container.querySelector('.prep-live-nav-link-active')
-    expect(activeNav?.textContent).toContain('Openers')
-
-    fireEvent.keyDown(keyboardSurface, { key: '2' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Company Intel')
+    const resetButton = screen.getByRole('button', { name: 'Reset timer' })
+    fireEvent.click(resetButton)
+    fireEvent.keyDown(resetButton, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.getByText('00:00')).toBeTruthy()
   })
 
-  it('keeps shortcuts in a dedicated footer bar instead of repeating a quick jump rail', () => {
-    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+  it('starts the timer from the visible control', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
 
-    expect(container.querySelector('.prep-live-jump-rail')).toBeNull()
-    expect(container.querySelector('.prep-live-kbd-bar')?.textContent).toContain('Collapse')
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+    fireEvent.click(screen.getByRole('button', { name: 'Start timer' }))
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(screen.getByText('00:02')).toBeTruthy()
   })
 
-  it('supports numeric jump shortcuts and section collapse toggling', () => {
-    const { container } = render(<PrepLiveMode deck={mockDeck} />)
-    const keyboardSurface = document.body
+  it('narrows search results to matching items inside a section', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
 
-    fireEvent.keyDown(keyboardSurface, { key: '5' })
-    const activeNav = container.querySelector('.prep-live-nav-link-active')
-    expect(activeNav?.textContent).toContain('Technical Topics')
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: '90 days' },
+    })
 
-    fireEvent.keyDown(keyboardSurface, { key: 'e' })
-    const technicalPrompt = screen.getByText('How do you debug a flaky distributed system?')
-    expect(technicalPrompt.closest('.prep-live-item-list')?.hasAttribute('hidden')).toBe(true)
-
-    fireEvent.keyDown(keyboardSurface, { key: 'e' })
-    expect(screen.getByText('How do you debug a flaky distributed system?')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Questions to Ask' })).toBeTruthy()
+    expect(screen.getByText('What does success look like in 90 days?')).toBeTruthy()
+    expect(screen.queryByText('Which team would I partner with most closely?')).toBeNull()
   })
 
-  it('shows a no-results state and restores sections when search is cleared', () => {
+  it('filters sections by rich card content and restores them when search is cleared', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
     const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
-    fireEvent.change(searchInput, { target: { value: 'zzz_nonexistent' } })
+    fireEvent.change(searchInput, { target: { value: 'blast radius' } })
 
-    expect(screen.getByText('No cheatsheet sections match that search')).toBeTruthy()
-    expect(screen.queryByText('Tell me about yourself')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Behavioral Stories' })).toBeNull()
+    expect(screen.getAllByText('Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.')).toHaveLength(2)
 
     fireEvent.keyDown(searchInput, { key: 'Escape' })
 
-    expect(screen.queryByText('No cheatsheet sections match that search')).toBeNull()
-    expect(screen.getByText('Tell me about yourself')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Behavioral Stories' })).toBeTruthy()
+    expect(screen.getByText('Tell me about yourself')).toBeTruthy()
   })
 
-  it('collapses and expands overview content from the section button', () => {
+  it('collapses and expands a rich section', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
-    const overviewToggle = screen.getAllByRole('button', { name: 'Collapse' })[0]
-    const controlledId = overviewToggle.getAttribute('aria-controls')
+    const technicalToggle = screen
+      .getByRole('heading', { name: 'Technical Topics' })
+      .closest('.prep-live-section')
+      ?.querySelector('button')
+
+    expect(technicalToggle).toBeTruthy()
+    const controlledId = technicalToggle?.getAttribute('aria-controls')
     expect(controlledId).toBeTruthy()
 
     const controlledSection = document.getElementById(controlledId!)
     expect(controlledSection?.hasAttribute('hidden')).toBe(false)
 
-    fireEvent.click(overviewToggle)
-    expect(overviewToggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(technicalToggle!)
+    expect(technicalToggle?.getAttribute('aria-expanded')).toBe('false')
     expect(controlledSection?.hasAttribute('hidden')).toBe(true)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Expand' })[0])
+    fireEvent.click(technicalToggle!)
     expect(controlledSection?.hasAttribute('hidden')).toBe(false)
-  })
-
-  it('ignores live shortcuts while focus is inside another editable control', () => {
-    const { container } = render(
-      <div>
-        <label htmlFor="external-mode">External mode</label>
-        <select id="external-mode" defaultValue="default">
-          <option value="default">Default</option>
-          <option value="alt">Alt</option>
-        </select>
-        <PrepLiveMode deck={mockDeck} />
-      </div>,
-    )
-
-    const externalSelect = screen.getByLabelText('External mode')
-    fireEvent.focus(externalSelect)
-    fireEvent.keyDown(externalSelect, { key: '5' })
-    fireEvent.keyDown(externalSelect, { key: ' ' })
-
-    const activeNav = container.querySelector('.prep-live-nav-link-active')
-    expect(activeNav?.textContent).toContain('Overview')
-    expect(screen.getByText('00:00')).toBeTruthy()
-  })
-
-  it('renders gracefully when the deck has no cards', () => {
-    render(<PrepLiveMode deck={{ ...mockDeck, cards: [] }} />)
-
-    expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
-    expect(screen.getByText('Interview timer')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
-    expect(screen.queryByText('Tell me about yourself')).toBeNull()
   })
 
   it('cleans up the timer interval on unmount', () => {

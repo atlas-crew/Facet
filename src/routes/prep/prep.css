@@ -711,6 +711,23 @@
   font-family: var(--font-mono, monospace);
 }
 
+.prep-live-timer-reset {
+  margin-left: 2px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.prep-live-timer-reset:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
 .prep-live-timer-warning { border-bottom-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle)); }
 .prep-live-timer-urgent { border-bottom-color: color-mix(in srgb, var(--accent-orange) 32%, var(--border-subtle)); }
 .prep-live-timer-critical { border-bottom-color: color-mix(in srgb, var(--status-critical) 36%, var(--border-subtle)); }
