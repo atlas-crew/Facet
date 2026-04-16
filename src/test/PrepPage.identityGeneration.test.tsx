@@ -173,6 +173,16 @@ describe('PrepPage identity generation', () => {
               content: JSON.stringify({
                 deckTitle: 'Acme Staff Engineer Prep',
                 companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+                donts: ['Do not ramble.'],
+                questionsToAsk: [
+                  {
+                    question: 'What is the platform team optimizing for next?',
+                    context: 'Shows systems thinking.',
+                  },
+                ],
+                categoryGuidance: {
+                  behavioral: 'Lead with scope.',
+                },
                 cards: [
                   {
                     category: 'opener',
@@ -218,6 +228,17 @@ describe('PrepPage identity generation', () => {
     expect(prompt).not.toContain('Maintained legacy data feeds.')
     expect(prompt).not.toContain('COBOL')
     expect(JSON.stringify(useIdentityStore.getState().currentIdentity)).toBe(identityBefore)
+
+    const generatedDeck = usePrepStore.getState().decks[0]
+    expect(generatedDeck.roundType).toBe('system-design')
+    expect(generatedDeck.donts).toEqual(['Do not ramble.'])
+    expect(generatedDeck.questionsToAsk).toEqual([
+      {
+        question: 'What is the platform team optimizing for next?',
+        context: 'Shows systems thinking.',
+      },
+    ])
+    expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
   })
 
   it('uses the selected resume vector label to scope identity context for match generation', async () => {
@@ -296,5 +317,15 @@ describe('PrepPage identity generation', () => {
     expect(prompt).not.toContain('Maintained legacy data feeds.')
     expect(prompt).not.toContain('COBOL')
     expect(JSON.stringify(useIdentityStore.getState().currentIdentity)).toBe(identityBefore)
+
+    const generatedDeck = usePrepStore.getState().decks[0]
+    expect(generatedDeck.donts).toEqual(['Do not ramble.'])
+    expect(generatedDeck.questionsToAsk).toEqual([
+      {
+        question: 'What is the platform team optimizing for next?',
+        context: 'Shows systems thinking.',
+      },
+    ])
+    expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
   })
 })
