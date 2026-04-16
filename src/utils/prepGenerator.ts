@@ -102,6 +102,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
     if (!(PREP_CATEGORY_VALUES as readonly string[]).includes(record.category)) {
       return []
     }
+    const category = record.category as PrepCategory
 
     const tags = Array.isArray(record.tags)
       ? record.tags.filter(isString).map((tag) => tag.trim()).filter(Boolean)
@@ -110,7 +111,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
     return [
       {
         id: createId('prep-card'),
-        category: record.category,
+        category,
         title: record.title.trim(),
         tags,
         notes: isString(record.notes) ? record.notes.trim() : undefined,
