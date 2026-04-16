@@ -151,7 +151,8 @@ describe('PrepPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Live Cheatsheet' }))
     expect(usePrepStore.getState().activeMode).toBe('live')
-    expect(screen.getByText('Live Cheatsheet Preview')).toBeTruthy()
+    expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
+    expect(screen.getByText('Interview timer')).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Live Cheatsheet' }).getAttribute('aria-selected')).toBe('true')
   })
 
@@ -175,8 +176,57 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
+    expect(screen.getByRole('tabpanel', { name: 'Edit' })).toBeTruthy()
     expect(screen.getByText('No prep sets yet')).toBeTruthy()
     expect(screen.queryByText('No deck ready yet')).toBeNull()
+  })
+
+  it('groups the edit workspace into deck, source, and card editing sections', () => {
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getAllByText('Blank Set')[0])
+
+    expect(screen.getByText('Prep Library')).toBeTruthy()
+    expect(screen.getByText('Deck Basics')).toBeTruthy()
+    expect(screen.getByText('Source Material')).toBeTruthy()
+    expect(screen.getByText('Card Library')).toBeTruthy()
+    expect(screen.getByText('Editable Cards')).toBeTruthy()
+  })
+
+  it('shows a prep library and lets the user switch the active set from it', () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-a',
+          title: 'Acme Platform Prep',
+          company: 'Acme',
+          role: 'Platform Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-10T00:00:00.000Z',
+          cards: [],
+        },
+        {
+          id: 'deck-b',
+          title: 'Atlas Security Prep',
+          company: 'Atlas',
+          role: 'Security Engineer',
+          vectorId: 'security',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-12T00:00:00.000Z',
+          cards: [],
+        },
+      ],
+      activeDeckId: 'deck-a',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Atlas Security Prep/i }))
+
+    expect(usePrepStore.getState().activeDeckId).toBe('deck-b')
+    expect(screen.getByRole('button', { name: /Atlas Security Prep/i }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('shows hosted upgrade messaging without blocking manual prep creation', async () => {

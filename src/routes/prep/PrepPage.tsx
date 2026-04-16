@@ -4,6 +4,7 @@ import { Download, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
+import { PrepLiveMode } from './PrepLiveMode'
 import { PrepPracticeMode } from './PrepPracticeMode'
 import { PrepSearch } from './PrepSearch'
 import { useMatchStore } from '../../store/matchStore'
@@ -13,7 +14,6 @@ import { useResumeStore } from '../../store/resumeStore'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
-import { derivePrepCheatsheetSections } from '../../utils/prepCheatsheet'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import type { PrepCard, PrepCategory, PrepDeck, PrepWorkspaceMode } from '../../types/prep'
@@ -23,6 +23,15 @@ const MODE_LABELS: Record<PrepWorkspaceMode, string> = {
   edit: 'Edit',
   homework: 'Homework',
   live: 'Live Cheatsheet',
+}
+
+function formatPrepDeckUpdatedAt(updatedAt: string): string {
+  const timestamp = Date.parse(updatedAt)
+  if (Number.isNaN(timestamp)) return 'Updated recently'
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 export function PrepPage() {
@@ -50,6 +59,7 @@ export function PrepPage() {
     updateDeck,
     addCard,
     updateCard,
+    recordCardReview,
     duplicateCard,
     removeCard,
     deleteDeck,
@@ -66,9 +76,9 @@ export function PrepPage() {
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [decks, activeDeckId],
   )
-  const liveSections = useMemo(
-    () => (activeMode === 'live' && activeDeck ? derivePrepCheatsheetSections(activeDeck) : []),
-    [activeDeck, activeMode],
+  const deckLibrary = useMemo(
+    () => [...decks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    [decks],
   )
 
   useEffect(() => {
@@ -438,10 +448,13 @@ export function PrepPage() {
     deleteDeck(activeDeck.id)
   }, [activeDeck, deleteDeck])
 
+  const isHomeworkDisabled = !activeDeck || filteredCards.length === 0
+  const isLiveDisabled = !activeDeck || activeDeck.cards.length === 0
+
   const handleModeTabKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
 
-    const tabs = modeTabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)')
+    const tabs = modeTabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     if (!tabs || tabs.length === 0) return
 
     const currentIndex = Array.from(tabs).findIndex((tab) => tab === document.activeElement)
@@ -492,6 +505,50 @@ export function PrepPage() {
         </div>
       </div>
 
+      {deckLibrary.length > 0 ? (
+        <section className="prep-panel prep-library-panel">
+          <div className="prep-panel-header">
+            <div>
+              <h2>Prep Library</h2>
+              <p>Keep multiple interview sets around and jump between them without digging through a select menu.</p>
+            </div>
+            <span className="prep-mode-chip">{deckLibrary.length} saved</span>
+          </div>
+
+          <div className="prep-library-grid" role="list" aria-label="Saved prep sets">
+            {deckLibrary.map((deck) => {
+              const isActive = deck.id === activeDeckId
+              return (
+                <div key={deck.id} role="listitem">
+                  <button
+                    type="button"
+                    className={`prep-library-card ${isActive ? 'prep-library-card-active' : ''}`}
+                    onClick={() => setActiveDeck(deck.id)}
+                    aria-pressed={isActive}
+                    aria-label={deck.title}
+                  >
+                    <div className="prep-library-card-header">
+                      <div>
+                        <div className="prep-library-card-title">{deck.title}</div>
+                        <div className="prep-library-card-subtitle">
+                          {[deck.company, deck.role].filter(Boolean).join(' · ') || 'Untitled prep set'}
+                        </div>
+                      </div>
+                      {isActive ? <span className="prep-mode-chip">Active</span> : null}
+                    </div>
+                    <div className="prep-library-card-meta">
+                      <span>{deck.cards.length} cards</span>
+                      <span>{deck.vectorId || 'No vector'}</span>
+                      <span>{formatPrepDeckUpdatedAt(deck.updatedAt)}</span>
+                    </div>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <section className="prep-panel prep-mode-shell">
         <div className="prep-panel-header">
           <div>
@@ -511,7 +568,7 @@ export function PrepPage() {
               role="tab"
               id="prep-mode-tab-edit"
               aria-selected={activeMode === 'edit'}
-              aria-controls="prep-mode-panel-edit"
+              aria-controls={activeMode === 'edit' ? 'prep-mode-panel-edit' : undefined}
               tabIndex={activeMode === 'edit' ? 0 : -1}
               onClick={() => setActiveMode('edit')}
             >
@@ -523,10 +580,13 @@ export function PrepPage() {
               role="tab"
               id="prep-mode-tab-homework"
               aria-selected={activeMode === 'homework'}
-              aria-controls="prep-mode-panel-homework"
+              aria-controls={activeMode === 'homework' ? 'prep-mode-panel-homework' : undefined}
+              aria-disabled={isHomeworkDisabled}
               tabIndex={activeMode === 'homework' ? 0 : -1}
-              onClick={() => setActiveMode('homework')}
-              disabled={!activeDeck || filteredCards.length === 0}
+              onClick={() => {
+                if (isHomeworkDisabled) return
+                setActiveMode('homework')
+              }}
             >
               Homework
             </button>
@@ -536,10 +596,13 @@ export function PrepPage() {
               role="tab"
               id="prep-mode-tab-live"
               aria-selected={activeMode === 'live'}
-              aria-controls="prep-mode-panel-live"
+              aria-controls={activeMode === 'live' ? 'prep-mode-panel-live' : undefined}
+              aria-disabled={isLiveDisabled}
               tabIndex={activeMode === 'live' ? 0 : -1}
-              onClick={() => setActiveMode('live')}
-              disabled={!activeDeck || activeDeck.cards.length === 0}
+              onClick={() => {
+                if (isLiveDisabled) return
+                setActiveMode('live')
+              }}
             >
               Live Cheatsheet
             </button>
@@ -707,7 +770,13 @@ export function PrepPage() {
           role="tabpanel"
           aria-labelledby="prep-mode-tab-homework"
         >
-          <PrepPracticeMode cards={filteredCards} onExit={() => setActiveMode('edit')} />
+          <PrepPracticeMode
+            key={`${activeDeck.id}:${filteredCards.map((card) => card.id).join(',')}`}
+            cards={filteredCards}
+            studyProgress={activeDeck.studyProgress}
+            onExit={() => setActiveMode('edit')}
+            onRecordReview={(cardId, confidence) => recordCardReview(activeDeck.id, cardId, confidence)}
+          />
         </section>
       ) : null}
 
@@ -718,29 +787,8 @@ export function PrepPage() {
           aria-labelledby="prep-mode-tab-live"
           className="prep-panel"
         >
-          <div className="prep-panel-header">
-            <div>
-              <h2>Live Cheatsheet Preview</h2>
-              <p>The next slice will turn these sections into a timer-first, keyboard-driven interview surface.</p>
-            </div>
-          </div>
           {activeDeck ? (
-            <div className="prep-live-preview">
-              {liveSections.map((section) => (
-                <article key={section.id} className="prep-live-preview-card">
-                  <h3>{section.title}</h3>
-                  <p>{section.description}</p>
-                  <ul>
-                    {section.items.slice(0, 3).map((item) => (
-                      <li key={item.id}>
-                        <strong>{item.title}</strong>
-                        {item.detail ? <span> — {item.detail}</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
-            </div>
+            <PrepLiveMode deck={activeDeck} />
           ) : (
             <div className="prep-empty">
               <h2>No deck ready yet</h2>
@@ -755,7 +803,7 @@ export function PrepPage() {
           id="prep-mode-panel-edit"
           role="tabpanel"
           aria-labelledby="prep-mode-tab-edit"
-          className="prep-mode-panel"
+          className="prep-mode-panel prep-edit-mode-panel"
         >
           <section className="prep-panel">
             <div className="prep-panel-header">
@@ -763,99 +811,151 @@ export function PrepPage() {
                 <h2>Active Prep Set</h2>
                 <p>Edit the generated deck, keep adding cards, and tailor the narratives before switching into homework or live mode.</p>
               </div>
-              <label className="prep-field prep-field-inline">
-                <span className="prep-field-label">Prep set</span>
-                <select className="prep-input" value={activeDeck.id} onChange={(event) => setActiveDeck(event.target.value)}>
-                  {decks.map((deck) => (
-                    <option key={deck.id} value={deck.id}>
-                      {deck.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="prep-edit-active-set-meta">
+                <span className="prep-mode-chip">{activeDeck.cards.length} cards</span>
+                <span className="prep-mode-chip">{activeDeck.vectorId || 'No vector'}</span>
+              </div>
             </div>
 
-            <div className="prep-generator-grid">
-              <label className="prep-field">
-                <span className="prep-field-label">Title</span>
-                <input className="prep-input" value={activeDeck.title} onChange={(event) => updateActiveDeck({ title: event.target.value })} />
-              </label>
-              <label className="prep-field">
-                <span className="prep-field-label">Company</span>
-                <input className="prep-input" value={activeDeck.company} onChange={(event) => updateActiveDeck({ company: event.target.value })} />
-              </label>
-              <label className="prep-field">
-                <span className="prep-field-label">Role</span>
-                <input className="prep-input" value={activeDeck.role} onChange={(event) => updateActiveDeck({ role: event.target.value })} />
-              </label>
-              <label className="prep-field">
-                <span className="prep-field-label">Vector</span>
-                <select className="prep-input" value={activeDeck.vectorId} onChange={(event) => updateActiveDeck({ vectorId: event.target.value })}>
-                  <option value="">Select a vector</option>
-                  {resumeData.vectors.map((vector) => (
-                    <option key={vector.id} value={vector.id}>
-                      {vector.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="prep-field prep-field-span-2">
-                <span className="prep-field-label">Company research summary</span>
-                <textarea
-                  className="prep-textarea"
-                  value={activeDeck.companyResearch ?? ''}
-                  onChange={(event) => updateActiveDeck({ companyResearch: event.target.value })}
-                  placeholder="Editable summary of what matters about the company and role."
-                />
-              </label>
-              <label className="prep-field prep-field-span-2">
-                <span className="prep-field-label">Job description</span>
-                <textarea
-                  className="prep-textarea prep-textarea-lg"
-                  value={activeDeck.jobDescription ?? ''}
-                  onChange={(event) => updateActiveDeck({ jobDescription: event.target.value })}
-                />
-              </label>
+            <div className="prep-edit-groups">
+              <section className="prep-edit-group">
+                <div className="prep-edit-group-header">
+                  <div>
+                    <h3>Deck Basics</h3>
+                    <p>Keep the title, company, role, and vector tidy so the rest of the workspace stays anchored to the same story.</p>
+                  </div>
+                  <span className="prep-mode-chip">Core Setup</span>
+                </div>
+
+                <div className="prep-generator-grid">
+                  <label className="prep-field">
+                    <span className="prep-field-label">Title</span>
+                    <input className="prep-input" value={activeDeck.title} onChange={(event) => updateActiveDeck({ title: event.target.value })} />
+                  </label>
+                  <label className="prep-field">
+                    <span className="prep-field-label">Company</span>
+                    <input className="prep-input" value={activeDeck.company} onChange={(event) => updateActiveDeck({ company: event.target.value })} />
+                  </label>
+                  <label className="prep-field">
+                    <span className="prep-field-label">Role</span>
+                    <input className="prep-input" value={activeDeck.role} onChange={(event) => updateActiveDeck({ role: event.target.value })} />
+                  </label>
+                  <label className="prep-field">
+                    <span className="prep-field-label">Vector</span>
+                    <select className="prep-input" value={activeDeck.vectorId} onChange={(event) => updateActiveDeck({ vectorId: event.target.value })}>
+                      <option value="">Select a vector</option>
+                      {resumeData.vectors.map((vector) => (
+                        <option key={vector.id} value={vector.id}>
+                          {vector.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <details className="prep-edit-group prep-edit-group-collapsible" open>
+                <summary className="prep-edit-group-summary">
+                  <div className="prep-edit-group-copy">
+                    <span className="prep-edit-group-title">Source Material</span>
+                    <span className="prep-edit-group-subtitle">Collapse the long-form research and job description when you want a cleaner editing view.</span>
+                  </div>
+                  <span className="prep-mode-chip">Reference</span>
+                </summary>
+
+                <div className="prep-edit-group-body">
+                  <div className="prep-generator-grid">
+                    <label className="prep-field prep-field-span-2">
+                      <span className="prep-field-label">Company research summary</span>
+                      <textarea
+                        className="prep-textarea"
+                        value={activeDeck.companyResearch ?? ''}
+                        onChange={(event) => updateActiveDeck({ companyResearch: event.target.value })}
+                        placeholder="Editable summary of what matters about the company and role."
+                      />
+                    </label>
+                    <label className="prep-field prep-field-span-2">
+                      <span className="prep-field-label">Job description</span>
+                      <textarea
+                        className="prep-textarea prep-textarea-lg"
+                        value={activeDeck.jobDescription ?? ''}
+                        onChange={(event) => updateActiveDeck({ jobDescription: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </details>
             </div>
           </section>
 
-          <PrepSearch
-            query={query}
-            category={category}
-            vectorFilter={vectorFilter}
-            cards={activeDeck.cards}
-            onQueryChange={setQuery}
-            onCategoryChange={setCategory}
-            onClearVector={() => setVectorFilter('')}
-          />
-
-          {filteredCards.length > 0 ? (
-            <PrepCardGrid
-              cards={filteredCards}
-              onUpdateCard={handleUpdateCard}
-              onDuplicateCard={handleDuplicateCard}
-              onRemoveCard={handleRemoveCard}
-            />
-          ) : (
-            <div className="prep-empty">
-              <h2>No cards match your filters</h2>
-              <p>Adjust the filters above or add a new card to keep building out this prep set.</p>
+          <section className="prep-panel prep-edit-filter-panel">
+            <div className="prep-edit-card-stage-header">
+              <div>
+                <h2>Card Library</h2>
+                <p>Filter down to the cards you want to work on, then open the grouped editor inside each card.</p>
+              </div>
+              <span className="prep-mode-chip">
+                {filteredCards.length === activeDeck.cards.length
+                  ? `${filteredCards.length} cards`
+                  : `${filteredCards.length} of ${activeDeck.cards.length} cards`}
+              </span>
             </div>
-          )}
+
+            <PrepSearch
+              query={query}
+              category={category}
+              vectorFilter={vectorFilter}
+              cards={activeDeck.cards}
+              onQueryChange={setQuery}
+              onCategoryChange={setCategory}
+              onClearVector={() => setVectorFilter('')}
+            />
+          </section>
+
+          <section className="prep-edit-card-stage">
+            <div className="prep-edit-card-stage-header">
+              <div>
+                <h2>Editable Cards</h2>
+                <p>Lead with the tight story first, then expand supporting material only when you need it.</p>
+              </div>
+            </div>
+
+            {filteredCards.length > 0 ? (
+              <PrepCardGrid
+                cards={filteredCards}
+                onUpdateCard={handleUpdateCard}
+                onDuplicateCard={handleDuplicateCard}
+                onRemoveCard={handleRemoveCard}
+                layout="single"
+              />
+            ) : (
+              <div className="prep-empty prep-edit-empty-state">
+                <h2>No cards match your filters</h2>
+                <p>Adjust the filters above or add a new card to keep building out this prep set.</p>
+              </div>
+            )}
+          </section>
         </div>
       ) : activeMode === 'edit' ? (
-        <div className="prep-empty">
-          <h2>No prep sets yet</h2>
-          <p>Generate a prep set from a pipeline entry or start a blank one. Once created, every card is fully editable.</p>
-          <div className="prep-empty-actions">
-            <button className="prep-btn prep-btn-primary" onClick={() => void handleGenerate()} disabled={isGenerating}>
-              <Sparkles size={16} />
-              Generate Prep Set
-            </button>
-            <button className="prep-btn" onClick={handleCreateBlankDeck}>
-              <Plus size={16} />
-              Blank Set
-            </button>
+        <div
+          id="prep-mode-panel-edit"
+          role="tabpanel"
+          aria-labelledby="prep-mode-tab-edit"
+          className="prep-mode-panel"
+        >
+          <div className="prep-empty">
+            <h2>No prep sets yet</h2>
+            <p>Generate a prep set from a pipeline entry or start a blank one. Once created, every card is fully editable.</p>
+            <div className="prep-empty-actions">
+              <button className="prep-btn prep-btn-primary" onClick={() => void handleGenerate()} disabled={isGenerating}>
+                <Sparkles size={16} />
+                Generate Prep Set
+              </button>
+              <button className="prep-btn" onClick={handleCreateBlankDeck}>
+                <Plus size={16} />
+                Blank Set
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
