@@ -1,4 +1,15 @@
-import type { PrepCard, PrepGenerationRequest } from '../types/prep'
+import {
+  PREP_CATEGORY_VALUES,
+  PREP_STORY_BLOCK_LABEL_VALUES,
+} from '../types/prep'
+import type {
+  PrepCard,
+  PrepCategory,
+  PrepGenerationRequest,
+  PrepQuestionToAsk,
+  PrepStoryBlock,
+  PrepStoryBlockLabel,
+} from '../types/prep'
 import { createId } from './idUtils'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
@@ -8,8 +19,79 @@ const PREP_TIMEOUT_MS = 90000
 
 interface PrepGenerationPayload {
   deckTitle: string
-  companyResearchSummary: string
+  companyResearchSummary?: string
+  donts?: string[]
+  questionsToAsk?: PrepQuestionToAsk[]
+  categoryGuidance?: Record<string, string>
   cards: Array<Omit<PrepCard, 'id'>>
+}
+
+const STORY_BLOCK_LABEL_ALIASES: Array<[PrepStoryBlockLabel, string[]]> = [
+  ['problem', ['problem', 'problem statement', 'challenge', 'context', 'situation']],
+  ['solution', ['solution', 'action', 'approach', 'what i did']],
+  ['result', ['result', 'outcome', 'impact', 'what happened']],
+  ['closer', ['closer', 'close', 'wrap-up', 'wrap up', 'takeaway']],
+  ['note', ['note', 'callout']],
+]
+
+const normalizeStringList = (values: unknown): string[] | undefined => {
+  if (!Array.isArray(values)) return undefined
+  const normalized = values.filter(isString).map((value) => value.trim()).filter(Boolean)
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function normalizeStoryBlockLabel(value: unknown): PrepStoryBlockLabel | undefined {
+  if (!isString(value)) return undefined
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return undefined
+  if ((PREP_STORY_BLOCK_LABEL_VALUES as readonly string[]).includes(normalized)) {
+    return normalized as PrepStoryBlockLabel
+  }
+
+  for (const [label, aliases] of STORY_BLOCK_LABEL_ALIASES) {
+    if (aliases.some((alias) => normalized.includes(alias))) {
+      return label
+    }
+  }
+
+  return undefined
+}
+
+function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const storyBlocks = value.flatMap((block) => {
+    if (!block || typeof block !== 'object') return []
+    const record = block as Record<string, unknown>
+    const label = normalizeStoryBlockLabel(record.label)
+    const text = isString(record.text) ? record.text.trim() : ''
+    return label && text ? [{ label, text }] : []
+  })
+  return storyBlocks.length > 0 ? storyBlocks : undefined
+}
+
+function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const questions = value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const question = isString(record.question) ? record.question.trim() : ''
+    const context = isString(record.context) ? record.context.trim() : ''
+    return question && context ? [{ question, context }] : []
+  })
+  return questions.length > 0 ? questions : undefined
+}
+
+function normalizeCategoryGuidance(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, guidance]) => {
+    const normalizedKey = key.trim()
+    const normalizedGuidance = isString(guidance) ? guidance.trim() : ''
+    return normalizedKey && normalizedGuidance && (PREP_CATEGORY_VALUES as readonly string[]).includes(normalizedKey)
+      ? [[normalizedKey, normalizedGuidance] as const]
+      : []
+  })
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
 function normalizeCards(cards: unknown[]): PrepCard[] {
@@ -17,14 +99,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
     if (!card || typeof card !== 'object') return []
     const record = card as Record<string, unknown>
     if (!isString(record.title) || !isString(record.category)) return []
-    if (
-      record.category !== 'opener' &&
-      record.category !== 'behavioral' &&
-      record.category !== 'technical' &&
-      record.category !== 'project' &&
-      record.category !== 'metrics' &&
-      record.category !== 'situational'
-    ) {
+    if (!(PREP_CATEGORY_VALUES as readonly string[]).includes(record.category)) {
       return []
     }
 
@@ -40,7 +115,10 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         tags,
         notes: isString(record.notes) ? record.notes.trim() : undefined,
         script: isString(record.script) ? record.script.trim() : undefined,
+        scriptLabel: isString(record.scriptLabel) ? record.scriptLabel.trim() || undefined : undefined,
         warning: isString(record.warning) ? record.warning.trim() : undefined,
+        storyBlocks: normalizeStoryBlocks(record.storyBlocks),
+        keyPoints: normalizeStringList(record.keyPoints),
         followUps: Array.isArray(record.followUps)
           ? record.followUps.flatMap((followUp) => {
               if (!followUp || typeof followUp !== 'object') return []
@@ -90,7 +168,14 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
 export async function generateInterviewPrep(
   endpoint: string,
   request: PrepGenerationRequest,
-): Promise<{ deckTitle: string; companyResearchSummary: string; cards: PrepCard[] }> {
+): Promise<{
+  deckTitle: string
+  companyResearchSummary: string
+  donts?: string[]
+  questionsToAsk?: PrepQuestionToAsk[]
+  categoryGuidance?: Partial<Record<PrepCategory, string>>
+  cards: PrepCard[]
+}> {
   const systemPrompt = `You are an expert interview coach. Return JSON only.
 Generate a strong interview prep pack from a candidate's resume context, a target vector, a job description, and company research notes.
 Focus on truthful storytelling, quantified evidence, likely interview themes, and specific follow-up questions the candidate should prepare for.
@@ -100,7 +185,17 @@ Use the resume context to ground answers; do not invent facts or metrics not pre
 Response schema:
 {
   "deckTitle": "string",
-  "companyResearchSummary": "string",
+  "companyResearchSummary": "optional string",
+  "donts": ["string"],
+  "questionsToAsk": [{ "question": "string", "context": "string" }],
+  "categoryGuidance": {
+    "opener": "string",
+    "behavioral": "string",
+    "technical": "string",
+    "project": "string",
+    "metrics": "string",
+    "situational": "string"
+  },
   "cards": [
     {
       "category": "opener|behavioral|technical|project|metrics|situational",
@@ -108,7 +203,10 @@ Response schema:
       "tags": ["string"],
       "notes": "optional string",
       "script": "optional string",
+      "scriptLabel": "optional string",
       "warning": "optional string",
+      "storyBlocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }],
+      "keyPoints": ["string"],
       "followUps": [{ "question": "string", "answer": "string" }],
       "deepDives": [{ "title": "string", "content": "string" }],
       "metrics": [{ "value": "string", "label": "string" }],
@@ -123,6 +221,7 @@ Response schema:
   const userPrompt = `Target Company: ${request.company}
 Target Role: ${request.role}
 Target Vector: ${request.vectorLabel} (${request.vectorId})
+Target Round Type: ${request.roundType ?? 'Not provided'}
 Company URL: ${request.companyUrl ?? 'Not provided'}
 Skill Match Notes: ${request.skillMatch ?? 'Not provided'}
 Positioning Notes: ${request.positioning ?? 'Not provided'}
@@ -139,6 +238,12 @@ Tailored Resume Context:
 ${JSON.stringify(request.resumeContext, null, 2)}
 
 When structured identity context is provided, use it as the primary source of candidate evidence and fall back to the tailored resume context only for missing details.
+Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
+Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
+If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
+Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with coaching context, and categoryGuidance keyed by the prep category names.
+When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
+If a round type is provided, adapt the emphasis and category guidance to that interview round.
 
 Return JSON only.`
 
@@ -163,7 +268,10 @@ Return JSON only.`
 
   return {
     deckTitle: parsed.deckTitle.trim(),
-    companyResearchSummary: parsed.companyResearchSummary.trim(),
+    companyResearchSummary: isString(parsed.companyResearchSummary) ? parsed.companyResearchSummary.trim() : '',
+    donts: normalizeStringList(parsed.donts),
+    questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
+    categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as Partial<Record<PrepCategory, string>> | undefined,
     cards,
   }
 }
