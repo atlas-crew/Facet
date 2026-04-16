@@ -45,6 +45,22 @@ export type InterviewFormat =
   | 'exec'
   | 'presentation'
 
+export const INTERVIEW_FORMAT_VALUES = [
+  'hr-screen',
+  'hm-screen',
+  'tech-discussion',
+  'system-design',
+  'take-home',
+  'live-coding',
+  'leetcode',
+  'pair-programming',
+  'behavioral',
+  'peer-panel',
+  'cross-team',
+  'exec',
+  'presentation',
+] as const satisfies readonly InterviewFormat[]
+
 export type RejectionStage =
   | 'resume-screen'
   | 'recruiter-screen'

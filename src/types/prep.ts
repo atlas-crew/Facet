@@ -1,4 +1,5 @@
 import type { DurableMetadata } from './durable'
+import type { InterviewFormat } from './pipeline'
 
 export type PrepCategory =
   | 'opener'
@@ -35,10 +36,31 @@ export interface PrepMetric {
   label: string
 }
 
+export type PrepStoryBlockLabel = 'problem' | 'solution' | 'result' | 'closer' | 'note'
+
+export const PREP_STORY_BLOCK_LABEL_VALUES = [
+  'problem',
+  'solution',
+  'result',
+  'closer',
+  'note',
+] as const satisfies readonly PrepStoryBlockLabel[]
+
+export interface PrepStoryBlock {
+  label: PrepStoryBlockLabel
+  text: string
+}
+
+export interface PrepQuestionToAsk {
+  question: string
+  context: string
+}
+
 export interface PrepFollowUp {
   id?: string
   question: string
   answer: string
+  context?: string
 }
 
 export interface PrepCard {
@@ -56,7 +78,10 @@ export interface PrepCard {
   updatedAt?: string
 
   script?: string
+  scriptLabel?: string
   warning?: string
+  storyBlocks?: PrepStoryBlock[]
+  keyPoints?: string[]
   followUps?: PrepFollowUp[]
   deepDives?: PrepDeepDive[]
   metrics?: PrepMetric[]
@@ -84,9 +109,13 @@ export interface PrepDeck {
   companyUrl?: string
   skillMatch?: string
   positioning?: string
+  roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
   jobDescription?: string
+  donts?: string[]
+  questionsToAsk?: PrepQuestionToAsk[]
+  categoryGuidance?: Record<string, string>
   generatedAt?: string
   updatedAt: string
   cards: PrepCard[]
@@ -101,8 +130,12 @@ export interface PrepGenerationRequest {
   companyUrl?: string
   skillMatch?: string
   positioning?: string
+  roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
   jobDescription: string
+  donts?: string[]
+  questionsToAsk?: PrepQuestionToAsk[]
+  categoryGuidance?: Record<string, string>
   resumeContext: Record<string, unknown>
 }

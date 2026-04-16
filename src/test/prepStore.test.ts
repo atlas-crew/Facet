@@ -21,6 +21,16 @@ describe('prepStore', () => {
       company: 'Acme',
       role: 'Staff Engineer',
       vectorId: 'backend',
+      roundType: 'hm-screen',
+      donts: [' Ramble ', '', 'Skip the ask'],
+      questionsToAsk: [
+        { question: ' Which team owns this? ', context: ' Clarify collaboration scope ' },
+        { question: ' ', context: 'missing' },
+      ],
+      categoryGuidance: {
+        behavioral: ' Lead with scope ',
+        '': 'ignored',
+      },
       cards: [],
     })
 
@@ -29,6 +39,12 @@ describe('prepStore', () => {
     expect(state.activeMode).toBe('edit')
     expect(state.decks[0].title).toBe('Acme Staff Prep')
     expect(state.decks[0].company).toBe('Acme')
+    expect(state.decks[0].roundType).toBe('hm-screen')
+    expect(state.decks[0].donts).toEqual(['Ramble', 'Skip the ask'])
+    expect(state.decks[0].questionsToAsk).toEqual([
+      { question: 'Which team owns this?', context: 'Clarify collaboration scope' },
+    ])
+    expect(state.decks[0].categoryGuidance).toEqual({ behavioral: 'Lead with scope' })
     expect(state.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(state.decks[0].durableMeta?.revision).toBe(0)
   })
@@ -182,6 +198,201 @@ describe('prepStore', () => {
     expect(migrated.activeMode).toBe('edit')
 
     expect(migratePrepState('bad-state').decks).toEqual([])
+  })
+
+  it('migrates malformed nested card payloads without throwing', () => {
+    const migrated = migratePrepState({
+      decks: [
+        {
+          id: 'prep-deck-malformed',
+          title: 'Malformed',
+          company: 'Acme',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: '2025-01-02T00:00:00.000Z',
+          cards: [
+            {
+              id: 'prep-card-malformed',
+              category: 'behavioral',
+              title: 'Handle malformed data',
+              tags: ['cleanup'],
+              followUps: [
+                null,
+                { question: ' Why now? ', answer: ' Because it was blocking startup. ', context: 9 },
+              ],
+              deepDives: [
+                null,
+                { title: ' Detail ', content: ' Keep the startup path resilient. ' },
+              ],
+              metrics: [
+                null,
+                { value: ' 38% ', label: ' Incident reduction ' },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+
+    const card = migrated.decks[0].cards[0]
+    expect(card.followUps).toEqual([
+      expect.objectContaining({
+        question: 'Why now?',
+        answer: 'Because it was blocking startup.',
+        context: undefined,
+      }),
+    ])
+    expect(card.deepDives).toEqual([
+      expect.objectContaining({
+        title: 'Detail',
+        content: 'Keep the startup path resilient.',
+      }),
+    ])
+    expect(card.metrics).toEqual([
+      expect.objectContaining({
+        value: '38%',
+        label: 'Incident reduction',
+      }),
+    ])
+  })
+
+  it('sanitizes rich card and deck fields during import', () => {
+    usePrepStore.getState().importDecks([
+      {
+        id: 'prep-deck-rich',
+        title: ' Rich Deck ',
+        company: ' Acme ',
+        role: ' Staff Engineer ',
+        vectorId: ' backend ',
+        pipelineEntryId: null,
+        roundType: ' hm-screen ' as never,
+        donts: [' Be vague ', '', null as never, 4 as never],
+        questionsToAsk: [
+          { question: ' What breaks first? ', context: ' Expose scale tradeoffs ' },
+          { question: 'Missing context', context: ' ' },
+          null as never,
+        ],
+        categoryGuidance: {
+          behavioral: ' Use one example ',
+          ' ': 'ignored',
+          metrics: 12 as never,
+        } as never,
+        updatedAt: '2025-01-02T00:00:00.000Z',
+        cards: [
+          {
+            id: 'prep-card-rich',
+            category: 'behavioral',
+            title: ' Leadership story ',
+            tags: [' leadership ', ''],
+            script: ' Lead with the scope ',
+            scriptLabel: ' Say This ',
+            storyBlocks: [
+              { label: 'problem', text: ' Service health was slipping ' },
+              { label: 'oops' as never, text: 'invalid label' },
+              { label: 'result', text: ' ' },
+              { label: 'solution', text: 42 as never },
+              null as never,
+            ],
+            keyPoints: [' Own the incident ', ' ', 'Close with the metric', null as never],
+            followUps: [
+              {
+                question: 'What changed?',
+                answer: 'We moved the rollout window.',
+                context: ' Why the decision mattered ',
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    const deck = usePrepStore.getState().decks[0]
+    const card = deck.cards[0]
+
+    expect(deck.roundType).toBe('hm-screen')
+    expect(deck.donts).toEqual(['Be vague'])
+    expect(deck.questionsToAsk).toEqual([
+      { question: 'What breaks first?', context: 'Expose scale tradeoffs' },
+    ])
+    expect(deck.categoryGuidance).toEqual({ behavioral: 'Use one example' })
+    expect(card.scriptLabel).toBe('Say This')
+    expect(card.storyBlocks).toEqual([{ label: 'problem', text: 'Service health was slipping' }])
+    expect(card.keyPoints).toEqual(['Own the incident', 'Close with the metric'])
+    expect(card.followUps).toEqual([
+      expect.objectContaining({
+        question: 'What changed?',
+        answer: 'We moved the rollout window.',
+        context: 'Why the decision mattered',
+      }),
+    ])
+  })
+
+  it('sanitizes rich fields through updateDeck, updateCard, and replaceDeckCards', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Original card',
+      category: 'behavioral',
+      tags: [],
+    })
+
+    usePrepStore.getState().updateDeck(deckId, {
+      roundType: ' system-design ' as never,
+      donts: [' Be generic ', '', 7 as never] as never,
+      questionsToAsk: [
+        { question: ' Which partner team joins? ', context: ' Surface collaboration scope ' },
+        { question: ' ', context: 'ignored' },
+      ] as never,
+      categoryGuidance: {
+        project: ' Name the tradeoff ',
+        technical: 8 as never,
+      } as never,
+    })
+
+    usePrepStore.getState().updateCard(deckId, cardId, {
+      scriptLabel: ' Lead With ',
+      keyPoints: [' Keep it crisp ', '', false as never] as never,
+      storyBlocks: [
+        { label: 'problem', text: ' Latency spiked ' },
+        { label: 'invalid' as never, text: 'ignored' },
+      ] as never,
+    })
+
+    usePrepStore.getState().replaceDeckCards(deckId, [
+      {
+        id: cardId,
+        deckId,
+        category: 'behavioral',
+        title: ' Replacement card ',
+        tags: [' ownership ', ''],
+        keyPoints: [' Close with the metric ', 9 as never] as never,
+        storyBlocks: [
+          { label: 'result', text: ' Reduced incidents by 38% ' },
+          { label: 'note', text: '' },
+        ] as never,
+      },
+    ] as never)
+
+    const deck = usePrepStore.getState().decks[0]
+    const card = deck.cards[0]
+
+    expect(deck.roundType).toBe('system-design')
+    expect(deck.donts).toEqual(['Be generic'])
+    expect(deck.questionsToAsk).toEqual([
+      { question: 'Which partner team joins?', context: 'Surface collaboration scope' },
+    ])
+    expect(deck.categoryGuidance).toEqual({ project: 'Name the tradeoff' })
+    expect(card.title).toBe('Replacement card')
+    expect(card.tags).toEqual(['ownership'])
+    expect(card.keyPoints).toEqual(['Close with the metric'])
+    expect(card.storyBlocks).toEqual([{ label: 'result', text: 'Reduced incidents by 38%' }])
   })
 
   it('resets active mode to edit when imported decks have no cards', () => {

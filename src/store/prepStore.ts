@@ -5,9 +5,21 @@ import type {
   PrepCardStudyState,
   PrepDeck,
   PrepCategory,
+  PrepDeepDive,
+  PrepFollowUp,
+  PrepMetric,
+  PrepQuestionToAsk,
+  PrepStoryBlock,
+  PrepStoryBlockLabel,
   PrepWorkspaceMode,
 } from '../types/prep'
-import { PREP_CARD_CONFIDENCE_VALUES, PREP_CATEGORY_VALUES } from '../types/prep'
+import {
+  PREP_CARD_CONFIDENCE_VALUES,
+  PREP_CATEGORY_VALUES,
+  PREP_STORY_BLOCK_LABEL_VALUES,
+} from '../types/prep'
+import type { InterviewFormat } from '../types/pipeline'
+import { INTERVIEW_FORMAT_VALUES } from '../types/pipeline'
 import {
   ensureDurableMetadata,
   stripDurableMetadataPatch,
@@ -29,9 +41,13 @@ interface CreateDeckInput {
   companyUrl?: string
   skillMatch?: string
   positioning?: string
+  roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
   jobDescription?: string
+  donts?: string[]
+  questionsToAsk?: PrepQuestionToAsk[]
+  categoryGuidance?: Record<string, string>
   generatedAt?: string
   cards?: PrepCard[]
 }
@@ -70,12 +86,120 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     pipelineEntryId: partial.pipelineEntryId ?? null,
     updatedAt: now(),
     script: partial.script?.trim() || undefined,
+    scriptLabel: partial.scriptLabel?.trim() || undefined,
     warning: partial.warning?.trim() || undefined,
-    followUps: partial.followUps?.filter((item) => item.question || item.answer),
-    deepDives: partial.deepDives?.filter((item) => item.title || item.content),
-    metrics: partial.metrics?.filter((item) => item.value || item.label),
+    storyBlocks: sanitizeStoryBlocks(partial.storyBlocks),
+    keyPoints: sanitizeStringList(partial.keyPoints),
+    followUps: sanitizeFollowUps(partial.followUps),
+    deepDives: sanitizeDeepDives(partial.deepDives),
+    metrics: sanitizeMetrics(partial.metrics),
     tableData: partial.tableData,
   }
+}
+
+function sanitizeStringList(values?: string[]): string[] | undefined {
+  if (!Array.isArray(values)) return undefined
+  const sanitized = values.flatMap((value) => (
+    typeof value === 'string'
+      ? [value.trim()]
+      : []
+  )).filter(Boolean)
+  return sanitized && sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeStoryBlocks(blocks?: PrepStoryBlock[]): PrepStoryBlock[] | undefined {
+  if (!Array.isArray(blocks)) return undefined
+  const sanitized = blocks.flatMap((block) => {
+    if (!block || typeof block !== 'object') return []
+    const record = block as Partial<PrepStoryBlock>
+    const label = PREP_STORY_BLOCK_LABEL_VALUES.includes(record.label as PrepStoryBlockLabel)
+      ? record.label
+      : null
+    const text = typeof record.text === 'string' ? record.text.trim() : ''
+    if (!label || !text) return []
+    return [{ label, text }]
+  })
+  return sanitized && sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeQuestionsToAsk(entries?: PrepQuestionToAsk[]): PrepQuestionToAsk[] | undefined {
+  if (!Array.isArray(entries)) return undefined
+  const sanitized = entries.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Partial<PrepQuestionToAsk>
+    const question = typeof record.question === 'string' ? record.question.trim() : ''
+    const context = typeof record.context === 'string' ? record.context.trim() : ''
+    if (!question || !context) return []
+    return [{ question, context }]
+  })
+  return sanitized && sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>): Record<string, string> | undefined {
+  if (!categoryGuidance || typeof categoryGuidance !== 'object' || Array.isArray(categoryGuidance)) {
+    return undefined
+  }
+  const sanitized = Object.fromEntries(
+    Object.entries(categoryGuidance).flatMap(([key, value]) => {
+      const nextKey = key.trim()
+      const nextValue = typeof value === 'string' ? value.trim() : ''
+      return nextKey && nextValue ? [[nextKey, nextValue]] : []
+    }),
+  )
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
+function sanitizeFollowUps(followUps?: PrepFollowUp[]): PrepFollowUp[] | undefined {
+  if (!Array.isArray(followUps)) return undefined
+  const sanitized = followUps.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepFollowUp>
+    const question = typeof record.question === 'string' ? record.question.trim() : ''
+    const answer = typeof record.answer === 'string' ? record.answer.trim() : ''
+    const context = typeof record.context === 'string' ? record.context.trim() : undefined
+    if (!question && !answer) return []
+    return [{
+      id: record.id,
+      question,
+      answer,
+      context: context || undefined,
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeDeepDives(deepDives?: PrepDeepDive[]): PrepDeepDive[] | undefined {
+  if (!Array.isArray(deepDives)) return undefined
+  const sanitized = deepDives.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepDeepDive>
+    const title = typeof record.title === 'string' ? record.title.trim() : ''
+    const content = typeof record.content === 'string' ? record.content.trim() : ''
+    if (!title && !content) return []
+    return [{
+      id: record.id,
+      title,
+      content,
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeMetrics(metrics?: PrepMetric[]): PrepMetric[] | undefined {
+  if (!Array.isArray(metrics)) return undefined
+  const sanitized = metrics.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepMetric>
+    const value = typeof record.value === 'string' ? record.value.trim() : ''
+    const label = typeof record.label === 'string' ? record.label.trim() : ''
+    if (!value && !label) return []
+    return [{
+      id: record.id,
+      value,
+      label,
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
 }
 
 function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
@@ -88,20 +212,20 @@ function sanitizeCard(deckId: string, card: PrepCard): PrepCard {
     category,
     title: card.title.trim() || 'Untitled Prep Card',
     tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
-    followUps: card.followUps?.map((item) => ({
+    scriptLabel: card.scriptLabel?.trim() || undefined,
+    storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
+    keyPoints: sanitizeStringList(card.keyPoints),
+    followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
+      ...item,
       id: item.id ?? createId('prep-follow-up'),
-      question: item.question.trim(),
-      answer: item.answer.trim(),
     })),
-    deepDives: card.deepDives?.map((item) => ({
+    deepDives: sanitizeDeepDives(card.deepDives)?.map((item) => ({
+      ...item,
       id: item.id ?? createId('prep-deep-dive'),
-      title: item.title.trim(),
-      content: item.content.trim(),
     })),
-    metrics: card.metrics?.map((item) => ({
+    metrics: sanitizeMetrics(card.metrics)?.map((item) => ({
+      ...item,
       id: item.id ?? createId('prep-metric'),
-      value: item.value.trim(),
-      label: item.label.trim(),
     })),
     updatedAt: now(),
   }
@@ -139,9 +263,15 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean } = {}): PrepDe
     companyUrl: deck.companyUrl?.trim() || undefined,
     skillMatch: deck.skillMatch?.trim() || undefined,
     positioning: deck.positioning?.trim() || undefined,
+    roundType: typeof deck.roundType === 'string' && INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
+      ? deck.roundType.trim() as InterviewFormat
+      : undefined,
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    donts: sanitizeStringList(deck.donts),
+    questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
+    categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance),
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
     cards,
@@ -233,9 +363,13 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           companyUrl: input.companyUrl,
           skillMatch: input.skillMatch,
           positioning: input.positioning,
+          roundType: input.roundType,
           notes: input.notes,
           companyResearch: input.companyResearch,
           jobDescription: input.jobDescription,
+          donts: input.donts,
+          questionsToAsk: input.questionsToAsk,
+          categoryGuidance: input.categoryGuidance,
           generatedAt: input.generatedAt,
           updatedAt: now(),
           cards: (input.cards ?? []).map((card) => sanitizeCard(deckId, card)),
