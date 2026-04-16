@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
 import { derivePrepCheatsheetSections } from '../../utils/prepCheatsheet'
+import {
+  filterPrepDeepDives,
+  filterPrepFollowUps,
+  filterPrepKeyPoints,
+  filterPrepMetrics,
+  filterPrepStoryBlocks,
+} from '../../utils/prepCardContent'
 import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection } from '../../utils/prepCheatsheet'
 import type { PrepCard, PrepDeck } from '../../types/prep'
 
@@ -104,11 +111,11 @@ function groupSectionsByGroup(sections: LiveSection[]): SectionGroupView[] {
 }
 
 function buildCardSearchText(card: PrepCard): string {
-  const keyPoints = (card.keyPoints ?? []).filter((point) => point.trim().length > 0)
-  const storyBlocks = (card.storyBlocks ?? []).filter((block) => block.text.trim().length > 0)
-  const metrics = (card.metrics ?? []).filter((metric) => metric.value.trim().length > 0 || metric.label.trim().length > 0)
-  const followUps = (card.followUps ?? []).filter((followUp) => followUp.question.trim().length > 0 || followUp.answer.trim().length > 0)
-  const deepDives = (card.deepDives ?? []).filter((deepDive) => deepDive.title.trim().length > 0 || deepDive.content.trim().length > 0)
+  const keyPoints = filterPrepKeyPoints(card.keyPoints)
+  const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const metrics = filterPrepMetrics(card.metrics)
+  const followUps = filterPrepFollowUps(card.followUps)
+  const deepDives = filterPrepDeepDives(card.deepDives)
 
   return [
     card.title,
@@ -841,9 +848,9 @@ function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard
 }
 
 function renderCardBlock(card: PrepCard, section: LiveSection) {
-  const keyPoints = (card.keyPoints ?? []).filter((point) => point.trim().length > 0)
-  const storyBlocks = (card.storyBlocks ?? []).filter((block) => block.text.trim().length > 0)
-  const metrics = (card.metrics ?? []).filter((metric) => metric.value.trim().length > 0 || metric.label.trim().length > 0)
+  const keyPoints = filterPrepKeyPoints(card.keyPoints)
+  const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const metrics = filterPrepMetrics(card.metrics)
 
   return (
     <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}`}>
@@ -859,8 +866,8 @@ function renderCardBlock(card: PrepCard, section: LiveSection) {
 
       {keyPoints.length > 0 ? (
         <div className="prep-live-keypoints">
-          {keyPoints.map((point) => (
-            <div key={point} className="prep-live-keypoint">
+          {keyPoints.map((point, index) => (
+            <div key={`${card.id}-keypoint-${point}-${index}`} className="prep-live-keypoint">
               <span className="prep-live-keypoint-marker" aria-hidden="true">
                 -
               </span>
@@ -895,9 +902,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection) {
 
       {storyBlocks.length > 0 ? (
         <div className="prep-live-story-blocks">
-          {storyBlocks.map((storyBlock) => (
+          {storyBlocks.map((storyBlock, index) => (
             <div
-              key={`${card.id}-${storyBlock.label}-${storyBlock.text}`}
+              key={`${card.id}-story-${storyBlock.label}-${storyBlock.text}-${index}`}
               className={`prep-live-story-block prep-live-story-block-${storyBlock.label}`}
             >
               <span className="prep-live-story-block-label">{storyBlock.label}</span>

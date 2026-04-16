@@ -313,6 +313,110 @@ describe('PrepLiveMode', () => {
     expect(controlledSection?.hasAttribute('hidden')).toBe(false)
   })
 
+  it('ignores live shortcuts while typing in the search input', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: 'Q' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+    searchInput.focus()
+
+    fireEvent.keyDown(searchInput, { key: '5' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+
+    fireEvent.keyDown(searchInput, { key: 'E' })
+    expect(getSectionContainer('Questions to Ask')?.querySelector('[hidden]')).toBeNull()
+
+    fireEvent.keyDown(searchInput, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(screen.getByText('00:00')).toBeTruthy()
+  })
+
+  it('shows the empty search state when no sections match', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'totally missing term' },
+    })
+
+    expect(screen.getByText('No cheatsheet sections match that search')).toBeTruthy()
+    expect(screen.getByText('Clear the search to get the full interview view back.')).toBeTruthy()
+  })
+
+  it('searches follow-ups, deep dives, and table content from the source card', () => {
+    const supportingDeck: PrepDeck = {
+      ...mockDeck,
+      cards: [
+        {
+          ...mockDeck.cards[0],
+          followUps: [{ id: 'follow-up-1', question: 'What changed after launch?', answer: 'We held the rollback line.' }],
+          deepDives: [{ id: 'deep-dive-1', title: 'Incident review', content: 'Covered the rollback decision tree.' }],
+          tableData: {
+            headers: ['Signal', 'Action'],
+            rows: [['pager spike', 'throttle retries']],
+          },
+        },
+      ],
+    }
+
+    render(<PrepLiveMode deck={supportingDeck} />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'rollback decision tree' },
+    })
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'pager spike' },
+    })
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'held the rollback line' },
+    })
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+  })
+
+  it('reopens pre-interview sections when a shortcut jumps into them', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pre-interview' }))
+    expect(screen.getByText('Pre-interview sections are collapsed. Expand them when you want the setup notes.')).toBeTruthy()
+
+    fireEvent.keyDown(document.body, { key: 'Q' })
+
+    expect(screen.queryByText('Pre-interview sections are collapsed. Expand them when you want the setup notes.')).toBeNull()
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+  })
+
+  it('supports home/end navigation and clamps movement at the boundaries', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: 'End' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Risks and Reminders')
+
+    fireEvent.keyDown(document.body, { key: 'J' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Risks and Reminders')
+
+    fireEvent.keyDown(document.body, { key: 'Home' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+
+    fireEvent.keyDown(document.body, { key: 'K' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+  })
+
+  it('renders a back control when provided and calls it', () => {
+    const onBack = vi.fn()
+    render(<PrepLiveMode deck={mockDeck} onBack={onBack} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Prep' }))
+
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
   it('cleans up the timer interval on unmount', () => {
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
     const { unmount } = render(<PrepLiveMode deck={mockDeck} />)

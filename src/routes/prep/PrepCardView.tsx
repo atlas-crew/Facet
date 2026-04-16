@@ -3,6 +3,13 @@ import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucid
 import { PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
 import type { PrepCard, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../../types/prep'
 import { createId } from '../../utils/idUtils'
+import {
+  filterPrepDeepDives,
+  filterPrepFollowUps,
+  filterPrepKeyPoints,
+  filterPrepMetrics,
+  filterPrepStoryBlocks,
+} from '../../utils/prepCardContent'
 
 interface PrepCardViewProps {
   card: PrepCard
@@ -40,9 +47,9 @@ export function PrepCardView({
     }
   }, [card.tableData])
 
-  const readOnlyFollowUps = (card.followUps ?? []).filter((item) => item.question.trim().length > 0 || item.answer.trim().length > 0)
-  const readOnlyDeepDives = (card.deepDives ?? []).filter((item) => item.title.trim().length > 0 || item.content.trim().length > 0)
-  const readOnlyMetrics = (card.metrics ?? []).filter((item) => item.value.trim().length > 0 || item.label.trim().length > 0)
+  const readOnlyFollowUps = filterPrepFollowUps(card.followUps)
+  const readOnlyDeepDives = filterPrepDeepDives(card.deepDives)
+  const readOnlyMetrics = filterPrepMetrics(card.metrics)
 
   if (readOnly) {
     return (
@@ -78,7 +85,7 @@ export function PrepCardView({
 
         {card.script && (
           <div className="prep-script">
-            <div className="prep-script-label">Say This</div>
+            <div className="prep-script-label">{card.scriptLabel?.trim() || 'Say This'}</div>
             {card.script}
             <button className="prep-script-copy" onClick={() => void copyScript()} title="Copy script">
               {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -145,11 +152,11 @@ export function PrepCardView({
     )
   }
 
-  const keyPointCount = (card.keyPoints ?? []).filter((point) => point.trim().length > 0).length
-  const followUpCount = (card.followUps ?? []).filter((item) => item.question.trim().length > 0 || item.answer.trim().length > 0).length
-  const deepDiveCount = (card.deepDives ?? []).filter((item) => item.title.trim().length > 0 || item.content.trim().length > 0).length
-  const metricCount = (card.metrics ?? []).filter((item) => item.value.trim().length > 0 || item.label.trim().length > 0).length
-  const storyBlockCount = (card.storyBlocks ?? []).filter((item) => item.text.trim().length > 0).length
+  const keyPointCount = filterPrepKeyPoints(card.keyPoints).length
+  const followUpCount = readOnlyFollowUps.length
+  const deepDiveCount = readOnlyDeepDives.length
+  const metricCount = readOnlyMetrics.length
+  const storyBlockCount = filterPrepStoryBlocks(card.storyBlocks).length
 
   const supportingCounts = [
     card.tags.length > 0 ? `${card.tags.length} tag${card.tags.length === 1 ? '' : 's'}` : null,
@@ -664,7 +671,7 @@ function EditableListSection<T>({
   )
 }
 
-function PrepCollapsibleSection({
+export function PrepCollapsibleSection({
   title,
   subtitle,
   countLabel,
@@ -745,8 +752,9 @@ function getStableKey<T>(item: T, index: number) {
 }
 
 function summarizePrepCard(card: PrepCard) {
-  const summarySource = card.script ?? card.notes ?? card.warning ?? ''
-  const normalized = summarySource.replace(/\s+/g, ' ').trim()
+  const normalized = [card.script, card.notes, card.warning]
+    .map((candidate) => candidate?.replace(/\s+/g, ' ').trim() ?? '')
+    .find(Boolean) ?? ''
 
   if (!normalized) {
     return 'Open this card to shape the spoken answer, coaching notes, and supporting proof points.'
