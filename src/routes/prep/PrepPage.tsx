@@ -368,6 +368,10 @@ export function PrepPage() {
           return
         }
 
+        const prepIdentityContext = currentIdentity
+          ? buildPrepIdentityContext(currentIdentity, activeMatchMaterial.vector.id, activeMatchMaterial.vector.label)
+          : undefined
+
         const result = await generateInterviewPrep(aiEndpoint, {
           company: activeMatchMaterial.company,
           role: activeMatchMaterial.role,
@@ -378,9 +382,7 @@ export function PrepPage() {
           notes: activeMatchMaterial.notes,
           companyResearch: companyResearchDraft || undefined,
           jobDescription: activeMatchMaterial.jobDescription,
-          identityContext: currentIdentity
-            ? buildPrepIdentityContext(currentIdentity, activeMatchMaterial.vector.id, activeMatchMaterial.vector.label)
-            : undefined,
+          identityContext: prepIdentityContext,
           resumeContext: {
             candidate: freshResumeData.meta,
             vector: activeMatchMaterial.vector,
@@ -396,6 +398,7 @@ export function PrepPage() {
           pipelineEntryId: null,
           donts: result.donts,
           questionsToAsk: result.questionsToAsk,
+          numbersToKnow: result.numbersToKnow,
           categoryGuidance: result.categoryGuidance,
           skillMatch: activeMatchMaterial.skillMatch,
           positioning: activeMatchMaterial.positioning,
@@ -434,6 +437,9 @@ export function PrepPage() {
         return
       }
       const selectedRoundType = selectedEntry.format.length === 1 ? selectedEntry.format[0] : undefined
+      const prepIdentityContext = currentIdentity
+        ? buildPrepIdentityContext(currentIdentity, vector.id, vector.label)
+        : undefined
 
       const assembled = assembleResume(freshResumeData, {
         selectedVector: vector.id,
@@ -455,9 +461,7 @@ export function PrepPage() {
         notes: selectedEntry.notes || undefined,
         companyResearch: companyResearchDraft || undefined,
         jobDescription: selectedEntry.jobDescription,
-        identityContext: currentIdentity
-          ? buildPrepIdentityContext(currentIdentity, vector.id, vector.label)
-          : undefined,
+        identityContext: prepIdentityContext,
         resumeContext: {
           candidate: freshResumeData.meta,
           vector,
@@ -474,6 +478,7 @@ export function PrepPage() {
         roundType: selectedRoundType,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
+        numbersToKnow: result.numbersToKnow,
         categoryGuidance: result.categoryGuidance,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,

@@ -9,6 +9,9 @@ import type {
   PrepConditional,
   PrepConditionalTone,
   PrepGenerationRequest,
+  PrepIdentityMetricCandidate,
+  PrepMetric,
+  PrepNumbersToKnow,
   PrepQuestionToAsk,
   PrepStoryBlock,
   PrepStoryBlockLabel,
@@ -25,6 +28,7 @@ interface PrepGenerationPayload {
   companyResearchSummary?: string
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
+  numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Record<string, string>
   cards: Array<Omit<PrepCard, 'id'>>
 }
@@ -43,6 +47,37 @@ const normalizeStringList = (values: unknown): string[] | undefined => {
   return normalized.length > 0 ? normalized : undefined
 }
 
+function normalizeMetricList(value: unknown): PrepMetric[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const metrics = value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const rawValue = record.value
+    const valueText =
+      isString(rawValue)
+        ? rawValue.trim()
+        : typeof rawValue === 'number' && Number.isFinite(rawValue)
+          ? String(rawValue)
+          : ''
+    const label = isString(record.label) ? record.label.trim() : ''
+    return valueText && label ? [{ value: valueText, label }] : []
+  })
+  return metrics.length > 0 ? metrics : undefined
+}
+
+function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const candidate = normalizeMetricList(record.candidate)
+  const company = normalizeMetricList(record.company)
+  return candidate || company
+    ? {
+        ...(candidate ? { candidate } : {}),
+        ...(company ? { company } : {}),
+      }
+    : undefined
+}
+
 function normalizeStoryBlockLabel(value: unknown): PrepStoryBlockLabel | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
@@ -58,6 +93,14 @@ function normalizeStoryBlockLabel(value: unknown): PrepStoryBlockLabel | undefin
   }
 
   return undefined
+}
+
+function stripCandidateMetricsFromIdentityContext(
+  value: PrepGenerationRequest['identityContext'],
+): Record<string, unknown> | undefined {
+  if (!value) return undefined
+  const { candidate_metrics: _candidateMetrics, ...rest } = value
+  return rest
 }
 
 function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
@@ -199,9 +242,13 @@ export async function generateInterviewPrep(
   companyResearchSummary: string
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
+  numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Partial<Record<PrepCategory, string>>
   cards: PrepCard[]
 }> {
+  const candidateMetrics: PrepIdentityMetricCandidate[] | undefined = request.identityContext?.candidate_metrics
+  const structuredIdentityContext = stripCandidateMetricsFromIdentityContext(request.identityContext)
+
   const systemPrompt = `You are an expert interview coach. Return JSON only.
 Generate a strong interview prep pack from a candidate's resume context, a target vector, a job description, and company research notes.
 Focus on truthful storytelling, quantified evidence, likely interview themes, and specific follow-up questions the candidate should prepare for.
@@ -214,6 +261,10 @@ Response schema:
   "companyResearchSummary": "optional string",
   "donts": ["string"],
   "questionsToAsk": [{ "question": "string", "context": "string" }],
+  "numbersToKnow": {
+    "candidate": [{ "value": "string", "label": "string" }],
+    "company": [{ "value": "string", "label": "string" }]
+  },
   "categoryGuidance": {
     "opener": "string",
     "behavioral": "string",
@@ -259,7 +310,10 @@ Job Description:
 ${request.jobDescription}
 
 Structured Identity Context:
-${request.identityContext ? JSON.stringify(request.identityContext, null, 2) : 'Not provided'}
+${structuredIdentityContext ? JSON.stringify(structuredIdentityContext, null, 2) : 'Not provided'}
+
+Candidate Metrics From Identity:
+${candidateMetrics ? JSON.stringify(candidateMetrics, null, 2) : 'Not provided'}
 
 Tailored Resume Context:
 ${JSON.stringify(request.resumeContext, null, 2)}
@@ -271,6 +325,8 @@ If a card has a script, also provide a short scriptLabel such as "Say This", "Le
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
 Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with coaching context, and categoryGuidance keyed by the prep category names.
+When candidate metrics are provided, use them as the only source for numbersToKnow.candidate. You may curate, sort, relabel, or lightly format their values for readability, but you must not invent new candidate numbers.
+Use numbersToKnow.company only for numbers grounded in the supplied job description or company research.
 When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
 If a round type is provided, adapt the emphasis and category guidance to that interview round.
 
@@ -300,6 +356,7 @@ Return JSON only.`
     companyResearchSummary: isString(parsed.companyResearchSummary) ? parsed.companyResearchSummary.trim() : '',
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
+    numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
     categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as Partial<Record<PrepCategory, string>> | undefined,
     cards,
   }

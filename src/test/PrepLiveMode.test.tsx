@@ -24,6 +24,15 @@ const mockDeck: PrepDeck = {
     { question: 'What does success look like in 90 days?', context: 'Use this to learn the evaluation criteria.' },
     { question: 'Which team would I partner with most closely?', context: 'Useful for scope and cross-functional context.' },
   ],
+  numbersToKnow: {
+    candidate: [
+      { id: 'metric-candidate-1', value: '38%', label: 'Incident reduction' },
+      { id: 'metric-candidate-2', value: '12', label: 'Pipelines owned' },
+    ],
+    company: [
+      { id: 'metric-company-1', value: '3', label: 'Core platform bets' },
+    ],
+  },
   updatedAt: '2026-04-14T17:00:00.000Z',
   cards: [
     {
@@ -129,6 +138,10 @@ describe('PrepLiveMode', () => {
     expect(screen.getByRole('heading', { name: 'Tactical' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Questions to Ask' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: "Don'ts" })).toBeTruthy()
+    expect(screen.getByText('Your Work')).toBeTruthy()
+    expect(screen.getByText('Their Company')).toBeTruthy()
+    expect(screen.getByText('Incident reduction')).toBeTruthy()
+    expect(screen.getByText('Core platform bets')).toBeTruthy()
     expect(screen.getByText('Tell me about yourself')).toBeTruthy()
     expect(screen.getByText('Scale')).toBeTruthy()
     expect(screen.getByText('Pick 2-3. Save 8-10 minutes for questions.')).toBeTruthy()
@@ -150,6 +163,7 @@ describe('PrepLiveMode', () => {
 
     expect(getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')).toBeNull()
     expect(getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')).toBeNull()
+    expect(getSectionContainer('Your Work')?.querySelector('.prep-live-budget-badge')).toBeNull()
     expect(getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')).toBeNull()
   })
 

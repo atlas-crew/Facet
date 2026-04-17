@@ -88,6 +88,18 @@ describe('generateInterviewPrep', () => {
       roundType: 'hm-screen',
       jobDescription: 'Build distributed systems and platform tooling.',
       identityContext: {
+        candidate_metrics: [
+          {
+            metricKey: 'incidents',
+            metricValue: '38%',
+            suggestedLabel: 'Incidents',
+            company: 'Acme',
+            roleTitle: 'Principal Engineer',
+            bulletId: 'bullet-1',
+            roleId: 'role-1',
+            evidence: 'Reduced incidents by 38%.',
+          },
+        ],
         self_model: {
           interview_style: {
             strengths: ['incident response'],
@@ -118,11 +130,15 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('storyBlocks')
     expect(systemPrompt).toContain('keyPoints')
     expect(systemPrompt).toContain('questionsToAsk')
+    expect(systemPrompt).toContain('numbersToKnow')
     expect(systemPrompt).toContain('categoryGuidance')
     expect(systemPrompt).toContain('conditionals')
 
     expect(userPrompt).toContain('Structured Identity Context')
+    expect(userPrompt).toContain('Candidate Metrics From Identity')
     expect(userPrompt).toContain('Latency was spiking during peak load.')
+    expect(userPrompt).toContain('"metricKey": "incidents"')
+    expect(userPrompt.match(/"metricKey": "incidents"/g)).toHaveLength(1)
     expect(userPrompt).toContain('use it as the primary source of candidate evidence')
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('use those exact metrics')
@@ -176,6 +192,15 @@ describe('generateInterviewPrep', () => {
           { question: 'What is the platform team optimizing for next?', context: 'Shows systems thinking.' },
           { question: ' ', context: 'Skip empty question.' },
         ],
+        numbersToKnow: {
+          candidate: [
+            { value: ' 38% ', label: ' Incident reduction ' },
+            { value: '', label: 'Skip blank' },
+          ],
+          company: [
+            { value: '3', label: ' Core platform bets ' },
+          ],
+        },
         categoryGuidance: {
           behavioral: 'Lead with scope and tradeoffs.',
           metrics: 'Name the number early.',
@@ -229,6 +254,14 @@ describe('generateInterviewPrep', () => {
         context: 'Shows systems thinking.',
       },
     ])
+    expect(result.numbersToKnow).toEqual({
+      candidate: [
+        { value: '38%', label: 'Incident reduction' },
+      ],
+      company: [
+        { value: '3', label: 'Core platform bets' },
+      ],
+    })
     expect(result.categoryGuidance).toEqual({
       behavioral: 'Lead with scope and tradeoffs.',
       metrics: 'Name the number early.',
@@ -280,5 +313,6 @@ describe('generateInterviewPrep', () => {
     })
 
     expect(result.companyResearchSummary).toBe('')
+    expect(result.numbersToKnow).toBeUndefined()
   })
 })

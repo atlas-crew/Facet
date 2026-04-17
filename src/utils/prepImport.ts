@@ -1,4 +1,4 @@
-import type { PrepCard, PrepCategory, PrepDeck } from '../types/prep'
+import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepNumbersToKnow } from '../types/prep'
 import { createId } from './idUtils'
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -7,6 +7,43 @@ const now = () => new Date().toISOString()
 const VALID_CATEGORIES = new Set<string>([
   'opener', 'behavioral', 'technical', 'project', 'metrics', 'situational',
 ])
+
+function validateMetricList(raw: unknown): PrepMetric[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const metrics = raw.flatMap((metric) => {
+    if (!metric || typeof metric !== 'object') return []
+    const record = metric as Record<string, unknown>
+    const value =
+      typeof record.value === 'string'
+        ? record.value.trim()
+        : typeof record.value === 'number' && Number.isFinite(record.value)
+          ? String(record.value)
+          : ''
+    const label = typeof record.label === 'string' ? record.label.trim() : ''
+    return value && label
+      ? [{
+          id: typeof record.id === 'string' ? record.id : undefined,
+          value,
+          label,
+        }]
+      : []
+  })
+
+  return metrics.length > 0 ? metrics : undefined
+}
+
+function validateNumbersToKnow(raw: unknown): PrepNumbersToKnow | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const record = raw as Record<string, unknown>
+  const candidate = validateMetricList(record.candidate)
+  const company = validateMetricList(record.company)
+  return candidate || company
+    ? {
+        ...(candidate ? { candidate } : {}),
+        ...(company ? { company } : {}),
+      }
+    : undefined
+}
 
 /**
  * Validates a single imported prep card. Rejects entries with
@@ -65,22 +102,7 @@ function validateCard(raw: unknown): PrepCard | null {
     : undefined
 
   // Metrics: array of {value, label}
-  const metrics = Array.isArray(c.metrics)
-    ? c.metrics.filter(
-        (m): m is { value: string; label: string } =>
-          m && typeof m === 'object' &&
-          typeof m.value === 'string' &&
-          typeof m.label === 'string'
-      )
-        .map((item) => ({
-          id:
-            typeof (item as Record<string, unknown>).id === 'string'
-              ? ((item as Record<string, unknown>).id as string)
-              : undefined,
-          value: item.value,
-          label: item.label,
-        }))
-    : undefined
+  const metrics = validateMetricList(c.metrics)
 
   // Table data
   let tableData: PrepCard['tableData'] = undefined
@@ -157,6 +179,7 @@ function validateDeck(raw: unknown): PrepDeck | null {
       typeof deck.companyResearch === 'string' ? deck.companyResearch : undefined,
     jobDescription:
       typeof deck.jobDescription === 'string' ? deck.jobDescription : undefined,
+    numbersToKnow: validateNumbersToKnow(deck.numbersToKnow),
     generatedAt: typeof deck.generatedAt === 'string' ? deck.generatedAt : undefined,
     updatedAt: typeof deck.updatedAt === 'string' ? deck.updatedAt : now(),
     cards,

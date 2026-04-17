@@ -1,6 +1,76 @@
 import type { ProfessionalIdentityV3, ProfessionalRoleBullet, ProfessionalSkillItem } from '../identity/schema'
+import type { PrepIdentityMetricCandidate } from '../types/prep'
+
+const MAX_EVIDENCE_CHARS = 240
+const MIN_EVIDENCE_BOUNDARY_CHARS = 120
+
+export interface PrepIdentityContext {
+  [key: string]: unknown
+  identity: {
+    name: string
+    display_name?: string
+    title?: string
+    location: string
+    remote?: boolean
+    thesis: string
+  }
+  vector: Record<string, unknown>
+  self_model: {
+    interview_style: ProfessionalIdentityV3['self_model']['interview_style']
+    prep_strategy?: string
+  }
+  candidate_metrics?: PrepIdentityMetricCandidate[]
+  roles: Array<{
+    id: string
+    company: string
+    title: string
+    dates: string
+    subtitle?: string
+    bullets: Array<{
+      id: string
+      problem: string
+      action: string
+      outcome: string
+      impact: string[]
+      metrics: ProfessionalRoleBullet['metrics']
+      technologies: string[]
+      tags: string[]
+    }>
+  }>
+  skills: Array<{
+    id: string
+    label: string
+    positioning?: string
+    items: Array<{
+      name: string
+      depth: ProfessionalSkillItem['depth']
+      context?: string
+      positioning?: string
+      tags: string[]
+    }>
+  }>
+}
 
 const normalizeTerm = (value: string): string => value.trim().toLowerCase()
+
+function humanizeMetricKey(value: string): string {
+  return value
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function summarizeBulletEvidence(bullet: ProfessionalRoleBullet): string {
+  const summary = [bullet.problem, bullet.action, bullet.outcome, ...bullet.impact]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' ')
+  if (summary.length <= MAX_EVIDENCE_CHARS) return summary
+  const truncated = summary.slice(0, MAX_EVIDENCE_CHARS)
+  const boundary = truncated.lastIndexOf(' ')
+  return (boundary >= MIN_EVIDENCE_BOUNDARY_CHARS ? truncated.slice(0, boundary) : truncated).trimEnd()
+}
 
 const expandTerms = (values: string[]): Set<string> =>
   new Set(
@@ -62,7 +132,7 @@ export function buildPrepIdentityContext(
   identity: ProfessionalIdentityV3,
   vectorId: string,
   vectorLabel?: string,
-): Record<string, unknown> {
+): PrepIdentityContext {
   const selectedVector = identity.search_vectors?.find((entry) => entry.id === vectorId) ?? null
   const relevantBulletIds = new Set(selectedVector?.supporting_bullets ?? [])
   const relevantSkillNames = new Set((selectedVector?.supporting_skills ?? []).map(normalizeTerm))
@@ -77,6 +147,7 @@ export function buildPrepIdentityContext(
         selectedVector.thesis,
       ]
     : fallbackTerms)
+  const candidateMetrics: PrepIdentityMetricCandidate[] = []
 
   const roles = identity.roles.flatMap((role) => {
     const bullets = role.bullets
@@ -85,16 +156,34 @@ export function buildPrepIdentityContext(
           ? bulletMatchesVector(bullet, relevantBulletIds, relevantSkillNames, keywordTerms)
           : true
       ))
-      .map((bullet) => ({
-        id: bullet.id,
-        problem: bullet.problem,
-        action: bullet.action,
-        outcome: bullet.outcome,
-        impact: bullet.impact,
-        metrics: bullet.metrics,
-        technologies: bullet.technologies,
-        tags: bullet.tags,
-      }))
+      .map((bullet) => {
+        for (const [metricKey, metricValue] of Object.entries(bullet.metrics)) {
+          if (!(typeof metricValue === 'number' || (typeof metricValue === 'string' && metricValue.trim()))) {
+            continue
+          }
+          candidateMetrics.push({
+            roleId: role.id,
+            roleTitle: role.title,
+            company: role.company,
+            bulletId: bullet.id,
+            metricKey,
+            metricValue: typeof metricValue === 'number' ? String(metricValue) : metricValue,
+            suggestedLabel: humanizeMetricKey(metricKey),
+            evidence: summarizeBulletEvidence(bullet),
+          })
+        }
+
+        return {
+          id: bullet.id,
+          problem: bullet.problem,
+          action: bullet.action,
+          outcome: bullet.outcome,
+          impact: bullet.impact,
+          metrics: bullet.metrics,
+          technologies: bullet.technologies,
+          tags: bullet.tags,
+        }
+      })
 
     if (bullets.length === 0) return []
 
@@ -158,6 +247,7 @@ export function buildPrepIdentityContext(
       interview_style: identity.self_model.interview_style,
       prep_strategy: identity.self_model.interview_style.prep_strategy,
     },
+    candidate_metrics: candidateMetrics.length > 0 ? candidateMetrics : undefined,
     roles,
     skills,
   }

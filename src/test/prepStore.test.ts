@@ -27,6 +27,14 @@ describe('prepStore', () => {
         { question: ' Which team owns this? ', context: ' Clarify collaboration scope ' },
         { question: ' ', context: 'missing' },
       ],
+      numbersToKnow: {
+        candidate: [
+          { value: ' 38% ', label: ' Incident reduction ' },
+        ],
+        company: [
+          { value: ' 3 ', label: ' Core priorities ' },
+        ],
+      },
       categoryGuidance: {
         behavioral: ' Lead with scope ',
         '': 'ignored',
@@ -44,6 +52,10 @@ describe('prepStore', () => {
     expect(state.decks[0].questionsToAsk).toEqual([
       { question: 'Which team owns this?', context: 'Clarify collaboration scope' },
     ])
+    expect(state.decks[0].numbersToKnow).toEqual({
+      candidate: [expect.objectContaining({ value: '38%', label: 'Incident reduction' })],
+      company: [expect.objectContaining({ value: '3', label: 'Core priorities' })],
+    })
     expect(state.decks[0].categoryGuidance).toEqual({ behavioral: 'Lead with scope' })
     expect(state.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(state.decks[0].durableMeta?.revision).toBe(0)
@@ -79,6 +91,35 @@ describe('prepStore', () => {
     expect(deck.cards[0].title).toContain('Copy')
     expect(deck.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(deck.durableMeta?.revision).toBe(4)
+  })
+
+  it('assigns stable ids to new conditionals created from partial card data', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Pushback handling',
+      category: 'behavioral',
+      tags: ['leadership'],
+      conditionals: [
+        { trigger: 'If they push on scope', response: 'Name the decision you owned.', tone: 'pivot' },
+      ],
+    })
+
+    const card = usePrepStore.getState().decks[0].cards.find((entry) => entry.id === cardId)
+    expect(card?.conditionals).toEqual([
+      expect.objectContaining({
+        id: expect.stringMatching(/^prep-conditional-/),
+        trigger: 'If they push on scope',
+        response: 'Name the decision you owned.',
+        tone: 'pivot',
+      }),
+    ])
   })
 
   it('tracks homework mode and card review progress in shared prep state', () => {
@@ -184,6 +225,9 @@ describe('prepStore', () => {
           role: ' Staff Engineer ',
           vectorId: ' backend ',
           pipelineEntryId: null,
+          numbersToKnow: {
+            candidate: [{ value: ' 12 ', label: ' Pipelines ' }],
+          },
           updatedAt: '2025-01-02T00:00:00.000Z',
           cards: [],
         },
@@ -193,6 +237,9 @@ describe('prepStore', () => {
     expect(migrated.decks).toHaveLength(1)
     expect(migrated.decks[0].title).toBe('Legacy Prep')
     expect(migrated.decks[0].vectorId).toBe('backend')
+    expect(migrated.decks[0].numbersToKnow).toEqual({
+      candidate: [expect.objectContaining({ value: '12', label: 'Pipelines' })],
+    })
     expect(migrated.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(migrated.activeDeckId).toBe('prep-deck-legacy')
     expect(migrated.activeMode).toBe('edit')
@@ -291,6 +338,12 @@ describe('prepStore', () => {
         { question: 'What does success look like?', context: 'Align on goals' },
         { question: '', context: '' },
       ],
+      numbersToKnow: {
+        candidate: [
+          { id: 'deck-metric-1', value: '45%', label: 'Faster delivery' },
+          { id: 'deck-metric-2', value: '', label: '' },
+        ],
+      },
     })
 
     usePrepStore.getState().updateCard(deckId, 'card-1', {
@@ -315,6 +368,12 @@ describe('prepStore', () => {
       { question: 'What does success look like?', context: 'Align on goals' },
       { question: '', context: '' },
     ])
+    expect(editingDeck.numbersToKnow).toEqual({
+      candidate: [
+        { id: 'deck-metric-1', value: '45%', label: 'Faster delivery' },
+        { id: 'deck-metric-2', value: '', label: '' },
+      ],
+    })
     expect(editingDeck.cards[0].keyPoints).toEqual(['Lead with scope', ''])
     expect(editingDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -334,6 +393,11 @@ describe('prepStore', () => {
     expect(exportedDeck.questionsToAsk).toEqual([
       { question: 'What does success look like?', context: 'Align on goals' },
     ])
+    expect(exportedDeck.numbersToKnow).toEqual({
+      candidate: [
+        { id: 'deck-metric-1', value: '45%', label: 'Faster delivery' },
+      ],
+    })
     expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
     expect(exportedDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },

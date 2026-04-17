@@ -140,7 +140,12 @@ function buildCardSearchText(card: PrepCard): string {
 }
 
 function buildItemSearchText(item: PrepCheatsheetItem, cardsById: Map<string, PrepCard>): string {
-  const parts = [item.title, item.detail ?? '', item.category ?? '']
+  const parts = [
+    item.title,
+    item.detail ?? '',
+    item.category ?? '',
+    ...(item.metrics?.flatMap((metric) => [metric.value, metric.label]) ?? []),
+  ]
 
   if (item.cardId) {
     const card = cardsById.get(item.cardId)
@@ -847,8 +852,37 @@ function renderDonts(section: LiveSection) {
 function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard>) {
   return section.items.flatMap((item) => {
     const card = item.cardId ? cardsById.get(item.cardId) : null
-    return card ? [renderCardBlock(card, section)] : [renderSimpleItem(section, item)]
+    if (card) return [renderCardBlock(card, section)]
+    if (item.metrics && item.metrics.length > 0) return [renderMetricGroupItem(section, item)]
+    return [renderSimpleItem(section, item)]
   })
+}
+
+function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
+  return (
+    <article
+      key={item.id}
+      className={`prep-live-card-block prep-live-card-block-${section.tone} prep-live-card-block-metrics`}
+    >
+      <div className="prep-live-card-block-header">
+        <div>
+          <div className="prep-live-card-block-title-row">
+            <h3>{item.title}</h3>
+          </div>
+          {item.detail ? <div className="prep-live-card-block-script-label">{item.detail}</div> : null}
+        </div>
+      </div>
+
+      <div className="prep-live-stat-grid">
+        {item.metrics?.map((metric) => (
+          <div key={metric.id ?? `${item.id}-${metric.value}-${metric.label}`} className="prep-live-stat-box">
+            <span className="prep-live-stat-value">{metric.value}</span>
+            <span className="prep-live-stat-label">{metric.label}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
 }
 
 function renderCardBlock(card: PrepCard, section: LiveSection) {

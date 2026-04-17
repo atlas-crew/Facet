@@ -180,6 +180,14 @@ describe('PrepPage identity generation', () => {
                     context: 'Shows systems thinking.',
                   },
                 ],
+                numbersToKnow: {
+                  candidate: [
+                    { value: '38%', label: 'Incident reduction' },
+                  ],
+                  company: [
+                    { value: '3', label: 'Core platform bets' },
+                  ],
+                },
                 categoryGuidance: {
                   behavioral: 'Lead with scope.',
                 },
@@ -223,7 +231,9 @@ describe('PrepPage identity generation', () => {
     const prompt = body.messages?.[0]?.content ?? ''
 
     expect(prompt).toContain('Structured Identity Context')
+    expect(prompt).toContain('Candidate Metrics From Identity')
     expect(prompt).toContain('Reduced incidents by 38%')
+    expect(prompt).toContain('"metricKey": "incidents"')
     expect(prompt).toContain('Kubernetes')
     expect(prompt).not.toContain('Maintained legacy data feeds.')
     expect(prompt).not.toContain('COBOL')
@@ -238,6 +248,10 @@ describe('PrepPage identity generation', () => {
         context: 'Shows systems thinking.',
       },
     ])
+    expect(generatedDeck.numbersToKnow).toEqual({
+      candidate: [expect.objectContaining({ value: '38%', label: 'Incident reduction' })],
+      company: [expect.objectContaining({ value: '3', label: 'Core platform bets' })],
+    })
     expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
   })
 

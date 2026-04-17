@@ -1,9 +1,10 @@
 ---
 id: TASK-138
 title: Populate Numbers to Know from identity model metrics
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-16 13:12'
+updated_date: '2026-04-17 19:34'
 labels:
   - prep
   - identity
@@ -57,6 +58,18 @@ Pull structured metrics from identity model bullets into the prep generation pip
 - [ ] #6 Stat boxes render real identity metrics, not AI-invented numbers
 - [ ] #7 Works gracefully when identity has no metrics (section omitted)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Started implementation loop for deck-level Numbers to Know sourced from vector-relevant identity metrics and threaded through generation, persistence, and cheatsheet rendering.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added deck-level Numbers to Know sourced from vector-relevant identity metrics, threaded through generation, store/import sanitation, and live cheatsheet rendering. Verification: focused prep Vitest suite passed, npm run typecheck passed, npm run build passed. Independent source review remained noisy because it inspected broader prep context already committed in adjacent files, but runtime checks and targeted regressions passed for this slice.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

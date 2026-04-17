@@ -10,6 +10,7 @@ import type {
   PrepDeepDive,
   PrepFollowUp,
   PrepMetric,
+  PrepNumbersToKnow,
   PrepQuestionToAsk,
   PrepStoryBlock,
   PrepStoryBlockLabel,
@@ -50,6 +51,7 @@ interface CreateDeckInput {
   jobDescription?: string
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
+  numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Record<string, string>
   generatedAt?: string
   cards?: PrepCard[]
@@ -99,7 +101,10 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     keyPoints: sanitizeStringList(partial.keyPoints),
     followUps: sanitizeFollowUps(partial.followUps),
     deepDives: sanitizeDeepDives(partial.deepDives),
-    conditionals: sanitizeConditionals(partial.conditionals),
+    conditionals: sanitizeConditionals(partial.conditionals)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-conditional'),
+    })),
     metrics: sanitizeMetrics(partial.metrics),
     tableData: partial.tableData,
   }
@@ -215,7 +220,7 @@ function sanitizeConditionals(conditionals?: PrepConditional[], options: Sanitiz
     const trigger = typeof record.trigger === 'string' ? record.trigger.trim() : ''
     const response = typeof record.response === 'string' ? record.response.trim() : ''
     const toneValue = typeof record.tone === 'string' ? record.tone.trim() : undefined
-    const tone = PREP_CONDITIONAL_TONE_VALUES.includes(toneValue as PrepConditionalTone)
+    const tone = (PREP_CONDITIONAL_TONE_VALUES as readonly string[]).includes(toneValue ?? '')
       ? toneValue as PrepConditionalTone
       : undefined
     const normalizedTone = tone ?? 'pivot'
@@ -246,16 +251,40 @@ function sanitizeMetrics(metrics?: PrepMetric[], options: SanitizeOptions = {}):
   const sanitized = metrics.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
     const record = item as Partial<PrepMetric>
-    const value = typeof record.value === 'string' ? record.value.trim() : ''
+    const value =
+      typeof record.value === 'string'
+        ? record.value.trim()
+        : typeof record.value === 'number' && Number.isFinite(record.value)
+          ? String(record.value)
+          : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     if (!options.preserveDrafts && !value && !label) return []
     return [{
-      id: record.id,
+      id: typeof record.id === 'string' ? record.id : createId('prep-metric'),
       value,
       label,
     }]
   })
   return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeNumbersToKnow(
+  numbersToKnow?: PrepNumbersToKnow,
+  options: SanitizeOptions = {},
+): PrepNumbersToKnow | undefined {
+  if (!numbersToKnow || typeof numbersToKnow !== 'object' || Array.isArray(numbersToKnow)) {
+    return undefined
+  }
+
+  const candidate = sanitizeMetrics(numbersToKnow.candidate, options)
+  const company = sanitizeMetrics(numbersToKnow.company, options)
+
+  return candidate || company
+    ? {
+        ...(candidate ? { candidate } : {}),
+        ...(company ? { company } : {}),
+      }
+    : undefined
 }
 
 function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions = {}): PrepCard {
@@ -283,10 +312,7 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
       ...item,
       id: item.id ?? createId('prep-conditional'),
     })),
-    metrics: sanitizeMetrics(card.metrics, options)?.map((item) => ({
-      ...item,
-      id: item.id ?? createId('prep-metric'),
-    })),
+    metrics: sanitizeMetrics(card.metrics, options),
     updatedAt: now(),
   }
 }
@@ -331,6 +357,7 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     jobDescription: deck.jobDescription?.trim() || undefined,
     donts: sanitizeStringList(deck.donts, options),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
+    numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow, options),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance, options),
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
@@ -371,10 +398,7 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
       ...item,
       id: item.id ?? createId('prep-conditional'),
     })),
-    metrics: sanitizeMetrics(card.metrics)?.map((item) => ({
-      ...item,
-      id: item.id ?? createId('prep-metric'),
-    })),
+    metrics: sanitizeMetrics(card.metrics),
   }
 }
 
@@ -414,6 +438,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     jobDescription: deck.jobDescription?.trim() || undefined,
     donts: sanitizeStringList(deck.donts),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
+    numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance),
     cards,
     studyProgress,
@@ -511,6 +536,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           jobDescription: input.jobDescription,
           donts: input.donts,
           questionsToAsk: input.questionsToAsk,
+          numbersToKnow: input.numbersToKnow,
           categoryGuidance: input.categoryGuidance,
           generatedAt: input.generatedAt,
           updatedAt: now(),

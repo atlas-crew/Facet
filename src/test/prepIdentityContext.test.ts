@@ -99,6 +99,7 @@ describe('buildPrepIdentityContext', () => {
     const context = buildPrepIdentityContext(identityFixture, 'backend') as {
       identity: { display_name?: string }
       self_model: { interview_style: { strengths: string[] }, prep_strategy?: string }
+      candidate_metrics?: Array<{ metricKey: string; metricValue: string; company: string; suggestedLabel: string }>
       roles: Array<{ bullets: Array<{ id: string }> }>
       skills: Array<{ items: Array<{ name: string }> }>
       philosophy?: unknown
@@ -113,6 +114,14 @@ describe('buildPrepIdentityContext', () => {
     expect(context.roles[0].bullets).toEqual([
       expect.objectContaining({ id: 'bullet-keep' }),
     ])
+    expect(context.candidate_metrics).toEqual([
+      expect.objectContaining({
+        metricKey: 'incidents',
+        metricValue: '38%',
+        company: 'Acme',
+        suggestedLabel: 'Incidents',
+      }),
+    ])
     expect(context.skills).toEqual([
       expect.objectContaining({
         items: [expect.objectContaining({ name: 'Kubernetes' })],
@@ -125,12 +134,17 @@ describe('buildPrepIdentityContext', () => {
 
   it('falls back to broad structured context when the vector is missing', () => {
     const context = buildPrepIdentityContext(identityFixture, 'missing') as {
+      candidate_metrics?: Array<{ metricKey: string; metricValue: string }>
       roles: Array<{ bullets: Array<{ id: string }> }>
       skills: Array<{ items: Array<{ name: string }> }>
     }
 
     expect(context.roles[0].bullets).toHaveLength(2)
     expect(context.skills[0].items).toHaveLength(2)
+    expect(context.candidate_metrics).toEqual([
+      expect.objectContaining({ metricKey: 'incidents', metricValue: '38%' }),
+      expect.objectContaining({ metricKey: 'feeds', metricValue: '1' }),
+    ])
   })
 
   it('uses vector id and label terms to scope fallback matching when an exact vector is unavailable', () => {

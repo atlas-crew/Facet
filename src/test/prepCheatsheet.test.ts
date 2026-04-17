@@ -25,6 +25,15 @@ const deck: PrepDeck = {
       context: 'Understand what the hiring manager values.',
     },
   ],
+  numbersToKnow: {
+    candidate: [
+      { id: 'candidate-1', value: '38%', label: 'Incident reduction' },
+      { id: 'candidate-2', value: '12', label: 'Pipelines owned' },
+    ],
+    company: [
+      { id: 'company-1', value: '3', label: 'Core platform bets' },
+    ],
+  },
   categoryGuidance: {
     opener: 'Lead with relevance',
     behavioral: 'Lead with scope',
@@ -168,6 +177,29 @@ describe('derivePrepCheatsheetSections', () => {
       expect.objectContaining({ id: 'dont-skip-the-ask', title: 'Skip the ask' }),
     ])
 
+    expect(sections.find((section) => section.id === 'metrics')).toMatchObject({
+      title: 'Numbers to Know',
+      items: [
+        expect.objectContaining({
+          id: 'numbers-your-work',
+          title: 'Your Work',
+          metrics: [
+            expect.objectContaining({ value: '38%', label: 'Incident reduction' }),
+            expect.objectContaining({ value: '12', label: 'Pipelines owned' }),
+          ],
+        }),
+        expect.objectContaining({
+          id: 'numbers-their-company',
+          title: 'Their Company',
+          metrics: [expect.objectContaining({ value: '3', label: 'Core platform bets' })],
+        }),
+        expect.objectContaining({
+          id: 'metrics-1',
+          title: 'Key numbers to remember',
+        }),
+      ],
+    })
+
     const openerItem = sections.find((section) => section.id === 'opener')?.items[0]
     expect(openerItem).toMatchObject({
       id: 'opener-1',
@@ -189,6 +221,7 @@ describe('derivePrepCheatsheetSections', () => {
       notes: undefined,
       jobDescription: undefined,
       positioning: undefined,
+      numbersToKnow: undefined,
       donts: [],
       questionsToAsk: [],
       cards: [],

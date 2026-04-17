@@ -1,5 +1,5 @@
 import { PREP_CATEGORY_VALUES } from '../types/prep'
-import type { PrepCard, PrepCategory, PrepDeck, PrepQuestionToAsk } from '../types/prep'
+import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepQuestionToAsk } from '../types/prep'
 
 export type PrepCheatsheetGroup = 'Intel' | 'Core' | 'Technical' | 'Tactical'
 
@@ -9,6 +9,7 @@ export interface PrepCheatsheetItem {
   detail?: string
   cardId?: string
   category?: PrepCategory
+  metrics?: PrepMetric[]
 }
 
 export interface PrepCheatsheetSection {
@@ -37,6 +38,10 @@ const CATEGORY_GROUPS = {
 type PrepSectionId = keyof typeof CATEGORY_GROUPS
 
 const QUESTIONS_GUIDANCE = 'Pick 2-3. Save 8-10 minutes for questions.'
+const NUMBERS_TO_KNOW_GROUPS = {
+  candidate: 'Your Work',
+  company: 'Their Company',
+} as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -91,6 +96,34 @@ function buildDontsItems(donts: string[]): PrepCheatsheetItem[] {
     id: makeUniqueItemId('dont-', entry, seen),
     title: entry,
   }))
+}
+
+function pickValidMetrics(metrics?: PrepMetric[]): PrepMetric[] {
+  return metrics?.filter((metric) => metric.value.trim() && metric.label.trim()) ?? []
+}
+
+function buildNumbersToKnowItems(deck: PrepDeck): PrepCheatsheetItem[] {
+  const items: PrepCheatsheetItem[] = []
+  const candidateMetrics = pickValidMetrics(deck.numbersToKnow?.candidate)
+  const companyMetrics = pickValidMetrics(deck.numbersToKnow?.company)
+
+  if (candidateMetrics.length > 0) {
+    items.push({
+      id: 'numbers-your-work',
+      title: NUMBERS_TO_KNOW_GROUPS.candidate,
+      metrics: candidateMetrics,
+    })
+  }
+
+  if (companyMetrics.length > 0) {
+    items.push({
+      id: 'numbers-their-company',
+      title: NUMBERS_TO_KNOW_GROUPS.company,
+      metrics: companyMetrics,
+    })
+  }
+
+  return items
 }
 
 function makeUniqueItemId(prefix: string, value: string, seen: Map<string, number>): string {
@@ -248,12 +281,13 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
   }
 
   // Metrics is intentionally rendered after the tactical questions/donts block.
-  const metricItems = buildCardItems(cardsByCategory.metrics)
+  const numberItems = buildNumbersToKnowItems(deck)
+  const metricItems = [...numberItems, ...buildCardItems(cardsByCategory.metrics)]
   if (metricItems.length > 0) {
     sections.push(
       withSectionMeta(deck, {
         id: 'metrics',
-        title: 'Metrics',
+        title: numberItems.length > 0 ? 'Numbers to Know' : 'Metrics',
         description: 'Numbers and measurable outcomes you should keep ready.',
         items: metricItems,
       }),

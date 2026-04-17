@@ -60,6 +60,22 @@ export interface PrepMetric {
   label: string
 }
 
+export interface PrepIdentityMetricCandidate {
+  roleId: string
+  roleTitle: string
+  company: string
+  bulletId: string
+  metricKey: string
+  metricValue: string
+  suggestedLabel: string
+  evidence: string
+}
+
+export interface PrepNumbersToKnow {
+  candidate?: PrepMetric[]
+  company?: PrepMetric[]
+}
+
 export type PrepStoryBlockLabel = 'problem' | 'solution' | 'result' | 'closer' | 'note'
 
 export const PREP_STORY_BLOCK_LABEL_VALUES = [
@@ -140,6 +156,7 @@ export interface PrepDeck {
   jobDescription?: string
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
+  numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Record<string, string>
   generatedAt?: string
   updatedAt: string
@@ -159,7 +176,7 @@ export interface PrepGenerationRequest {
   notes?: string
   companyResearch?: string
   jobDescription: string
-  identityContext?: Record<string, unknown>
+  identityContext?: { candidate_metrics?: PrepIdentityMetricCandidate[]; [key: string]: unknown }
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   categoryGuidance?: Record<string, string>
