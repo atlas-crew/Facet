@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react'
+import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
 import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
 import type { PrepCard, PrepConditional, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../../types/prep'
@@ -11,6 +11,7 @@ import {
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  hasPrepCardNeedsReviewContent,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
 
@@ -54,15 +55,19 @@ export function PrepCardView({
   const readOnlyDeepDives = filterPrepDeepDives(card.deepDives)
   const readOnlyConditionals = filterPrepConditionals(card.conditionals)
   const readOnlyMetrics = filterPrepMetrics(card.metrics)
+  const needsReview = useMemo(() => hasPrepCardNeedsReviewContent(card), [card])
 
   if (readOnly) {
     return (
-      <div className="prep-card">
+      <div className={`prep-card${needsReview ? ' prep-card-needs-review' : ''}`}>
         <div className="prep-card-header">
           <h3 className="prep-card-title">{card.title}</h3>
-          <span className={`prep-category prep-category-${card.category}`}>
-            {card.category}
-          </span>
+          <div className="prep-card-meta">
+            <span className={`prep-category prep-category-${card.category}`}>
+              {card.category}
+            </span>
+            {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+          </div>
         </div>
 
         {card.tags.length > 0 && (
@@ -204,7 +209,7 @@ export function PrepCardView({
   const previewText = summarizePrepCard(card)
 
   return (
-    <article className={`prep-card prep-card-editable${isExpanded ? ' prep-card-editable-expanded' : ' prep-card-editable-collapsed'}`}>
+    <article className={`prep-card prep-card-editable${isExpanded ? ' prep-card-editable-expanded' : ' prep-card-editable-collapsed'}${needsReview ? ' prep-card-needs-review' : ''}`}>
       <div className="prep-card-header">
         <div className="prep-card-header-main">
           <input
@@ -228,6 +233,7 @@ export function PrepCardView({
               <option value="situational">situational</option>
             </select>
             <span className="prep-card-source">{card.source ?? 'manual'}</span>
+            {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
         </div>
 

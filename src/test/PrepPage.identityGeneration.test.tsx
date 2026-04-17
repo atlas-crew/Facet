@@ -13,8 +13,10 @@ import { useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import type { MatchReport } from '../types/match'
 
+const navigateMock = vi.fn()
+
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateMock,
   useSearch: () => ({ vector: 'backend', skills: '', q: '' }),
 }))
 
@@ -115,8 +117,9 @@ describe('PrepPage identity generation', () => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     resolveStorage().removeItem('facet-prep-workspace')
     resolveStorage().removeItem('vector-resume-data')
+    navigateMock.mockClear()
     usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'edit' })
-    useIdentityStore.setState({ currentIdentity: prepIdentityFixture })
+    useIdentityStore.setState({ currentIdentity: prepIdentityFixture, draft: null, draftDocument: '', warnings: [], lastError: null })
     useMatchStore.setState({ jobDescription: '', currentReport: null, warnings: [], history: [] })
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
@@ -205,6 +208,7 @@ describe('PrepPage identity generation', () => {
         ],
       }),
     }) as typeof fetch
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -253,6 +257,48 @@ describe('PrepPage identity generation', () => {
       company: [expect.objectContaining({ value: '3', label: 'Core platform bets' })],
     })
     expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
+  })
+
+  it('confirms before replacing an existing identity draft', async () => {
+    usePrepStore.getState().createDeck({
+      title: 'Acme Staff Engineer Prep',
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      contextGaps: [
+        {
+          id: 'gap-identity',
+          section: 'Opening story',
+          question: 'What incident metric best supports your story?',
+          why: 'Needed for the opener.',
+          priority: 'required',
+          feedbackTarget: 'identity.awareness.open_questions',
+        },
+      ],
+      contextGapAnswers: {
+        'gap-identity': 'Use the 38% incident reduction metric from Acme.',
+      },
+      cards: [],
+    })
+    useIdentityStore.setState({
+      draft: {
+        generatedAt: '2026-04-16T12:00:00.000Z',
+        summary: 'Existing draft',
+        followUpQuestions: [],
+        identity: prepIdentityFixture,
+        bullets: [],
+        warnings: [],
+      },
+    })
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Queue for Identity Review' }))
+
+    expect(screen.getByRole('heading', { name: 'Replace the current identity draft?' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(useIdentityStore.getState().draft?.summary).toBe('Existing draft')
   })
 
   it('uses the selected resume vector label to scope identity context for match generation', async () => {
@@ -372,5 +418,153 @@ describe('PrepPage identity generation', () => {
 
     expect(prompt).toContain('Target Round Type: Not provided')
     expect(usePrepStore.getState().decks[0].roundType).toBeUndefined()
+  })
+
+  it('captures context gap answers and queues an identity draft for review', async () => {
+    usePrepStore.getState().createDeck({
+      title: 'Acme Staff Engineer Prep',
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      contextGaps: [
+        {
+          id: 'gap-departure',
+          section: 'Openers',
+          question: 'Why did you leave your last role?',
+          why: 'The opener needs candidate-authored departure context.',
+          feedbackTarget: 'identity.departureContext',
+          priority: 'required',
+        },
+      ],
+      cards: [
+        {
+          id: 'card-gap',
+          category: 'opener',
+          title: 'Why this role',
+          tags: ['opener'],
+          script: '[[needs-review]] add the departure context bridge.',
+        },
+      ],
+    })
+
+    render(<PrepPage />)
+
+    expect(screen.getByText(/This prep set is missing context/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in the gaps' }))
+    fireEvent.change(
+      screen.getByPlaceholderText('Add the missing detail that would make this section accurate and specific.'),
+      { target: { value: 'I wanted broader platform ownership and more direct product impact.' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save answers' }))
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks[0].contextGapAnswers).toEqual({
+        'gap-departure': 'I wanted broader platform ownership and more direct product impact.',
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Queue for Identity Review' }))
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().draft?.summary).toContain('Queued 1 prep context answer')
+    })
+
+    expect(useIdentityStore.getState().draft?.identity.awareness?.open_questions).toEqual([
+      expect.objectContaining({
+        id: expect.stringContaining('prep-gap-'),
+        topic: 'Openers: Why did you leave your last role?',
+        description: 'I wanted broader platform ownership and more direct product impact.',
+        action: 'Review this prep context and decide how it should inform departureContext.',
+        severity: 'high',
+        evidence: ['The opener needs candidate-authored departure context.'],
+        needs_review: true,
+      }),
+    ])
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+  })
+
+  it('re-generates the active prep set with saved context gap answers', async () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Acme Staff Engineer Prep',
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      companyResearch: 'Acme is optimizing for platform reliability.',
+      contextGaps: [
+        {
+          id: 'gap-scale',
+          section: 'Technical Topics',
+          question: 'What scale did the rollout support?',
+          why: 'The technical story needs a concrete denominator.',
+          priority: 'recommended',
+        },
+      ],
+      contextGapAnswers: {
+        'gap-scale': 'The rollout served roughly 120 engineers across six product teams.',
+      },
+      cards: [
+        {
+          id: 'card-1',
+          category: 'technical',
+          title: 'Original technical card',
+          tags: ['technical'],
+          script: '[[needs-review]] add the rollout denominator',
+        },
+      ],
+    })
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                deckTitle: 'Acme Staff Engineer Prep',
+                companyResearchSummary: 'Refreshed research summary.',
+                contextGaps: [],
+                cards: [
+                  {
+                    category: 'technical',
+                    title: 'Refreshed technical card',
+                    tags: ['technical'],
+                    script: 'The rollout served roughly 120 engineers across six product teams.',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Re-generate with answers' }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled()
+    })
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0]
+    const body = JSON.parse(String(init?.body ?? '{}')) as {
+      messages?: Array<{ content?: string }>
+    }
+    const prompt = body.messages?.[0]?.content ?? ''
+
+    expect(prompt).toContain('Existing Context Gaps')
+    expect(prompt).toContain('Context Gap Answers')
+    expect(prompt).toContain('roughly 120 engineers across six product teams')
+
+    await waitFor(() => {
+      const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
+      expect(deck?.cards.some((card) => card.title === 'Refreshed technical card')).toBe(true)
+      expect(deck?.cards.some((card) => card.title === 'Original technical card')).toBe(true)
+      expect(deck?.contextGaps).toBeUndefined()
+      expect(deck?.contextGapAnswers).toBeUndefined()
+      expect(usePrepStore.getState().decks).toHaveLength(1)
+    })
   })
 })

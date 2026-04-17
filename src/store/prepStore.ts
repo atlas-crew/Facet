@@ -5,6 +5,8 @@ import type {
   PrepCardStudyState,
   PrepConditional,
   PrepConditionalTone,
+  PrepContextGap,
+  PrepContextGapPriority,
   PrepDeck,
   PrepCategory,
   PrepDeepDive,
@@ -20,6 +22,7 @@ import {
   PREP_CARD_CONFIDENCE_VALUES,
   PREP_CATEGORY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
+  PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
 } from '../types/prep'
 import type { InterviewFormat } from '../types/pipeline'
@@ -53,6 +56,8 @@ interface CreateDeckInput {
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Record<string, string>
+  contextGaps?: PrepContextGap[]
+  contextGapAnswers?: Record<string, string>
   generatedAt?: string
   cards?: PrepCard[]
 }
@@ -171,6 +176,61 @@ function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>, opt
       if (!nextKey) return []
       if (!options.preserveDrafts && !nextValue) return []
       return [[nextKey, nextValue]]
+    }),
+  )
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
+function sanitizeContextGapPriority(value: unknown): PrepContextGapPriority {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(normalized as PrepContextGapPriority)
+    ? normalized as PrepContextGapPriority
+    : 'recommended'
+}
+
+function sanitizeContextGaps(
+  contextGaps?: PrepContextGap[],
+  options: SanitizeOptions = {},
+): PrepContextGap[] | undefined {
+  if (!Array.isArray(contextGaps)) return undefined
+  const sanitized = contextGaps.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepContextGap>
+    const id = typeof record.id === 'string' ? record.id.trim() : createId('prep-gap')
+    const section = typeof record.section === 'string' ? record.section.trim() : ''
+    const question = typeof record.question === 'string' ? record.question.trim() : ''
+    const why = typeof record.why === 'string' ? record.why.trim() : ''
+    const feedbackTarget = typeof record.feedbackTarget === 'string' ? record.feedbackTarget.trim() : ''
+    if (!id) return []
+    if (options.preserveDrafts) {
+      if (!section && !question && !why && !feedbackTarget) return []
+    } else if (!section || !question || !why) {
+      return []
+    }
+    return [{
+      id,
+      section,
+      question,
+      why,
+      feedbackTarget: feedbackTarget || undefined,
+      priority: sanitizeContextGapPriority(record.priority),
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeContextGapAnswers(
+  answers?: Record<string, string>,
+  options: SanitizeOptions = {},
+): Record<string, string> | undefined {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return undefined
+  const sanitized = Object.fromEntries(
+    Object.entries(answers).flatMap(([rawKey, rawValue]) => {
+      const key = rawKey.trim()
+      const value = typeof rawValue === 'string' ? rawValue.trim() : ''
+      if (!key) return []
+      if (!options.preserveDrafts && !value) return []
+      return [[key, value]]
     }),
   )
   return Object.keys(sanitized).length > 0 ? sanitized : undefined
@@ -359,6 +419,8 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
     numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow, options),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance, options),
+    contextGaps: sanitizeContextGaps(deck.contextGaps, options),
+    contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers, options),
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
     cards,
@@ -440,6 +502,8 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
     numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance),
+    contextGaps: sanitizeContextGaps(deck.contextGaps),
+    contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers),
     cards,
     studyProgress,
   }
@@ -538,6 +602,8 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           questionsToAsk: input.questionsToAsk,
           numbersToKnow: input.numbersToKnow,
           categoryGuidance: input.categoryGuidance,
+          contextGaps: input.contextGaps,
+          contextGapAnswers: input.contextGapAnswers,
           generatedAt: input.generatedAt,
           updatedAt: now(),
           cards: (input.cards ?? []).map((card) => sanitizeCard(deckId, card)),

@@ -131,11 +131,14 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('keyPoints')
     expect(systemPrompt).toContain('questionsToAsk')
     expect(systemPrompt).toContain('numbersToKnow')
+    expect(systemPrompt).toContain('contextGaps')
     expect(systemPrompt).toContain('categoryGuidance')
     expect(systemPrompt).toContain('conditionals')
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Candidate Metrics From Identity')
+    expect(userPrompt).toContain('Existing Context Gaps')
+    expect(userPrompt).toContain('Context Gap Answers')
     expect(userPrompt).toContain('Latency was spiking during peak load.')
     expect(userPrompt).toContain('"metricKey": "incidents"')
     expect(userPrompt.match(/"metricKey": "incidents"/g)).toHaveLength(1)
@@ -143,6 +146,7 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('include conditionals')
+    expect(userPrompt).toContain('Prefix the affected field with [[needs-review]]')
   })
 
   it('marks structured identity context as not provided when absent', async () => {
@@ -206,6 +210,29 @@ describe('generateInterviewPrep', () => {
           metrics: 'Name the number early.',
           extra: 'Ignore unsupported categories.',
         },
+        contextGaps: [
+          {
+            id: 'gap-departure',
+            section: 'Openers',
+            question: 'Why did you leave your last role?',
+            why: 'This answer needs candidate-authored context.',
+            feedbackTarget: 'identity.departureContext',
+            priority: 'required',
+          },
+          {
+            section: 'Technical Topics',
+            question: 'What scale did the rollout support?',
+            why: 'The current notes do not say.',
+            priority: 'optional',
+          },
+          {
+            id: 'gap-invalid',
+            section: ' ',
+            question: 'skip invalid',
+            why: 'missing section',
+            priority: 'required',
+          },
+        ],
         cards: [
           {
             category: 'behavioral',
@@ -266,6 +293,23 @@ describe('generateInterviewPrep', () => {
       behavioral: 'Lead with scope and tradeoffs.',
       metrics: 'Name the number early.',
     })
+    expect(result.contextGaps).toEqual([
+      {
+        id: 'gap-departure',
+        section: 'Openers',
+        question: 'Why did you leave your last role?',
+        why: 'This answer needs candidate-authored context.',
+        feedbackTarget: 'identity.departureContext',
+        priority: 'required',
+      },
+      expect.objectContaining({
+        id: expect.stringMatching(/^prep-gap-/),
+        section: 'Technical Topics',
+        question: 'What scale did the rollout support?',
+        why: 'The current notes do not say.',
+        priority: 'optional',
+      }),
+    ])
     expect(result.cards[0].scriptLabel).toBe('Lead With')
     expect(result.cards[0].keyPoints).toEqual(['Own the incident', 'Close with the metric'])
     expect(result.cards[0].storyBlocks).toEqual([

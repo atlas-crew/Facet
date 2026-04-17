@@ -24,6 +24,23 @@ export type PrepCardConfidence = 'nailed_it' | 'okay' | 'needs_work'
 
 export const PREP_CARD_CONFIDENCE_VALUES = ['nailed_it', 'okay', 'needs_work'] as const satisfies readonly PrepCardConfidence[]
 
+export type PrepContextGapPriority = 'required' | 'recommended' | 'optional'
+
+export const PREP_CONTEXT_GAP_PRIORITY_VALUES = [
+  'required',
+  'recommended',
+  'optional',
+] as const satisfies readonly PrepContextGapPriority[]
+
+export interface PrepContextGap {
+  id: string
+  section: string
+  question: string
+  why: string
+  feedbackTarget?: string
+  priority: PrepContextGapPriority
+}
+
 export interface PrepDeepDive {
   id?: string
   title: string
@@ -158,6 +175,8 @@ export interface PrepDeck {
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Record<string, string>
+  contextGaps?: PrepContextGap[]
+  contextGapAnswers?: Record<string, string>
   generatedAt?: string
   updatedAt: string
   cards: PrepCard[]
@@ -180,5 +199,7 @@ export interface PrepGenerationRequest {
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   categoryGuidance?: Record<string, string>
+  contextGaps?: PrepContextGap[]
+  contextGapAnswers?: Record<string, string>
   resumeContext: Record<string, unknown>
 }

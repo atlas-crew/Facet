@@ -323,6 +323,25 @@ describe('PrepLiveMode', () => {
     expect(screen.queryByRole('heading', { name: 'Openers' })).toBeNull()
   })
 
+  it('marks placeholder-heavy cards with a review badge and review surface styling', () => {
+    const needsReviewDeck: PrepDeck = {
+      ...mockDeck,
+      cards: [
+        {
+          ...mockDeck.cards[0],
+          title: 'Why this role',
+          script: '[[needs-review]] tighten the company-specific motivation.',
+          notes: '[[fill-in: exact product area]]',
+        },
+      ],
+    }
+
+    const { container } = render(<PrepLiveMode deck={needsReviewDeck} />)
+
+    expect(screen.getAllByText('Needs Review').length).toBeGreaterThan(0)
+    expect(container.querySelector('.prep-live-review-surface')).toBeTruthy()
+  })
+
   it('collapses and expands a rich section', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 

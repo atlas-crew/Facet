@@ -14,12 +14,13 @@ import { useResumeStore } from '../../store/resumeStore'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
+import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
 import type { InterviewFormat } from '../../types/pipeline'
-import type { PrepCard, PrepCategory, PrepDeck, PrepWorkspaceMode } from '../../types/prep'
+import type { PrepCard, PrepCategory, PrepContextGap, PrepDeck, PrepWorkspaceMode } from '../../types/prep'
 import './prep.css'
 
 const MODE_LABELS: Record<PrepWorkspaceMode, string> = {
@@ -38,6 +39,17 @@ function formatPrepDeckUpdatedAt(updatedAt: string): string {
 }
 
 const MAX_LIBRARY_DECKS_PER_GROUP = 5
+const CONTEXT_GAP_PRIORITY_ORDER: Record<PrepContextGap['priority'], number> = {
+  required: 0,
+  recommended: 1,
+  optional: 2,
+}
+
+const CONTEXT_GAP_PRIORITY_LABELS: Record<PrepContextGap['priority'], string> = {
+  required: 'Required',
+  recommended: 'Recommended',
+  optional: 'Optional',
+}
 
 const ROUND_TYPE_LABELS: Record<string, string> = {
   'hr-screen': 'HR Screen',
@@ -55,6 +67,22 @@ const ROUND_TYPE_LABELS: Record<string, string> = {
   presentation: 'Presentation',
 }
 
+const USER_OWNED_PREP_CARD_FIELDS: Array<keyof PrepCard> = [
+  'title',
+  'category',
+  'notes',
+  'script',
+  'scriptLabel',
+  'warning',
+  'keyPoints',
+  'storyBlocks',
+  'followUps',
+  'deepDives',
+  'conditionals',
+  'metrics',
+  'tableData',
+]
+
 function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
   if (!roundType) return 'General'
   return ROUND_TYPE_LABELS[roundType] ?? roundType.split('-').map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1)).join(' ')
@@ -62,6 +90,38 @@ function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
 
 function formatPrepCategoryLabel(category: PrepCategory): string {
   return category.charAt(0).toUpperCase() + category.slice(1)
+}
+
+function sortPrepContextGaps(contextGaps: PrepContextGap[] | undefined): PrepContextGap[] {
+  return [...(contextGaps ?? [])].sort((left, right) => {
+    const priorityDelta = CONTEXT_GAP_PRIORITY_ORDER[left.priority] - CONTEXT_GAP_PRIORITY_ORDER[right.priority]
+    if (priorityDelta !== 0) return priorityDelta
+    const sectionDelta = left.section.localeCompare(right.section)
+    if (sectionDelta !== 0) return sectionDelta
+    return left.question.localeCompare(right.question)
+  })
+}
+
+function countPrepContextGapSections(contextGaps: PrepContextGap[] | undefined): number {
+  return new Set((contextGaps ?? []).map((gap) => gap.section.trim().toLowerCase()).filter(Boolean)).size
+}
+
+function prefersLongFormGapAnswer(gap: PrepContextGap): boolean {
+  const question = gap.question.trim().toLowerCase()
+  return question.length > 120 || /(describe|story|example|details|context|explain|walk|why|how)/.test(question)
+}
+
+function buildPrepContextGapKey(gap: PrepContextGap): string {
+  return [
+    gap.priority,
+    gap.section.trim().toLowerCase(),
+    gap.question.trim().toLowerCase(),
+    gap.feedbackTarget?.trim().toLowerCase() ?? '',
+  ].join('::')
+}
+
+function shouldPromotePrepCardToManual(patch: Partial<PrepCard>): boolean {
+  return USER_OWNED_PREP_CARD_FIELDS.some((field) => field in patch)
 }
 
 export function PrepPage() {
@@ -79,6 +139,10 @@ export function PrepPage() {
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [isGapModalOpen, setIsGapModalOpen] = useState(false)
+  const [isIdentityDraftConfirmOpen, setIsIdentityDraftConfirmOpen] = useState(false)
+  const [gapStepIndex, setGapStepIndex] = useState(0)
+  const [gapDraftAnswers, setGapDraftAnswers] = useState<Record<string, string>>({})
   const [expandedLibraryGroups, setExpandedLibraryGroups] = useState<Record<string, boolean>>({})
   const [editGroupOpen, setEditGroupOpen] = useState({
     liveGuidance: true,
@@ -86,6 +150,11 @@ export function PrepPage() {
     sourceMaterial: true,
   })
   const previousCategoryCountRef = useRef(0)
+  const previousContextGapSignatureRef = useRef('')
+  const gapModalCardRef = useRef<HTMLDivElement>(null)
+  const gapAnswerFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
+  const identityDraftConfirmCardRef = useRef<HTMLDivElement>(null)
+  const modalReturnFocusRef = useRef<HTMLElement | null>(null)
 
   const {
     decks,
@@ -95,6 +164,7 @@ export function PrepPage() {
     setActiveMode,
     createDeck,
     updateDeck,
+    replaceDeckCards,
     addCard,
     updateCard,
     recordCardReview,
@@ -254,6 +324,27 @@ export function PrepPage() {
     () => [...new Set((activeDeck?.cards ?? []).map((card) => card.category))],
     [activeDeck?.cards],
   )
+  const activeDeckContextGaps = useMemo(
+    () => sortPrepContextGaps(activeDeck?.contextGaps),
+    [activeDeck?.contextGaps],
+  )
+  const activeDeckGapSectionCount = useMemo(
+    () => countPrepContextGapSections(activeDeckContextGaps),
+    [activeDeckContextGaps],
+  )
+  const answeredGapCount = useMemo(
+    () => activeDeckContextGaps.filter((gap) => activeDeck?.contextGapAnswers?.[gap.id]?.trim()).length,
+    [activeDeck?.contextGapAnswers, activeDeckContextGaps],
+  )
+  const hasIdentityGapAnswers = useMemo(
+    () =>
+      activeDeckContextGaps.some((gap) => (
+        gap.feedbackTarget?.startsWith('identity.') &&
+        Boolean(activeDeck?.contextGapAnswers?.[gap.id]?.trim())
+      )),
+    [activeDeck?.contextGapAnswers, activeDeckContextGaps],
+  )
+  const activeGap = activeDeckContextGaps[gapStepIndex] ?? null
 
   useEffect(() => {
     const hasCategoryGuidance = activeDeckCategories.length > 0
@@ -263,6 +354,14 @@ export function PrepPage() {
       categoryGuidance: hasCategoryGuidance,
       sourceMaterial: true,
     })
+  }, [activeDeck?.id])
+
+  useEffect(() => {
+    // Reset gap-modal state when switching between decks so draft answers never bleed across prep sets.
+    setGapStepIndex(0)
+    setGapDraftAnswers({})
+    setIsGapModalOpen(false)
+    setIsIdentityDraftConfirmOpen(false)
   }, [activeDeck?.id])
 
   useEffect(() => {
@@ -400,6 +499,7 @@ export function PrepPage() {
           questionsToAsk: result.questionsToAsk,
           numbersToKnow: result.numbersToKnow,
           categoryGuidance: result.categoryGuidance,
+          contextGaps: result.contextGaps,
           skillMatch: activeMatchMaterial.skillMatch,
           positioning: activeMatchMaterial.positioning,
           notes: activeMatchMaterial.notes,
@@ -480,6 +580,7 @@ export function PrepPage() {
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
         categoryGuidance: result.categoryGuidance,
+        contextGaps: result.contextGaps,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,
         positioning: selectedEntry.positioning || undefined,
@@ -540,7 +641,14 @@ export function PrepPage() {
   const handleUpdateCard = useCallback(
     (cardId: string, patch: Partial<PrepCard>) => {
       if (!activeDeck) return
-      updateCard(activeDeck.id, cardId, patch)
+      const currentCard = activeDeck.cards.find((card) => card.id === cardId)
+      updateCard(
+        activeDeck.id,
+        cardId,
+        currentCard?.source === 'ai' && patch.source === undefined && shouldPromotePrepCardToManual(patch)
+          ? { ...patch, source: 'manual' as const }
+          : patch,
+      )
     },
     [activeDeck, updateCard],
   )
@@ -639,6 +747,314 @@ export function PrepPage() {
     },
     [activeDeck?.categoryGuidance, updateActiveDeck],
   )
+  const openContextGapModal = useCallback(() => {
+    if (!activeDeckContextGaps.length || !activeDeck) return
+    if (document.activeElement instanceof HTMLElement) {
+      modalReturnFocusRef.current = document.activeElement
+    }
+    setGapDraftAnswers(activeDeck.contextGapAnswers ?? {})
+    const firstUnansweredIndex = activeDeckContextGaps.findIndex((gap) => !(activeDeck.contextGapAnswers?.[gap.id]?.trim()))
+    setGapStepIndex(firstUnansweredIndex >= 0 ? firstUnansweredIndex : 0)
+    setIsGapModalOpen(true)
+  }, [activeDeck, activeDeckContextGaps])
+  const persistGapAnswers = useCallback((answers: Record<string, string>) => {
+    if (!activeDeck) return
+    updateDeck(activeDeck.id, { contextGapAnswers: answers })
+  }, [activeDeck, updateDeck])
+  const closeContextGapModal = useCallback(() => {
+    persistGapAnswers(gapDraftAnswers)
+    setIsGapModalOpen(false)
+  }, [gapDraftAnswers, persistGapAnswers])
+  const advanceGapStep = useCallback((nextIndex: number, answers: Record<string, string>) => {
+    persistGapAnswers(answers)
+    if (nextIndex >= activeDeckContextGaps.length) {
+      setIsGapModalOpen(false)
+      return
+    }
+    setGapStepIndex(nextIndex)
+  }, [activeDeckContextGaps.length, persistGapAnswers])
+  const handleGapAnswerSubmit = useCallback(() => {
+    if (!activeGap) return
+    const normalizedAnswer = (gapDraftAnswers[activeGap.id] ?? '').trim()
+    if (activeGap.priority === 'required' && !normalizedAnswer) {
+      return
+    }
+    const nextAnswers = {
+      ...gapDraftAnswers,
+      [activeGap.id]: normalizedAnswer,
+    }
+    advanceGapStep(gapStepIndex + 1, nextAnswers)
+  }, [activeGap, advanceGapStep, gapDraftAnswers, gapStepIndex])
+  const handleGapSkip = useCallback(() => {
+    if (!activeGap || activeGap.priority === 'required') return
+    const nextAnswers = { ...gapDraftAnswers }
+    delete nextAnswers[activeGap.id]
+    advanceGapStep(gapStepIndex + 1, nextAnswers)
+  }, [activeGap, advanceGapStep, gapDraftAnswers, gapStepIndex])
+  const buildCurrentIdentityGapDraft = useCallback(() => {
+    if (!activeDeck) {
+      setGenerationError('The active prep set is no longer available.')
+      return null
+    }
+    if (!currentIdentity) {
+      setGenerationError('Load an identity model before queuing prep answers for identity review.')
+      return null
+    }
+    const draft = buildPrepContextGapIdentityDraft(
+      activeDeck.id,
+      currentIdentity,
+      activeDeck.contextGaps ?? [],
+      activeDeck.contextGapAnswers,
+    )
+    if (!draft) {
+      setGenerationError('Answer at least one identity-related context gap before queuing a draft.')
+      return null
+    }
+    return draft
+  }, [activeDeck, currentIdentity])
+  const applyIdentityGapDraft = useCallback((draft: NonNullable<ReturnType<typeof buildCurrentIdentityGapDraft>>) => {
+    setGenerationError(null)
+    setIsIdentityDraftConfirmOpen(false)
+    useIdentityStore.getState().setDraft(draft)
+    void navigate({ to: '/identity' })
+  }, [navigate])
+  const handleQueueIdentityDraft = useCallback(() => {
+    const draft = buildCurrentIdentityGapDraft()
+    if (!draft) return
+    if (useIdentityStore.getState().draft) {
+      setIsIdentityDraftConfirmOpen(true)
+      return
+    }
+    applyIdentityGapDraft(draft)
+  }, [applyIdentityGapDraft, buildCurrentIdentityGapDraft])
+  const handleConfirmIdentityDraftReplace = useCallback(() => {
+    const draft = buildCurrentIdentityGapDraft()
+    if (!draft) return
+    applyIdentityGapDraft(draft)
+  }, [applyIdentityGapDraft, buildCurrentIdentityGapDraft])
+  useEffect(() => {
+    const activeModalCard = isGapModalOpen
+      ? gapModalCardRef.current
+      : isIdentityDraftConfirmOpen
+        ? identityDraftConfirmCardRef.current
+        : null
+
+    if (!activeModalCard) {
+      if (modalReturnFocusRef.current) {
+        modalReturnFocusRef.current.focus()
+        modalReturnFocusRef.current = null
+      }
+      return
+    }
+
+    if (!modalReturnFocusRef.current && document.activeElement instanceof HTMLElement) {
+      modalReturnFocusRef.current = document.activeElement
+    }
+
+    const getFocusableElements = () =>
+      Array.from(activeModalCard.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true')
+
+    const focusInitialElement = () => {
+      if (isGapModalOpen && gapAnswerFieldRef.current) {
+        gapAnswerFieldRef.current.focus()
+        return
+      }
+
+      const [firstFocusable] = getFocusableElements()
+      ;(firstFocusable ?? activeModalCard).focus()
+    }
+
+    const frameId = window.requestAnimationFrame(focusInitialElement)
+    const handleModalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (isGapModalOpen) {
+          closeContextGapModal()
+        } else {
+          setIsIdentityDraftConfirmOpen(false)
+        }
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      const focusable = getFocusableElements()
+      if (focusable.length === 0) {
+        event.preventDefault()
+        activeModalCard.focus()
+        return
+      }
+
+      const firstFocusable = focusable[0]
+      const lastFocusable = focusable[focusable.length - 1]
+      const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+      if (!activeElement || !activeModalCard.contains(activeElement)) {
+        event.preventDefault()
+        ;(event.shiftKey ? lastFocusable : firstFocusable).focus()
+        return
+      }
+
+      if (event.shiftKey) {
+        if (activeElement === firstFocusable || activeElement === activeModalCard) {
+          event.preventDefault()
+          lastFocusable.focus()
+        }
+        return
+      }
+
+      if (activeElement === lastFocusable) {
+        event.preventDefault()
+        firstFocusable.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleModalKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      document.removeEventListener('keydown', handleModalKeyDown)
+    }
+  }, [closeContextGapModal, isGapModalOpen, isIdentityDraftConfirmOpen])
+  useEffect(() => {
+    if (!isGapModalOpen) return
+    const frameId = window.requestAnimationFrame(() => {
+      gapAnswerFieldRef.current?.focus()
+    })
+    return () => window.cancelAnimationFrame(frameId)
+  }, [gapStepIndex, isGapModalOpen])
+  useEffect(() => {
+    if (!isGapModalOpen) {
+      previousContextGapSignatureRef.current = activeDeckContextGaps.map((gap) => gap.id).join('::')
+      return
+    }
+    const nextGapSignature = activeDeckContextGaps.map((gap) => gap.id).join('::')
+    const contextGapSignatureChanged = previousContextGapSignatureRef.current !== nextGapSignature
+    previousContextGapSignatureRef.current = nextGapSignature
+    if (contextGapSignatureChanged && Object.keys(gapDraftAnswers).length > 0) {
+      persistGapAnswers(gapDraftAnswers)
+    }
+    if (activeDeckContextGaps.length === 0) {
+      setIsGapModalOpen(false)
+      return
+    }
+    if (gapStepIndex >= activeDeckContextGaps.length) {
+      setGapStepIndex(Math.max(0, activeDeckContextGaps.length - 1))
+    }
+  }, [activeDeckContextGaps.length, gapDraftAnswers, gapStepIndex, isGapModalOpen, persistGapAnswers])
+  const handleRegenerateWithGapAnswers = useCallback(async () => {
+    if (!activeDeck) return
+    if (!aiEndpoint) {
+      setGenerationError('AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+      return
+    }
+    if (!activeDeck.jobDescription?.trim()) {
+      setGenerationError('Add a job description before regenerating this prep set.')
+      return
+    }
+
+    const freshResumeData = useResumeStore.getState().data
+    if (Object.keys(gapDraftAnswers).length > 0) {
+      persistGapAnswers(gapDraftAnswers)
+    }
+    const latestDeck = usePrepStore.getState().decks.find((deck) => deck.id === activeDeck.id)
+    if (!latestDeck) {
+      setGenerationError('The active prep set could not be refreshed from the store.')
+      return
+    }
+    const latestJobDescription = latestDeck.jobDescription?.trim()
+    if (!latestJobDescription) {
+      setGenerationError('Add a job description before regenerating this prep set.')
+      return
+    }
+    const vector = freshResumeData.vectors.find((entry) => entry.id === latestDeck.vectorId)
+    if (!vector) {
+      setGenerationError('The active prep set is linked to a vector that no longer exists.')
+      return
+    }
+
+    setGenerationError(null)
+    setIsGenerating(true)
+
+    try {
+      const prepIdentityContext = currentIdentity
+        ? buildPrepIdentityContext(currentIdentity, vector.id, vector.label)
+        : undefined
+      const assembled = assembleResume(freshResumeData, {
+        selectedVector: vector.id,
+        manualOverrides: freshResumeData.manualOverrides?.[vector.id] ?? {},
+        bulletOrderByRole: freshResumeData.bulletOrders?.[vector.id] ?? {},
+        targetPages: 2,
+        variables: freshResumeData.variables ?? {},
+      }).resume
+
+      const result = await generateInterviewPrep(aiEndpoint, {
+        company: latestDeck.company,
+        role: latestDeck.role,
+        vectorId: vector.id,
+        vectorLabel: vector.label,
+        roundType: latestDeck.roundType,
+        companyUrl: latestDeck.companyUrl,
+        skillMatch: latestDeck.skillMatch,
+        positioning: latestDeck.positioning,
+        notes: latestDeck.notes,
+        companyResearch: latestDeck.companyResearch,
+        jobDescription: latestJobDescription,
+        identityContext: prepIdentityContext,
+        contextGaps: latestDeck.contextGaps,
+        contextGapAnswers: latestDeck.contextGapAnswers,
+        resumeContext: {
+          candidate: freshResumeData.meta,
+          vector,
+          assembled,
+        },
+      })
+
+      updateDeck(latestDeck.id, {
+        title: result.deckTitle,
+        donts: result.donts,
+        questionsToAsk: result.questionsToAsk,
+        numbersToKnow: result.numbersToKnow,
+        categoryGuidance: result.categoryGuidance,
+        contextGaps: result.contextGaps,
+        contextGapAnswers: (() => {
+          const previousAnswers = latestDeck.contextGapAnswers ?? {}
+          const previousGaps = latestDeck.contextGaps ?? []
+          const previousGapKeys = new Map(previousGaps.map((gap) => [buildPrepContextGapKey(gap), gap.id]))
+          const carriedAnswers = Object.fromEntries(
+            (result.contextGaps ?? []).flatMap((gap) => {
+              const directAnswer = previousAnswers[gap.id]?.trim()
+              if (directAnswer) return [[gap.id, directAnswer]]
+              const previousGapId = previousGapKeys.get(buildPrepContextGapKey(gap))
+              const previousAnswer = previousGapId ? previousAnswers[previousGapId]?.trim() : undefined
+              return previousAnswer ? [[gap.id, previousAnswer]] : []
+            }),
+          )
+          return Object.keys(carriedAnswers).length > 0 ? carriedAnswers : undefined
+        })(),
+        companyResearch: result.companyResearchSummary || latestDeck.companyResearch,
+        generatedAt: new Date().toISOString(),
+      })
+      // Preserve cards the user authored or pulled from other sources; regenerate only replaces AI cards.
+      const preservedCards = latestDeck.cards.filter((card) => card.source !== 'ai')
+      replaceDeckCards(latestDeck.id, [
+        ...preservedCards,
+        ...result.cards.map((card) => ({
+          ...card,
+          company: latestDeck.company,
+          role: latestDeck.role,
+          vectorId: vector.id,
+          pipelineEntryId: latestDeck.pipelineEntryId,
+          source: 'ai' as const,
+        })),
+      ])
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Prep generation failed.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [activeDeck, aiEndpoint, currentIdentity, gapDraftAnswers, persistGapAnswers, replaceDeckCards, updateDeck])
 
   return (
     <div className="prep-page">
@@ -1007,6 +1423,42 @@ export function PrepPage() {
               </div>
             </div>
 
+            {activeDeckContextGaps.length > 0 ? (
+              <div className="prep-context-gap-banner" role="status">
+                <div className="prep-context-gap-copy">
+                  <strong>
+                    This prep set is missing context that would improve {activeDeckGapSectionCount} section{activeDeckGapSectionCount === 1 ? '' : 's'}.
+                  </strong>
+                  <p>
+                    {answeredGapCount} of {activeDeckContextGaps.length} prompt{activeDeckContextGaps.length === 1 ? '' : 's'} answered.
+                    {currentIdentity ? ' Queue identity-facing answers upstream when they belong in the identity model.' : ' Load an identity model to queue upstream answers.'}
+                    {' '}Re-generating refreshes AI-authored cards and may reset rehearsal progress for cards the model replaces.
+                  </p>
+                </div>
+                <div className="prep-context-gap-actions">
+                  <button type="button" className="prep-btn prep-btn-primary" onClick={openContextGapModal}>
+                    Fill in the gaps
+                  </button>
+                  <button
+                    type="button"
+                    className="prep-btn"
+                    onClick={() => void handleRegenerateWithGapAnswers()}
+                    disabled={isGenerating || answeredGapCount === 0 || isGapModalOpen}
+                  >
+                    {isGenerating ? 'Refreshing…' : 'Re-generate with answers'}
+                  </button>
+                  <button
+                    type="button"
+                    className="prep-btn"
+                    onClick={handleQueueIdentityDraft}
+                    disabled={!currentIdentity || !hasIdentityGapAnswers}
+                  >
+                    Queue for Identity Review
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="prep-edit-groups">
               <section className="prep-edit-group">
                 <div className="prep-edit-group-header">
@@ -1360,6 +1812,154 @@ export function PrepPage() {
               <button className="prep-btn" onClick={handleCreateBlankDeck}>
                 <Plus size={16} />
                 Blank Set
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isGapModalOpen && activeGap ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="prep-context-gap-title"
+          onClick={closeContextGapModal}
+        >
+          <div
+            ref={gapModalCardRef}
+            className="modal-card prep-context-gap-modal"
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="prep-context-gap-modal-header">
+              <div>
+                <h2 id="prep-context-gap-title">Fill in the context gaps</h2>
+                <p>
+                  Step {gapStepIndex + 1} of {activeDeckContextGaps.length}. We’ll save each answer back onto this prep set and queue identity-facing answers separately.
+                </p>
+              </div>
+              <span className={`prep-context-gap-priority prep-context-gap-priority-${activeGap.priority}`}>
+                {CONTEXT_GAP_PRIORITY_LABELS[activeGap.priority]}
+              </span>
+            </div>
+
+            <div className="prep-context-gap-step">
+              <div className="prep-context-gap-step-meta">
+                <span className="prep-mode-chip">{activeGap.section}</span>
+                {activeGap.feedbackTarget ? <span className="prep-mode-chip">{activeGap.feedbackTarget}</span> : null}
+              </div>
+
+              <div className="prep-context-gap-question">{activeGap.question}</div>
+              <p className="prep-context-gap-why">{activeGap.why}</p>
+
+              <label className="prep-field">
+                <span className="prep-field-label">Answer</span>
+                {prefersLongFormGapAnswer(activeGap) ? (
+                  <textarea
+                    key={activeGap.id + '-long'}
+                    ref={(element) => {
+                      gapAnswerFieldRef.current = element
+                    }}
+                    className="prep-textarea prep-textarea-lg"
+                    value={gapDraftAnswers[activeGap.id] ?? ''}
+                    onChange={(event) => setGapDraftAnswers((current) => ({
+                      ...current,
+                      [activeGap.id]: event.target.value,
+                    }))}
+                    placeholder="Add the missing detail that would make this section accurate and specific."
+                  />
+                ) : (
+                  <input
+                    key={activeGap.id + '-short'}
+                    ref={(element) => {
+                      gapAnswerFieldRef.current = element
+                    }}
+                    className="prep-input"
+                    value={gapDraftAnswers[activeGap.id] ?? ''}
+                    onChange={(event) => setGapDraftAnswers((current) => ({
+                      ...current,
+                      [activeGap.id]: event.target.value,
+                    }))}
+                    placeholder="Add the missing detail."
+                  />
+                )}
+              </label>
+            </div>
+
+            <div className="prep-context-gap-modal-actions">
+              <button type="button" className="prep-btn" onClick={closeContextGapModal}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="prep-btn"
+                onClick={() => {
+                  persistGapAnswers(gapDraftAnswers)
+                  setGapStepIndex((current) => Math.max(0, current - 1))
+                }}
+                disabled={gapStepIndex === 0}
+              >
+                Previous
+              </button>
+              {activeGap.priority !== 'required' ? (
+                <button type="button" className="prep-btn" onClick={handleGapSkip}>
+                  Skip
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="prep-btn prep-btn-primary"
+                onClick={handleGapAnswerSubmit}
+                disabled={activeGap.priority === 'required' && !(gapDraftAnswers[activeGap.id] ?? '').trim()}
+              >
+                {gapStepIndex === activeDeckContextGaps.length - 1 ? 'Save answers' : 'Next'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isIdentityDraftConfirmOpen ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="prep-identity-draft-confirm-title"
+          onClick={() => setIsIdentityDraftConfirmOpen(false)}
+        >
+          <div
+            ref={identityDraftConfirmCardRef}
+            className="modal-card prep-context-gap-modal"
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="prep-context-gap-modal-header">
+              <div>
+                <h2 id="prep-identity-draft-confirm-title">Replace the current identity draft?</h2>
+                <p>
+                  This will swap the in-progress identity draft with the prep context answers you just queued for review.
+                </p>
+              </div>
+              <span className="prep-context-gap-priority prep-context-gap-priority-recommended">
+                Review
+              </span>
+            </div>
+
+            <div className="prep-context-gap-step">
+              <div className="prep-context-gap-question">Replace the current draft with the prep-derived follow-up questions?</div>
+              <p className="prep-context-gap-why">
+                We keep the identity changes as a draft until you review them on the Identity page.
+              </p>
+            </div>
+
+            {generationError ? <div className="prep-error-banner">{generationError}</div> : null}
+
+            <div className="prep-context-gap-modal-actions">
+              <button type="button" className="prep-btn" onClick={() => setIsIdentityDraftConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="prep-btn prep-btn-primary" onClick={handleConfirmIdentityDraftReplace}>
+                Replace draft
               </button>
             </div>
           </div>

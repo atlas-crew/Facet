@@ -1,5 +1,6 @@
 import {
   PREP_CATEGORY_VALUES,
+  PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
 } from '../types/prep'
@@ -7,6 +8,8 @@ import type {
   PrepCard,
   PrepCategory,
   PrepConditional,
+  PrepContextGap,
+  PrepContextGapPriority,
   PrepConditionalTone,
   PrepGenerationRequest,
   PrepIdentityMetricCandidate,
@@ -30,6 +33,7 @@ interface PrepGenerationPayload {
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Record<string, string>
+  contextGaps?: PrepContextGap[]
   cards: Array<Omit<PrepCard, 'id'>>
 }
 
@@ -125,6 +129,37 @@ function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefine
     return question && context ? [{ question, context }] : []
   })
   return questions.length > 0 ? questions : undefined
+}
+
+function normalizeContextGapPriority(value: unknown): PrepContextGapPriority {
+  if (!isString(value)) return 'recommended'
+  const normalized = value.trim().toLowerCase()
+  return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(normalized as PrepContextGapPriority)
+    ? normalized as PrepContextGapPriority
+    : 'recommended'
+}
+
+function normalizeContextGaps(value: unknown): PrepContextGap[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const gaps = value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const id = isString(record.id) ? record.id.trim() : createId('prep-gap')
+    const section = isString(record.section) ? record.section.trim() : ''
+    const question = isString(record.question) ? record.question.trim() : ''
+    const why = isString(record.why) ? record.why.trim() : ''
+    const feedbackTarget = isString(record.feedbackTarget) ? record.feedbackTarget.trim() : ''
+    if (!section || !question || !why) return []
+    return [{
+      id,
+      section,
+      question,
+      why,
+      feedbackTarget: feedbackTarget || undefined,
+      priority: normalizeContextGapPriority(record.priority),
+    }]
+  })
+  return gaps.length > 0 ? gaps : undefined
 }
 
 function normalizeConditionalTone(value: unknown): PrepConditionalTone | undefined {
@@ -244,6 +279,7 @@ export async function generateInterviewPrep(
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
   categoryGuidance?: Partial<Record<PrepCategory, string>>
+  contextGaps?: PrepContextGap[]
   cards: PrepCard[]
 }> {
   const candidateMetrics: PrepIdentityMetricCandidate[] | undefined = request.identityContext?.candidate_metrics
@@ -265,6 +301,16 @@ Response schema:
     "candidate": [{ "value": "string", "label": "string" }],
     "company": [{ "value": "string", "label": "string" }]
   },
+  "contextGaps": [
+    {
+      "id": "string",
+      "section": "string",
+      "question": "string",
+      "why": "string",
+      "feedbackTarget": "optional string",
+      "priority": "required|recommended|optional"
+    }
+  ],
   "categoryGuidance": {
     "opener": "string",
     "behavioral": "string",
@@ -315,6 +361,12 @@ ${structuredIdentityContext ? JSON.stringify(structuredIdentityContext, null, 2)
 Candidate Metrics From Identity:
 ${candidateMetrics ? JSON.stringify(candidateMetrics, null, 2) : 'Not provided'}
 
+Existing Context Gaps:
+${request.contextGaps ? JSON.stringify(request.contextGaps, null, 2) : 'Not provided'}
+
+Context Gap Answers:
+${request.contextGapAnswers ? JSON.stringify(request.contextGapAnswers, null, 2) : 'Not provided'}
+
 Tailored Resume Context:
 ${JSON.stringify(request.resumeContext, null, 2)}
 
@@ -329,6 +381,12 @@ When candidate metrics are provided, use them as the only source for numbersToKn
 Use numbersToKnow.company only for numbers grounded in the supplied job description or company research.
 When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
 If a round type is provided, adapt the emphasis and category guidance to that interview round.
+If the source material is missing context for a useful answer, do not hide the gap.
+- Prefix the affected field with [[needs-review]] when you can make a cautious inference that should be verified.
+- Prefix the affected field with [[fill-in: short prompt]] when the answer needs a user-supplied detail before it is trustworthy.
+- Add a contextGaps entry whenever more upstream context would materially improve the prep content.
+- If contextGapAnswers are provided, treat them as authoritative supplemental context and refresh the affected sections before carrying any gap forward.
+- If an existing context gap remains relevant after regeneration, preserve its id so user answers stay attached to that prompt.
 
 Return JSON only.`
 
@@ -357,6 +415,7 @@ Return JSON only.`
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
+    contextGaps: normalizeContextGaps(parsed.contextGaps),
     categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as Partial<Record<PrepCategory, string>> | undefined,
     cards,
   }

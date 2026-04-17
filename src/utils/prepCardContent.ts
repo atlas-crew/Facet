@@ -1,8 +1,14 @@
 import { PREP_CONDITIONAL_TONE_VALUES } from '../types/prep'
-import type { PrepConditional, PrepConditionalTone, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../types/prep'
+import type { PrepCard, PrepConditional, PrepConditionalTone, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../types/prep'
+
+const PREP_NEEDS_REVIEW_PATTERN = /\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]/i
 
 function filterPrepContent<T>(items: T[] | undefined, predicate: (item: T) => boolean): T[] {
   return (items ?? []).filter(predicate)
+}
+
+export function hasPrepNeedsReviewText(value: string | undefined | null): boolean {
+  return typeof value === 'string' ? PREP_NEEDS_REVIEW_PATTERN.test(value) : false
 }
 
 export function hasPrepKeyPointContent(point: string): boolean {
@@ -58,4 +64,49 @@ export function resolvePrepConditionalTone(conditional: Pick<PrepConditional, 't
   return PREP_CONDITIONAL_TONE_VALUES.includes(conditional.tone as PrepConditionalTone)
     ? conditional.tone as PrepConditionalTone
     : 'pivot'
+}
+
+export function hasPrepMetricNeedsReview(metric: PrepMetric): boolean {
+  return hasPrepNeedsReviewText(metric.value) || hasPrepNeedsReviewText(metric.label)
+}
+
+export function hasPrepConditionalNeedsReview(conditional: PrepConditional): boolean {
+  return hasPrepNeedsReviewText(conditional.trigger) || hasPrepNeedsReviewText(conditional.response)
+}
+
+export function hasPrepStoryBlockNeedsReview(block: PrepStoryBlock): boolean {
+  return hasPrepNeedsReviewText(block.text)
+}
+
+export function hasPrepFollowUpNeedsReview(followUp: PrepFollowUp): boolean {
+  return (
+    hasPrepNeedsReviewText(followUp.question) ||
+    hasPrepNeedsReviewText(followUp.answer) ||
+    hasPrepNeedsReviewText(followUp.context)
+  )
+}
+
+export function hasPrepDeepDiveNeedsReview(deepDive: PrepDeepDive): boolean {
+  return hasPrepNeedsReviewText(deepDive.title) || hasPrepNeedsReviewText(deepDive.content)
+}
+
+export function hasPrepCardNeedsReviewContent(card: Pick<
+  PrepCard,
+  'title' | 'notes' | 'script' | 'warning' | 'scriptLabel' | 'keyPoints' | 'storyBlocks' | 'conditionals' | 'metrics' | 'followUps' | 'deepDives' | 'tableData'
+>): boolean {
+  return (
+    hasPrepNeedsReviewText(card.title) ||
+    hasPrepNeedsReviewText(card.notes) ||
+    hasPrepNeedsReviewText(card.script) ||
+    hasPrepNeedsReviewText(card.warning) ||
+    hasPrepNeedsReviewText(card.scriptLabel) ||
+    (card.keyPoints ?? []).some((point) => hasPrepNeedsReviewText(point)) ||
+    (card.storyBlocks ?? []).some((block) => hasPrepStoryBlockNeedsReview(block)) ||
+    (card.conditionals ?? []).some((conditional) => hasPrepConditionalNeedsReview(conditional)) ||
+    (card.metrics ?? []).some((metric) => hasPrepMetricNeedsReview(metric)) ||
+    (card.followUps ?? []).some((followUp) => hasPrepFollowUpNeedsReview(followUp)) ||
+    (card.deepDives ?? []).some((deepDive) => hasPrepDeepDiveNeedsReview(deepDive)) ||
+    (card.tableData?.headers ?? []).some((header) => hasPrepNeedsReviewText(header)) ||
+    (card.tableData?.rows.flat() ?? []).some((cell) => hasPrepNeedsReviewText(cell))
+  )
 }

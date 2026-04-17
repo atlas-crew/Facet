@@ -8,6 +8,9 @@ import {
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  hasPrepCardNeedsReviewContent,
+  hasPrepMetricNeedsReview,
+  hasPrepNeedsReviewText,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
 import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection } from '../../utils/prepCheatsheet'
@@ -223,6 +226,10 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
 
   const sections = useMemo(() => derivePrepCheatsheetSections(deck), [deck])
   const cardsById = useMemo(() => new Map(deck.cards.map((card) => [card.id, card])), [deck.cards])
+  const cardNeedsReviewById = useMemo(
+    () => new Map(deck.cards.map((card) => [card.id, hasPrepCardNeedsReviewContent(card)])),
+    [deck.cards],
+  )
   const filteredSections = useMemo(
     () => filterSections(sections, searchQuery, cardsById),
     [cardsById, searchQuery, sections],
@@ -594,6 +601,7 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
                   <SectionGroupList
                     groups={preSectionGroups}
                     cardsById={cardsById}
+                    cardNeedsReviewById={cardNeedsReviewById}
                     activeSectionId={effectiveActiveSectionId}
                     collapsedSections={collapsedSections}
                     onToggleSection={toggleSection}
@@ -620,6 +628,7 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
               <SectionGroupList
                 groups={liveSectionGroups}
                 cardsById={cardsById}
+                cardNeedsReviewById={cardNeedsReviewById}
                 activeSectionId={effectiveActiveSectionId}
                 collapsedSections={collapsedSections}
                 onToggleSection={toggleSection}
@@ -704,6 +713,7 @@ function SectionGroupNavList({ groups, activeSectionId, onNavigate }: SectionGro
 interface SectionBlockProps {
   section: LiveSection
   cardsById: Map<string, PrepCard>
+  cardNeedsReviewById: Map<string, boolean>
   isActive: boolean
   isCollapsed: boolean
   onToggle: () => void
@@ -713,6 +723,7 @@ interface SectionBlockProps {
 interface SectionGroupListProps {
   groups: SectionGroupView[]
   cardsById: Map<string, PrepCard>
+  cardNeedsReviewById: Map<string, boolean>
   activeSectionId: string | null
   collapsedSections: Record<string, boolean>
   onToggleSection: (sectionId: string) => void
@@ -722,6 +733,7 @@ interface SectionGroupListProps {
 function SectionGroupList({
   groups,
   cardsById,
+  cardNeedsReviewById,
   activeSectionId,
   collapsedSections,
   onToggleSection,
@@ -742,6 +754,7 @@ function SectionGroupList({
                 key={section.id}
                 section={section}
                 cardsById={cardsById}
+                cardNeedsReviewById={cardNeedsReviewById}
                 isActive={activeSectionId === section.id}
                 isCollapsed={collapsedSections[section.id] === true}
                 onToggle={() => onToggleSection(section.id)}
@@ -755,7 +768,7 @@ function SectionGroupList({
   )
 }
 
-function SectionBlock({ section, cardsById, isActive, isCollapsed, onToggle, sectionRef }: SectionBlockProps) {
+function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCollapsed, onToggle, sectionRef }: SectionBlockProps) {
   let sectionGuidance = section.guidance
   if (!sectionGuidance && section.id === 'questions') {
     sectionGuidance = QUESTIONS_GUIDANCE
@@ -794,21 +807,21 @@ function SectionBlock({ section, cardsById, isActive, isCollapsed, onToggle, sec
         className="prep-live-item-list prep-live-item-list-rich"
         hidden={isCollapsed}
       >
-        {renderSectionItems(section, cardsById)}
+        {renderSectionItems(section, cardsById, cardNeedsReviewById)}
       </div>
     </section>
   )
 }
 
-function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCard>) {
+function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>) {
   if (section.id === 'questions') return renderQuestionCards(section)
   if (section.id === 'donts') return renderDonts(section)
-  if (section.id === 'metrics') return renderMetricCards(section, cardsById)
+  if (section.id === 'metrics') return renderMetricCards(section, cardsById, cardNeedsReviewById)
 
   return section.items.flatMap((item) => {
     if (item.cardId) {
       const card = cardsById.get(item.cardId)
-      return card ? [renderCardBlock(card, section)] : [renderSimpleItem(section, item)]
+      return card ? [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false)] : [renderSimpleItem(section, item)]
     }
 
     return [renderSimpleItem(section, item)]
@@ -816,11 +829,15 @@ function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCar
 }
 
 function renderSimpleItem(section: LiveSection, item: PrepCheatsheetItem) {
+  const needsReview = hasPrepNeedsReviewText(item.title) || hasPrepNeedsReviewText(item.detail)
   return (
-    <article key={item.id} className={`prep-live-item prep-live-item-${section.tone}`}>
+    <article key={item.id} className={`prep-live-item prep-live-item-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
       <div className="prep-live-item-header">
         <h3>{item.title}</h3>
-        {item.category ? <span className={`prep-category prep-category-${item.category}`}>{item.category}</span> : null}
+        <div className="prep-live-item-meta">
+          {item.category ? <span className={`prep-category prep-category-${item.category}`}>{item.category}</span> : null}
+          {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+        </div>
       </div>
       {item.detail ? <p>{item.detail}</p> : null}
     </article>
@@ -828,46 +845,58 @@ function renderSimpleItem(section: LiveSection, item: PrepCheatsheetItem) {
 }
 
 function renderQuestionCards(section: LiveSection) {
-  return section.items.map((item) => (
-    <article key={item.id} className="prep-live-question-card">
-      <div className="prep-live-question-card-question">{item.title}</div>
-      {item.detail ? <div className="prep-live-question-card-context">{item.detail}</div> : null}
-    </article>
-  ))
+  return section.items.map((item) => {
+    const needsReview = hasPrepNeedsReviewText(item.title) || hasPrepNeedsReviewText(item.detail)
+    return (
+      <article key={item.id} className={`prep-live-question-card${needsReview ? ' prep-live-review-surface' : ''}`}>
+        <div className="prep-live-question-card-header">
+          <div className="prep-live-question-card-question">{item.title}</div>
+          {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+        </div>
+        {item.detail ? <div className="prep-live-question-card-context">{item.detail}</div> : null}
+      </article>
+    )
+  })
 }
 
 function renderDonts(section: LiveSection) {
-  return section.items.map((item) => (
-    <article key={item.id} className="prep-live-dont-card" aria-label={'Do not: ' + item.title}>
-      <div className="prep-live-dont-card-marker" aria-hidden="true">
-        Do not
-      </div>
-      <div className="prep-live-dont-card-body">
-        <div className="prep-live-dont-card-title">{item.title}</div>
-      </div>
-    </article>
-  ))
+  return section.items.map((item) => {
+    const needsReview = hasPrepNeedsReviewText(item.title)
+    return (
+      <article key={item.id} className={`prep-live-dont-card${needsReview ? ' prep-live-review-surface' : ''}`} aria-label={'Do not: ' + item.title}>
+        <div className="prep-live-dont-card-marker" aria-hidden="true">
+          Do not
+        </div>
+        <div className="prep-live-dont-card-body">
+          <div className="prep-live-dont-card-title">{item.title}</div>
+          {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+        </div>
+      </article>
+    )
+  })
 }
 
-function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard>) {
+function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>) {
   return section.items.flatMap((item) => {
     const card = item.cardId ? cardsById.get(item.cardId) : null
-    if (card) return [renderCardBlock(card, section)]
+    if (card) return [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false)]
     if (item.metrics && item.metrics.length > 0) return [renderMetricGroupItem(section, item)]
     return [renderSimpleItem(section, item)]
   })
 }
 
 function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
+  const needsReview = hasPrepNeedsReviewText(item.title) || hasPrepNeedsReviewText(item.detail) || (item.metrics?.some((metric) => hasPrepMetricNeedsReview(metric)) ?? false)
   return (
     <article
       key={item.id}
-      className={`prep-live-card-block prep-live-card-block-${section.tone} prep-live-card-block-metrics`}
+      className={`prep-live-card-block prep-live-card-block-${section.tone} prep-live-card-block-metrics${needsReview ? ' prep-live-review-surface' : ''}`}
     >
       <div className="prep-live-card-block-header">
         <div>
           <div className="prep-live-card-block-title-row">
             <h3>{item.title}</h3>
+            {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
           {item.detail ? <div className="prep-live-card-block-script-label">{item.detail}</div> : null}
         </div>
@@ -885,19 +914,20 @@ function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
   )
 }
 
-function renderCardBlock(card: PrepCard, section: LiveSection) {
+function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: boolean) {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
   const conditionals = filterPrepConditionals(card.conditionals)
   const metrics = filterPrepMetrics(card.metrics)
 
   return (
-    <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}`}>
+    <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
       <div className="prep-live-card-block-header">
         <div>
           <div className="prep-live-card-block-title-row">
             <h3>{card.title}</h3>
             <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
+            {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
           {card.scriptLabel ? <div className="prep-live-card-block-script-label">{card.scriptLabel}</div> : null}
         </div>

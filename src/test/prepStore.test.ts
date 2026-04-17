@@ -39,6 +39,27 @@ describe('prepStore', () => {
         behavioral: ' Lead with scope ',
         '': 'ignored',
       },
+      contextGaps: [
+        {
+          id: 'gap-1',
+          section: ' Openers ',
+          question: ' Why did you leave? ',
+          why: ' The opener needs real context. ',
+          feedbackTarget: ' identity.departureContext ',
+          priority: 'required',
+        },
+        {
+          id: 'gap-blank',
+          section: ' ',
+          question: 'Skip me',
+          why: 'Missing section',
+          priority: 'optional',
+        },
+      ],
+      contextGapAnswers: {
+        ' gap-1 ': ' Wanted broader ownership. ',
+        ' ': 'ignored',
+      },
       cards: [],
     })
 
@@ -57,6 +78,17 @@ describe('prepStore', () => {
       company: [expect.objectContaining({ value: '3', label: 'Core priorities' })],
     })
     expect(state.decks[0].categoryGuidance).toEqual({ behavioral: 'Lead with scope' })
+    expect(state.decks[0].contextGaps).toEqual([
+      {
+        id: 'gap-1',
+        section: 'Openers',
+        question: 'Why did you leave?',
+        why: 'The opener needs real context.',
+        feedbackTarget: 'identity.departureContext',
+        priority: 'required',
+      },
+    ])
+    expect(state.decks[0].contextGapAnswers).toEqual({ 'gap-1': 'Wanted broader ownership.' })
     expect(state.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(state.decks[0].durableMeta?.revision).toBe(0)
   })
