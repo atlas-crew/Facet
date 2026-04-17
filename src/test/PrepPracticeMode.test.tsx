@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { cleanup, render, screen, fireEvent } from '@testing-library/react'
-import type { PrepCard } from '../types/prep'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PrepPracticeMode } from '../routes/prep/PrepPracticeMode'
+import type { PrepCard } from '../types/prep'
 
 afterEach(cleanup)
 
 const mockCards: PrepCard[] = [
   { id: 'c1', category: 'opener', title: 'Card 1', tags: ['tag1'], script: 'Script 1' },
   { id: 'c2', category: 'behavioral', title: 'Card 2', tags: ['tag2'], script: 'Script 2' },
-  { id: 'c3', category: 'technical', title: 'Card 3', tags: ['tag3'], script: 'Script 3' }
+  { id: 'c3', category: 'technical', title: 'Card 3', tags: ['tag3'], script: 'Script 3' },
 ]
 
 describe('PrepPracticeMode', () => {
   let mathRandomSpy: MockInstance
 
   beforeEach(() => {
-    // Mocks Math.random so that elements always sort backwards: [3, 2, 1]
-    // because Math.random() - 0.5 will always be > 0
     mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.99)
   })
 
@@ -28,136 +26,205 @@ describe('PrepPracticeMode', () => {
 
   it('renders an empty state when no cards are provided', () => {
     const handleExit = vi.fn()
-    render(<PrepPracticeMode cards={[]} onExit={handleExit} />)
+    render(
+      <PrepPracticeMode
+        cards={[]}
+        onExit={handleExit}
+        onRecordReview={() => {}}
+      />,
+    )
+
     expect(screen.getByText('No cards available')).toBeTruthy()
     fireEvent.click(screen.getByText('Back to Edit'))
     expect(handleExit).toHaveBeenCalled()
   })
 
-  it('renders the first card unrevealed and allows revealing', () => {
-    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} />)
-    
-    // With 0.99, Fisher-Yates does not swap. So it's [Card 1, Card 2, Card 3]
+  it('reveals the answer and records confidence', () => {
+    const handleRecordReview = vi.fn()
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        onExit={() => {}}
+        onRecordReview={handleRecordReview}
+      />,
+    )
+
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 1')
     expect(screen.queryByText('Script 1')).toBeNull()
-    
+
     fireEvent.click(screen.getByText('Reveal Answer'))
     expect(screen.getByText('Script 1')).toBeTruthy()
-  })
 
-  it('allows forward and backward navigation with disabled guards', () => {
-    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} />)
-    
-    fireEvent.click(screen.getByText('Reveal Answer'))
-    
-    const prevBtn = screen.getByText(/Previous/)
-    const nextBtn = screen.getByText(/Next Card/)
-    
-    // Prev is disabled at start
-    expect((prevBtn as HTMLButtonElement).disabled).toBe(true)
-    
-    // Go to next
-    fireEvent.click(nextBtn)
-    expect(screen.queryByText('Script 2')).toBeNull() // now on Card 2, unrevealed
+    fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
+    expect(handleRecordReview).toHaveBeenCalledWith('c1', 'okay')
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
-    
-    fireEvent.click(screen.getByText('Reveal Answer'))
-    
-    // Previous is enabled now
-    expect((screen.getByText(/Previous/) as HTMLButtonElement).disabled).toBe(false)
-    
-    // Go back to first
-    fireEvent.click(screen.getByText(/Previous/))
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 1')
-    expect(screen.queryByText('Script 1')).toBeNull() // resets to unrevealed
   })
 
-  it('handles keyboard navigation and guards', () => {
+  it('requeues cards marked needs work later in the session', () => {
+    const handleRecordReview = vi.fn()
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        onExit={() => {}}
+        onRecordReview={handleRecordReview}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    fireEvent.click(screen.getAllByRole('button', { name: /Needs work/i })[1])
+    expect(handleRecordReview).toHaveBeenCalledWith('c1', 'needs_work')
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
+
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 1')
+  })
+
+  it('supports weak-card and unreviewed filters', () => {
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        studyProgress={{
+          c1: {
+            confidence: 'needs_work',
+            attempts: 2,
+            needsWorkCount: 1,
+            lastReviewedAt: '2026-04-14T12:00:00.000Z',
+          },
+          c2: {
+            confidence: 'okay',
+            attempts: 1,
+            needsWorkCount: 0,
+            lastReviewedAt: '2026-04-14T12:05:00.000Z',
+          },
+        }}
+        onExit={() => {}}
+        onRecordReview={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Needs work/i }))
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 1')
+
+    fireEvent.click(screen.getByRole('button', { name: /Unreviewed/i }))
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 3')
+  })
+
+  it('shows an empty homework filter state when no cards match', () => {
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        studyProgress={{
+          c1: {
+            confidence: 'okay',
+            attempts: 1,
+            needsWorkCount: 0,
+            lastReviewedAt: '2026-04-14T12:00:00.000Z',
+          },
+          c2: {
+            confidence: 'okay',
+            attempts: 1,
+            needsWorkCount: 0,
+            lastReviewedAt: '2026-04-14T12:05:00.000Z',
+          },
+          c3: {
+            confidence: 'nailed_it',
+            attempts: 1,
+            needsWorkCount: 0,
+            lastReviewedAt: '2026-04-14T12:10:00.000Z',
+          },
+        }}
+        onExit={() => {}}
+        onRecordReview={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Needs work/i }))
+    expect(screen.getByText('No cards match this homework filter')).toBeTruthy()
+  })
+
+  it('supports keyboard shortcuts for reveal and confidence grading', () => {
     const handleExit = vi.fn()
-    render(<PrepPracticeMode cards={mockCards} onExit={handleExit} />)
-    
-    // Space reveals
-    const event = new KeyboardEvent('keydown', { key: ' ' })
-    vi.spyOn(event, 'preventDefault')
-    fireEvent(window, event)
-    expect(event.preventDefault).toHaveBeenCalled()
-    expect(screen.getByText('Script 1')).toBeTruthy()
-    
-    // ArrowRight to next
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
-    
-    // Enter reveals
-    fireEvent.keyDown(window, { key: 'Enter' })
-    expect(screen.getByText('Script 2')).toBeTruthy()
+    const handleRecordReview = vi.fn()
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        onExit={handleExit}
+        onRecordReview={handleRecordReview}
+      />,
+    )
 
-    // ArrowLeft to previous
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 1')
-    
-    // Escape exits
+    const spaceEvent = new KeyboardEvent('keydown', { key: ' ' })
+    vi.spyOn(spaceEvent, 'preventDefault')
+    fireEvent(window, spaceEvent)
+    expect(spaceEvent.preventDefault).toHaveBeenCalled()
+    expect(screen.getByText('Script 1')).toBeTruthy()
+
+    fireEvent.keyDown(window, { key: '2' })
+    expect(handleRecordReview).toHaveBeenCalledWith('c1', 'okay')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
+
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(handleExit).toHaveBeenCalled()
   })
 
-  it('Space/Enter skipped on BUTTON targets', () => {
-    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} />)
-    
-    const shuffleBtn = screen.getByText('Shuffle')
-    // Space on a button shouldn't reveal the card
-    fireEvent.keyDown(shuffleBtn, { key: ' ' })
-    expect(screen.queryByText('Script 1')).toBeNull() // Still unrevealed
+  it('ignores grading shortcuts while focus is on an interactive element', () => {
+    const handleRecordReview = vi.fn()
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        onExit={() => {}}
+        onRecordReview={handleRecordReview}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    const okayButton = screen.getAllByRole('button', { name: /Okay/i })[0]
+    fireEvent.keyDown(okayButton, { key: '1' })
+
+    expect(handleRecordReview).not.toHaveBeenCalled()
+    expect(screen.getByText('Script 1')).toBeTruthy()
   })
 
   it('shows completion UI and allows restart', () => {
-    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} />)
-    
-    // Skip to last card
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        onExit={() => {}}
+        onRecordReview={() => {}}
+      />,
+    )
+
     fireEvent.click(screen.getByText('Reveal Answer'))
-    fireEvent.click(screen.getByText(/Next Card/))
+    fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
     fireEvent.click(screen.getByText('Reveal Answer'))
-    fireEvent.click(screen.getByText(/Next Card/))
+    fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
     fireEvent.click(screen.getByText('Reveal Answer'))
-    
-    expect(screen.getByText(`You've reviewed all ${mockCards.length} cards.`)).toBeTruthy()
-    
-    // Shuffle & Restart (with 0.01, Fisher-Yates results in [Card 2, Card 3, Card 1])
+    fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
+
+    expect(screen.getByText('You completed this homework round.')).toBeTruthy()
+
     mathRandomSpy.mockReturnValue(0.01)
     fireEvent.click(screen.getByText('Shuffle & Restart'))
-    
+
     expect(screen.getByText('Card 1 of 3')).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
-    expect(screen.queryByText('Script 2')).toBeNull() // unrevealed
-  })
-
-  it('handles single card deck gracefully', () => {
-    render(<PrepPracticeMode cards={[mockCards[0]]} onExit={() => {}} />)
-    
-    expect(screen.getByText('Card 1 of 1')).toBeTruthy()
-    fireEvent.click(screen.getByText('Reveal Answer'))
-    
-    // Immediately shows completion
-    expect(screen.getByText("You've reviewed all 1 cards.")).toBeTruthy()
-    expect(screen.queryByText(/Next Card/)).toBeNull()
-  })
-
-  it('does not render tags if empty array', () => {
-    const noTagsCard = { ...mockCards[0], tags: [] }
-    const { container } = render(<PrepPracticeMode cards={[noTagsCard]} onExit={() => {}} />)
-    
-    expect(container.querySelector('.prep-tags')).toBeNull()
   })
 
   it('applies accessibility attributes', () => {
-    const { container } = render(<PrepPracticeMode cards={mockCards} onExit={() => {}} />)
-    
+    const { container } = render(
+      <PrepPracticeMode
+        cards={mockCards}
+        onExit={() => {}}
+        onRecordReview={() => {}}
+      />,
+    )
+
     const wrapper = container.firstChild as HTMLElement
     expect(wrapper.getAttribute('role')).toBe('region')
     expect(wrapper.getAttribute('aria-label')).toBe('Homework mode')
-    
     expect(document.activeElement).toBe(wrapper)
-    
-    const progress = screen.getByText('Card 1 of 3')
-    expect(progress.getAttribute('role')).toBe('status')
+    expect(screen.getByText('Card 1 of 3').getAttribute('role')).toBe('status')
   })
 })

@@ -6,6 +6,7 @@ interface PrepCardGridProps {
   onUpdateCard: (cardId: string, patch: Partial<PrepCard>) => void
   onDuplicateCard: (cardId: string) => void
   onRemoveCard: (cardId: string) => void
+  layout?: 'responsive' | 'single'
 }
 
 export function PrepCardGrid({
@@ -13,9 +14,10 @@ export function PrepCardGrid({
   onUpdateCard,
   onDuplicateCard,
   onRemoveCard,
+  layout = 'responsive',
 }: PrepCardGridProps) {
   return (
-    <div className="prep-card-grid">
+    <div className={`prep-card-grid ${layout === 'single' ? 'prep-card-grid-single' : ''}`}>
       {cards.map((card) => (
         <PrepCardView
           key={card.id}

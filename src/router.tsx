@@ -19,6 +19,7 @@ const LazyIdentityEnrichmentSkillPage = lazy(() =>
 const LazyMatchPage = lazy(() => import('./routes/match/MatchPage').then((m) => ({ default: m.MatchPage })))
 const LazyResearchPage = lazy(() => import('./routes/research/ResearchPage').then((m) => ({ default: m.ResearchPage })))
 const LazyPrepPage = lazy(() => import('./routes/prep/PrepPage').then((m) => ({ default: m.PrepPage })))
+const LazyPrepLivePage = lazy(() => import('./routes/prep/PrepLivePage').then((m) => ({ default: m.PrepLivePage })))
 const LazyLettersPage = lazy(() => import('./routes/letters/LettersPage').then((m) => ({ default: m.LettersPage })))
 const LazyLinkedInPage = lazy(() => import('./routes/linkedin/LinkedInPage').then((m) => ({ default: m.LinkedInPage })))
 const LazyDebriefPage = lazy(() => import('./routes/debrief/DebriefPage').then((m) => ({ default: m.DebriefPage })))
@@ -90,6 +91,12 @@ const prepRoute = createRoute({
   }),
 })
 
+const prepLiveRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/prep/live',
+  component: LazyPrepLivePage,
+})
+
 const lettersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/letters',
@@ -147,6 +154,7 @@ const routeTree = rootRoute.addChildren([
   matchRoute,
   pipelineRoute,
   researchRoute,
+  prepLiveRoute,
   prepRoute,
   lettersRoute,
   linkedInRoute,

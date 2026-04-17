@@ -1,9 +1,10 @@
 ---
 id: TASK-135
 title: Add conditional branching blocks to prep cards
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-16 13:11'
+updated_date: '2026-04-17 09:56'
 labels:
   - prep
   - content
@@ -65,6 +66,16 @@ Add `conditionals?: PrepConditional[]` to PrepCard.
 - [ ] #7 Store sanitization validates conditionals array
 - [ ] #8 Cards without conditionals render unchanged
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added PrepConditional typing plus store and generator normalization for pivot, trap, and escalation coaching blocks.
+
+Rendered conditionals in read-only and live prep surfaces, including trap/reframe pair treatment and tone-aware edit-mode copy.
+
+Extended prepGenerator, prepStore, PrepCardView, and PrepLiveMode coverage for conditionals, search, and draft filtering.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
