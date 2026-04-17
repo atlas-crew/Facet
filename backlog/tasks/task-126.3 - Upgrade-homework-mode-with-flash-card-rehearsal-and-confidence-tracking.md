@@ -1,30 +1,28 @@
 ---
-id: TASK-126.2
-title: >-
-  Expand prep regression coverage for mode shell homework and live cheatsheet
-  interactions
-status: To Do
+id: TASK-126.3
+title: Upgrade homework mode with flash-card rehearsal and confidence tracking
+status: Done
 assignee: []
-created_date: '2026-04-14 16:49'
+created_date: '2026-04-14 16:48'
 labels:
-  - test
+  - ux
   - prep
 dependencies: []
 parent_task_id: TASK-126
-priority: medium
+priority: high
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Add targeted tests for the new prep mode shell, homework interactions, and live cheatsheet behaviors such as timer, navigation, and shortcuts.
+Expand the current practice mode into a real homework flow with reveal/review interactions, confidence scoring, and weak-card repetition or filtering.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Tests cover mode switching on PrepPage.
-- [ ] #2 Tests cover core Homework reveal/confidence interaction.
-- [ ] #3 Tests cover core Live Cheatsheet navigation or shortcut behavior.
+- [ ] #1 Homework mode supports reveal-based flash-card flow.
+- [ ] #2 User can mark card confidence such as nailed it, okay, or needs work.
+- [ ] #3 Homework mode can re-surface weak cards or filter to weak/unreviewed cards.
 <!-- AC:END -->
 
 ## Definition of Done

@@ -1,7 +1,7 @@
 ---
-id: TASK-126.1
+id: TASK-126.2
 title: Add shared prep mode state and derived cheatsheet projections
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-14 16:48'
 labels:

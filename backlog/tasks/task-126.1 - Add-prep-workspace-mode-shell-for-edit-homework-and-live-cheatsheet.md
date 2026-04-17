@@ -1,7 +1,7 @@
 ---
 id: TASK-126.1
 title: Add prep workspace mode shell for edit homework and live cheatsheet
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-14 16:48'
 labels:

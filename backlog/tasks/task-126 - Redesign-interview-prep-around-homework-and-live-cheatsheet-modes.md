@@ -1,7 +1,7 @@
 ---
 id: TASK-126
 title: Redesign interview prep around homework and live cheatsheet modes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-14 16:48'
 labels:
