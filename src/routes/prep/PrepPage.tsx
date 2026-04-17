@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Download, ExternalLink, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, ExternalLink, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
@@ -83,6 +83,9 @@ const USER_OWNED_PREP_CARD_FIELDS: Array<keyof PrepCard> = [
   'tableData',
 ]
 
+const PREP_LIBRARY_UNGROUPED_KEY = '__ungrouped__'
+const PREP_LIBRARY_UNGROUPED_LABEL = 'Ungrouped'
+
 function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
   if (!roundType) return 'General'
   return ROUND_TYPE_LABELS[roundType] ?? roundType.split('-').map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1)).join(' ')
@@ -124,6 +127,14 @@ function shouldPromotePrepCardToManual(patch: Partial<PrepCard>): boolean {
   return USER_OWNED_PREP_CARD_FIELDS.some((field) => field in patch)
 }
 
+function getPrepLibraryGroupMeta(company?: string | null) {
+  const trimmedCompany = company?.trim() || ''
+  return {
+    companyKey: trimmedCompany || PREP_LIBRARY_UNGROUPED_KEY,
+    companyLabel: trimmedCompany || PREP_LIBRARY_UNGROUPED_LABEL,
+  }
+}
+
 export function PrepPage() {
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { vector?: string; skills?: string; q?: string }
@@ -144,6 +155,7 @@ export function PrepPage() {
   const [gapStepIndex, setGapStepIndex] = useState(0)
   const [gapDraftAnswers, setGapDraftAnswers] = useState<Record<string, string>>({})
   const [expandedLibraryGroups, setExpandedLibraryGroups] = useState<Record<string, boolean>>({})
+  const [collapsedLibraryGroups, setCollapsedLibraryGroups] = useState<Record<string, boolean>>({})
   const [editGroupOpen, setEditGroupOpen] = useState({
     liveGuidance: true,
     categoryGuidance: false,
@@ -201,23 +213,46 @@ export function PrepPage() {
       }
     }
     return [...groups.entries()]
-      .map(([companyKey, groupDecks]) => ({
-        companyKey: companyKey || '__ungrouped__',
-        company: companyKey || 'Ungrouped',
-        decks: groupDecks,
-      }))
+      .map(([companyKey, groupDecks]) => {
+        const groupMeta = getPrepLibraryGroupMeta(companyKey)
+        return {
+          ...groupMeta,
+          company: groupMeta.companyLabel,
+          decks: groupDecks,
+        }
+      })
       .sort((a, b) => {
-        if (a.company === 'Ungrouped') return 1
-        if (b.company === 'Ungrouped') return -1
+        if (a.company === PREP_LIBRARY_UNGROUPED_LABEL) return 1
+        if (b.company === PREP_LIBRARY_UNGROUPED_LABEL) return -1
         return b.decks[0].updatedAt.localeCompare(a.decks[0].updatedAt)
       })
   }, [deckLibrary])
+
+  const activeLibraryGroupKey = useMemo(
+    () => activeDeck?.id
+      ? groupedLibrary.find((group) => group.decks.some((deck) => deck.id === activeDeck.id))?.companyKey ?? null
+      : null,
+    [activeDeck?.id, groupedLibrary],
+  )
 
   useEffect(() => {
     if (!activeDeckId && decks.length > 0) {
       setActiveDeck(decks[0].id)
     }
   }, [activeDeckId, decks, setActiveDeck])
+
+  useEffect(() => {
+    // Keep the active deck visible when the user switches to a deck in a collapsed company group.
+    if (!activeLibraryGroupKey) return
+    setCollapsedLibraryGroups((current) => (
+      current[activeLibraryGroupKey]
+        ? {
+            ...current,
+            [activeLibraryGroupKey]: false,
+          }
+        : current
+    ))
+  }, [activeLibraryGroupKey])
 
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
@@ -332,6 +367,10 @@ export function PrepPage() {
     () => countPrepContextGapSections(activeDeckContextGaps),
     [activeDeckContextGaps],
   )
+  const activeDeckContextGapSignature = useMemo(
+    () => activeDeckContextGaps.map((gap) => gap.id).join('::'),
+    [activeDeckContextGaps],
+  )
   const answeredGapCount = useMemo(
     () => activeDeckContextGaps.filter((gap) => activeDeck?.contextGapAnswers?.[gap.id]?.trim()).length,
     [activeDeck?.contextGapAnswers, activeDeckContextGaps],
@@ -354,6 +393,7 @@ export function PrepPage() {
       categoryGuidance: hasCategoryGuidance,
       sourceMaterial: true,
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset panel state when the active deck changes
   }, [activeDeck?.id])
 
   useEffect(() => {
@@ -926,12 +966,11 @@ export function PrepPage() {
   }, [gapStepIndex, isGapModalOpen])
   useEffect(() => {
     if (!isGapModalOpen) {
-      previousContextGapSignatureRef.current = activeDeckContextGaps.map((gap) => gap.id).join('::')
+      previousContextGapSignatureRef.current = activeDeckContextGapSignature
       return
     }
-    const nextGapSignature = activeDeckContextGaps.map((gap) => gap.id).join('::')
-    const contextGapSignatureChanged = previousContextGapSignatureRef.current !== nextGapSignature
-    previousContextGapSignatureRef.current = nextGapSignature
+    const contextGapSignatureChanged = previousContextGapSignatureRef.current !== activeDeckContextGapSignature
+    previousContextGapSignatureRef.current = activeDeckContextGapSignature
     if (contextGapSignatureChanged && Object.keys(gapDraftAnswers).length > 0) {
       persistGapAnswers(gapDraftAnswers)
     }
@@ -942,7 +981,7 @@ export function PrepPage() {
     if (gapStepIndex >= activeDeckContextGaps.length) {
       setGapStepIndex(Math.max(0, activeDeckContextGaps.length - 1))
     }
-  }, [activeDeckContextGaps.length, gapDraftAnswers, gapStepIndex, isGapModalOpen, persistGapAnswers])
+  }, [activeDeckContextGapSignature, activeDeckContextGaps.length, gapDraftAnswers, gapStepIndex, isGapModalOpen, persistGapAnswers])
   const handleRegenerateWithGapAnswers = useCallback(async () => {
     if (!activeDeck) return
     if (!aiEndpoint) {
@@ -1099,75 +1138,100 @@ export function PrepPage() {
 
           <div className="prep-library-groups">
             {groupedLibrary.map((group) => {
+              const isCollapsed = collapsedLibraryGroups[group.companyKey] ?? false
               const isExpanded = expandedLibraryGroups[group.companyKey] ?? false
               const visibleDecks = isExpanded
                 ? group.decks
                 : group.decks.slice(0, MAX_LIBRARY_DECKS_PER_GROUP)
               const hiddenCount = group.decks.length - visibleDecks.length
+              const groupRegionId = `prep-library-group-${group.companyKey}`
+              const groupLabelId = `prep-library-group-label-${group.companyKey}`
 
               return (
                 <div key={group.companyKey} className="prep-library-group">
-                  <div className="prep-library-group-header">
-                    <h3 className="prep-library-group-title">{group.company}</h3>
-                    <span className="prep-library-group-count">{group.decks.length} {group.decks.length === 1 ? 'set' : 'sets'}</span>
-                  </div>
-                  <div className="prep-library-group-decks" role="list" aria-label={`${group.company} prep sets`}>
-                    {visibleDecks.map((deck, index) => {
-                      const isActive = deck.id === activeDeckId
-                      const isNextUp = index === 0
-                      const isMuted = !isNextUp && !isActive
-
-                      return (
-                        <div key={deck.id} role="listitem">
-                          <button
-                            type="button"
-                            className={`prep-library-card ${isActive ? 'prep-library-card-active' : ''}`}
-                            data-muted={isMuted ? 'true' : undefined}
-                            onClick={() => setActiveDeck(deck.id)}
-                            aria-current={isActive ? 'true' : undefined}
-                          >
-                            <div className="prep-library-card-header">
-                              <div>
-                                <div className="prep-library-card-title">{deck.title}</div>
-                                <div className="prep-library-card-subtitle">
-                                  {deck.role || 'Untitled prep set'}
-                                </div>
-                                <div className="prep-library-card-badges">
-                                  <span className="prep-library-card-badge prep-library-card-badge-round">
-                                    {formatPrepRoundTypeLabel(deck.roundType)}
-                                  </span>
-                                  {isNextUp ? <span className="prep-library-card-badge prep-library-card-badge-next-up">Next Up</span> : null}
-                                </div>
-                              </div>
-                              {isActive ? <span className="prep-mode-chip">Active</span> : null}
-                            </div>
-                            <div className="prep-library-card-meta">
-                              <span>{deck.cards.length} cards</span>
-                              <span>{deck.vectorId || 'No vector'}</span>
-                              <span>{formatPrepDeckUpdatedAt(deck.updatedAt)}</span>
-                            </div>
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {group.decks.length > MAX_LIBRARY_DECKS_PER_GROUP ? (
+                  <h3 className="prep-library-group-title">
                     <button
                       type="button"
-                      className="prep-library-group-more"
-                      aria-label={expandedLibraryGroups[group.companyKey]
-                        ? `Show less prep sets for ${group.company}`
-                        : `Show ${hiddenCount} more prep sets for ${group.company}`}
+                      className="prep-library-group-header"
+                      aria-labelledby={groupLabelId}
+                      aria-expanded={!isCollapsed}
+                      aria-controls={groupRegionId}
                       onClick={() =>
-                        setExpandedLibraryGroups((current) => ({
+                        setCollapsedLibraryGroups((current) => ({
                           ...current,
                           [group.companyKey]: !(current[group.companyKey] ?? false),
                         }))
                       }
                     >
-                      {expandedLibraryGroups[group.companyKey] ? 'Show less' : `${hiddenCount} more`}
+                      <span className="prep-library-group-heading">
+                        <span id={groupLabelId} className="prep-library-group-label">{group.company}</span>
+                        {' '}
+                        <span className="prep-library-group-count" aria-hidden="true">{group.decks.length} {group.decks.length === 1 ? 'set' : 'sets'}</span>
+                      </span>
+                      {isCollapsed
+                        ? <ChevronRight className="prep-library-group-chevron" size={16} aria-hidden="true" />
+                        : <ChevronDown className="prep-library-group-chevron" size={16} aria-hidden="true" />}
                     </button>
-                  ) : null}
+                  </h3>
+                  <div id={groupRegionId} hidden={isCollapsed}>
+                    <div className="prep-library-group-decks" role="list" aria-label={`${group.company} prep sets`}>
+                      {visibleDecks.map((deck, index) => {
+                        const isActive = deck.id === activeDeckId
+                        const isNextUp = index === 0
+                        const isMuted = !isNextUp && !isActive
+
+                        return (
+                          <div key={deck.id} role="listitem">
+                            <button
+                              type="button"
+                              className={`prep-library-card ${isActive ? 'prep-library-card-active' : ''}`}
+                              data-muted={isMuted ? 'true' : undefined}
+                              onClick={() => setActiveDeck(deck.id)}
+                              aria-current={isActive ? 'true' : undefined}
+                            >
+                              <div className="prep-library-card-header">
+                                <div>
+                                  <div className="prep-library-card-title">{deck.title}</div>
+                                  <div className="prep-library-card-subtitle">
+                                    {deck.role || 'Untitled prep set'}
+                                  </div>
+                                  <div className="prep-library-card-badges">
+                                    <span className="prep-library-card-badge prep-library-card-badge-round">
+                                      {formatPrepRoundTypeLabel(deck.roundType)}
+                                    </span>
+                                    {isNextUp ? <span className="prep-library-card-badge prep-library-card-badge-next-up">Next Up</span> : null}
+                                  </div>
+                                </div>
+                                {isActive ? <span className="prep-mode-chip">Active</span> : null}
+                              </div>
+                              <div className="prep-library-card-meta">
+                                <span>{deck.cards.length} cards</span>
+                                <span>{deck.vectorId || 'No vector'}</span>
+                                <span>{formatPrepDeckUpdatedAt(deck.updatedAt)}</span>
+                              </div>
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {group.decks.length > MAX_LIBRARY_DECKS_PER_GROUP ? (
+                      <button
+                        type="button"
+                        className="prep-library-group-more"
+                        aria-label={expandedLibraryGroups[group.companyKey]
+                          ? `Show less prep sets for ${group.company}`
+                          : `Show ${hiddenCount} more prep sets for ${group.company}`}
+                        onClick={() =>
+                          setExpandedLibraryGroups((current) => ({
+                            ...current,
+                            [group.companyKey]: !(current[group.companyKey] ?? false),
+                          }))
+                        }
+                      >
+                        {expandedLibraryGroups[group.companyKey] ? 'Show less' : `${hiddenCount} more`}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               )
             })}

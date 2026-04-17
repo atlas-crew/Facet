@@ -10,6 +10,7 @@ import { useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
 import type { MatchReport } from '../types/match'
+import type { PrepDeck } from '../types/prep'
 
 const navigateMock = vi.fn()
 
@@ -321,6 +322,7 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
+    const acmeGroupToggle = screen.getByRole('button', { name: 'Acme' })
     const acmeLibrary = screen.getByRole('list', { name: 'Acme prep sets' })
     expect(within(acmeLibrary).getByText('HM Screen')).toBeTruthy()
     expect(within(acmeLibrary).getByText('System Design')).toBeTruthy()
@@ -328,6 +330,13 @@ describe('PrepPage', () => {
     expect(screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current')).toBeNull()
     expect(screen.getByRole('button', { name: /Acme Systems Prep/i }).getAttribute('data-muted')).toBe('true')
     expect(screen.getAllByRole('button', { name: /Acme .* Prep/i })).toHaveLength(5)
+
+    fireEvent.click(acmeGroupToggle)
+
+    expect(screen.queryByRole('list', { name: 'Acme prep sets' })).toBeNull()
+    expect(usePrepStore.getState().activeDeckId).toBe('deck-1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Acme' }))
 
     fireEvent.click(screen.getByRole('button', { name: /Acme Most Recent Prep/i }))
 
@@ -353,7 +362,7 @@ describe('PrepPage', () => {
           pipelineEntryId: null,
           updatedAt: 'invalid-date',
           cards: [],
-        } as any,
+        } as PrepDeck,
         {
           id: 'deck-unknown',
           title: 'Unknown Round Prep',
@@ -364,7 +373,7 @@ describe('PrepPage', () => {
           pipelineEntryId: null,
           updatedAt: '2026-04-16T00:00:00.000Z',
           cards: [],
-        } as any,
+        } as unknown as PrepDeck,
       ],
       activeDeckId: 'deck-general',
       activeMode: 'edit',

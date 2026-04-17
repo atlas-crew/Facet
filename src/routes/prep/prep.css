@@ -1881,20 +1881,37 @@
   gap: var(--space-4);
 }
 
+.prep-library-group-title {
+  margin: 0;
+}
+
 .prep-library-group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  width: 100%;
+  margin: 0;
   padding-bottom: var(--space-2);
+  padding-inline: 0;
+  border: 0;
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: var(--space-2);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.prep-library-group-title {
-  margin: 0;
-  padding: 0;
-  border: 0;
+.prep-library-group-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.prep-library-group-label {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
@@ -1906,6 +1923,11 @@
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.prep-library-group-header:hover .prep-library-group-label,
+.prep-library-group-header:hover .prep-library-group-chevron {
+  color: var(--accent-primary);
 }
 
 .prep-library-group-decks {
