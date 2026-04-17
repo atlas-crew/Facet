@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { PrepCardView, PrepCollapsibleSection } from '../routes/prep/PrepCardView'
+import { PrepCardView } from '../routes/prep/PrepCardView'
+import { PrepCollapsibleSection } from '../routes/prep/PrepCollapsibleSection'
 import type { PrepCard } from '../types/prep'
 
 function makeCard(overrides: Partial<PrepCard> = {}): PrepCard {
