@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
 import { derivePrepCheatsheetSections } from '../../utils/prepCheatsheet'
 import {
+  filterPrepConditionals,
   filterPrepDeepDives,
   filterPrepFollowUps,
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
 import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection } from '../../utils/prepCheatsheet'
 import type { PrepCard, PrepDeck } from '../../types/prep'
@@ -116,6 +118,7 @@ function buildCardSearchText(card: PrepCard): string {
   const metrics = filterPrepMetrics(card.metrics)
   const followUps = filterPrepFollowUps(card.followUps)
   const deepDives = filterPrepDeepDives(card.deepDives)
+  const conditionals = filterPrepConditionals(card.conditionals)
 
   return [
     card.title,
@@ -128,6 +131,7 @@ function buildCardSearchText(card: PrepCard): string {
     ...metrics.flatMap((metric) => [metric.value, metric.label]),
     ...followUps.flatMap((followUp) => [followUp.question, followUp.answer, followUp.context ?? '']),
     ...deepDives.flatMap((deepDive) => [deepDive.title, deepDive.content]),
+    ...conditionals.flatMap((conditional) => [conditional.trigger, conditional.response]),
     ...(card.tableData?.headers ?? []),
     ...(card.tableData?.rows.flat() ?? []),
   ]
@@ -850,6 +854,7 @@ function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard
 function renderCardBlock(card: PrepCard, section: LiveSection) {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const conditionals = filterPrepConditionals(card.conditionals)
   const metrics = filterPrepMetrics(card.metrics)
 
   return (
@@ -911,6 +916,39 @@ function renderCardBlock(card: PrepCard, section: LiveSection) {
               <p>{storyBlock.text}</p>
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {conditionals.length > 0 ? (
+        <div className="prep-live-conditionals">
+          {conditionals.map((conditional, index) => {
+            const tone = resolvePrepConditionalTone(conditional)
+            const key = conditional.id ?? `${card.id}-${conditional.trigger}-${conditional.response}-${index}`
+
+            if (tone === 'trap') {
+              return (
+                <div key={key} className="prep-live-conditional">
+                  <div className="prep-live-conditional-pair-grid">
+                    <div className="prep-live-conditional-pair prep-live-conditional-pair-trap">
+                      <span className="prep-live-conditional-label">Trap</span>
+                      <p>{conditional.trigger}</p>
+                    </div>
+                    <div className="prep-live-conditional-pair prep-live-conditional-pair-reframe">
+                      <span className="prep-live-conditional-label">Reframe</span>
+                      <p>{conditional.response}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div key={key} className={`prep-live-conditional prep-live-conditional-${tone}`}>
+                <span className="prep-live-conditional-label">{conditional.trigger}</span>
+                <p>{conditional.response}</p>
+              </div>
+            )
+          })}
         </div>
       ) : null}
 

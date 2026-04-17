@@ -1,10 +1,13 @@
 import {
   PREP_CATEGORY_VALUES,
+  PREP_CONDITIONAL_TONE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
 } from '../types/prep'
 import type {
   PrepCard,
   PrepCategory,
+  PrepConditional,
+  PrepConditionalTone,
   PrepGenerationRequest,
   PrepQuestionToAsk,
   PrepStoryBlock,
@@ -81,6 +84,27 @@ function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefine
   return questions.length > 0 ? questions : undefined
 }
 
+function normalizeConditionalTone(value: unknown): PrepConditionalTone | undefined {
+  if (!isString(value)) return undefined
+  const normalized = value.trim().toLowerCase()
+  return PREP_CONDITIONAL_TONE_VALUES.includes(normalized as PrepConditionalTone)
+    ? normalized as PrepConditionalTone
+    : undefined
+}
+
+function normalizeConditionals(value: unknown): PrepConditional[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const conditionals = value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const trigger = isString(record.trigger) ? record.trigger.trim() : ''
+    const response = isString(record.response) ? record.response.trim() : ''
+    const tone = normalizeConditionalTone(record.tone)
+    return trigger && response ? [{ trigger, response, tone }] : []
+  })
+  return conditionals.length > 0 ? conditionals : undefined
+}
+
 function normalizeCategoryGuidance(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, guidance]) => {
@@ -138,6 +162,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
                 : []
             })
           : undefined,
+        conditionals: normalizeConditionals(record.conditionals),
         metrics: Array.isArray(record.metrics)
           ? record.metrics.flatMap((metric) => {
               if (!metric || typeof metric !== 'object') return []
@@ -210,6 +235,7 @@ Response schema:
       "keyPoints": ["string"],
       "followUps": [{ "question": "string", "answer": "string" }],
       "deepDives": [{ "title": "string", "content": "string" }],
+      "conditionals": [{ "trigger": "string", "response": "string", "tone": "pivot|trap|escalation" }],
       "metrics": [{ "value": "string", "label": "string" }],
       "tableData": {
         "headers": ["string"],
@@ -242,6 +268,8 @@ When structured identity context is provided, use it as the primary source of ca
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
 If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
+For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
+For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
 Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with coaching context, and categoryGuidance keyed by the prep category names.
 When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
 If a round type is provided, adapt the emphasis and category guidance to that interview round.

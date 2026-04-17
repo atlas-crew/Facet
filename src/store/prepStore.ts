@@ -3,6 +3,8 @@ import type {
   PrepCard,
   PrepCardConfidence,
   PrepCardStudyState,
+  PrepConditional,
+  PrepConditionalTone,
   PrepDeck,
   PrepCategory,
   PrepDeepDive,
@@ -16,6 +18,7 @@ import type {
 import {
   PREP_CARD_CONFIDENCE_VALUES,
   PREP_CATEGORY_VALUES,
+  PREP_CONDITIONAL_TONE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
 } from '../types/prep'
 import type { InterviewFormat } from '../types/pipeline'
@@ -96,6 +99,7 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     keyPoints: sanitizeStringList(partial.keyPoints),
     followUps: sanitizeFollowUps(partial.followUps),
     deepDives: sanitizeDeepDives(partial.deepDives),
+    conditionals: sanitizeConditionals(partial.conditionals),
     metrics: sanitizeMetrics(partial.metrics),
     tableData: partial.tableData,
   }
@@ -203,6 +207,40 @@ function sanitizeDeepDives(deepDives?: PrepDeepDive[], options: SanitizeOptions 
   return sanitized.length > 0 ? sanitized : undefined
 }
 
+function sanitizeConditionals(conditionals?: PrepConditional[], options: SanitizeOptions = {}): PrepConditional[] | undefined {
+  if (!Array.isArray(conditionals)) return undefined
+  const sanitized = conditionals.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepConditional>
+    const trigger = typeof record.trigger === 'string' ? record.trigger.trim() : ''
+    const response = typeof record.response === 'string' ? record.response.trim() : ''
+    const toneValue = typeof record.tone === 'string' ? record.tone.trim() : undefined
+    const tone = PREP_CONDITIONAL_TONE_VALUES.includes(toneValue as PrepConditionalTone)
+      ? toneValue as PrepConditionalTone
+      : undefined
+    const normalizedTone = tone ?? 'pivot'
+
+    if (options.preserveDrafts) {
+      if (!trigger && !response && !tone) return []
+      return [{
+        id: record.id,
+        trigger,
+        response,
+        tone: normalizedTone,
+      }]
+    }
+
+    if (!trigger || !response) return []
+    return [{
+      id: record.id,
+      trigger,
+      response,
+      tone: normalizedTone,
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
 function sanitizeMetrics(metrics?: PrepMetric[], options: SanitizeOptions = {}): PrepMetric[] | undefined {
   if (!Array.isArray(metrics)) return undefined
   const sanitized = metrics.flatMap((item) => {
@@ -240,6 +278,10 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
     deepDives: sanitizeDeepDives(card.deepDives, options)?.map((item) => ({
       ...item,
       id: item.id ?? createId('prep-deep-dive'),
+    })),
+    conditionals: sanitizeConditionals(card.conditionals, options)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-conditional'),
     })),
     metrics: sanitizeMetrics(card.metrics, options)?.map((item) => ({
       ...item,
@@ -324,6 +366,10 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
     deepDives: sanitizeDeepDives(card.deepDives)?.map((item) => ({
       ...item,
       id: item.id ?? createId('prep-deep-dive'),
+    })),
+    conditionals: sanitizeConditionals(card.conditionals)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-conditional'),
     })),
     metrics: sanitizeMetrics(card.metrics)?.map((item) => ({
       ...item,

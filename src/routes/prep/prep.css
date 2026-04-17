@@ -1526,6 +1526,7 @@
 
 .prep-live-keypoints,
 .prep-live-story-blocks,
+.prep-live-conditionals,
 .prep-live-stat-grid {
   display: grid;
   gap: var(--space-2);
@@ -1588,6 +1589,83 @@
 .prep-live-story-block-result .prep-live-story-block-label { background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); color: var(--accent-cyan); }
 .prep-live-story-block-closer .prep-live-story-block-label { background: color-mix(in srgb, var(--accent-primary) 14%, transparent); color: var(--accent-primary); }
 .prep-live-story-block-note .prep-live-story-block-label { background: color-mix(in srgb, var(--text-tertiary) 16%, transparent); color: var(--text-tertiary); }
+
+.prep-live-conditionals {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.prep-live-conditional,
+.prep-live-conditional-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+}
+
+.prep-live-conditional-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
+}
+
+.prep-live-conditional-label {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prep-live-conditional p,
+.prep-live-conditional-pair p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.prep-live-conditional-pivot .prep-live-conditional-label {
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  color: var(--accent-primary);
+}
+
+.prep-live-conditional-escalation {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg-surface));
+}
+
+.prep-live-conditional-escalation .prep-live-conditional-label {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+
+.prep-live-conditional-pair-trap {
+  border-color: color-mix(in srgb, var(--status-critical) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-critical) 10%, var(--bg-surface));
+}
+
+.prep-live-conditional-pair-trap .prep-live-conditional-label {
+  background: color-mix(in srgb, var(--status-critical) 16%, transparent);
+  color: var(--status-critical);
+}
+
+.prep-live-conditional-pair-reframe {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--success) 10%, var(--bg-surface));
+}
+
+.prep-live-conditional-pair-reframe .prep-live-conditional-label {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
 
 .prep-live-stat-grid {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -2285,6 +2363,101 @@
   color: var(--text-secondary);
   line-height: 1.6;
   padding-left: 28px;
+}
+
+/* ── Conditionals ── */
+
+.prep-conditionals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prep-conditional,
+.prep-conditional-pair {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: var(--space-3);
+}
+
+.prep-conditional-editor {
+  padding: var(--space-2);
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-inset) 92%, transparent);
+}
+
+.prep-conditional-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
+}
+
+.prep-conditional-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prep-conditional-response {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.prep-conditional-pivot .prep-conditional-label {
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  color: var(--accent-primary);
+}
+
+.prep-conditional-editor-pivot {
+  border-color: color-mix(in srgb, var(--accent-primary) 18%, var(--border-subtle));
+}
+
+.prep-conditional-escalation {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-inset));
+}
+
+.prep-conditional-escalation .prep-conditional-label {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+
+.prep-conditional-editor-escalation {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-inset));
+}
+
+.prep-conditional-pair-trap {
+  border-color: color-mix(in srgb, var(--status-critical) 28%, var(--border-subtle));
+}
+
+.prep-conditional-pair-trap .prep-conditional-label {
+  background: color-mix(in srgb, var(--status-critical) 16%, transparent);
+  color: var(--status-critical);
+}
+
+.prep-conditional-editor-trap {
+  border-color: color-mix(in srgb, var(--status-critical) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-critical) 8%, var(--bg-inset));
+}
+
+.prep-conditional-pair-reframe {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border-subtle));
+}
+
+.prep-conditional-pair-reframe .prep-conditional-label {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
 }
 
 /* ── Deep Dives ── */

@@ -1,15 +1,17 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
-import { PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
-import type { PrepCard, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../../types/prep'
+import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
+import type { PrepCard, PrepConditional, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../../types/prep'
 import { createId } from '../../utils/idUtils'
 import { PrepCollapsibleSection } from './PrepCollapsibleSection'
 import {
+  filterPrepConditionals,
   filterPrepDeepDives,
   filterPrepFollowUps,
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
 
 interface PrepCardViewProps {
@@ -50,6 +52,7 @@ export function PrepCardView({
 
   const readOnlyFollowUps = filterPrepFollowUps(card.followUps)
   const readOnlyDeepDives = filterPrepDeepDives(card.deepDives)
+  const readOnlyConditionals = filterPrepConditionals(card.conditionals)
   const readOnlyMetrics = filterPrepMetrics(card.metrics)
 
   if (readOnly) {
@@ -116,6 +119,33 @@ export function PrepCardView({
           </div>
         )}
 
+        {readOnlyConditionals.length > 0 && (
+          <div className="prep-conditionals">
+            {readOnlyConditionals.map((conditional, index) => {
+              const tone = resolvePrepConditionalTone(conditional)
+              const key = conditional.id ?? `${conditional.trigger}-${conditional.response}-${index}`
+
+              return tone === 'trap' ? (
+                <div key={key} className="prep-conditional-pair-grid">
+                  <div className="prep-conditional-pair prep-conditional-pair-trap">
+                    <div className="prep-conditional-label">Trap</div>
+                    <div className="prep-conditional-response">{conditional.trigger}</div>
+                  </div>
+                  <div className="prep-conditional-pair prep-conditional-pair-reframe">
+                    <div className="prep-conditional-label">Reframe</div>
+                    <div className="prep-conditional-response">{conditional.response}</div>
+                  </div>
+                </div>
+              ) : (
+                <div key={key} className={`prep-conditional prep-conditional-${tone}`}>
+                  <div className="prep-conditional-label">{conditional.trigger}</div>
+                  <div className="prep-conditional-response">{conditional.response}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {readOnlyMetrics.length > 0 && (
           <div className="prep-metrics">
             {readOnlyMetrics.map((metric, index) => (
@@ -156,6 +186,7 @@ export function PrepCardView({
   const keyPointCount = filterPrepKeyPoints(card.keyPoints).length
   const followUpCount = readOnlyFollowUps.length
   const deepDiveCount = readOnlyDeepDives.length
+  const conditionalCount = readOnlyConditionals.length
   const metricCount = readOnlyMetrics.length
   const storyBlockCount = filterPrepStoryBlocks(card.storyBlocks).length
 
@@ -164,6 +195,7 @@ export function PrepCardView({
     keyPointCount > 0 ? `${keyPointCount} key point${keyPointCount === 1 ? '' : 's'}` : null,
     followUpCount > 0 ? `${followUpCount} follow-up${followUpCount === 1 ? '' : 's'}` : null,
     deepDiveCount > 0 ? `${deepDiveCount} deep dive${deepDiveCount === 1 ? '' : 's'}` : null,
+    conditionalCount > 0 ? `${conditionalCount} conditional${conditionalCount === 1 ? '' : 's'}` : null,
     metricCount > 0 ? `${metricCount} metric${metricCount === 1 ? '' : 's'}` : null,
     storyBlockCount > 0 ? `${storyBlockCount} story block${storyBlockCount === 1 ? '' : 's'}` : null,
     card.tableData ? 'table attached' : null,
@@ -473,6 +505,75 @@ export function PrepCardView({
             )}
           />
 
+          <EditableListSection<PrepConditional>
+            title="Conditionals"
+            subtitle="Coach the pivot when an interviewer pushes on a weak spot, trap, or escalation."
+            items={card.conditionals ?? []}
+            onAdd={() =>
+              onUpdateCard?.(card.id, {
+                conditionals: [...(card.conditionals ?? []), { id: createId('prep-conditional'), trigger: '', response: '', tone: 'pivot' }],
+              })
+            }
+            onRemove={(index) =>
+              onUpdateCard?.(card.id, {
+                conditionals: (card.conditionals ?? []).filter((_, itemIndex) => itemIndex !== index),
+              })
+            }
+            renderItem={(item, index) => (
+              <div className={`prep-inline-grid prep-conditional-editor prep-conditional-editor-${resolvePrepConditionalTone(item)}`}>
+                <label className="prep-field">
+                  <span className="prep-field-label">{getConditionalFormCopy(item).triggerLabel}</span>
+                  <input
+                    className="prep-input"
+                    value={item.trigger}
+                    onChange={(event) =>
+                      updateArrayItem(card.conditionals ?? [], index, { ...item, trigger: event.target.value }, (conditionals) =>
+                        onUpdateCard?.(card.id, { conditionals }),
+                      )
+                    }
+                    placeholder={getConditionalFormCopy(item).triggerPlaceholder}
+                  />
+                </label>
+                <label className="prep-field">
+                  <span className="prep-field-label">{getConditionalFormCopy(item).responseLabel}</span>
+                  <textarea
+                    className="prep-textarea"
+                    value={item.response}
+                    onChange={(event) =>
+                      updateArrayItem(card.conditionals ?? [], index, { ...item, response: event.target.value }, (conditionals) =>
+                        onUpdateCard?.(card.id, { conditionals }),
+                      )
+                    }
+                    placeholder={getConditionalFormCopy(item).responsePlaceholder}
+                  />
+                </label>
+                <label className="prep-field">
+                  <span className="prep-field-label">Tone</span>
+                  <select
+                    className="prep-input"
+                    value={resolvePrepConditionalTone(item)}
+                    onChange={(event) =>
+                      updateArrayItem(
+                        card.conditionals ?? [],
+                        index,
+                        {
+                          ...item,
+                          tone: event.target.value as PrepConditional['tone'],
+                        },
+                        (conditionals) => onUpdateCard?.(card.id, { conditionals }),
+                      )
+                    }
+                    aria-label={`Conditional tone ${index + 1}`}
+                  >
+                    {PREP_CONDITIONAL_TONE_VALUES.map((tone) => (
+                      <option key={tone} value={tone}>{getConditionalToneLabel(tone)}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          />
+
           <EditableListSection<PrepMetric>
             title="Metrics"
             subtitle="Outcomes, deltas, and proof points worth citing quickly."
@@ -691,6 +792,41 @@ function getStableKey<T>(item: T, index: number) {
   }
 
   return index
+}
+
+function getConditionalFormCopy(conditional: PrepConditional) {
+  const tone = resolvePrepConditionalTone(conditional)
+
+  if (tone === 'trap') {
+    return {
+      triggerLabel: 'Trap prompt',
+      triggerPlaceholder: 'Gotcha question or misleading push',
+      responseLabel: 'Reframe',
+      responsePlaceholder: 'Response that corrects the framing',
+    }
+  }
+
+  if (tone === 'escalation') {
+    return {
+      triggerLabel: 'Escalation trigger',
+      triggerPlaceholder: 'High-risk pushback or concern',
+      responseLabel: 'Escalation response',
+      responsePlaceholder: 'Careful, honest response when the risk needs narrowing',
+    }
+  }
+
+  return {
+    triggerLabel: 'Trigger',
+    triggerPlaceholder: 'If they push on...',
+    responseLabel: 'Response',
+    responsePlaceholder: 'Pivot, reframe, or escalation guidance',
+  }
+}
+
+function getConditionalToneLabel(tone: PrepConditional['tone']) {
+  if (tone === 'trap') return 'Trap / reframe'
+  if (tone === 'escalation') return 'Escalation'
+  return 'Pivot'
 }
 
 function summarizePrepCard(card: PrepCard) {

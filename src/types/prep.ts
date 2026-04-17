@@ -30,6 +30,30 @@ export interface PrepDeepDive {
   content: string
 }
 
+export type PrepConditionalTone = 'pivot' | 'trap' | 'escalation'
+
+export const PREP_CONDITIONAL_TONE_VALUES = [
+  'pivot',
+  'trap',
+  'escalation',
+] as const satisfies readonly PrepConditionalTone[]
+
+export interface PrepConditional {
+  id?: string
+  /**
+   * Default semantics:
+   * - trigger: interviewer pushback or follow-up angle
+   * - response: coached answer or pivot
+   *
+   * Trap semantics:
+   * - trigger: the interviewer trap or misleading framing
+   * - response: the candidate's reframe
+   */
+  trigger: string
+  response: string
+  tone?: PrepConditionalTone
+}
+
 export interface PrepMetric {
   id?: string
   value: string
@@ -84,6 +108,7 @@ export interface PrepCard {
   keyPoints?: string[]
   followUps?: PrepFollowUp[]
   deepDives?: PrepDeepDive[]
+  conditionals?: PrepConditional[]
   metrics?: PrepMetric[]
   tableData?: {
     headers: string[]

@@ -155,21 +155,24 @@ describe('PrepCardView', () => {
     expect(screen.getByPlaceholderText('Answer outline')).toBeTruthy()
   })
 
-  it('stamps generated ids when adding follow-ups, deep dives, and metrics', () => {
+  it('stamps generated ids when adding follow-ups, deep dives, conditionals, and metrics', () => {
     const onUpdateCard = vi.fn()
-    render(<PrepCardView card={makeCard({ followUps: [], deepDives: [], metrics: [] })} onUpdateCard={onUpdateCard} />)
+    render(<PrepCardView card={makeCard({ followUps: [], deepDives: [], conditionals: [], metrics: [] })} onUpdateCard={onUpdateCard} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add follow-up' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add deep dive' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add conditional' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add metric' }))
 
     const followUpsPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { followUps?: unknown[] }).followUps))?.[1] as { followUps?: Array<{ id?: string }> } | undefined
     const deepDivesPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { deepDives?: unknown[] }).deepDives))?.[1] as { deepDives?: Array<{ id?: string }> } | undefined
+    const conditionalsPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { conditionals?: unknown[] }).conditionals))?.[1] as { conditionals?: Array<{ id?: string }> } | undefined
     const metricsPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { metrics?: unknown[] }).metrics))?.[1] as { metrics?: Array<{ id?: string }> } | undefined
 
     expect(followUpsPatch?.followUps?.[0]?.id).toMatch(/^prep-follow-up-/)
     expect(deepDivesPatch?.deepDives?.[0]?.id).toMatch(/^prep-deep-dive-/)
+    expect(conditionalsPatch?.conditionals?.[0]?.id).toMatch(/^prep-conditional-/)
     expect(metricsPatch?.metrics?.[0]?.id).toMatch(/^prep-metric-/)
   })
 
@@ -341,6 +344,7 @@ describe('PrepCardView', () => {
           keyPoints: ['First', 'Second'],
           followUps: [{ id: 'follow-1', question: 'Follow-up?', answer: 'Answer.' }],
           deepDives: [{ id: 'deep-1', title: 'Architecture', content: 'Details' }],
+          conditionals: [{ id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name your direct decisions.', tone: 'pivot' }],
           metrics: [{ id: 'metric-1', value: '38%', label: 'incident reduction' }],
           storyBlocks: [{ label: 'problem', text: 'A hard problem' }],
           tableData: {
@@ -355,6 +359,7 @@ describe('PrepCardView', () => {
     expect(screen.getByText('2 key points')).toBeTruthy()
     expect(screen.getByText('1 follow-up')).toBeTruthy()
     expect(screen.getByText('1 deep dive')).toBeTruthy()
+    expect(screen.getByText('1 conditional')).toBeTruthy()
     expect(screen.getByText('1 metric')).toBeTruthy()
     expect(screen.getByText('1 story block')).toBeTruthy()
     expect(screen.getByText('table attached')).toBeTruthy()
@@ -388,6 +393,10 @@ describe('PrepCardView', () => {
             { id: 'deep-1', title: 'Architecture', content: 'We split the queue by tenant.' },
             { id: 'deep-2', title: '', content: '' },
           ],
+          conditionals: [
+            { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name your decision.', tone: 'pivot' },
+            { id: 'conditional-2', trigger: '', response: '', tone: 'trap' },
+          ],
           metrics: [
             { id: 'metric-1', value: '38%', label: 'incident reduction' },
             { id: 'metric-2', value: '', label: '' },
@@ -398,6 +407,7 @@ describe('PrepCardView', () => {
 
     expect(screen.getAllByText(/How did you align teams\?/)).toHaveLength(1)
     expect(screen.getAllByText(/Architecture/)).toHaveLength(1)
+    expect(screen.getAllByText(/If they push on ownership/)).toHaveLength(1)
     expect(screen.getAllByText(/38%/)).toHaveLength(1)
   })
 
@@ -421,6 +431,7 @@ describe('PrepCardView', () => {
           script: undefined,
           followUps: [],
           deepDives: [],
+          conditionals: [],
           metrics: [],
           tableData: undefined,
         })}
@@ -430,6 +441,7 @@ describe('PrepCardView', () => {
     expect(container.querySelector('.prep-script')).toBeNull()
     expect(container.querySelector('.prep-warning')).toBeNull()
     expect(container.querySelector('.prep-followups')).toBeNull()
+    expect(container.querySelector('.prep-conditionals')).toBeNull()
     expect(container.querySelector('.prep-metrics')).toBeNull()
     expect(container.querySelector('table')).toBeNull()
   })
@@ -505,6 +517,25 @@ describe('PrepCardView', () => {
 
     expect(container.querySelector('.prep-metric')?.textContent).toContain('42%')
     expect(container.querySelector('.prep-metric')?.textContent).toContain('latency drop')
+  })
+
+  it('renders read-only conditionals, including trap and reframe pairs', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          conditionals: [
+            { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
+            { id: 'conditional-2', trigger: 'Were you reacting late?', response: 'Name the signal, decision, and prevention step.', tone: 'trap' },
+          ],
+        })}
+      />,
+    )
+
+    expect(container.querySelector('.prep-conditionals')?.textContent).toContain('If they push on ownership')
+    expect(container.querySelector('.prep-conditionals')?.textContent).toContain('Name the decision you owned.')
+    expect(container.querySelector('.prep-conditionals')?.textContent).toContain('Trap')
+    expect(container.querySelector('.prep-conditionals')?.textContent).toContain('Reframe')
   })
 
   it('keeps story blocks and key points out of the read-only presentation', () => {
@@ -611,6 +642,34 @@ describe('PrepCardView', () => {
     expect(screen.getByDisplayValue('Updated detail')).toBeTruthy()
     expect(screen.getByDisplayValue('38%')).toBeTruthy()
     expect(screen.getByDisplayValue('incident reduction')).toBeTruthy()
+  })
+
+  it('adds, edits, and removes conditional rows', () => {
+    render(
+      <EditableHarness
+        initialCard={makeCard({
+          conditionals: [
+            { id: 'conditional-1', trigger: 'Initial trigger', response: 'Initial response', tone: 'pivot' },
+            { id: 'conditional-2', trigger: 'Trap trigger', response: 'Trap response', tone: 'trap' },
+          ],
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    fireEvent.change(screen.getByDisplayValue('Initial trigger'), { target: { value: 'Updated trigger' } })
+    fireEvent.change(screen.getByDisplayValue('Initial response'), { target: { value: 'Updated response' } })
+    fireEvent.change(screen.getByLabelText('Conditional tone 1'), { target: { value: 'escalation' } })
+    fireEvent.click(screen.getAllByTitle('Remove conditional')[1] as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Add conditional' }))
+
+    expect(screen.getByDisplayValue('Updated trigger')).toBeTruthy()
+    expect(screen.getByDisplayValue('Updated response')).toBeTruthy()
+    expect((screen.getByLabelText('Conditional tone 1') as HTMLSelectElement).value).toBe('escalation')
+    expect(screen.queryByDisplayValue('Trap trigger')).toBeNull()
+    expect(screen.getAllByPlaceholderText('If they push on...')).toHaveLength(1)
+    expect(screen.getByText('Escalation trigger')).toBeTruthy()
+    expect(screen.getByText('Escalation response')).toBeTruthy()
   })
 
   it('adds and removes deep dive and metric rows', () => {

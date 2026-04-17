@@ -225,6 +225,11 @@ describe('prepStore', () => {
                 null,
                 { title: ' Detail ', content: ' Keep the startup path resilient. ' },
               ],
+              conditionals: [
+                null,
+                { trigger: ' If they push on scope ', response: ' Clarify where you led directly. ', tone: ' pivot ' as never },
+                { trigger: 'Skip me', response: ' ', tone: 'trap' as never },
+              ],
               metrics: [
                 null,
                 { value: ' 38% ', label: ' Incident reduction ' },
@@ -247,6 +252,13 @@ describe('prepStore', () => {
       expect.objectContaining({
         title: 'Detail',
         content: 'Keep the startup path resilient.',
+      }),
+    ])
+    expect(card.conditionals).toEqual([
+      expect.objectContaining({
+        trigger: 'If they push on scope',
+        response: 'Clarify where you led directly.',
+        tone: 'pivot',
       }),
     ])
     expect(card.metrics).toEqual([
@@ -287,6 +299,10 @@ describe('prepStore', () => {
         { label: 'problem', text: 'Inherited a brittle release process.' },
         { label: 'result', text: '' },
       ],
+      conditionals: [
+        { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
+        { id: 'conditional-2', trigger: 'If they ask a trap question', response: '', tone: 'trap' },
+      ],
       metrics: [
         { id: 'metric-1', value: '45%', label: 'Faster delivery' },
         { id: 'metric-2', value: '', label: '' },
@@ -304,6 +320,10 @@ describe('prepStore', () => {
       { label: 'problem', text: 'Inherited a brittle release process.' },
       { label: 'result', text: '' },
     ])
+    expect(editingDeck.cards[0].conditionals).toEqual([
+      { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
+      { id: 'conditional-2', trigger: 'If they ask a trap question', response: '', tone: 'trap' },
+    ])
     expect(editingDeck.cards[0].metrics).toEqual([
       { id: 'metric-1', value: '45%', label: 'Faster delivery' },
       { id: 'metric-2', value: '', label: '' },
@@ -317,6 +337,9 @@ describe('prepStore', () => {
     expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
     expect(exportedDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
+    ])
+    expect(exportedDeck.cards[0].conditionals).toEqual([
+      { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
     ])
     expect(exportedDeck.cards[0].metrics).toEqual([
       { id: 'metric-1', value: '45%', label: 'Faster delivery' },
@@ -463,6 +486,11 @@ describe('prepStore', () => {
                 context: ' Why the decision mattered ',
               },
             ],
+            conditionals: [
+              { trigger: ' If they push on ownership ', response: ' Name the decisions you made ', tone: ' pivot ' as never },
+              { trigger: 'If they keep pressing', response: ' ', tone: 'trap' as never },
+              { trigger: 'Bad tone', response: 'Still keep the answer', tone: 'bad' as never },
+            ],
           },
         ],
       },
@@ -485,6 +513,18 @@ describe('prepStore', () => {
         question: 'What changed?',
         answer: 'We moved the rollout window.',
         context: 'Why the decision mattered',
+      }),
+    ])
+    expect(card.conditionals).toEqual([
+      expect.objectContaining({
+        trigger: 'If they push on ownership',
+        response: 'Name the decisions you made',
+        tone: 'pivot',
+      }),
+      expect.objectContaining({
+        trigger: 'Bad tone',
+        response: 'Still keep the answer',
+        tone: 'pivot',
       }),
     ])
   })
@@ -524,6 +564,10 @@ describe('prepStore', () => {
         { label: 'problem', text: ' Latency spiked ' },
         { label: 'result', text: ' ' },
       ] as never,
+      conditionals: [
+        { trigger: ' If they push on scope ', response: ' ', tone: 'pivot' as never },
+        { trigger: 'If they ask a trap question', response: 'Reframe to the decision.', tone: 'trap' as never },
+      ] as never,
     })
 
     const deck = usePrepStore.getState().decks[0]
@@ -541,6 +585,10 @@ describe('prepStore', () => {
     expect(card.storyBlocks).toEqual([
       { label: 'problem', text: 'Latency spiked' },
       { label: 'result', text: '' },
+    ])
+    expect(card.conditionals).toEqual([
+      { id: expect.stringMatching(/^prep-conditional-/), trigger: 'If they push on scope', response: '', tone: 'pivot' },
+      { id: expect.stringMatching(/^prep-conditional-/), trigger: 'If they ask a trap question', response: 'Reframe to the decision.', tone: 'trap' },
     ])
   })
 
@@ -571,6 +619,10 @@ describe('prepStore', () => {
           { label: 'result', text: ' Reduced incidents by 38% ' },
           { label: 'note', text: '' },
         ] as never,
+        conditionals: [
+          { trigger: ' If they push on ownership ', response: ' Name the part you led. ', tone: 'pivot' as never },
+          { trigger: 'If they trap you', response: ' ', tone: 'trap' as never },
+        ] as never,
       },
     ] as never)
 
@@ -581,6 +633,9 @@ describe('prepStore', () => {
     expect(card.tags).toEqual(['ownership'])
     expect(card.keyPoints).toEqual(['Close with the metric'])
     expect(card.storyBlocks).toEqual([{ label: 'result', text: 'Reduced incidents by 38%' }])
+    expect(card.conditionals).toEqual([
+      { id: expect.stringMatching(/^prep-conditional-/), trigger: 'If they push on ownership', response: 'Name the part you led.', tone: 'pivot' },
+    ])
   })
 
   it('resets active mode to edit when imported decks have no cards', () => {

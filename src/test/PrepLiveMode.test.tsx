@@ -47,6 +47,11 @@ const mockDeck: PrepDeck = {
       tags: ['stakeholders'],
       script: 'I aligned engineering and product on a reliability roadmap.',
       warning: 'Do not frame product as the enemy.',
+      conditionals: [
+        { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Acknowledge the shared work, then narrow to your decisions.', tone: 'pivot' },
+        { id: 'conditional-2', trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
+        { id: 'conditional-3', trigger: 'If they push on residual risk', response: 'Be explicit about what you escalated and what you would verify next.', tone: 'escalation' },
+      ],
       storyBlocks: [
         { label: 'problem', text: 'A launch was blocked by missing reliability work.' },
         { label: 'solution', text: 'Reframed the discussion around customer impact.' },
@@ -130,6 +135,10 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('Do not spend too long on the setup before the answer.')).toBeTruthy()
     expect(screen.getByText('99.95%')).toBeTruthy()
     expect(screen.getByText('Lead with reliability wins.')).toBeTruthy()
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('If they push on ownership')
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Acknowledge the shared work, then narrow to your decisions.')
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Trap')
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Reframe')
     expect(screen.getAllByText('Do not frame product as the enemy.')).toHaveLength(2)
     expect(screen.getAllByText('Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.')).toHaveLength(2)
     expect(getSectionContainer('Technical Topics')?.textContent).toContain('How do you debug a flaky distributed system?')
@@ -260,6 +269,10 @@ describe('PrepLiveMode', () => {
                 { label: 'problem' as const, text: 'Platform was slowing product teams.' },
                 { label: 'note' as const, text: '' },
               ],
+              conditionals: [
+                { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decisions you owned.', tone: 'pivot' as const },
+                { id: 'conditional-2', trigger: 'If they trap you', response: '', tone: 'trap' as const },
+              ],
               metrics: [
                 { value: '45%', label: 'Lead time cut' },
                 { value: '', label: '' },
@@ -277,10 +290,16 @@ describe('PrepLiveMode', () => {
     const openerSection = getSectionContainer('Openers')
     expect(openerSection?.querySelectorAll('.prep-live-keypoint')).toHaveLength(1)
     expect(openerSection?.querySelectorAll('.prep-live-story-block')).toHaveLength(1)
+    expect(openerSection?.textContent).toContain('If they push on ownership')
     expect(openerSection?.querySelectorAll('.prep-live-stat-box')).toHaveLength(1)
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'lead time cut' },
+    })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Openers')
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'name the decisions you owned' },
     })
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Openers')
 
@@ -346,7 +365,7 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('Clear the search to get the full interview view back.')).toBeTruthy()
   })
 
-  it('searches follow-ups, deep dives, and table content from the source card', () => {
+  it('searches follow-ups, deep dives, conditionals, and table content from the source card', () => {
     const supportingDeck: PrepDeck = {
       ...mockDeck,
       cards: [
@@ -354,6 +373,7 @@ describe('PrepLiveMode', () => {
           ...mockDeck.cards[0],
           followUps: [{ id: 'follow-up-1', question: 'What changed after launch?', answer: 'We held the rollback line.' }],
           deepDives: [{ id: 'deep-dive-1', title: 'Incident review', content: 'Covered the rollback decision tree.' }],
+          conditionals: [{ id: 'conditional-1', trigger: 'If they push on risk', response: 'Name the mitigation and rollback path.', tone: 'pivot' }],
           tableData: {
             headers: ['Signal', 'Action'],
             rows: [['pager spike', 'throttle retries']],
@@ -376,6 +396,11 @@ describe('PrepLiveMode', () => {
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'held the rollback line' },
+    })
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'mitigation and rollback path' },
     })
     expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
   })

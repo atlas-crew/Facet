@@ -119,12 +119,14 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('keyPoints')
     expect(systemPrompt).toContain('questionsToAsk')
     expect(systemPrompt).toContain('categoryGuidance')
+    expect(systemPrompt).toContain('conditionals')
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Latency was spiking during peak load.')
     expect(userPrompt).toContain('use it as the primary source of candidate evidence')
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('use those exact metrics')
+    expect(userPrompt).toContain('include conditionals')
   })
 
   it('marks structured identity context as not provided when absent', async () => {
@@ -193,6 +195,12 @@ describe('generateInterviewPrep', () => {
               { label: 'Outcome', text: 'Reduced incidents by 38%.' },
               { label: 'Unknown', text: 'Drop this malformed label.' },
             ],
+            conditionals: [
+              { trigger: ' If they push on ownership ', response: ' Clarify what you led directly. ', tone: ' pivot ' },
+              { trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
+              { trigger: 'If they keep pushing on certainty', response: 'Say what you knew, what you escalated, and what you would verify next.', tone: 'escalation' },
+              { trigger: ' ', response: 'skip blank', tone: 'pivot' },
+            ],
             metrics: [
               { value: '38%', label: 'Incident reduction' },
             ],
@@ -231,6 +239,15 @@ describe('generateInterviewPrep', () => {
       { label: 'problem', text: 'Latency spiked during peak load.' },
       { label: 'solution', text: 'Redesigned the request pipeline.' },
       { label: 'result', text: 'Reduced incidents by 38%.' },
+    ])
+    expect(result.cards[0].conditionals).toEqual([
+      { trigger: 'If they push on ownership', response: 'Clarify what you led directly.', tone: 'pivot' },
+      { trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
+      {
+        trigger: 'If they keep pushing on certainty',
+        response: 'Say what you knew, what you escalated, and what you would verify next.',
+        tone: 'escalation',
+      },
     ])
   })
 
