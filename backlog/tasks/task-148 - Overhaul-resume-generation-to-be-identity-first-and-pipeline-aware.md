@@ -1,11 +1,11 @@
 ---
 id: TASK-148
 title: Overhaul resume generation to be identity-first and pipeline-aware
-status: In Progress
+status: Done
 assignee:
   - Codex
 created_date: '2026-04-18 10:59'
-updated_date: '2026-04-18 12:45'
+updated_date: '2026-04-18 18:07'
 labels:
   - resume
   - build
@@ -34,11 +34,11 @@ Redesign the Build workspace so resume generation is downstream of the Professio
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Build supports explicit resume generation modes for single, multi-vector, and dynamic per-job workflows.
-- [ ] #2 Resume generation derives from the current Professional Identity model rather than relying on the synthetic identity-default import path as the primary authoring flow.
-- [ ] #3 Pipeline job context can drive a per-job resume generation workflow with structured variant metadata instead of a free-text resumeVariant field.
-- [ ] #4 AI vector suggestion happens before downstream assembly guidance for resume generation flows that use AI.
-- [ ] #5 The implementation is split into reviewable subtasks that include required tests and documentation updates in the same task tree.
+- [x] #1 Build supports explicit resume generation modes for single, multi-vector, and dynamic per-job workflows.
+- [x] #2 Resume generation derives from the current Professional Identity model rather than relying on the synthetic identity-default import path as the primary authoring flow.
+- [x] #3 Pipeline job context can drive a per-job resume generation workflow with structured variant metadata instead of a free-text resumeVariant field.
+- [x] #4 AI vector suggestion happens before downstream assembly guidance for resume generation flows that use AI.
+- [x] #5 The implementation is split into reviewable subtasks that include required tests and documentation updates in the same task tree.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -59,12 +59,26 @@ Redesign the Build workspace so resume generation is downstream of the Professio
 2026-04-18: Completed TASK-148.3. Build now gates JD assembly suggestions behind an explicit AI-first vector planning step with single and multi-vector flows, AI-suggested vs manual selection, and focused Build/JD parser tests. Receipts: .agents/reviews/review-20260418-083814.md and .agents/reviews/test-audit-20260418-084053.md.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed the Resume Generation V2 parent after completing TASK-148.1 through TASK-148.5.
+Delivered identity-first resume generation foundations, identity-derived workspace generation, AI-first vector planning for single and multi-vector flows, dynamic per-job generation from pipeline entries, and Build UI/docs updates for the new resume model.
+Subtask receipts:
+- TASK-148.1 foundation and migrations landed
+- TASK-148.2 identity-derived resume workspace generation landed
+- TASK-148.3 AI-first vector suggestion flow landed
+- TASK-148.4 dynamic pipeline generation landed
+- TASK-148.5 Build UI/docs guidance landed
+Parent closure basis: all subtasks are Done, with focused tests, lint/typecheck/build receipts recorded on the subtask records.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
