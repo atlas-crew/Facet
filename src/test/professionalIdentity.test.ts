@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultResumeData } from '../store/defaultData'
 import { importResumeConfig } from '../engine/serializer'
+import { professionalIdentityToResumeData } from '../identity/resumeAdapter'
 import {
   importProfessionalIdentity,
   looksLikeProfessionalIdentity,
@@ -312,6 +313,18 @@ describe('professional identity schema', () => {
 
     expect(parsed.sourceKind).toBe('professional-identity-v3')
     expect(parsed.data.meta.name).toBe('Nicholas Crew Ferguson')
+    expect(parsed.data.generation).toEqual({
+      mode: 'single',
+      vectorMode: 'manual',
+      source: 'identity',
+      pipelineEntryId: null,
+      presetId: null,
+      variantId: null,
+      variantLabel: '',
+      primaryVectorId: 'identity-default',
+      vectorIds: ['identity-default'],
+      suggestedVectorIds: [],
+    })
     expect(parsed.data.vectors).toEqual([
       {
         id: 'identity-default',
@@ -325,7 +338,197 @@ describe('professional identity schema', () => {
       'Legacy cloud-only architecture limited deployment options. Rebuilt the product as a standalone edge sensor. Product deployable anywhere.',
     )
     expect(parsed.data.skill_groups[0]?.content).toBe('TypeScript, Python')
-    expect(parsed.warnings.some((warning) => warning.includes('Schema v3.1'))).toBe(true)
+    expect(
+      parsed.warnings.some((warning) =>
+        warning.includes('without configured search vectors'),
+      ),
+    ).toBe(true)
+  })
+
+  it('derives first-class resume vectors and identity-backed priorities from search_vectors', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.search_vectors = [
+      {
+        id: 'platform-builder',
+        title: 'Platform Builder',
+        priority: 'high',
+        thesis: 'Platform systems with strong delivery leverage.',
+        target_roles: ['Platform Engineer'],
+        keywords: {
+          primary: ['platform'],
+          secondary: ['typescript'],
+        },
+        supporting_skills: ['sg-languages'],
+        supporting_bullets: ['a10-delivery'],
+        evidence: ['proj-facet'],
+      },
+      {
+        id: 'documentation-lead',
+        title: 'Documentation Lead',
+        priority: 'medium',
+        thesis: 'Technical writing and developer education.',
+        target_roles: ['Technical Writer'],
+        keywords: {
+          primary: ['documentation'],
+          secondary: ['writing'],
+        },
+        supporting_skills: ['sg-practices'],
+      },
+    ]
+
+    const adapted = professionalIdentityToResumeData(enriched)
+
+    expect(adapted.data.vectors).toEqual([
+      {
+        id: 'platform-builder',
+        label: 'Platform Builder',
+        color: '#2563EB',
+      },
+      {
+        id: 'documentation-lead',
+        label: 'Documentation Lead',
+        color: '#0D9488',
+      },
+    ])
+    expect(adapted.data.generation).toEqual({
+      mode: 'multi-vector',
+      vectorMode: 'manual',
+      source: 'identity',
+      pipelineEntryId: null,
+      presetId: null,
+      variantId: null,
+      variantLabel: '',
+      primaryVectorId: 'platform-builder',
+      vectorIds: ['platform-builder', 'documentation-lead'],
+      suggestedVectorIds: [],
+    })
+    expect(adapted.data.target_lines[0]).toMatchObject({
+      text: 'Product Engineer',
+      variants: {
+        'platform-builder': 'Platform Builder',
+        'documentation-lead': 'Documentation Lead',
+      },
+    })
+    expect(adapted.data.profiles[0]?.vectors).toEqual({
+      'platform-builder': 'include',
+    })
+    expect(adapted.data.skill_groups[0]?.vectors).toEqual({
+      'platform-builder': { priority: 'include', order: 1 },
+      'documentation-lead': { priority: 'exclude', order: 1 },
+    })
+    expect(adapted.data.skill_groups[1]?.vectors).toEqual({
+      'platform-builder': { priority: 'exclude', order: 2 },
+      'documentation-lead': { priority: 'include', order: 2 },
+    })
+    expect(adapted.data.roles[0]?.vectors).toEqual({
+      'platform-builder': 'include',
+    })
+    expect(adapted.data.roles[0]?.bullets[0]?.vectors).toEqual({
+      'platform-builder': 'include',
+    })
+    expect(adapted.data.projects[0]?.vectors).toEqual({
+      'platform-builder': 'include',
+    })
+    expect(adapted.warnings.some((warning) => warning.includes('identity-derived vectors'))).toBe(true)
+  })
+
+  it('falls back unmatched content to the primary vector instead of broadcasting to all vectors', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.search_vectors = [
+      {
+        id: 'platform-builder',
+        title: 'Platform Builder',
+        priority: 'high',
+        thesis: 'Platform systems with strong delivery leverage.',
+        target_roles: ['Platform Engineer'],
+        keywords: {
+          primary: ['platform'],
+          secondary: ['typescript'],
+        },
+        supporting_skills: ['sg-languages'],
+      },
+      {
+        id: 'documentation-lead',
+        title: 'Documentation Lead',
+        priority: 'medium',
+        thesis: 'Technical writing and developer education.',
+        target_roles: ['Technical Writer'],
+        keywords: {
+          primary: ['documentation'],
+          secondary: ['writing'],
+        },
+        supporting_skills: ['sg-practices'],
+      },
+    ]
+    enriched.projects.push({
+      id: 'proj-unmatched',
+      name: 'Cross-Team Operations',
+      description: 'Kept the release train moving.',
+      portfolio_dive: 'General operational support without a vector-specific signal.',
+      tags: ['operations'],
+    })
+
+    const adapted = professionalIdentityToResumeData(enriched)
+
+    expect(adapted.data.projects.at(-1)?.vectors).toEqual({
+      'platform-builder': 'include',
+    })
+  })
+
+  it('safely matches aliases with regex metacharacters and deduplicates repeated vector ids', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.search_vectors = [
+      {
+        id: 'brace-vector',
+        title: 'Platform {Builder}',
+        priority: 'high',
+        thesis: 'Platform {Builder} narratives.',
+        target_roles: ['Platform {Builder}'],
+        keywords: {
+          primary: ['platform {builder}'],
+          secondary: [],
+        },
+        supporting_skills: ['sg-languages'],
+      },
+      {
+        id: 'brace-vector',
+        title: 'Duplicate vector',
+        priority: 'low',
+        thesis: 'Should be ignored.',
+        target_roles: ['Duplicate role'],
+        keywords: {
+          primary: ['duplicate'],
+          secondary: [],
+        },
+      },
+    ]
+    enriched.profiles[0] = {
+      ...enriched.profiles[0],
+      text: 'Platform {Builder} shipping systems with confidence.',
+    }
+
+    const adapted = professionalIdentityToResumeData(enriched)
+
+    expect(adapted.data.vectors).toEqual([
+      {
+        id: 'brace-vector',
+        label: 'Platform {Builder}',
+        color: '#2563EB',
+      },
+    ])
+    expect(adapted.data.generation).toMatchObject({
+      mode: 'single',
+      primaryVectorId: 'brace-vector',
+      vectorIds: ['brace-vector'],
+    })
+    expect(adapted.data.profiles[0]?.vectors).toEqual({
+      'brace-vector': 'include',
+    })
+    expect(
+      adapted.warnings.some((warning) =>
+        warning.includes('Ignored duplicate identity search vector "brace-vector"'),
+      ),
+    ).toBe(true)
   })
 
   it('imports legacy search_signal data as positioning', () => {

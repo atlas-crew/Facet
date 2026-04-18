@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - Codex
 created_date: '2026-04-18 10:59'
-updated_date: '2026-04-18 11:40'
+updated_date: '2026-04-18 08:04'
 labels:
   - resume
   - build
@@ -54,6 +54,7 @@ Redesign the Build workspace so resume generation is downstream of the Professio
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-04-18: TASK-148.1 completed. Foundation now includes explicit resume-generation modes, structured Build handoff payloads, pipeline resumeGeneration metadata, and resume workspace generation state with backward-compatible normalization and migration coverage.
+2026-04-18: TASK-148.2 completed. Professional Identity imports now derive real resume vectors, generation metadata, and vector-aware target lines/profiles/skills/roles/projects from identity search_vectors, with fallback handling only when identity vectors are missing.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
