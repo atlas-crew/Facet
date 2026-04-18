@@ -143,12 +143,19 @@ export const parseJdAnalysisResponse = (raw: string): JdAnalysisResult => {
   ) {
     throw new Error('Analysis response schema was invalid.')
   }
+  if (parsed.suggested_vectors !== undefined && !isStringArray(parsed.suggested_vectors)) {
+    throw new Error('Analysis response schema was invalid.')
+  }
   if (!parsed.bullet_adjustments.every(isBulletAdjustment)) {
     throw new Error('Analysis response schema was invalid.')
   }
 
   return {
     primary_vector: parsed.primary_vector,
+    suggested_vectors:
+      isStringArray(parsed.suggested_vectors) && parsed.suggested_vectors.length > 0
+        ? parsed.suggested_vectors
+        : [parsed.primary_vector],
     bullet_adjustments: parsed.bullet_adjustments.map((adjustment) => ({
       ...adjustment,
       recommended_priority: normalizeRecommendedPriority(adjustment.recommended_priority) ?? 'exclude',
@@ -158,18 +165,21 @@ export const parseJdAnalysisResponse = (raw: string): JdAnalysisResult => {
     matched_keywords: parsed.matched_keywords,
     suggested_variables: (parsed.suggested_variables as Record<string, string>) || {},
     positioning_note: typeof parsed.positioning_note === 'string' ? parsed.positioning_note : '',
+    vector_strategy: typeof parsed.vector_strategy === 'string' ? parsed.vector_strategy : '',
   }
 }
 
 const systemPrompt = `You are a resume strategist. Return JSON only.
 Given the job description and candidate data, return:
 1. primary_vector
-2. bullet_adjustments: [{ bullet_id, recommended_priority, reason }]
-3. suggested_target_line
-4. skill_gaps: [string] (Top skills requested in JD but missing/weak in resume)
-5. matched_keywords: [string] (Key technical skills or terms from JD that ARE present in the resume)
-6. suggested_variables: { company: string, role: string } (Values extracted from JD)
-7. positioning_note`
+2. suggested_vectors: [string] (ordered list of recommended vectors to build first)
+3. bullet_adjustments: [{ bullet_id, recommended_priority, reason }]
+4. suggested_target_line
+5. skill_gaps: [string] (Top skills requested in JD but missing/weak in resume)
+6. matched_keywords: [string] (Key technical skills or terms from JD that ARE present in the resume)
+7. suggested_variables: { company: string, role: string } (Values extracted from JD)
+8. positioning_note
+9. vector_strategy`
 
 const buildContext = (data: ResumeData): Record<string, unknown> => ({
   vectors: data.vectors,

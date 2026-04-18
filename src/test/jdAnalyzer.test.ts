@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { reframeBulletForVector, prepareJobDescription, analyzeJobDescription } from '../utils/jdAnalyzer'
+import {
+  reframeBulletForVector,
+  prepareJobDescription,
+  analyzeJobDescription,
+  parseJdAnalysisResponse,
+} from '../utils/jdAnalyzer'
 import type { ResumeData } from '../types'
 
 describe('jdAnalyzer', () => {
@@ -92,12 +97,14 @@ describe('jdAnalyzer', () => {
     it('calls proxy and parses response', async () => {
       const mockResult = {
         primary_vector: 'v1',
+        suggested_vectors: ['v1'],
         bullet_adjustments: [],
         suggested_target_line: 'Target',
         skill_gaps: [],
         matched_keywords: ['react'],
         suggested_variables: { company: 'Acme' },
-        positioning_note: 'Note'
+        positioning_note: 'Note',
+        vector_strategy: 'Lead with vector 1.'
       }
 
       vi.mocked(fetch).mockResolvedValue({
@@ -112,8 +119,10 @@ describe('jdAnalyzer', () => {
       )
 
       expect(result.primary_vector).toBe('v1')
+      expect(result.suggested_vectors).toEqual(['v1'])
       expect(result.suggested_target_line).toBe('Target')
       expect(result.suggested_variables.company).toBe('Acme')
+      expect(result.vector_strategy).toBe('Lead with vector 1.')
     })
 
     it('surfaces hosted upgrade-required failures', async () => {
@@ -136,6 +145,22 @@ describe('jdAnalyzer', () => {
           mockEndpoint,
         ),
       ).rejects.toThrow('Upgrade to AI Pro to use this hosted AI feature.')
+    })
+
+    it('rejects malformed suggested_vectors payloads', () => {
+      expect(() =>
+        parseJdAnalysisResponse(
+          JSON.stringify({
+            primary_vector: 'v1',
+            suggested_vectors: 'v1',
+            bullet_adjustments: [],
+            suggested_target_line: 'Target',
+            skill_gaps: [],
+            matched_keywords: [],
+            suggested_variables: { company: 'Acme' },
+          }),
+        ),
+      ).toThrow('Analysis response schema was invalid.')
     })
   })
 })

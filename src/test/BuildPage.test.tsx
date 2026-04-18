@@ -1,12 +1,26 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { BuildPage } from '../routes/build/BuildPage'
 import { defaultResumeData } from '../store/defaultData'
 import { useHandoffStore } from '../store/handoffStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
+
+const { analyzeJobDescriptionMock, reframeBulletForVectorMock } = vi.hoisted(() => ({
+  analyzeJobDescriptionMock: vi.fn(),
+  reframeBulletForVectorMock: vi.fn(),
+}))
+
+vi.mock('../utils/jdAnalyzer', async () => {
+  const actual = await vi.importActual<typeof import('../utils/jdAnalyzer')>('../utils/jdAnalyzer')
+  return {
+    ...actual,
+    analyzeJobDescription: analyzeJobDescriptionMock,
+    reframeBulletForVector: reframeBulletForVectorMock,
+  }
+})
 
 vi.mock('../hooks/usePdfPreview', () => ({
   usePdfPreview: () => ({
@@ -103,6 +117,8 @@ vi.mock('../components/ComparisonDiff', () => ({
 
 describe('BuildPage', () => {
   beforeEach(() => {
+    analyzeJobDescriptionMock.mockReset()
+    reframeBulletForVectorMock.mockReset()
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
       past: [],
@@ -208,5 +224,144 @@ describe('BuildPage', () => {
       variantId: 'variant-keep',
       variantLabel: 'Existing Variant',
     })
+  })
+
+  it('keeps JD analysis separate from assembly suggestions until the vector plan is confirmed', async () => {
+    analyzeJobDescriptionMock.mockResolvedValue({
+      primary_vector: 'platform',
+      suggested_vectors: ['platform', 'backend'],
+      bullet_adjustments: [],
+      suggested_target_line: '',
+      skill_gaps: ['Rust'],
+      matched_keywords: ['TypeScript'],
+      suggested_variables: { company: 'Acme' },
+      positioning_note: 'Lead with platform outcomes.',
+      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
+    })
+
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
+    fireEvent.click(screen.getByText('Analyze JD'))
+    fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
+      target: { value: 'We need a platform-minded engineer.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Resume Vector Plan')).toBeTruthy()
+    })
+
+    expect(analyzeJobDescriptionMock).toHaveBeenCalledWith(
+      {
+        content: 'We need a platform-minded engineer.',
+        wordCount: 5,
+        truncated: false,
+      },
+      expect.objectContaining({
+        generation: expect.objectContaining({
+          mode: 'single',
+          vectorMode: 'manual',
+        }),
+      }),
+      expect.any(String),
+    )
+
+    expect(useUiStore.getState().suggestionModeActive).toBe(false)
+
+    fireEvent.click(screen.getByLabelText('Manual'))
+    fireEvent.click(screen.getByLabelText('Single vector'))
+    fireEvent.click(screen.getByLabelText('Backend Engineering (AI suggested)'))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to assembly suggestions' }))
+
+    await waitFor(() => {
+      expect(useUiStore.getState().suggestionModeActive).toBe(true)
+    })
+
+    expect(useUiStore.getState().selectedVector).toBe('backend')
+    expect(useResumeStore.getState().data.generation).toMatchObject({
+      mode: 'single',
+      vectorMode: 'manual',
+      primaryVectorId: 'backend',
+      vectorIds: ['backend'],
+      suggestedVectorIds: ['platform', 'backend'],
+    })
+  })
+
+  it('applies the default AI multi-vector plan when confirmed without manual edits', async () => {
+    analyzeJobDescriptionMock.mockResolvedValue({
+      primary_vector: 'platform',
+      suggested_vectors: ['platform', 'backend'],
+      bullet_adjustments: [],
+      suggested_target_line: '',
+      skill_gaps: [],
+      matched_keywords: ['TypeScript'],
+      suggested_variables: { company: 'Acme' },
+      positioning_note: 'Lead with platform outcomes.',
+      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
+    })
+
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
+    fireEvent.click(screen.getByText('Analyze JD'))
+    fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
+      target: { value: 'We need a platform-minded engineer.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Platform / DevEx (AI suggested)')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to assembly suggestions' }))
+
+    await waitFor(() => {
+      expect(useUiStore.getState().suggestionModeActive).toBe(true)
+    })
+
+    expect(useUiStore.getState().selectedVector).toBe('platform')
+    expect(useResumeStore.getState().data.generation).toMatchObject({
+      mode: 'multi-vector',
+      vectorMode: 'auto',
+      primaryVectorId: 'platform',
+      vectorIds: ['platform', 'backend'],
+      suggestedVectorIds: ['platform', 'backend'],
+    })
+  })
+
+  it('prevents deselecting every vector in manual multi-vector mode', async () => {
+    analyzeJobDescriptionMock.mockResolvedValue({
+      primary_vector: 'platform',
+      suggested_vectors: ['platform', 'backend'],
+      bullet_adjustments: [],
+      suggested_target_line: '',
+      skill_gaps: [],
+      matched_keywords: ['TypeScript'],
+      suggested_variables: { company: 'Acme' },
+      positioning_note: 'Lead with platform outcomes.',
+      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
+    })
+
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
+    fireEvent.click(screen.getByText('Analyze JD'))
+    fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
+      target: { value: 'We need a platform-minded engineer.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Platform / DevEx (AI suggested)')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByLabelText('Manual'))
+    fireEvent.click(screen.getByLabelText('Multi-vector'))
+    fireEvent.click(screen.getByLabelText('Platform / DevEx (AI suggested)'))
+    fireEvent.click(screen.getByLabelText('Backend Engineering (AI suggested)'))
+
+    expect(screen.getByLabelText('Backend Engineering (AI suggested)')).toHaveProperty('checked', true)
+    expect(screen.getByRole('button', { name: 'Continue to assembly suggestions' })).toHaveProperty('disabled', false)
   })
 })

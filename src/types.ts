@@ -379,10 +379,12 @@ export interface JdBulletAdjustment {
 
 export interface JdAnalysisResult {
   primary_vector: string
+  suggested_vectors: string[]
   bullet_adjustments: JdBulletAdjustment[]
   suggested_target_line: string
   skill_gaps: string[]
   matched_keywords: string[]
   suggested_variables: Record<string, string>
   positioning_note: string
+  vector_strategy: string
 }

@@ -57,6 +57,13 @@ import {
   prepareJobDescription,
   reframeBulletForVector,
 } from '../../utils/jdAnalyzer'
+import type { ResumeGenerationMode, ResumeGenerationVectorMode } from '../../types/resumeGeneration'
+import {
+  applyResumeVectorPlan,
+  buildInitialResumeVectorPlan,
+  resolvePlannedVectorIds,
+  type ResumeVectorPlan,
+} from '../../utils/resumeVectorPlan'
 import { useFocusTrap } from '../../utils/useFocusTrap'
 import { normalizeThemeState, resolveTheme } from '../../themes/theme'
 import { ThemeEditorPanel } from '../../components/ThemeEditorPanel'
@@ -66,6 +73,7 @@ import { usePipelineStore } from '../../store/pipelineStore'
 import { useSuggestionActions } from '../../hooks/useSuggestionActions'
 import { usePresets } from '../../hooks/usePresets'
 import { createId, slugify } from '../../utils/idUtils'
+import { normalizeResumeWorkspaceGeneration } from '../../utils/resumeGeneration'
 import { findOptimalDensity } from '../../utils/densityOptimizer'
 import {
   resolveComparisonVectorAfterReplaceImport,
@@ -91,6 +99,21 @@ interface ReframeResult {
   original: string
   reframed: string
   reasoning: string
+}
+
+const formatGenerationModeLabel = (mode: ResumeGenerationMode) => {
+  switch (mode) {
+    case 'single':
+      return 'Single vector'
+    case 'multi-vector':
+      return 'Multi-vector'
+    case 'dynamic':
+      return 'Dynamic'
+    default: {
+      const _exhaustive: never = mode
+      return _exhaustive
+    }
+  }
 }
 
 const ID_MAP: Record<AddComponentType, string> = {
@@ -174,6 +197,10 @@ export function BuildPage() {
   const [jdWasTruncated, setJdWasTruncated] = useState(false)
   const [jdLoading, setJdLoading] = useState(false)
   const [jdError, setJdError] = useState<string | null>(null)
+  const [vectorPlan, setVectorPlan] = useState<ResumeVectorPlan | null>(null)
+  const [manualVectorPlanIds, setManualVectorPlanIds] = useState<string[]>([])
+  const vectorPlanRef = useRef<ResumeVectorPlan | null>(null)
+  const manualVectorPlanIdsRef = useRef<string[]>([])
   const [leftPanelMode, setLeftPanelMode] = useState<'content' | 'design'>('content')
   const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
   const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
@@ -356,7 +383,7 @@ export function BuildPage() {
   )
 
   // Focus Traps
-  useFocusTrap(jdModalOpen, jdModalRef, () => setJdModalOpen(false))
+  useFocusTrap(jdModalOpen, jdModalRef, () => closeJdModal())
   useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
   useFocusTrap(variablesOpen, variablesModalRef, () => setVariablesOpen(false))
 
@@ -424,6 +451,80 @@ export function BuildPage() {
     () => data.vectors.find((vector) => vector.id === comparisonVector)?.label ?? null,
     [comparisonVector, data.vectors],
   )
+  const generationState = useMemo(
+    () => normalizeResumeWorkspaceGeneration(data.generation),
+    [data.generation],
+  )
+  const generationModeLabel = useMemo(
+    () => formatGenerationModeLabel(generationState.mode),
+    [generationState.mode],
+  )
+  const plannedVectorIds = useMemo(
+    () =>
+      vectorPlan
+        ? resolvePlannedVectorIds(
+            data.vectors,
+            vectorPlan.mode,
+            vectorPlan.vectorMode,
+            manualVectorPlanIds,
+            vectorPlan.suggestedVectorIds,
+            vectorPlan.primaryVectorId,
+          )
+        : [],
+    [data.vectors, manualVectorPlanIds, vectorPlan],
+  )
+  const deriveFallbackVectorSelection = useCallback(
+    (
+      plan: {
+        mode: ResumeGenerationMode
+        vectorMode: ResumeGenerationVectorMode
+        suggestedVectorIds: string[]
+        primaryVectorId: string | null
+      },
+      currentIds: string[],
+      nextMode: ResumeGenerationMode = plan.mode,
+      nextVectorMode: ResumeGenerationVectorMode = plan.vectorMode,
+    ) => {
+      const suggestedSelection = resolvePlannedVectorIds(
+        data.vectors,
+        nextMode,
+        'auto',
+        [],
+        plan.suggestedVectorIds,
+        plan.primaryVectorId,
+      )
+      const resolvedSelection =
+        currentIds.length > 0
+          ? resolvePlannedVectorIds(
+              data.vectors,
+              nextMode,
+              nextVectorMode,
+              currentIds,
+              plan.suggestedVectorIds,
+              plan.primaryVectorId,
+            )
+          : suggestedSelection
+
+      return resolvedSelection.length > 0 ? resolvedSelection : suggestedSelection
+    },
+    [data.vectors],
+  )
+  const syncVectorPlanState = useCallback((nextPlan: ResumeVectorPlan | null, nextManualIds: string[]) => {
+    vectorPlanRef.current = nextPlan
+    manualVectorPlanIdsRef.current = nextManualIds
+    setVectorPlan(nextPlan)
+    setManualVectorPlanIds(nextManualIds)
+  }, [])
+  const closeJdModal = useCallback(
+    (options: { discardAnalysis?: boolean } = {}) => {
+      setJdModalOpen(false)
+      if (options.discardAnalysis !== false) {
+        setJdAnalysisResult(null)
+        syncVectorPlanState(null, [])
+      }
+    },
+    [syncVectorPlanState],
+  )
   const buildStatusLine = useMemo(() => {
     const vectorSummary = comparisonVectorLabel
       ? `${selectedVectorLabel} active with ${comparisonVectorLabel} in comparison`
@@ -467,6 +568,14 @@ export function BuildPage() {
         detail: overPageLimit ? 'Over target page count' : nearPageLimit ? 'Near target page count' : 'Within page target',
       },
       {
+        label: 'Generation',
+        value: generationModeLabel,
+        detail:
+          generationState.vectorMode === 'auto'
+            ? 'AI-suggested vector plan'
+            : 'Manual vector selection',
+      },
+      {
         label: 'Suggestions',
         value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
         detail: suggestionModeActive
@@ -495,6 +604,7 @@ export function BuildPage() {
       activePreset?.name,
       comparisonVectorLabel,
       jdAnalysisEndpoint,
+      generationModeLabel,
       jdAnalysisResult,
       jdLoading,
       nearPageLimit,
@@ -505,6 +615,7 @@ export function BuildPage() {
       selectedVectorLabel,
       suggestionCount,
       suggestionModeActive,
+      generationState.vectorMode,
     ],
   )
 
@@ -643,22 +754,105 @@ export function BuildPage() {
     }
     setJdError(null)
     setJdAnalysisResult(null)
+    syncVectorPlanState(null, [])
     const prepared = prepareJobDescription(jdInput)
     setJdWordCount(prepared.wordCount)
     setJdWasTruncated(prepared.truncated)
     setJdLoading(true)
     try {
       const result = await analyzeJobDescription(prepared, data, jdAnalysisEndpoint)
+      const nextVectorPlan = buildInitialResumeVectorPlan(result, data.vectors, generationState)
       setJdAnalysisResult(result)
+      syncVectorPlanState(nextVectorPlan, nextVectorPlan.vectorIds)
       setIgnoredSuggestionIds(new Set())
-      setSuggestionModeActive(true)
-      setJdModalOpen(false) 
-      showNotice('success', 'JD analysis complete. Suggestion mode active.')
+      setSuggestionModeActive(false)
+      showNotice('success', 'JD analysis complete. Review the vector plan before continuing.')
     } catch (error) {
       setJdError(error instanceof Error ? error.message : String(error))
     } finally {
       setJdLoading(false)
     }
+  }
+
+  const onSetVectorPlanMode = (mode: ResumeGenerationMode) => {
+    const currentPlan = vectorPlanRef.current
+    if (!currentPlan) {
+      return
+    }
+
+    const nextPlan = { ...currentPlan, mode }
+    const nextManualIds = deriveFallbackVectorSelection(nextPlan, manualVectorPlanIdsRef.current, mode)
+    syncVectorPlanState(nextPlan, nextManualIds)
+  }
+
+  const onSetVectorPlanVectorMode = (vectorMode: ResumeGenerationVectorMode) => {
+    const currentPlan = vectorPlanRef.current
+    if (!currentPlan) {
+      return
+    }
+
+    const nextPlan = { ...currentPlan, vectorMode }
+    const nextManualIds = deriveFallbackVectorSelection(
+      nextPlan,
+      manualVectorPlanIdsRef.current,
+      nextPlan.mode,
+      vectorMode,
+    )
+    syncVectorPlanState(nextPlan, nextManualIds)
+  }
+
+  const onSelectPlannedVector = (vectorId: string) => {
+    const currentPlan = vectorPlanRef.current
+    if (!currentPlan) {
+      return
+    }
+
+    if (currentPlan.mode === 'single') {
+      const nextPlan = {
+        ...currentPlan,
+        primaryVectorId: vectorId,
+      }
+      syncVectorPlanState(nextPlan, [vectorId])
+      return
+    }
+
+    const currentIds = manualVectorPlanIdsRef.current
+    const nextIds = currentIds.includes(vectorId)
+      ? currentIds.filter((id) => id !== vectorId)
+      : [...currentIds, vectorId]
+    if (nextIds.length === 0) {
+      return
+    }
+
+      const nextPlan = {
+        ...currentPlan,
+        primaryVectorId:
+          currentPlan.primaryVectorId && nextIds.includes(currentPlan.primaryVectorId)
+            ? currentPlan.primaryVectorId
+            : nextIds[0],
+      }
+    syncVectorPlanState(nextPlan, nextIds)
+  }
+
+  const onContinueFromJdAnalysis = () => {
+    if (!jdAnalysisResult || !vectorPlan) {
+      return
+    }
+
+    const nextGeneration = applyResumeVectorPlan(
+      generationState,
+      vectorPlan,
+      data.vectors,
+      manualVectorPlanIds,
+    )
+    updateGeneration(nextGeneration)
+    if (nextGeneration.primaryVectorId) {
+      setSelectedVector(nextGeneration.primaryVectorId)
+    }
+    setIgnoredSuggestionIds(new Set())
+    setSuggestionModeActive(true)
+    closeJdModal({ discardAnalysis: false })
+    showNotice('success', 'Vector plan applied. Suggestion mode active.')
   }
 
   const onReframeBullet = async (roleId: string, bulletId: string) => {
@@ -794,7 +988,7 @@ export function BuildPage() {
         event.preventDefault()
         onDownloadPdf()
       } else if (event.key === 'Escape') {
-        if (jdModalOpen) setJdModalOpen(false)
+        if (jdModalOpen) closeJdModal()
         else if (reframeResult) setReframeResult(null)
         else if (variablesOpen) setVariablesOpen(false)
         else if (suggestionModeActive) setSuggestionModeActive(false)
@@ -806,7 +1000,7 @@ export function BuildPage() {
         setSelectedVector('all')
       }
     },
-    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, comparisonVector, setComparisonVector, setSuggestionModeActive, onDownloadPdf],
+    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, comparisonVector, setComparisonVector, setSuggestionModeActive, onDownloadPdf, closeJdModal],
   )
 
   useEffect(() => {
@@ -1335,7 +1529,7 @@ export function BuildPage() {
 
       {suggestionModeActive && jdAnalysisResult && suggestionCount > 0 && (
         <SuggestionToolbar
-          activeVector={jdAnalysisResult.primary_vector}
+          activeVector={generationState.primaryVectorId ?? jdAnalysisResult.primary_vector}
           suggestionCount={suggestionCount}
           onAcceptAll={onAcceptAllSuggestions}
           onDismissRemaining={onDismissRemainingSuggestions}
@@ -1351,7 +1545,7 @@ export function BuildPage() {
               <button
                 className="btn-ghost btn-icon-only"
                 type="button"
-                onClick={() => setJdModalOpen(false)}
+                onClick={() => closeJdModal()}
                 aria-label="Close"
               >
                 <X size={18} />
@@ -1391,13 +1585,101 @@ export function BuildPage() {
                 {jdAnalysisResult && (
                   <div className="jd-results">
                     <section className="jd-section">
+                      <h4>Resume Vector Plan</h4>
+                      <p>
+                        {jdAnalysisResult.vector_strategy ||
+                          'Review the suggested resume vectors before applying downstream assembly guidance.'}
+                      </p>
+                      {vectorPlan && (
+                        <>
+                          <fieldset className="jd-plan-fieldset">
+                            <legend>Resume mode</legend>
+                            <label>
+                              <input
+                                type="radio"
+                                name="resume-plan-mode"
+                                checked={vectorPlan.mode === 'single'}
+                                onChange={() => onSetVectorPlanMode('single')}
+                              />
+                              Single vector
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name="resume-plan-mode"
+                                checked={vectorPlan.mode === 'multi-vector'}
+                                onChange={() => onSetVectorPlanMode('multi-vector')}
+                              />
+                              Multi-vector
+                            </label>
+                          </fieldset>
+                          <fieldset className="jd-plan-fieldset">
+                            <legend>Selection mode</legend>
+                            <label>
+                              <input
+                                type="radio"
+                                name="resume-plan-vector-mode"
+                                checked={vectorPlan.vectorMode === 'auto'}
+                                onChange={() => onSetVectorPlanVectorMode('auto')}
+                              />
+                              AI suggested
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name="resume-plan-vector-mode"
+                                checked={vectorPlan.vectorMode === 'manual'}
+                                onChange={() => onSetVectorPlanVectorMode('manual')}
+                              />
+                              Manual
+                            </label>
+                          </fieldset>
+                          <fieldset className="jd-plan-fieldset">
+                            <legend>Vectors</legend>
+                            {vectorPlan.vectorMode !== 'manual' && (
+                              <p id="resume-plan-vectors-hint">Switch to Manual to edit selection.</p>
+                            )}
+                            {data.vectors.map((vector) => {
+                              const checked = plannedVectorIds.includes(vector.id)
+                              const suggested = vectorPlan.suggestedVectorIds.includes(vector.id)
+                              const inputType = vectorPlan.mode === 'single' ? 'radio' : 'checkbox'
+                              const inputName =
+                                vectorPlan.mode === 'single' ? 'resume-plan-vectors-single' : undefined
+                              const isLastSelectedVector =
+                                vectorPlan.vectorMode === 'manual' &&
+                                vectorPlan.mode === 'multi-vector' &&
+                                checked &&
+                                plannedVectorIds.length === 1
+
+                              return (
+                                <label key={vector.id}>
+                                  <input
+                                    type={inputType}
+                                    name={inputName}
+                                    aria-describedby={
+                                      vectorPlan.vectorMode !== 'manual' ? 'resume-plan-vectors-hint' : undefined
+                                    }
+                                    checked={checked}
+                                    disabled={vectorPlan.vectorMode !== 'manual' || isLastSelectedVector}
+                                    onChange={() => onSelectPlannedVector(vector.id)}
+                                  />
+                                  <span>{suggested ? `${vector.label} (AI suggested)` : vector.label}</span>
+                                </label>
+                              )
+                            })}
+                          </fieldset>
+                        </>
+                      )}
+                    </section>
+
+                    <section className="jd-section">
                       <h4>Skill Gaps & Actions</h4>
                       <GapAnalysisPanel
                         skillGaps={jdAnalysisResult.skill_gaps}
                         onQuickAdd={(type, payload) => {
                           try {
                             onAddComponentBound(type, payload)
-                            setJdModalOpen(false)
+                            closeJdModal()
                             showNotice('success', 'Added missing competency')
                           } catch (err) {
                             console.error('Quick-add failed:', err)
@@ -1413,7 +1695,15 @@ export function BuildPage() {
                     </section>
 
                     <div className="jd-actions">
-                      <button className="btn-secondary" type="button" onClick={() => setJdModalOpen(false)}>
+                      <button
+                        className="btn-primary"
+                        type="button"
+                        disabled={!vectorPlan || plannedVectorIds.length === 0}
+                        onClick={onContinueFromJdAnalysis}
+                      >
+                        Continue to assembly suggestions
+                      </button>
+                      <button className="btn-secondary" type="button" onClick={() => closeJdModal()}>
                         Close
                       </button>
                     </div>
