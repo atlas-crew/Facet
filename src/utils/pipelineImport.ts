@@ -1,4 +1,5 @@
 import type { InterviewFormat, PipelineEntry } from '../types/pipeline'
+import { normalizePipelineResumeGeneration } from './resumeGeneration'
 import { sanitizeUrl } from './sanitizeUrl'
 import { normalizePipelineResearchSnapshot } from './pipelineResearch'
 
@@ -50,6 +51,11 @@ function validateEntry(raw: unknown): PipelineEntry | null {
     jobDescription: str(e.jobDescription),
     presetId: strOrNull(e.presetId),
     resumeVariant: str(e.resumeVariant),
+    resumeGeneration: normalizePipelineResumeGeneration(e.resumeGeneration, {
+      resumeVariant: str(e.resumeVariant),
+      vectorId: strOrNull(e.vectorId),
+      presetId: strOrNull(e.presetId),
+    }),
     positioning: str(e.positioning),
     skillMatch: str(e.skillMatch),
     nextStep: str(e.nextStep),
