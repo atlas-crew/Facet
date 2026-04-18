@@ -35,7 +35,12 @@ import { createPostgresWorkspaceStore } from './postgresWorkspaceStore.js'
 import { createPostgresBillingStore } from './postgresBillingStore.js'
 import pg from 'pg'
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
+const LEGACY_SONNET_MODEL = 'claude-sonnet-4-20250514'
+const LEGACY_OPUS_MODEL = 'claude-opus-4-20250514'
+const CURRENT_SONNET_MODEL = 'claude-sonnet-4-6'
+const CURRENT_OPUS_MODEL = 'claude-opus-4-7'
+const CURRENT_HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+const DEFAULT_MODEL = LEGACY_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 const TEXT_UTF8_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.map', '.svg', '.txt', '.xml'])
@@ -59,9 +64,21 @@ const STATIC_CONTENT_TYPES = {
 }
 
 const MODEL_ALIASES = {
-  haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-20250514',
-  opus: 'claude-opus-4-20250514',
+  haiku: CURRENT_HAIKU_MODEL,
+  sonnet: LEGACY_SONNET_MODEL,
+  opus: LEGACY_OPUS_MODEL,
+}
+
+const FEATURE_MODEL_DEFAULTS = {
+  'build.bullet-reframe': CURRENT_OPUS_MODEL,
+  'identity.extract': CURRENT_OPUS_MODEL,
+  'identity.deepen': CURRENT_OPUS_MODEL,
+  'research.profile-inference': CURRENT_OPUS_MODEL,
+  'research.search': CURRENT_SONNET_MODEL,
+  'prep.generate': CURRENT_OPUS_MODEL,
+  'letters.generate': CURRENT_OPUS_MODEL,
+  'linkedin.generate': CURRENT_OPUS_MODEL,
+  'debrief.generate': CURRENT_OPUS_MODEL,
 }
 
 const DEFAULT_HOSTED_RATE_LIMITS = {
@@ -268,6 +285,26 @@ const ALLOWED_TOOL_TYPES = new Set(['web_search_20250305'])
 function resolveModel(requested, defaultModel) {
   if (!requested) return defaultModel
   return MODEL_ALIASES[requested] ?? requested
+}
+
+function resolveFeatureModel(requested, feature, defaultModel) {
+  const resolvedRequestedModel = resolveModel(requested, defaultModel)
+  const featureDefaultModel =
+    typeof feature === 'string' && Object.hasOwn(FEATURE_MODEL_DEFAULTS, feature)
+      ? FEATURE_MODEL_DEFAULTS[feature]
+      : undefined
+
+  if (!featureDefaultModel) {
+    return resolvedRequestedModel
+  }
+
+  if (!requested) {
+    return featureDefaultModel
+  }
+
+  // Generic aliases are treated as feature-agnostic defaults and may be routed by feature.
+  // Raw model ids remain an explicit escape hatch for testing and targeted overrides.
+  return MODEL_ALIASES[requested] ? featureDefaultModel : resolvedRequestedModel
 }
 
 function hasValidMessages(messages) {
@@ -519,6 +556,7 @@ export function createFacetServer(options = {}) {
     defaultModel,
     ...Object.keys(MODEL_ALIASES),
     ...Object.values(MODEL_ALIASES),
+    ...Object.values(FEATURE_MODEL_DEFAULTS),
   ])
   const authMode = options.authMode === 'hosted' ? 'hosted' : 'local'
   const hostedRateLimits =
@@ -907,13 +945,13 @@ export function createFacetServer(options = {}) {
         }
       }
 
-      const resolvedModel = resolveModel(model, defaultModel)
+      const resolvedModel = resolveFeatureModel(model, feature, defaultModel)
       if (!allowedModelValues.has(resolvedModel)) {
         sendJson(res, 400, { error: 'Requested model is not allowed' })
         return
       }
 
-      const resolvedTemp = !Number.isNaN(defaultTemperature)
+      const resolvedTemp = Number.isFinite(defaultTemperature)
         ? defaultTemperature
         : (temperature ?? 0.3)
       const resolvedMaxTokens = Math.max(
@@ -968,6 +1006,7 @@ export function createFacetServer(options = {}) {
         })
       }
 
+      res.setHeader('X-Facet-Resolved-Model', resolvedModel)
       sendJson(res, 200, result)
     } catch (error) {
       const status = error?.status ?? 500

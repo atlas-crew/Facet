@@ -769,7 +769,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search', 'research.profile-inference'],
-        effectiveThrough: '2026-04-14T00:00:00.000Z',
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
       },
     })
     servers.add(server)
@@ -837,6 +837,7 @@ describe('facetServer persistence API', () => {
         'X-Proxy-API-Key': 'proxy-key',
       },
       body: JSON.stringify({
+        feature: 'research.search',
         model: 'sonnet',
         system: 'Return JSON only.',
         messages: [{ role: 'user', content: 'Find jobs.' }],
@@ -848,8 +849,188 @@ describe('facetServer persistence API', () => {
     expect(response.status).toBe(200)
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         thinking: { type: 'enabled', budget_tokens: 4095 },
+      }),
+    )
+  })
+
+  it('routes drafting and suggestion features to opus 4.7 when callers send generic aliases', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind feature-model test server.')
+    }
+
+    for (const feature of ['prep.generate', 'letters.generate', 'research.profile-inference']) {
+      const response = await fetch(`http://127.0.0.1:${address.port}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+          'X-Proxy-API-Key': 'proxy-key',
+        },
+        body: JSON.stringify({
+          feature,
+          model: 'sonnet',
+          system: 'Return JSON only.',
+          messages: [{ role: 'user', content: 'Generate output.' }],
+        }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-facet-resolved-model')).toBe('claude-opus-4-7')
+    }
+
+    expect(messagesCreate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        model: 'claude-opus-4-7',
+        temperature: 0.3,
+      }),
+    )
+    expect(messagesCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        model: 'claude-opus-4-7',
+        temperature: 0.3,
+      }),
+    )
+    expect(messagesCreate).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        model: 'claude-opus-4-7',
+        temperature: 0.3,
+      }),
+    )
+  })
+
+  it('preserves explicit raw model overrides for mapped features', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind raw-model override test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'letters.generate',
+        model: 'claude-haiku-4-5-20251001',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Draft a letter.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-haiku-4-5-20251001')
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-haiku-4-5-20251001',
+        temperature: 0.3,
+      }),
+    )
+  })
+
+  it('keeps legacy alias resolution when no feature is provided', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind alias-resolution test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        model: 'sonnet',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Use the base alias.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-sonnet-4-20250514')
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-sonnet-4-20250514',
+        temperature: 0.3,
       }),
     )
   })
@@ -909,7 +1090,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['identity.deepen'],
-        effectiveThrough: '2026-04-14T00:00:00.000Z',
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
       },
     })
     servers.add(server)
@@ -945,7 +1126,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-04-14T00:00:00.000Z',
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
       },
       hostedRateLimits: {
         ai: { max: 1, windowMs: 60_000 },
@@ -1002,7 +1183,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-04-14T00:00:00.000Z',
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
       },
       hostedRateLimits: {
         ai: { max: 1, windowMs: 60_000 },
