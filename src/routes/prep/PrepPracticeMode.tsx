@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Eye, Shuffle, X } from 'lucide-react'
 import { PrepCardView } from './PrepCardView'
 import type { PrepCard, PrepCardConfidence, PrepCardStudyState } from '../../types/prep'
+import {
+  filterPrepConditionals,
+  filterPrepKeyPoints,
+  filterPrepStoryBlocks,
+  hasPrepCardNeedsReviewContent,
+  resolvePrepConditionalTone,
+} from '../../utils/prepCardContent'
 
 interface PrepPracticeModeProps {
   cards: PrepCard[]
@@ -10,13 +17,33 @@ interface PrepPracticeModeProps {
   onRecordReview: (cardId: string, confidence: PrepCardConfidence) => void
 }
 
-type HomeworkFilter = 'all' | 'needs_work' | 'unreviewed'
+type HomeworkFilter = 'all' | 'openers' | 'needs_work' | 'unreviewed'
+
+type HomeworkQueueEntry =
+  | {
+      id: string
+      kind: 'card'
+      cardId: string
+    }
+  | {
+      id: string
+      kind: 'conditional'
+      cardId: string
+      conditionalIndex: number
+    }
 
 const HOMEWORK_FILTER_LABELS: Record<HomeworkFilter, string> = {
   all: 'All cards',
+  openers: 'Openers',
   needs_work: 'Needs work',
   unreviewed: 'Unreviewed',
 }
+
+const CONDITIONAL_TONE_LABELS = {
+  pivot: 'Pivot',
+  trap: 'Trap',
+  escalation: 'Escalation',
+} as const
 
 const CONFIDENCE_LABELS: Record<PrepCardConfidence, string> = {
   nailed_it: 'Nailed it',
@@ -33,12 +60,17 @@ function fisherYatesShuffle<T>(items: readonly T[]): T[] {
   return next
 }
 
+function isInteractiveTag(tagName: string | undefined): boolean {
+  return tagName === 'BUTTON' || tagName === 'A' || tagName === 'INPUT' || tagName === 'TEXTAREA'
+}
+
 function selectCardsForFilter(
   cards: readonly PrepCard[],
   studyProgress: Record<string, PrepCardStudyState> | undefined,
   filter: HomeworkFilter,
 ): PrepCard[] {
   if (filter === 'all') return [...cards]
+  if (filter === 'openers') return cards.filter((card) => card.category === 'opener')
   if (filter === 'needs_work') {
     return cards.filter((card) => {
       const progress = studyProgress?.[card.id]
@@ -48,6 +80,17 @@ function selectCardsForFilter(
   return cards.filter((card) => !studyProgress?.[card.id])
 }
 
+function createInitialHomeworkQueue(
+  cards: readonly PrepCard[],
+  studyProgress: Record<string, PrepCardStudyState> | undefined,
+): HomeworkQueueEntry[] {
+  return fisherYatesShuffle(selectCardsForFilter(cards, studyProgress, 'all')).map((card, index) => ({
+    id: `card:${card.id}:initial:${index}`,
+    kind: 'card',
+    cardId: card.id,
+  }))
+}
+
 export function PrepPracticeMode({
   cards,
   studyProgress,
@@ -55,46 +98,130 @@ export function PrepPracticeMode({
   onRecordReview,
 }: PrepPracticeModeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const studyProgressRef = useRef(studyProgress)
+  const filterRef = useRef<HomeworkFilter>('all')
+  const queueEntryCounterRef = useRef(0)
   const [filter, setFilter] = useState<HomeworkFilter>('all')
-  const [queue, setQueue] = useState<string[]>(() => fisherYatesShuffle(cards).map((card) => card.id))
+
+  const createHomeworkCardEntry = useCallback((cardId: string): HomeworkQueueEntry => {
+    queueEntryCounterRef.current += 1
+    return {
+      id: `card:${cardId}:${queueEntryCounterRef.current}`,
+      kind: 'card',
+      cardId,
+    }
+  }, [])
+
+  const createHomeworkConditionalEntry = useCallback((cardId: string, conditionalIndex: number): HomeworkQueueEntry => {
+    queueEntryCounterRef.current += 1
+    return {
+      id: `conditional:${cardId}:${conditionalIndex}:${queueEntryCounterRef.current}`,
+      kind: 'conditional',
+      cardId,
+      conditionalIndex,
+    }
+  }, [])
+
+  const eligibleCards = useMemo(
+    () => cards.filter((card) => !hasPrepCardNeedsReviewContent(card)),
+    [cards],
+  )
+
+  const [queue, setQueue] = useState<HomeworkQueueEntry[]>(() =>
+    createInitialHomeworkQueue(eligibleCards, studyProgress),
+  )
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isRevealed, setIsRevealed] = useState(false)
   const [sessionReviewedCount, setSessionReviewedCount] = useState(0)
   const [sessionNeedsWorkCount, setSessionNeedsWorkCount] = useState(0)
 
+  useEffect(() => {
+    containerRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    studyProgressRef.current = studyProgress
+  }, [studyProgress])
+
+  const needsAttentionCount = cards.length - eligibleCards.length
+
+  const cardsById = useMemo(
+    () => new Map(eligibleCards.map((card) => [card.id, card])),
+    [eligibleCards],
+  )
+  const cardsByIdRef = useRef(cardsById)
+
+  useEffect(() => {
+    cardsByIdRef.current = cardsById
+  }, [cardsById])
+
   const filterCounts = useMemo(
     () => ({
-      all: cards.length,
-      needs_work: selectCardsForFilter(cards, studyProgress, 'needs_work').length,
-      unreviewed: selectCardsForFilter(cards, studyProgress, 'unreviewed').length,
+      all: eligibleCards.length,
+      openers: selectCardsForFilter(eligibleCards, studyProgress, 'openers').length,
+      needs_work: selectCardsForFilter(eligibleCards, studyProgress, 'needs_work').length,
+      unreviewed: selectCardsForFilter(eligibleCards, studyProgress, 'unreviewed').length,
     }),
-    [cards, studyProgress],
+    [eligibleCards, studyProgress],
   )
 
   const rebuildQueue = useCallback(
     (nextFilter: HomeworkFilter) => {
-      const nextCards = selectCardsForFilter(cards, studyProgress, nextFilter)
-      setQueue(fisherYatesShuffle(nextCards).map((card) => card.id))
+      // Snapshot study progress only when the user intentionally resets the queue.
+      // Mid-round grading should not reshuffle the session out from under them.
+      const nextCards = selectCardsForFilter(eligibleCards, studyProgressRef.current, nextFilter)
+      setQueue(fisherYatesShuffle(nextCards).map((card) => createHomeworkCardEntry(card.id)))
       setCurrentIndex(0)
       setIsRevealed(false)
       setSessionReviewedCount(0)
       setSessionNeedsWorkCount(0)
     },
-    [cards, studyProgress],
+    [createHomeworkCardEntry, eligibleCards],
   )
 
   useEffect(() => {
-    containerRef.current?.focus()
-  }, [])
+    if (filterRef.current === filter) return
+    filterRef.current = filter
+    rebuildQueue(filter)
+  }, [filter, rebuildQueue])
 
-  const cardsById = useMemo(
-    () => new Map(cards.map((card) => [card.id, card])),
-    [cards],
+  const activeIndex = useMemo(() => {
+    // Homework sessions are intentionally snapshot-based. If cards disappear mid-session,
+    // skip their queued entries and attached follow-up drills until the next shuffle/filter reset.
+    for (let index = currentIndex; index < queue.length; index += 1) {
+      const entry = queue[index]
+      const card = cardsById.get(entry.cardId)
+      if (!card) continue
+      if (
+        entry.kind === 'conditional' &&
+        entry.conditionalIndex >= filterPrepConditionals(card.conditionals).length
+      ) {
+        continue
+      }
+      return index
+    }
+    return queue.length
+  }, [cardsById, currentIndex, queue])
+
+  const currentEntry = queue[activeIndex] ?? null
+  const currentCard = currentEntry ? cardsById.get(currentEntry.cardId) ?? null : null
+  const currentConditionals = useMemo(
+    () => filterPrepConditionals(currentCard?.conditionals),
+    [currentCard],
   )
-
-  const currentCardId = queue[currentIndex] ?? null
-  const currentCard = currentCardId ? cardsById.get(currentCardId) ?? null : null
-  const isComplete = queue.length > 0 && currentIndex >= queue.length
+  const currentConditional =
+    currentEntry?.kind === 'conditional'
+      ? currentConditionals[currentEntry.conditionalIndex] ?? null
+      : null
+  const currentStoryBlocks = useMemo(
+    () => filterPrepStoryBlocks(currentCard?.storyBlocks),
+    [currentCard],
+  )
+  const currentKeyPoints = useMemo(
+    () => filterPrepKeyPoints(currentCard?.keyPoints),
+    [currentCard],
+  )
+  const isComplete = queue.length > 0 && activeIndex >= queue.length
 
   const handleShuffle = useCallback(() => {
     rebuildQueue(filter)
@@ -102,22 +229,49 @@ export function PrepPracticeMode({
 
   const handleRecord = useCallback(
     (confidence: PrepCardConfidence) => {
-      if (!currentCard) return
+      if (!currentEntry || !currentCard) return
+      const liveCard = cardsByIdRef.current.get(currentEntry.cardId)
+      if (!liveCard) return
+      const liveConditionals = filterPrepConditionals(liveCard.conditionals)
+      if (
+        currentEntry.kind === 'conditional' &&
+        currentEntry.conditionalIndex >= liveConditionals.length
+      ) {
+        return
+      }
 
-      onRecordReview(currentCard.id, confidence)
+      onRecordReview(liveCard.id, confidence)
       setSessionReviewedCount((count) => count + 1)
       setSessionNeedsWorkCount((count) => count + (confidence === 'needs_work' ? 1 : 0))
       setQueue((currentQueue) => {
-        if (confidence !== 'needs_work') return currentQueue
         const nextQueue = [...currentQueue]
-        const insertAt = Math.min(nextQueue.length, currentIndex + 3)
-        nextQueue.splice(insertAt, 0, currentCard.id)
+
+        if (currentEntry.kind === 'card' && liveConditionals.length > 0) {
+          nextQueue.splice(
+            activeIndex + 1,
+            0,
+            ...liveConditionals.map((_, conditionalIndex) =>
+              createHomeworkConditionalEntry(liveCard.id, conditionalIndex),
+            ),
+          )
+        }
+
+        if (confidence === 'needs_work') {
+          const requeueEntry =
+            currentEntry.kind === 'card'
+              ? createHomeworkCardEntry(liveCard.id)
+              : createHomeworkConditionalEntry(liveCard.id, currentEntry.conditionalIndex)
+          const insertedConditionalCount = currentEntry.kind === 'card' ? liveConditionals.length : 0
+          const insertAt = Math.min(nextQueue.length, activeIndex + insertedConditionalCount + 3)
+          nextQueue.splice(insertAt, 0, requeueEntry)
+        }
+
         return nextQueue
       })
-      setCurrentIndex((index) => index + 1)
+      setCurrentIndex(activeIndex + 1)
       setIsRevealed(false)
     },
-    [currentCard, currentIndex, onRecordReview],
+    [activeIndex, createHomeworkCardEntry, createHomeworkConditionalEntry, currentCard, currentEntry, onRecordReview],
   )
 
   useEffect(() => {
@@ -127,11 +281,12 @@ export function PrepPracticeMode({
         return
       }
 
-      if (!currentCard) return
+      if (!currentCard || !currentEntry) return
+
+      const tag = (event.target as HTMLElement | null)?.tagName
 
       if (event.key === ' ' || event.key === 'Enter') {
-        const tag = (event.target as HTMLElement | null)?.tagName
-        if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'TEXTAREA') return
+        if (isInteractiveTag(tag)) return
         if (!isRevealed) {
           if (event.key === ' ') event.preventDefault()
           setIsRevealed(true)
@@ -139,10 +294,7 @@ export function PrepPracticeMode({
         return
       }
 
-      if (!isRevealed) return
-
-      const tag = (event.target as HTMLElement | null)?.tagName
-      if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (!isRevealed || isInteractiveTag(tag)) return
 
       if (event.key === '1') handleRecord('nailed_it')
       if (event.key === '2') handleRecord('okay')
@@ -151,7 +303,11 @@ export function PrepPracticeMode({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentCard, handleRecord, isRevealed, onExit])
+  }, [currentCard, currentEntry, handleRecord, isRevealed, onExit])
+
+  const attentionChip = needsAttentionCount > 0
+    ? <span className="prep-mode-chip prep-practice-attention">{needsAttentionCount} needs attention</span>
+    : null
 
   if (cards.length === 0) {
     return (
@@ -185,27 +341,29 @@ export function PrepPracticeMode({
               key={option}
               type="button"
               className={`prep-pill ${filter === option ? 'prep-pill-active' : ''}`}
-              onClick={() => {
-                setFilter(option)
-                rebuildQueue(option)
-              }}
+              onClick={() => setFilter(option)}
+              aria-pressed={filter === option}
             >
               {HOMEWORK_FILTER_LABELS[option]}
-              <span className="prep-practice-filter-count">{filterCounts[option]}</span>
+              <span className="prep-practice-filter-count" aria-label={`${filterCounts[option]} cards`}>{filterCounts[option]}</span>
             </button>
           ))}
         </div>
 
+        <div className="prep-practice-stats">
+          {attentionChip}
+        </div>
+
         <div className="prep-empty">
           <h2>No cards match this homework filter</h2>
-          <p>Switch filters or go back to Edit to add more prompts before the next study round.</p>
+          <p>
+            Switch filters or go back to Edit to add more prompts before the next study round.
+            {needsAttentionCount > 0 ? ` ${needsAttentionCount} cards are hidden until their placeholders are filled.` : ''}
+          </p>
           <div className="prep-empty-actions">
             <button
               className="prep-btn"
-              onClick={() => {
-                setFilter('all')
-                rebuildQueue('all')
-              }}
+              onClick={() => setFilter('all')}
             >
               Show all cards
             </button>
@@ -216,7 +374,7 @@ export function PrepPracticeMode({
     )
   }
 
-  if (isComplete || !currentCard) {
+  if (isComplete || !currentCard || !currentEntry) {
     return (
       <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
         <div className="prep-practice-header">
@@ -238,6 +396,8 @@ export function PrepPracticeMode({
           <span className="prep-mode-chip">Reviewed: {sessionReviewedCount}</span>
           <span className="prep-mode-chip">Marked needs work: {sessionNeedsWorkCount}</span>
           <span className="prep-mode-chip">Filter: {HOMEWORK_FILTER_LABELS[filter]}</span>
+          <span className="prep-mode-chip">Saved weak cards: {filterCounts.needs_work}</span>
+          {attentionChip}
         </div>
 
         <div className="prep-practice-complete">
@@ -254,10 +414,7 @@ export function PrepPracticeMode({
             {filter !== 'needs_work' && filterCounts.needs_work > 0 ? (
               <button
                 className="prep-btn"
-                onClick={() => {
-                  setFilter('needs_work')
-                  rebuildQueue('needs_work')
-                }}
+                onClick={() => setFilter('needs_work')}
               >
                 Study weak cards
               </button>
@@ -268,12 +425,23 @@ export function PrepPracticeMode({
     )
   }
 
+  const conditionalTone = currentConditional ? resolvePrepConditionalTone(currentConditional) : null
+  const resolvedConditionalTone = conditionalTone ?? 'pivot'
+  const revealMode =
+    currentEntry.kind === 'conditional'
+      ? 'conditional'
+      : currentStoryBlocks.length > 0
+        ? 'story'
+        : currentKeyPoints.length > 0
+          ? 'key_points'
+          : 'fallback'
+
   return (
     <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
       <div className="prep-practice-header">
         <div>
-          <div className="prep-practice-progress" role="status" aria-label={`Card ${currentIndex + 1} of ${queue.length}`}>
-            Card {currentIndex + 1} of {queue.length}
+          <div className="prep-practice-progress" role="status" aria-label={`Card ${activeIndex + 1} of ${queue.length}`}>
+            Card {activeIndex + 1} of {queue.length}
           </div>
           <p className="prep-practice-subcopy">Reveal the answer, grade how it felt, and weak cards will resurface automatically.</p>
         </div>
@@ -293,13 +461,11 @@ export function PrepPracticeMode({
             key={option}
             type="button"
             className={`prep-pill ${filter === option ? 'prep-pill-active' : ''}`}
-            onClick={() => {
-              setFilter(option)
-              rebuildQueue(option)
-            }}
+            onClick={() => setFilter(option)}
+            aria-pressed={filter === option}
           >
             {HOMEWORK_FILTER_LABELS[option]}
-            <span className="prep-practice-filter-count">{filterCounts[option]}</span>
+            <span className="prep-practice-filter-count" aria-label={`${filterCounts[option]} cards`}>{filterCounts[option]}</span>
           </button>
         ))}
       </div>
@@ -308,24 +474,58 @@ export function PrepPracticeMode({
         <span className="prep-mode-chip">Reviewed this round: {sessionReviewedCount}</span>
         <span className="prep-mode-chip">Needs work this round: {sessionNeedsWorkCount}</span>
         <span className="prep-mode-chip">Saved weak cards: {filterCounts.needs_work}</span>
+        {attentionChip}
       </div>
 
       <div className="prep-practice-card-container" aria-live="polite">
         {!isRevealed ? (
           <div className="prep-practice-flashcard">
-            <h2 className="prep-practice-title">{currentCard.title}</h2>
+            <h2 className="prep-practice-title">{currentEntry.kind === 'conditional' ? `${currentCard.title} follow-up` : currentCard.title}</h2>
             <div className="prep-practice-meta">
               <span className={`prep-category prep-category-${currentCard.category}`}>
                 {currentCard.category}
               </span>
+              {currentEntry.kind === 'conditional' && conditionalTone ? (
+                <span className="prep-conditional-label prep-practice-tone">
+                  {CONDITIONAL_TONE_LABELS[conditionalTone]}
+                </span>
+              ) : null}
             </div>
-            {currentCard.tags.length > 0 ? (
-              <div className="prep-tags">
-                {currentCard.tags.map((tag) => (
-                  <span key={tag} className="prep-tag">{tag}</span>
-                ))}
-              </div>
-            ) : null}
+            {currentEntry.kind === 'conditional' && currentConditional ? (
+              <>
+                <p className="prep-practice-parent">After your main answer, handle this follow-up angle.</p>
+                <div className={`prep-conditional-pair prep-conditional-${resolvedConditionalTone}`}>
+                  <span className="prep-conditional-label">Interviewer push</span>
+                  <p className="prep-practice-conditional-prompt">{currentConditional.trigger}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                {currentCard.tags.length > 0 ? (
+                  <div className="prep-tags">
+                    {currentCard.tags.map((tag) => (
+                      <span key={tag} className="prep-tag">{tag}</span>
+                    ))}
+                  </div>
+                ) : null}
+                {revealMode === 'story' ? (
+                  <div className="prep-practice-cues">
+                    {currentKeyPoints.length > 0 ? (
+                      <>
+                        <div className="prep-practice-section-label">Recall cues</div>
+                        <ul className="prep-practice-cue-list">
+                          {currentKeyPoints.map((point, index) => (
+                            <li key={`${index}:${point}`}>{point}</li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <p className="prep-practice-parent">Talk through the story before you reveal the coached structure.</p>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            )}
             <button
               className="prep-btn prep-btn-primary prep-practice-reveal"
               onClick={() => setIsRevealed(true)}
@@ -338,12 +538,62 @@ export function PrepPracticeMode({
           </div>
         ) : (
           <div className="prep-practice-revealed">
-            <PrepCardView card={currentCard} readOnly />
+            {revealMode === 'story' ? (
+              <section className="prep-practice-section">
+                <div className="prep-practice-section-label">Story blocks</div>
+                <div className="prep-practice-story-grid">
+                  {currentStoryBlocks.map((block, index) => (
+                    <article key={`${index}:${block.label}:${block.text}`} className="prep-practice-story-card">
+                      <div className="prep-practice-section-label">{block.label}</div>
+                      <p>{block.text}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {revealMode === 'key_points' ? (
+              <section className="prep-practice-section">
+                <div className="prep-practice-section-label">Key points</div>
+                <ul className="prep-practice-cue-list prep-practice-answer-list">
+                  {currentKeyPoints.map((point, index) => (
+                    <li key={`${index}:${point}`}>{point}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {revealMode === 'conditional' && currentConditional ? (
+              <section className={`prep-conditional-pair prep-conditional-${resolvedConditionalTone}`}>
+                <div className="prep-practice-section-label">How to answer</div>
+                <div className="prep-conditional-pair-grid">
+                  <div>
+                    <span className="prep-conditional-label">Interviewer push</span>
+                    <p className="prep-practice-conditional-copy">{currentConditional.trigger}</p>
+                  </div>
+                  <div>
+                    <span className="prep-conditional-label">
+                      {resolvedConditionalTone === 'trap' ? 'Reframe' : 'Response'}
+                    </span>
+                    <p className="prep-practice-conditional-copy">{currentConditional.response}</p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {revealMode === 'fallback' ? (
+              <PrepCardView card={currentCard} readOnly />
+            ) : null}
 
             <div className="prep-practice-grade-panel">
               <div>
                 <h3>How did that answer feel?</h3>
-                <p>Save the result and move to the next prompt. Cards marked needs work will come back later in the round.</p>
+                <p>
+                  Save the result and move to the next prompt.
+                  {currentEntry.kind === 'card' && currentConditionals.length > 0
+                    ? ' This card has follow-up drills queued next.'
+                    : ' Cards marked needs work will come back later in the round.'}
+                </p>
               </div>
               <div className="prep-practice-grade-actions">
                 {(['nailed_it', 'okay', 'needs_work'] as PrepCardConfidence[]).map((confidence, index) => (

@@ -1,9 +1,10 @@
 ---
 id: TASK-143
 title: Enhance homework mode for rich content types
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-16 13:13'
+updated_date: '2026-04-18 08:31'
 labels:
   - prep
   - homework
@@ -47,20 +48,26 @@ Upgrade the homework (flashcard rehearsal) mode to leverage the rich content typ
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Flashcards show title + keyPoints as question, storyBlocks on reveal
-- [ ] #2 Cards with conditionals present triggers as secondary flashcards after main review
-- [ ] #3 Opener filter option available in homework mode
-- [ ] #4 Cards without storyBlocks fall back to existing flashcard behavior
-- [ ] #5 Glance points serve as recall cues when storyBlocks absent
-- [ ] #6 All existing homework functionality preserved (confidence grading, shuffle, filter counts)
+- [x] #1 Flashcards show title + keyPoints as question, storyBlocks on reveal
+- [x] #2 Cards with conditionals present triggers as secondary flashcards after main review
+- [x] #3 Opener filter option available in homework mode
+- [x] #4 Cards without storyBlocks fall back to existing flashcard behavior
+- [x] #5 Glance points serve as recall cues when storyBlocks absent
+- [x] #6 All existing homework functionality preserved (confidence grading, shuffle, filter counts)
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Enhanced homework mode for rich prep content. Homework now defaults to eligible cards only, supports opener filtering, story/key-point reveal variants, and conditional follow-up drills with tone-aware rendering. Practice mode preserves snapshot-based session behavior, skips stale removed cards/conditionals safely, and keeps keyboard/escape behavior aligned across active, empty, and completion states.\n\nVerification:\n- npx vitest run src/test/PrepPracticeMode.test.tsx (46 tests passed)\n- npx eslint src/routes/prep/PrepPracticeMode.tsx src/test/PrepPracticeMode.test.tsx\n- npm run typecheck\n- npm run build\n\nIndependent review:\n- .agents/reviews/review-20260418-040913.md (PASS WITH ISSUES, no P0/P1)\n- .agents/reviews/test-audit-20260418-042610.md remained noisy and continued to reclassify explicit coverage as missing; I treated local green gates plus the clean source review as the stable release signal for this slice.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

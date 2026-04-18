@@ -2829,6 +2829,11 @@
   font-weight: 700;
 }
 
+.prep-practice-attention {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle));
+  color: var(--warning);
+}
+
 .prep-practice-card-container {
   flex: 1;
   display: flex;
@@ -2879,6 +2884,81 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+}
+
+.prep-practice-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+}
+
+.prep-practice-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.prep-practice-cues {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: left;
+}
+
+.prep-practice-cue-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-practice-answer-list {
+  color: var(--text-primary);
+}
+
+.prep-practice-story-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.prep-practice-story-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-inset);
+}
+
+.prep-practice-story-card p,
+.prep-practice-conditional-copy,
+.prep-practice-conditional-prompt {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.prep-practice-parent {
+  margin: 0;
+  max-width: 560px;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+}
+
+.prep-practice-tone {
+  margin-left: 4px;
 }
 
 .prep-practice-grade-panel {
