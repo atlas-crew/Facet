@@ -57,7 +57,11 @@ import {
   prepareJobDescription,
   reframeBulletForVector,
 } from '../../utils/jdAnalyzer'
-import type { ResumeGenerationMode, ResumeGenerationVectorMode } from '../../types/resumeGeneration'
+import type {
+  ResumeGenerationMode,
+  ResumeGenerationVectorMode,
+  ResumeWorkspaceGenerationState,
+} from '../../types/resumeGeneration'
 import {
   applyResumeVectorPlan,
   buildInitialResumeVectorPlan,
@@ -73,7 +77,12 @@ import { usePipelineStore } from '../../store/pipelineStore'
 import { useSuggestionActions } from '../../hooks/useSuggestionActions'
 import { usePresets } from '../../hooks/usePresets'
 import { createId, slugify } from '../../utils/idUtils'
-import { normalizeResumeWorkspaceGeneration } from '../../utils/resumeGeneration'
+import {
+  buildPipelineResumeVariantLabel,
+  getPipelineResumePresetId,
+  normalizePipelineResumeGeneration,
+  normalizeResumeWorkspaceGeneration,
+} from '../../utils/resumeGeneration'
 import { findOptimalDensity } from '../../utils/densityOptimizer'
 import {
   resolveComparisonVectorAfterReplaceImport,
@@ -199,8 +208,6 @@ export function BuildPage() {
   const [jdError, setJdError] = useState<string | null>(null)
   const [vectorPlan, setVectorPlan] = useState<ResumeVectorPlan | null>(null)
   const [manualVectorPlanIds, setManualVectorPlanIds] = useState<string[]>([])
-  const vectorPlanRef = useRef<ResumeVectorPlan | null>(null)
-  const manualVectorPlanIdsRef = useRef<string[]>([])
   const [leftPanelMode, setLeftPanelMode] = useState<'content' | 'design'>('content')
   const [reframeLoadingId, setReframeLoadingId] = useState<string | null>(null)
   const [reframeResult, setReframeResult] = useState<ReframeResult | null>(null)
@@ -270,6 +277,66 @@ export function BuildPage() {
     () => bulletOrders[vectorKey] ?? {},
     [bulletOrders, vectorKey],
   )
+  const persistPipelineResumeGeneration = useCallback(
+    (
+      generation: ResumeWorkspaceGenerationState,
+      options: { markGenerated?: boolean; presetId?: string | null } = {},
+    ): ResumeWorkspaceGenerationState => {
+      const entryId = handoffEntryIdRef.current
+      if (!entryId || generation.source !== 'pipeline' || generation.pipelineEntryId !== entryId) {
+        return generation
+      }
+
+      const pipelineEntry = usePipelineStore.getState().entries.find((entry) => entry.id === entryId)
+      if (!pipelineEntry) {
+        return generation
+      }
+
+      const presetId =
+        options.presetId ?? generation.presetId ?? getPipelineResumePresetId(pipelineEntry)
+      const variantId = generation.variantId ?? pipelineEntry.resumeGeneration?.variantId ?? createId('resumevar')
+      const variantLabel = buildPipelineResumeVariantLabel({
+        entryId: pipelineEntry.id,
+        company: pipelineEntry.company,
+        role: pipelineEntry.role,
+        resumeGeneration: pipelineEntry.resumeGeneration,
+        resumeVariant: generation.variantLabel || pipelineEntry.resumeVariant,
+      })
+      const resumeGeneration = normalizePipelineResumeGeneration(
+        {
+          mode: 'dynamic',
+          vectorMode: generation.vectorMode,
+          source: 'pipeline',
+          presetId,
+          variantId,
+          variantLabel,
+          primaryVectorId: generation.primaryVectorId,
+          vectorIds: generation.vectorIds,
+          suggestedVectorIds: generation.suggestedVectorIds,
+          lastGeneratedAt: options.markGenerated
+            ? new Date().toISOString()
+            : pipelineEntry.resumeGeneration?.lastGeneratedAt ?? null,
+        },
+        {
+          resumeVariant: variantLabel,
+          vectorId: generation.primaryVectorId,
+          presetId,
+        },
+      )
+
+      usePipelineStore.getState().updateEntry(entryId, { resumeGeneration })
+
+      return {
+        ...generation,
+        mode: 'dynamic',
+        pipelineEntryId: entryId,
+        presetId,
+        variantId: resumeGeneration?.variantId ?? variantId,
+        variantLabel: resumeGeneration?.variantLabel ?? variantLabel,
+      }
+    },
+    [],
+  )
 
   // 5. Custom Hooks (Suggestion Mode & Presets)
   const {
@@ -311,10 +378,12 @@ export function BuildPage() {
     updateData,
     showNotice,
     onPresetSaved: (preset) => {
-      const entryId = handoffEntryIdRef.current
-      if (entryId) {
-        usePipelineStore.getState().updateEntry(entryId, { presetId: preset.id })
-        handoffEntryIdRef.current = null
+      const currentGeneration = normalizeResumeWorkspaceGeneration(useResumeStore.getState().data.generation)
+      const nextGeneration = persistPipelineResumeGeneration(currentGeneration, {
+        presetId: preset.id,
+      })
+      if (nextGeneration !== currentGeneration) {
+        updateGeneration(nextGeneration)
       }
     },
   })
@@ -509,21 +578,16 @@ export function BuildPage() {
     },
     [data.vectors],
   )
-  const syncVectorPlanState = useCallback((nextPlan: ResumeVectorPlan | null, nextManualIds: string[]) => {
-    vectorPlanRef.current = nextPlan
-    manualVectorPlanIdsRef.current = nextManualIds
-    setVectorPlan(nextPlan)
-    setManualVectorPlanIds(nextManualIds)
-  }, [])
   const closeJdModal = useCallback(
     (options: { discardAnalysis?: boolean } = {}) => {
       setJdModalOpen(false)
-      if (options.discardAnalysis !== false) {
+      if (options.discardAnalysis === true) {
         setJdAnalysisResult(null)
-        syncVectorPlanState(null, [])
+        setVectorPlan(null)
+        setManualVectorPlanIds([])
       }
     },
-    [syncVectorPlanState],
+    [],
   )
   const buildStatusLine = useMemo(() => {
     const vectorSummary = comparisonVectorLabel
@@ -626,19 +690,32 @@ export function BuildPage() {
       setJdInput(handoff.jobDescription)
       setJdModalOpen(true)
       const handoffVectorId = handoff.primaryVectorId
+      const pipelineEntry = handoff.pipelineEntryId
+        ? usePipelineStore.getState().entries.find((entry) => entry.id === handoff.pipelineEntryId) ?? null
+        : null
       const nextGeneration = {
         mode: handoff.mode,
         vectorMode: handoff.vectorMode,
         source: handoff.source,
         pipelineEntryId: handoff.pipelineEntryId,
-        presetId: handoff.presetId,
+        presetId: handoff.presetId ?? getPipelineResumePresetId(pipelineEntry ?? {}),
         primaryVectorId: handoff.primaryVectorId,
         vectorIds: handoff.vectorIds,
         suggestedVectorIds: handoff.suggestedVectorIds,
-        ...(handoff.resumeGeneration
+        ...((handoff.resumeGeneration || pipelineEntry?.resumeGeneration || pipelineEntry?.resumeVariant)
           ? {
-              variantId: handoff.resumeGeneration.variantId,
-              variantLabel: handoff.resumeGeneration.variantLabel,
+              variantId: handoff.resumeGeneration?.variantId ?? pipelineEntry?.resumeGeneration?.variantId ?? null,
+              variantLabel:
+                handoff.resumeGeneration?.variantLabel ??
+                (handoff.source === 'pipeline' && pipelineEntry
+                  ? buildPipelineResumeVariantLabel({
+                      entryId: pipelineEntry.id,
+                      company: pipelineEntry.company,
+                      role: pipelineEntry.role,
+                      resumeGeneration: pipelineEntry.resumeGeneration,
+                      resumeVariant: pipelineEntry.resumeVariant,
+                    })
+                  : undefined),
             }
           : {}),
       }
@@ -754,7 +831,8 @@ export function BuildPage() {
     }
     setJdError(null)
     setJdAnalysisResult(null)
-    syncVectorPlanState(null, [])
+    setVectorPlan(null)
+    setManualVectorPlanIds([])
     const prepared = prepareJobDescription(jdInput)
     setJdWordCount(prepared.wordCount)
     setJdWasTruncated(prepared.truncated)
@@ -763,7 +841,8 @@ export function BuildPage() {
       const result = await analyzeJobDescription(prepared, data, jdAnalysisEndpoint)
       const nextVectorPlan = buildInitialResumeVectorPlan(result, data.vectors, generationState)
       setJdAnalysisResult(result)
-      syncVectorPlanState(nextVectorPlan, nextVectorPlan.vectorIds)
+      setVectorPlan(nextVectorPlan)
+      setManualVectorPlanIds(nextVectorPlan.vectorIds)
       setIgnoredSuggestionIds(new Set())
       setSuggestionModeActive(false)
       showNotice('success', 'JD analysis complete. Review the vector plan before continuing.')
@@ -774,67 +853,68 @@ export function BuildPage() {
     }
   }
 
-  const onSetVectorPlanMode = (mode: ResumeGenerationMode) => {
-    const currentPlan = vectorPlanRef.current
-    if (!currentPlan) {
+  const onSetVectorPlanMode = useCallback((mode: ResumeGenerationMode) => {
+    if (!vectorPlan) {
       return
     }
 
-    const nextPlan = { ...currentPlan, mode }
-    const nextManualIds = deriveFallbackVectorSelection(nextPlan, manualVectorPlanIdsRef.current, mode)
-    syncVectorPlanState(nextPlan, nextManualIds)
-  }
+    const nextPlan = { ...vectorPlan, mode }
+    const nextManualIds = deriveFallbackVectorSelection(nextPlan, manualVectorPlanIds, mode)
+    setVectorPlan(nextPlan)
+    setManualVectorPlanIds(nextManualIds)
+  }, [deriveFallbackVectorSelection, manualVectorPlanIds, vectorPlan])
 
-  const onSetVectorPlanVectorMode = (vectorMode: ResumeGenerationVectorMode) => {
-    const currentPlan = vectorPlanRef.current
-    if (!currentPlan) {
+  const onSetVectorPlanVectorMode = useCallback((vectorMode: ResumeGenerationVectorMode) => {
+    if (!vectorPlan) {
       return
     }
 
-    const nextPlan = { ...currentPlan, vectorMode }
+    const nextPlan = { ...vectorPlan, vectorMode }
     const nextManualIds = deriveFallbackVectorSelection(
       nextPlan,
-      manualVectorPlanIdsRef.current,
+      manualVectorPlanIds,
       nextPlan.mode,
       vectorMode,
     )
-    syncVectorPlanState(nextPlan, nextManualIds)
-  }
+    setVectorPlan(nextPlan)
+    setManualVectorPlanIds(nextManualIds)
+  }, [deriveFallbackVectorSelection, manualVectorPlanIds, vectorPlan])
 
-  const onSelectPlannedVector = (vectorId: string) => {
-    const currentPlan = vectorPlanRef.current
-    if (!currentPlan) {
+  const onSelectPlannedVector = useCallback((vectorId: string) => {
+    if (!vectorPlan) {
       return
     }
 
-    if (currentPlan.mode === 'single') {
+    if (vectorPlan.mode === 'single') {
       const nextPlan = {
-        ...currentPlan,
+        ...vectorPlan,
         primaryVectorId: vectorId,
       }
-      syncVectorPlanState(nextPlan, [vectorId])
+      setVectorPlan(nextPlan)
+      setManualVectorPlanIds([vectorId])
       return
     }
 
-    const currentIds = manualVectorPlanIdsRef.current
-    const nextIds = currentIds.includes(vectorId)
-      ? currentIds.filter((id) => id !== vectorId)
-      : [...currentIds, vectorId]
+    const nextIds = manualVectorPlanIds.includes(vectorId)
+      ? manualVectorPlanIds.filter((id) => id !== vectorId)
+      : [...manualVectorPlanIds, vectorId]
     if (nextIds.length === 0) {
+      showNotice('error', 'Select at least one vector for multi-vector generation.')
       return
     }
 
-      const nextPlan = {
-        ...currentPlan,
-        primaryVectorId:
-          currentPlan.primaryVectorId && nextIds.includes(currentPlan.primaryVectorId)
-            ? currentPlan.primaryVectorId
-            : nextIds[0],
-      }
-    syncVectorPlanState(nextPlan, nextIds)
-  }
+    const nextPlan = {
+      ...vectorPlan,
+      primaryVectorId:
+        vectorPlan.primaryVectorId && nextIds.includes(vectorPlan.primaryVectorId)
+          ? vectorPlan.primaryVectorId
+          : nextIds[0],
+    }
+    setVectorPlan(nextPlan)
+    setManualVectorPlanIds(nextIds)
+  }, [manualVectorPlanIds, showNotice, vectorPlan])
 
-  const onContinueFromJdAnalysis = () => {
+  const onContinueFromJdAnalysis = useCallback(() => {
     if (!jdAnalysisResult || !vectorPlan) {
       return
     }
@@ -845,15 +925,35 @@ export function BuildPage() {
       data.vectors,
       manualVectorPlanIds,
     )
-    updateGeneration(nextGeneration)
-    if (nextGeneration.primaryVectorId) {
-      setSelectedVector(nextGeneration.primaryVectorId)
+    if (nextGeneration.vectorIds.length === 0 || !nextGeneration.primaryVectorId) {
+      showNotice('error', 'Select at least one vector to continue.')
+      return
+    }
+    const persistedGeneration = persistPipelineResumeGeneration(nextGeneration, {
+      markGenerated: true,
+    })
+    updateGeneration(persistedGeneration)
+    if (persistedGeneration.primaryVectorId) {
+      setSelectedVector(persistedGeneration.primaryVectorId)
     }
     setIgnoredSuggestionIds(new Set())
     setSuggestionModeActive(true)
     closeJdModal({ discardAnalysis: false })
     showNotice('success', 'Vector plan applied. Suggestion mode active.')
-  }
+  }, [
+    closeJdModal,
+    data.vectors,
+    generationState,
+    jdAnalysisResult,
+    manualVectorPlanIds,
+    persistPipelineResumeGeneration,
+    setIgnoredSuggestionIds,
+    setSelectedVector,
+    setSuggestionModeActive,
+    showNotice,
+    updateGeneration,
+    vectorPlan,
+  ])
 
   const onReframeBullet = async (roleId: string, bulletId: string) => {
     if (selectedVector === 'all') return
@@ -1592,27 +1692,37 @@ export function BuildPage() {
                       </p>
                       {vectorPlan && (
                         <>
-                          <fieldset className="jd-plan-fieldset">
-                            <legend>Resume mode</legend>
-                            <label>
-                              <input
-                                type="radio"
-                                name="resume-plan-mode"
-                                checked={vectorPlan.mode === 'single'}
-                                onChange={() => onSetVectorPlanMode('single')}
-                              />
-                              Single vector
-                            </label>
-                            <label>
-                              <input
-                                type="radio"
-                                name="resume-plan-mode"
-                                checked={vectorPlan.mode === 'multi-vector'}
-                                onChange={() => onSetVectorPlanMode('multi-vector')}
-                              />
-                              Multi-vector
-                            </label>
-                          </fieldset>
+                          {generationState.source === 'pipeline' ? (
+                            <div className="jd-plan-fieldset" role="note">
+                              <strong>Dynamic pipeline mode</strong>
+                              <p>
+                                Pipeline handoffs stay in dynamic mode. Use the vector selection below to narrow the
+                                generated resume focus for this job.
+                              </p>
+                            </div>
+                          ) : (
+                            <fieldset className="jd-plan-fieldset">
+                              <legend>Resume mode</legend>
+                              <label>
+                                <input
+                                  type="radio"
+                                  name="resume-plan-mode"
+                                  checked={vectorPlan.mode === 'single'}
+                                  onChange={() => onSetVectorPlanMode('single')}
+                                />
+                                Single vector
+                              </label>
+                              <label>
+                                <input
+                                  type="radio"
+                                  name="resume-plan-mode"
+                                  checked={vectorPlan.mode === 'multi-vector'}
+                                  onChange={() => onSetVectorPlanMode('multi-vector')}
+                                />
+                                Multi-vector
+                              </label>
+                            </fieldset>
+                          )}
                           <fieldset className="jd-plan-fieldset">
                             <legend>Selection mode</legend>
                             <label>

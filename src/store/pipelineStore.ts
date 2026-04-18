@@ -13,7 +13,12 @@ import {
 } from './durableMetadata'
 import { createId } from '../utils/idUtils'
 import { normalizePipelineResearchSnapshot } from '../utils/pipelineResearch'
-import { normalizePipelineResumeGeneration } from '../utils/resumeGeneration'
+import {
+  buildPipelineResumeVariantLabel,
+  getPipelineResumePresetId,
+  getPipelineResumePrimaryVectorId,
+  normalizePipelineResumeGeneration,
+} from '../utils/resumeGeneration'
 
 interface PipelineFilters {
   tier: PipelineTier | 'all'
@@ -46,15 +51,39 @@ const normalizeEntry = (
   options: { touch?: boolean } = {},
 ): PipelineEntry => {
   const fallbackTimestamp = normalizeDurableTimestamp(entry.createdAt, timestamp())
+  const resumeGeneration = normalizePipelineResumeGeneration(entry.resumeGeneration, {
+    resumeVariant: entry.resumeVariant,
+    vectorId: entry.vectorId,
+    presetId: entry.presetId,
+  })
+  const derivedResumeVariantLabel = buildPipelineResumeVariantLabel({
+    entryId: entry.id,
+    company: entry.company,
+    role: entry.role,
+    resumeGeneration,
+    resumeVariant: entry.resumeVariant,
+  })
+  const normalizedResumeGeneration =
+    resumeGeneration && !resumeGeneration.variantLabel
+      ? {
+          ...resumeGeneration,
+          variantLabel: derivedResumeVariantLabel,
+        }
+      : resumeGeneration
 
   return {
     ...entry,
     research: normalizePipelineResearchSnapshot(entry.research),
-    resumeGeneration: normalizePipelineResumeGeneration(entry.resumeGeneration, {
-      resumeVariant: entry.resumeVariant,
+    vectorId: getPipelineResumePrimaryVectorId({
+      resumeGeneration: normalizedResumeGeneration,
       vectorId: entry.vectorId,
+    }),
+    presetId: getPipelineResumePresetId({
+      resumeGeneration: normalizedResumeGeneration,
       presetId: entry.presetId,
     }),
+    resumeVariant: entry.resumeVariant,
+    resumeGeneration: normalizedResumeGeneration,
     durableMeta: options.touch
       ? touchDurableMetadata(entry.durableMeta, timestamp())
       : ensureDurableMetadata(entry.durableMeta, fallbackTimestamp),

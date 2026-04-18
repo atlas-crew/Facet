@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { BuildPage } from '../routes/build/BuildPage'
 import { defaultResumeData } from '../store/defaultData'
 import { useHandoffStore } from '../store/handoffStore'
+import { usePipelineStore } from '../store/pipelineStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 
@@ -136,6 +137,12 @@ describe('BuildPage', () => {
     })
 
     useHandoffStore.setState({ pendingGeneration: null })
+    usePipelineStore.setState({
+      entries: [],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
   })
 
   afterEach(() => {
@@ -327,6 +334,108 @@ describe('BuildPage', () => {
       primaryVectorId: 'platform',
       vectorIds: ['platform', 'backend'],
       suggestedVectorIds: ['platform', 'backend'],
+    })
+  })
+
+  it('persists structured dynamic variant metadata back to the originating pipeline entry', async () => {
+    analyzeJobDescriptionMock.mockResolvedValue({
+      primary_vector: 'platform',
+      suggested_vectors: ['platform', 'backend'],
+      bullet_adjustments: [],
+      suggested_target_line: '',
+      skill_gaps: [],
+      matched_keywords: [],
+      suggested_variables: {},
+      positioning_note: 'Lead with platform outcomes.',
+      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
+    })
+
+    usePipelineStore.setState({
+      entries: [
+        {
+          id: 'pipe-77',
+          company: 'Acme Corp',
+          role: 'Staff Platform Engineer',
+          tier: '1',
+          status: 'researching',
+          comp: '',
+          url: '',
+          contact: '',
+          vectorId: null,
+          jobDescription: 'We need a platform-minded engineer.',
+          presetId: null,
+          resumeVariant: '',
+          resumeGeneration: null,
+          positioning: '',
+          skillMatch: '',
+          nextStep: '',
+          notes: '',
+          appMethod: 'unknown',
+          response: 'none',
+          daysToResponse: null,
+          rounds: null,
+          format: [],
+          rejectionStage: '',
+          rejectionReason: '',
+          offerAmount: '',
+          dateApplied: '',
+          dateClosed: '',
+          lastAction: '2026-04-18',
+          createdAt: '2026-04-18',
+          history: [],
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    useHandoffStore.getState().setPendingGeneration({
+      mode: 'dynamic',
+      vectorMode: 'manual',
+      source: 'pipeline',
+      jobDescription: 'We need a platform-minded engineer.',
+      pipelineEntryId: 'pipe-77',
+      presetId: null,
+      primaryVectorId: null,
+      vectorIds: [],
+      suggestedVectorIds: [],
+      resumeGeneration: null,
+    })
+
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Resume Vector Plan')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue to assembly suggestions/i }))
+
+    await waitFor(() => {
+      expect(usePipelineStore.getState().entries[0]?.resumeGeneration).toMatchObject({
+        mode: 'dynamic',
+        vectorMode: 'auto',
+        source: 'pipeline',
+        primaryVectorId: 'platform',
+        vectorIds: ['platform', 'backend'],
+        suggestedVectorIds: ['platform', 'backend'],
+      })
+    })
+
+    expect(usePipelineStore.getState().entries[0]?.resumeGeneration?.variantId).toBeTruthy()
+    expect(usePipelineStore.getState().entries[0]?.resumeGeneration?.variantLabel).toBe(
+      'Acme Corp · Staff Platform Engineer',
+    )
+    expect(usePipelineStore.getState().entries[0]?.resumeGeneration?.lastGeneratedAt).toBeTruthy()
+    expect(useResumeStore.getState().data.generation).toMatchObject({
+      mode: 'dynamic',
+      source: 'pipeline',
+      pipelineEntryId: 'pipe-77',
+      variantLabel: 'Acme Corp · Staff Platform Engineer',
+      primaryVectorId: 'platform',
+      vectorIds: ['platform', 'backend'],
     })
   })
 

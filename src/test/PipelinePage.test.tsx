@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PipelinePage } from '../routes/pipeline/PipelinePage'
+import { useHandoffStore } from '../store/handoffStore'
 import { usePipelineStore } from '../store/pipelineStore'
 
 const mockNavigate = vi.fn()
@@ -54,6 +55,7 @@ describe('PipelinePage', () => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     mockNavigate.mockReset()
     mockInvestigatePipelineEntry.mockReset()
+    useHandoffStore.setState({ pendingGeneration: null })
     usePipelineStore.setState({
       entries: [baseEntry],
       sortField: 'tier',
@@ -232,5 +234,35 @@ describe('PipelinePage', () => {
     expect(screen.getByRole('button', { name: /Investigate with AI/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Open in Builder/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Edit/i })).toBeTruthy()
+  })
+
+  it('opens pipeline entries in Build using the structured generation handoff when a JD exists', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: 'We need a platform-minded engineer.',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Open in Builder/i }))
+
+    expect(useHandoffStore.getState().pendingGeneration).toMatchObject({
+      mode: 'dynamic',
+      vectorMode: 'manual',
+      source: 'pipeline',
+      jobDescription: 'We need a platform-minded engineer.',
+      pipelineEntryId: baseEntry.id,
+      primaryVectorId: 'backend',
+      vectorIds: ['backend'],
+    })
+    expect(mockNavigate).toHaveBeenCalledWith({ to: '/build' })
   })
 })

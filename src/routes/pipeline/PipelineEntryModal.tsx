@@ -2,6 +2,10 @@ import { useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useFocusTrap } from '../../utils/useFocusTrap'
 import { useResumeStore } from '../../store/resumeStore'
+import {
+  getPipelineResumePresetId,
+  getPipelineResumeVariantLabel,
+} from '../../utils/resumeGeneration'
 import type {
   PipelineEntry,
   PipelineStatus,
@@ -96,6 +100,14 @@ export function PipelineEntryModal({ entry, initialData, onSave, onClose }: Pipe
   })
   const dialogRef = useRef<HTMLDivElement>(null)
   const vectors = useResumeStore((s) => s.data.vectors)
+  const presets = useResumeStore((s) => s.data.presets ?? [])
+  const structuredPresetId = getPipelineResumePresetId(draft)
+  const structuredPreset = structuredPresetId
+    ? presets.find((preset) => preset.id === structuredPresetId) ?? null
+    : null
+  const structuredVariantLabel = draft.resumeGeneration
+    ? getPipelineResumeVariantLabel(draft) || '(unnamed)'
+    : ''
 
   useFocusTrap(true, dialogRef, onClose)
 
@@ -203,16 +215,43 @@ export function PipelineEntryModal({ entry, initialData, onSave, onClose }: Pipe
             <div className="pipeline-form-row">
               <label className="pipeline-form-field">
                 <span className="pipeline-form-label">Vector</span>
-                <select className="pipeline-form-select" value={draft.vectorId ?? ''} onChange={(e) => set('vectorId', e.target.value || null)}>
+                <select
+                  className="pipeline-form-select"
+                  value={draft.vectorId ?? ''}
+                  disabled={Boolean(draft.resumeGeneration)}
+                  onChange={(e) => set('vectorId', e.target.value || null)}
+                >
                   <option value="">(none)</option>
                   {vectors.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                 </select>
               </label>
               <label className="pipeline-form-field">
-                <span className="pipeline-form-label">Resume Variant</span>
-                <input className="pipeline-form-input" value={draft.resumeVariant} onChange={(e) => set('resumeVariant', e.target.value)} />
+                <span className="pipeline-form-label">
+                  {draft.resumeGeneration ? 'Legacy Resume Variant Label' : 'Resume Variant'}
+                </span>
+                <input
+                  className="pipeline-form-input"
+                  value={draft.resumeVariant}
+                  disabled={Boolean(draft.resumeGeneration)}
+                  onChange={(e) => set('resumeVariant', e.target.value)}
+                />
               </label>
             </div>
+            {draft.resumeGeneration ? (
+              <div className="pipeline-generated-variant-card" role="note" aria-label="Generated resume variant">
+                <strong>{structuredVariantLabel}</strong>
+                <span>
+                  {draft.resumeGeneration.mode} ·{' '}
+                  {draft.resumeGeneration.vectorMode === 'auto' ? 'AI suggested vectors' : 'Manual vector plan'}
+                </span>
+                {structuredPreset ? <span>Linked preset: {structuredPreset.name}</span> : null}
+                {draft.resumeGeneration.lastGeneratedAt ? (
+                  <span>Last generated: {draft.resumeGeneration.lastGeneratedAt}</span>
+                ) : (
+                  <span>Managed from Build when you run the per-job resume flow.</span>
+                )}
+              </div>
+            ) : null}
           </div>
 
           {/* Outcome Tracking */}

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLegacyPipelineResumeGeneration,
+  buildPipelineResumeVariantLabel,
+  getPipelineResumePresetId,
+  getPipelineResumePrimaryVectorId,
   getPipelineResumeVariantLabel,
+  getPipelineResumeVectorIds,
   normalizePipelineResumeGeneration,
   normalizeResumeGenerationHandoff,
   normalizeResumeWorkspaceGeneration,
@@ -595,5 +599,78 @@ describe('resumeGeneration normalization', () => {
 
     expect(getPipelineResumeVariantLabel({})).toBe('')
     expect(getPipelineResumeVariantLabel({ resumeVariant: 42 as unknown as string })).toBe('')
+  })
+
+  it('reads structured pipeline preset and vector metadata with legacy fallbacks', () => {
+    expect(
+      getPipelineResumePresetId({
+        presetId: 'preset-legacy',
+        resumeGeneration: {
+          mode: 'dynamic',
+          vectorMode: 'auto',
+          source: 'pipeline',
+          presetId: 'preset-structured',
+          variantId: null,
+          variantLabel: '',
+          primaryVectorId: 'platform',
+          vectorIds: ['platform', 'backend'],
+          suggestedVectorIds: ['platform'],
+          lastGeneratedAt: null,
+        },
+      }),
+    ).toBe('preset-structured')
+
+    expect(
+      getPipelineResumePrimaryVectorId({
+        vectorId: 'legacy',
+        resumeGeneration: {
+          mode: 'dynamic',
+          vectorMode: 'auto',
+          source: 'pipeline',
+          presetId: null,
+          variantId: null,
+          variantLabel: '',
+          primaryVectorId: 'platform',
+          vectorIds: ['platform', 'backend'],
+          suggestedVectorIds: ['platform'],
+          lastGeneratedAt: null,
+        },
+      }),
+    ).toBe('platform')
+
+    expect(
+      getPipelineResumeVectorIds({
+        vectorId: 'legacy',
+        resumeGeneration: {
+          mode: 'dynamic',
+          vectorMode: 'auto',
+          source: 'pipeline',
+          presetId: null,
+          variantId: null,
+          variantLabel: '',
+          primaryVectorId: 'platform',
+          vectorIds: ['platform', 'backend'],
+          suggestedVectorIds: ['platform'],
+          lastGeneratedAt: null,
+        },
+      }),
+    ).toEqual(['platform', 'backend'])
+  })
+
+  it('builds a dynamic pipeline variant label from company and role when no label exists', () => {
+    expect(
+      buildPipelineResumeVariantLabel({
+        company: 'Acme Corp',
+        role: 'Staff Platform Engineer',
+      }),
+    ).toBe('Acme Corp · Staff Platform Engineer')
+  })
+
+  it('adds an entry suffix when a dynamic pipeline variant has no company or role', () => {
+    expect(
+      buildPipelineResumeVariantLabel({
+        entryId: 'entry-123456789',
+      }),
+    ).toBe('Dynamic Resume Variant · entry-')
   })
 })

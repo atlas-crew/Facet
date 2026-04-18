@@ -273,4 +273,48 @@ describe('pipelineStore', () => {
       lastGeneratedAt: null,
     })
   })
+
+  it('keeps legacy pipeline mirrors synced when structured resume generation is updated', () => {
+    usePipelineStore.getState().addEntry(
+      makeEntry({
+        company: 'Acme Corp',
+        role: 'Staff Platform Engineer',
+      }),
+    )
+
+    const id = usePipelineStore.getState().entries[0].id
+
+    usePipelineStore.getState().updateEntry(id, {
+      resumeGeneration: {
+        mode: 'dynamic',
+        vectorMode: 'auto',
+        source: 'pipeline',
+        presetId: 'preset-7',
+        variantId: 'variant-7',
+        variantLabel: 'Acme Corp · Staff Platform Engineer',
+        primaryVectorId: 'platform',
+        vectorIds: ['platform', 'backend'],
+        suggestedVectorIds: ['platform', 'backend'],
+        lastGeneratedAt: '2026-04-18T13:00:00.000Z',
+      },
+    })
+
+    expect(usePipelineStore.getState().entries[0]).toMatchObject({
+      vectorId: 'platform',
+      presetId: 'preset-7',
+      resumeVariant: '',
+      resumeGeneration: {
+        mode: 'dynamic',
+        vectorMode: 'auto',
+        source: 'pipeline',
+        presetId: 'preset-7',
+        variantId: 'variant-7',
+        variantLabel: 'Acme Corp · Staff Platform Engineer',
+        primaryVectorId: 'platform',
+        vectorIds: ['platform', 'backend'],
+        suggestedVectorIds: ['platform', 'backend'],
+        lastGeneratedAt: '2026-04-18T13:00:00.000Z',
+      },
+    })
+  })
 })

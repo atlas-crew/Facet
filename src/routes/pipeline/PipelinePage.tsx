@@ -19,6 +19,11 @@ import { PipelineAnalytics } from './PipelineAnalytics'
 import { PasteJdModal } from './PasteJdModal'
 import { samplePipelineData } from './samplePipelineData'
 import { parsePipelineImport } from '../../utils/pipelineImport'
+import {
+  getPipelineResumePresetId,
+  getPipelineResumePrimaryVectorId,
+  getPipelineResumeVectorIds,
+} from '../../utils/resumeGeneration'
 import './pipeline.css'
 
 type ModalState = 
@@ -118,41 +123,52 @@ export function PipelinePage() {
     [deleteEntry]
   )
 
+  const buildPipelineHandoff = useCallback((entry: PipelineEntry) => {
+    if (!entry.jobDescription) {
+      return null
+    }
+
+    return {
+      mode: entry.resumeGeneration?.mode ?? PIPELINE_HANDOFF_DEFAULT_MODE,
+      vectorMode: entry.resumeGeneration?.vectorMode ?? 'manual',
+      source: 'pipeline' as const,
+      jobDescription: entry.jobDescription,
+      pipelineEntryId: entry.id,
+      presetId: getPipelineResumePresetId(entry),
+      primaryVectorId: getPipelineResumePrimaryVectorId(entry),
+      vectorIds: getPipelineResumeVectorIds(entry),
+      suggestedVectorIds: entry.resumeGeneration?.suggestedVectorIds ?? [],
+      resumeGeneration: entry.resumeGeneration,
+    }
+  }, [])
+
   const handleAnalyze = useCallback(
     (entry: PipelineEntry) => {
-      if (entry.jobDescription) {
-        useHandoffStore.getState().setPendingGeneration({
-          // Pipeline handoffs are JD-driven by default, even before a structured generation pass exists.
-          mode: entry.resumeGeneration?.mode ?? PIPELINE_HANDOFF_DEFAULT_MODE,
-          vectorMode: entry.resumeGeneration?.vectorMode ?? 'manual',
-          source: 'pipeline',
-          jobDescription: entry.jobDescription,
-          pipelineEntryId: entry.id,
-          presetId: entry.resumeGeneration?.presetId ?? entry.presetId,
-          primaryVectorId: entry.resumeGeneration?.primaryVectorId ?? entry.vectorId,
-          vectorIds:
-            entry.resumeGeneration?.vectorIds.length
-              ? entry.resumeGeneration.vectorIds
-              : entry.vectorId
-                ? [entry.vectorId]
-                : [],
-          suggestedVectorIds: entry.resumeGeneration?.suggestedVectorIds ?? [],
-          resumeGeneration: entry.resumeGeneration,
-        })
+      const handoff = buildPipelineHandoff(entry)
+      if (handoff) {
+        useHandoffStore.getState().setPendingGeneration(handoff)
         void navigate({ to: '/build' })
       }
     },
-    [navigate]
+    [buildPipelineHandoff, navigate]
   )
 
   const handleOpenInBuilder = useCallback(
     (entry: PipelineEntry) => {
-      if (entry.vectorId) {
-        useUiStore.getState().setSelectedVector(entry.vectorId)
+      const handoff = buildPipelineHandoff(entry)
+      if (handoff) {
+        useHandoffStore.getState().setPendingGeneration(handoff)
+        void navigate({ to: '/build' })
+        return
+      }
+
+      const primaryVectorId = getPipelineResumePrimaryVectorId(entry)
+      if (primaryVectorId) {
+        useUiStore.getState().setSelectedVector(primaryVectorId)
         void navigate({ to: '/build' })
       }
     },
-    [navigate]
+    [buildPipelineHandoff, navigate]
   )
 
   const handlePrep = useCallback(
@@ -160,7 +176,7 @@ export function PipelinePage() {
       void navigate({
         to: '/prep',
         search: {
-          vector: entry.vectorId ?? '',
+          vector: getPipelineResumePrimaryVectorId(entry) ?? '',
           skills: entry.skillMatch ?? '',
           q: '',
         },

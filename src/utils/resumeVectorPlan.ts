@@ -106,7 +106,10 @@ export const applyResumeVectorPlan = (
 
   return {
     ...currentGeneration,
-    mode: plan.mode,
+    mode:
+      currentGeneration.mode === 'dynamic' || currentGeneration.source === 'pipeline'
+        ? 'dynamic'
+        : plan.mode,
     vectorMode: plan.vectorMode,
     primaryVectorId,
     vectorIds,

@@ -186,3 +186,62 @@ export const getPipelineResumeVariantLabel = ({
 
   return normalizeString(resumeVariant)
 }
+
+export const getPipelineResumePresetId = ({
+  resumeGeneration,
+  presetId,
+}: {
+  resumeGeneration?: PipelineResumeGenerationState | null
+  presetId?: string | null
+}): string | null => normalizeOptionalString(resumeGeneration?.presetId ?? presetId)
+
+export const getPipelineResumePrimaryVectorId = ({
+  resumeGeneration,
+  vectorId,
+}: {
+  resumeGeneration?: PipelineResumeGenerationState | null
+  vectorId?: string | null
+}): string | null => normalizeOptionalString(resumeGeneration?.primaryVectorId ?? vectorId)
+
+export const getPipelineResumeVectorIds = ({
+  resumeGeneration,
+  vectorId,
+}: {
+  resumeGeneration?: PipelineResumeGenerationState | null
+  vectorId?: string | null
+}): string[] => {
+  const vectorIds = normalizeStringArray(resumeGeneration?.vectorIds)
+  if (vectorIds.length > 0) {
+    return vectorIds
+  }
+
+  const primaryVectorId = getPipelineResumePrimaryVectorId({ resumeGeneration, vectorId })
+  return primaryVectorId ? [primaryVectorId] : []
+}
+
+export const buildPipelineResumeVariantLabel = ({
+  entryId,
+  company,
+  role,
+  resumeGeneration,
+  resumeVariant,
+}: {
+  entryId?: string
+  company?: string
+  role?: string
+  resumeGeneration?: PipelineResumeGenerationState | null
+  resumeVariant?: string
+}): string => {
+  const existingLabel = getPipelineResumeVariantLabel({ resumeGeneration, resumeVariant })
+  if (existingLabel) {
+    return existingLabel
+  }
+
+  const parts = [normalizeString(company), normalizeString(role)].filter(Boolean)
+  if (parts.length > 0) {
+    return parts.join(' · ')
+  }
+
+  const entrySuffix = normalizeString(entryId)?.slice(0, 6)
+  return entrySuffix ? `Dynamic Resume Variant · ${entrySuffix}` : 'Dynamic Resume Variant'
+}

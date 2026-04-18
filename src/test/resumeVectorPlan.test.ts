@@ -128,4 +128,31 @@ describe('resumeVectorPlan', () => {
       suggestedVectorIds: ['platform', 'backend'],
     })
   })
+
+  it('preserves dynamic mode when applying a vector plan for pipeline-driven workspaces', () => {
+    expect(
+      applyResumeVectorPlan(
+        {
+          ...baseGeneration,
+          mode: 'dynamic',
+          source: 'pipeline',
+          pipelineEntryId: 'pipe-9',
+        },
+        {
+          mode: 'single',
+          vectorMode: 'auto',
+          primaryVectorId: 'platform',
+          vectorIds: ['platform'],
+          suggestedVectorIds: ['platform'],
+        },
+        vectors,
+        ['platform'],
+      ),
+    ).toMatchObject({
+      mode: 'dynamic',
+      source: 'pipeline',
+      primaryVectorId: 'platform',
+      vectorIds: ['platform'],
+    })
+  })
 })

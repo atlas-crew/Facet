@@ -3,7 +3,11 @@ import { Edit3, Trash2, Zap, BookOpen, ArrowRight, Search } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import type { PipelineEntry } from '../../types/pipeline'
 import { useResumeStore } from '../../store/resumeStore'
-import { getPipelineResumeVariantLabel } from '../../utils/resumeGeneration'
+import {
+  getPipelineResumePresetId,
+  getPipelineResumePrimaryVectorId,
+  getPipelineResumeVariantLabel,
+} from '../../utils/resumeGeneration'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 
 interface PipelineDetailProps {
@@ -34,10 +38,12 @@ export function PipelineDetail({
   investigationError,
 }: PipelineDetailProps) {
   const actionGroupId = useId()
+  const primaryVectorId = getPipelineResumePrimaryVectorId(entry)
+  const linkedPresetId = getPipelineResumePresetId(entry)
   const showExecutionActions =
-    Boolean(entry.vectorId) || Boolean(entry.jobDescription) || ACTIVE_STATUSES.has(entry.status)
+    Boolean(primaryVectorId) || Boolean(entry.jobDescription) || ACTIVE_STATUSES.has(entry.status)
   const linkedPreset = useResumeStore((s) =>
-    entry.presetId ? (s.data.presets ?? []).find((p) => p.id === entry.presetId) ?? null : null
+    linkedPresetId ? (s.data.presets ?? []).find((p) => p.id === linkedPresetId) ?? null : null
   )
   const resumeVariantLabel = getPipelineResumeVariantLabel(entry) || '\u2014'
 
@@ -53,7 +59,19 @@ export function PipelineDetail({
         <Field label="Days to Response" value={entry.daysToResponse != null ? String(entry.daysToResponse) : '\u2014'} />
         <Field label="Rounds" value={entry.rounds != null ? String(entry.rounds) : '\u2014'} />
         <Field label="Resume Variant" value={resumeVariantLabel} />
-        {entry.presetId && (
+        {entry.resumeGeneration && (
+          <Field label="Generation Mode" value={entry.resumeGeneration.mode} />
+        )}
+        {entry.resumeGeneration && (
+          <Field
+            label="Vector Plan"
+            value={entry.resumeGeneration.vectorMode === 'auto' ? 'AI suggested' : 'Manual'}
+          />
+        )}
+        {entry.resumeGeneration?.lastGeneratedAt && (
+          <Field label="Last Generated" value={entry.resumeGeneration.lastGeneratedAt} />
+        )}
+        {linkedPresetId && (
           <Field label="Linked Preset" value={linkedPreset ? linkedPreset.name : '(deleted)'} />
         )}
         <Field label="Date Applied" value={entry.dateApplied || '\u2014'} />
@@ -265,7 +283,7 @@ export function PipelineDetail({
           >
             <span id={`${actionGroupId}-execution`} className="pipeline-detail-action-label">Execution</span>
             <div className="pipeline-detail-actions">
-              {entry.vectorId && (
+              {primaryVectorId && (
                 <button className="pipeline-btn pipeline-btn-sm" onClick={onOpenInBuilder}>
                   <ArrowRight size={14} /> Open in Builder
                 </button>
