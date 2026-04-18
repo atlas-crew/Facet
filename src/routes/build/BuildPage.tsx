@@ -125,6 +125,73 @@ const formatGenerationModeLabel = (mode: ResumeGenerationMode) => {
   }
 }
 
+const formatGenerationSourceLabel = (source: ResumeWorkspaceGenerationState['source']) => {
+  switch (source) {
+    case 'identity':
+      return 'Identity-generated'
+    case 'pipeline':
+      return 'Pipeline handoff'
+    case 'match':
+      return 'Match handoff'
+    case 'import':
+      return 'Imported workspace'
+    case 'manual':
+    default:
+      return 'Workspace edits'
+  }
+}
+
+const describeGenerationModel = (generation: ResumeWorkspaceGenerationState) => {
+  if (generation.mode === 'dynamic' || generation.source === 'pipeline') {
+    return {
+      label: 'Dynamic per-job',
+      detail: 'Pipeline context keeps this resume tied to one job while AI refreshes the variant metadata.',
+    }
+  }
+
+  if (generation.mode === 'multi-vector') {
+    return {
+      label: 'Multi-vector',
+      detail:
+        generation.vectorMode === 'auto'
+          ? 'AI suggested multiple resume vectors before assembly so you can keep supporting lanes in view.'
+          : 'You are assembling across multiple manually selected vectors from the identity workspace.',
+    }
+  }
+
+  return {
+    label: 'Single vector',
+    detail:
+      generation.vectorMode === 'auto'
+        ? 'AI narrowed the workspace to one suggested vector before downstream assembly.'
+        : 'The workspace is focused on one primary vector from your identity-backed resume model.',
+  }
+}
+
+const describeGenerationFlow = (generation: ResumeWorkspaceGenerationState) => {
+  if (generation.mode === 'dynamic' || generation.source === 'pipeline') {
+    return {
+      label: 'Pipeline-driven dynamic job flow',
+      detail: 'This variant came from a pipeline entry and keeps the job description plus generated variant metadata linked together.',
+    }
+  }
+
+  if (generation.mode === 'multi-vector' && generation.vectorMode === 'auto') {
+    return {
+      label: 'AI-suggested multi-vector generation',
+      detail: 'JD analysis suggested the vector mix first, then Build carried those vectors into assembly suggestions.',
+    }
+  }
+
+  return {
+    label: 'Identity-first workspace',
+    detail:
+      generation.source === 'identity'
+        ? 'This workspace was generated directly from your identity model before you started refining it.'
+        : 'Start from your identity-backed workspace, then bring in AI vector suggestions only when you need role-specific tailoring.',
+  }
+}
+
 const ID_MAP: Record<AddComponentType, string> = {
   target_line: 'target-line',
   profile: 'profile',
@@ -528,6 +595,85 @@ export function BuildPage() {
     () => formatGenerationModeLabel(generationState.mode),
     [generationState.mode],
   )
+  const generationSourceLabel = useMemo(
+    () => formatGenerationSourceLabel(generationState.source),
+    [generationState.source],
+  )
+  const generationModelSummary = useMemo(
+    () => describeGenerationModel(generationState),
+    [generationState],
+  )
+  const generationFlowSummary = useMemo(
+    () => describeGenerationFlow(generationState),
+    [generationState],
+  )
+  const generationVectorSummary = useMemo(() => {
+    const vectors = generationState.vectorIds.length > 0 ? generationState.vectorIds : [selectedVector]
+    const labels = vectors
+      .map((vectorId) => data.vectors.find((vector) => vector.id === vectorId)?.label ?? vectorId)
+      .filter(Boolean)
+
+    return labels.length > 0 ? labels.join(', ') : 'No vectors selected'
+  }, [data.vectors, generationState.vectorIds, selectedVector])
+  const generationVariantSummary = useMemo(() => {
+    if (generationState.variantLabel) {
+      return generationState.variantLabel
+    }
+
+    return generationState.mode === 'dynamic'
+      ? 'Job-linked variant'
+      : 'Current workspace baseline'
+  }, [generationState.mode, generationState.variantLabel])
+  const generationOverviewItems = useMemo(
+    () => [
+      {
+        label: 'Resume model',
+        value: generationModelSummary.label,
+        detail: generationModelSummary.detail,
+      },
+      {
+        label: 'Workspace flow',
+        value: generationFlowSummary.label,
+        detail: generationFlowSummary.detail,
+      },
+      {
+        label: 'Generation source',
+        value: generationSourceLabel,
+        detail:
+          generationState.source === 'pipeline'
+            ? 'Pipeline metadata stays attached while you generate per-job variants.'
+            : 'Source tracks how this workspace entered Build before your current edits.',
+      },
+      {
+        label: 'Active vectors',
+        value: generationVectorSummary,
+        detail:
+          generationState.vectorMode === 'auto'
+            ? 'AI can suggest the vector mix first; switch to Manual in JD analysis to override it.'
+            : 'Manual vector selection stays in your control unless you rerun JD analysis.',
+      },
+      {
+        label: 'Current variant',
+        value: generationVariantSummary,
+        detail:
+          generationState.mode === 'dynamic'
+            ? 'Dynamic variants stay tied to the originating job flow.'
+            : 'Single and multi-vector workspaces can be saved as reusable presets.',
+      },
+    ],
+    [
+      generationFlowSummary.detail,
+      generationFlowSummary.label,
+      generationModelSummary.detail,
+      generationModelSummary.label,
+      generationSourceLabel,
+      generationState.mode,
+      generationState.source,
+      generationState.vectorMode,
+      generationVariantSummary,
+      generationVectorSummary,
+    ],
+  )
   const plannedVectorIds = useMemo(
     () =>
       vectorPlan
@@ -640,6 +786,16 @@ export function BuildPage() {
             : 'Manual vector selection',
       },
       {
+        label: 'Source',
+        value: generationSourceLabel,
+        detail:
+          generationState.source === 'pipeline'
+            ? 'Linked to a pipeline entry'
+            : generationState.source === 'identity'
+              ? 'Derived from identity generation'
+              : 'Workspace-local origin',
+      },
+      {
         label: 'Suggestions',
         value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
         detail: suggestionModeActive
@@ -679,6 +835,8 @@ export function BuildPage() {
       selectedVectorLabel,
       suggestionCount,
       suggestionModeActive,
+      generationSourceLabel,
+      generationState.source,
       generationState.vectorMode,
     ],
   )
@@ -1258,8 +1416,9 @@ export function BuildPage() {
           <FacetWordmark />
           <h2>Welcome to Facet</h2>
           <p>
-            Facet is a vector-based resume builder that helps you Strategically reposition your
-            experience for different roles.
+            Facet is an identity-first resume workspace. Start from your core career model, let AI
+            suggest the right vectors, and generate either a focused baseline draft or a dynamic
+            per-job variant.
           </p>
           <div className="empty-state-actions">
             <button className="btn-primary" type="button" onClick={() => setImportExportMode('import')}>
@@ -1285,7 +1444,7 @@ export function BuildPage() {
           <p className="build-top-bar-eyebrow">Core Workspace</p>
           <h1>Build</h1>
           <p className="build-top-bar-purpose">
-            Assemble and refine a tailored resume from your identity, strategy, and job research.
+            Generate and refine resumes from your identity model, AI vector planning, and job-specific pipeline context.
           </p>
           <p className="build-top-bar-status">{buildStatusLine}</p>
         </div>
@@ -1406,6 +1565,16 @@ export function BuildPage() {
           </button>
         </div>
       </header>
+
+      <section className="build-generation-strip" aria-label="Resume generation model">
+        {generationOverviewItems.map((item) => (
+          <article key={item.label} className="build-generation-card">
+            <span className="build-generation-label">{item.label}</span>
+            <strong className="build-generation-value">{item.value}</strong>
+            <span className="build-generation-detail">{item.detail}</span>
+          </article>
+        ))}
+      </section>
 
       <section className="build-context-strip" aria-label="Current working context">
         {workingContextItems.map((item) => (
@@ -1748,6 +1917,12 @@ export function BuildPage() {
                             <legend>Vectors</legend>
                             {vectorPlan.vectorMode !== 'manual' && (
                               <p id="resume-plan-vectors-hint">Switch to Manual to edit selection.</p>
+                            )}
+                            {plannedVectorIds.length === 0 && (
+                              <p className="warning-text" role="status">
+                                No current resume vectors match this JD yet. Add or select at least one vector in the
+                                workspace, then rerun analysis or switch the plan manually.
+                              </p>
                             )}
                             {data.vectors.map((vector) => {
                               const checked = plannedVectorIds.includes(vector.id)

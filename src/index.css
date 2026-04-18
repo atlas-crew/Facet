@@ -351,6 +351,50 @@ select {
   justify-content: flex-end;
 }
 
+.build-generation-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 7%, var(--bg-surface) 93%), transparent 55%),
+    color-mix(in srgb, var(--bg-surface) 78%, var(--bg-canvas) 22%);
+  flex-shrink: 0;
+}
+
+.build-generation-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 18%, var(--border-subtle) 82%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 90%, white 10%);
+  box-shadow: var(--shadow-xs);
+}
+
+.build-generation-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.build-generation-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.build-generation-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
 .build-context-strip {
   display: flex;
   flex-wrap: wrap;
@@ -582,6 +626,10 @@ select {
   }
 
   .build-context-strip {
+    padding: var(--space-3);
+  }
+
+  .build-generation-strip {
     padding: var(--space-3);
   }
 

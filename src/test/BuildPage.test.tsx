@@ -155,7 +155,7 @@ describe('BuildPage', () => {
 
     expect(screen.getByText('Core Workspace')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Build' })).toBeTruthy()
-    expect(screen.getByText(/Assemble and refine a tailored resume/)).toBeTruthy()
+    expect(screen.getByText(/Generate and refine resumes from your identity model/)).toBeTruthy()
     expect(screen.getByText(/Backend Engineering active/)).toBeTruthy()
 
     const topBar = container.querySelector('.build-top-bar')
@@ -163,10 +163,21 @@ describe('BuildPage', () => {
     expect(topBar?.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(within(topBar as HTMLElement).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
 
+    const generationModel = screen.getByLabelText('Resume generation model')
+    expect(within(generationModel).getByText('Resume model')).toBeTruthy()
+    expect(within(generationModel).getByText('Single vector')).toBeTruthy()
+    expect(within(generationModel).getByText('Workspace flow')).toBeTruthy()
+    expect(within(generationModel).getByText('Identity-first workspace')).toBeTruthy()
+    expect(within(generationModel).getByText('Generation source')).toBeTruthy()
+    expect(within(generationModel).getByText('Workspace edits')).toBeTruthy()
+    expect(within(generationModel).getByText('Active vectors')).toBeTruthy()
+    expect(within(generationModel).getByText('Current workspace baseline')).toBeTruthy()
+
     expect(screen.getByLabelText('Current working context')).toBeTruthy()
     expect(screen.getByText('Vector')).toBeTruthy()
     expect(screen.getByText('Preset')).toBeTruthy()
     expect(screen.getByText('Pages')).toBeTruthy()
+    expect(screen.getByText('Source')).toBeTruthy()
     expect(screen.getByText('Suggestions')).toBeTruthy()
     expect(screen.getByText('JD Analysis')).toBeTruthy()
     expect(screen.getAllByText('Backend Engineering').length).toBeGreaterThan(0)
@@ -335,6 +346,10 @@ describe('BuildPage', () => {
       vectorIds: ['platform', 'backend'],
       suggestedVectorIds: ['platform', 'backend'],
     })
+
+    const generationModel = screen.getByLabelText('Resume generation model')
+    expect(within(generationModel).getByText('Multi-vector')).toBeTruthy()
+    expect(within(generationModel).getByText('AI-suggested multi-vector generation')).toBeTruthy()
   })
 
   it('persists structured dynamic variant metadata back to the originating pipeline entry', async () => {
@@ -437,6 +452,11 @@ describe('BuildPage', () => {
       primaryVectorId: 'platform',
       vectorIds: ['platform', 'backend'],
     })
+
+    const generationModel = screen.getByLabelText('Resume generation model')
+    expect(within(generationModel).getByText('Dynamic per-job')).toBeTruthy()
+    expect(within(generationModel).getByText('Pipeline-driven dynamic job flow')).toBeTruthy()
+    expect(within(generationModel).getByText('Acme Corp · Staff Platform Engineer')).toBeTruthy()
   })
 
   it('prevents deselecting every vector in manual multi-vector mode', async () => {

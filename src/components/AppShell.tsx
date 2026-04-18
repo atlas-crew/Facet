@@ -70,7 +70,7 @@ const NAV_ITEMS = [
     to: '/build' as const,
     icon: Layers,
     label: 'Build',
-    description: 'Assemble and export tailored resumes from your identity and strategy.',
+    description: 'Generate tailored resumes from your identity model, AI vector suggestions, and per-job pipeline context.',
   },
   {
     to: '/pipeline' as const,
