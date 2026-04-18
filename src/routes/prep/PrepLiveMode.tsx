@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
-import { derivePrepCheatsheetSections } from '../../utils/prepCheatsheet'
+import { derivePrepCheatsheetSections, OPENER_PREFERRED_SHORTCUTS } from '../../utils/prepCheatsheet'
 import {
   filterPrepConditionals,
   filterPrepDeepDives,
@@ -13,7 +13,7 @@ import {
   hasPrepNeedsReviewText,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
-import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection } from '../../utils/prepCheatsheet'
+import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection, PrepOpenerKind } from '../../utils/prepCheatsheet'
 import type { PrepCard, PrepDeck } from '../../types/prep'
 
 interface PrepLiveModeProps {
@@ -36,32 +36,21 @@ type SectionGroupView = {
 }
 
 /** Per-item recommended time in minutes. */
-const SECTION_META: Record<string, { itemBudget?: number; shortcut: string; tone: string; phase: SectionPhase }> = {
+const SECTION_META: Record<string, { itemBudget?: number; shortcut?: string; tone: string; phase: SectionPhase }> = {
   overview: { shortcut: '1', tone: 'overview', phase: 'pre' },
   intel: { shortcut: '2', tone: 'intel', phase: 'pre' },
   questions: { shortcut: 'Q', tone: 'overview', phase: 'pre' },
   donts: { shortcut: 'D', tone: 'warnings', phase: 'pre' },
   metrics: { shortcut: 'M', tone: 'metrics', phase: 'pre' },
   warnings: { shortcut: 'W', tone: 'warnings', phase: 'pre' },
-  opener: { itemBudget: 2, shortcut: '3', tone: 'opener', phase: 'live' },
-  behavioral: { itemBudget: 3, shortcut: '4', tone: 'behavioral', phase: 'live' },
-  project: { itemBudget: 3, shortcut: '5', tone: 'project', phase: 'live' },
-  technical: { itemBudget: 3, shortcut: '6', tone: 'technical', phase: 'live' },
-  situational: { itemBudget: 2, shortcut: '7', tone: 'situational', phase: 'live' },
+  opener: { itemBudget: 2, tone: 'opener', phase: 'live' },
+  behavioral: { itemBudget: 3, shortcut: '6', tone: 'behavioral', phase: 'live' },
+  project: { itemBudget: 3, shortcut: '7', tone: 'project', phase: 'live' },
+  technical: { itemBudget: 3, shortcut: '8', tone: 'technical', phase: 'live' },
+  situational: { itemBudget: 2, shortcut: '9', tone: 'situational', phase: 'live' },
 }
 
 const QUESTIONS_GUIDANCE = 'Pick 2-3. Save 8-10 minutes for questions.'
-
-const LIVE_SHORTCUT_BAR = [
-  { keys: 'Space', label: 'Start / Pause' },
-  { keys: 'R', label: 'Reset' },
-  { keys: '/', label: 'Search' },
-  { keys: 'Esc', label: 'Clear' },
-  { keys: 'J / K', label: 'Move' },
-  { keys: 'H / L', label: 'Ends' },
-  { keys: 'E', label: 'Collapse' },
-  { keys: 'Q / D / M / W', label: 'Pre jumps' },
-]
 
 const LIVE_SHORTCUT_KEYS = {
   focusSearch: ['/'],
@@ -75,7 +64,22 @@ const LIVE_SHORTCUT_KEYS = {
   lastSection: ['l', 'L', 'End'],
 } as const
 
-const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = ['Intel', 'Core', 'Technical', 'Tactical']
+const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = ['Intel', 'Openers', 'Core', 'Technical', 'Tactical']
+const BASE_SHORTCUT_BAR = [
+  { keys: 'Space', label: 'Start / Pause' },
+  { keys: 'R', label: 'Reset' },
+  { keys: '/', label: 'Search' },
+  { keys: 'Esc', label: 'Clear' },
+  { keys: 'J / K', label: 'Move' },
+  { keys: 'H / L', label: 'Ends' },
+  { keys: 'E', label: 'Collapse' },
+  { keys: 'Q / D / M / W', label: 'Pre jumps' },
+] as const
+
+type ShortcutLegendItem = {
+  keys: string
+  label: string
+}
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -86,6 +90,27 @@ function formatDuration(totalSeconds: number): string {
 function normalizeShortcutKey(key: string): string {
   return key.length === 1 ? key.toLowerCase() : key
 }
+
+const RESERVED_STATIC_SHORTCUTS = new Set(
+  Object.values(SECTION_META)
+    .flatMap((meta) => (meta.shortcut ? [normalizeShortcutKey(meta.shortcut)] : [])),
+)
+const RESERVED_COMMAND_SHORTCUTS = new Set(
+  Object.values(LIVE_SHORTCUT_KEYS)
+    .flatMap((keys) => keys.map(normalizeShortcutKey))
+    .filter((key) => key.length === 1),
+)
+const RESERVED_OPENER_SHORTCUTS = new Set(Object.values(OPENER_PREFERRED_SHORTCUTS).map(normalizeShortcutKey))
+const OPENER_SHORTCUT_CANDIDATES = [...'123456789', ...'abcdefghijklmnopqrstuvwxyz'] as const
+// Keep opener shortcuts on single-character keys that do not overlap with fixed section jumps or command shortcuts.
+const OPENER_SHORTCUT_POOL = OPENER_SHORTCUT_CANDIDATES.filter((shortcut) => {
+  const normalizedShortcut = normalizeShortcutKey(shortcut)
+  return (
+    !RESERVED_STATIC_SHORTCUTS.has(normalizedShortcut) &&
+    !RESERVED_COMMAND_SHORTCUTS.has(normalizedShortcut) &&
+    !RESERVED_OPENER_SHORTCUTS.has(normalizedShortcut)
+  )
+})
 
 function groupSectionsByGroup(sections: LiveSection[]): SectionGroupView[] {
   const grouped = new Map<PrepCheatsheetGroup, LiveSection[]>()
@@ -115,6 +140,23 @@ function groupSectionsByGroup(sections: LiveSection[]): SectionGroupView[] {
   return [...orderedKnownGroups, ...unknownGroups]
 }
 
+function getRenderableTableData(tableData: PrepCard['tableData']) {
+  if (!tableData || !Array.isArray(tableData.headers) || !Array.isArray(tableData.rows)) return null
+
+  const headers = tableData.headers.filter((header): header is string => typeof header === 'string')
+  const rows = tableData.rows
+    .filter((row) => Array.isArray(row))
+    .map((row) => row.map((cell) => (typeof cell === 'string' ? cell : typeof cell === 'number' ? String(cell) : '')))
+    .filter((row) => row.length > 0)
+
+  if (headers.length === 0) return null
+
+  return {
+    headers,
+    rows,
+  }
+}
+
 function buildCardSearchText(card: PrepCard): string {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
@@ -122,6 +164,7 @@ function buildCardSearchText(card: PrepCard): string {
   const followUps = filterPrepFollowUps(card.followUps)
   const deepDives = filterPrepDeepDives(card.deepDives)
   const conditionals = filterPrepConditionals(card.conditionals)
+  const tableData = getRenderableTableData(card.tableData)
 
   return [
     card.title,
@@ -135,8 +178,8 @@ function buildCardSearchText(card: PrepCard): string {
     ...followUps.flatMap((followUp) => [followUp.question, followUp.answer, followUp.context ?? '']),
     ...deepDives.flatMap((deepDive) => [deepDive.title, deepDive.content]),
     ...conditionals.flatMap((conditional) => [conditional.trigger, conditional.response]),
-    ...(card.tableData?.headers ?? []),
-    ...(card.tableData?.rows.flat() ?? []),
+    ...(tableData?.headers ?? []),
+    ...(tableData?.rows ?? []).flat(),
   ]
     .join(' ')
     .toLowerCase()
@@ -196,6 +239,12 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return element.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') !== null
 }
 
+function isInteractiveShortcutTarget(target: EventTarget | null): boolean {
+  const element = target instanceof HTMLElement ? target : null
+  if (!element) return false
+  return element.closest('button, a[href], summary, [role="button"], [role="link"], [role="switch"], [role="checkbox"], [role="tab"], [role="menuitem"]') !== null
+}
+
 function matchesShortcut(keys: readonly string[], key: string): boolean {
   return keys.includes(key)
 }
@@ -209,7 +258,147 @@ function getLiveTimerState(totalSeconds: number): LiveTimerState {
   return 'calm'
 }
 
-export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
+function getSectionMetaKey(section: PrepCheatsheetSection): string {
+  return section.sectionCategory ?? section.id
+}
+
+function getSectionShortcutCandidate(section: PrepCheatsheetSection): string {
+  const meta = SECTION_META[getSectionMetaKey(section)]
+  return meta?.shortcut ?? ''
+}
+
+function collectReservedSectionShortcuts(sections: PrepCheatsheetSection[]): Set<string> {
+  const reserved = new Set<string>(RESERVED_STATIC_SHORTCUTS)
+
+  sections.forEach((section) => {
+    if (getSectionMetaKey(section) === 'opener') return
+    const shortcut = getSectionShortcutCandidate(section)
+    if (shortcut) {
+      reserved.add(normalizeShortcutKey(shortcut))
+    }
+  })
+
+  return reserved
+}
+
+function resolveOpenerShortcut(openerKind: PrepOpenerKind | undefined, usedShortcuts: Set<string>): string {
+  const preferredShortcut = openerKind && openerKind !== 'general'
+    ? OPENER_PREFERRED_SHORTCUTS[openerKind]
+    : undefined
+  const normalizedPreferredShortcut = preferredShortcut ? normalizeShortcutKey(preferredShortcut) : undefined
+
+  if (normalizedPreferredShortcut && !usedShortcuts.has(normalizedPreferredShortcut)) {
+    usedShortcuts.add(normalizedPreferredShortcut)
+    return preferredShortcut!
+  }
+
+  const fallbackShortcut = OPENER_SHORTCUT_POOL.find((shortcut) => !usedShortcuts.has(shortcut))
+  if (!fallbackShortcut) {
+    if (import.meta.env.DEV) {
+      console.warn('PrepLiveMode exhausted opener shortcuts; remaining opener sections will use nav fallback only.')
+    }
+    return ''
+  }
+
+  usedShortcuts.add(fallbackShortcut)
+  return fallbackShortcut
+}
+
+function getStableDeckIdentityPart(value: string | null | undefined): string | null {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
+}
+
+function buildLiveModeDeckKey(deck: PrepDeck): string {
+  const stableIdentity = [
+    deck.id,
+    deck.pipelineEntryId,
+    deck.vectorId,
+  ]
+    .map(getStableDeckIdentityPart)
+    .filter((part): part is string => Boolean(part))
+    .join(':')
+
+  if (stableIdentity) {
+    return stableIdentity
+  }
+
+  if (import.meta.env.DEV) {
+    console.warn('PrepLiveMode received a deck without stable identity fields; using the empty-session fallback key.')
+  }
+
+  return buildTransientDeckKey(deck)
+}
+
+function buildTransientDeckKey(deck: PrepDeck): string {
+  const fingerprint = [
+    deck.title,
+    deck.company,
+    deck.role,
+    deck.generatedAt,
+    Array.isArray(deck.cards)
+      ? deck.cards.map((card) => [card.id, card.category, card.title].join('|')).join(';')
+      : null,
+  ]
+    .map(getStableDeckIdentityPart)
+    .filter((part): part is string => Boolean(part))
+    .join(':')
+
+  if (!fingerprint) {
+    return 'prep-live-transient-empty'
+  }
+
+  return 'prep-live-transient-' + fingerprint
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function dedupeSectionShortcuts(sections: LiveSection[]): LiveSection[] {
+  const assignedShortcuts = new Set<string>()
+
+  return sections.map((section) => {
+    const normalizedShortcut = normalizeShortcutKey(section.shortcut)
+    if (!normalizedShortcut) return section
+
+    if (assignedShortcuts.has(normalizedShortcut)) {
+      if (import.meta.env.DEV) {
+        console.warn(`Duplicate live shortcut "${normalizedShortcut}" removed from section ${section.id}`)
+      }
+      return {
+        ...section,
+        shortcut: '',
+      }
+    }
+
+    assignedShortcuts.add(normalizedShortcut)
+    return section
+  })
+}
+
+function scheduleNextPaint(callback: () => void): () => void {
+  if (typeof requestAnimationFrame === 'function' && typeof cancelAnimationFrame === 'function') {
+    const frameId = requestAnimationFrame(callback)
+    return () => cancelAnimationFrame(frameId)
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 0)
+  return () => globalThis.clearTimeout(timeoutId)
+}
+
+function formatConditionalToneLabel(tone: 'pivot' | 'trap' | 'escalation'): string {
+  if (tone === 'trap') return 'Trap'
+  if (tone === 'escalation') return 'Escalation'
+  return 'Pivot'
+}
+
+export function PrepLiveMode(props: PrepLiveModeProps) {
+  const liveModeDeckKey = buildLiveModeDeckKey(props.deck)
+  // Switching decks should start a fresh live session so timer, search, and collapsed sections do not leak across interviews.
+  return <PrepLiveModeInner key={liveModeDeckKey} {...props} />
+}
+
+function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -223,26 +412,42 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
   const timerElapsedBeforeRunRef = useRef(0)
   const elapsedSecondsRef = useRef(0)
   const isTimerRunningRef = useRef(false)
+  // Imported decks can briefly hydrate before store normalization restores cards. Treat that as an empty live session instead of crashing.
+  const deckCards = useMemo(() => (Array.isArray(deck.cards) ? deck.cards : []), [deck.cards])
 
   const sections = useMemo(() => derivePrepCheatsheetSections(deck), [deck])
-  const cardsById = useMemo(() => new Map(deck.cards.map((card) => [card.id, card])), [deck.cards])
+  const cardsById = useMemo(() => new Map(deckCards.map((card) => [card.id, card])), [deckCards])
   const cardNeedsReviewById = useMemo(
-    () => new Map(deck.cards.map((card) => [card.id, hasPrepCardNeedsReviewContent(card)])),
-    [deck.cards],
+    () => new Map(deckCards.map((card) => [card.id, hasPrepCardNeedsReviewContent(card)])),
+    [deckCards],
   )
   const filteredSections = useMemo(
     () => filterSections(sections, searchQuery, cardsById),
     [cardsById, searchQuery, sections],
   )
   const visibleSectionLegend = useMemo(
-    () =>
-      filteredSections.map((section, index) => ({
-        ...section,
-        shortcut: SECTION_META[section.id]?.shortcut ?? String(index + 1),
-        itemBudget: SECTION_META[section.id]?.itemBudget,
-        tone: SECTION_META[section.id]?.tone ?? 'overview',
-        phase: SECTION_META[section.id]?.phase ?? ('live' as SectionPhase),
-      })) satisfies LiveSection[],
+    () => {
+      const reservedShortcuts = collectReservedSectionShortcuts(filteredSections)
+
+      return dedupeSectionShortcuts(
+        filteredSections.map((section) => {
+          const metaKey = getSectionMetaKey(section)
+          const meta = SECTION_META[metaKey]
+          const phase = meta?.phase ?? ('live' as SectionPhase)
+          const shortcut = metaKey === 'opener'
+            ? resolveOpenerShortcut(section.openerKind, reservedShortcuts)
+            : getSectionShortcutCandidate(section)
+
+          return {
+            ...section,
+            shortcut,
+            itemBudget: meta?.itemBudget,
+            tone: meta?.tone ?? 'overview',
+            phase,
+          }
+        }) satisfies LiveSection[],
+      )
+    },
     [filteredSections],
   )
   const preSections = useMemo(
@@ -256,10 +461,46 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
   const preSectionGroups = useMemo(() => groupSectionsByGroup(preSections), [preSections])
   const liveSectionGroups = useMemo(() => groupSectionsByGroup(liveSections), [liveSections])
   const keyboardSections = preInterviewOpen ? visibleSectionLegend : liveSections
-  const shortcutToSectionId = useMemo(
-    () => new Map(visibleSectionLegend.map((section) => [normalizeShortcutKey(section.shortcut), section.id])),
-    [visibleSectionLegend],
-  )
+  const shortcutToSectionId = useMemo(() => {
+    const shortcutMap = new Map<string, string>()
+
+    for (const section of visibleSectionLegend) {
+      const normalizedShortcut = normalizeShortcutKey(section.shortcut)
+      if (!normalizedShortcut) continue
+
+      shortcutMap.set(normalizedShortcut, section.id)
+    }
+
+    return shortcutMap
+  }, [visibleSectionLegend])
+  const shortcutLegend = useMemo(() => {
+    const openerSections = visibleSectionLegend.filter((section) => getSectionMetaKey(section) === 'opener')
+    const openerShortcuts = openerSections.flatMap((section) => (section.shortcut ? [section.shortcut] : []))
+    const openerHasUnassignedShortcut = openerSections.some((section) => !section.shortcut)
+    const liveJumpShortcuts = visibleSectionLegend.flatMap((section) => {
+      const metaKey = getSectionMetaKey(section)
+      return ['behavioral', 'project', 'technical', 'situational'].includes(metaKey) && section.shortcut
+        ? [section.shortcut]
+        : []
+    }).filter(Boolean)
+    const items: ShortcutLegendItem[] = [...BASE_SHORTCUT_BAR]
+
+    if (openerSections.length > 0) {
+      items.push({
+        keys: openerShortcuts.length > 0 ? openerShortcuts.join(' / ') : 'J / K',
+        label: openerHasUnassignedShortcut ? 'Openers (nav fallback)' : 'Openers',
+      })
+    }
+
+    if (liveJumpShortcuts.length > 0) {
+      items.push({
+        keys: Array.from(new Set(liveJumpShortcuts)).join(' / '),
+        label: 'Live jumps',
+      })
+    }
+
+    return items
+  }, [visibleSectionLegend])
   const timerState = useMemo(() => getLiveTimerState(elapsedSeconds), [elapsedSeconds])
   const effectiveActiveSectionId =
     filteredSections.find((section) => section.id === activeSectionId)?.id ?? filteredSections[0]?.id ?? null
@@ -269,6 +510,9 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
     const section = sectionRefs.current[sectionId]
     if (section && typeof section.scrollIntoView === 'function') {
       section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    if (section && typeof section.focus === 'function') {
+      section.focus({ preventScroll: true })
     }
   }, [])
 
@@ -280,19 +524,31 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
       }
 
       setActiveSectionId(sectionId)
+      if (sectionRefs.current[sectionId]) {
+        scrollToSection(sectionId)
+        setPendingScrollSectionId(null)
+        return
+      }
       setPendingScrollSectionId(sectionId)
     },
-    [preInterviewOpen, visibleSectionLegend],
+    [preInterviewOpen, scrollToSection, visibleSectionLegend],
   )
 
   useEffect(() => {
     if (!pendingScrollSectionId) return
 
-    const section = sectionRefs.current[pendingScrollSectionId]
-    if (section) {
-      scrollToSection(pendingScrollSectionId)
-    }
-    setPendingScrollSectionId(null)
+    const targetSectionId = pendingScrollSectionId
+    const cancelScroll = scheduleNextPaint(() => {
+      // Defer one frame so newly-mounted section refs exist before we attempt to scroll.
+      const section = sectionRefs.current[targetSectionId]
+      if (section) {
+        scrollToSection(targetSectionId)
+      }
+
+      setPendingScrollSectionId((current) => (current === targetSectionId ? null : current))
+    })
+
+    return cancelScroll
   }, [pendingScrollSectionId, preInterviewOpen, scrollToSection])
 
   const toggleSection = useCallback((sectionId: string) => {
@@ -358,7 +614,11 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       const editingTarget = isTypingTarget(target)
+      const interactiveTarget = isInteractiveShortcutTarget(target)
       const timerTarget = target?.closest('.prep-live-timer')
+
+      // Keep Shift-enabled uppercase shortcuts working, but let browser/OS modifier chords pass through untouched.
+      if (event.metaKey || event.ctrlKey || event.altKey) return
 
       if (matchesShortcut(LIVE_SHORTCUT_KEYS.focusSearch, event.key) && !editingTarget) {
         event.preventDefault()
@@ -380,6 +640,7 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
       if (editingTarget) return
 
       if ((matchesShortcut(LIVE_SHORTCUT_KEYS.toggleTimer, event.key) || event.code === 'Space') && !timerTarget) {
+        if (interactiveTarget || event.shiftKey) return
         event.preventDefault()
         toggleTimer()
         return
@@ -604,6 +865,7 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
                     cardNeedsReviewById={cardNeedsReviewById}
                     activeSectionId={effectiveActiveSectionId}
                     collapsedSections={collapsedSections}
+                    searchActive={searchQuery.trim().length > 0}
                     onToggleSection={toggleSection}
                     onSectionRef={(sectionId, el) => {
                       sectionRefs.current[sectionId] = el
@@ -631,6 +893,7 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
                 cardNeedsReviewById={cardNeedsReviewById}
                 activeSectionId={effectiveActiveSectionId}
                 collapsedSections={collapsedSections}
+                searchActive={searchQuery.trim().length > 0}
                 onToggleSection={toggleSection}
                 onSectionRef={(sectionId, el) => {
                   sectionRefs.current[sectionId] = el
@@ -642,7 +905,7 @@ export function PrepLiveMode({ deck, onBack }: PrepLiveModeProps) {
       </main>
 
       <div className="prep-live-kbd-bar" aria-label="Live cheatsheet shortcuts">
-        {LIVE_SHORTCUT_BAR.map((shortcut) => (
+        {shortcutLegend.map((shortcut) => (
           <span key={shortcut.keys} className="prep-live-kbd-item">
             <span className="prep-live-legend-keys">{shortcut.keys}</span>
             <span className="prep-live-kbd-label">{shortcut.label}</span>
@@ -665,7 +928,7 @@ function NavLink({ section, isActive, onNavigate }: NavLinkProps) {
       type="button"
       className={`prep-live-nav-link prep-live-nav-link-${section.tone} ${isActive ? 'prep-live-nav-link-active' : ''}`}
       onClick={onNavigate}
-      aria-keyshortcuts={section.shortcut}
+      aria-keyshortcuts={section.shortcut || undefined}
       aria-current={isActive ? 'true' : undefined}
     >
       <span className="prep-live-nav-copy">
@@ -675,7 +938,7 @@ function NavLink({ section, isActive, onNavigate }: NavLinkProps) {
         </span>
         <span className="prep-live-nav-meta">{section.items.length} items</span>
       </span>
-      <span className="prep-live-shortcut-badge">{section.shortcut}</span>
+      {section.shortcut ? <span className="prep-live-shortcut-badge">{section.shortcut}</span> : null}
     </button>
   )
 }
@@ -726,6 +989,7 @@ interface SectionGroupListProps {
   cardNeedsReviewById: Map<string, boolean>
   activeSectionId: string | null
   collapsedSections: Record<string, boolean>
+  searchActive: boolean
   onToggleSection: (sectionId: string) => void
   onSectionRef: (sectionId: string, el: HTMLElement | null) => void
 }
@@ -736,6 +1000,7 @@ function SectionGroupList({
   cardNeedsReviewById,
   activeSectionId,
   collapsedSections,
+  searchActive,
   onToggleSection,
   onSectionRef,
 }: SectionGroupListProps) {
@@ -756,7 +1021,7 @@ function SectionGroupList({
                 cardsById={cardsById}
                 cardNeedsReviewById={cardNeedsReviewById}
                 isActive={activeSectionId === section.id}
-                isCollapsed={collapsedSections[section.id] === true}
+                isCollapsed={!searchActive && collapsedSections[section.id] === true}
                 onToggle={() => onToggleSection(section.id)}
                 sectionRef={(el) => onSectionRef(section.id, el)}
               />
@@ -777,14 +1042,17 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
   return (
     <section
       ref={sectionRef}
+      tabIndex={-1}
       className={`prep-live-section prep-live-section-${section.tone} ${isActive ? 'prep-live-section-active' : ''}`}
     >
       <div className="prep-live-section-header">
         <div>
           <div className="prep-live-section-badges">
-            <span className={`prep-live-scan-badge prep-live-scan-badge-${section.tone}`}>
-              {section.shortcut}
-            </span>
+            {section.shortcut ? (
+              <span className={`prep-live-scan-badge prep-live-scan-badge-${section.tone}`}>
+                {section.shortcut}
+              </span>
+            ) : null}
             {section.itemBudget ? <span className="prep-live-budget-badge">{section.itemBudget}m</span> : null}
             <span className="prep-live-count-badge">{section.items.length} items</span>
           </div>
@@ -917,8 +1185,11 @@ function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
 function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: boolean) {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const followUps = filterPrepFollowUps(card.followUps)
+  const deepDives = filterPrepDeepDives(card.deepDives)
   const conditionals = filterPrepConditionals(card.conditionals)
   const metrics = filterPrepMetrics(card.metrics)
+  const tableData = getRenderableTableData(card.tableData)
 
   return (
     <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
@@ -967,6 +1238,28 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             <p>{card.warning}</p>
           </section>
         ) : null}
+
+        {followUps.map((followUp, index) => (
+          <section
+            key={followUp.id ?? `${card.id}-follow-up-${index}`}
+            className="prep-live-callout prep-live-callout-context"
+          >
+            <span className="prep-live-callout-label">Follow-up</span>
+            <p>{followUp.question}</p>
+            <p>{followUp.answer}</p>
+            {followUp.context ? <p>{followUp.context}</p> : null}
+          </section>
+        ))}
+
+        {deepDives.map((deepDive, index) => (
+          <section
+            key={deepDive.id ?? `${card.id}-deep-dive-${index}`}
+            className="prep-live-callout prep-live-callout-script"
+          >
+            <span className="prep-live-callout-label">{deepDive.title}</span>
+            <p>{deepDive.content}</p>
+          </section>
+        ))}
       </div>
 
       {storyBlocks.length > 0 ? (
@@ -1008,7 +1301,10 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
 
             return (
               <div key={key} className={`prep-live-conditional prep-live-conditional-${tone}`}>
-                <span className="prep-live-conditional-label">{conditional.trigger}</span>
+                <div className="prep-live-conditional-heading">
+                  <span className="prep-live-conditional-label">{formatConditionalToneLabel(tone)}</span>
+                  <span>{conditional.trigger}</span>
+                </div>
                 <p>{conditional.response}</p>
               </div>
             )
@@ -1025,6 +1321,31 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             </div>
           ))}
         </div>
+      ) : null}
+
+      {tableData ? (
+        <table className="prep-live-table">
+          <thead>
+            <tr>
+              {tableData.headers.map((header, index) => (
+                <th key={`${card.id}-table-header-${header}-${index}`} scope="col">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tableData.rows.map((row, rowIndex) => (
+              <tr key={`${card.id}-table-row-${rowIndex}`}>
+                {tableData.headers.map((header, cellIndex) => (
+                  <td key={`${card.id}-table-cell-${rowIndex}-${header}-${cellIndex}`}>
+                    {row[cellIndex] ?? ''}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : null}
     </article>
   )

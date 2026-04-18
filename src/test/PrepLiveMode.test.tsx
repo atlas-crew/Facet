@@ -17,6 +17,9 @@ const mockDeck: PrepDeck = {
   notes: 'Lead with reliability wins.',
   jobDescription: 'Build platform tooling and improve developer velocity.',
   categoryGuidance: {
+    opener: 'Keep the opening answer under two minutes and land on your through-line.',
+    behavioral: 'Anchor each behavioral answer in one decision you owned.',
+    technical: 'Name the signal, likely failure domain, and the next verification step.',
     questions: 'Pick 2-3. Save 8-10 minutes for questions.',
   },
   donts: ['Do not spend too long on the setup before the answer.', 'Do not overclaim ownership on shared work.'],
@@ -47,6 +50,30 @@ const mockDeck: PrepDeck = {
         { label: 'problem', text: 'Platform was slowing product teams.' },
         { label: 'solution', text: 'Built shared tooling and guardrails.' },
         { label: 'result', text: 'Reduced lead time by 45%.' },
+      ],
+    },
+    {
+      id: 'card-1b',
+      category: 'opener',
+      title: 'Why this role/company?',
+      tags: ['motivation'],
+      script: 'This role connects the platform work I already love with a product scope that is still growing fast.',
+      notes: 'Bridge your recent wins into the company priorities and this team’s scope.',
+      warning: 'Do not make this sound interchangeable with any other staff role.',
+      conditionals: [
+        { id: 'conditional-1b', trigger: 'If they ask why now', response: 'Explain why the timing and scope line up with the work you want to keep doing.', tone: 'pivot' },
+      ],
+    },
+    {
+      id: 'card-1c',
+      category: 'opener',
+      title: 'Why did you leave your last role?',
+      tags: ['departure'],
+      script: 'I wanted broader platform ownership and more direct product impact than the role could realistically offer.',
+      notes: 'Keep it positive and future-focused.',
+      warning: 'Do not drift into complaining about the prior company.',
+      conditionals: [
+        { id: 'conditional-1c', trigger: 'If they push on conflict', response: 'Acknowledge the fit change plainly, then return to the growth you were looking for.', tone: 'escalation' },
       ],
     },
     {
@@ -111,9 +138,38 @@ const mockDeck: PrepDeck = {
   ],
 }
 
+const alternateDeck: PrepDeck = {
+  ...mockDeck,
+  id: 'deck-2',
+  title: 'Beacon Engineering Manager Prep',
+  company: 'Beacon',
+  role: 'Engineering Manager',
+  notes: 'Lead with team-building and execution clarity.',
+  cards: [
+    {
+      id: 'alt-card-1',
+      category: 'opener',
+      title: 'Tell me about yourself',
+      tags: ['intro'],
+      script: 'I build product engineering teams that deliver clean execution under pressure.',
+      notes: 'Keep the focus on management scope and cross-functional trust.',
+    },
+    {
+      id: 'alt-card-2',
+      category: 'behavioral',
+      title: 'Coach through a scope disagreement',
+      tags: ['coaching'],
+      script: 'I clarify the decision owner, tradeoffs, and what success looks like by the end of the conversation.',
+      notes: 'Stay specific about coaching and decision-making.',
+    },
+  ],
+}
+
 function getSectionContainer(title: string) {
-  const heading = screen.getByRole('heading', { name: title })
-  return heading.closest('.prep-live-section')
+  const heading = screen
+    .getAllByRole('heading', { name: title })
+    .find((candidate) => candidate.closest('.prep-live-section'))
+  return heading?.closest('.prep-live-section') ?? null
 }
 
 describe('PrepLiveMode', () => {
@@ -133,6 +189,7 @@ describe('PrepLiveMode', () => {
     expect(screen.getByRole('heading', { name: 'Warm-up notes' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Intel' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Technical' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Tactical' })).toBeTruthy()
@@ -142,25 +199,44 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('Their Company')).toBeTruthy()
     expect(screen.getByText('Incident reduction')).toBeTruthy()
     expect(screen.getByText('Core platform bets')).toBeTruthy()
-    expect(screen.getByText('Tell me about yourself')).toBeTruthy()
+    expect(getSectionContainer('Tell me about yourself')).toBeTruthy()
+    expect(getSectionContainer('Why this role/company?')).toBeTruthy()
+    expect(getSectionContainer('Why did you leave your last role?')).toBeTruthy()
     expect(screen.getByText('Scale')).toBeTruthy()
     expect(screen.getByText('Pick 2-3. Save 8-10 minutes for questions.')).toBeTruthy()
     expect(screen.getByText('Do not spend too long on the setup before the answer.')).toBeTruthy()
     expect(screen.getByText('99.95%')).toBeTruthy()
     expect(screen.getByText('Lead with reliability wins.')).toBeTruthy()
+    expect(getSectionContainer('Tell me about yourself')?.textContent).toContain('Keep the opening answer under two minutes')
+    expect(getSectionContainer('Tell me about yourself')?.textContent).toContain('Lead with the platform angle')
+    expect(getSectionContainer('Why this role/company?')?.textContent).toContain('Do not make this sound interchangeable')
+    expect(getSectionContainer('Why did you leave your last role?')?.textContent).toContain('Keep it positive and future-focused')
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Anchor each behavioral answer in one decision you owned.')
     expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('If they push on ownership')
     expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Acknowledge the shared work, then narrow to your decisions.')
     expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Trap')
     expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Reframe')
     expect(screen.getAllByText('Do not frame product as the enemy.')).toHaveLength(2)
     expect(screen.getAllByText('Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.')).toHaveLength(2)
+    expect(screen.getAllByText('Do not over-rotate into hypotheticals without data.')).toHaveLength(2)
+    expect(getSectionContainer('Technical Topics')?.textContent).toContain('Name the signal, likely failure domain, and the next verification step.')
     expect(getSectionContainer('Technical Topics')?.textContent).toContain('How do you debug a flaky distributed system?')
     expect(getSectionContainer('Technical Topics')?.textContent).not.toContain('Tell me about yourself')
+    expect(screen.getByText('Build platform tooling and improve developer velocity.')).toBeTruthy()
+    expect(screen.getByText('platform leadership, distributed systems')).toBeTruthy()
+    expect(screen.getByText('Acme Staff Engineer Prep')).toBeTruthy()
+    expect(screen.getAllByText('opener').length).toBeGreaterThan(0)
 
     const shortcutBar = container.querySelector('.prep-live-kbd-bar')
     expect(shortcutBar?.textContent).toContain('Q / D / M / W')
     expect(shortcutBar?.textContent).toContain('Space')
+    expect(shortcutBar?.textContent).toContain('R')
+    expect(shortcutBar?.textContent).toContain('J / K')
+    expect(shortcutBar?.textContent).toContain('/')
+    expect(shortcutBar?.textContent).toContain('3 / 4 / 5')
+    expect(shortcutBar?.textContent).toContain('6 / 7 / 8 / 9')
 
+    expect(container.querySelectorAll('.prep-live-section-opener .prep-live-budget-badge')).toHaveLength(3)
     expect(getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')).toBeNull()
     expect(getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')).toBeNull()
     expect(getSectionContainer('Your Work')?.querySelector('.prep-live-budget-badge')).toBeNull()
@@ -188,10 +264,26 @@ describe('PrepLiveMode', () => {
     fireEvent.keyDown(document.body, { key: 'R' })
     expect(screen.getByText('00:00')).toBeTruthy()
 
-    fireEvent.keyDown(document.body, { key: 'Q' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+    const expectedSectionShortcuts = [
+      ['Q', 'Questions to Ask'],
+      ['D', "Don'ts"],
+      ['M', 'Numbers to Know'],
+      ['W', 'Risks and Reminders'],
+      ['3', 'Tell me about yourself'],
+      ['4', 'Why this role/company?'],
+      ['5', 'Why did you leave your last role?'],
+      ['6', 'Behavioral Stories'],
+      ['7', 'Projects'],
+      ['8', 'Technical Topics'],
+      ['9', 'Situational Drills'],
+    ] as const
 
-    fireEvent.keyDown(document.body, { key: '5' })
+    expectedSectionShortcuts.forEach(([key, title]) => {
+      fireEvent.keyDown(document.body, { key })
+      expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(title)
+    })
+
+    fireEvent.keyDown(document.body, { key: '7' })
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Projects')
 
     fireEvent.keyDown(document.body, { key: 'J' })
@@ -204,14 +296,13 @@ describe('PrepLiveMode', () => {
   it('resets the timer from the visible control', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Start timer' }), { key: ' ' })
+    fireEvent.click(screen.getByRole('button', { name: 'Start timer' }))
     act(() => {
       vi.advanceTimersByTime(2000)
     })
 
     const resetButton = screen.getByRole('button', { name: 'Reset timer' })
     fireEvent.click(resetButton)
-    fireEvent.keyDown(resetButton, { key: ' ' })
     act(() => {
       vi.advanceTimersByTime(1000)
     })
@@ -229,6 +320,19 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('00:02')).toBeTruthy()
   })
 
+  it('does not start the timer when space is pressed on a non-timer button', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const collapseButton = screen.getByRole('button', { name: 'Collapse pre-interview' })
+    collapseButton.focus()
+    fireEvent.keyDown(collapseButton, { key: ' ', code: 'Space' })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(screen.getByText('00:00')).toBeTruthy()
+  })
+
   it('starts the timer when the visible timer display is clicked', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
@@ -238,6 +342,25 @@ describe('PrepLiveMode', () => {
     })
 
     expect(screen.getByText('00:02')).toBeTruthy()
+  })
+
+  it('resumes the timer from the paused value', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    expect(screen.getByText('00:05')).toBeTruthy()
   })
 
   it('narrows search results to matching items inside a section', () => {
@@ -265,7 +388,29 @@ describe('PrepLiveMode', () => {
     fireEvent.keyDown(searchInput, { key: 'Escape' })
 
     expect(screen.getByRole('heading', { name: 'Behavioral Stories' })).toBeTruthy()
-    expect(screen.getByText('Tell me about yourself')).toBeTruthy()
+    expect(getSectionContainer('Tell me about yourself')).toBeTruthy()
+  })
+
+  it('matches search queries regardless of case or surrounding whitespace', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+    fireEvent.change(searchInput, { target: { value: 'BLAST RADIUS' } })
+    expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+
+    fireEvent.change(searchInput, { target: { value: '  blast radius  ' } })
+    expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+  })
+
+  it('treats whitespace-only search queries as empty', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: '   ' },
+    })
+
+    expect(screen.getByRole('heading', { name: 'Behavioral Stories' })).toBeTruthy()
+    expect(screen.queryByText('No cheatsheet sections match that search')).toBeNull()
   })
 
   it('hides draft-only rich rows in live card rendering and search', () => {
@@ -301,7 +446,7 @@ describe('PrepLiveMode', () => {
 
     const { container } = render(<PrepLiveMode deck={draftDeck} />)
 
-    const openerSection = getSectionContainer('Openers')
+    const openerSection = getSectionContainer('Tell me about yourself')
     expect(openerSection?.querySelectorAll('.prep-live-keypoint')).toHaveLength(1)
     expect(openerSection?.querySelectorAll('.prep-live-story-block')).toHaveLength(1)
     expect(openerSection?.textContent).toContain('If they push on ownership')
@@ -310,17 +455,17 @@ describe('PrepLiveMode', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'lead time cut' },
     })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Openers')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Tell me about yourself')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'name the decisions you owned' },
     })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Openers')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Tell me about yourself')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'note' },
     })
-    expect(screen.queryByRole('heading', { name: 'Openers' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Tell me about yourself' })).toBeNull()
   })
 
   it('marks placeholder-heavy cards with a review badge and review surface styling', () => {
@@ -340,6 +485,27 @@ describe('PrepLiveMode', () => {
 
     expect(screen.getAllByText('Needs Review').length).toBeGreaterThan(0)
     expect(container.querySelector('.prep-live-review-surface')).toBeTruthy()
+  })
+
+  it('does not show review styling when the deck has no placeholder markers', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    expect(screen.queryByText('Needs Review')).toBeNull()
+    expect(container.querySelector('.prep-live-review-surface')).toBeNull()
+  })
+
+  it('renders conditional tone labels for pivot, trap, and escalation guidance', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const pivotConditional = screen.getAllByText('If they push on ownership')[0]?.closest('.prep-live-conditional')
+    const trapConditional = screen.getAllByText('Were you just reacting late?')[0]?.closest('.prep-live-conditional')
+    const escalationConditional = screen.getAllByText('If they push on residual risk')[0]?.closest('.prep-live-conditional')
+
+    expect(pivotConditional?.textContent).toContain('Pivot')
+    expect(trapConditional?.textContent).toContain('Trap')
+    expect(trapConditional?.textContent).toContain('Reframe')
+    expect(escalationConditional?.textContent).toContain('Escalation')
+    expect(escalationConditional?.textContent).not.toContain('Reframe')
   })
 
   it('collapses and expands a rich section', () => {
@@ -374,7 +540,7 @@ describe('PrepLiveMode', () => {
     const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
     searchInput.focus()
 
-    fireEvent.keyDown(searchInput, { key: '5' })
+    fireEvent.keyDown(searchInput, { key: '7' })
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
 
     fireEvent.keyDown(searchInput, { key: 'E' })
@@ -398,6 +564,20 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('Clear the search to get the full interview view back.')).toBeTruthy()
   })
 
+  it('ignores J and K navigation when search results are empty', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+    fireEvent.change(searchInput, { target: { value: 'totally missing term' } })
+
+    expect(screen.getByText('No cheatsheet sections match that search')).toBeTruthy()
+    expect(() => {
+      fireEvent.keyDown(document.body, { key: 'J' })
+      fireEvent.keyDown(document.body, { key: 'K' })
+    }).not.toThrow()
+    expect(screen.getByText('No cheatsheet sections match that search')).toBeTruthy()
+  })
+
   it('searches follow-ups, deep dives, conditionals, and table content from the source card', () => {
     const supportingDeck: PrepDeck = {
       ...mockDeck,
@@ -416,6 +596,14 @@ describe('PrepLiveMode', () => {
     }
 
     render(<PrepLiveMode deck={supportingDeck} />)
+
+    const openerSection = getSectionContainer('Tell me about yourself')
+    expect(openerSection?.textContent).toContain('What changed after launch?')
+    expect(openerSection?.textContent).toContain('We held the rollback line.')
+    expect(openerSection?.textContent).toContain('Incident review')
+    expect(openerSection?.textContent).toContain('Covered the rollback decision tree.')
+    expect(openerSection?.textContent).toContain('Signal')
+    expect(openerSection?.textContent).toContain('pager spike')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'rollback decision tree' },
@@ -450,6 +638,37 @@ describe('PrepLiveMode', () => {
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
   })
 
+  it('moves focus into the target section after a keyboard jump', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: '7' })
+
+    const projectSection = getSectionContainer('Projects')
+    expect(projectSection).toBeTruthy()
+    expect(document.activeElement?.closest('.prep-live-section')).toBe(projectSection)
+  })
+
+  it('auto-expands matching sections while search is active', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const technicalToggle = screen
+      .getByRole('heading', { name: 'Technical Topics' })
+      .closest('.prep-live-section')
+      ?.querySelector('button')
+    const technicalSection = getSectionContainer('Technical Topics')
+    const technicalBody = technicalSection?.querySelector('.prep-live-item-list-rich')
+
+    fireEvent.click(technicalToggle!)
+    expect(technicalBody?.hasAttribute('hidden')).toBe(true)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'blast radius' },
+    })
+
+    expect(technicalBody?.hasAttribute('hidden')).toBe(false)
+    expect(screen.getAllByText('Check the blast radius').length).toBeGreaterThan(0)
+  })
+
   it('supports home/end navigation and clamps movement at the boundaries', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
@@ -466,6 +685,129 @@ describe('PrepLiveMode', () => {
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
   })
 
+  it('supports lowercase shortcuts and ignores modified shortcuts', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: 'q' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start timer' }))
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(screen.getByText('00:02')).toBeTruthy()
+
+    fireEvent.keyDown(document.body, { key: 'r', metaKey: true })
+    expect(screen.getByText('00:02')).toBeTruthy()
+  })
+
+  it('ignores shift-modified shortcut keys that would collide with browser defaults', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ', code: 'Space', shiftKey: true })
+    fireEvent.keyDown(document.body, { key: '&', code: 'Digit7', shiftKey: true })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(screen.getByText('00:00')).toBeTruthy()
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+  })
+
+  it('ignores section shortcuts when ctrl or alt modifiers are held', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+
+    fireEvent.keyDown(document.body, { key: 'q', ctrlKey: true })
+    fireEvent.keyDown(document.body, { key: '7', altKey: true })
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+  })
+
+  it('ignores live shortcuts while focus is inside another editable field', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+    const scratchInput = document.createElement('textarea')
+    document.body.appendChild(scratchInput)
+    scratchInput.focus()
+
+    fireEvent.keyDown(scratchInput, { key: 'q' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+
+    scratchInput.blur()
+    fireEvent.keyDown(document.body, { key: 'q' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+
+    scratchInput.remove()
+  })
+
+  it('ignores live shortcuts while focus is inside a contenteditable field', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    document.body.appendChild(editable)
+    editable.focus()
+
+    fireEvent.keyDown(editable, { key: 'q' })
+    fireEvent.keyDown(editable, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+    expect(screen.getByText('00:00')).toBeTruthy()
+
+    editable.remove()
+  })
+
+  it('formats the timer correctly across minute boundaries', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(59000)
+    })
+    expect(screen.getByText('00:59')).toBeTruthy()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.getByText('01:00')).toBeTruthy()
+
+    act(() => {
+      vi.advanceTimersByTime(61000)
+    })
+    expect(screen.getByText('02:01')).toBeTruthy()
+  })
+
+  it('formats the timer consistently past one hour', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(3_600_000)
+    })
+
+    expect(screen.getByText('60:00')).toBeTruthy()
+  })
+
+  it('handles special-character search terms without crashing', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+
+    expect(() => {
+      fireEvent.change(searchInput, { target: { value: '[[fill' } })
+    }).not.toThrow()
+    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('[[fill')
+    expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
+
+    expect(() => {
+      fireEvent.change(searchInput, { target: { value: '(' } })
+    }).not.toThrow()
+    expect(screen.getByText('No cheatsheet sections match that search')).toBeTruthy()
+  })
+
   it('renders a back control when provided and calls it', () => {
     const onBack = vi.fn()
     render(<PrepLiveMode deck={mockDeck} onBack={onBack} />)
@@ -475,14 +817,291 @@ describe('PrepLiveMode', () => {
     expect(onBack).toHaveBeenCalledTimes(1)
   })
 
+  it('omits the back control when onBack is not provided', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    expect(screen.queryByRole('button', { name: 'Back to Prep' })).toBeNull()
+  })
+
+  it('resets the timer cleanly while it is still running', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(screen.getByText('00:02')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset timer' }))
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(screen.getByText('00:00')).toBeTruthy()
+  })
+
+  it('renders a minimal deck without optional sections', () => {
+    render(<PrepLiveMode deck={{
+      ...mockDeck,
+      companyResearch: undefined,
+      skillMatch: undefined,
+      notes: undefined,
+      jobDescription: undefined,
+      categoryGuidance: undefined,
+      donts: undefined,
+      questionsToAsk: undefined,
+      numbersToKnow: undefined,
+      cards: [],
+    }} />)
+
+    expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Questions to Ask' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: "Don'ts" })).toBeNull()
+    expect(screen.queryByText('Your Work')).toBeNull()
+  })
+
+  it('ignores shortcuts for sections that are not present in the deck', () => {
+    const sparseDeck: PrepDeck = {
+      ...mockDeck,
+      cards: mockDeck.cards.filter((card) => card.category === 'opener'),
+      donts: undefined,
+      questionsToAsk: undefined,
+      numbersToKnow: undefined,
+    }
+    const { container } = render(<PrepLiveMode deck={sparseDeck} />)
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+
+    fireEvent.keyDown(document.body, { key: '8' })
+    fireEvent.keyDown(document.body, { key: 'Q' })
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+  })
+
+  it('renders numbers-to-know sections when only one side is populated', () => {
+    const candidateOnlyDeck: PrepDeck = {
+      ...mockDeck,
+      numbersToKnow: {
+        candidate: [{ id: 'metric-candidate-only', value: '45%', label: 'Lead time cut' }],
+        company: [],
+      },
+    }
+    const companyOnlyDeck: PrepDeck = {
+      ...mockDeck,
+      numbersToKnow: {
+        candidate: [],
+        company: [{ id: 'metric-company-only', value: '2', label: 'Platform priorities' }],
+      },
+    }
+
+    const { rerender } = render(<PrepLiveMode deck={candidateOnlyDeck} />)
+    expect(screen.getByText('Your Work')).toBeTruthy()
+    expect(screen.queryByText('Their Company')).toBeNull()
+
+    rerender(<PrepLiveMode deck={companyOnlyDeck} />)
+    expect(screen.queryByText('Your Work')).toBeNull()
+    expect(screen.getByText('Their Company')).toBeTruthy()
+  })
+
+  it('handles decks with undefined cards without throwing', () => {
+    expect(() => render(<PrepLiveMode deck={{
+      ...mockDeck,
+      id: 'deck-without-cards',
+      cards: undefined as unknown as PrepDeck['cards'],
+    }} />)).not.toThrow()
+
+    expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Technical Topics' })).toBeNull()
+  })
+
+  it('keeps sparse decks mounted when only updatedAt changes', () => {
+    const sparseDeck: PrepDeck = {
+      ...mockDeck,
+      id: '',
+      title: '',
+      company: '',
+      role: '',
+      pipelineEntryId: null,
+      updatedAt: '2026-04-14T17:00:00.000Z',
+    }
+    const { rerender } = render(<PrepLiveMode deck={sparseDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'blast radius' },
+    })
+
+    rerender(<PrepLiveMode deck={{ ...sparseDeck, updatedAt: '2026-04-15T17:00:00.000Z' }} />)
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(screen.getByText('00:02')).toBeTruthy()
+    expect(screen.getByDisplayValue('blast radius')).toBeTruthy()
+  })
+
+  it('renders malformed table data without crashing', () => {
+    const malformedTableDeck: PrepDeck = {
+      ...mockDeck,
+      cards: mockDeck.cards.map((card) => (
+        card.id === 'card-3'
+          ? {
+              ...card,
+              tableData: {
+                headers: ['Stage', 'Owner', 'Status'],
+                rows: [
+                  ['Detect'],
+                  [],
+                  ['Mitigate', 'Platform', { status: 'Done' } as unknown as string, 'Overflow'],
+                ],
+              },
+            }
+          : card
+      )),
+    }
+    const missingRowsDeck: PrepDeck = {
+      ...mockDeck,
+      cards: mockDeck.cards.map((card) => (
+        card.id === 'card-3'
+          ? {
+              ...card,
+              tableData: {
+                headers: ['Stage', 'Owner'],
+              } as PrepDeck['cards'][number]['tableData'],
+            }
+          : card
+      )),
+    }
+
+    expect(() => render(<PrepLiveMode deck={malformedTableDeck} />)).not.toThrow()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'mitigate' },
+    })
+
+    expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+    cleanup()
+    expect(() => render(<PrepLiveMode deck={missingRowsDeck} />)).not.toThrow()
+    expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+  })
+
+  it('resets transient state when two identity-free decks reuse the live mode component', () => {
+    const identityFreeDeckA: PrepDeck = {
+      ...mockDeck,
+      id: '',
+      title: '',
+      company: '',
+      role: '',
+      vectorId: '',
+      pipelineEntryId: '',
+      generatedAt: undefined,
+      cards: [],
+    }
+    const identityFreeDeckB: PrepDeck = {
+      ...identityFreeDeckA,
+      title: 'Second transient deck',
+      notes: 'Fresh deck object with no stable identity.',
+    }
+
+    const { rerender } = render(<PrepLiveMode deck={identityFreeDeckA} />)
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    fireEvent.change(searchInput, { target: { value: 'fresh start' } })
+
+    rerender(<PrepLiveMode deck={identityFreeDeckB} />)
+
+    expect(screen.getByText('00:00')).toBeTruthy()
+    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('')
+  })
+
+  it('resets transient state when the mounted deck changes', () => {
+    const { rerender } = render(<PrepLiveMode deck={mockDeck} />)
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement
+
+    fireEvent.change(searchInput, { target: { value: 'blast radius' } })
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(screen.getByText('00:02')).toBeTruthy()
+    expect(searchInput.value).toBe('blast radius')
+
+    rerender(<PrepLiveMode deck={alternateDeck} />)
+
+    expect(screen.getByText('00:00')).toBeTruthy()
+    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('')
+    expect(screen.getByText('Coach through a scope disagreement')).toBeTruthy()
+    expect(screen.queryByText('How do you debug a flaky distributed system?')).toBeNull()
+  })
+
+  it('keeps timer and search state when the same deck id rerenders with a new object', () => {
+    const { rerender } = render(<PrepLiveMode deck={mockDeck} />)
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    fireEvent.change(searchInput, { target: { value: 'blast radius' } })
+
+    rerender(<PrepLiveMode deck={{
+      ...mockDeck,
+      title: 'Acme Staff Engineer Prep v2',
+      company: 'Acme AI',
+      role: 'Principal Engineer',
+      generatedAt: '2026-04-15T08:00:00.000Z',
+      notes: 'Updated note without changing deck identity.',
+    }} />)
+
+    expect(screen.getByText('00:02')).toBeTruthy()
+    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('blast radius')
+  })
+
   it('cleans up the timer interval on unmount', () => {
-    const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+    const createdIntervals: unknown[] = []
+    const clearedIntervals: unknown[] = []
+    const originalSetInterval = window.setInterval.bind(window)
+    const originalClearInterval = window.clearInterval.bind(window)
+    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      const intervalId = originalSetInterval(handler, timeout, ...args)
+      createdIntervals.push(intervalId)
+      return intervalId
+    }) as typeof window.setInterval)
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(((intervalId?: number) => {
+      clearedIntervals.push(intervalId)
+      return originalClearInterval(intervalId)
+    }) as typeof window.clearInterval)
     const { unmount } = render(<PrepLiveMode deck={mockDeck} />)
 
     fireEvent.keyDown(document.body, { key: ' ' })
     unmount()
 
+    expect(createdIntervals.length).toBeGreaterThan(0)
+    expect(clearedIntervals).toContain(createdIntervals[0])
     expect(clearIntervalSpy).toHaveBeenCalled()
+    setIntervalSpy.mockRestore()
     clearIntervalSpy.mockRestore()
+  })
+
+  it('removes the global keydown listener on unmount', () => {
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+    const { unmount } = render(<PrepLiveMode deck={mockDeck} />)
+
+    const keydownHandler = addEventListenerSpy.mock.calls.find(([eventName]) => eventName === 'keydown')?.[1]
+    expect(keydownHandler).toBeTruthy()
+
+    unmount()
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', keydownHandler)
+    addEventListenerSpy.mockRestore()
+    removeEventListenerSpy.mockRestore()
   })
 })

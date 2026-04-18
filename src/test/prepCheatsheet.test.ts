@@ -54,6 +54,31 @@ const deck: PrepDeck = {
       warning: 'Do not over-index on management if the role is IC.',
     },
     {
+      id: 'opener-2',
+      category: 'opener',
+      title: 'Why this role/company?',
+      tags: ['opener', 'motivation'],
+      script: 'This role sits at the intersection of platform depth, product leverage, and the systems work I want to keep doing.',
+      notes: 'Bridge your recent work into the company priorities.',
+      conditionals: [
+        {
+          id: 'opener-2-conditional',
+          trigger: 'If they ask why now',
+          response: 'Explain why the scope and timing line up with the work you want to keep growing into.',
+          tone: 'pivot',
+        },
+      ],
+    },
+    {
+      id: 'opener-3',
+      category: 'opener',
+      title: 'Why did you leave your last role?',
+      tags: ['opener', 'departure'],
+      script: 'I wanted broader platform ownership and more direct product impact than the role could realistically offer.',
+      notes: 'Keep the answer positive and future-focused.',
+      warning: 'Do not turn this into a complaint about the prior company.',
+    },
+    {
       id: 'behavioral-1',
       category: 'behavioral',
       title: 'Resolve a stakeholder conflict',
@@ -109,7 +134,9 @@ describe('derivePrepCheatsheetSections', () => {
     expect(sections.map((section) => section.id)).toEqual([
       'overview',
       'intel',
-      'opener',
+      'opener-1',
+      'opener-2',
+      'opener-3',
       'behavioral',
       'project',
       'technical',
@@ -123,7 +150,9 @@ describe('derivePrepCheatsheetSections', () => {
     expect(sections.map((section) => section.group)).toEqual([
       'Intel',
       'Intel',
-      'Core',
+      'Openers',
+      'Openers',
+      'Openers',
       'Core',
       'Core',
       'Technical',
@@ -152,12 +181,16 @@ describe('derivePrepCheatsheetSections', () => {
       ]),
     )
 
-    expect(sections.find((section) => section.id === 'opener')?.guidance).toBe('Lead with relevance')
     expect(sections.find((section) => section.id === 'questions')?.guidance).toBe(
       'Pick 2-3. Save 8-10 minutes for questions.',
     )
     expect(sections.find((section) => section.id === 'technical')?.guidance).toBe('Call out tradeoffs')
     expect(sections.find((section) => section.id === 'situational')?.guidance).toBe('State assumptions')
+    expect(sections.find((section) => section.id === 'opener-1')?.guidance).toContain('Lead with the through-line')
+    expect(sections.find((section) => section.id === 'opener-1')?.guidance).toContain('Lead with relevance')
+    expect(sections.find((section) => section.id === 'opener-2')?.group).toBe('Openers')
+    expect(sections.find((section) => section.id === 'opener-3')?.title).toBe('Why did you leave your last role?')
+    expect(sections.find((section) => section.id === 'opener-1')?.sectionCategory).toBe('opener')
 
     expect(sections.find((section) => section.id === 'questions')?.items).toEqual([
       expect.objectContaining({
@@ -200,7 +233,7 @@ describe('derivePrepCheatsheetSections', () => {
       ],
     })
 
-    const openerItem = sections.find((section) => section.id === 'opener')?.items[0]
+    const openerItem = sections.find((section) => section.id === 'opener-1')?.items[0]
     expect(openerItem).toMatchObject({
       id: 'opener-1',
       title: 'Tell me about yourself',
@@ -211,6 +244,55 @@ describe('derivePrepCheatsheetSections', () => {
     expect(openerItem).not.toHaveProperty('keyPoints')
     expect(openerItem).not.toHaveProperty('storyBlocks')
     expect(openerItem).not.toHaveProperty('metrics')
+  })
+
+  it('preserves distinct opener cards even when they normalize to the same canonical title', () => {
+    const sections = derivePrepCheatsheetSections({
+      ...deck,
+      cards: [
+        ...deck.cards,
+        {
+          id: 'opener-4',
+          category: 'opener',
+          title: 'Walk me through your background',
+          tags: ['intro'],
+          script: 'I grew from infra work into product-facing platform leadership.',
+          notes: 'Use this version when they ask for the longer intro.',
+        },
+      ],
+    })
+
+    const tellMeAboutYourselfSections = sections.filter((section) => section.title === 'Tell me about yourself')
+    expect(tellMeAboutYourselfSections).toHaveLength(2)
+    expect(tellMeAboutYourselfSections.map((section) => section.id)).toEqual([
+      'opener-1',
+      'opener-4',
+    ])
+  })
+
+  it('classifies departure openers by title even without explicit departure tags', () => {
+    const sections = derivePrepCheatsheetSections({
+      ...deck,
+      cards: deck.cards.map((card) => (
+        card.id === 'opener-3'
+          ? {
+              ...card,
+              tags: ['opener'],
+            }
+          : card
+      )),
+    })
+
+    const departureSection = sections.find((section) => section.items.some((item) => item.id === 'opener-3'))
+    expect(departureSection?.title).toBe('Why did you leave your last role?')
+    expect(departureSection?.openerKind).toBe('why-did-you-leave')
+  })
+
+  it('does not double-prefix opener section ids when card ids already use the opener prefix', () => {
+    const sections = derivePrepCheatsheetSections(deck)
+
+    expect(sections.find((section) => section.id === 'opener-opener-1')).toBeUndefined()
+    expect(sections.find((section) => section.id === 'opener-1')?.items[0]?.cardId).toBe('opener-1')
   })
 
   it('omits empty tactical sections and keeps overview only when the deck is blank', () => {

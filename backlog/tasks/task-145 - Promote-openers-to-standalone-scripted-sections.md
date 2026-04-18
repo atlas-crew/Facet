@@ -1,9 +1,10 @@
 ---
 id: TASK-145
 title: Promote openers to standalone scripted sections
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-16 13:14'
+updated_date: '2026-04-18 04:34'
 labels:
   - prep
   - content
@@ -58,22 +59,32 @@ Promote opener cards from the Core group into their own Openers group with dedic
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Openers group appears between Intel and Core in sidebar and main content
-- [ ] #2 Tell me about yourself section always generated with scripted answer
-- [ ] #3 Why this role section always generated from JD and company research
-- [ ] #4 Why did you leave section generated when departure context available
-- [ ] #5 Each opener renders as a standalone single-card section
-- [ ] #6 Openers have script block, warning, coaching notes, and conditionals
-- [ ] #7 Missing departure context flagged as context gap or placeholder
-- [ ] #8 Opener sections have per-item budget of ~2 minutes
+- [x] #1 Openers group appears between Intel and Core in sidebar and main content
+- [x] #2 Tell me about yourself section always generated with scripted answer
+- [x] #3 Why this role section always generated from JD and company research
+- [x] #4 Why did you leave section generated when departure context available
+- [x] #5 Each opener renders as a standalone single-card section
+- [x] #6 Openers have script block, warning, coaching notes, and conditionals
+- [x] #7 Missing departure context flagged as context gap or placeholder
+- [x] #8 Opener sections have per-item budget of ~2 minutes
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Promoted opener cards into dedicated Openers live-mode sections between Intel and Core, with per-opener shortcut handling, standalone rendering, and richer generation/derivation support.
+
+Verification: npx vitest run src/test/prepGenerator.test.ts src/test/prepCheatsheet.test.ts src/test/PrepLiveMode.test.tsx (56 passed); npx eslint src/utils/prepCheatsheet.ts src/routes/prep/PrepLiveMode.tsx src/utils/prepCardContent.ts src/utils/prepGenerator.ts src/test/prepGenerator.test.ts src/test/prepCheatsheet.test.ts src/test/PrepLiveMode.test.tsx; npm run typecheck; npm run build.
+
+Independent review: .agents/reviews/review-20260418-003000-codex-fallback.md found no P0/P1 issues, with one P2 follow-up about brittle opener fallback classification. Independent test audit: .agents/reviews/test-audit-20260418-003100-codex-fallback.md found no P0/P1 gaps, with follow-up coverage suggestions for generic opener fallback and fourth-opener shortcut fallback.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

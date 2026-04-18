@@ -146,6 +146,10 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('include conditionals')
+    expect(userPrompt).toContain('Generate dedicated opener cards for the predictable opening questions')
+    expect(userPrompt).toContain('Always include a "Tell me about yourself" opener card')
+    expect(userPrompt).toContain('Always include a "Why this role/company?" opener card')
+    expect(userPrompt).toContain('identity.departureContext')
     expect(userPrompt).toContain('Prefix the affected field with [[needs-review]]')
   })
 

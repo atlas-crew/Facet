@@ -1,7 +1,10 @@
 import { PREP_CATEGORY_VALUES } from '../types/prep'
 import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepQuestionToAsk } from '../types/prep'
 
-export type PrepCheatsheetGroup = 'Intel' | 'Core' | 'Technical' | 'Tactical'
+export type PrepCheatsheetGroup = 'Intel' | 'Openers' | 'Core' | 'Technical' | 'Tactical'
+export type PrepOpenerKind = 'tell-me-about-yourself' | 'why-this-role-company' | 'why-did-you-leave' | 'general'
+
+type CanonicalOpenerKind = Exclude<PrepOpenerKind, 'general'>
 
 export interface PrepCheatsheetItem {
   id: string
@@ -19,12 +22,13 @@ export interface PrepCheatsheetSection {
   items: PrepCheatsheetItem[]
   guidance?: string
   group: PrepCheatsheetGroup
+  sectionCategory?: PrepCategory
+  openerKind?: PrepOpenerKind
 }
 
 const CATEGORY_GROUPS = {
   overview: 'Intel',
   intel: 'Intel',
-  opener: 'Core',
   behavioral: 'Core',
   project: 'Core',
   technical: 'Technical',
@@ -35,13 +39,57 @@ const CATEGORY_GROUPS = {
   warnings: 'Tactical',
 } satisfies Record<string, PrepCheatsheetGroup>
 
-type PrepSectionId = keyof typeof CATEGORY_GROUPS
-
 const QUESTIONS_GUIDANCE = 'Pick 2-3. Save 8-10 minutes for questions.'
 const NUMBERS_TO_KNOW_GROUPS = {
   candidate: 'Your Work',
   company: 'Their Company',
 } as const
+const OPENER_KIND_ORDER: CanonicalOpenerKind[] = [
+  'tell-me-about-yourself',
+  'why-did-you-leave',
+  'why-this-role-company',
+]
+export const OPENER_PREFERRED_SHORTCUTS: Record<CanonicalOpenerKind, string> = {
+  'tell-me-about-yourself': '3',
+  'why-this-role-company': '4',
+  'why-did-you-leave': '5',
+}
+const OPENER_KIND_META: Record<
+  CanonicalOpenerKind,
+  {
+    titlePattern: RegExp
+    tags: string[]
+    canonicalTitle: string
+    description: string
+    guidance: string
+    order: number
+  }
+> = {
+  'tell-me-about-yourself': {
+    titlePattern: /\b(tell me about yourself|walk me through your background|introduce yourself)\b/u,
+    tags: ['tell-me-about-yourself', 'intro', 'tell-me-about-you', 'background'],
+    canonicalTitle: 'Tell me about yourself',
+    description: 'Your opening pitch and the through-line that frames the rest of the interview.',
+    guidance: 'Lead with the through-line, keep it crisp, and land on why this role is the logical next step.',
+    order: 0,
+  },
+  'why-this-role-company': {
+    titlePattern: /\bwhy\b(?!.*\bleav\w*\b).*\b(role|company|team|join|interested)\b/u,
+    tags: ['why-this-role', 'why-this-company', 'why-this-role-company', 'motivation'],
+    canonicalTitle: 'Why this role/company?',
+    description: 'Your bridge from your background into this role, this team, and this company.',
+    guidance: 'Tie your strongest evidence to the role and company specifics instead of giving a generic motivation answer.',
+    order: 1,
+  },
+  'why-did-you-leave': {
+    titlePattern: /\b(why did you leave|why are you leaving|why leave|why you left|why you are leaving)\b/u,
+    tags: ['departure', 'why-did-you-leave', 'leaving'],
+    canonicalTitle: 'Why did you leave your last role?',
+    description: 'A concise, positive departure answer that stays future-focused and low-drama.',
+    guidance: 'Keep it honest, brief, and forward-looking. Explain the pull toward this role more than the push away from the last one.',
+    order: 2,
+  },
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -133,6 +181,28 @@ function makeUniqueItemId(prefix: string, value: string, seen: Map<string, numbe
   return count === 0 ? prefix + base : prefix + base + '-' + count
 }
 
+function makeStableSectionId(prefix: string, value: string, seen: Set<string>): string {
+  const normalizedPrefix = prefix.endsWith('-') ? prefix : prefix + '-'
+  const sluggedValue = slugifyId(value)
+  const valueWithoutPrefix = sluggedValue.startsWith(normalizedPrefix)
+    ? sluggedValue.slice(normalizedPrefix.length) || 'item'
+    : sluggedValue
+  const baseId = normalizedPrefix + valueWithoutPrefix
+  if (!seen.has(baseId)) {
+    seen.add(baseId)
+    return baseId
+  }
+
+  let count = 1
+  while (seen.has(baseId + '-' + count)) {
+    count += 1
+  }
+
+  const nextId = baseId + '-' + count
+  seen.add(nextId)
+  return nextId
+}
+
 function slugifyId(value: string): string {
   const normalized = value
     .trim()
@@ -154,25 +224,98 @@ function truncate(text: string, maxLength: number): string {
   return normalized.slice(0, maxLength - 1).trimEnd() + '…'
 }
 
+function normalizeOpenerTitle(value: string): string {
+  return value
+    .normalize('NFKC')
+    .trim()
+    .toLowerCase()
+    .replace(/[’'"]/gu, '')
+    .replace(/[\u2010-\u2015]/gu, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function withSectionMeta(
   deck: PrepDeck,
   section: {
-    id: PrepSectionId
+    id: string
     title: string
     description: string
     items: PrepCheatsheetItem[]
     guidance?: string
+    group: PrepCheatsheetGroup
+    sectionCategory?: PrepCategory
+    openerKind?: PrepOpenerKind
   },
 ): PrepCheatsheetSection {
+  // Dedicated opener sections carry their own ids so they can keep distinct guidance even when multiple cards map to the opener family.
+  const guidanceKey = section.sectionCategory && section.sectionCategory !== 'opener'
+    ? section.sectionCategory
+    : section.id
   return {
     ...section,
-    group: CATEGORY_GROUPS[section.id],
-    guidance: resolveGuidance(deck.categoryGuidance?.[section.id], section.guidance),
+    guidance: resolveGuidance(deck.categoryGuidance?.[guidanceKey], section.guidance),
+  }
+}
+
+function classifyOpenerCard(card: PrepCard): PrepOpenerKind {
+  const normalizedTags = new Set((card.tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean))
+  const normalizedTitle = normalizeOpenerTitle(card.title)
+
+  for (const kind of OPENER_KIND_ORDER) {
+    const meta = OPENER_KIND_META[kind]
+    if (meta.tags.some((tag) => normalizedTags.has(tag))) {
+      return kind
+    }
+  }
+
+  for (const kind of OPENER_KIND_ORDER) {
+    const meta = OPENER_KIND_META[kind]
+    if (meta.titlePattern.test(normalizedTitle)) {
+      return kind
+    }
+  }
+
+  return 'general'
+}
+
+function getOpenerSectionMeta(card: PrepCard, id: string): {
+  id: string
+  title: string
+  description: string
+  guidance: string
+  order: number
+  openerKind: PrepOpenerKind
+} {
+  const kind = classifyOpenerCard(card)
+
+  if (kind !== 'general') {
+    const meta = OPENER_KIND_META[kind]
+    return {
+      id,
+      title: meta.canonicalTitle,
+      description: meta.description,
+      guidance: meta.guidance,
+      order: meta.order,
+      openerKind: kind,
+    }
+  }
+
+  return {
+    id,
+    title: card.title,
+    description: 'A predictable opener question you should be ready to answer early in the conversation.',
+    guidance: 'Answer directly, then bridge back to the strongest evidence you want the interviewer to remember.',
+    order: 3,
+    openerKind: 'general',
   }
 }
 
 export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSection[] {
-  const cardsByCategory = deck.cards.reduce<Record<PrepCategory, PrepCard[]>>(
+  // Imported decks can briefly exist before store normalization restores cards. Keep cheatsheet derivation resilient during that window.
+  const cards = Array.isArray(deck.cards) ? deck.cards : []
+  const cardsByCategory = cards.reduce<Record<PrepCategory, PrepCard[]>>(
     (map, card) => {
       const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
       map[category].push(card)
@@ -206,6 +349,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
       title: 'Overview',
       description: 'High-signal context to anchor the conversation before you start answering.',
       items: overviewItems,
+      group: CATEGORY_GROUPS.overview,
     }),
   ]
 
@@ -229,19 +373,49 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
             ? [{ id: 'jd', title: 'Job description snapshot', detail: truncate(deck.jobDescription, 320) }]
             : []),
         ],
+        group: CATEGORY_GROUPS.intel,
       }),
     )
   }
 
-  const categorySections = {
-    opener: { title: 'Openers', description: 'Quick framing, tell-me-about-yourself, and conversation starters.' },
+  const openerDeckGuidance = sanitizeText(deck.categoryGuidance?.opener)
+  const openerSectionIds = new Set<string>()
+  const openerSections = cardsByCategory.opener
+    .map((card) => {
+      const sectionId = makeStableSectionId('opener-', card.id, openerSectionIds)
+      const meta = getOpenerSectionMeta(card, sectionId)
+      const guidance = [meta.guidance, openerDeckGuidance]
+        .filter((value, valueIndex, values): value is string => Boolean(value) && values.indexOf(value) === valueIndex)
+        .join(' ')
+
+      return {
+        section: withSectionMeta(deck, {
+          id: meta.id,
+          title: meta.title,
+          description: meta.description,
+          items: buildCardItems([card]),
+          guidance,
+          group: 'Openers',
+          sectionCategory: 'opener',
+          openerKind: meta.openerKind,
+        }),
+        order: meta.order,
+        title: meta.title,
+      }
+    })
+    .sort((left, right) => left.order - right.order || left.title.localeCompare(right.title))
+    .map(({ section }) => section)
+
+  sections.push(...openerSections)
+
+  const categorySections: Record<Exclude<PrepCategory, 'metrics' | 'opener'>, { title: string; description: string }> = {
     behavioral: { title: 'Behavioral Stories', description: 'Leadership, collaboration, conflict, and ownership examples.' },
     project: { title: 'Projects', description: 'Project-specific stories and execution details.' },
     technical: { title: 'Technical Topics', description: 'Architecture, systems, debugging, and implementation depth.' },
     situational: { title: 'Situational Drills', description: 'Scenario questions, tradeoffs, and judgment calls.' },
-  } satisfies Record<Exclude<PrepCategory, 'metrics'>, { title: string; description: string }>
+  }
 
-  for (const category of Object.keys(categorySections) as Array<Exclude<PrepCategory, 'metrics'>>) {
+  for (const category of Object.keys(categorySections) as Array<Exclude<PrepCategory, 'metrics' | 'opener'>>) {
     const config = categorySections[category]
     const items = buildCardItems(cardsByCategory[category])
     if (items.length === 0) continue
@@ -251,6 +425,8 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: config.title,
         description: config.description,
         items,
+        group: CATEGORY_GROUPS[category],
+        sectionCategory: category,
       }),
     )
   }
@@ -264,6 +440,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         description: 'Prepared questions to ask the interviewer.',
         items: buildQuestionsItems(sanitizedQuestions),
         guidance: QUESTIONS_GUIDANCE,
+        group: CATEGORY_GROUPS.questions,
       }),
     )
   }
@@ -276,6 +453,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: "Don'ts",
         description: 'Personalized anti-patterns to avoid while you are live in the room.',
         items: buildDontsItems(sanitizedDonts),
+        group: CATEGORY_GROUPS.donts,
       }),
     )
   }
@@ -290,11 +468,13 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: numberItems.length > 0 ? 'Numbers to Know' : 'Metrics',
         description: 'Numbers and measurable outcomes you should keep ready.',
         items: metricItems,
+        group: CATEGORY_GROUPS.metrics,
+        sectionCategory: 'metrics',
       }),
     )
   }
 
-  const warningItems = deck.cards.flatMap((card) =>
+  const warningItems = cards.flatMap((card) =>
     card.warning
       ? [{ id: card.id + '-warning', title: card.title, detail: card.warning, cardId: card.id, category: card.category }]
       : [],
@@ -306,6 +486,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: 'Risks and Reminders',
         description: 'Cautions to keep in view while you are live in the room.',
         items: warningItems,
+        group: CATEGORY_GROUPS.warnings,
       }),
     )
   }

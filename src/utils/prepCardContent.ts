@@ -107,6 +107,6 @@ export function hasPrepCardNeedsReviewContent(card: Pick<
     (card.followUps ?? []).some((followUp) => hasPrepFollowUpNeedsReview(followUp)) ||
     (card.deepDives ?? []).some((deepDive) => hasPrepDeepDiveNeedsReview(deepDive)) ||
     (card.tableData?.headers ?? []).some((header) => hasPrepNeedsReviewText(header)) ||
-    (card.tableData?.rows.flat() ?? []).some((cell) => hasPrepNeedsReviewText(cell))
+    ((card.tableData?.rows ?? []).flat()).some((cell) => hasPrepNeedsReviewText(cell))
   )
 }

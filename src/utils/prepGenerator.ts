@@ -373,6 +373,12 @@ ${JSON.stringify(request.resumeContext, null, 2)}
 When structured identity context is provided, use it as the primary source of candidate evidence and fall back to the tailored resume context only for missing details.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
+Generate dedicated opener cards for the predictable opening questions instead of a single generic opener bucket.
+- Always include a "Tell me about yourself" opener card. If identity context is too thin for a trustworthy script, use [[fill-in: your through-line]] instead of inventing one.
+- Always include a "Why this role/company?" opener card grounded in the job description and company research. If the motivation proof is thin, use [[needs-review]] or [[fill-in: why this company now]] instead of guessing.
+- Include a "Why did you leave your last role?" opener card when departure context is available in structured identity context or contextGapAnswers.
+- When departure context is missing but the answer matters, add a contextGap for identity.departureContext or use a [[fill-in: your departure reason]] placeholder in that opener instead of inventing a reason.
+- Title opener cards clearly so they can render as standalone live sections, and keep each opener script to roughly 75 seconds with a 2 minute answer budget.
 If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
