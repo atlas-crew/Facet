@@ -109,6 +109,7 @@ export function BuildPage() {
     data,
     setData,
     updateData,
+    updateGeneration,
     undo,
     redo,
     setOverride,
@@ -511,13 +512,31 @@ export function BuildPage() {
   useEffect(() => {
     const handoff = useHandoffStore.getState().consume()
     if (handoff) {
-      setJdInput(handoff.jd)
+      setJdInput(handoff.jobDescription)
       setJdModalOpen(true)
-      if (handoff.vectorId) {
-        setSelectedVector(handoff.vectorId)
+      const handoffVectorId = handoff.primaryVectorId
+      const nextGeneration = {
+        mode: handoff.mode,
+        vectorMode: handoff.vectorMode,
+        source: handoff.source,
+        pipelineEntryId: handoff.pipelineEntryId,
+        presetId: handoff.presetId,
+        primaryVectorId: handoff.primaryVectorId,
+        vectorIds: handoff.vectorIds,
+        suggestedVectorIds: handoff.suggestedVectorIds,
+        ...(handoff.resumeGeneration
+          ? {
+              variantId: handoff.resumeGeneration.variantId,
+              variantLabel: handoff.resumeGeneration.variantLabel,
+            }
+          : {}),
       }
-      if (handoff.entryId) {
-        handoffEntryIdRef.current = handoff.entryId
+      updateGeneration(nextGeneration)
+      if (handoffVectorId) {
+        setSelectedVector(handoffVectorId)
+      }
+      if (handoff.pipelineEntryId) {
+        handoffEntryIdRef.current = handoff.pipelineEntryId
       }
     }
     return () => { handoffEntryIdRef.current = null }

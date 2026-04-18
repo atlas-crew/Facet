@@ -1,26 +1,56 @@
 import { create } from 'zustand'
+import type { ResumeGenerationHandoff } from '../types/resumeGeneration'
+import { normalizeResumeGenerationHandoff } from '../utils/resumeGeneration'
+
+interface ConsumedResumeGenerationHandoff extends ResumeGenerationHandoff {
+  /** @deprecated Use jobDescription */
+  jd: string
+  /** @deprecated Use primaryVectorId */
+  vectorId: string | null
+  /** @deprecated Use pipelineEntryId */
+  entryId: string | null
+}
 
 interface HandoffState {
-  pendingJd: string | null
-  pendingVectorId: string | null
-  sourceEntryId: string | null
+  pendingGeneration: ResumeGenerationHandoff | null
   setPendingAnalysis: (jd: string, vectorId?: string | null, entryId?: string | null) => void
-  consume: () => { jd: string; vectorId: string | null; entryId: string | null } | null
+  setPendingGeneration: (generation: ResumeGenerationHandoff) => void
+  consume: () => ConsumedResumeGenerationHandoff | null
 }
 
 export const useHandoffStore = create<HandoffState>()((set, get) => ({
-  pendingJd: null,
-  pendingVectorId: null,
-  sourceEntryId: null,
+  pendingGeneration: null,
 
   setPendingAnalysis: (jd, vectorId = null, entryId = null) => {
-    set({ pendingJd: jd, pendingVectorId: vectorId, sourceEntryId: entryId })
+    set({
+      pendingGeneration: normalizeResumeGenerationHandoff({
+        mode: 'single',
+        vectorMode: 'manual',
+        source: entryId ? 'pipeline' : 'manual',
+        jobDescription: jd,
+        pipelineEntryId: entryId,
+        presetId: null,
+        primaryVectorId: vectorId,
+        vectorIds: vectorId ? [vectorId] : [],
+        suggestedVectorIds: [],
+        resumeGeneration: null,
+      }),
+    })
+  },
+
+  setPendingGeneration: (generation) => {
+    set({ pendingGeneration: normalizeResumeGenerationHandoff(generation) })
   },
 
   consume: () => {
-    const { pendingJd, pendingVectorId, sourceEntryId } = get()
-    if (!pendingJd) return null
-    set({ pendingJd: null, pendingVectorId: null, sourceEntryId: null })
-    return { jd: pendingJd, vectorId: pendingVectorId, entryId: sourceEntryId }
+    const { pendingGeneration } = get()
+    if (!pendingGeneration) return null
+    set({ pendingGeneration: null })
+    return {
+      ...pendingGeneration,
+      jd: pendingGeneration.jobDescription,
+      vectorId: pendingGeneration.primaryVectorId,
+      entryId: pendingGeneration.pipelineEntryId,
+    }
   },
 }))

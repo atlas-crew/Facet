@@ -3,6 +3,18 @@ import type { ResumeData } from '../types'
 export const defaultResumeData: ResumeData = {
   version: 1,
   _overridesMigrated: true,
+  generation: {
+    mode: 'single',
+    vectorMode: 'manual',
+    source: 'manual',
+    pipelineEntryId: null,
+    presetId: null,
+    variantId: null,
+    variantLabel: '',
+    primaryVectorId: null,
+    vectorIds: [],
+    suggestedVectorIds: [],
+  },
   theme: {
     preset: 'ferguson-v12',
   },

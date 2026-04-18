@@ -3,6 +3,7 @@ import { Edit3, Trash2, Zap, BookOpen, ArrowRight, Search } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import type { PipelineEntry } from '../../types/pipeline'
 import { useResumeStore } from '../../store/resumeStore'
+import { getPipelineResumeVariantLabel } from '../../utils/resumeGeneration'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 
 interface PipelineDetailProps {
@@ -38,6 +39,7 @@ export function PipelineDetail({
   const linkedPreset = useResumeStore((s) =>
     entry.presetId ? (s.data.presets ?? []).find((p) => p.id === entry.presetId) ?? null : null
   )
+  const resumeVariantLabel = getPipelineResumeVariantLabel(entry) || '\u2014'
 
   return (
     <div className="pipeline-detail">
@@ -50,7 +52,7 @@ export function PipelineDetail({
         <Field label="Response" value={entry.response} />
         <Field label="Days to Response" value={entry.daysToResponse != null ? String(entry.daysToResponse) : '\u2014'} />
         <Field label="Rounds" value={entry.rounds != null ? String(entry.rounds) : '\u2014'} />
-        <Field label="Resume Variant" value={entry.resumeVariant || '\u2014'} />
+        <Field label="Resume Variant" value={resumeVariantLabel} />
         {entry.presetId && (
           <Field label="Linked Preset" value={linkedPreset ? linkedPreset.name : '(deleted)'} />
         )}

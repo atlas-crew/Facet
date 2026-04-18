@@ -143,6 +143,7 @@ describe('PrepPage identity generation', () => {
           jobDescription: 'Build distributed systems and platform tooling.',
           presetId: null,
           resumeVariant: '',
+          resumeGeneration: null,
           positioning: 'Emphasize backend platform depth.',
           skillMatch: 'distributed systems, platform',
           nextStep: '',

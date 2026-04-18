@@ -18,6 +18,7 @@ const makeEntry = (overrides: Partial<PipelineEntry> = {}): Omit<PipelineEntry, 
   jobDescription: '',
   presetId: null,
   resumeVariant: '',
+  resumeGeneration: null,
   positioning: '',
   skillMatch: '',
   nextStep: '',
@@ -239,5 +240,37 @@ describe('pipelineStore', () => {
     })
 
     expect(migrated.entries[0]?.research).toBeUndefined()
+  })
+
+  it('derives structured resume generation metadata from legacy resumeVariant fields during migration', () => {
+    const migrated = migratePipelineState({
+      entries: [
+        {
+          ...makeEntry({
+            company: 'Legacy Variant',
+            vectorId: 'platform',
+            presetId: 'preset-7',
+            resumeVariant: 'Platform Focus',
+          }),
+          id: 'pipe-legacy-variant',
+          createdAt: '2026-01-01',
+          lastAction: '2026-01-01',
+          history: [],
+        },
+      ],
+    })
+
+    expect(migrated.entries[0]?.resumeGeneration).toEqual({
+      mode: 'single',
+      vectorMode: 'manual',
+      source: 'manual',
+      presetId: 'preset-7',
+      variantId: null,
+      variantLabel: 'Platform Focus',
+      primaryVectorId: 'platform',
+      vectorIds: ['platform'],
+      suggestedVectorIds: [],
+      lastGeneratedAt: null,
+    })
   })
 })

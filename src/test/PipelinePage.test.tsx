@@ -29,6 +29,7 @@ const baseEntry = {
   jobDescription: '',
   presetId: null,
   resumeVariant: '',
+  resumeGeneration: null,
   positioning: 'Lead with platform depth',
   skillMatch: 'Distributed systems and reliability',
   nextStep: 'Review opportunity and tailor resume',

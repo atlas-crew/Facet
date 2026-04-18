@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { X } from 'lucide-react'
 import type { PipelineEntry, PipelineStatus } from '../../types/pipeline'
+import { getPipelineResumeVariantLabel } from '../../utils/resumeGeneration'
 
 interface PipelineAnalyticsProps {
   entries: PipelineEntry[]
@@ -90,7 +91,7 @@ export function PipelineAnalytics({ entries, onClose }: PipelineAnalyticsProps) 
     // By resume variant
     const byVariant = new Map<string, { total: number; responded: number }>()
     for (const e of applied) {
-      const v = e.resumeVariant || '(none)'
+      const v = getPipelineResumeVariantLabel(e) || '(none)'
       const c = byVariant.get(v) ?? { total: 0, responded: 0 }
       c.total++
       if (RESPONDED.has(e.status)) c.responded++

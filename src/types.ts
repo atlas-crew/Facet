@@ -1,3 +1,4 @@
+import type { ResumeWorkspaceGenerationState } from './types/resumeGeneration'
 import type { DurableMetadata } from './types/durable'
 
 export type VectorId = string
@@ -223,6 +224,7 @@ export interface Preset {
 export interface ResumeData {
   version: number
   durableMeta?: DurableMetadata
+  generation?: ResumeWorkspaceGenerationState
   meta: ResumeMeta
   theme?: ResumeThemeState
   vectors: ResumeVector[]

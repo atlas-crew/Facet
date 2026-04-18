@@ -62,6 +62,7 @@ function blankDraft(): EntryDraft {
     jobDescription: '',
     presetId: null,
     resumeVariant: '',
+    resumeGeneration: null,
     positioning: '',
     skillMatch: '',
     nextStep: '',

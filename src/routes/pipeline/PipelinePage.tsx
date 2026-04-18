@@ -29,6 +29,7 @@ type ModalState =
   | { type: 'add-prefilled'; data: Partial<PipelineEntry> }
 
 const TIER_ORDER: Record<string, number> = { '1': 1, '2': 2, '3': 3, watch: 4 }
+const PIPELINE_HANDOFF_DEFAULT_MODE = 'dynamic'
 
 export function PipelinePage() {
   const entries = usePipelineStore((s) => s.entries)
@@ -120,7 +121,24 @@ export function PipelinePage() {
   const handleAnalyze = useCallback(
     (entry: PipelineEntry) => {
       if (entry.jobDescription) {
-        useHandoffStore.getState().setPendingAnalysis(entry.jobDescription, entry.vectorId, entry.id)
+        useHandoffStore.getState().setPendingGeneration({
+          // Pipeline handoffs are JD-driven by default, even before a structured generation pass exists.
+          mode: entry.resumeGeneration?.mode ?? PIPELINE_HANDOFF_DEFAULT_MODE,
+          vectorMode: entry.resumeGeneration?.vectorMode ?? 'manual',
+          source: 'pipeline',
+          jobDescription: entry.jobDescription,
+          pipelineEntryId: entry.id,
+          presetId: entry.resumeGeneration?.presetId ?? entry.presetId,
+          primaryVectorId: entry.resumeGeneration?.primaryVectorId ?? entry.vectorId,
+          vectorIds:
+            entry.resumeGeneration?.vectorIds.length
+              ? entry.resumeGeneration.vectorIds
+              : entry.vectorId
+                ? [entry.vectorId]
+                : [],
+          suggestedVectorIds: entry.resumeGeneration?.suggestedVectorIds ?? [],
+          resumeGeneration: entry.resumeGeneration,
+        })
         void navigate({ to: '/build' })
       }
     },

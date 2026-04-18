@@ -13,6 +13,7 @@ import {
 } from './durableMetadata'
 import { createId } from '../utils/idUtils'
 import { normalizePipelineResearchSnapshot } from '../utils/pipelineResearch'
+import { normalizePipelineResumeGeneration } from '../utils/resumeGeneration'
 
 interface PipelineFilters {
   tier: PipelineTier | 'all'
@@ -49,6 +50,11 @@ const normalizeEntry = (
   return {
     ...entry,
     research: normalizePipelineResearchSnapshot(entry.research),
+    resumeGeneration: normalizePipelineResumeGeneration(entry.resumeGeneration, {
+      resumeVariant: entry.resumeVariant,
+      vectorId: entry.vectorId,
+      presetId: entry.presetId,
+    }),
     durableMeta: options.touch
       ? touchDurableMetadata(entry.durableMeta, timestamp())
       : ensureDurableMetadata(entry.durableMeta, fallbackTimestamp),
@@ -67,6 +73,8 @@ export const migratePipelineState = (persistedState: unknown) => {
 
   return {
     ...state,
+    // Re-run each persisted row through normalizeEntry so legacy resumeVariant/vectorId/presetId
+    // fields hydrate into the structured resumeGeneration shape on load.
     entries: Array.isArray(state?.entries)
       ? state.entries.map((entry) => normalizeEntry(entry))
       : [],

@@ -1,4 +1,5 @@
 import type { DurableMetadata } from './durable'
+import type { PipelineResumeGenerationState } from './resumeGeneration'
 
 export type PipelineStatus =
   | 'researching'
@@ -128,6 +129,7 @@ export interface PipelineEntry {
   jobDescription: string
   presetId: string | null
   resumeVariant: string
+  resumeGeneration: PipelineResumeGenerationState | null
 
   // Positioning
   positioning: string

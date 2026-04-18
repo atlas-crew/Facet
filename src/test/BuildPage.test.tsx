@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { BuildPage } from '../routes/build/BuildPage'
 import { defaultResumeData } from '../store/defaultData'
+import { useHandoffStore } from '../store/handoffStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 
@@ -117,6 +118,8 @@ describe('BuildPage', () => {
       comparisonVector: null,
       tourCompleted: true,
     })
+
+    useHandoffStore.setState({ pendingGeneration: null })
   })
 
   afterEach(() => {
@@ -179,5 +182,31 @@ describe('BuildPage', () => {
     expect(createObjectUrl).toHaveBeenCalledTimes(1)
     expect(anchorClick).toHaveBeenCalledTimes(1)
     expect(revokeObjectUrl).not.toHaveBeenCalled()
+  })
+
+  it('preserves existing workspace variant metadata when a legacy handoff has no structured generation payload', () => {
+    useResumeStore.getState().updateGeneration({
+      source: 'pipeline',
+      mode: 'dynamic',
+      vectorMode: 'auto',
+      variantId: 'variant-keep',
+      variantLabel: 'Existing Variant',
+      primaryVectorId: 'backend',
+      vectorIds: ['backend'],
+    })
+    useHandoffStore.getState().setPendingAnalysis('Target JD', 'platform', 'pipe-55')
+
+    render(<BuildPage />)
+
+    expect(useResumeStore.getState().data.generation).toMatchObject({
+      source: 'pipeline',
+      mode: 'single',
+      vectorMode: 'manual',
+      pipelineEntryId: 'pipe-55',
+      primaryVectorId: 'platform',
+      vectorIds: ['platform'],
+      variantId: 'variant-keep',
+      variantLabel: 'Existing Variant',
+    })
   })
 })

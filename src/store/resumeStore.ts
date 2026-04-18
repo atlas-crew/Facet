@@ -14,10 +14,12 @@ import type {
   ProfileComponent,
   ComponentPriority,
 } from '../types'
+import type { ResumeWorkspaceGenerationState } from '../types/resumeGeneration'
 import { defaultResumeData } from './defaultData'
 import { reorderSkillGroupForSelection } from '../utils/skillGroupVectors'
 import { reorderById } from '../utils/reorderById'
 import { createId } from '../utils/idUtils'
+import { normalizeResumeWorkspaceGeneration } from '../utils/resumeGeneration'
 import { ensureDurableMetadata, touchDurableMetadata } from './durableMetadata'
 import { useUiStore } from './uiStore'
 
@@ -50,6 +52,7 @@ interface ResumeState {
   redo: () => void
   canUndo: boolean
   canRedo: boolean
+  updateGeneration: (generation: Partial<ResumeWorkspaceGenerationState>) => void
   
   // Positioning actions (Moved from uiStore for Global Undo/Redo)
   setOverride: (vectorId: VectorId | 'all', componentKey: string, included: boolean | null) => void
@@ -139,6 +142,7 @@ const normalizeResumeData = (
 
   return {
     ...data,
+    generation: normalizeResumeWorkspaceGeneration(data.generation),
     durableMeta: options.touch
       ? touchDurableMetadata(data.durableMeta, timestamp)
       : ensureDurableMetadata(data.durableMeta, timestamp),
@@ -299,7 +303,7 @@ export function resumeMigration(persistedState: any, version: number, legacyUiDa
     }
   }
 
-  if (version < 7 && persistedState.data) {
+  if (version < 8 && persistedState.data) {
     persistedState.data = normalizeResumeData(persistedState.data)
   }
 
@@ -312,6 +316,16 @@ export const useResumeStore = create<ResumeState>()((set, get) => ({
       future: [],
       canUndo: false,
       canRedo: false,
+
+      updateGeneration: (generation) => {
+        get().updateData((current) => ({
+          ...current,
+          generation: normalizeResumeWorkspaceGeneration({
+            ...current.generation,
+            ...generation,
+          }),
+        }))
+      },
 
       setData: (data) => {
         const { data: current } = get()

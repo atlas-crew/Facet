@@ -198,6 +198,7 @@ describe('researchUtils', () => {
       jobDescription: '',
       presetId: null,
       resumeVariant: '',
+      resumeGeneration: null,
       positioning: 'backend',
       skillMatch: 'Strong platform fit',
       nextStep: 'Review opportunity and tailor resume',

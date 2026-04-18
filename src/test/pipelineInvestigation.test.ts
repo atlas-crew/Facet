@@ -26,6 +26,7 @@ const baseEntry: PipelineEntry = {
   jobDescription: '',
   presetId: null,
   resumeVariant: '',
+  resumeGeneration: null,
   positioning: 'Platform leadership',
   skillMatch: 'Distributed systems and reliability',
   nextStep: 'Review opportunity and tailor resume',

@@ -135,6 +135,7 @@ export function createPipelineEntryDraft(
     jobDescription: '',
     presetId: null,
     resumeVariant: '',
+    resumeGeneration: null,
     positioning: entry.vectorAlignment,
     skillMatch: entry.matchReason,
     nextStep: 'Review opportunity and tailor resume',

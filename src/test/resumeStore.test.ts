@@ -33,6 +33,32 @@ describe('resumeStore', () => {
       expect(useResumeStore.getState().past.length).toBe(0)
     })
 
+    it('updateGeneration stores normalized workspace generation metadata', () => {
+      useResumeStore.getState().updateGeneration({
+        mode: 'multi-vector',
+        vectorMode: 'auto',
+        source: 'pipeline',
+        pipelineEntryId: 'pipe-10',
+        primaryVectorId: 'platform',
+        vectorIds: ['platform', 'backend', 'platform'],
+        suggestedVectorIds: ['backend', 'backend'],
+        variantLabel: ' Pipeline Draft ',
+      })
+
+      expect(useResumeStore.getState().data.generation).toEqual({
+        mode: 'multi-vector',
+        vectorMode: 'auto',
+        source: 'pipeline',
+        pipelineEntryId: 'pipe-10',
+        presetId: null,
+        variantId: null,
+        variantLabel: 'Pipeline Draft',
+        primaryVectorId: 'platform',
+        vectorIds: ['platform', 'backend'],
+        suggestedVectorIds: ['backend'],
+      })
+    })
+
     it('undo/redo works for data changes and flags correctly', () => {
       const store = useResumeStore.getState()
       
@@ -382,6 +408,41 @@ describe('resumeStore', () => {
           updatedAt: '2025-01-01T00:00:00.000Z',
         }),
       )
+    })
+
+    it('resumeMigration backfills normalized generation metadata for persisted v7 data (v7→v8)', () => {
+      const persistedState = {
+        data: {
+          ...JSON.parse(JSON.stringify(defaultResumeData)),
+          generation: {
+            mode: 'dynamic',
+            vectorMode: 'auto',
+            source: 'pipeline',
+            pipelineEntryId: 'pipe-22',
+            presetId: '',
+            variantId: '',
+            variantLabel: '  Dynamic Draft  ',
+            primaryVectorId: 'platform',
+            vectorIds: ['platform', 'platform', 'backend'],
+            suggestedVectorIds: ['backend', 'backend'],
+          },
+        },
+      }
+
+      const migrated = resumeMigration(persistedState, 7, null)
+
+      expect(migrated.data.generation).toEqual({
+        mode: 'dynamic',
+        vectorMode: 'auto',
+        source: 'pipeline',
+        pipelineEntryId: 'pipe-22',
+        presetId: null,
+        variantId: null,
+        variantLabel: 'Dynamic Draft',
+        primaryVectorId: 'platform',
+        vectorIds: ['platform', 'backend'],
+        suggestedVectorIds: ['backend'],
+      })
     })
   })
 })

@@ -252,6 +252,7 @@ describe('workspace backup merge helpers', () => {
           jobDescription: '',
           presetId: null,
           resumeVariant: 'default',
+          resumeGeneration: null,
           positioning: '',
           skillMatch: '',
           nextStep: '',
