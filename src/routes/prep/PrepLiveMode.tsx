@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
 import { derivePrepCheatsheetSections, OPENER_PREFERRED_SHORTCUTS } from '../../utils/prepCheatsheet'
+import { isPrepStackAlignmentConfidence } from '../../types/prep'
 import {
   filterPrepConditionals,
   filterPrepDeepDives,
@@ -14,7 +15,7 @@ import {
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
 import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection, PrepOpenerKind } from '../../utils/prepCheatsheet'
-import type { PrepCard, PrepDeck } from '../../types/prep'
+import type { PrepCard, PrepDeck, PrepStackAlignmentConfidence } from '../../types/prep'
 
 interface PrepLiveModeProps {
   deck: PrepDeck
@@ -191,6 +192,8 @@ function buildItemSearchText(item: PrepCheatsheetItem, cardsById: Map<string, Pr
     item.detail ?? '',
     item.category ?? '',
     ...(item.metrics?.flatMap((metric) => [metric.value, metric.label]) ?? []),
+    // Confidence is intentionally searchable so "gap" surfaces rows that need framing help.
+    ...(item.stackAlignment?.flatMap((row) => [row.theirTech, row.yourMatch, row.confidence]) ?? []),
   ]
 
   if (item.cardId) {
@@ -1148,9 +1151,74 @@ function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard
   return section.items.flatMap((item) => {
     const card = item.cardId ? cardsById.get(item.cardId) : null
     if (card) return [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false)]
+    if (item.stackAlignment && item.stackAlignment.length > 0) return [renderStackAlignmentItem(section, item)]
     if (item.metrics && item.metrics.length > 0) return [renderMetricGroupItem(section, item)]
     return [renderSimpleItem(section, item)]
   })
+}
+
+function getStackAlignmentConfidenceClass(confidence: PrepStackAlignmentConfidence): string {
+  if (confidence === 'Strong' || confidence === 'Solid') return 'prep-live-confidence-positive'
+  if (confidence === 'Gap') return 'prep-live-confidence-gap'
+  return 'prep-live-confidence-caution'
+}
+
+function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem) {
+  const rows = item.stackAlignment ?? []
+  const needsReview =
+    hasPrepNeedsReviewText(item.title) ||
+    hasPrepNeedsReviewText(item.detail) ||
+    rows.some((row) => (
+      hasPrepNeedsReviewText(row.theirTech) ||
+      hasPrepNeedsReviewText(row.yourMatch) ||
+      hasPrepNeedsReviewText(row.confidence)
+    ))
+
+  return (
+    <article
+      key={item.id}
+      className={`prep-live-card-block prep-live-card-block-${section.tone} prep-live-card-block-metrics prep-live-card-block-stack-alignment${needsReview ? ' prep-live-review-surface' : ''}`}
+    >
+      <div className="prep-live-card-block-header">
+        <div>
+          <div className="prep-live-card-block-title-row">
+            <h3>{item.title}</h3>
+            {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+          </div>
+          {item.detail ? <div className="prep-live-card-block-script-label">{item.detail}</div> : null}
+        </div>
+      </div>
+
+      <table className="prep-live-table prep-live-table-stack-alignment">
+        <thead>
+          <tr>
+            <th scope="col">Their Stack</th>
+            <th scope="col">Your Match</th>
+            <th scope="col">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => {
+            const confidence: PrepStackAlignmentConfidence = isPrepStackAlignmentConfidence(row.confidence)
+              ? row.confidence
+              : 'Working knowledge'
+
+            return (
+              <tr key={`${item.id}-stack-row-${rowIndex}`}>
+                <td>{row.theirTech}</td>
+                <td>{row.yourMatch}</td>
+                <td>
+                  <span className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(confidence)}`}>
+                    {confidence}
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </article>
+  )
 }
 
 function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {

@@ -14,6 +14,7 @@ import type {
   PrepMetric,
   PrepNumbersToKnow,
   PrepQuestionToAsk,
+  PrepStackAlignmentRow,
   PrepStoryBlock,
   PrepStoryBlockLabel,
   PrepWorkspaceMode,
@@ -24,6 +25,7 @@ import {
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
+  isPrepStackAlignmentConfidence,
 } from '../types/prep'
 import type { InterviewFormat } from '../types/pipeline'
 import { INTERVIEW_FORMAT_VALUES } from '../types/pipeline'
@@ -55,6 +57,7 @@ interface CreateDeckInput {
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
+  stackAlignment?: PrepStackAlignmentRow[]
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
@@ -347,6 +350,35 @@ function sanitizeNumbersToKnow(
     : undefined
 }
 
+function sanitizeStackAlignment(
+  stackAlignment?: PrepStackAlignmentRow[],
+  _options: SanitizeOptions = {},
+): PrepStackAlignmentRow[] | undefined {
+  if (!Array.isArray(stackAlignment)) return undefined
+
+  // Stack alignment feeds color-coded live rendering and downstream gap framing,
+  // so rows must stay enum-clean even in draft-preserving update paths.
+  const sanitized = stackAlignment.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as PrepStackAlignmentRow
+    const theirTech = typeof record.theirTech === 'string' ? record.theirTech.trim() : ''
+    const yourMatch = typeof record.yourMatch === 'string' ? record.yourMatch.trim() : ''
+    const confidence = isPrepStackAlignmentConfidence(record.confidence)
+      ? record.confidence
+      : undefined
+
+    if (!theirTech || !yourMatch || !confidence) return []
+
+    return [{
+      theirTech,
+      yourMatch,
+      confidence,
+    }]
+  })
+
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
 function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions = {}): PrepCard {
   const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
 
@@ -418,6 +450,7 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     donts: sanitizeStringList(deck.donts, options),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
     numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow, options),
+    stackAlignment: sanitizeStackAlignment(deck.stackAlignment),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance, options),
     contextGaps: sanitizeContextGaps(deck.contextGaps, options),
     contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers, options),
@@ -501,6 +534,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     donts: sanitizeStringList(deck.donts),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
     numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow),
+    stackAlignment: sanitizeStackAlignment(deck.stackAlignment),
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance),
     contextGaps: sanitizeContextGaps(deck.contextGaps),
     contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers),
@@ -601,6 +635,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           donts: input.donts,
           questionsToAsk: input.questionsToAsk,
           numbersToKnow: input.numbersToKnow,
+          stackAlignment: input.stackAlignment,
           categoryGuidance: input.categoryGuidance,
           contextGaps: input.contextGaps,
           contextGapAnswers: input.contextGapAnswers,

@@ -3,6 +3,7 @@ import {
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
+  isPrepStackAlignmentConfidence,
 } from '../types/prep'
 import type {
   PrepCard,
@@ -16,6 +17,8 @@ import type {
   PrepMetric,
   PrepNumbersToKnow,
   PrepQuestionToAsk,
+  PrepStackAlignmentConfidence,
+  PrepStackAlignmentRow,
   PrepStoryBlock,
   PrepStoryBlockLabel,
 } from '../types/prep'
@@ -32,6 +35,7 @@ interface PrepGenerationPayload {
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
+  stackAlignment?: PrepStackAlignmentRow[]
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   cards: Array<Omit<PrepCard, 'id'>>
@@ -80,6 +84,39 @@ function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
         ...(company ? { company } : {}),
       }
     : undefined
+}
+
+function normalizeStackAlignmentConfidence(value: unknown): PrepStackAlignmentConfidence | undefined {
+  if (!isString(value)) return undefined
+  const normalized = value.trim().toLowerCase()
+  const aliases: Record<PrepStackAlignmentConfidence, string[]> = {
+    Strong: ['strong'],
+    Solid: ['solid'],
+    'Working knowledge': ['working knowledge', 'working-knowledge', 'working', 'familiar'],
+    'Adjacent experience': ['adjacent experience', 'adjacent-experience', 'adjacent', 'transferable'],
+    Gap: ['gap', 'missing', 'none'],
+  }
+
+  for (const [confidence, values] of Object.entries(aliases) as Array<[PrepStackAlignmentConfidence, string[]]>) {
+    if (values.includes(normalized)) return confidence
+  }
+
+  return isPrepStackAlignmentConfidence(value.trim()) ? value.trim() as PrepStackAlignmentConfidence : undefined
+}
+
+function normalizeStackAlignment(value: unknown): PrepStackAlignmentRow[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const rows = value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const theirTech = isString(record.theirTech) ? record.theirTech.trim() : ''
+    const yourMatch = isString(record.yourMatch) ? record.yourMatch.trim() : ''
+    const confidence = normalizeStackAlignmentConfidence(record.confidence)
+    return theirTech && yourMatch && confidence
+      ? [{ theirTech, yourMatch, confidence }]
+      : []
+  })
+  return rows.length > 0 ? rows : undefined
 }
 
 function normalizeStoryBlockLabel(value: unknown): PrepStoryBlockLabel | undefined {
@@ -278,6 +315,7 @@ export async function generateInterviewPrep(
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
+  stackAlignment?: PrepStackAlignmentRow[]
   categoryGuidance?: Partial<Record<PrepCategory, string>>
   contextGaps?: PrepContextGap[]
   cards: PrepCard[]
@@ -301,6 +339,13 @@ Response schema:
     "candidate": [{ "value": "string", "label": "string" }],
     "company": [{ "value": "string", "label": "string" }]
   },
+  "stackAlignment": [
+    {
+      "theirTech": "string",
+      "yourMatch": "string",
+      "confidence": "Strong|Solid|Working knowledge|Adjacent experience|Gap"
+    }
+  ],
   "contextGaps": [
     {
       "id": "string",
@@ -386,6 +431,9 @@ Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with c
 When candidate metrics are provided, use them as the only source for numbersToKnow.candidate. You may curate, sort, relabel, or lightly format their values for readability, but you must not invent new candidate numbers.
 Use numbersToKnow.company only for numbers grounded in the supplied job description or company research.
 When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
+When structured identity context includes skill enrichment or skill groups, compare the JD technologies against those identity skills and return a stackAlignment table with honest confidence levels, including "Gap" where the evidence is missing.
+Use "yourMatch" to describe the closest truthful candidate evidence or positioning, not a restatement of the JD requirement.
+If no identity skill context is available, omit stackAlignment instead of guessing.
 If a round type is provided, adapt the emphasis and category guidance to that interview round.
 If the source material is missing context for a useful answer, do not hide the gap.
 - Prefix the affected field with [[needs-review]] when you can make a cautious inference that should be verified.
@@ -421,6 +469,7 @@ Return JSON only.`
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
+    stackAlignment: normalizeStackAlignment(parsed.stackAlignment),
     contextGaps: normalizeContextGaps(parsed.contextGaps),
     categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as Partial<Record<PrepCategory, string>> | undefined,
     cards,

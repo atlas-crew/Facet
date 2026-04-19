@@ -93,6 +93,31 @@ export interface PrepNumbersToKnow {
   company?: PrepMetric[]
 }
 
+export type PrepStackAlignmentConfidence =
+  | 'Strong'
+  | 'Solid'
+  | 'Working knowledge'
+  | 'Adjacent experience'
+  | 'Gap'
+
+export const PREP_STACK_ALIGNMENT_CONFIDENCE_VALUES = [
+  'Strong',
+  'Solid',
+  'Working knowledge',
+  'Adjacent experience',
+  'Gap',
+] as const satisfies readonly PrepStackAlignmentConfidence[]
+
+export function isPrepStackAlignmentConfidence(value: unknown): value is PrepStackAlignmentConfidence {
+  return typeof value === 'string' && (PREP_STACK_ALIGNMENT_CONFIDENCE_VALUES as readonly string[]).includes(value)
+}
+
+export interface PrepStackAlignmentRow {
+  theirTech: string
+  yourMatch: string
+  confidence: PrepStackAlignmentConfidence
+}
+
 export type PrepStoryBlockLabel = 'problem' | 'solution' | 'result' | 'closer' | 'note'
 
 export const PREP_STORY_BLOCK_LABEL_VALUES = [
@@ -174,6 +199,7 @@ export interface PrepDeck {
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
+  stackAlignment?: PrepStackAlignmentRow[]
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>

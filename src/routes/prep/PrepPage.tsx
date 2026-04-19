@@ -538,6 +538,7 @@ export function PrepPage() {
           donts: result.donts,
           questionsToAsk: result.questionsToAsk,
           numbersToKnow: result.numbersToKnow,
+          stackAlignment: result.stackAlignment,
           categoryGuidance: result.categoryGuidance,
           contextGaps: result.contextGaps,
           skillMatch: activeMatchMaterial.skillMatch,
@@ -619,6 +620,7 @@ export function PrepPage() {
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
+        stackAlignment: result.stackAlignment,
         categoryGuidance: result.categoryGuidance,
         contextGaps: result.contextGaps,
         companyUrl: selectedEntry.url || undefined,
@@ -1055,6 +1057,7 @@ export function PrepPage() {
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
+        stackAlignment: result.stackAlignment ?? latestDeck.stackAlignment,
         categoryGuidance: result.categoryGuidance,
         contextGaps: result.contextGaps,
         contextGapAnswers: (() => {

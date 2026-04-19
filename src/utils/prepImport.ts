@@ -1,4 +1,5 @@
-import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepNumbersToKnow } from '../types/prep'
+import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepNumbersToKnow, PrepStackAlignmentRow } from '../types/prep'
+import { isPrepStackAlignmentConfidence } from '../types/prep'
 import { createId } from './idUtils'
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -43,6 +44,23 @@ function validateNumbersToKnow(raw: unknown): PrepNumbersToKnow | undefined {
         ...(company ? { company } : {}),
       }
     : undefined
+}
+
+function validateStackAlignment(raw: unknown): PrepStackAlignmentRow[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+
+  const rows = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const theirTech = typeof record.theirTech === 'string' ? record.theirTech.trim() : ''
+    const yourMatch = typeof record.yourMatch === 'string' ? record.yourMatch.trim() : ''
+    const confidence = typeof record.confidence === 'string' ? record.confidence.trim() : undefined
+    return theirTech && yourMatch && confidence && isPrepStackAlignmentConfidence(confidence)
+      ? [{ theirTech, yourMatch, confidence }]
+      : []
+  })
+
+  return rows.length > 0 ? rows : undefined
 }
 
 /**
@@ -180,6 +198,7 @@ function validateDeck(raw: unknown): PrepDeck | null {
     jobDescription:
       typeof deck.jobDescription === 'string' ? deck.jobDescription : undefined,
     numbersToKnow: validateNumbersToKnow(deck.numbersToKnow),
+    stackAlignment: validateStackAlignment(deck.stackAlignment),
     generatedAt: typeof deck.generatedAt === 'string' ? deck.generatedAt : undefined,
     updatedAt: typeof deck.updatedAt === 'string' ? deck.updatedAt : now(),
     cards,

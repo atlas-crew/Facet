@@ -131,6 +131,7 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('keyPoints')
     expect(systemPrompt).toContain('questionsToAsk')
     expect(systemPrompt).toContain('numbersToKnow')
+    expect(systemPrompt).toContain('stackAlignment')
     expect(systemPrompt).toContain('contextGaps')
     expect(systemPrompt).toContain('categoryGuidance')
     expect(systemPrompt).toContain('conditionals')
@@ -145,6 +146,7 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('use it as the primary source of candidate evidence')
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('use those exact metrics')
+    expect(userPrompt).toContain('return a stackAlignment table')
     expect(userPrompt).toContain('include conditionals')
     expect(userPrompt).toContain('Generate dedicated opener cards for the predictable opening questions')
     expect(userPrompt).toContain('Always include a "Tell me about yourself" opener card')
@@ -209,6 +211,12 @@ describe('generateInterviewPrep', () => {
             { value: '3', label: ' Core platform bets ' },
           ],
         },
+        stackAlignment: [
+          { theirTech: 'Kubernetes', yourMatch: 'Operated multi-cluster platform infrastructure.', confidence: ' strong ' },
+          { theirTech: 'Terraform', yourMatch: 'Built shared IaC modules for platform teams.', confidence: 'Adjacent' },
+          { theirTech: 'Go', yourMatch: 'No direct production ownership yet.', confidence: 'gap' },
+          { theirTech: ' ', yourMatch: 'skip invalid row', confidence: 'Solid' },
+        ],
         categoryGuidance: {
           behavioral: 'Lead with scope and tradeoffs.',
           metrics: 'Name the number early.',
@@ -293,6 +301,23 @@ describe('generateInterviewPrep', () => {
         { value: '3', label: 'Core platform bets' },
       ],
     })
+    expect(result.stackAlignment).toEqual([
+      {
+        theirTech: 'Kubernetes',
+        yourMatch: 'Operated multi-cluster platform infrastructure.',
+        confidence: 'Strong',
+      },
+      {
+        theirTech: 'Terraform',
+        yourMatch: 'Built shared IaC modules for platform teams.',
+        confidence: 'Adjacent experience',
+      },
+      {
+        theirTech: 'Go',
+        yourMatch: 'No direct production ownership yet.',
+        confidence: 'Gap',
+      },
+    ])
     expect(result.categoryGuidance).toEqual({
       behavioral: 'Lead with scope and tradeoffs.',
       metrics: 'Name the number early.',
@@ -362,5 +387,6 @@ describe('generateInterviewPrep', () => {
 
     expect(result.companyResearchSummary).toBe('')
     expect(result.numbersToKnow).toBeUndefined()
+    expect(result.stackAlignment).toBeUndefined()
   })
 })

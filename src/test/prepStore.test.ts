@@ -35,6 +35,10 @@ describe('prepStore', () => {
           { value: ' 3 ', label: ' Core priorities ' },
         ],
       },
+      stackAlignment: [
+        { theirTech: ' Kubernetes ', yourMatch: ' Built and operated shared clusters. ', confidence: 'Strong' },
+        { theirTech: 'Go', yourMatch: ' Adjacent systems work ', confidence: 'Adjacent experience' },
+      ],
       categoryGuidance: {
         behavioral: ' Lead with scope ',
         '': 'ignored',
@@ -77,6 +81,10 @@ describe('prepStore', () => {
       candidate: [expect.objectContaining({ value: '38%', label: 'Incident reduction' })],
       company: [expect.objectContaining({ value: '3', label: 'Core priorities' })],
     })
+    expect(state.decks[0].stackAlignment).toEqual([
+      { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+      { theirTech: 'Go', yourMatch: 'Adjacent systems work', confidence: 'Adjacent experience' },
+    ])
     expect(state.decks[0].categoryGuidance).toEqual({ behavioral: 'Lead with scope' })
     expect(state.decks[0].contextGaps).toEqual([
       {
@@ -260,6 +268,11 @@ describe('prepStore', () => {
           numbersToKnow: {
             candidate: [{ value: ' 12 ', label: ' Pipelines ' }],
           },
+          stackAlignment: [
+            { theirTech: ' Terraform ', yourMatch: ' Built shared modules ', confidence: 'Solid' },
+            { theirTech: 'Go', yourMatch: 'Led adjacent systems debugging', confidence: 'Unknown' as never },
+            { theirTech: 'Rust', yourMatch: ' ', confidence: 'Gap' },
+          ],
           updatedAt: '2025-01-02T00:00:00.000Z',
           cards: [],
         },
@@ -272,6 +285,9 @@ describe('prepStore', () => {
     expect(migrated.decks[0].numbersToKnow).toEqual({
       candidate: [expect.objectContaining({ value: '12', label: 'Pipelines' })],
     })
+    expect(migrated.decks[0].stackAlignment).toEqual([
+      { theirTech: 'Terraform', yourMatch: 'Built shared modules', confidence: 'Solid' },
+    ])
     expect(migrated.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(migrated.activeDeckId).toBe('prep-deck-legacy')
     expect(migrated.activeMode).toBe('edit')
@@ -376,6 +392,11 @@ describe('prepStore', () => {
           { id: 'deck-metric-2', value: '', label: '' },
         ],
       },
+      stackAlignment: [
+        { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+        { theirTech: 'Go', yourMatch: 'Adjacent systems debugging', confidence: 'Unknown' as never },
+        { theirTech: 'Go', yourMatch: '', confidence: 'Gap' },
+      ],
     })
 
     usePrepStore.getState().updateCard(deckId, 'card-1', {
@@ -406,6 +427,9 @@ describe('prepStore', () => {
         { id: 'deck-metric-2', value: '', label: '' },
       ],
     })
+    expect(editingDeck.stackAlignment).toEqual([
+      { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+    ])
     expect(editingDeck.cards[0].keyPoints).toEqual(['Lead with scope', ''])
     expect(editingDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -430,6 +454,9 @@ describe('prepStore', () => {
         { id: 'deck-metric-1', value: '45%', label: 'Faster delivery' },
       ],
     })
+    expect(exportedDeck.stackAlignment).toEqual([
+      { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+    ])
     expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
     expect(exportedDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },

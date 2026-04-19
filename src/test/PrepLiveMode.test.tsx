@@ -36,6 +36,28 @@ const mockDeck: PrepDeck = {
       { id: 'metric-company-1', value: '3', label: 'Core platform bets' },
     ],
   },
+  stackAlignment: [
+    {
+      theirTech: 'Kubernetes',
+      yourMatch: 'Built and operated shared platform clusters.',
+      confidence: 'Strong',
+    },
+    {
+      theirTech: 'Terraform',
+      yourMatch: 'Built shared modules and review guardrails.',
+      confidence: 'Solid',
+    },
+    {
+      theirTech: 'Go',
+      yourMatch: 'Mostly adjacent systems debugging experience.',
+      confidence: 'Adjacent experience',
+    },
+    {
+      theirTech: 'Rust',
+      yourMatch: 'No direct production usage yet.',
+      confidence: 'Gap',
+    },
+  ],
   updatedAt: '2026-04-14T17:00:00.000Z',
   cards: [
     {
@@ -986,6 +1008,23 @@ describe('PrepLiveMode', () => {
     cleanup()
     expect(() => render(<PrepLiveMode deck={missingRowsDeck} />)).not.toThrow()
     expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+  })
+
+  it('renders stack alignment rows with confidence styling', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    expect(screen.getByRole('heading', { name: 'Numbers to Know' })).toBeTruthy()
+    expect(screen.getByText('Their Stack vs Your Match')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Their Stack' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Your Match' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Confidence' })).toBeTruthy()
+
+    expect(screen.getByText('Kubernetes')).toBeTruthy()
+    expect(screen.getByText('Built and operated shared platform clusters.')).toBeTruthy()
+    expect(screen.getByText('Strong').className).toContain('prep-live-confidence-positive')
+    expect(screen.getByText('Solid').className).toContain('prep-live-confidence-positive')
+    expect(screen.getByText('Adjacent experience').className).toContain('prep-live-confidence-caution')
+    expect(screen.getByText('Gap').className).toContain('prep-live-confidence-gap')
   })
 
   it('resets transient state when two identity-free decks reuse the live mode component', () => {

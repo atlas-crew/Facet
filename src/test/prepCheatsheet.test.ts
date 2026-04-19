@@ -34,6 +34,23 @@ const deck: PrepDeck = {
       { id: 'company-1', value: '3', label: 'Core platform bets' },
     ],
   },
+  stackAlignment: [
+    {
+      theirTech: 'Kubernetes',
+      yourMatch: 'Built and operated shared platform clusters.',
+      confidence: 'Strong',
+    },
+    {
+      theirTech: 'Go',
+      yourMatch: 'Mostly adjacent systems debugging experience.',
+      confidence: 'Adjacent experience',
+    },
+    {
+      theirTech: 'Rust',
+      yourMatch: 'No direct production usage yet.',
+      confidence: 'Gap',
+    },
+  ],
   categoryGuidance: {
     opener: 'Lead with relevance',
     behavioral: 'Lead with scope',
@@ -227,6 +244,15 @@ describe('derivePrepCheatsheetSections', () => {
           metrics: [expect.objectContaining({ value: '3', label: 'Core platform bets' })],
         }),
         expect.objectContaining({
+          id: 'stack-alignment',
+          title: 'Their Stack vs Your Match',
+          stackAlignment: [
+            expect.objectContaining({ theirTech: 'Kubernetes', confidence: 'Strong' }),
+            expect.objectContaining({ theirTech: 'Go', confidence: 'Adjacent experience' }),
+            expect.objectContaining({ theirTech: 'Rust', confidence: 'Gap' }),
+          ],
+        }),
+        expect.objectContaining({
           id: 'metrics-1',
           title: 'Key numbers to remember',
         }),
@@ -304,6 +330,7 @@ describe('derivePrepCheatsheetSections', () => {
       jobDescription: undefined,
       positioning: undefined,
       numbersToKnow: undefined,
+      stackAlignment: undefined,
       donts: [],
       questionsToAsk: [],
       cards: [],

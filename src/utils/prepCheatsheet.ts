@@ -1,5 +1,5 @@
-import { PREP_CATEGORY_VALUES } from '../types/prep'
-import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepQuestionToAsk } from '../types/prep'
+import { PREP_CATEGORY_VALUES, isPrepStackAlignmentConfidence } from '../types/prep'
+import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepQuestionToAsk, PrepStackAlignmentRow } from '../types/prep'
 
 export type PrepCheatsheetGroup = 'Intel' | 'Openers' | 'Core' | 'Technical' | 'Tactical'
 export type PrepOpenerKind = 'tell-me-about-yourself' | 'why-this-role-company' | 'why-did-you-leave' | 'general'
@@ -13,6 +13,7 @@ export interface PrepCheatsheetItem {
   cardId?: string
   category?: PrepCategory
   metrics?: PrepMetric[]
+  stackAlignment?: PrepStackAlignmentRow[]
 }
 
 export interface PrepCheatsheetSection {
@@ -172,6 +173,21 @@ function buildNumbersToKnowItems(deck: PrepDeck): PrepCheatsheetItem[] {
   }
 
   return items
+}
+
+function buildStackAlignmentItems(deck: PrepDeck): PrepCheatsheetItem[] {
+  const rows = (deck.stackAlignment ?? []).filter((row) => (
+    row.theirTech.trim() && row.yourMatch.trim() && isPrepStackAlignmentConfidence(row.confidence)
+  ))
+
+  if (rows.length === 0) return []
+
+  return [{
+    id: 'stack-alignment',
+    title: 'Their Stack vs Your Match',
+    detail: 'Use this to anchor where you are strongest, adjacent, or need explicit gap framing.',
+    stackAlignment: rows,
+  }]
 }
 
 function makeUniqueItemId(prefix: string, value: string, seen: Map<string, number>): string {
@@ -460,12 +476,16 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
 
   // Metrics is intentionally rendered after the tactical questions/donts block.
   const numberItems = buildNumbersToKnowItems(deck)
-  const metricItems = [...numberItems, ...buildCardItems(cardsByCategory.metrics)]
+  const stackAlignmentItems = buildStackAlignmentItems(deck)
+  const metricItems = [...numberItems, ...stackAlignmentItems, ...buildCardItems(cardsByCategory.metrics)]
   if (metricItems.length > 0) {
+    let metricsTitle = 'Metrics'
+    if (numberItems.length > 0) metricsTitle = 'Numbers to Know'
+    else if (stackAlignmentItems.length > 0) metricsTitle = 'Stack Alignment'
     sections.push(
       withSectionMeta(deck, {
         id: 'metrics',
-        title: numberItems.length > 0 ? 'Numbers to Know' : 'Metrics',
+        title: metricsTitle,
         description: 'Numbers and measurable outcomes you should keep ready.',
         items: metricItems,
         group: CATEGORY_GROUPS.metrics,
