@@ -40,6 +40,10 @@ const LEGACY_OPUS_MODEL = 'claude-opus-4-20250514'
 const CURRENT_SONNET_MODEL = 'claude-sonnet-4-6'
 const CURRENT_OPUS_MODEL = 'claude-opus-4-7'
 const CURRENT_HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+// Anthropic currently returns `temperature is deprecated for this model` for these
+// upstream model ids in non-thinking requests, so the proxy must omit temperature.
+// Re-check this set whenever a new Sonnet/Opus model id is added to proxy routing.
+const MODELS_OMIT_TEMPERATURE = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODEL])
 const DEFAULT_MODEL = LEGACY_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
@@ -127,6 +131,10 @@ function createUnauthenticatedAnthropicCompatClient({ baseURL }) {
       },
     },
   }
+}
+
+function shouldOmitTemperature(model) {
+  return MODELS_OMIT_TEMPERATURE.has(model)
 }
 
 function parsePositiveInteger(value, fallback) {
@@ -986,8 +994,11 @@ export function createFacetServer(options = {}) {
 
       if (useThinking) {
         params.thinking = { type: 'enabled', budget_tokens: resolvedThinkingBudget }
-      } else {
+      } else if (!shouldOmitTemperature(resolvedModel)) {
         params.temperature = resolvedTemp
+      } else if (temperature !== undefined) {
+        // Only warn on caller-supplied temperature. Omitting a server default is expected.
+        console.warn('[proxy] omitting temperature because it is not accepted by model', resolvedModel)
       }
 
       const start = Date.now()

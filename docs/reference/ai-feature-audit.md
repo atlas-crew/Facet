@@ -19,6 +19,11 @@ Shared caller defaults:
 - `timeoutMs`: `30000` unless the caller overrides it
 - request body includes `system`, `messages`, optional `model`, and optional `feature`
 
+Proxy nuance for current upstream models:
+
+- the proxy omits `temperature` when the resolved upstream model is `claude-opus-4-7` or `claude-sonnet-4-6`, because those models now reject temperature in the Anthropic Messages API
+- legacy routed models such as `claude-haiku-4-5-20251001` and `claude-sonnet-4-20250514` still receive caller/default temperature when thinking is disabled
+
 Base model aliases are resolved in [proxy/facetServer.js](/Users/nick/Developer/Facet/proxy/facetServer.js:38):
 
 | Alias | Upstream model |
@@ -40,6 +45,7 @@ Current proxy defaults:
 - default `max_tokens`: `4096`
 - default `thinking_budget`: `0`
 - if thinking is enabled, the proxy sends `thinking` instead of `temperature`
+- if the resolved model is `claude-opus-4-7` or `claude-sonnet-4-6`, the proxy omits `temperature` even when thinking is disabled
 - allowed tool type today: `web_search_20250305`
 
 ## Hosted Access Model

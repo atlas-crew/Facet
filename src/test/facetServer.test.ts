@@ -909,23 +909,25 @@ describe('facetServer persistence API', () => {
       1,
       expect.objectContaining({
         model: 'claude-opus-4-7',
-        temperature: 0.3,
       }),
     )
     expect(messagesCreate).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         model: 'claude-opus-4-7',
-        temperature: 0.3,
       }),
     )
     expect(messagesCreate).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         model: 'claude-opus-4-7',
-        temperature: 0.3,
       }),
     )
+    const [routedCall1, routedCall2, routedCall3] =
+      messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    expect(routedCall1).not.toHaveProperty('temperature')
+    expect(routedCall2).not.toHaveProperty('temperature')
+    expect(routedCall3).not.toHaveProperty('temperature')
   })
 
   it('preserves explicit raw model overrides for mapped features', async () => {
@@ -980,6 +982,171 @@ describe('facetServer persistence API', () => {
         temperature: 0.3,
       }),
     )
+  })
+
+  it('omits temperature for explicit raw overrides that already target opus 4.7', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind current-model override test server.')
+    }
+
+    const response = await fetch('http://127.0.0.1:' + address.port, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'letters.generate',
+        model: 'claude-opus-4-7',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Draft a letter.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-opus-4-7')
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-opus-4-7',
+      }),
+    )
+    const [overrideCall] =
+      messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    expect(overrideCall).not.toHaveProperty('temperature')
+  })
+
+  it('warns when callers explicitly send temperature to a model that rejects it', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind explicit-temperature warning test server.')
+    }
+
+    const response = await fetch('http://127.0.0.1:' + address.port, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'letters.generate',
+        model: 'claude-opus-4-7',
+        temperature: 0.2,
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Draft a letter.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[proxy] omitting temperature because it is not accepted by model',
+      'claude-opus-4-7',
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('omits temperature for explicit raw overrides that already target sonnet 4.6', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind current-sonnet-model override test server.')
+    }
+
+    const response = await fetch('http://127.0.0.1:' + address.port, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Summarize this.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-sonnet-4-6')
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-sonnet-4-6',
+      }),
+    )
+    const [overrideCall] =
+      messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    expect(overrideCall).not.toHaveProperty('temperature')
   })
 
   it('keeps legacy alias resolution when no feature is provided', async () => {
