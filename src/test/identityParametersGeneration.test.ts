@@ -5,6 +5,7 @@ import {
   generateSearchVectorsFromIdentity,
 } from '../utils/identityParametersGeneration'
 import { JsonExtractionError } from '../utils/llmProxy'
+import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from '../utils/researchProfileInferenceConfig'
 
 describe('identityParametersGeneration', () => {
   beforeEach(() => {
@@ -83,5 +84,23 @@ describe('identityParametersGeneration', () => {
     await expect(
       generateAwarenessFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
     ).rejects.toBeInstanceOf(JsonExtractionError)
+  })
+
+  it('uses the expanded profile inference timeout budget for search-angle generation', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"search_vectors":[]}' } }],
+      }),
+    } as Response)
+
+    await generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    )
+    setTimeoutSpy.mockRestore()
   })
 })

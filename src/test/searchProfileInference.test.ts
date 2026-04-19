@@ -6,6 +6,7 @@ import {
   JsonExtractionError,
   normalizeInferredProfile,
 } from '../utils/searchProfileInference'
+import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from '../utils/researchProfileInferenceConfig'
 
 describe('searchProfileInference', () => {
   beforeEach(() => {
@@ -160,5 +161,29 @@ describe('searchProfileInference', () => {
     await expect(
       inferSearchProfile(defaultResumeData, 'https://ai.example/proxy'),
     ).rejects.toThrow('Failed to parse inferred search profile.')
+  })
+
+  it('uses the expanded timeout budget for profile inference requests', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: '{"skills":[],"vectors":[],"workSummary":[],"openQuestions":[]}',
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await inferSearchProfile(defaultResumeData, 'https://ai.example/proxy')
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    )
+    setTimeoutSpy.mockRestore()
   })
 })

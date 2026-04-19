@@ -10,6 +10,7 @@ import type {
 } from '../types/search'
 import { createId } from './idUtils'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from './researchProfileInferenceConfig'
 
 /** Model used for profile inference — structured extraction from resume data. */
 const PROFILE_INFERENCE_MODEL = 'haiku'
@@ -265,7 +266,7 @@ Response schema:
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildInferencePrompt(resumeData), {
     feature: 'research.profile-inference',
     model: PROFILE_INFERENCE_MODEL,
-    timeoutMs: 45000,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
   })
 
   try {
@@ -307,7 +308,7 @@ Response schema:
     {
       feature: 'research.profile-inference',
       model: PROFILE_INFERENCE_MODEL,
-      timeoutMs: 45000,
+      timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
     },
   )
 

@@ -8,6 +8,7 @@ import type {
 import { createId } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from './researchProfileInferenceConfig'
 
 const GENERATION_MODEL = 'haiku'
 const VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
@@ -168,7 +169,7 @@ Response schema:
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
     feature: 'research.profile-inference',
     model: GENERATION_MODEL,
-    timeoutMs: 45000,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
   })
 
   try {
@@ -207,7 +208,7 @@ Response schema:
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
     feature: 'research.profile-inference',
     model: GENERATION_MODEL,
-    timeoutMs: 45000,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
   })
 
   try {
