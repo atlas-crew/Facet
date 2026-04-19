@@ -3,7 +3,6 @@ import {
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
-  isPrepStackAlignmentConfidence,
 } from '../types/prep'
 import type {
   PrepCard,
@@ -22,7 +21,7 @@ import type {
   PrepStoryBlock,
   PrepStoryBlockLabel,
 } from '../types/prep'
-import { createId } from './idUtils'
+import { createId, slugify } from './idUtils'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 /** Model used for interview prep — needs creative, detailed output. */
@@ -39,6 +38,22 @@ interface PrepGenerationPayload {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   cards: Array<Omit<PrepCard, 'id'>>
+}
+
+const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<PrepStackAlignmentConfidence, readonly string[]> = {
+  Strong: ['strong'],
+  Solid: ['solid'],
+  'Working knowledge': ['working knowledge', 'working-knowledge', 'working', 'familiar'],
+  'Adjacent experience': ['adjacent experience', 'adjacent-experience', 'adjacent', 'transferable'],
+  Gap: ['gap', 'missing', 'none'],
+}
+
+const GAP_FRAMING_CONFIDENCE_ORDER: Record<PrepStackAlignmentConfidence, number> = {
+  Gap: 0,
+  'Adjacent experience': 1,
+  'Working knowledge': 2,
+  Solid: 3,
+  Strong: 4,
 }
 
 const STORY_BLOCK_LABEL_ALIASES: Array<[PrepStoryBlockLabel, string[]]> = [
@@ -89,33 +104,32 @@ function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
 function normalizeStackAlignmentConfidence(value: unknown): PrepStackAlignmentConfidence | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
-  const aliases: Record<PrepStackAlignmentConfidence, string[]> = {
-    Strong: ['strong'],
-    Solid: ['solid'],
-    'Working knowledge': ['working knowledge', 'working-knowledge', 'working', 'familiar'],
-    'Adjacent experience': ['adjacent experience', 'adjacent-experience', 'adjacent', 'transferable'],
-    Gap: ['gap', 'missing', 'none'],
-  }
 
-  for (const [confidence, values] of Object.entries(aliases) as Array<[PrepStackAlignmentConfidence, string[]]>) {
+  for (const confidence of Object.keys(STACK_ALIGNMENT_CONFIDENCE_ALIASES) as PrepStackAlignmentConfidence[]) {
+    const values = STACK_ALIGNMENT_CONFIDENCE_ALIASES[confidence]
     if (values.includes(normalized)) return confidence
   }
-
-  return isPrepStackAlignmentConfidence(value.trim()) ? value.trim() as PrepStackAlignmentConfidence : undefined
+  return undefined
 }
 
 function normalizeStackAlignment(value: unknown): PrepStackAlignmentRow[] | undefined {
   if (!Array.isArray(value)) return undefined
+  const seenTech = new Set<string>()
   const rows = value.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
     const record = entry as Record<string, unknown>
     const theirTech = isString(record.theirTech) ? record.theirTech.trim() : ''
     const yourMatch = isString(record.yourMatch) ? record.yourMatch.trim() : ''
     const confidence = normalizeStackAlignmentConfidence(record.confidence)
+    const normalizedTech = theirTech.toLowerCase()
+    if (!theirTech || !yourMatch || !confidence || seenTech.has(normalizedTech)) {
+      return []
+    }
+    seenTech.add(normalizedTech)
     return theirTech && yourMatch && confidence
       ? [{ theirTech, yourMatch, confidence }]
       : []
-  })
+  }).slice(0, 20)
   return rows.length > 0 ? rows : undefined
 }
 
@@ -306,6 +320,82 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
   })
 }
 
+function isGapFramingCard(card: Pick<PrepCard, 'tags'>): boolean {
+  return card.tags.some((tag) => tag.trim().toLowerCase() === 'gap-framing')
+}
+
+function buildGapFramingFallbackCards(stackAlignment: PrepStackAlignmentRow[] | undefined): PrepCard[] {
+  if (!stackAlignment) return []
+
+  const rows = stackAlignment
+    .filter((row) => row.confidence === 'Gap' || row.confidence === 'Adjacent experience')
+    .sort((left, right) => {
+      return GAP_FRAMING_CONFIDENCE_ORDER[left.confidence] - GAP_FRAMING_CONFIDENCE_ORDER[right.confidence]
+        || left.theirTech.localeCompare(right.theirTech, undefined, { sensitivity: 'base' })
+    })
+    .slice(0, 2)
+
+  return rows.map((row, index) => {
+    const acknowledgement = row.confidence === 'Gap'
+      ? `I have not shipped ${row.theirTech} directly yet.`
+      : `My experience with ${row.theirTech} is adjacent, not end-to-end production ownership yet.`
+    const boundedRamp = row.confidence === 'Gap'
+      ? `That is a focused ramp-up area, not a fundamental mismatch.`
+      : `That is a depth gap I can close quickly because the underlying patterns already show up in my work.`
+    const transferableProof = row.yourMatch.replace(/[.!?]+$/u, '')
+    const techTag = slugify(row.theirTech) || slugify(row.yourMatch) || `gap-${index + 1}`
+    const warning = row.confidence === 'Gap'
+      ? `Do not imply direct ${row.theirTech} ownership. Lean on the transferable proof instead.`
+      : `Do not imply direct ${row.theirTech} ownership if your closest evidence is adjacent.`
+    const confidenceCue = row.confidence === 'Gap'
+      ? `Close by naming the ramp-up plan you would use to get productive in ${row.theirTech}.`
+      : `Name the adjacent system or pattern that transfers cleanly into ${row.theirTech}.`
+
+    return {
+      id: createId('prep-card'),
+      category: 'technical',
+      title: `What you know, what you don't: ${row.theirTech}`,
+      tags: Array.from(new Set(['gap-framing', 'transferable-experience', techTag])),
+      notes: acknowledgement,
+      scriptLabel: 'Bridge This Gap',
+      script: `I want to be direct: ${acknowledgement} What transfers well is ${transferableProof}. ${boundedRamp}`,
+      warning,
+      keyPoints: [
+        `Closest transferable proof: ${row.yourMatch}`,
+        confidenceCue,
+        `Be explicit about what is adjacent versus direct in ${row.theirTech}.`,
+      ],
+      source: 'ai',
+    }
+  })
+}
+
+function ensureGapFramingCards(
+  cards: PrepCard[],
+  stackAlignment: PrepStackAlignmentRow[] | undefined,
+): PrepCard[] {
+  const normalizedCards = cards.map((card) => (
+    isGapFramingCard(card)
+      ? {
+          ...card,
+          category: 'technical' as const,
+          tags: Array.from(
+            new Set([
+              ...card.tags.filter((tag) => tag.trim().toLowerCase() !== 'gap-framing'),
+              'gap-framing',
+            ]),
+          ),
+        }
+      : card
+  ))
+
+  if (normalizedCards.some((card) => isGapFramingCard(card))) {
+    return normalizedCards
+  }
+
+  return [...normalizedCards, ...buildGapFramingFallbackCards(stackAlignment)]
+}
+
 export async function generateInterviewPrep(
   endpoint: string,
   request: PrepGenerationRequest,
@@ -434,6 +524,14 @@ When structured identity context includes bullet metrics, use those exact metric
 When structured identity context includes skill enrichment or skill groups, compare the JD technologies against those identity skills and return a stackAlignment table with honest confidence levels, including "Gap" where the evidence is missing.
 Use "yourMatch" to describe the closest truthful candidate evidence or positioning, not a restatement of the JD requirement.
 If no identity skill context is available, omit stackAlignment instead of guessing.
+When stackAlignment includes entries with confidence "Gap" or "Adjacent experience", generate 1 to 2 technical gap-framing cards titled like "What you know, what you don't: <tech>".
+Mark those cards with the tag "gap-framing" and keep them in category "technical".
+For each gap-framing card:
+- put the honest acknowledgment in notes
+- put the bridge language in script
+- put the pitfall in warning
+- put 3 to 4 transferable-experience bullets in keyPoints, grounded in the actual "yourMatch" evidence
+Do not generate gap-framing cards when stackAlignment contains only Strong, Solid, or Working knowledge entries.
 If a round type is provided, adapt the emphasis and category guidance to that interview round.
 If the source material is missing context for a useful answer, do not hide the gap.
 - Prefix the affected field with [[needs-review]] when you can make a cautious inference that should be verified.
@@ -458,7 +556,11 @@ Return JSON only.`
     throw new Error('Failed to parse interview prep response.')
   }
 
-  const cards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
+  const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
+  const cards = ensureGapFramingCards(
+    normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : []),
+    stackAlignment,
+  )
   if (!isString(parsed.deckTitle) || cards.length === 0) {
     throw new Error('Interview prep response schema was invalid.')
   }
@@ -469,7 +571,7 @@ Return JSON only.`
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
-    stackAlignment: normalizeStackAlignment(parsed.stackAlignment),
+    stackAlignment,
     contextGaps: normalizeContextGaps(parsed.contextGaps),
     categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as Partial<Record<PrepCategory, string>> | undefined,
     cards,

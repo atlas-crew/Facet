@@ -147,6 +147,8 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('return a stackAlignment table')
+    expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
+    expect(userPrompt).toContain('tag "gap-framing"')
     expect(userPrompt).toContain('include conditionals')
     expect(userPrompt).toContain('Generate dedicated opener cards for the predictable opening questions')
     expect(userPrompt).toContain('Always include a "Tell me about yourself" opener card')
@@ -388,5 +390,300 @@ describe('generateInterviewPrep', () => {
     expect(result.companyResearchSummary).toBe('')
     expect(result.numbersToKnow).toBeUndefined()
     expect(result.stackAlignment).toBeUndefined()
+  })
+
+  it('adds fallback technical gap-framing cards when alignment shows gaps and the model omits them', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'GovCloud',
+            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            confidence: 'Gap',
+          },
+          {
+            theirTech: 'Go',
+            yourMatch: 'Led adjacent distributed systems debugging and service design work.',
+            confidence: 'Adjacent experience',
+          },
+        ],
+        cards: [
+          {
+            category: 'technical',
+            title: 'How do you debug a flaky distributed system?',
+            tags: ['debugging'],
+            script: 'Start with blast radius and the most recent changes.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    const gapCards = result.cards.filter((card) => card.tags.includes('gap-framing'))
+    expect(gapCards).toHaveLength(2)
+    expect(gapCards[0]).toMatchObject({
+      category: 'technical',
+      title: "What you know, what you don't: GovCloud",
+      notes: 'I have not shipped GovCloud directly yet.',
+      scriptLabel: 'Bridge This Gap',
+      warning: 'Do not imply direct GovCloud ownership. Lean on the transferable proof instead.',
+      source: 'ai',
+    })
+    expect(gapCards[0].script).toBe(
+      'I want to be direct: I have not shipped GovCloud directly yet. What transfers well is Shipped regulated platform migrations and audit-heavy environments. That is a focused ramp-up area, not a fundamental mismatch.',
+    )
+    expect(gapCards[0].keyPoints).toEqual(
+      expect.arrayContaining([
+        'Closest transferable proof: Shipped regulated platform migrations and audit-heavy environments.',
+        'Close by naming the ramp-up plan you would use to get productive in GovCloud.',
+      ]),
+    )
+    expect(gapCards[0].tags).toEqual(
+      expect.arrayContaining(['gap-framing', 'transferable-experience', 'govcloud']),
+    )
+    expect(gapCards[1]).toMatchObject({
+      category: 'technical',
+      title: "What you know, what you don't: Go",
+    })
+    expect(gapCards[1].script).toBe(
+      'I want to be direct: My experience with Go is adjacent, not end-to-end production ownership yet. What transfers well is Led adjacent distributed systems debugging and service design work. That is a depth gap I can close quickly because the underlying patterns already show up in my work.',
+    )
+    expect(gapCards[1].tags).toEqual(
+      expect.arrayContaining(['gap-framing', 'transferable-experience', 'go']),
+    )
+    expect(gapCards[1].warning).toBe(
+      'Do not imply direct Go ownership if your closest evidence is adjacent.',
+    )
+    expect(gapCards[1].keyPoints).toEqual(
+      expect.arrayContaining([
+        'Name the adjacent system or pattern that transfers cleanly into Go.',
+      ]),
+    )
+  })
+
+  it('does not add fallback gap-framing cards when stack alignment has no gaps', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'Kubernetes',
+            yourMatch: 'Built and operated shared platform clusters.',
+            confidence: 'Strong',
+          },
+          {
+            theirTech: 'Terraform',
+            yourMatch: 'Built shared modules and review guardrails.',
+            confidence: 'Solid',
+          },
+        ],
+        cards: [
+          {
+            category: 'technical',
+            title: 'How do you debug a flaky distributed system?',
+            tags: ['debugging'],
+            script: 'Start with blast radius and the most recent changes.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards.some((card) => card.tags.includes('gap-framing'))).toBe(false)
+  })
+
+  it('keeps AI-authored gap-framing cards but forces them into the technical group', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'GovCloud',
+            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            confidence: 'Gap',
+          },
+        ],
+        cards: [
+          {
+            category: 'behavioral',
+            title: "What you know, what you don't: GovCloud",
+            tags: ['gap-framing'],
+            notes: 'I have not shipped GovCloud directly yet.',
+            script: 'Bridge from regulated platform work.',
+            warning: 'Do not pretend the gap is already closed.',
+            keyPoints: ['Transferable proof from regulated environments.'],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards).toHaveLength(1)
+    expect(result.cards[0].category).toBe('technical')
+    expect(result.cards[0].tags).toEqual(['gap-framing'])
+  })
+
+  it('adds a fallback gap-framing card when the AI title drifts without the canonical tag', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'GovCloud',
+            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            confidence: 'Gap',
+          },
+        ],
+        cards: [
+          {
+            category: 'behavioral',
+            title: 'What you know, what you don’t: GovCloud',
+            tags: ['transferable-experience'],
+            notes: 'I have not shipped GovCloud directly yet.',
+            script: 'Bridge from regulated platform work.',
+            warning: 'Do not pretend the gap is already closed.',
+            keyPoints: ['Transferable proof from regulated environments.'],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards).toHaveLength(2)
+    expect(result.cards.filter((card) => card.tags.includes('gap-framing'))).toHaveLength(1)
+  })
+
+  it('canonicalizes case-variant gap-framing tags on AI-authored cards', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'GovCloud',
+            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            confidence: 'Gap',
+          },
+        ],
+        cards: [
+          {
+            category: 'behavioral',
+            title: 'Gap framing',
+            tags: ['Gap-Framing', 'transferable-experience'],
+            notes: 'I have not shipped GovCloud directly yet.',
+            script: 'Bridge from regulated platform work.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards).toHaveLength(1)
+    expect(result.cards[0].category).toBe('technical')
+    expect(result.cards[0].tags.filter((tag) => tag === 'gap-framing')).toHaveLength(1)
+    expect(result.cards[0].tags).toEqual(['transferable-experience', 'gap-framing'])
+  })
+
+  it('deduplicates stack alignment rows by tech before gap-framing fallback generation', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'Kubernetes',
+            yourMatch: 'Ran platform clusters.',
+            confidence: 'Gap',
+          },
+          {
+            theirTech: 'kubernetes',
+            yourMatch: 'Built cluster tooling.',
+            confidence: 'Adjacent experience',
+          },
+        ],
+        cards: [],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.stackAlignment).toEqual([
+      {
+        theirTech: 'Kubernetes',
+        yourMatch: 'Ran platform clusters.',
+        confidence: 'Gap',
+      },
+    ])
+    expect(result.cards.filter((card) => card.tags.includes('gap-framing'))).toHaveLength(1)
   })
 })
