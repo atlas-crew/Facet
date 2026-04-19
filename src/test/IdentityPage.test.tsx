@@ -1082,14 +1082,26 @@ describe("IdentityPage", () => {
     const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } =
       setupExportMocks("blob:identity-export", "identity.json");
     const currentIdentity = cloneIdentityFixture();
-    const expectedIdentityDocument = JSON.stringify(currentIdentity, null, 2);
 
     useIdentityStore.setState({
       currentIdentity,
     });
 
-    vi.useFakeTimers();
     render(<IdentityPage />);
+
+    await waitFor(() => {
+      expect(
+        useIdentityStore.getState().currentIdentity?.preferences.work_model.flexibility,
+      ).toContain("Remote-first");
+    });
+
+    const expectedIdentityDocument = JSON.stringify(
+      useIdentityStore.getState().currentIdentity,
+      null,
+      2,
+    );
+
+    vi.useFakeTimers();
 
     const exportIdentityButton = screen.getByText("Export Identity");
     fireEvent.click(exportIdentityButton);
