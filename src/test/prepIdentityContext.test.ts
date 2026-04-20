@@ -17,7 +17,9 @@ const identityFixture: ProfessionalIdentityV3 = {
   },
   self_model: {
     arc: [],
-    philosophy: [{ id: 'phil-1', text: 'Keep systems understandable.', tags: ['systems'] }],
+    philosophy: [
+      { id: 'phil-1', text: 'Keep systems understandable.', tags: ['systems'] },
+    ],
     interview_style: {
       strengths: ['incident response'],
       weaknesses: ['rambling'],
@@ -35,7 +37,12 @@ const identityFixture: ProfessionalIdentityV3 = {
         id: 'skills-platform',
         label: 'Platform',
         items: [
-          { name: 'Kubernetes', depth: 'strong', positioning: 'Operates production clusters.', tags: ['platform'] },
+          {
+            name: 'Kubernetes',
+            depth: 'strong',
+            positioning: 'Operates production clusters.',
+            tags: ['platform'],
+          },
           { name: 'COBOL', depth: 'basic', tags: ['legacy'] },
         ],
       },
@@ -99,8 +106,22 @@ describe('buildPrepIdentityContext', () => {
   it('filters roles and skills to vector-relevant assets and keeps interview style context', () => {
     const context = buildPrepIdentityContext(identityFixture, 'backend') as {
       identity: { display_name?: string }
-      self_model: { interview_style: { strengths: string[] }, prep_strategy?: string }
-      candidate_metrics?: Array<{ metricKey: string; metricValue: string; company: string; suggestedLabel: string }>
+      self_model: {
+        interview_style: { strengths: string[] }
+        prep_strategy?: string
+      }
+      candidate_metrics?: Array<{
+        metricKey: string
+        metricValue: string
+        company: string
+        suggestedLabel: string
+      }>
+      fallback_candidate_metrics?: Array<{
+        metricKey: string
+        metricValue: string
+        company: string
+        suggestedLabel: string
+      }>
       roles: Array<{ bullets: Array<{ id: string }> }>
       skills: Array<{ items: Array<{ name: string }> }>
       philosophy?: unknown
@@ -108,19 +129,37 @@ describe('buildPrepIdentityContext', () => {
       generator_rules?: unknown
     }
 
-    expect(context.self_model.interview_style.strengths).toEqual(['incident response'])
+    expect(context.self_model.interview_style.strengths).toEqual([
+      'incident response',
+    ])
     expect(context.self_model.prep_strategy).toBe('Use short STAR answers.')
     expect(context.identity.display_name).toBe('Alex')
     expect(context.roles).toHaveLength(1)
     expect(context.roles[0].bullets).toEqual([
       expect.objectContaining({ id: 'bullet-keep' }),
     ])
-    expect(context.candidate_metrics).toEqual([
+    expect(context.candidate_metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metricKey: 'incidents',
+          metricValue: '38%',
+          company: 'Acme',
+          suggestedLabel: 'Incidents',
+        }),
+      ]),
+    )
+    expect(context.candidate_metrics?.[0]).toEqual(
       expect.objectContaining({
         metricKey: 'incidents',
         metricValue: '38%',
+      }),
+    )
+    expect(context.fallback_candidate_metrics).toEqual([
+      expect.objectContaining({
+        metricKey: 'feeds',
+        metricValue: '1',
         company: 'Acme',
-        suggestedLabel: 'Incidents',
+        suggestedLabel: 'Feeds',
       }),
     ])
     expect(context.skills).toEqual([
@@ -131,6 +170,127 @@ describe('buildPrepIdentityContext', () => {
     expect(context.philosophy).toBeUndefined()
     expect(context.education).toBeUndefined()
     expect(context.generator_rules).toBeUndefined()
+  })
+
+  it('preserves raw bullet evidence for vector-relevant stories', () => {
+    const context = buildPrepIdentityContext(
+      {
+        ...identityFixture,
+        roles: [
+          {
+            ...identityFixture.roles[0],
+            bullets: [
+              {
+                ...identityFixture.roles[0].bullets[0],
+                source_text:
+                  'Cut the AWS bill in half by consolidating per-tenant infrastructure.',
+                portfolio_dive: '#aws-savings',
+              },
+              ...identityFixture.roles[0].bullets.slice(1),
+            ],
+          },
+        ],
+      },
+      'backend',
+    ) as {
+      roles: Array<{
+        bullets: Array<{
+          source_text?: string
+          portfolio_dive?: string | null
+        }>
+      }>
+    }
+
+    expect(context.roles[0].bullets[0]?.source_text).toBe(
+      'Cut the AWS bill in half by consolidating per-tenant infrastructure.',
+    )
+    expect(context.roles[0].bullets[0]?.portfolio_dive).toBe('#aws-savings')
+  })
+
+  it('keeps non-vector metrics available to prep even when their bullets are filtered out', () => {
+    const identityWithExtraMetric: ProfessionalIdentityV3 = {
+      ...identityFixture,
+      roles: [
+        {
+          ...identityFixture.roles[0],
+          bullets: identityFixture.roles[0].bullets.map((bullet) =>
+            bullet.id === 'bullet-drop'
+              ? {
+                  ...bullet,
+                  metrics: {
+                    aws_savings_monthly: '$60K/mo',
+                    aws_bill_reduction: '50%',
+                  },
+                }
+              : bullet,
+          ),
+        },
+      ],
+    }
+
+    const context = buildPrepIdentityContext(
+      identityWithExtraMetric,
+      'backend',
+    ) as {
+      candidate_metrics?: Array<{ metricKey: string; metricValue: string }>
+      fallback_candidate_metrics?: Array<{
+        metricKey: string
+        metricValue: string
+      }>
+      roles: Array<{ bullets: Array<{ id: string }> }>
+    }
+
+    expect(context.roles[0].bullets).toEqual([
+      expect.objectContaining({ id: 'bullet-keep' }),
+    ])
+    expect(context.candidate_metrics).toEqual([
+      expect.objectContaining({ metricKey: 'incidents', metricValue: '38%' }),
+    ])
+    expect(context.fallback_candidate_metrics).toEqual([
+      expect.objectContaining({
+        metricKey: 'aws_savings_monthly',
+        metricValue: '$60K/mo',
+      }),
+      expect.objectContaining({
+        metricKey: 'aws_bill_reduction',
+        metricValue: '50%',
+      }),
+    ])
+  })
+
+  it('surfaces fallback metrics when the selected vector has no matching bullets', () => {
+    const noMatchIdentity: ProfessionalIdentityV3 = {
+      ...identityFixture,
+      search_vectors: [
+        {
+          id: 'frontend',
+          title: 'Frontend Product Surface',
+          priority: 'high',
+          thesis: 'Lead with browser-facing product delivery.',
+          target_roles: ['Frontend Engineer'],
+          keywords: {
+            primary: ['react'],
+            secondary: ['ui'],
+          },
+        },
+      ],
+    }
+
+    const context = buildPrepIdentityContext(noMatchIdentity, 'frontend') as {
+      candidate_metrics?: Array<{ metricKey: string; metricValue: string }>
+      fallback_candidate_metrics?: Array<{
+        metricKey: string
+        metricValue: string
+      }>
+      roles: Array<{ bullets: Array<{ id: string }> }>
+    }
+
+    expect(context.roles).toEqual([])
+    expect(context.candidate_metrics).toBeUndefined()
+    expect(context.fallback_candidate_metrics).toEqual([
+      expect.objectContaining({ metricKey: 'incidents', metricValue: '38%' }),
+      expect.objectContaining({ metricKey: 'feeds', metricValue: '1' }),
+    ])
   })
 
   it('falls back to broad structured context when the vector is missing', () => {
@@ -149,7 +309,11 @@ describe('buildPrepIdentityContext', () => {
   })
 
   it('uses vector id and label terms to scope fallback matching when an exact vector is unavailable', () => {
-    const context = buildPrepIdentityContext(identityFixture, 'missing', 'Platform Reliability') as {
+    const context = buildPrepIdentityContext(
+      identityFixture,
+      'missing',
+      'Platform Reliability',
+    ) as {
       roles: Array<{ bullets: Array<{ id: string }> }>
       skills: Array<{ items: Array<{ name: string }> }>
     }
@@ -178,12 +342,18 @@ describe('buildPrepIdentityContext', () => {
             primary: [],
             secondary: [],
           },
-          evidence: ['Reduced incidents by 38%', 'Kubernetes platform reliability'],
+          evidence: [
+            'Reduced incidents by 38%',
+            'Kubernetes platform reliability',
+          ],
         },
       ],
     }
 
-    const context = buildPrepIdentityContext(identityWithKeywordVector, 'reliability') as {
+    const context = buildPrepIdentityContext(
+      identityWithKeywordVector,
+      'reliability',
+    ) as {
       roles: Array<{ bullets: Array<{ id: string }> }>
       skills: Array<{ items: Array<{ name: string }> }>
     }
@@ -216,7 +386,10 @@ describe('buildPrepIdentityContext', () => {
       ],
     }
 
-    const context = buildPrepIdentityContext(identityWithPartialSupport, 'platform') as {
+    const context = buildPrepIdentityContext(
+      identityWithPartialSupport,
+      'platform',
+    ) as {
       roles: Array<{ bullets: Array<{ id: string }> }>
       skills: Array<{ items: Array<{ name: string }> }>
     }

@@ -1,4 +1,8 @@
-import type { ProfessionalIdentityV3, ProfessionalRoleBullet, ProfessionalSkillItem } from '../identity/schema'
+import type {
+  ProfessionalIdentityV3,
+  ProfessionalRoleBullet,
+  ProfessionalSkillItem,
+} from '../identity/schema'
 import type { PrepIdentityMetricCandidate } from '../types/prep'
 
 const MAX_EVIDENCE_CHARS = 240
@@ -20,6 +24,7 @@ export interface PrepIdentityContext {
     prep_strategy?: string
   }
   candidate_metrics?: PrepIdentityMetricCandidate[]
+  fallback_candidate_metrics?: PrepIdentityMetricCandidate[]
   roles: Array<{
     id: string
     company: string
@@ -34,6 +39,8 @@ export interface PrepIdentityContext {
       impact: string[]
       metrics: ProfessionalRoleBullet['metrics']
       technologies: string[]
+      source_text?: string
+      portfolio_dive?: string
       tags: string[]
     }>
   }>
@@ -62,14 +69,23 @@ function humanizeMetricKey(value: string): string {
 }
 
 function summarizeBulletEvidence(bullet: ProfessionalRoleBullet): string {
-  const summary = [bullet.problem, bullet.action, bullet.outcome, ...bullet.impact]
+  const summary = [
+    bullet.problem,
+    bullet.action,
+    bullet.outcome,
+    ...bullet.impact,
+  ]
     .map((value) => value.trim())
     .filter(Boolean)
     .join(' ')
   if (summary.length <= MAX_EVIDENCE_CHARS) return summary
   const truncated = summary.slice(0, MAX_EVIDENCE_CHARS)
   const boundary = truncated.lastIndexOf(' ')
-  return (boundary >= MIN_EVIDENCE_BOUNDARY_CHARS ? truncated.slice(0, boundary) : truncated).trimEnd()
+  return (
+    boundary >= MIN_EVIDENCE_BOUNDARY_CHARS
+      ? truncated.slice(0, boundary)
+      : truncated
+  ).trimEnd()
 }
 
 const expandTerms = (values: string[]): Set<string> =>
@@ -77,7 +93,9 @@ const expandTerms = (values: string[]): Set<string> =>
     values.flatMap((value) => {
       const normalized = normalizeTerm(value)
       if (!normalized) return []
-      const tokens = normalized.split(/[^a-z0-9]+/).filter((token) => token.length >= 3)
+      const tokens = normalized
+        .split(/[^a-z0-9]+/)
+        .filter((token) => token.length >= 3)
       return [normalized, ...tokens]
     }),
   )
@@ -112,7 +130,10 @@ const bulletMatchesVector = (
     ...Object.values(bullet.metrics).map((value) => String(value)),
   ]
 
-  return matchesAnyTerm(bulletText, skillNames) || matchesAnyTerm(bulletText, keywordTerms)
+  return (
+    matchesAnyTerm(bulletText, skillNames) ||
+    matchesAnyTerm(bulletText, keywordTerms)
+  )
 }
 
 const skillMatchesVector = (
@@ -128,6 +149,41 @@ const skillMatchesVector = (
   )
 }
 
+function collectCandidateMetrics(
+  target: PrepIdentityMetricCandidate[],
+  seen: Set<string>,
+  role: ProfessionalIdentityV3['roles'][number],
+  bullet: ProfessionalRoleBullet,
+): void {
+  for (const [metricKey, metricValue] of Object.entries(bullet.metrics)) {
+    if (
+      !(
+        typeof metricValue === 'number' ||
+        (typeof metricValue === 'string' && metricValue.trim())
+      )
+    ) {
+      continue
+    }
+
+    const candidate = {
+      roleId: role.id,
+      roleTitle: role.title,
+      company: role.company,
+      bulletId: bullet.id,
+      metricKey,
+      metricValue:
+        typeof metricValue === 'number' ? String(metricValue) : metricValue,
+      suggestedLabel: humanizeMetricKey(metricKey),
+      evidence: summarizeBulletEvidence(bullet),
+    } satisfies PrepIdentityMetricCandidate
+
+    const dedupeKey = `${candidate.roleId}:${candidate.bulletId}:${candidate.metricKey}`
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+    target.push(candidate)
+  }
+}
+
 export function buildPrepIdentityContext(
   identity: ProfessionalIdentityV3,
   vectorId?: string,
@@ -137,80 +193,90 @@ export function buildPrepIdentityContext(
     ? (identity.search_vectors?.find((entry) => entry.id === vectorId) ?? null)
     : null
   const relevantBulletIds = new Set(selectedVector?.supporting_bullets ?? [])
-  const relevantSkillNames = new Set((selectedVector?.supporting_skills ?? []).map(normalizeTerm))
+  const relevantSkillNames = new Set(
+    (selectedVector?.supporting_skills ?? []).map(normalizeTerm),
+  )
   // Match original semantics: fallback matching only kicks in when vectorLabel is present.
   // vectorId alone (with no label) signals the caller doesn't have semantic framing — return
   // broad context rather than text-matching against an opaque id.
   const fallbackTerms = vectorLabel
     ? [vectorId, vectorLabel].filter((term): term is string => Boolean(term))
     : []
-  const keywordTerms = expandTerms(selectedVector
-    ? [
-        ...(selectedVector.keywords.primary ?? []),
-        ...(selectedVector.keywords.secondary ?? []),
-        ...(selectedVector.target_roles ?? []),
-        ...(selectedVector.evidence ?? []),
-        selectedVector.title,
-        selectedVector.thesis,
-      ]
-    : fallbackTerms)
+  const keywordTerms = expandTerms(
+    selectedVector
+      ? [
+          ...(selectedVector.keywords.primary ?? []),
+          ...(selectedVector.keywords.secondary ?? []),
+          ...(selectedVector.target_roles ?? []),
+          ...(selectedVector.evidence ?? []),
+          selectedVector.title,
+          selectedVector.thesis,
+        ]
+      : fallbackTerms,
+  )
   const candidateMetrics: PrepIdentityMetricCandidate[] = []
+  const fallbackCandidateMetrics: PrepIdentityMetricCandidate[] = []
+  const seenRelevantMetricKeys = new Set<string>()
+  const seenFallbackMetricKeys = new Set<string>()
 
   const roles = identity.roles.flatMap((role) => {
-    const bullets = role.bullets
-      .filter((bullet) => (
-        selectedVector || keywordTerms.size > 0
-          ? bulletMatchesVector(bullet, relevantBulletIds, relevantSkillNames, keywordTerms)
-          : true
-      ))
-      .map((bullet) => {
-        for (const [metricKey, metricValue] of Object.entries(bullet.metrics)) {
-          if (!(typeof metricValue === 'number' || (typeof metricValue === 'string' && metricValue.trim()))) {
-            continue
-          }
-          candidateMetrics.push({
-            roleId: role.id,
-            roleTitle: role.title,
-            company: role.company,
-            bulletId: bullet.id,
-            metricKey,
-            metricValue: typeof metricValue === 'number' ? String(metricValue) : metricValue,
-            suggestedLabel: humanizeMetricKey(metricKey),
-            evidence: summarizeBulletEvidence(bullet),
-          })
-        }
+    const relevantBullets: ProfessionalRoleBullet[] = []
 
-        return {
-          id: bullet.id,
-          problem: bullet.problem,
-          action: bullet.action,
-          outcome: bullet.outcome,
-          impact: bullet.impact,
-          metrics: bullet.metrics,
-          technologies: bullet.technologies,
-          tags: bullet.tags,
-        }
-      })
+    for (const bullet of role.bullets) {
+      const isRelevant =
+        selectedVector || keywordTerms.size > 0
+          ? bulletMatchesVector(
+              bullet,
+              relevantBulletIds,
+              relevantSkillNames,
+              keywordTerms,
+            )
+          : true
+
+      collectCandidateMetrics(
+        isRelevant ? candidateMetrics : fallbackCandidateMetrics,
+        isRelevant ? seenRelevantMetricKeys : seenFallbackMetricKeys,
+        role,
+        bullet,
+      )
+
+      if (isRelevant) relevantBullets.push(bullet)
+    }
+
+    const bullets = relevantBullets.map((bullet) => ({
+      id: bullet.id,
+      problem: bullet.problem,
+      action: bullet.action,
+      outcome: bullet.outcome,
+      impact: bullet.impact,
+      metrics: bullet.metrics,
+      technologies: bullet.technologies,
+      source_text: bullet.source_text ?? undefined,
+      portfolio_dive: bullet.portfolio_dive ?? undefined,
+      tags: bullet.tags,
+    }))
 
     if (bullets.length === 0) return []
 
-    return [{
-      id: role.id,
-      company: role.company,
-      title: role.title,
-      dates: role.dates,
-      subtitle: role.subtitle ?? undefined,
-      bullets,
-    }]
+    return [
+      {
+        id: role.id,
+        company: role.company,
+        title: role.title,
+        dates: role.dates,
+        subtitle: role.subtitle ?? undefined,
+        bullets,
+      },
+    ]
   })
 
   const skills = identity.skills.groups.flatMap((group) => {
     const items = group.items
-      .filter((item) => (
+      .filter((item) =>
         selectedVector || keywordTerms.size > 0
           ? skillMatchesVector(item, relevantSkillNames, keywordTerms)
-          : true
-      ))
+          : true,
+      )
       .map((item) => ({
         name: item.name,
         depth: item.depth,
@@ -221,12 +287,14 @@ export function buildPrepIdentityContext(
 
     if (items.length === 0) return []
 
-    return [{
-      id: group.id,
-      label: group.label,
-      positioning: group.positioning,
-      items,
-    }]
+    return [
+      {
+        id: group.id,
+        label: group.label,
+        positioning: group.positioning,
+        items,
+      },
+    ]
   })
 
   return {
@@ -256,7 +324,12 @@ export function buildPrepIdentityContext(
       interview_style: identity.self_model.interview_style,
       prep_strategy: identity.self_model.interview_style.prep_strategy,
     },
-    candidate_metrics: candidateMetrics.length > 0 ? candidateMetrics : undefined,
+    candidate_metrics:
+      candidateMetrics.length > 0 ? candidateMetrics : undefined,
+    fallback_candidate_metrics:
+      fallbackCandidateMetrics.length > 0
+        ? fallbackCandidateMetrics
+        : undefined,
     roles,
     skills,
   }

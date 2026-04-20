@@ -6,7 +6,10 @@ const { callLlmProxyMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../utils/llmProxy', async () => {
-  const actual = await vi.importActual<typeof import('../utils/llmProxy')>('../utils/llmProxy')
+  const actual =
+    await vi.importActual<typeof import('../utils/llmProxy')>(
+      '../utils/llmProxy',
+    )
   return {
     ...actual,
     callLlmProxy: callLlmProxyMock,
@@ -101,6 +104,19 @@ describe('generateInterviewPrep', () => {
             evidence: 'Reduced incidents by 38%.',
           },
         ],
+        fallback_candidate_metrics: [
+          {
+            metricKey: 'aws_savings_monthly',
+            metricValue: '$60K/mo',
+            suggestedLabel: 'AWS Savings Monthly',
+            company: 'ThreatX',
+            roleTitle: 'Platform Engineer',
+            bulletId: 'bullet-2',
+            roleId: 'role-2',
+            evidence:
+              'Cut the AWS bill in half by consolidating infrastructure.',
+          },
+        ],
         self_model: {
           interview_style: {
             strengths: ['incident response'],
@@ -139,23 +155,41 @@ describe('generateInterviewPrep', () => {
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Candidate Metrics From Identity')
+    expect(userPrompt).toContain(
+      'Additional Candidate Metrics Outside The Vector Slice',
+    )
     expect(userPrompt).toContain('Existing Context Gaps')
     expect(userPrompt).toContain('Context Gap Answers')
     expect(userPrompt).toContain('Latency was spiking during peak load.')
     expect(userPrompt).toContain('"metricKey": "incidents"')
+    expect(userPrompt).toContain('"metricKey": "aws_savings_monthly"')
     expect(userPrompt.match(/"metricKey": "incidents"/g)).toHaveLength(1)
-    expect(userPrompt).toContain('use it as the primary source of candidate evidence')
+    expect(
+      userPrompt.match(/"metricKey": "aws_savings_monthly"/g),
+    ).toHaveLength(1)
+    expect(userPrompt).toContain(
+      'use it as the primary source of candidate evidence',
+    )
     expect(userPrompt).toContain('Target Round Type: hm-screen')
+    expect(userPrompt).toContain('outside the vector slice')
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('return a stackAlignment table')
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
     expect(userPrompt).toContain('tag "gap-framing"')
     expect(userPrompt).toContain('include conditionals')
-    expect(userPrompt).toContain('Generate dedicated opener cards for the predictable opening questions')
-    expect(userPrompt).toContain('Always include a "Tell me about yourself" opener card')
-    expect(userPrompt).toContain('Always include a "Why this role/company?" opener card')
+    expect(userPrompt).toContain(
+      'Generate dedicated opener cards for the predictable opening questions',
+    )
+    expect(userPrompt).toContain(
+      'Always include a "Tell me about yourself" opener card',
+    )
+    expect(userPrompt).toContain(
+      'Always include a "Why this role/company?" opener card',
+    )
     expect(userPrompt).toContain('identity.departureContext')
-    expect(userPrompt).toContain('Prefix the affected field with [[needs-review]]')
+    expect(userPrompt).toContain(
+      'Prefix the affected field with [[needs-review]]',
+    )
   })
 
   it('marks structured identity context as not provided when absent', async () => {
@@ -202,7 +236,10 @@ describe('generateInterviewPrep', () => {
         companyResearchSummary: 'Acme is scaling carefully.',
         donts: [' Be generic ', '', 7],
         questionsToAsk: [
-          { question: 'What is the platform team optimizing for next?', context: 'Shows systems thinking.' },
+          {
+            question: 'What is the platform team optimizing for next?',
+            context: 'Shows systems thinking.',
+          },
           { question: ' ', context: 'Skip empty question.' },
         ],
         numbersToKnow: {
@@ -210,15 +247,29 @@ describe('generateInterviewPrep', () => {
             { value: ' 38% ', label: ' Incident reduction ' },
             { value: '', label: 'Skip blank' },
           ],
-          company: [
-            { value: '3', label: ' Core platform bets ' },
-          ],
+          company: [{ value: '3', label: ' Core platform bets ' }],
         },
         stackAlignment: [
-          { theirTech: 'Kubernetes', yourMatch: 'Operated multi-cluster platform infrastructure.', confidence: ' strong ' },
-          { theirTech: 'Terraform', yourMatch: 'Built shared IaC modules for platform teams.', confidence: 'Adjacent' },
-          { theirTech: 'Go', yourMatch: 'No direct production ownership yet.', confidence: 'gap' },
-          { theirTech: ' ', yourMatch: 'skip invalid row', confidence: 'Solid' },
+          {
+            theirTech: 'Kubernetes',
+            yourMatch: 'Operated multi-cluster platform infrastructure.',
+            confidence: ' strong ',
+          },
+          {
+            theirTech: 'Terraform',
+            yourMatch: 'Built shared IaC modules for platform teams.',
+            confidence: 'Adjacent',
+          },
+          {
+            theirTech: 'Go',
+            yourMatch: 'No direct production ownership yet.',
+            confidence: 'gap',
+          },
+          {
+            theirTech: ' ',
+            yourMatch: 'skip invalid row',
+            confidence: 'Solid',
+          },
         ],
         categoryGuidance: {
           behavioral: 'Lead with scope and tradeoffs.',
@@ -257,20 +308,35 @@ describe('generateInterviewPrep', () => {
             scriptLabel: ' Lead With ',
             keyPoints: ['Own the incident', ' ', null, 'Close with the metric'],
             storyBlocks: [
-              { label: 'Problem Statement', text: 'Latency spiked during peak load.' },
+              {
+                label: 'Problem Statement',
+                text: 'Latency spiked during peak load.',
+              },
               { label: 'Action', text: 'Redesigned the request pipeline.' },
               { label: 'Outcome', text: 'Reduced incidents by 38%.' },
               { label: 'Unknown', text: 'Drop this malformed label.' },
             ],
             conditionals: [
-              { trigger: ' If they push on ownership ', response: ' Clarify what you led directly. ', tone: ' pivot ' },
-              { trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
-              { trigger: 'If they keep pushing on certainty', response: 'Say what you knew, what you escalated, and what you would verify next.', tone: 'escalation' },
+              {
+                trigger: ' If they push on ownership ',
+                response: ' Clarify what you led directly. ',
+                tone: ' pivot ',
+              },
+              {
+                trigger: 'Were you just reacting late?',
+                response:
+                  'Name the signal, the decision, and the prevention step.',
+                tone: 'trap',
+              },
+              {
+                trigger: 'If they keep pushing on certainty',
+                response:
+                  'Say what you knew, what you escalated, and what you would verify next.',
+                tone: 'escalation',
+              },
               { trigger: ' ', response: 'skip blank', tone: 'pivot' },
             ],
-            metrics: [
-              { value: '38%', label: 'Incident reduction' },
-            ],
+            metrics: [{ value: '38%', label: 'Incident reduction' }],
           },
         ],
       }),
@@ -297,12 +363,8 @@ describe('generateInterviewPrep', () => {
       },
     ])
     expect(result.numbersToKnow).toEqual({
-      candidate: [
-        { value: '38%', label: 'Incident reduction' },
-      ],
-      company: [
-        { value: '3', label: 'Core platform bets' },
-      ],
+      candidate: [{ value: '38%', label: 'Incident reduction' }],
+      company: [{ value: '3', label: 'Core platform bets' }],
     })
     expect(result.stackAlignment).toEqual([
       {
@@ -343,18 +405,30 @@ describe('generateInterviewPrep', () => {
       }),
     ])
     expect(result.cards[0].scriptLabel).toBe('Lead With')
-    expect(result.cards[0].keyPoints).toEqual(['Own the incident', 'Close with the metric'])
+    expect(result.cards[0].keyPoints).toEqual([
+      'Own the incident',
+      'Close with the metric',
+    ])
     expect(result.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Latency spiked during peak load.' },
       { label: 'solution', text: 'Redesigned the request pipeline.' },
       { label: 'result', text: 'Reduced incidents by 38%.' },
     ])
     expect(result.cards[0].conditionals).toEqual([
-      { trigger: 'If they push on ownership', response: 'Clarify what you led directly.', tone: 'pivot' },
-      { trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
+      {
+        trigger: 'If they push on ownership',
+        response: 'Clarify what you led directly.',
+        tone: 'pivot',
+      },
+      {
+        trigger: 'Were you just reacting late?',
+        response: 'Name the signal, the decision, and the prevention step.',
+        tone: 'trap',
+      },
       {
         trigger: 'If they keep pushing on certainty',
-        response: 'Say what you knew, what you escalated, and what you would verify next.',
+        response:
+          'Say what you knew, what you escalated, and what you would verify next.',
         tone: 'escalation',
       },
     ])
@@ -429,12 +503,14 @@ describe('generateInterviewPrep', () => {
         stackAlignment: [
           {
             theirTech: 'GovCloud',
-            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            yourMatch:
+              'Shipped regulated platform migrations and audit-heavy environments.',
             confidence: 'Gap',
           },
           {
             theirTech: 'Go',
-            yourMatch: 'Led adjacent distributed systems debugging and service design work.',
+            yourMatch:
+              'Led adjacent distributed systems debugging and service design work.',
             confidence: 'Adjacent experience',
           },
         ],
@@ -462,14 +538,17 @@ describe('generateInterviewPrep', () => {
       },
     })
 
-    const gapCards = result.cards.filter((card) => card.tags.includes('gap-framing'))
+    const gapCards = result.cards.filter((card) =>
+      card.tags.includes('gap-framing'),
+    )
     expect(gapCards).toHaveLength(2)
     expect(gapCards[0]).toMatchObject({
       category: 'technical',
       title: "What you know, what you don't: GovCloud",
       notes: 'I have not shipped GovCloud directly yet.',
       scriptLabel: 'Bridge This Gap',
-      warning: 'Do not imply direct GovCloud ownership. Lean on the transferable proof instead.',
+      warning:
+        'Do not imply direct GovCloud ownership. Lean on the transferable proof instead.',
       source: 'ai',
     })
     expect(gapCards[0].script).toBe(
@@ -482,7 +561,11 @@ describe('generateInterviewPrep', () => {
       ]),
     )
     expect(gapCards[0].tags).toEqual(
-      expect.arrayContaining(['gap-framing', 'transferable-experience', 'govcloud']),
+      expect.arrayContaining([
+        'gap-framing',
+        'transferable-experience',
+        'govcloud',
+      ]),
     )
     expect(gapCards[1]).toMatchObject({
       category: 'technical',
@@ -544,7 +627,9 @@ describe('generateInterviewPrep', () => {
       },
     })
 
-    expect(result.cards.some((card) => card.tags.includes('gap-framing'))).toBe(false)
+    expect(result.cards.some((card) => card.tags.includes('gap-framing'))).toBe(
+      false,
+    )
   })
 
   it('keeps AI-authored gap-framing cards but forces them into the technical group', async () => {
@@ -554,7 +639,8 @@ describe('generateInterviewPrep', () => {
         stackAlignment: [
           {
             theirTech: 'GovCloud',
-            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            yourMatch:
+              'Shipped regulated platform migrations and audit-heavy environments.',
             confidence: 'Gap',
           },
         ],
@@ -597,7 +683,8 @@ describe('generateInterviewPrep', () => {
         stackAlignment: [
           {
             theirTech: 'GovCloud',
-            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            yourMatch:
+              'Shipped regulated platform migrations and audit-heavy environments.',
             confidence: 'Gap',
           },
         ],
@@ -629,7 +716,9 @@ describe('generateInterviewPrep', () => {
     })
 
     expect(result.cards).toHaveLength(2)
-    expect(result.cards.filter((card) => card.tags.includes('gap-framing'))).toHaveLength(1)
+    expect(
+      result.cards.filter((card) => card.tags.includes('gap-framing')),
+    ).toHaveLength(1)
   })
 
   it('canonicalizes case-variant gap-framing tags on AI-authored cards', async () => {
@@ -639,7 +728,8 @@ describe('generateInterviewPrep', () => {
         stackAlignment: [
           {
             theirTech: 'GovCloud',
-            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            yourMatch:
+              'Shipped regulated platform migrations and audit-heavy environments.',
             confidence: 'Gap',
           },
         ],
@@ -670,8 +760,13 @@ describe('generateInterviewPrep', () => {
 
     expect(result.cards).toHaveLength(1)
     expect(result.cards[0].category).toBe('technical')
-    expect(result.cards[0].tags.filter((tag) => tag === 'gap-framing')).toHaveLength(1)
-    expect(result.cards[0].tags).toEqual(['transferable-experience', 'gap-framing'])
+    expect(
+      result.cards[0].tags.filter((tag) => tag === 'gap-framing'),
+    ).toHaveLength(1)
+    expect(result.cards[0].tags).toEqual([
+      'transferable-experience',
+      'gap-framing',
+    ])
   })
 
   it('deduplicates stack alignment rows by tech before gap-framing fallback generation', async () => {
@@ -714,6 +809,8 @@ describe('generateInterviewPrep', () => {
         confidence: 'Gap',
       },
     ])
-    expect(result.cards.filter((card) => card.tags.includes('gap-framing'))).toHaveLength(1)
+    expect(
+      result.cards.filter((card) => card.tags.includes('gap-framing')),
+    ).toHaveLength(1)
   })
 })

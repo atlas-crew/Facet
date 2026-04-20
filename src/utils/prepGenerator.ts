@@ -23,7 +23,12 @@ import type {
 } from '../types/prep'
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
-import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import {
+  callLlmProxy,
+  extractJsonBlock,
+  JsonExtractionError,
+  isString,
+} from './llmProxy'
 
 /** Model used for interview prep — needs creative, detailed output. */
 const PREP_MODEL = 'sonnet'
@@ -47,15 +52,31 @@ interface PrepGenerationPayload {
   cards: Array<Omit<PrepCard, 'id'>>
 }
 
-const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<PrepStackAlignmentConfidence, readonly string[]> = {
+const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<
+  PrepStackAlignmentConfidence,
+  readonly string[]
+> = {
   Strong: ['strong'],
   Solid: ['solid'],
-  'Working knowledge': ['working knowledge', 'working-knowledge', 'working', 'familiar'],
-  'Adjacent experience': ['adjacent experience', 'adjacent-experience', 'adjacent', 'transferable'],
+  'Working knowledge': [
+    'working knowledge',
+    'working-knowledge',
+    'working',
+    'familiar',
+  ],
+  'Adjacent experience': [
+    'adjacent experience',
+    'adjacent-experience',
+    'adjacent',
+    'transferable',
+  ],
   Gap: ['gap', 'missing', 'none'],
 }
 
-const GAP_FRAMING_CONFIDENCE_ORDER: Record<PrepStackAlignmentConfidence, number> = {
+const GAP_FRAMING_CONFIDENCE_ORDER: Record<
+  PrepStackAlignmentConfidence,
+  number
+> = {
   Gap: 0,
   'Adjacent experience': 1,
   'Working knowledge': 2,
@@ -64,7 +85,10 @@ const GAP_FRAMING_CONFIDENCE_ORDER: Record<PrepStackAlignmentConfidence, number>
 }
 
 const STORY_BLOCK_LABEL_ALIASES: Array<[PrepStoryBlockLabel, string[]]> = [
-  ['problem', ['problem', 'problem statement', 'challenge', 'context', 'situation']],
+  [
+    'problem',
+    ['problem', 'problem statement', 'challenge', 'context', 'situation'],
+  ],
   ['solution', ['solution', 'action', 'approach', 'what i did']],
   ['result', ['result', 'outcome', 'impact', 'what happened']],
   ['closer', ['closer', 'close', 'wrap-up', 'wrap up', 'takeaway']],
@@ -73,7 +97,10 @@ const STORY_BLOCK_LABEL_ALIASES: Array<[PrepStoryBlockLabel, string[]]> = [
 
 const normalizeStringList = (values: unknown): string[] | undefined => {
   if (!Array.isArray(values)) return undefined
-  const normalized = values.filter(isString).map((value) => value.trim()).filter(Boolean)
+  const normalized = values
+    .filter(isString)
+    .map((value) => value.trim())
+    .filter(Boolean)
   return normalized.length > 0 ? normalized : undefined
 }
 
@@ -83,12 +110,11 @@ function normalizeMetricList(value: unknown): PrepMetric[] | undefined {
     if (!entry || typeof entry !== 'object') return []
     const record = entry as Record<string, unknown>
     const rawValue = record.value
-    const valueText =
-      isString(rawValue)
-        ? rawValue.trim()
-        : typeof rawValue === 'number' && Number.isFinite(rawValue)
-          ? String(rawValue)
-          : ''
+    const valueText = isString(rawValue)
+      ? rawValue.trim()
+      : typeof rawValue === 'number' && Number.isFinite(rawValue)
+        ? String(rawValue)
+        : ''
     const label = isString(record.label) ? record.label.trim() : ''
     return valueText && label ? [{ value: valueText, label }] : []
   })
@@ -96,7 +122,8 @@ function normalizeMetricList(value: unknown): PrepMetric[] | undefined {
 }
 
 function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined
   const record = value as Record<string, unknown>
   const candidate = normalizeMetricList(record.candidate)
   const company = normalizeMetricList(record.company)
@@ -108,43 +135,64 @@ function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
     : undefined
 }
 
-function normalizeStackAlignmentConfidence(value: unknown): PrepStackAlignmentConfidence | undefined {
+function normalizeStackAlignmentConfidence(
+  value: unknown,
+): PrepStackAlignmentConfidence | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
 
-  for (const confidence of Object.keys(STACK_ALIGNMENT_CONFIDENCE_ALIASES) as PrepStackAlignmentConfidence[]) {
+  for (const confidence of Object.keys(
+    STACK_ALIGNMENT_CONFIDENCE_ALIASES,
+  ) as PrepStackAlignmentConfidence[]) {
     const values = STACK_ALIGNMENT_CONFIDENCE_ALIASES[confidence]
     if (values.includes(normalized)) return confidence
   }
   return undefined
 }
 
-function normalizeStackAlignment(value: unknown): PrepStackAlignmentRow[] | undefined {
+function normalizeStackAlignment(
+  value: unknown,
+): PrepStackAlignmentRow[] | undefined {
   if (!Array.isArray(value)) return undefined
   const seenTech = new Set<string>()
-  const rows = value.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object') return []
-    const record = entry as Record<string, unknown>
-    const theirTech = isString(record.theirTech) ? record.theirTech.trim() : ''
-    const yourMatch = isString(record.yourMatch) ? record.yourMatch.trim() : ''
-    const confidence = normalizeStackAlignmentConfidence(record.confidence)
-    const normalizedTech = theirTech.toLowerCase()
-    if (!theirTech || !yourMatch || !confidence || seenTech.has(normalizedTech)) {
-      return []
-    }
-    seenTech.add(normalizedTech)
-    return theirTech && yourMatch && confidence
-      ? [{ theirTech, yourMatch, confidence }]
-      : []
-  }).slice(0, 20)
+  const rows = value
+    .flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return []
+      const record = entry as Record<string, unknown>
+      const theirTech = isString(record.theirTech)
+        ? record.theirTech.trim()
+        : ''
+      const yourMatch = isString(record.yourMatch)
+        ? record.yourMatch.trim()
+        : ''
+      const confidence = normalizeStackAlignmentConfidence(record.confidence)
+      const normalizedTech = theirTech.toLowerCase()
+      if (
+        !theirTech ||
+        !yourMatch ||
+        !confidence ||
+        seenTech.has(normalizedTech)
+      ) {
+        return []
+      }
+      seenTech.add(normalizedTech)
+      return theirTech && yourMatch && confidence
+        ? [{ theirTech, yourMatch, confidence }]
+        : []
+    })
+    .slice(0, 20)
   return rows.length > 0 ? rows : undefined
 }
 
-function normalizeStoryBlockLabel(value: unknown): PrepStoryBlockLabel | undefined {
+function normalizeStoryBlockLabel(
+  value: unknown,
+): PrepStoryBlockLabel | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
   if (!normalized) return undefined
-  if ((PREP_STORY_BLOCK_LABEL_VALUES as readonly string[]).includes(normalized)) {
+  if (
+    (PREP_STORY_BLOCK_LABEL_VALUES as readonly string[]).includes(normalized)
+  ) {
     return normalized as PrepStoryBlockLabel
   }
 
@@ -161,8 +209,23 @@ function stripCandidateMetricsFromIdentityContext(
   value: PrepGenerationRequest['identityContext'],
 ): Record<string, unknown> | undefined {
   if (!value) return undefined
-  const { candidate_metrics: _candidateMetrics, ...rest } = value
+  const {
+    candidate_metrics: _candidateMetrics,
+    fallback_candidate_metrics: _fallbackCandidateMetrics,
+    ...rest
+  } = value
   return rest
+}
+
+// Identity context is produced in-process by buildPrepIdentityContext, so array shape is trusted here.
+function readIdentityMetricCandidates(
+  value: PrepGenerationRequest['identityContext'],
+  key: 'candidate_metrics' | 'fallback_candidate_metrics',
+): PrepIdentityMetricCandidate[] | undefined {
+  const candidate = value?.[key]
+  return Array.isArray(candidate)
+    ? (candidate as PrepIdentityMetricCandidate[])
+    : undefined
 }
 
 function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
@@ -177,7 +240,9 @@ function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
   return storyBlocks.length > 0 ? storyBlocks : undefined
 }
 
-function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefined {
+function normalizeQuestionsToAsk(
+  value: unknown,
+): PrepQuestionToAsk[] | undefined {
   if (!Array.isArray(value)) return undefined
   const questions = value.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
@@ -192,8 +257,10 @@ function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefine
 function normalizeContextGapPriority(value: unknown): PrepContextGapPriority {
   if (!isString(value)) return 'recommended'
   const normalized = value.trim().toLowerCase()
-  return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(normalized as PrepContextGapPriority)
-    ? normalized as PrepContextGapPriority
+  return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(
+    normalized as PrepContextGapPriority,
+  )
+    ? (normalized as PrepContextGapPriority)
     : 'recommended'
 }
 
@@ -206,25 +273,33 @@ function normalizeContextGaps(value: unknown): PrepContextGap[] | undefined {
     const section = isString(record.section) ? record.section.trim() : ''
     const question = isString(record.question) ? record.question.trim() : ''
     const why = isString(record.why) ? record.why.trim() : ''
-    const feedbackTarget = isString(record.feedbackTarget) ? record.feedbackTarget.trim() : ''
+    const feedbackTarget = isString(record.feedbackTarget)
+      ? record.feedbackTarget.trim()
+      : ''
     if (!section || !question || !why) return []
-    return [{
-      id,
-      section,
-      question,
-      why,
-      feedbackTarget: feedbackTarget || undefined,
-      priority: normalizeContextGapPriority(record.priority),
-    }]
+    return [
+      {
+        id,
+        section,
+        question,
+        why,
+        feedbackTarget: feedbackTarget || undefined,
+        priority: normalizeContextGapPriority(record.priority),
+      },
+    ]
   })
   return gaps.length > 0 ? gaps : undefined
 }
 
-function normalizeConditionalTone(value: unknown): PrepConditionalTone | undefined {
+function normalizeConditionalTone(
+  value: unknown,
+): PrepConditionalTone | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
-  return PREP_CONDITIONAL_TONE_VALUES.includes(normalized as PrepConditionalTone)
-    ? normalized as PrepConditionalTone
+  return PREP_CONDITIONAL_TONE_VALUES.includes(
+    normalized as PrepConditionalTone,
+  )
+    ? (normalized as PrepConditionalTone)
     : undefined
 }
 
@@ -241,15 +316,22 @@ function normalizeConditionals(value: unknown): PrepConditional[] | undefined {
   return conditionals.length > 0 ? conditionals : undefined
 }
 
-function normalizeCategoryGuidance(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, guidance]) => {
-    const normalizedKey = key.trim()
-    const normalizedGuidance = isString(guidance) ? guidance.trim() : ''
-    return normalizedKey && normalizedGuidance && (PREP_CATEGORY_VALUES as readonly string[]).includes(normalizedKey)
-      ? [[normalizedKey, normalizedGuidance] as const]
-      : []
-  })
+function normalizeCategoryGuidance(
+  value: unknown,
+): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined
+  const entries = Object.entries(value as Record<string, unknown>).flatMap(
+    ([key, guidance]) => {
+      const normalizedKey = key.trim()
+      const normalizedGuidance = isString(guidance) ? guidance.trim() : ''
+      return normalizedKey &&
+        normalizedGuidance &&
+        (PREP_CATEGORY_VALUES as readonly string[]).includes(normalizedKey)
+        ? [[normalizedKey, normalizedGuidance] as const]
+        : []
+    },
+  )
 
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
@@ -259,13 +341,18 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
     if (!card || typeof card !== 'object') return []
     const record = card as Record<string, unknown>
     if (!isString(record.title) || !isString(record.category)) return []
-    if (!(PREP_CATEGORY_VALUES as readonly string[]).includes(record.category)) {
+    if (
+      !(PREP_CATEGORY_VALUES as readonly string[]).includes(record.category)
+    ) {
       return []
     }
     const category = record.category as PrepCategory
 
     const tags = Array.isArray(record.tags)
-      ? record.tags.filter(isString).map((tag) => tag.trim()).filter(Boolean)
+      ? record.tags
+          .filter(isString)
+          .map((tag) => tag.trim())
+          .filter(Boolean)
       : []
 
     return [
@@ -276,7 +363,9 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         tags,
         notes: isString(record.notes) ? record.notes.trim() : undefined,
         script: isString(record.script) ? record.script.trim() : undefined,
-        scriptLabel: isString(record.scriptLabel) ? record.scriptLabel.trim() || undefined : undefined,
+        scriptLabel: isString(record.scriptLabel)
+          ? record.scriptLabel.trim() || undefined
+          : undefined,
         warning: isString(record.warning) ? record.warning.trim() : undefined,
         storyBlocks: normalizeStoryBlocks(record.storyBlocks),
         keyPoints: normalizeStringList(record.keyPoints),
@@ -285,7 +374,12 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
               if (!followUp || typeof followUp !== 'object') return []
               const item = followUp as Record<string, unknown>
               return isString(item.question) && isString(item.answer)
-                ? [{ question: item.question.trim(), answer: item.answer.trim() }]
+                ? [
+                    {
+                      question: item.question.trim(),
+                      answer: item.answer.trim(),
+                    },
+                  ]
                 : []
             })
           : undefined,
@@ -311,12 +405,19 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         tableData:
           record.tableData && typeof record.tableData === 'object'
             ? {
-                headers: Array.isArray((record.tableData as { headers?: unknown[] }).headers)
-                  ? ((record.tableData as { headers: unknown[] }).headers.filter(isString) as string[])
+                headers: Array.isArray(
+                  (record.tableData as { headers?: unknown[] }).headers,
+                )
+                  ? ((
+                      record.tableData as { headers: unknown[] }
+                    ).headers.filter(isString) as string[])
                   : [],
-                rows: Array.isArray((record.tableData as { rows?: unknown[] }).rows)
-                  ? (record.tableData as { rows: unknown[] }).rows.flatMap((row) =>
-                      Array.isArray(row) && row.every(isString) ? [row] : [],
+                rows: Array.isArray(
+                  (record.tableData as { rows?: unknown[] }).rows,
+                )
+                  ? (record.tableData as { rows: unknown[] }).rows.flatMap(
+                      (row) =>
+                        Array.isArray(row) && row.every(isString) ? [row] : [],
                     )
                   : [],
               }
@@ -331,38 +432,55 @@ function isGapFramingCard(card: Pick<PrepCard, 'tags'>): boolean {
   return card.tags.some((tag) => tag.trim().toLowerCase() === 'gap-framing')
 }
 
-function buildGapFramingFallbackCards(stackAlignment: PrepStackAlignmentRow[] | undefined): PrepCard[] {
+function buildGapFramingFallbackCards(
+  stackAlignment: PrepStackAlignmentRow[] | undefined,
+): PrepCard[] {
   if (!stackAlignment) return []
 
   const rows = stackAlignment
-    .filter((row) => row.confidence === 'Gap' || row.confidence === 'Adjacent experience')
+    .filter(
+      (row) =>
+        row.confidence === 'Gap' || row.confidence === 'Adjacent experience',
+    )
     .sort((left, right) => {
-      return GAP_FRAMING_CONFIDENCE_ORDER[left.confidence] - GAP_FRAMING_CONFIDENCE_ORDER[right.confidence]
-        || left.theirTech.localeCompare(right.theirTech, undefined, { sensitivity: 'base' })
+      return (
+        GAP_FRAMING_CONFIDENCE_ORDER[left.confidence] -
+          GAP_FRAMING_CONFIDENCE_ORDER[right.confidence] ||
+        left.theirTech.localeCompare(right.theirTech, undefined, {
+          sensitivity: 'base',
+        })
+      )
     })
     .slice(0, 2)
 
   return rows.map((row, index) => {
-    const acknowledgement = row.confidence === 'Gap'
-      ? `I have not shipped ${row.theirTech} directly yet.`
-      : `My experience with ${row.theirTech} is adjacent, not end-to-end production ownership yet.`
-    const boundedRamp = row.confidence === 'Gap'
-      ? `That is a focused ramp-up area, not a fundamental mismatch.`
-      : `That is a depth gap I can close quickly because the underlying patterns already show up in my work.`
+    const acknowledgement =
+      row.confidence === 'Gap'
+        ? `I have not shipped ${row.theirTech} directly yet.`
+        : `My experience with ${row.theirTech} is adjacent, not end-to-end production ownership yet.`
+    const boundedRamp =
+      row.confidence === 'Gap'
+        ? `That is a focused ramp-up area, not a fundamental mismatch.`
+        : `That is a depth gap I can close quickly because the underlying patterns already show up in my work.`
     const transferableProof = row.yourMatch.replace(/[.!?]+$/u, '')
-    const techTag = slugify(row.theirTech) || slugify(row.yourMatch) || `gap-${index + 1}`
-    const warning = row.confidence === 'Gap'
-      ? `Do not imply direct ${row.theirTech} ownership. Lean on the transferable proof instead.`
-      : `Do not imply direct ${row.theirTech} ownership if your closest evidence is adjacent.`
-    const confidenceCue = row.confidence === 'Gap'
-      ? `Close by naming the ramp-up plan you would use to get productive in ${row.theirTech}.`
-      : `Name the adjacent system or pattern that transfers cleanly into ${row.theirTech}.`
+    const techTag =
+      slugify(row.theirTech) || slugify(row.yourMatch) || `gap-${index + 1}`
+    const warning =
+      row.confidence === 'Gap'
+        ? `Do not imply direct ${row.theirTech} ownership. Lean on the transferable proof instead.`
+        : `Do not imply direct ${row.theirTech} ownership if your closest evidence is adjacent.`
+    const confidenceCue =
+      row.confidence === 'Gap'
+        ? `Close by naming the ramp-up plan you would use to get productive in ${row.theirTech}.`
+        : `Name the adjacent system or pattern that transfers cleanly into ${row.theirTech}.`
 
     return {
       id: createId('prep-card'),
       category: 'technical',
       title: `What you know, what you don't: ${row.theirTech}`,
-      tags: Array.from(new Set(['gap-framing', 'transferable-experience', techTag])),
+      tags: Array.from(
+        new Set(['gap-framing', 'transferable-experience', techTag]),
+      ),
       notes: acknowledgement,
       scriptLabel: 'Bridge This Gap',
       script: `I want to be direct: ${acknowledgement} What transfers well is ${transferableProof}. ${boundedRamp}`,
@@ -381,20 +499,22 @@ function ensureGapFramingCards(
   cards: PrepCard[],
   stackAlignment: PrepStackAlignmentRow[] | undefined,
 ): PrepCard[] {
-  const normalizedCards = cards.map((card) => (
+  const normalizedCards = cards.map((card) =>
     isGapFramingCard(card)
       ? {
           ...card,
           category: 'technical' as const,
           tags: Array.from(
             new Set([
-              ...card.tags.filter((tag) => tag.trim().toLowerCase() !== 'gap-framing'),
+              ...card.tags.filter(
+                (tag) => tag.trim().toLowerCase() !== 'gap-framing',
+              ),
               'gap-framing',
             ]),
           ),
         }
-      : card
-  ))
+      : card,
+  )
 
   if (normalizedCards.some((card) => isGapFramingCard(card))) {
     return normalizedCards
@@ -417,8 +537,17 @@ export async function generateInterviewPrep(
   contextGaps?: PrepContextGap[]
   cards: PrepCard[]
 }> {
-  const candidateMetrics: PrepIdentityMetricCandidate[] | undefined = request.identityContext?.candidate_metrics
-  const structuredIdentityContext = stripCandidateMetricsFromIdentityContext(request.identityContext)
+  const candidateMetrics = readIdentityMetricCandidates(
+    request.identityContext,
+    'candidate_metrics',
+  )
+  const fallbackCandidateMetrics = readIdentityMetricCandidates(
+    request.identityContext,
+    'fallback_candidate_metrics',
+  )
+  const structuredIdentityContext = stripCandidateMetricsFromIdentityContext(
+    request.identityContext,
+  )
 
   const systemPrompt = `You are an expert interview coach and career strategist. Return JSON only.
 Generate a strong interview prep pack from a candidate's resume context, a job description, company research notes, and (when provided) a target vector to orient the framing.
@@ -497,9 +626,10 @@ Response schema:
   ]
 }`
 
-  const vectorLine = request.vectorLabel || request.vectorId
-    ? `Target Vector: ${request.vectorLabel ?? request.vectorId} (${request.vectorId ?? ''})\n`
-    : ''
+  const vectorLine =
+    request.vectorLabel || request.vectorId
+      ? `Target Vector: ${request.vectorLabel ?? request.vectorId} (${request.vectorId ?? ''})\n`
+      : ''
   const userPrompt = `Target Company: ${request.company}
 Target Role: ${request.role}
 ${vectorLine}Target Round Type: ${request.roundType ?? 'Not provided'}
@@ -517,6 +647,9 @@ ${structuredIdentityContext ? JSON.stringify(structuredIdentityContext, null, 2)
 
 Candidate Metrics From Identity:
 ${candidateMetrics ? JSON.stringify(candidateMetrics, null, 2) : 'Not provided'}
+
+Additional Candidate Metrics Outside The Vector Slice:
+${fallbackCandidateMetrics ? JSON.stringify(fallbackCandidateMetrics, null, 2) : 'Not provided'}
 
 Existing Context Gaps:
 ${request.contextGaps ? JSON.stringify(request.contextGaps, null, 2) : 'Not provided'}
@@ -540,7 +673,8 @@ If a card has a script, also provide a short scriptLabel such as "Say This", "Le
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
 Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with coaching context, and categoryGuidance keyed by the prep category names.
-When candidate metrics are provided, use them as the only source for numbersToKnow.candidate. You may curate, sort, relabel, or lightly format their values for readability, but you must not invent new candidate numbers.
+When candidate metrics are provided, use them as the primary source for numbersToKnow.candidate. You may curate, sort, relabel, or lightly format their values for readability, but you must not invent new candidate numbers.
+When additional candidate metrics outside the vector slice are provided, treat them as truthful supporting proof for openers, resume-level headline positioning, or gap-avoidance when they clearly strengthen the answer. Do not let them override the target vector framing for the rest of the deck.
 Use numbersToKnow.company only for numbers grounded in the supplied job description or company research.
 When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
 When structured identity context includes skill enrichment or skill groups, compare the JD technologies against those identity skills and return a stackAlignment table with honest confidence levels, including "Gap" where the evidence is missing.
@@ -582,7 +716,18 @@ Return JSON only (inside the tags).`
   let parsed: PrepGenerationPayload
   try {
     const extraction = extractJsonBlock(rawResponse)
-    parsed = parseJsonWithRepair<PrepGenerationPayload>(extraction, 'Interview prep response').data
+    const parsedResult = parseJsonWithRepair<PrepGenerationPayload>(
+      extraction,
+      'Interview prep response',
+    ).data
+    if (
+      !parsedResult ||
+      typeof parsedResult !== 'object' ||
+      Array.isArray(parsedResult)
+    ) {
+      throw new Error('Interview prep response must be a JSON object.')
+    }
+    parsed = parsedResult
   } catch (error) {
     if (error instanceof JsonExtractionError) throw error
     const parseMessage = error instanceof Error ? error.message : String(error)
@@ -609,13 +754,17 @@ Return JSON only (inside the tags).`
 
   return {
     deckTitle: parsed.deckTitle.trim(),
-    companyResearchSummary: isString(parsed.companyResearchSummary) ? parsed.companyResearchSummary.trim() : '',
+    companyResearchSummary: isString(parsed.companyResearchSummary)
+      ? parsed.companyResearchSummary.trim()
+      : '',
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
     stackAlignment,
     contextGaps: normalizeContextGaps(parsed.contextGaps),
-    categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as Partial<Record<PrepCategory, string>> | undefined,
+    categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as
+      | Partial<Record<PrepCategory, string>>
+      | undefined,
     cards,
   }
 }
