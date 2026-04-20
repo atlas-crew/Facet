@@ -393,6 +393,35 @@ describe('generateInterviewPrep', () => {
     expect(result.stackAlignment).toBeUndefined()
   })
 
+  it('repairs malformed JSON when the model drops a closing array bracket near the end', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      '<result>\n{"deckTitle":"Acme Staff Engineer Prep","companyResearchSummary":"Acme is scaling carefully.","cards":[{"category":"opener","title":"Tell me about yourself","tags":["intro"],"script":"I build reliable systems.","keyPoints":["Lead with platform depth","Close with outcomes"}]}\n</result>',
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.deckTitle).toBe('Acme Staff Engineer Prep')
+    expect(result.companyResearchSummary).toBe('Acme is scaling carefully.')
+    expect(result.cards).toHaveLength(1)
+    expect(result.cards[0]).toMatchObject({
+      category: 'opener',
+      title: 'Tell me about yourself',
+      script: 'I build reliable systems.',
+      keyPoints: ['Lead with platform depth', 'Close with outcomes'],
+    })
+  })
+
   it('adds fallback technical gap-framing cards when alignment shows gaps and the model omits them', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({

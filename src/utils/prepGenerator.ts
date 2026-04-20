@@ -22,6 +22,7 @@ import type {
   PrepStoryBlockLabel,
 } from '../types/prep'
 import { createId, slugify } from './idUtils'
+import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 /** Model used for interview prep — needs creative, detailed output. */
@@ -580,7 +581,8 @@ Return JSON only (inside the tags).`
 
   let parsed: PrepGenerationPayload
   try {
-    parsed = JSON.parse(extractJsonBlock(rawResponse)) as PrepGenerationPayload
+    const extraction = extractJsonBlock(rawResponse)
+    parsed = parseJsonWithRepair<PrepGenerationPayload>(extraction, 'Interview prep response').data
   } catch (error) {
     if (error instanceof JsonExtractionError) throw error
     const parseMessage = error instanceof Error ? error.message : String(error)
