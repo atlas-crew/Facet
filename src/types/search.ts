@@ -115,6 +115,20 @@ export interface SearchRequest {
   maxResults: SearchRequestMaxResults
 }
 
+export interface SearchResultInterviewProcess {
+  format: string
+  builderFriendly: boolean
+  aiToolsAllowed: boolean
+  estimatedTimeline?: string
+}
+
+export interface SearchResultCompanyIntel {
+  stage: string
+  aiCulture: string
+  remotePolicy: string
+  openRoleCount?: number
+}
+
 export interface SearchResultEntry {
   id: string
   tier: 1 | 2 | 3
@@ -128,6 +142,17 @@ export interface SearchResultEntry {
   risks: string[]
   estimatedComp?: string
   source: string
+
+  /** "Why this candidate wins here" narrative from deep research. */
+  candidateEdge?: string
+  /** Interview process intelligence for this company/role. */
+  interviewProcess?: SearchResultInterviewProcess
+  /** Company intelligence gathered during research. */
+  companyIntel?: SearchResultCompanyIntel
+  /** Signal convergence grouping: "every signal aligns", "most signals converge", etc. */
+  signalGroup?: string
+  /** Which unfair advantage combination from the search thesis drove this match. */
+  advantageMatch?: string
 }
 
 export interface SearchTokenUsage {
@@ -146,6 +171,106 @@ export interface SearchRun {
   searchLog: string[]
   error?: string
   tokenUsage?: SearchTokenUsage
+}
+
+// ── Search Thesis ──────────────────────────────────────────────
+
+export type SearchThesisSource = 'generated' | 'user-edited'
+
+export type SearchUrgency = 'critical' | 'active' | 'exploratory'
+
+export type SearchNoiseLevel = 'low' | 'medium' | 'high'
+
+export interface SearchUnfairAdvantage {
+  /** Skill combination that creates competitive edge. */
+  combination: string
+  /** Semantic depth description for this combination. */
+  depth: string
+  /** What kind of company this advantage targets. */
+  targetCompanyProfile: string
+}
+
+export interface SearchLane {
+  id: string
+  /** Strategic search angle title. */
+  title: string
+  /** Why this lane exists — the strategic rationale. */
+  rationale: string
+  /** Competitive landscape context: why this is rare or valuable. */
+  competitiveContext?: string
+  /** Signals to look for in companies matching this lane. */
+  targetSignals: string[]
+}
+
+export interface SearchThesisAvoid {
+  label: string
+  /** Qualifying condition: "building around k8s is fine, being a k8s admin is not". */
+  condition?: string
+}
+
+export interface SearchTimeline {
+  urgency: SearchUrgency
+  deadline?: string
+  /** How urgency affects search strategy. */
+  strategyImpact: string
+}
+
+export interface SearchKeywordCombination {
+  /** Search query string, e.g. '"platform engineer" + security'. */
+  query: string
+  /** Which SearchLane.id this keyword combination targets. */
+  lane: string
+  noiseLevel: SearchNoiseLevel
+}
+
+export interface SearchSkillDepthEntry {
+  skill: string
+  /** Semantic depth level from identity model. */
+  depth: string
+  /** Evidence context: "4+ years daily use at WAF company". */
+  context: string
+  /** How to use this skill in search: "Strong match signal. List first." */
+  searchSignal: string
+  /** Honest framing: "Not a K8s admin. Building around it is fine." */
+  calibration?: string
+}
+
+/**
+ * Strategic hypothesis that drives deep research execution.
+ * Generated in Phase 1 (thesis generation), reviewed and corrected
+ * by the user, then used as input to Phase 2 (deep research).
+ */
+export interface SearchThesis {
+  id: string
+  createdAt: string
+  updatedAt: string
+
+  /** What makes this candidate structurally different. */
+  competitiveMoat: string
+  /** Rare skill combinations with depth validation. */
+  unfairAdvantages: SearchUnfairAdvantage[]
+  /** 2-4 strategic angles to search along, each with rationale. */
+  searchLanes: SearchLane[]
+  /** Connects candidate archetype to interview format advantage. */
+  interviewStrategy: string
+  /** Signals to look for in target companies. */
+  lookFor: string[]
+  /** What to avoid, with qualifying conditions. */
+  avoid: SearchThesisAvoid[]
+
+  /** Search urgency and timeline constraints. */
+  timeline?: SearchTimeline
+  /** Specific search queries per lane with noise level. */
+  keywordCombinations: SearchKeywordCombination[]
+  /** Per-skill semantic depth with context and search guidance. */
+  skillDepthMap: SearchSkillDepthEntry[]
+
+  /** Whether this thesis was AI-generated or user-edited. */
+  source: SearchThesisSource
+  /** Which identity model version this was derived from. */
+  identityVersion: number
+  /** IDs of feedback events that informed this thesis. */
+  feedbackIncorporated: string[]
 }
 
 export const DEFAULT_SEARCH_MAX_RESULTS: SearchRequestMaxResults = {

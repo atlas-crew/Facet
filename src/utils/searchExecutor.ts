@@ -1,7 +1,9 @@
 import type {
   SearchProfile,
   SearchRequest,
+  SearchResultCompanyIntel,
   SearchResultEntry,
+  SearchResultInterviewProcess,
   SearchTokenUsage,
 } from '../types/search'
 import { readAiProxyError } from './aiProxyErrors'
@@ -188,6 +190,37 @@ export function normalizeTier(value: unknown): 1 | 2 | 3 | null {
   return null
 }
 
+function normalizeInterviewProcess(value: unknown): SearchResultInterviewProcess | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const format = isString(record.format) ? record.format.trim() : ''
+  if (!format) return undefined
+  return {
+    format,
+    builderFriendly: typeof record.builderFriendly === 'boolean' ? record.builderFriendly : false,
+    aiToolsAllowed: typeof record.aiToolsAllowed === 'boolean' ? record.aiToolsAllowed : false,
+    estimatedTimeline: isString(record.estimatedTimeline) ? record.estimatedTimeline.trim() || undefined : undefined,
+  }
+}
+
+function normalizeCompanyIntel(value: unknown): SearchResultCompanyIntel | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const stage = isString(record.stage) ? record.stage.trim() : ''
+  const aiCulture = isString(record.aiCulture) ? record.aiCulture.trim() : ''
+  const remotePolicy = isString(record.remotePolicy) ? record.remotePolicy.trim() : ''
+  if (!stage && !aiCulture && !remotePolicy) return undefined
+  return {
+    stage,
+    aiCulture,
+    remotePolicy,
+    openRoleCount:
+      typeof record.openRoleCount === 'number' && Number.isFinite(record.openRoleCount)
+        ? Math.max(0, Math.round(record.openRoleCount))
+        : undefined,
+  }
+}
+
 export function normalizeResults(payload: unknown, request: SearchRequest): SearchResultEntry[] {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const rawResults = Array.isArray(record.results) ? record.results : []
@@ -229,6 +262,11 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
             : [],
           estimatedComp: isString(item.estimatedComp) ? item.estimatedComp.trim() : undefined,
           source: isString(item.source) ? item.source.trim() : 'web_search',
+          candidateEdge: isString(item.candidateEdge) ? item.candidateEdge.trim() || undefined : undefined,
+          interviewProcess: normalizeInterviewProcess(item.interviewProcess),
+          companyIntel: normalizeCompanyIntel(item.companyIntel),
+          signalGroup: isString(item.signalGroup) ? item.signalGroup.trim() || undefined : undefined,
+          advantageMatch: isString(item.advantageMatch) ? item.advantageMatch.trim() || undefined : undefined,
         },
       ]
     })

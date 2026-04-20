@@ -166,6 +166,134 @@ describe('searchExecutor', () => {
     expect(normalizeResults({ results: [] }, baseRequest)).toEqual([])
   })
 
+  it('normalizes enriched result fields when present', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'PostHog',
+            title: 'Platform Engineer',
+            url: 'https://posthog.com/careers',
+            matchScore: 95,
+            matchReason: 'Strong platform fit',
+            vectorAlignment: 'platform',
+            risks: [],
+            source: 'web',
+            candidateEdge: 'Built 4 platforms solo in 11 months — PostHog needs that velocity.',
+            interviewProcess: {
+              format: 'Paid SuperDay — build a real project',
+              builderFriendly: true,
+              aiToolsAllowed: true,
+              estimatedTimeline: '14 days',
+            },
+            companyIntel: {
+              stage: 'Series B, 170 employees',
+              aiCulture: 'AI-first — building AI product features',
+              remotePolicy: 'Fully remote, global',
+              openRoleCount: 27,
+            },
+            signalGroup: 'every signal aligns',
+            advantageMatch: 'Platform + Security + Fleet Management',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results).toHaveLength(1)
+    expect(results[0]?.candidateEdge).toBe('Built 4 platforms solo in 11 months — PostHog needs that velocity.')
+    expect(results[0]?.interviewProcess?.format).toBe('Paid SuperDay — build a real project')
+    expect(results[0]?.interviewProcess?.builderFriendly).toBe(true)
+    expect(results[0]?.interviewProcess?.aiToolsAllowed).toBe(true)
+    expect(results[0]?.interviewProcess?.estimatedTimeline).toBe('14 days')
+    expect(results[0]?.companyIntel?.stage).toBe('Series B, 170 employees')
+    expect(results[0]?.companyIntel?.aiCulture).toBe('AI-first — building AI product features')
+    expect(results[0]?.companyIntel?.remotePolicy).toBe('Fully remote, global')
+    expect(results[0]?.companyIntel?.openRoleCount).toBe(27)
+    expect(results[0]?.signalGroup).toBe('every signal aligns')
+    expect(results[0]?.advantageMatch).toBe('Platform + Security + Fleet Management')
+  })
+
+  it('omits enriched fields when absent from AI response', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'Minimal',
+            title: 'Engineer',
+            url: 'https://example.com',
+            matchScore: 70,
+            matchReason: 'Basic match',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results).toHaveLength(1)
+    expect(results[0]?.candidateEdge).toBeUndefined()
+    expect(results[0]?.interviewProcess).toBeUndefined()
+    expect(results[0]?.companyIntel).toBeUndefined()
+    expect(results[0]?.signalGroup).toBeUndefined()
+    expect(results[0]?.advantageMatch).toBeUndefined()
+  })
+
+  it('normalizes interviewProcess with missing optional fields', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'Partial',
+            title: 'Engineer',
+            url: 'https://example.com',
+            matchScore: 80,
+            matchReason: 'Match',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            interviewProcess: { format: 'Take-home' },
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.interviewProcess?.format).toBe('Take-home')
+    expect(results[0]?.interviewProcess?.builderFriendly).toBe(false)
+    expect(results[0]?.interviewProcess?.aiToolsAllowed).toBe(false)
+    expect(results[0]?.interviewProcess?.estimatedTimeline).toBeUndefined()
+  })
+
+  it('drops companyIntel when all fields are empty strings', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'Empty',
+            title: 'Engineer',
+            url: 'https://example.com',
+            matchScore: 80,
+            matchReason: 'Match',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            companyIntel: { stage: '', aiCulture: '', remotePolicy: '' },
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.companyIntel).toBeUndefined()
+  })
+
   it('builds prompts with focused vectors and without avoid-depth skills', () => {
     const prompt = buildSearchPrompt(baseProfile, baseRequest)
 
