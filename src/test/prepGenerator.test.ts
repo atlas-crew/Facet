@@ -59,7 +59,8 @@ describe('generateInterviewPrep', () => {
       expect.objectContaining({
         feature: 'prep.generate',
         model: 'sonnet',
-        timeoutMs: 90000,
+        timeoutMs: 240000,
+        maxTokens: 8192,
       }),
     )
   })

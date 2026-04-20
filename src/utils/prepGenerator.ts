@@ -26,7 +26,13 @@ import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from '.
 
 /** Model used for interview prep — needs creative, detailed output. */
 const PREP_MODEL = 'sonnet'
-const PREP_TIMEOUT_MS = 90000
+const PREP_TIMEOUT_MS = 240000
+/**
+ * Output budget for prep decks. 4096 (proxy default) truncates decks with
+ * 8+ cards mid-array; 8192 gives comfortable headroom. Requires proxy-side
+ * `MAX_REQUEST_TOKENS >= 8192` — otherwise the proxy silently clamps.
+ */
+const PREP_MAX_TOKENS = 8192
 
 interface PrepGenerationPayload {
   deckTitle: string
@@ -414,7 +420,7 @@ export async function generateInterviewPrep(
   const structuredIdentityContext = stripCandidateMetricsFromIdentityContext(request.identityContext)
 
   const systemPrompt = `You are an expert interview coach and career strategist. Return JSON only.
-Generate a strong interview prep pack from a candidate's resume context, a target vector, a job description, and company research notes.
+Generate a strong interview prep pack from a candidate's resume context, a job description, company research notes, and (when provided) a target vector to orient the framing.
 Focus on truthful storytelling, quantified evidence, likely interview themes, and specific follow-up questions the candidate should prepare for.
 Include 8 to 12 cards spanning opener, behavioral, technical, project, metrics, and situational categories when supported by the input.
 Use the resume context to ground answers; do not invent facts or metrics not present in the candidate material. If company research is uncertain, say so in notes instead of presenting it as fact.
@@ -490,10 +496,12 @@ Response schema:
   ]
 }`
 
+  const vectorLine = request.vectorLabel || request.vectorId
+    ? `Target Vector: ${request.vectorLabel ?? request.vectorId} (${request.vectorId ?? ''})\n`
+    : ''
   const userPrompt = `Target Company: ${request.company}
 Target Role: ${request.role}
-Target Vector: ${request.vectorLabel} (${request.vectorId})
-Target Round Type: ${request.roundType ?? 'Not provided'}
+${vectorLine}Target Round Type: ${request.roundType ?? 'Not provided'}
 Company URL: ${request.companyUrl ?? 'Not provided'}
 Skill Match Notes: ${request.skillMatch ?? 'Not provided'}
 Positioning Notes: ${request.positioning ?? 'Not provided'}
@@ -567,6 +575,7 @@ Return JSON only (inside the tags).`
     feature: 'prep.generate',
     model: PREP_MODEL,
     timeoutMs: PREP_TIMEOUT_MS,
+    maxTokens: PREP_MAX_TOKENS,
   })
 
   let parsed: PrepGenerationPayload
@@ -574,7 +583,17 @@ Return JSON only (inside the tags).`
     parsed = JSON.parse(extractJsonBlock(rawResponse)) as PrepGenerationPayload
   } catch (error) {
     if (error instanceof JsonExtractionError) throw error
-    throw new Error('Failed to parse interview prep response.')
+    const parseMessage = error instanceof Error ? error.message : String(error)
+    const responseLength = rawResponse.length
+    const head = rawResponse.slice(0, 500)
+    const tail = responseLength > 500 ? rawResponse.slice(-500) : ''
+    console.warn('[prepGenerator] JSON.parse failed after extraction', {
+      parseMessage,
+      responseLength,
+      head,
+      tail,
+    })
+    throw new Error(`Failed to parse interview prep response: ${parseMessage}`)
   }
 
   const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)

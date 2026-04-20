@@ -157,6 +157,11 @@ export interface LlmProxyOptions {
   temperature?: number
   /** Request timeout in ms. Defaults to 30 000. */
   timeoutMs?: number
+  /**
+   * Output token budget. Proxy clamps to `MAX_REQUEST_TOKENS` (default 4096);
+   * raising past that env ceiling requires a proxy-side env change.
+   */
+  maxTokens?: number
   /** Optional API key header. */
   apiKey?: string
   /** Optional proxy auth header override. */
@@ -211,6 +216,7 @@ export async function callLlmProxy(
         temperature: options.temperature ?? 0.3,
         ...(options.model ? { model: options.model } : {}),
         ...(options.feature ? { feature: options.feature } : {}),
+        ...(typeof options.maxTokens === 'number' ? { max_tokens: options.maxTokens } : {}),
       }),
       signal: controller.signal,
     })
