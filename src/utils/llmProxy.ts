@@ -17,21 +17,87 @@ import { getHostedAccessToken } from './hostedSession'
 const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 
+/**
+ * Failure classification for `extractJsonBlock`. Consumers read `kind` to decide
+ * whether to surface a retry affordance vs a hard error.
+ */
+export type JsonExtractionFailureKind =
+  | 'no-json-found' // No sentinel, no fence, no balanced braces
+  | 'empty-sentinel' // `<result>...</result>` present but body is empty/whitespace
+
 export class JsonExtractionError extends Error {
-  constructor(message: string) {
+  readonly kind: JsonExtractionFailureKind
+  readonly diagnostic: { head: string; tail: string; length: number }
+  constructor(
+    message: string,
+    kind: JsonExtractionFailureKind,
+    diagnostic: { head: string; tail: string; length: number },
+  ) {
     super(message)
     this.name = 'JsonExtractionError'
+    this.kind = kind
+    this.diagnostic = diagnostic
+  }
+}
+
+/** Sentinel tag wrapping the model's final JSON payload (see TASK-167 prompt contract). */
+export const JSON_RESULT_SENTINEL_OPEN = '<result>'
+export const JSON_RESULT_SENTINEL_CLOSE = '</result>'
+// Non-greedy match; handles `<result>` appearing anywhere in the body, even inside prose.
+// [\s\S] covers newlines because JS regex `.` doesn't match `\n` by default.
+const JSON_RESULT_SENTINEL_PATTERN = /<result>([\s\S]*?)<\/result>/
+
+const DIAGNOSTIC_WINDOW = 500
+
+function buildDiagnostic(text: string): { head: string; tail: string; length: number } {
+  return {
+    head: text.slice(0, DIAGNOSTIC_WINDOW),
+    tail: text.length > DIAGNOSTIC_WINDOW ? text.slice(-DIAGNOSTIC_WINDOW) : '',
+    length: text.length,
   }
 }
 
 /**
- * Robustly extract a JSON block from LLM output that might contain
- * markdown fences or preamble text.
+ * Extract a JSON block from LLM output. Tries, in order:
+ *
+ *   1. **Sentinel tags** — `<result>…</result>` wrapping the JSON. Primary strategy for
+ *      long-form reasoning responses where prose contains stray braces that would
+ *      confuse the brace-matching fallback.
+ *   2. **Fenced code block** — ` ```json … ``` `. Legacy strategy; backward compatible
+ *      with prompts that haven't been updated to use sentinels.
+ *   3. **First-brace-to-last-brace** — permissive fallback for simple responses.
+ *
+ * On failure, throws `JsonExtractionError` with a classification `kind` and a diagnostic
+ * window (first/last ~500 chars of the input) for debugging. The caller is responsible
+ * for `JSON.parse` — extraction and parsing are deliberately separated so callers can
+ * attach their own context on parse errors.
+ *
+ * The `kind` field distinguishes:
+ *   - `'no-json-found'` — none of the three strategies matched
+ *   - `'empty-sentinel'` — sentinel tags present but body was whitespace-only
  */
 export function extractJsonBlock(text: string): string {
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-  if (jsonMatch?.[1]) {
-    return jsonMatch[1].trim()
+  const sentinelMatch = text.match(JSON_RESULT_SENTINEL_PATTERN)
+  if (sentinelMatch) {
+    const body = sentinelMatch[1].trim()
+    if (body) {
+      return body
+    }
+    const diagnostic = buildDiagnostic(text)
+    console.warn(
+      '[extractJsonBlock] <result> sentinel present but body empty',
+      diagnostic,
+    )
+    throw new JsonExtractionError(
+      'AI response contained <result></result> sentinel but the body was empty.',
+      'empty-sentinel',
+      diagnostic,
+    )
+  }
+
+  const fencedMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim()
   }
 
   const firstBrace = text.indexOf('{')
@@ -40,7 +106,16 @@ export function extractJsonBlock(text: string): string {
     return text.slice(firstBrace, lastBrace + 1)
   }
 
-  throw new JsonExtractionError('Could not find JSON block in AI response.')
+  const diagnostic = buildDiagnostic(text)
+  console.warn(
+    '[extractJsonBlock] no sentinel, fenced block, or balanced braces found',
+    diagnostic,
+  )
+  throw new JsonExtractionError(
+    'Could not find JSON block in AI response (no <result> sentinel, fenced block, or balanced braces).',
+    'no-json-found',
+    diagnostic,
+  )
 }
 
 export function isString(value: unknown): value is string {

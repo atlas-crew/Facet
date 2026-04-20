@@ -31,27 +31,11 @@ interface SearchExecutionPayload {
   tokenUsage?: SearchTokenUsage
 }
 
-export class JsonExtractionError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'JsonExtractionError'
-  }
-}
-
-export function extractJsonBlock(text: string): string {
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-  if (jsonMatch?.[1]) {
-    return jsonMatch[1].trim()
-  }
-
-  const firstBrace = text.indexOf('{')
-  const lastBrace = text.lastIndexOf('}')
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    return text.slice(firstBrace, lastBrace + 1)
-  }
-
-  throw new JsonExtractionError('Could not find JSON block in AI response.')
-}
+// Consolidate with the canonical extractor in llmProxy (TASK-167). Both paths now
+// share one hardened implementation; the re-export keeps the searchExecutor module
+// surface unchanged for existing callers/tests.
+import { extractJsonBlock, JsonExtractionError } from './llmProxy'
+export { extractJsonBlock, JsonExtractionError } from './llmProxy'
 
 function isString(value: unknown): value is string {
   return typeof value === 'string'
@@ -701,7 +685,15 @@ Search targets:
 - Tier 2 should be strong but slightly less aligned.
 - Tier 3 should be interesting stretch or adjacent roles.
 
-Return JSON only with this schema:
+Wrap your final JSON output with <result> and </result> tags on their own lines.
+Any reasoning, narrative, or prose may appear outside these tags — parsers look
+only inside the tags for the structured result. Example:
+
+<result>
+{ "results": [ ... ] }
+</result>
+
+Return JSON only (inside the tags) with this schema:
 {
   "results": [
     {

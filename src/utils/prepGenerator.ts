@@ -553,7 +553,15 @@ If the source material is missing context for a useful answer, do not hide the g
 - If contextGapAnswers are provided, treat them as authoritative supplemental context and refresh the affected sections before carrying any gap forward.
 - If an existing context gap remains relevant after regeneration, preserve its id so user answers stay attached to that prompt.
 
-Return JSON only.`
+Wrap your final JSON output with <result> and </result> tags on their own lines.
+Any reasoning or narrative may appear outside these tags — parsers look only inside
+the tags for the structured result. Example:
+
+<result>
+{ "deckTitle": "...", "cards": [ ... ] }
+</result>
+
+Return JSON only (inside the tags).`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'prep.generate',

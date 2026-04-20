@@ -70,7 +70,7 @@ describe('identityParametersGeneration', () => {
 
     await expect(
       generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
-    ).rejects.toThrow('Generated search vectors response: Could not find JSON block in AI response.')
+    ).rejects.toThrow('Generated search vectors response: Could not find JSON block in AI response')
   })
 
   it('preserves extraction errors for missing awareness JSON blocks', async () => {

@@ -1427,7 +1427,7 @@ const parseLlmJsonResponse = (
     }
   } catch (error) {
     if (error instanceof JsonExtractionError) {
-      throw new JsonExtractionError(`${context}: ${error.message}`)
+      throw new JsonExtractionError(`${context}: ${error.message}`, error.kind, error.diagnostic)
     }
 
     throw new Error(error instanceof Error ? error.message : `Unable to parse ${context}.`)
