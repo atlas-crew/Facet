@@ -11,6 +11,7 @@ describe('searchStore', () => {
       profile: null,
       requests: [],
       runs: [],
+      feedbackEvents: [],
     })
   })
 
@@ -278,6 +279,152 @@ describe('searchStore', () => {
       profile: null,
       requests: [],
       runs: [],
+      feedbackEvents: [],
+    })
+  })
+
+  describe('feedback events', () => {
+    const baseEventInput = {
+      runId: 'srun-1',
+      resultId: 'sres-1',
+      rating: 'down' as const,
+      reason: 'Role requires Go at production depth',
+      appliedToIdentity: false,
+    }
+
+    it('adds a feedback event with a generated id and timestamp', () => {
+      const event = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+
+      expect(event.id).toMatch(/^sfe-/)
+      expect(event.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+      expect(event.runId).toBe('srun-1')
+      expect(event.rating).toBe('down')
+      expect(event.appliedToIdentity).toBe(false)
+      expect(useSearchStore.getState().feedbackEvents).toHaveLength(1)
+    })
+
+    it('accepts structured dimensions when provided', () => {
+      const event = useSearchStore.getState().addFeedbackEvent({
+        ...baseEventInput,
+        dimensions: {
+          skill: { name: 'Go', suggestedDepth: 'basic' },
+          preference: { category: 'avoid', label: 'Go-heavy roles', condition: 'unless adjacent' },
+        },
+      })
+
+      expect(event.dimensions?.skill?.name).toBe('Go')
+      expect(event.dimensions?.preference?.category).toBe('avoid')
+      expect(event.dimensions?.preference?.condition).toBe('unless adjacent')
+    })
+
+    it('marks a feedback event as applied with the identity version that absorbed it', () => {
+      const event = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+
+      useSearchStore.getState().markFeedbackApplied(event.id, 7)
+
+      const stored = useSearchStore.getState().feedbackEvents[0]
+      expect(stored.appliedToIdentity).toBe(true)
+      expect(stored.appliedAtVersion).toBe(7)
+    })
+
+    it('does not touch other events when marking one as applied', () => {
+      const a = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+      const b = useSearchStore.getState().addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
+
+      useSearchStore.getState().markFeedbackApplied(a.id, 3)
+
+      const events = useSearchStore.getState().feedbackEvents
+      const byId = Object.fromEntries(events.map((e) => [e.id, e]))
+      expect(byId[a.id].appliedToIdentity).toBe(true)
+      expect(byId[b.id].appliedToIdentity).toBe(false)
+    })
+
+    it('marks a batch of events as reflected in a thesis', () => {
+      const a = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+      const b = useSearchStore.getState().addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
+      const c = useSearchStore.getState().addFeedbackEvent({ ...baseEventInput, resultId: 'sres-3' })
+
+      useSearchStore.getState().markFeedbackReflectedInThesis([a.id, c.id], 'sthesis-42')
+
+      const events = useSearchStore.getState().feedbackEvents
+      const byId = Object.fromEntries(events.map((e) => [e.id, e]))
+      expect(byId[a.id].reflectedInThesisId).toBe('sthesis-42')
+      expect(byId[b.id].reflectedInThesisId).toBeUndefined()
+      expect(byId[c.id].reflectedInThesisId).toBe('sthesis-42')
+    })
+
+    it('getUnreflectedFeedback returns only applied events not yet reflected in the current thesis', () => {
+      const store = useSearchStore.getState()
+      const unapplied = store.addFeedbackEvent(baseEventInput)
+      const appliedA = store.addFeedbackEvent({ ...baseEventInput, resultId: 'sres-a' })
+      const appliedB = store.addFeedbackEvent({ ...baseEventInput, resultId: 'sres-b' })
+
+      useSearchStore.getState().markFeedbackApplied(appliedA.id, 1)
+      useSearchStore.getState().markFeedbackApplied(appliedB.id, 2)
+      useSearchStore
+        .getState()
+        .markFeedbackReflectedInThesis([appliedA.id], 'sthesis-current')
+
+      const unreflected = useSearchStore.getState().getUnreflectedFeedback('sthesis-current')
+
+      const ids = unreflected.map((e) => e.id)
+      expect(ids).toContain(appliedB.id)
+      expect(ids).not.toContain(appliedA.id)
+      expect(ids).not.toContain(unapplied.id)
+    })
+
+    it('getUnreflectedFeedback without a thesisId returns every applied event (fresh-thesis case)', () => {
+      const store = useSearchStore.getState()
+      const unapplied = store.addFeedbackEvent(baseEventInput)
+      const applied = store.addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
+      useSearchStore.getState().markFeedbackApplied(applied.id, 1)
+      useSearchStore
+        .getState()
+        .markFeedbackReflectedInThesis([applied.id], 'sthesis-old')
+
+      const result = useSearchStore.getState().getUnreflectedFeedback()
+      const ids = result.map((e) => e.id)
+      expect(ids).toEqual([applied.id])
+      expect(ids).not.toContain(unapplied.id)
+    })
+
+    it('getFeedbackEventsForRun filters by runId', () => {
+      const store = useSearchStore.getState()
+      const run1a = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-1' })
+      const run1b = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-1', resultId: 'sres-x' })
+      store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-2' })
+
+      const events = useSearchStore.getState().getFeedbackEventsForRun('srun-1')
+      expect(events).toHaveLength(2)
+      expect(events.map((e) => e.id).sort()).toEqual([run1a.id, run1b.id].sort())
+    })
+
+    it('migrates persisted state without feedbackEvents to an empty array', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+      })
+      expect(migrated.feedbackEvents).toEqual([])
+    })
+
+    it('preserves persisted feedbackEvents across migration', () => {
+      const existing = {
+        id: 'sfe-existing',
+        runId: 'srun-legacy',
+        resultId: 'sres-legacy',
+        rating: 'up' as const,
+        appliedToIdentity: true,
+        appliedAtVersion: 4,
+        createdAt: '2025-12-01T00:00:00.000Z',
+      }
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        feedbackEvents: [existing],
+      })
+      expect(migrated.feedbackEvents).toEqual([existing])
     })
   })
 })

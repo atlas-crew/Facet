@@ -59,6 +59,13 @@ const assertValidArtifactPayload = (
       ) {
         throw new Error('Workspace snapshot has invalid artifacts.research.payload shape.')
       }
+      // feedbackEvents added in TASK-163; optional for backward compatibility with
+      // snapshots written before the field existed.
+      if (payload.feedbackEvents !== undefined && !Array.isArray(payload.feedbackEvents)) {
+        throw new Error(
+          'Workspace snapshot has invalid artifacts.research.payload.feedbackEvents (expected array).',
+        )
+      }
       break
     default: {
       const exhaustiveCheck: never = artifactType

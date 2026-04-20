@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  SearchFeedbackEvent,
   SearchInterviewPrefs,
   SearchProfile,
   SearchProfileConstraints,
@@ -25,10 +26,14 @@ type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt'> &
 type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt'> &
   Partial<Pick<SearchRun, 'id' | 'createdAt'>>
 
+/** Caller supplies every feedback-event field except the store-generated id and timestamp. */
+export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt'>
+
 interface SearchState {
   profile: SearchProfile | null
   requests: SearchRequest[]
   runs: SearchRun[]
+  feedbackEvents: SearchFeedbackEvent[]
 
   setProfile: (profile: SearchProfileInput) => SearchProfile
   updateProfileSkills: (skills: SkillCatalogEntry[]) => void
@@ -44,6 +49,20 @@ interface SearchState {
   updateRun: (id: string, patch: Partial<SearchRun>) => void
   deleteRun: (id: string) => void
   getRunsForRequest: (requestId: string) => SearchRun[]
+
+  addFeedbackEvent: (event: SearchFeedbackEventInput) => SearchFeedbackEvent
+  /** Flip `appliedToIdentity=true` and record the identity version that absorbed the event. */
+  markFeedbackApplied: (id: string, identityVersion: number) => void
+  /** Record which thesis first incorporated a batch of applied events. */
+  markFeedbackReflectedInThesis: (ids: readonly string[], thesisId: string) => void
+  /**
+   * Events eligible for thesis regeneration input — applied to identity but not yet
+   * reflected in the current thesis. When `currentThesisId` is undefined, returns every
+   * applied event (the "build a new thesis from scratch" case).
+   */
+  getUnreflectedFeedback: (currentThesisId?: string) => SearchFeedbackEvent[]
+  /** Every feedback event for a given artifact (run or result). */
+  getFeedbackEventsForRun: (runId: string) => SearchFeedbackEvent[]
 }
 
 const now = () => new Date().toISOString()
@@ -77,6 +96,7 @@ export const migrateSearchState = (persistedState: unknown) => {
           profile?: SearchProfile | null
           requests?: SearchRequest[]
           runs?: SearchRun[]
+          feedbackEvents?: SearchFeedbackEvent[]
         })
       : undefined
 
@@ -89,6 +109,7 @@ export const migrateSearchState = (persistedState: unknown) => {
     runs: Array.isArray(state?.runs)
       ? state.runs.map((run) => hydrateRun(run))
       : [],
+    feedbackEvents: Array.isArray(state?.feedbackEvents) ? state.feedbackEvents : [],
   }
 }
 
@@ -96,6 +117,7 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       profile: null,
       requests: [],
       runs: [],
+      feedbackEvents: [],
 
       setProfile: (profile) => {
         const hydrated = hydrateProfile(profile)
@@ -232,4 +254,43 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
       getRunsForRequest: (requestId) =>
         get().runs.filter((run) => run.requestId === requestId),
+
+      addFeedbackEvent: (input) => {
+        const event: SearchFeedbackEvent = {
+          ...input,
+          id: createId('sfe'),
+          createdAt: now(),
+        }
+        set((state) => ({ feedbackEvents: [...state.feedbackEvents, event] }))
+        return event
+      },
+
+      markFeedbackApplied: (id, identityVersion) => {
+        set((state) => ({
+          feedbackEvents: state.feedbackEvents.map((event) =>
+            event.id === id
+              ? { ...event, appliedToIdentity: true, appliedAtVersion: identityVersion }
+              : event,
+          ),
+        }))
+      },
+
+      markFeedbackReflectedInThesis: (ids, thesisId) => {
+        const idSet = new Set(ids)
+        set((state) => ({
+          feedbackEvents: state.feedbackEvents.map((event) =>
+            idSet.has(event.id) ? { ...event, reflectedInThesisId: thesisId } : event,
+          ),
+        }))
+      },
+
+      getUnreflectedFeedback: (currentThesisId) =>
+        get().feedbackEvents.filter(
+          (event) =>
+            event.appliedToIdentity &&
+            (currentThesisId === undefined || event.reflectedInThesisId !== currentThesisId),
+        ),
+
+      getFeedbackEventsForRun: (runId) =>
+        get().feedbackEvents.filter((event) => event.runId === runId),
     }))

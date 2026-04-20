@@ -5,7 +5,12 @@ import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepCard, PrepDeck } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
-import type { SearchProfile, SearchRequest, SearchRun } from '../types/search'
+import type {
+  SearchFeedbackEvent,
+  SearchProfile,
+  SearchRequest,
+  SearchRun,
+} from '../types/search'
 import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
 import {
@@ -98,6 +103,11 @@ const mergeSearchRequests = (existing: SearchRequest[], incoming: SearchRequest[
 
 const mergeSearchRuns = (existing: SearchRun[], incoming: SearchRun[]) =>
   mergeById(existing, incoming)
+
+const mergeSearchFeedbackEvents = (
+  existing: SearchFeedbackEvent[],
+  incoming: SearchFeedbackEvent[],
+) => mergeById(existing, incoming)
 
 export const mergeWorkspaceSnapshots = (
   current: FacetWorkspaceSnapshot | null,
@@ -203,6 +213,10 @@ export const mergeWorkspaceSnapshots = (
           runs: mergeSearchRuns(
             current.artifacts.research.payload.runs,
             imported.artifacts.research.payload.runs,
+          ),
+          feedbackEvents: mergeSearchFeedbackEvents(
+            current.artifacts.research.payload.feedbackEvents ?? [],
+            imported.artifacts.research.payload.feedbackEvents ?? [],
           ),
         },
       },

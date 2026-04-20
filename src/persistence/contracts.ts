@@ -5,7 +5,12 @@ import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck, PrepWorkspaceMode } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
-import type { SearchProfile, SearchRequest, SearchRun } from '../types/search'
+import type {
+  SearchFeedbackEvent,
+  SearchProfile,
+  SearchRequest,
+  SearchRun,
+} from '../types/search'
 import type { ResumeData, VectorSelection } from '../types'
 
 export const FACET_WORKSPACE_SNAPSHOT_VERSION = 1 as const
@@ -53,6 +58,12 @@ export interface ResearchWorkspaceData {
   profile: SearchProfile | null
   requests: SearchRequest[]
   runs: SearchRun[]
+  /**
+   * Feedback events raised against results (TASK-163). Optional in persisted snapshots
+   * for backward compatibility — snapshots written before TASK-163 lack this field and
+   * are hydrated with an empty array.
+   */
+  feedbackEvents?: SearchFeedbackEvent[]
 }
 
 export interface FacetWorkspaceDescriptor {

@@ -404,6 +404,65 @@ export interface SearchThesis {
   feedbackIncorporated: string[]
 }
 
+// ── Search Feedback Events (TASK-163) ─────────────────────────────────────
+
+export type SearchFeedbackRating = 'up' | 'down'
+
+/** User's suggested depth correction, e.g., "this should be 'conceptual' not 'strong'". */
+export interface SearchFeedbackSkillDimension {
+  name: string
+  suggestedDepth?: string
+}
+
+export interface SearchFeedbackPreferenceDimension {
+  category: 'prioritize' | 'avoid'
+  label: string
+  /** Qualifying condition, e.g., "building around k8s is fine, being a k8s admin is not". */
+  condition?: string
+}
+
+export interface SearchFeedbackVectorDimension {
+  title: string
+  thesis?: string
+}
+
+/**
+ * Structured signal attached to a feedback event. Each sub-field is optional; a
+ * single event may carry any combination of skill, preference, and vector dimensions.
+ */
+export interface SearchFeedbackDimensions {
+  skill?: SearchFeedbackSkillDimension
+  preference?: SearchFeedbackPreferenceDimension
+  vector?: SearchFeedbackVectorDimension
+}
+
+/**
+ * A user reaction to a specific search result (thumbs up/down with optional reason and
+ * structured dimensions). Persisted for two downstream consumers:
+ *   1. Identity writeback (TASK-151.3) — `appliedToIdentity` flips true once absorbed.
+ *   2. Thesis regeneration (TASK-151.1) — `reflectedInThesisId` records which thesis
+ *      first incorporated the event, enabling `getUnreflectedFeedback()` queries.
+ */
+export interface SearchFeedbackEvent {
+  id: string
+  /** SearchRun this event was raised against. */
+  runId: string
+  /** SearchResultEntry within the run that the user reacted to. */
+  resultId: string
+  rating: SearchFeedbackRating
+  /** Optional free-text rationale from the user. */
+  reason?: string
+  /** Structured signal derived from the reason (skill correction, preference add, etc.). */
+  dimensions?: SearchFeedbackDimensions
+  /** Whether the identity model has absorbed this event. Flipped by TASK-151.3 writeback. */
+  appliedToIdentity: boolean
+  /** `identity.model_revision` when absorption happened (TASK-159). */
+  appliedAtVersion?: number
+  /** Id of the first thesis that was regenerated with this event incorporated. */
+  reflectedInThesisId?: string
+  createdAt: string
+}
+
 // ── Research Job (TASK-161 storage + runner; type definition lives here) ─────
 
 export type ResearchJobStatus = 'queued' | 'running' | 'completed' | 'canceled' | 'failed'
