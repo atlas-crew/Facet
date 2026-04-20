@@ -62,6 +62,19 @@ function buildDiagnostic(text: string): { head: string; tail: string; length: nu
 }
 
 /**
+ * Peel a ` ```json ... ``` ` (or generic ` ``` ... ``` `) fence from around a body
+ * when the model nested a fenced block inside the sentinel. Claude's formatting habits
+ * sometimes produce both markers simultaneously; without this unwrap, callers receive
+ * the raw ``` markers and `JSON.parse` fails.
+ *
+ * Returns the body unchanged when no surrounding fence is present.
+ */
+function unwrapFencedJson(body: string): string {
+  const fence = body.match(/^```(?:json)?\s*([\s\S]*?)\s*```\s*$/)
+  return fence ? fence[1].trim() : body
+}
+
+/**
  * Extract a JSON block from LLM output. Tries, in order:
  *
  *   1. **Sentinel tags** — `<result>…</result>` wrapping the JSON. Primary strategy for
@@ -88,7 +101,7 @@ export function extractJsonBlock(text: string): string {
     // so earlier matches are typically prose examples, not the actual output.
     for (let i = sentinelMatches.length - 1; i >= 0; i -= 1) {
       const body = sentinelMatches[i][1].trim()
-      if (body) return body
+      if (body) return unwrapFencedJson(body)
     }
     const diagnostic = buildDiagnostic(text)
     console.warn(

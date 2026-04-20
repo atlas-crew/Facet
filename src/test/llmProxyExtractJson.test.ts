@@ -85,6 +85,25 @@ describe('extractJsonBlock', () => {
       expect(extractJsonBlock(text)).toBe('{"real": true}')
     })
 
+    it('unwraps a fenced JSON block nested inside the sentinel', () => {
+      // Claude sometimes emits both formatting markers (sentinel + fenced block)
+      // simultaneously. Without unwrapping, the caller gets raw ``` markers and
+      // JSON.parse fails despite the JSON being present.
+      const text = [
+        '<result>',
+        '```json',
+        '{"wrapped": true}',
+        '```',
+        '</result>',
+      ].join('\n')
+      expect(extractJsonBlock(text)).toBe('{"wrapped": true}')
+    })
+
+    it('unwraps a fenced block without a language tag inside the sentinel', () => {
+      const text = '<result>\n```\n{"lang": "none"}\n```\n</result>'
+      expect(extractJsonBlock(text)).toBe('{"lang": "none"}')
+    })
+
     it('returns empty-sentinel error when every sentinel body is empty', () => {
       const text = '<result></result>\n<result>   \n\n</result>'
       try {

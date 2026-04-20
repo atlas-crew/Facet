@@ -385,25 +385,28 @@ describe('workspace backup merge helpers', () => {
       expect(events[0].appliedAtVersion).toBe(5)
     })
 
-    it('prefers imported reflectedInThesisId over local when both defined', () => {
+    it('keeps local reflectedInThesisId over imported when both defined (non-regressing)', () => {
+      // Protects against "import older backup into newer workspace" regressing
+      // a locally-current thesis reflection back to a stale id, which would make
+      // getUnreflectedFeedback() re-surface the event incorrectly.
       const merged = mergeWithSeededEvents(
         [
           baseEvent({
             appliedToIdentity: true,
             appliedAtVersion: 3,
-            reflectedInThesisId: 'sthesis-local',
+            reflectedInThesisId: 'sthesis-local-current',
           }),
         ],
         [
           baseEvent({
             appliedToIdentity: true,
             appliedAtVersion: 3,
-            reflectedInThesisId: 'sthesis-imported',
+            reflectedInThesisId: 'sthesis-imported-old',
           }),
         ],
       )
       const events = merged.artifacts.research.payload.feedbackEvents ?? []
-      expect(events[0].reflectedInThesisId).toBe('sthesis-imported')
+      expect(events[0].reflectedInThesisId).toBe('sthesis-local-current')
     })
 
     it('keeps reflectedInThesisId from whichever copy has it set', () => {

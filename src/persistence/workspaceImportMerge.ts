@@ -115,9 +115,10 @@ const mergeSearchRuns = (existing: SearchRun[], incoming: SearchRun[]) =>
  *   - appliedToIdentity only flips false → true → prefer true.
  *   - appliedAtVersion advances monotonically with identity.model_revision →
  *     prefer the higher value when both copies have it set.
- *   - reflectedInThesisId: prefer defined over undefined; when both defined
- *     and different, prefer the imported version (typical import scenario:
- *     "pull in newer state from another client").
+ *   - reflectedInThesisId: non-regressing. Prefer defined over undefined; when
+ *     both copies have a value, keep the local one so importing an older backup
+ *     cannot rewind a locally-current event to a stale thesis id (which would
+ *     make `getUnreflectedFeedback(currentThesisId)` re-surface the event).
  *
  * Identity fields (id, runId, resultId, rating, reason, dimensions, createdAt)
  * are immutable after creation — keep the local copy.
@@ -131,9 +132,10 @@ const mergeFeedbackEventState = (
     local.appliedAtVersion !== undefined && imported.appliedAtVersion !== undefined
       ? Math.max(local.appliedAtVersion, imported.appliedAtVersion)
       : (local.appliedAtVersion ?? imported.appliedAtVersion)
-  // Prefer imported over local when both defined and different — newer client wins.
+  // Non-regressing: local wins when both defined. Falls back to imported only
+  // when local has no reflected thesis recorded yet.
   const reflectedInThesisId =
-    imported.reflectedInThesisId ?? local.reflectedInThesisId
+    local.reflectedInThesisId ?? imported.reflectedInThesisId
 
   return {
     ...local,

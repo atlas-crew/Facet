@@ -221,10 +221,22 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       },
 
       deleteRequest: (id) => {
-        set((state) => ({
-          requests: state.requests.filter((request) => request.id !== id),
-          runs: state.runs.filter((run) => run.requestId !== id),
-        }))
+        set((state) => {
+          // Cascade-delete feedback events that reference any run belonging to
+          // this request. Without this, orphaned events linger in the store and
+          // can be surfaced by `getUnreflectedFeedback()` after the originating
+          // run + request no longer exist.
+          const orphanedRunIds = new Set(
+            state.runs.filter((run) => run.requestId === id).map((run) => run.id),
+          )
+          return {
+            requests: state.requests.filter((request) => request.id !== id),
+            runs: state.runs.filter((run) => run.requestId !== id),
+            feedbackEvents: state.feedbackEvents.filter(
+              (event) => !orphanedRunIds.has(event.runId),
+            ),
+          }
+        })
       },
 
       addRun: (run) => {
@@ -249,7 +261,13 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       },
 
       deleteRun: (id) => {
-        set((state) => ({ runs: state.runs.filter((run) => run.id !== id) }))
+        // Cascade-delete feedback events tied to this run — same reasoning as
+        // deleteRequest's cascade: stale events would otherwise be returned by
+        // `getUnreflectedFeedback()` long after the run they reference is gone.
+        set((state) => ({
+          runs: state.runs.filter((run) => run.id !== id),
+          feedbackEvents: state.feedbackEvents.filter((event) => event.runId !== id),
+        }))
       },
 
       getRunsForRequest: (requestId) =>

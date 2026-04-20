@@ -408,6 +408,63 @@ describe('searchStore', () => {
       expect(migrated.feedbackEvents).toEqual([])
     })
 
+    it('cascade-deletes feedback events when the referenced run is deleted', () => {
+      const store = useSearchStore.getState()
+      const keeper = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-keep' })
+      const doomed = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-doomed' })
+      useSearchStore.setState({
+        runs: [
+          {
+            id: 'srun-keep',
+            requestId: 'sreq-1',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+          {
+            id: 'srun-doomed',
+            requestId: 'sreq-1',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+        ],
+      })
+
+      useSearchStore.getState().deleteRun('srun-doomed')
+
+      const events = useSearchStore.getState().feedbackEvents
+      expect(events.map((e) => e.id)).toEqual([keeper.id])
+      expect(events.find((e) => e.id === doomed.id)).toBeUndefined()
+    })
+
+    it('cascade-deletes feedback events for every run when a request is deleted', () => {
+      const store = useSearchStore.getState()
+      const eventRunA = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-a' })
+      const eventRunB = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-b' })
+      const eventRunC = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-c' })
+      useSearchStore.setState({
+        runs: [
+          { id: 'srun-a', requestId: 'sreq-doomed', createdAt: '2026-03-11T00:00:00.000Z', status: 'completed', results: [], searchLog: [] },
+          { id: 'srun-b', requestId: 'sreq-doomed', createdAt: '2026-03-11T00:00:00.000Z', status: 'completed', results: [], searchLog: [] },
+          { id: 'srun-c', requestId: 'sreq-keep', createdAt: '2026-03-11T00:00:00.000Z', status: 'completed', results: [], searchLog: [] },
+        ],
+        requests: [
+          { id: 'sreq-doomed', createdAt: '2026-03-11T00:00:00.000Z', focusVectors: [], companySizeOverride: '', salaryAnchorOverride: '', geoExpand: false, customKeywords: '', excludeCompanies: [], maxResults: { tier1: 5, tier2: 10, tier3: 10 } },
+          { id: 'sreq-keep', createdAt: '2026-03-11T00:00:00.000Z', focusVectors: [], companySizeOverride: '', salaryAnchorOverride: '', geoExpand: false, customKeywords: '', excludeCompanies: [], maxResults: { tier1: 5, tier2: 10, tier3: 10 } },
+        ],
+      })
+
+      useSearchStore.getState().deleteRequest('sreq-doomed')
+
+      const events = useSearchStore.getState().feedbackEvents
+      expect(events.map((e) => e.id)).toEqual([eventRunC.id])
+      expect(events.find((e) => e.id === eventRunA.id)).toBeUndefined()
+      expect(events.find((e) => e.id === eventRunB.id)).toBeUndefined()
+    })
+
     it('preserves persisted feedbackEvents across migration', () => {
       const existing = {
         id: 'sfe-existing',
