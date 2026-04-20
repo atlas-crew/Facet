@@ -15,7 +15,15 @@ export type SearchSkillCategory =
   | 'domain'
   | 'other'
 
-export type SearchSkillDepth = 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
+export type SearchSkillDepth =
+  | 'expert'
+  | 'strong'
+  | 'hands-on-working'
+  | 'architectural'
+  | 'conceptual'
+  | 'working'
+  | 'basic'
+  | 'avoid'
 
 export type SearchCompanySize =
   | 'startup'

@@ -867,13 +867,16 @@ const normalizeVectorStrength = (value: unknown, context: string): 'strong' | 'm
 const normalizeSeverity = (
   value: unknown,
   context: string,
-): ProfessionalMatchingSeverity => {
+): 'hard' | 'soft' => {
   const severity = assertString(value, context)
-  if (severity === 'hard' || severity === 'soft') {
-    return severity
+  if (severity === 'hard') {
+    return 'hard'
+  }
+  if (severity === 'soft' || severity === 'conditional') {
+    return 'soft'
   }
 
-  throw new Error(context + ' must be hard or soft.')
+  throw new Error(context + ' must be hard, soft, or conditional.')
 }
 
 const buildHardFilterWatchOut = ({

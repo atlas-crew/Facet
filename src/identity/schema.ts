@@ -1,6 +1,14 @@
 export type ProfessionalSchemaRevision = '3.1'
 
-export type ProfessionalSkillDepth = 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
+export type ProfessionalSkillDepth =
+  | 'expert'
+  | 'strong'
+  | 'hands-on-working'
+  | 'architectural'
+  | 'conceptual'
+  | 'working'
+  | 'basic'
+  | 'avoid'
 
 export type ProfessionalSkillEnrichedBy = 'user' | 'user-edited-llm' | 'llm-accepted'
 
@@ -8,7 +16,7 @@ export type ProfessionalAwarenessSeverity = 'high' | 'medium' | 'low'
 
 export type ProfessionalMatchingWeight = 'high' | 'medium' | 'low'
 
-export type ProfessionalMatchingSeverity = 'hard' | 'soft'
+export type ProfessionalMatchingSeverity = 'hard' | 'soft' | 'conditional'
 
 export type ProfessionalSearchVectorPriority = 'high' | 'medium' | 'low'
 
@@ -78,6 +86,7 @@ export interface ProfessionalMatchingPriority {
   label: string
   description: string
   weight: ProfessionalMatchingWeight
+  condition?: string
 }
 
 export interface ProfessionalMatchingAvoid {
@@ -85,6 +94,7 @@ export interface ProfessionalMatchingAvoid {
   label: string
   description: string
   severity: ProfessionalMatchingSeverity
+  condition?: string
 }
 
 export interface ProfessionalMatchingPreferences {
@@ -144,6 +154,7 @@ export interface ProfessionalSkillGroup {
   id: string
   label: string
   positioning?: string
+  calibration?: string
   is_differentiator?: boolean
   items: ProfessionalSkillItem[]
 }
@@ -259,6 +270,9 @@ const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 const SKILL_DEPTH_VALUES = new Set<ProfessionalSkillDepth>([
   'expert',
   'strong',
+  'hands-on-working',
+  'architectural',
+  'conceptual',
   'working',
   'basic',
   'avoid',
@@ -269,7 +283,7 @@ const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
   'llm-accepted',
 ])
 export const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
-export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft'])
+export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft', 'conditional'])
 export const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
 export const SEARCH_VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
 const SCHEMA_REVISION_VALUES = new Set<ProfessionalSchemaRevision>(['3.1'])
@@ -507,6 +521,9 @@ const parseMatchingPreferences = (
           MATCHING_WEIGHT_VALUES,
           `${context}.prioritize[${index}].weight`,
         ),
+        ...(item.condition !== undefined
+          ? { condition: assertOptionalString(item.condition, `${context}.prioritize[${index}].condition`) }
+          : {}),
       }
     }),
     avoid: assertArray(record.avoid, `${context}.avoid`).map((entry, index) => {
@@ -522,6 +539,9 @@ const parseMatchingPreferences = (
           MATCHING_SEVERITY_VALUES,
           `${context}.avoid[${index}].severity`,
         ),
+        ...(item.condition !== undefined
+          ? { condition: assertOptionalString(item.condition, `${context}.avoid[${index}].condition`) }
+          : {}),
       }
     }),
   }
@@ -894,6 +914,9 @@ export const importProfessionalIdentity = (
           label: assertString(group.label, `skills.groups[${index}].label`),
           ...(group.positioning !== undefined
             ? { positioning: assertOptionalString(group.positioning, `skills.groups[${index}].positioning`) }
+            : {}),
+          ...(group.calibration !== undefined
+            ? { calibration: assertOptionalString(group.calibration, `skills.groups[${index}].calibration`) }
             : {}),
           ...(group.is_differentiator !== undefined
             ? {

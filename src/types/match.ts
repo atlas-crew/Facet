@@ -49,7 +49,7 @@ export interface SkillMatch {
   skillName: string
   jdRequirement: string
   requirementStrength: SkillRequirementStrength
-  userDepth: 'expert' | 'strong' | 'working' | 'basic' | 'avoid'
+  userDepth: 'expert' | 'strong' | 'hands-on-working' | 'architectural' | 'conceptual' | 'working' | 'basic' | 'avoid'
   userPositioning: string
   matchQuality: SkillMatchQuality
   presentationGuidance: string

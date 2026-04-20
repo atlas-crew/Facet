@@ -759,4 +759,106 @@ describe('professional identity schema', () => {
       'Ported the platform to Kubernetes-based installs for on-prem customer environments.',
     )
   })
+
+  it('accepts new semantic skill depth levels', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      { name: 'Python', depth: 'expert', tags: ['backend'] },
+      { name: 'Rust', depth: 'hands-on-working', tags: ['systems'] },
+      { name: 'Kubernetes', depth: 'architectural', tags: ['platform'] },
+      { name: 'Go', depth: 'conceptual', tags: ['backend'] },
+      { name: 'Docker', depth: 'strong', tags: ['devops'] },
+      { name: 'Bash', depth: 'working', tags: ['scripting'] },
+      { name: 'React', depth: 'basic', tags: ['frontend'] },
+      { name: 'Jenkins', depth: 'avoid', tags: ['ci'] },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+    const items = parsed.skills.groups[0].items
+
+    expect(items[0].depth).toBe('expert')
+    expect(items[1].depth).toBe('hands-on-working')
+    expect(items[2].depth).toBe('architectural')
+    expect(items[3].depth).toBe('conceptual')
+    expect(items[4].depth).toBe('strong')
+    expect(items[5].depth).toBe('working')
+    expect(items[6].depth).toBe('basic')
+    expect(items[7].depth).toBe('avoid')
+  })
+
+  it('accepts calibration field on skill groups', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].calibration =
+      'Not a traditional security engineer. Strength is building security platforms.'
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.skills.groups[0].calibration).toBe(
+      'Not a traditional security engineer. Strength is building security platforms.',
+    )
+  })
+
+  it('omits calibration when not provided', () => {
+    const { data: parsed } = importProfessionalIdentity(clone(baseIdentityFixture))
+
+    expect(parsed.skills.groups[0].calibration).toBeUndefined()
+  })
+
+  it('accepts conditional severity and condition on matching avoid filters', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.preferences.matching.avoid = [
+      {
+        id: 'k8s-admin',
+        label: 'Kubernetes admin roles',
+        description: 'Do not want to be the K8s person',
+        severity: 'conditional',
+        condition: 'building around k8s is fine, being a k8s admin is not',
+      },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+    const avoid = parsed.preferences.matching.avoid[0]
+
+    expect(avoid.severity).toBe('conditional')
+    expect(avoid.condition).toBe('building around k8s is fine, being a k8s admin is not')
+  })
+
+  it('accepts condition on matching prioritize filters', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.preferences.matching.prioritize = [
+      {
+        id: 'builder-friendly',
+        label: 'Builder-friendly interviews',
+        description: 'Take-homes, portfolio reviews',
+        weight: 'high',
+        condition: 'especially paid work trials',
+      },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+    const prioritize = parsed.preferences.matching.prioritize[0]
+
+    expect(prioritize.weight).toBe('high')
+    expect(prioritize.condition).toBe('especially paid work trials')
+  })
+
+  it('omits condition when not provided on matching filters', () => {
+    const { data: parsed } = importProfessionalIdentity(clone(baseIdentityFixture))
+
+    expect(parsed.preferences.matching.avoid[0].condition).toBeUndefined()
+    expect(parsed.preferences.matching.prioritize[0].condition).toBeUndefined()
+  })
+
+  it('preserves backward compatibility with hard and soft severity values', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.preferences.matching.avoid = [
+      { id: 'clearance', label: 'Security clearance', description: 'No clearance', severity: 'hard' },
+      { id: 'jenkins', label: 'Jenkins roles', description: 'Avoid', severity: 'soft' },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.preferences.matching.avoid[0].severity).toBe('hard')
+    expect(parsed.preferences.matching.avoid[1].severity).toBe('soft')
+  })
 })
