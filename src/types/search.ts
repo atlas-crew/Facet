@@ -171,6 +171,129 @@ export interface SearchRun {
   searchLog: string[]
   error?: string
   tokenUsage?: SearchTokenUsage
+
+  /** Run-level reasoning narrative (5-layer structure from doc-24 Output Contract). */
+  narrative?: SearchRunNarrative
+  /** Links to the ResearchJob record that produced this run (for rejoin after tab close). */
+  jobId?: string
+  /** Thesis id this run was generated from. */
+  thesisId?: string
+  /**
+   * Immutable thesis snapshot at the time this run was created. Preserves reproducibility
+   * when the source thesis is later edited — the run remains anchored to its original inputs.
+   */
+  thesisSnapshot?: SearchThesis
+  /** `identity.model_revision` at generation time (TASK-159) for staleness detection. */
+  identityVersion?: number
+  /**
+   * Output-contract violations flagged during normalization. Consumers surface these as
+   * quality warnings and offer a "regenerate" affordance. An empty or omitted array means
+   * the narrative and results satisfied the contract.
+   */
+  contractViolations?: string[]
+}
+
+// ── Run-Level Narrative (doc-24 Output Contract: Reasoning Layers) ─────────────
+
+export interface SearchNarrativeLaneSummary {
+  lane: string
+  narrative: string
+  topCompanies: string[]
+}
+
+export interface SearchObjectiveRecommendation {
+  /** E.g., "security-domain leverage", "compensation optimization", "portfolio-as-interview". */
+  objective: string
+  recommendedCompanies: string[]
+  rationale: string
+}
+
+export interface SearchRejectedCandidate {
+  company: string
+  reason: string
+}
+
+export interface SearchNarrativeReference {
+  id: string | number
+  url: string
+  title?: string
+}
+
+export type SearchVisualizationType = 'mermaid-gantt' | 'mermaid-xychart' | 'mermaid-other'
+
+export interface SearchVisualization {
+  type: SearchVisualizationType
+  /** Mermaid source code, preserved verbatim (not re-serialized). */
+  source: string
+  caption?: string
+}
+
+export type ApplicationPlanPhaseName = 'materials' | 'outreach' | 'prep' | 'close' | string
+
+export interface ApplicationPlanTask {
+  label: string
+  /** ISO date (e.g., "2026-02-27"). */
+  startDate: string
+  durationDays: number
+  /** Labels of other tasks in the same plan that must complete first. */
+  dependencies?: string[]
+}
+
+export interface ApplicationPlanPhase {
+  name: ApplicationPlanPhaseName
+  tasks: ApplicationPlanTask[]
+}
+
+export interface ApplicationPlan {
+  /** ISO date the plan begins. */
+  startDate: string
+  /** ISO date target for a signed offer (from SearchTimeline.deadline when set). */
+  targetOfferDate?: string
+  phases: ApplicationPlanPhase[]
+  /** Optional Mermaid Gantt diagram source — preserved verbatim if provided. */
+  mermaidDiagram?: string
+}
+
+/**
+ * Run-level envelope the model produces alongside SearchResultEntry[].
+ *
+ * Five distinct narrative layers identified from reference search outputs
+ * (Where Builders Beat Leetcoders, Platform and Security Platform Job Search Report):
+ *
+ *   1. Opening — competitiveMoat, selectionMethodology, marketContext, scoringRubric
+ *   2. Lane structure — laneSummaries
+ *   3. Closing — landscapeTrends, objectiveRecommendations, applicationPlan, visualizations
+ *   4. Top-of-output summary — executiveSummary (compression of everything above)
+ *   5. Feedback surfaces — surprises, rejectedCandidates, nextSteps, references
+ *
+ * Prose fields may contain `[cite:<id>]` inline markers resolved via TASK-184's Citation
+ * type. The `references[]` field here holds resolved footnote URLs for numbered-citation
+ * rendering mode.
+ */
+export interface SearchRunNarrative {
+  // Opening layers — the argument before results
+  competitiveMoat: string
+  selectionMethodology: string
+  marketContext: string
+  scoringRubric?: string[]
+
+  // Lane structure
+  laneSummaries?: SearchNarrativeLaneSummary[]
+
+  // Closing layers — synthesis after results
+  landscapeTrends?: string
+  objectiveRecommendations?: SearchObjectiveRecommendation[]
+  applicationPlan?: ApplicationPlan
+  visualizations?: SearchVisualization[]
+
+  // Top-of-output summary
+  executiveSummary: string
+
+  // Feedback surfaces
+  surprises?: string[]
+  rejectedCandidates?: SearchRejectedCandidate[]
+  nextSteps?: string[]
+  references?: SearchNarrativeReference[]
 }
 
 // ── Search Thesis ──────────────────────────────────────────────
@@ -245,6 +368,14 @@ export interface SearchThesis {
   createdAt: string
   updatedAt: string
 
+  /**
+   * Cohesive 3-5 paragraph strategic explanation weaving moat → advantages → lanes → signals
+   * into a single story the user reads top-to-bottom. Required: users evaluate whether to
+   * commit to Phase 2 deep research by reading this argument, so without it the thesis is a
+   * structured dataset but not persuasive.
+   */
+  narrative: string
+
   /** What makes this candidate structurally different. */
   competitiveMoat: string
   /** Rare skill combinations with depth validation. */
@@ -271,6 +402,63 @@ export interface SearchThesis {
   identityVersion: number
   /** IDs of feedback events that informed this thesis. */
   feedbackIncorporated: string[]
+}
+
+// ── Research Job (TASK-161 storage + runner; type definition lives here) ─────
+
+export type ResearchJobStatus = 'queued' | 'running' | 'completed' | 'canceled' | 'failed'
+
+export interface ResearchJobProgress {
+  /** Current phase label (e.g., "analyzing thesis", "searching lane 2"). */
+  phase: string
+  /** Milliseconds elapsed since startedAt. */
+  elapsedMs: number
+  /** Web search queries executed so far. */
+  searchQueries: string[]
+  /** Optional thinking-text excerpts streamed from the model. */
+  thinkingExcerpts?: string[]
+  /** Number of intermediate findings produced so far. */
+  findingsCount?: number
+}
+
+export interface ResearchJobResult {
+  narrative: SearchRunNarrative
+  results: SearchResultEntry[]
+  tokenUsage: SearchTokenUsage
+}
+
+export interface ResearchJobError {
+  code: string
+  message: string
+  retriable: boolean
+}
+
+/**
+ * Durable job record for Phase 2 async deep research (TASK-161 runs this server-side).
+ *
+ * Persisted so a 10-20 minute run survives tab close, page reload, network switches, and
+ * multi-device access. Client creates via POST /research/jobs, then polls GET /research/jobs/:id
+ * (or subscribes via SSE) for status updates. The terminal `result` carries everything the
+ * client needs to hydrate a SearchRun.
+ */
+export interface ResearchJob {
+  id: string
+  userId: string
+  thesisId: string
+  /** Immutable thesis snapshot — runs do not mutate when the source thesis evolves. */
+  thesisSnapshot: SearchThesis
+  /** `identity.model_revision` at job creation time (TASK-159). */
+  identityVersion: number
+  params: SearchRequest
+  status: ResearchJobStatus
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+  progress?: ResearchJobProgress
+  result?: ResearchJobResult
+  error?: ResearchJobError
+  /** ISO timestamp at which the job record becomes eligible for cleanup. */
+  ttlAt: string
 }
 
 export const DEFAULT_SEARCH_MAX_RESULTS: SearchRequestMaxResults = {
