@@ -104,8 +104,26 @@ describe('extractJsonBlock', () => {
       expect(extractJsonBlock(text)).toBe('{"lang": "none"}')
     })
 
-    it('returns empty-sentinel error when every sentinel body is empty', () => {
-      const text = '<result></result>\n<result>   \n\n</result>'
+    it('falls through to the fenced-block fallback when sentinel bodies are empty', () => {
+      // Model referenced <result></result> in prose but emitted real JSON via a
+      // fenced block further down. Empty-sentinel classification should be deferred
+      // until every strategy fails.
+      const text = [
+        'I\'ll wrap in <result></result> shortly.',
+        '```json',
+        '{"real": true}',
+        '```',
+      ].join('\n')
+      expect(extractJsonBlock(text)).toBe('{"real": true}')
+    })
+
+    it('falls through to the brace-scan fallback when sentinel bodies are empty and no fence exists', () => {
+      const text = '<result></result>\n\nHere it is: {"real": true}'
+      expect(extractJsonBlock(text)).toBe('{"real": true}')
+    })
+
+    it('only classifies as empty-sentinel when no fenced or bare JSON exists as fallback', () => {
+      const text = '<result></result>\n<result>   \n\n</result>\n(no json anywhere)'
       try {
         extractJsonBlock(text)
         throw new Error('expected throw')
@@ -177,7 +195,7 @@ describe('extractJsonBlock', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       expect(() => extractJsonBlock('<result>\n</result>')).toThrow(JsonExtractionError)
       expect(warn).toHaveBeenCalledWith(
-        '[extractJsonBlock] <result> sentinel present but body empty',
+        '[extractJsonBlock] <result> sentinel present but body empty and no fallback JSON found',
         expect.objectContaining({ length: expect.any(Number) }),
       )
     })

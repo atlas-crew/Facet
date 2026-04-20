@@ -95,7 +95,9 @@ function unwrapFencedJson(body: string): string {
  */
 export function extractJsonBlock(text: string): string {
   const sentinelMatches = Array.from(text.matchAll(JSON_RESULT_SENTINEL_PATTERN))
+  let sawSentinel = false
   if (sentinelMatches.length > 0) {
+    sawSentinel = true
     // Prefer the LAST non-empty <result>...</result> block. See pattern-definition
     // comment — models narrate about the sentinel before emitting the real payload,
     // so earlier matches are typically prose examples, not the actual output.
@@ -103,16 +105,11 @@ export function extractJsonBlock(text: string): string {
       const body = sentinelMatches[i][1].trim()
       if (body) return unwrapFencedJson(body)
     }
-    const diagnostic = buildDiagnostic(text)
-    console.warn(
-      '[extractJsonBlock] <result> sentinel present but body empty',
-      diagnostic,
-    )
-    throw new JsonExtractionError(
-      'AI response contained <result></result> sentinel but the body was empty.',
-      'empty-sentinel',
-      diagnostic,
-    )
+    // All sentinel bodies were whitespace-only. Don't throw yet — the model may
+    // have referenced <result></result> in prose (as an example) while emitting
+    // the actual payload via a fenced block or bare braces further down. Fall
+    // through to the legacy strategies and only classify as empty-sentinel if
+    // nothing else matches either.
   }
 
   const fencedMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
@@ -127,6 +124,17 @@ export function extractJsonBlock(text: string): string {
   }
 
   const diagnostic = buildDiagnostic(text)
+  if (sawSentinel) {
+    console.warn(
+      '[extractJsonBlock] <result> sentinel present but body empty and no fallback JSON found',
+      diagnostic,
+    )
+    throw new JsonExtractionError(
+      'AI response contained <result></result> sentinel but the body was empty and no fallback JSON was found.',
+      'empty-sentinel',
+      diagnostic,
+    )
+  }
   console.warn(
     '[extractJsonBlock] no sentinel, fenced block, or balanced braces found',
     diagnostic,
