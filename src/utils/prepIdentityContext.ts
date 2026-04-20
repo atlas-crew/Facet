@@ -130,13 +130,20 @@ const skillMatchesVector = (
 
 export function buildPrepIdentityContext(
   identity: ProfessionalIdentityV3,
-  vectorId: string,
+  vectorId?: string,
   vectorLabel?: string,
 ): PrepIdentityContext {
-  const selectedVector = identity.search_vectors?.find((entry) => entry.id === vectorId) ?? null
+  const selectedVector = vectorId
+    ? (identity.search_vectors?.find((entry) => entry.id === vectorId) ?? null)
+    : null
   const relevantBulletIds = new Set(selectedVector?.supporting_bullets ?? [])
   const relevantSkillNames = new Set((selectedVector?.supporting_skills ?? []).map(normalizeTerm))
-  const fallbackTerms = vectorLabel ? [vectorId, vectorLabel] : []
+  // Match original semantics: fallback matching only kicks in when vectorLabel is present.
+  // vectorId alone (with no label) signals the caller doesn't have semantic framing — return
+  // broad context rather than text-matching against an opaque id.
+  const fallbackTerms = vectorLabel
+    ? [vectorId, vectorLabel].filter((term): term is string => Boolean(term))
+    : []
   const keywordTerms = expandTerms(selectedVector
     ? [
         ...(selectedVector.keywords.primary ?? []),
@@ -242,7 +249,9 @@ export function buildPrepIdentityContext(
           supporting_bullets: selectedVector.supporting_bullets ?? [],
           supporting_skills: selectedVector.supporting_skills ?? [],
         }
-      : { id: vectorId },
+      : vectorId
+        ? { id: vectorId }
+        : {},
     self_model: {
       interview_style: identity.self_model.interview_style,
       prep_strategy: identity.self_model.interview_style.prep_strategy,

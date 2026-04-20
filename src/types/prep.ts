@@ -187,7 +187,7 @@ export interface PrepDeck {
   title: string
   company: string
   role: string
-  vectorId: string
+  vectorId?: string
   pipelineEntryId: string | null
   companyUrl?: string
   skillMatch?: string
@@ -212,8 +212,8 @@ export interface PrepDeck {
 export interface PrepGenerationRequest {
   company: string
   role: string
-  vectorId: string
-  vectorLabel: string
+  vectorId?: string
+  vectorLabel?: string
   companyUrl?: string
   skillMatch?: string
   positioning?: string

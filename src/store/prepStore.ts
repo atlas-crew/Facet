@@ -45,7 +45,7 @@ interface CreateDeckInput {
   title: string
   company: string
   role: string
-  vectorId: string
+  vectorId?: string
   pipelineEntryId?: string | null
   companyUrl?: string
   skillMatch?: string
@@ -436,7 +436,7 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     title: deck.title.trim() || 'Interview Prep',
     company: deck.company.trim(),
     role: deck.role.trim(),
-    vectorId: deck.vectorId.trim(),
+    vectorId: deck.vectorId?.trim() || undefined,
     pipelineEntryId: deck.pipelineEntryId ?? null,
     companyUrl: deck.companyUrl?.trim() || undefined,
     skillMatch: deck.skillMatch?.trim() || undefined,
@@ -520,7 +520,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     title: deck.title.trim() || 'Interview Prep',
     company: deck.company.trim(),
     role: deck.role.trim(),
-    vectorId: deck.vectorId.trim(),
+    vectorId: deck.vectorId?.trim() || undefined,
     pipelineEntryId: deck.pipelineEntryId ?? null,
     companyUrl: deck.companyUrl?.trim() || undefined,
     skillMatch: deck.skillMatch?.trim() || undefined,

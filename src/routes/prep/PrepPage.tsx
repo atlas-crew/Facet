@@ -563,38 +563,34 @@ export function PrepPage() {
         setGenerationError('Choose a pipeline entry before generating prep.')
         return
       }
-      if (!selectedVectorId) {
-        setGenerationError('Choose a matching vector before generating prep.')
-        return
-      }
       if (!selectedEntry.jobDescription.trim()) {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
       }
 
-      const vector = freshResumeData.vectors.find((item) => item.id === selectedVectorId)
-      if (!vector) {
-        setGenerationError('The selected vector could not be found in resume data.')
-        return
-      }
+      const vector = selectedVectorId
+        ? freshResumeData.vectors.find((item) => item.id === selectedVectorId) ?? null
+        : null
       const selectedRoundType = selectedEntry.format.length === 1 ? selectedEntry.format[0] : undefined
       const prepIdentityContext = currentIdentity
-        ? buildPrepIdentityContext(currentIdentity, vector.id, vector.label)
+        ? buildPrepIdentityContext(currentIdentity, vector?.id, vector?.label)
         : undefined
 
-      const assembled = assembleResume(freshResumeData, {
-        selectedVector: vector.id,
-        manualOverrides: freshResumeData.manualOverrides?.[vector.id] ?? {},
-        bulletOrderByRole: freshResumeData.bulletOrders?.[vector.id] ?? {},
-        targetPages: 2,
-        variables: freshResumeData.variables ?? {},
-      }).resume
+      const assembled = vector
+        ? assembleResume(freshResumeData, {
+            selectedVector: vector.id,
+            manualOverrides: freshResumeData.manualOverrides?.[vector.id] ?? {},
+            bulletOrderByRole: freshResumeData.bulletOrders?.[vector.id] ?? {},
+            targetPages: 2,
+            variables: freshResumeData.variables ?? {},
+          }).resume
+        : undefined
 
       const result = await generateInterviewPrep(aiEndpoint, {
         company: selectedEntry.company,
         role: selectedEntry.role,
-        vectorId: vector.id,
-        vectorLabel: vector.label,
+        vectorId: vector?.id,
+        vectorLabel: vector?.label,
         roundType: selectedRoundType,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,
@@ -605,8 +601,8 @@ export function PrepPage() {
         identityContext: prepIdentityContext,
         resumeContext: {
           candidate: freshResumeData.meta,
-          vector,
-          assembled,
+          ...(vector ? { vector } : {}),
+          ...(assembled ? { assembled } : {}),
         },
       })
 
@@ -614,7 +610,7 @@ export function PrepPage() {
         title: result.deckTitle,
         company: selectedEntry.company,
         role: selectedEntry.role,
-        vectorId: vector.id,
+        vectorId: vector?.id,
         pipelineEntryId: selectedEntry.id,
         roundType: selectedRoundType,
         donts: result.donts,
@@ -634,7 +630,7 @@ export function PrepPage() {
           ...card,
           company: selectedEntry.company,
           role: selectedEntry.role,
-          vectorId: vector.id,
+          vectorId: vector?.id,
           pipelineEntryId: selectedEntry.id,
           source: 'ai',
         })),
@@ -672,7 +668,7 @@ export function PrepPage() {
         activeDeck.company,
         activeDeck.role,
         activeDeck.vectorId,
-      ].filter(Boolean),
+      ].filter((tag): tag is string => Boolean(tag)),
       company: activeDeck.company || undefined,
       role: activeDeck.role || undefined,
       vectorId: activeDeck.vectorId || undefined,
@@ -1009,32 +1005,32 @@ export function PrepPage() {
       setGenerationError('Add a job description before regenerating this prep set.')
       return
     }
-    const vector = freshResumeData.vectors.find((entry) => entry.id === latestDeck.vectorId)
-    if (!vector) {
-      setGenerationError('The active prep set is linked to a vector that no longer exists.')
-      return
-    }
+    const vector = latestDeck.vectorId
+      ? freshResumeData.vectors.find((entry) => entry.id === latestDeck.vectorId) ?? null
+      : null
 
     setGenerationError(null)
     setIsGenerating(true)
 
     try {
       const prepIdentityContext = currentIdentity
-        ? buildPrepIdentityContext(currentIdentity, vector.id, vector.label)
+        ? buildPrepIdentityContext(currentIdentity, vector?.id, vector?.label)
         : undefined
-      const assembled = assembleResume(freshResumeData, {
-        selectedVector: vector.id,
-        manualOverrides: freshResumeData.manualOverrides?.[vector.id] ?? {},
-        bulletOrderByRole: freshResumeData.bulletOrders?.[vector.id] ?? {},
-        targetPages: 2,
-        variables: freshResumeData.variables ?? {},
-      }).resume
+      const assembled = vector
+        ? assembleResume(freshResumeData, {
+            selectedVector: vector.id,
+            manualOverrides: freshResumeData.manualOverrides?.[vector.id] ?? {},
+            bulletOrderByRole: freshResumeData.bulletOrders?.[vector.id] ?? {},
+            targetPages: 2,
+            variables: freshResumeData.variables ?? {},
+          }).resume
+        : undefined
 
       const result = await generateInterviewPrep(aiEndpoint, {
         company: latestDeck.company,
         role: latestDeck.role,
-        vectorId: vector.id,
-        vectorLabel: vector.label,
+        vectorId: vector?.id,
+        vectorLabel: vector?.label,
         roundType: latestDeck.roundType,
         companyUrl: latestDeck.companyUrl,
         skillMatch: latestDeck.skillMatch,
@@ -1047,8 +1043,8 @@ export function PrepPage() {
         contextGapAnswers: latestDeck.contextGapAnswers,
         resumeContext: {
           candidate: freshResumeData.meta,
-          vector,
-          assembled,
+          ...(vector ? { vector } : {}),
+          ...(assembled ? { assembled } : {}),
         },
       })
 
@@ -1086,7 +1082,7 @@ export function PrepPage() {
           ...card,
           company: latestDeck.company,
           role: latestDeck.role,
-          vectorId: vector.id,
+          vectorId: vector?.id,
           pipelineEntryId: latestDeck.pipelineEntryId,
           source: 'ai' as const,
         })),
@@ -1402,13 +1398,13 @@ export function PrepPage() {
               </label>
 
               <label className="prep-field">
-                <span className="prep-field-label">Vector</span>
+                <span className="prep-field-label">Vector (optional)</span>
                 <select
                   className="prep-input"
                   value={selectedVectorId}
                   onChange={(event) => setSelectedVectorId(event.target.value)}
                 >
-                  <option value="">Select a vector</option>
+                  <option value="">No vector</option>
                   {resumeData.vectors.map((vector) => (
                     <option key={vector.id} value={vector.id}>
                       {vector.label}
@@ -1550,9 +1546,9 @@ export function PrepPage() {
                     <input className="prep-input" value={activeDeck.role} onChange={(event) => updateActiveDeck({ role: event.target.value })} />
                   </label>
                   <label className="prep-field">
-                    <span className="prep-field-label">Vector</span>
-                    <select className="prep-input" value={activeDeck.vectorId} onChange={(event) => updateActiveDeck({ vectorId: event.target.value })}>
-                      <option value="">Select a vector</option>
+                    <span className="prep-field-label">Vector (optional)</span>
+                    <select className="prep-input" value={activeDeck.vectorId ?? ''} onChange={(event) => updateActiveDeck({ vectorId: event.target.value || undefined })}>
+                      <option value="">No vector</option>
                       {resumeData.vectors.map((vector) => (
                         <option key={vector.id} value={vector.id}>
                           {vector.label}

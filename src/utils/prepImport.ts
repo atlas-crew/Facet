@@ -170,7 +170,6 @@ function validateDeck(raw: unknown): PrepDeck | null {
   if (typeof deck.title !== 'string') return null
   if (typeof deck.company !== 'string') return null
   if (typeof deck.role !== 'string') return null
-  if (typeof deck.vectorId !== 'string') return null
   if (!Array.isArray(deck.cards)) return null
 
   const deckId = deck.id as string
@@ -184,7 +183,7 @@ function validateDeck(raw: unknown): PrepDeck | null {
     title: deck.title,
     company: deck.company,
     role: deck.role,
-    vectorId: deck.vectorId,
+    vectorId: typeof deck.vectorId === 'string' ? deck.vectorId : undefined,
     pipelineEntryId:
       typeof deck.pipelineEntryId === 'string' || deck.pipelineEntryId === null
         ? deck.pipelineEntryId
