@@ -134,6 +134,26 @@ interface IdentityState {
 const formatIdentityDocument = (identity: ProfessionalIdentityV3): string =>
   JSON.stringify(identity, null, 2)
 
+/**
+ * Advance the identity's content-revision counter for any mutation.
+ *
+ * Rules:
+ *   - Every mutation produces a revision strictly greater than the previous revision.
+ *   - On import/replace, the new revision is also strictly greater than the previous
+ *     currentIdentity revision so that artifacts generated against the old identity
+ *     cannot appear fresh after a full replacement.
+ *
+ * Returns the identity with `model_revision` set to `max(incoming, previous) + 1`.
+ */
+const advanceModelRevision = (
+  incoming: ProfessionalIdentityV3,
+  previous: ProfessionalIdentityV3 | null | undefined,
+): ProfessionalIdentityV3 => {
+  const incomingRevision = incoming.model_revision ?? 0
+  const previousRevision = previous?.model_revision ?? 0
+  return { ...incoming, model_revision: Math.max(incomingRevision, previousRevision) + 1 }
+}
+
 const getScanBulletKey = (roleId: string, bulletId: string): string => `${roleId}::${bulletId}`
 
 const enumerateScanBullets = (identity: ProfessionalIdentityV3) =>
@@ -334,7 +354,7 @@ const updateScanIdentity = (
   }
 
   const identity = normalizeRuntimeProfessionalIdentity(
-    updater(state.scanResult.identity),
+    advanceModelRevision(updater(state.scanResult.identity), state.scanResult.identity),
   )
   const progress = normalizeScanProgress(identity, state.scanResult.progress)
   const nextScanResult: ResumeScanResult = {
@@ -385,7 +405,9 @@ const syncIdentityDocument = (
   state: IdentityState,
   identity: ProfessionalIdentityV3,
 ): Pick<IdentityState, 'currentIdentity' | 'draftDocument' | 'lastError'> => {
-  const normalized = normalizeRuntimeProfessionalIdentity(identity)
+  const normalized = normalizeRuntimeProfessionalIdentity(
+    advanceModelRevision(identity, state.currentIdentity),
+  )
 
   return {
     currentIdentity: normalized,
@@ -1057,6 +1079,9 @@ export const useIdentityStore = create<IdentityState>()(
               return {
                 ...skill,
                 depth: updates.depth,
+                // Any save through this path is a user-affirmed depth. Mark as corrected so
+                // downstream regeneration (resume re-scan, identity re-extract) preserves it.
+                depthSource: 'corrected',
                 ...(nextContext ? { context: nextContext } : { context: undefined }),
                 ...(nextContext
                   ? { context_stale: updates.contextStale ? true : undefined }
@@ -1186,8 +1211,9 @@ export const useIdentityStore = create<IdentityState>()(
       clearLastError: () => set({ lastError: null }),
       importIdentity: (value, summary = 'Imported identity model') => {
         const imported = importProfessionalIdentity(value)
+        const advanced = advanceModelRevision(imported.data, get().currentIdentity)
         const result: IdentityApplyResult = {
-          data: imported.data,
+          data: advanced,
           warnings: imported.warnings,
           summary,
           details: ['Loaded identity.json into the Phase 0 workspace.'],
@@ -1216,10 +1242,15 @@ export const useIdentityStore = create<IdentityState>()(
       applyDraft: (mode) => {
         const { currentIdentity, draftDocument } = get()
         const parsedDraft = parseDraftDocument(draftDocument)
-        const result =
+        const rawResult =
           mode === 'merge' && currentIdentity
             ? mergeProfessionalIdentity(currentIdentity, parsedDraft.data, parsedDraft.fieldPresence)
             : replaceProfessionalIdentity(parsedDraft.data)
+
+        const result: IdentityApplyResult = {
+          ...rawResult,
+          data: advanceModelRevision(rawResult.data, currentIdentity),
+        }
 
         set((state) => ({
           currentIdentity: result.data,

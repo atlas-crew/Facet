@@ -12,6 +12,8 @@ export type ProfessionalSkillDepth =
 
 export type ProfessionalSkillEnrichedBy = 'user' | 'user-edited-llm' | 'llm-accepted'
 
+export type ProfessionalSkillDepthSource = 'inferred' | 'corrected'
+
 export type ProfessionalAwarenessSeverity = 'high' | 'medium' | 'low'
 
 export type ProfessionalMatchingWeight = 'high' | 'medium' | 'low'
@@ -140,6 +142,12 @@ export interface ProfessionalPreferences {
 export interface ProfessionalSkillItem {
   name: string
   depth?: ProfessionalSkillDepth
+  /**
+   * Provenance of `depth`. Writeback precedence: user correction > explicit schema value > AI inference.
+   * When `'corrected'`, downstream regeneration flows (resume re-scan, identity re-extract) must not
+   * overwrite `depth`. When `'inferred'` or absent, inference/heuristics may replace the value.
+   */
+  depthSource?: ProfessionalSkillDepthSource
   context?: string
   context_stale?: boolean
   positioning?: string
@@ -251,6 +259,12 @@ export interface ProfessionalIdentityV3 {
   $schema?: string
   version: 3
   schema_revision: ProfessionalSchemaRevision
+  /**
+   * Monotonic content-revision counter. Bumps on every mutation to the identity model.
+   * Consumed by downstream artifacts (search theses, runs, prep decks, cover letters) to
+   * detect staleness. Distinct from `version` (schema major version) and `schema_revision`.
+   */
+  model_revision: number
   identity: ProfessionalIdentityCore
   self_model: ProfessionalSelfModel
   preferences: ProfessionalPreferences
@@ -282,6 +296,7 @@ const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
   'user-edited-llm',
   'llm-accepted',
 ])
+const DEPTH_SOURCE_VALUES = new Set<ProfessionalSkillDepthSource>(['inferred', 'corrected'])
 export const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
 export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft', 'conditional'])
 export const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
@@ -325,17 +340,22 @@ export const normalizeRuntimeProfessionalIdentity = (
   identity: ProfessionalIdentityV3,
 ): ProfessionalIdentityV3 => {
   const normalizedIdentity = normalizeRuntimeIdentitySchemaRevision(identity)
-  const groups = (normalizedIdentity.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined)
+  // Migrate persisted state: older identities predate model_revision; start the counter at 0.
+  const withRevision: ProfessionalIdentityV3 =
+    typeof (normalizedIdentity as ProfessionalIdentityV3).model_revision === 'number'
+      ? normalizedIdentity
+      : { ...normalizedIdentity, model_revision: 0 }
+  const groups = (withRevision.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined)
     ?.groups
 
   if (!Array.isArray(groups)) {
-    return normalizedIdentity
+    return withRevision
   }
 
   return {
-    ...normalizedIdentity,
+    ...withRevision,
     skills: {
-      ...normalizedIdentity.skills,
+      ...withRevision.skills,
       groups: groups.map((group) => ({
         ...group,
         items: group.items.map((item) => {
@@ -350,6 +370,11 @@ export const normalizeRuntimeProfessionalIdentity = (
               : legacyPositioning !== undefined
                 ? { positioning: legacyPositioning }
                 : {}),
+            // Legacy depth values predate provenance tracking. Mark as inferred so future
+            // regeneration may overwrite them; explicit corrections land as 'corrected'.
+            ...(rest.depth !== undefined && rest.depthSource === undefined
+              ? { depthSource: 'inferred' as ProfessionalSkillDepthSource }
+              : {}),
           }
         }),
       })),
@@ -645,11 +670,27 @@ const parseSkillItem = (
   warnings: string[],
 ): ProfessionalSkillItem => {
   const item = assertRecord(value, context)
+  // Preserve the "explicit null clears the field" signal used by merge: item.depth === null
+  // must produce `depth: undefined` in the output (not omit), so mergeProfessionalIdentity
+  // can see the explicit clear intent. item.depth === undefined omits the field entirely.
+  const depthValue =
+    item.depth !== undefined
+      ? assertOptionalEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`)
+      : undefined
+  const depthSourceValue =
+    item.depthSource !== undefined
+      ? assertOptionalEnumString(item.depthSource, DEPTH_SOURCE_VALUES, `${context}.depthSource`)
+      : depthValue !== undefined
+        ? // Legacy identities carry `depth` without provenance. Default to 'inferred' so
+          // future regeneration flows can re-derive; corrections must be marked explicitly.
+          ('inferred' as ProfessionalSkillDepthSource)
+        : undefined
 
   return {
     name: assertString(item.name, `${context}.name`),
-    ...(item.depth !== undefined
-      ? { depth: assertOptionalEnumString(item.depth, SKILL_DEPTH_VALUES, `${context}.depth`) }
+    ...(item.depth !== undefined ? { depth: depthValue } : {}),
+    ...(item.depthSource !== undefined || depthSourceValue !== undefined
+      ? { depthSource: depthSourceValue }
       : {}),
     ...(item.context !== undefined ? { context: assertOptionalString(item.context, `${context}.context`) } : {}),
     ...(item.context_stale !== undefined
@@ -777,6 +818,10 @@ export const importProfessionalIdentity = (
   }
 
   const schemaRevision = assertEnumString(root.schema_revision, SCHEMA_REVISION_VALUES, 'schema_revision')
+  const parsedModelRevision =
+    root.model_revision === undefined
+      ? 0
+      : Math.max(0, Math.floor(assertNumber(root.model_revision, 'model_revision')))
   const identity = assertRecord(root.identity, 'identity')
   const selfModel = assertRecord(root.self_model, 'self_model')
   const interviewStyle = assertRecord(selfModel.interview_style, 'self_model.interview_style')
@@ -800,6 +845,7 @@ export const importProfessionalIdentity = (
     ...(root.$schema ? { $schema: assertString(root.$schema, '$schema') } : {}),
     version: 3,
     schema_revision: schemaRevision,
+    model_revision: parsedModelRevision,
     identity: {
       name: assertString(identity.name, 'identity.name'),
       ...(identity.display_name !== undefined

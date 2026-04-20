@@ -32,6 +32,7 @@ const buildSession = (
     identity: {
       version: 3,
       schema_revision: '3.1',
+      model_revision: 0,
       identity: {
         name: 'Test',
         email: '',

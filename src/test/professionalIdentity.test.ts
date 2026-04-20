@@ -12,6 +12,7 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
   $schema: 'https://atlascrew.dev/schemas/identity.json',
   version: 3,
   schema_revision: '3.1',
+  model_revision: 0,
   identity: {
     name: 'Nicholas Ferguson',
     display_name: 'Nicholas Crew Ferguson',
@@ -860,5 +861,78 @@ describe('professional identity schema', () => {
 
     expect(parsed.preferences.matching.avoid[0].severity).toBe('hard')
     expect(parsed.preferences.matching.avoid[1].severity).toBe('soft')
+  })
+
+  it('defaults model_revision to 0 when the field is absent from imported identity', () => {
+    const identity = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    delete identity.model_revision
+
+    const { data: parsed } = importProfessionalIdentity(identity)
+
+    expect(parsed.model_revision).toBe(0)
+  })
+
+  it('preserves model_revision from imported identity when provided', () => {
+    const identity = clone(baseIdentityFixture)
+    identity.model_revision = 7
+
+    const { data: parsed } = importProfessionalIdentity(identity)
+
+    expect(parsed.model_revision).toBe(7)
+  })
+
+  it('floors fractional model_revision and clamps negatives to 0', () => {
+    const withFractional = clone(baseIdentityFixture)
+    ;(withFractional as unknown as Record<string, unknown>).model_revision = 3.8
+
+    const withNegative = clone(baseIdentityFixture)
+    ;(withNegative as unknown as Record<string, unknown>).model_revision = -5
+
+    expect(importProfessionalIdentity(withFractional).data.model_revision).toBe(3)
+    expect(importProfessionalIdentity(withNegative).data.model_revision).toBe(0)
+  })
+
+  it('rejects non-numeric model_revision', () => {
+    const invalid = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    invalid.model_revision = 'not-a-number'
+
+    expect(() => importProfessionalIdentity(invalid)).toThrow(/model_revision/i)
+  })
+
+  it('defaults depthSource to "inferred" for legacy skill items with depth but no source', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      { name: 'Python', depth: 'expert', tags: ['backend'] },
+      { name: 'Rust', tags: ['systems'] },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+    const items = parsed.skills.groups[0].items
+
+    expect(items[0].depthSource).toBe('inferred')
+    expect(items[1].depthSource).toBeUndefined()
+  })
+
+  it('preserves explicit depthSource on skill items', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      { name: 'Python', depth: 'expert', depthSource: 'corrected', tags: ['backend'] },
+      { name: 'Rust', depth: 'working', depthSource: 'inferred', tags: ['systems'] },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+    const items = parsed.skills.groups[0].items
+
+    expect(items[0].depthSource).toBe('corrected')
+    expect(items[1].depthSource).toBe('inferred')
+  })
+
+  it('rejects unknown depthSource values', () => {
+    const invalid = clone(baseIdentityFixture)
+    invalid.skills.groups[0].items = [
+      { name: 'Python', depth: 'expert', depthSource: 'hallucinated', tags: ['backend'] } as never,
+    ]
+
+    expect(() => importProfessionalIdentity(invalid)).toThrow(/depthSource/i)
   })
 })

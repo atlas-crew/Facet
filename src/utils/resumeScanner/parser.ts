@@ -828,6 +828,7 @@ export const extractProjects = (sections: ResumeSection[]): ParsedResumeProject[
 const createEmptyIdentity = (): ProfessionalIdentityV3 => ({
   version: 3,
   schema_revision: '3.1',
+  model_revision: 0,
   identity: {
     name: '',
     email: '',

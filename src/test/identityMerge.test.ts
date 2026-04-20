@@ -6,6 +6,7 @@ const createIdentity = (): ProfessionalIdentityV3 => ({
   $schema: 'https://atlascrew.dev/schemas/identity.json',
   version: 3,
   schema_revision: '3.1',
+  model_revision: 0,
   identity: {
     name: 'Jordan Example',
     email: 'jordan@example.com',

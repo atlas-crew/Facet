@@ -765,3 +765,112 @@ describe('identityStore skill enrichment', () => {
     expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe('3.1')
   })
 })
+
+describe('identityStore model_revision', () => {
+  const seedCurrent = (revision = 0) => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = revision
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+      draft: null,
+      scanResult: null,
+      warnings: [],
+      changelog: [],
+      lastError: null,
+    })
+  }
+
+  it('bumps model_revision when updating matching preferences', () => {
+    seedCurrent(5)
+
+    useIdentityStore.getState().updateCurrentMatching({
+      prioritize: [],
+      avoid: [
+        { id: 'k8s-admin', label: 'Pure K8s admin roles', description: 'Avoid', severity: 'conditional' },
+      ],
+    })
+
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(6)
+  })
+
+  it('compounds model_revision across successive mutations', () => {
+    seedCurrent(0)
+
+    const store = useIdentityStore.getState()
+    store.updateCurrentMatching({ prioritize: [], avoid: [] })
+    store.updateCurrentWorkModel({ preference: 'hybrid' })
+    store.updateCurrentAwarenessQuestions([
+      { id: 'q1', topic: 'Departure', description: 'Why leaving', action: 'Prep answer' },
+    ])
+
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(3)
+  })
+
+  it('bumps model_revision and marks depthSource=corrected on saveSkillEnrichment', () => {
+    seedCurrent(2)
+
+    useIdentityStore
+      .getState()
+      .saveSkillEnrichment(
+        'platform',
+        'Kubernetes',
+        { depth: 'architectural', context: 'Build platforms around it', positioning: '' },
+        'user',
+      )
+
+    const identity = useIdentityStore.getState().currentIdentity
+    const skill = identity?.skills.groups[0].items.find((s) => s.name === 'Kubernetes')
+    expect(identity?.model_revision).toBe(3)
+    expect(skill?.depth).toBe('architectural')
+    expect(skill?.depthSource).toBe('corrected')
+  })
+
+  it('bumps model_revision on scanResult identity mutations', () => {
+    const scanResult = createScanResult()
+    scanResult.identity.model_revision = 4
+    useIdentityStore.getState().setScanResult(scanResult)
+
+    useIdentityStore.getState().updateScannedProjectEntry(0, 'name', 'Renamed')
+
+    // setScanResult does not bump; only mutations do. updateScannedProjectEntry is the bump point.
+    // Since setScanResult runs through normalize (which preserves model_revision), we expect 4 + 1 = 5
+    // Note: if setScanResult triggers normalizePersistedIdentityState, revision is preserved; mutation adds 1.
+    expect(useIdentityStore.getState().scanResult?.identity.model_revision).toBe(5)
+  })
+
+  it('advances model_revision past previous currentIdentity on importIdentity', () => {
+    seedCurrent(9)
+
+    const fresh = cloneIdentityFixture()
+    fresh.model_revision = 0
+    useIdentityStore.getState().importIdentity(fresh)
+
+    // New identity's revision = max(0, 9) + 1 = 10 — prevents artifacts from appearing fresh
+    // after a full replacement that would otherwise reset the counter.
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(10)
+  })
+
+  it('advances model_revision past previous currentIdentity on applyDraft (replace mode)', () => {
+    seedCurrent(12)
+
+    const draft = cloneIdentityFixture()
+    draft.model_revision = 2
+    useIdentityStore.setState({
+      draft: {
+        identity: draft,
+        summary: 'test',
+        followUpQuestions: [],
+        warnings: [],
+        generatedAt: '2026-04-20T00:00:00.000Z',
+        bullets: [],
+      },
+      draftDocument: JSON.stringify(draft, null, 2),
+    })
+
+    useIdentityStore.getState().applyDraft('replace')
+
+    // max(2, 12) + 1 = 13
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(13)
+  })
+})
