@@ -61,6 +61,40 @@ describe('extractJsonBlock', () => {
       ].join('\n')
       expect(extractJsonBlock(text)).toBe('{"source": "sentinel"}')
     })
+
+    it('selects the LAST non-empty sentinel when the model narrates example tags earlier', () => {
+      // Common Claude pattern: "I'll wrap the output in <result>{example}</result>"
+      // followed by the real payload. Taking the first match would grab the example.
+      const text = [
+        'Here is how the output will be shaped: I\'ll wrap it in <result>{"example": "like this"}</result>.',
+        'Now the actual result:',
+        '',
+        '<result>',
+        '{"actual": "payload"}',
+        '</result>',
+      ].join('\n')
+      expect(extractJsonBlock(text)).toBe('{"actual": "payload"}')
+    })
+
+    it('skips empty sentinel bodies and returns the last non-empty one', () => {
+      const text = [
+        '<result></result>',
+        'Note: the real output:',
+        '<result>{"real": true}</result>',
+      ].join('\n')
+      expect(extractJsonBlock(text)).toBe('{"real": true}')
+    })
+
+    it('returns empty-sentinel error when every sentinel body is empty', () => {
+      const text = '<result></result>\n<result>   \n\n</result>'
+      try {
+        extractJsonBlock(text)
+        throw new Error('expected throw')
+      } catch (error) {
+        expect(error).toBeInstanceOf(JsonExtractionError)
+        expect((error as JsonExtractionError).kind).toBe('empty-sentinel')
+      }
+    })
   })
 
   describe('fenced-block strategy (secondary)', () => {

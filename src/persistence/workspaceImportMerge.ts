@@ -104,10 +104,57 @@ const mergeSearchRequests = (existing: SearchRequest[], incoming: SearchRequest[
 const mergeSearchRuns = (existing: SearchRun[], incoming: SearchRun[]) =>
   mergeById(existing, incoming)
 
+/**
+ * Feedback events are mutated post-creation by `markFeedbackApplied` and
+ * `markFeedbackReflectedInThesis`. A plain mergeById (which keeps the local
+ * copy on id collision) would silently drop progress-state updates carried
+ * in an imported snapshot. Merge field-by-field, taking the strictly-more-
+ * progressed value for each mutable field.
+ *
+ * Progress semantics:
+ *   - appliedToIdentity only flips false → true → prefer true.
+ *   - appliedAtVersion advances monotonically with identity.model_revision →
+ *     prefer the higher value when both copies have it set.
+ *   - reflectedInThesisId: prefer defined over undefined; when both defined
+ *     and different, prefer the imported version (typical import scenario:
+ *     "pull in newer state from another client").
+ *
+ * Identity fields (id, runId, resultId, rating, reason, dimensions, createdAt)
+ * are immutable after creation — keep the local copy.
+ */
+const mergeFeedbackEventState = (
+  local: SearchFeedbackEvent,
+  imported: SearchFeedbackEvent,
+): SearchFeedbackEvent => {
+  const appliedToIdentity = local.appliedToIdentity || imported.appliedToIdentity
+  const appliedAtVersion =
+    local.appliedAtVersion !== undefined && imported.appliedAtVersion !== undefined
+      ? Math.max(local.appliedAtVersion, imported.appliedAtVersion)
+      : (local.appliedAtVersion ?? imported.appliedAtVersion)
+  // Prefer imported over local when both defined and different — newer client wins.
+  const reflectedInThesisId =
+    imported.reflectedInThesisId ?? local.reflectedInThesisId
+
+  return {
+    ...local,
+    appliedToIdentity,
+    ...(appliedAtVersion !== undefined ? { appliedAtVersion } : {}),
+    ...(reflectedInThesisId !== undefined ? { reflectedInThesisId } : {}),
+  }
+}
+
 const mergeSearchFeedbackEvents = (
   existing: SearchFeedbackEvent[],
   incoming: SearchFeedbackEvent[],
-) => mergeById(existing, incoming)
+): SearchFeedbackEvent[] => {
+  const byId = new Map<string, SearchFeedbackEvent>()
+  for (const event of existing) byId.set(event.id, event)
+  for (const imported of incoming) {
+    const current = byId.get(imported.id)
+    byId.set(imported.id, current ? mergeFeedbackEventState(current, imported) : imported)
+  }
+  return Array.from(byId.values())
+}
 
 export const mergeWorkspaceSnapshots = (
   current: FacetWorkspaceSnapshot | null,

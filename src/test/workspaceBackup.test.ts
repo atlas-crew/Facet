@@ -14,6 +14,8 @@ import {
 import { useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
 import { usePipelineStore } from '../store/pipelineStore'
+import { useSearchStore } from '../store/searchStore'
+import type { SearchFeedbackEvent } from '../types/search'
 import { slugify } from '../utils/idUtils'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
@@ -321,5 +323,125 @@ describe('workspace backup merge helpers', () => {
     expect(scoped.workspace.id).toBe('facet-local-workspace')
     expect(scoped.artifacts.resume.workspaceId).toBe('facet-local-workspace')
     expect(scoped.artifacts.resume.artifactId).toBe('facet-local-workspace:resume')
+  })
+
+  describe('mergeWorkspaceSnapshots — feedback event progress merge', () => {
+    const baseEvent = (overrides: Partial<SearchFeedbackEvent>): SearchFeedbackEvent => ({
+      id: 'sfe-1',
+      runId: 'srun-1',
+      resultId: 'sres-1',
+      rating: 'down',
+      appliedToIdentity: false,
+      createdAt: '2026-03-11T12:00:00.000Z',
+      ...overrides,
+    })
+
+    const seedSearchStore = (events: SearchFeedbackEvent[]) => {
+      useSearchStore.setState({
+        profile: null,
+        requests: [],
+        runs: [],
+        feedbackEvents: events,
+      })
+    }
+
+    const mergeWithSeededEvents = (
+      currentEvents: SearchFeedbackEvent[],
+      importedEvents: SearchFeedbackEvent[],
+    ) => {
+      seedSearchStore(currentEvents)
+      const current = createWorkspaceSnapshotFromStores({
+        workspaceId: 'facet-local-workspace',
+        exportedAt: '2026-03-11T12:00:00.000Z',
+      })
+      seedSearchStore(importedEvents)
+      const imported = createWorkspaceSnapshotFromStores({
+        workspaceId: 'facet-local-workspace',
+        exportedAt: '2026-03-11T13:00:00.000Z',
+      })
+      return mergeWorkspaceSnapshots(current, imported)
+    }
+
+    it('advances appliedToIdentity from false → true when the import has it set', () => {
+      const merged = mergeWithSeededEvents(
+        [baseEvent({ appliedToIdentity: false })],
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 7 })],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events).toHaveLength(1)
+      expect(events[0]).toMatchObject({
+        id: 'sfe-1',
+        appliedToIdentity: true,
+        appliedAtVersion: 7,
+      })
+    })
+
+    it('takes the max appliedAtVersion when both copies have it set', () => {
+      const merged = mergeWithSeededEvents(
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 5 })],
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 2 })],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0].appliedAtVersion).toBe(5)
+    })
+
+    it('prefers imported reflectedInThesisId over local when both defined', () => {
+      const merged = mergeWithSeededEvents(
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 3,
+            reflectedInThesisId: 'sthesis-local',
+          }),
+        ],
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 3,
+            reflectedInThesisId: 'sthesis-imported',
+          }),
+        ],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0].reflectedInThesisId).toBe('sthesis-imported')
+    })
+
+    it('keeps reflectedInThesisId from whichever copy has it set', () => {
+      const merged = mergeWithSeededEvents(
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 2 })],
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 2,
+            reflectedInThesisId: 'sthesis-imported',
+          }),
+        ],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0].reflectedInThesisId).toBe('sthesis-imported')
+    })
+
+    it('adds imported events that are not present locally', () => {
+      const merged = mergeWithSeededEvents(
+        [baseEvent({ id: 'sfe-1' })],
+        [baseEvent({ id: 'sfe-1' }), baseEvent({ id: 'sfe-2' })],
+      )
+      const ids = (merged.artifacts.research.payload.feedbackEvents ?? [])
+        .map((e) => e.id)
+        .sort()
+      expect(ids).toEqual(['sfe-1', 'sfe-2'])
+    })
+
+    it('does not regress local progress when the import has less progress', () => {
+      // Local has appliedToIdentity=true + version 8; import has appliedToIdentity=false.
+      // The merge must not revert progress.
+      const merged = mergeWithSeededEvents(
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 8 })],
+        [baseEvent({ appliedToIdentity: false })],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0].appliedToIdentity).toBe(true)
+      expect(events[0].appliedAtVersion).toBe(8)
+    })
   })
 })

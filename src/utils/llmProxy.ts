@@ -43,9 +43,13 @@ export class JsonExtractionError extends Error {
 /** Sentinel tag wrapping the model's final JSON payload (see TASK-167 prompt contract). */
 export const JSON_RESULT_SENTINEL_OPEN = '<result>'
 export const JSON_RESULT_SENTINEL_CLOSE = '</result>'
-// Non-greedy match; handles `<result>` appearing anywhere in the body, even inside prose.
+// Non-greedy global match; handles `<result>` appearing anywhere in the body.
 // [\s\S] covers newlines because JS regex `.` doesn't match `\n` by default.
-const JSON_RESULT_SENTINEL_PATTERN = /<result>([\s\S]*?)<\/result>/
+// The `g` flag is load-bearing — we iterate all matches and prefer the LAST non-empty
+// one. Models commonly narrate ("I'll wrap the output in <result>...</result>") before
+// emitting the real payload; the literal prose tags match first, so taking the first
+// match would return an example body and fail JSON.parse downstream.
+const JSON_RESULT_SENTINEL_PATTERN = /<result>([\s\S]*?)<\/result>/g
 
 const DIAGNOSTIC_WINDOW = 500
 
@@ -77,11 +81,14 @@ function buildDiagnostic(text: string): { head: string; tail: string; length: nu
  *   - `'empty-sentinel'` — sentinel tags present but body was whitespace-only
  */
 export function extractJsonBlock(text: string): string {
-  const sentinelMatch = text.match(JSON_RESULT_SENTINEL_PATTERN)
-  if (sentinelMatch) {
-    const body = sentinelMatch[1].trim()
-    if (body) {
-      return body
+  const sentinelMatches = Array.from(text.matchAll(JSON_RESULT_SENTINEL_PATTERN))
+  if (sentinelMatches.length > 0) {
+    // Prefer the LAST non-empty <result>...</result> block. See pattern-definition
+    // comment — models narrate about the sentinel before emitting the real payload,
+    // so earlier matches are typically prose examples, not the actual output.
+    for (let i = sentinelMatches.length - 1; i >= 0; i -= 1) {
+      const body = sentinelMatches[i][1].trim()
+      if (body) return body
     }
     const diagnostic = buildDiagnostic(text)
     console.warn(
