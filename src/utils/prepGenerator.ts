@@ -55,6 +55,9 @@ interface PrepGenerationPayload {
 }
 
 const PREP_PIPELINE_PEOPLE_GAP_ID = 'prep-gap-pipeline-people-intel'
+const PREP_PIPELINE_PEOPLE_GAP_SECTION = 'People intel'
+const PREP_PIPELINE_PEOPLE_GAP_QUESTION =
+  'List the people you have identified so far for this process: interviewers, the hiring manager, or anyone influencing the decision.'
 
 const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<
   PrepStackAlignmentConfidence,
@@ -230,6 +233,7 @@ function readPipelineResearchPeople(
 function buildPipelinePeopleGapId(request: PrepGenerationRequest): string {
   const pipelineContext = request.pipelineEntryContext
   if (!pipelineContext) return PREP_PIPELINE_PEOPLE_GAP_ID
+
   const slugSource = [
     pipelineContext.company,
     pipelineContext.role,
@@ -237,9 +241,52 @@ function buildPipelinePeopleGapId(request: PrepGenerationRequest): string {
   ]
     .filter(Boolean)
     .join('-')
+
   return slugSource
     ? `${PREP_PIPELINE_PEOPLE_GAP_ID}-${slugify(slugSource)}`
     : PREP_PIPELINE_PEOPLE_GAP_ID
+}
+
+function buildLegacyPipelinePeopleGapIds(request: PrepGenerationRequest): string[] {
+  const pipelineContext = request.pipelineEntryContext
+  if (!pipelineContext) return ['pipeline-people']
+
+  const slugSource = [
+    pipelineContext.company,
+    pipelineContext.role,
+    pipelineContext.url,
+  ]
+    .filter(Boolean)
+    .join('-')
+
+  return [
+    'pipeline-people',
+    slugSource ? `${PREP_PIPELINE_PEOPLE_GAP_ID}-${slugify(slugSource)}` : PREP_PIPELINE_PEOPLE_GAP_ID,
+  ]
+}
+
+function isPipelinePeopleGap(gap: PrepContextGap): boolean {
+  return (
+    gap.feedbackTarget === 'pipeline.research.people' ||
+    gap.id === PREP_PIPELINE_PEOPLE_GAP_ID ||
+    (
+      gap.section.trim().toLowerCase() === PREP_PIPELINE_PEOPLE_GAP_SECTION.toLowerCase() &&
+      gap.question.trim().toLowerCase() === PREP_PIPELINE_PEOPLE_GAP_QUESTION.toLowerCase()
+    )
+  )
+}
+
+function normalizePipelinePeopleGap(gap: PrepContextGap, gapId: string): PrepContextGap {
+  if (!isPipelinePeopleGap(gap)) return gap
+
+  return {
+    ...gap,
+    id: gapId,
+    section: PREP_PIPELINE_PEOPLE_GAP_SECTION,
+    question: PREP_PIPELINE_PEOPLE_GAP_QUESTION,
+    feedbackTarget: 'pipeline.research.people',
+    priority: gap.priority,
+  }
 }
 
 function ensurePipelineResearchContextGaps(
@@ -250,30 +297,44 @@ function ensurePipelineResearchContextGaps(
     return contextGaps
   }
 
-  const existingGaps = contextGaps ?? []
-  const hasPipelinePeopleGap = existingGaps.some(
-    (gap) =>
-      gap.feedbackTarget === 'pipeline.research.people' ||
-      gap.id === PREP_PIPELINE_PEOPLE_GAP_ID,
+  const rawExistingGaps = contextGaps ?? []
+  const pipelinePeopleGapId = buildPipelinePeopleGapId(request)
+  const existingGaps = rawExistingGaps.map((gap) => normalizePipelinePeopleGap(gap, pipelinePeopleGapId))
+  const hasPipelinePeopleGap = existingGaps.some((gap) => isPipelinePeopleGap(gap))
+  const pipelinePeopleGapIds = new Set(
+    existingGaps
+      .filter((gap) => isPipelinePeopleGap(gap))
+      .map((gap) => gap.id)
+      .filter((gapId) => gapId.trim().length > 0),
   )
-  if (hasPipelinePeopleGap) {
-    return contextGaps
+  pipelinePeopleGapIds.add(pipelinePeopleGapId)
+  for (const legacyGapId of buildLegacyPipelinePeopleGapIds(request)) {
+    pipelinePeopleGapIds.add(legacyGapId)
+  }
+  for (const rawGap of rawExistingGaps) {
+    if (isPipelinePeopleGap(rawGap)) {
+      pipelinePeopleGapIds.add(rawGap.id)
+    }
+  }
+  const hasAnsweredPipelinePeopleGap = [...pipelinePeopleGapIds].some((gapId) => Boolean(request.contextGapAnswers?.[gapId]?.trim()))
+
+  if (hasPipelinePeopleGap || hasAnsweredPipelinePeopleGap) {
+    return existingGaps.length > 0 ? existingGaps : undefined
   }
 
   const pipelinePeople = readPipelineResearchPeople(request.pipelineEntryContext)
   if (pipelinePeople && pipelinePeople.length > 0) {
-    return contextGaps
+    return existingGaps.length > 0 ? existingGaps : undefined
   }
 
   return [
     ...existingGaps,
     {
-      id: buildPipelinePeopleGapId(request),
-      section: 'People intel',
-      question:
-        'Who is likely interviewing you, hiring for this role, or influencing the decision for this opportunity?',
+      id: pipelinePeopleGapId,
+      section: PREP_PIPELINE_PEOPLE_GAP_SECTION,
+      question: PREP_PIPELINE_PEOPLE_GAP_QUESTION,
       why:
-        'The pipeline research does not yet include named people, so the prep cannot tailor interviewer-specific framing or questions.',
+        'Named people let the prep tailor framing and questions to who is actually in the room.',
       feedbackTarget: 'pipeline.research.people',
       priority: 'required',
     },
@@ -731,6 +792,7 @@ When structured identity context is provided, use it as the source of truth for 
 When structured pipeline entry context is provided, use it as the source of truth for company, process, and interviewer intel before falling back to freeform companyResearch notes.
 If structured pipeline entry context includes researched people, use them for named-person intel cards, likely-interviewer framing, and sharper questions-to-ask.
 Do not claim named-person intel unless it is grounded in the provided structured pipeline entry context or companyResearch notes.
+Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
 Generate dedicated opener cards for the predictable opening questions instead of a single generic opener bucket.

@@ -197,10 +197,12 @@ function getSectionContainer(title: string) {
 describe('PrepLiveMode', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    window.localStorage.clear()
   })
 
   afterEach(() => {
     cleanup()
+    window.localStorage.clear()
     vi.useRealTimers()
   })
 
@@ -509,6 +511,29 @@ describe('PrepLiveMode', () => {
     expect(container.querySelector('.prep-live-review-surface')).toBeTruthy()
   })
 
+  it('sanitizes placeholder markers and metadata-flavored coaching copy in live mode', () => {
+    const needsReviewDeck: PrepDeck = {
+      ...mockDeck,
+      cards: [
+        {
+          ...mockDeck.cards[0],
+          script: '[[needs-review]] tighten the company-specific motivation.',
+          notes: '[[fill-in: exact product area]]',
+          warning: 'no inbound signal noted',
+        },
+      ],
+    }
+
+    render(<PrepLiveMode deck={needsReviewDeck} />)
+
+    const openerSection = getSectionContainer('Tell me about yourself')
+    expect(openerSection?.textContent).toContain('tighten the company-specific motivation.')
+    expect(openerSection?.textContent).toContain('Fill in: exact product area')
+    expect(openerSection?.textContent).toContain('This looks like a cold application from the notes, so lead with a crisp why-this-role answer.')
+    expect(openerSection?.textContent).not.toContain('[[needs-review]]')
+    expect(openerSection?.textContent).not.toContain('no inbound signal noted')
+  })
+
   it('does not show review styling when the deck has no placeholder markers', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
@@ -528,6 +553,43 @@ describe('PrepLiveMode', () => {
     expect(trapConditional?.textContent).toContain('Reframe')
     expect(escalationConditional?.textContent).toContain('Escalation')
     expect(escalationConditional?.textContent).not.toContain('Reframe')
+    expect(screen.getAllByText('Reactive pivots').length).toBeGreaterThan(0)
+    expect(pivotConditional?.className).toContain('prep-live-conditional-reactive')
+  })
+
+  it('supports compact live mode and keeps an anchor story visible in the sidebar', () => {
+    const anchorDeck: PrepDeck = {
+      ...mockDeck,
+      skillMatch: 'GitOps migration, [[fill-in: jd pillar]], release engineering',
+      cards: mockDeck.cards.map((card) => (
+        card.id === 'card-4'
+          ? {
+              ...card,
+              notes: 'Your strongest single story. If you only tell one story, tell this one.',
+            }
+          : card
+      )),
+    }
+
+    const { container } = render(<PrepLiveMode deck={anchorDeck} />)
+
+    expect(screen.getByLabelText('Anchor story').textContent).toContain('A project you are proud of')
+    expect(screen.getByLabelText('Anchor story').textContent).toContain('GitOps migration')
+    expect(screen.getByLabelText('Anchor story').textContent).toContain('release engineering')
+    expect(screen.getByLabelText('Anchor story').textContent).not.toContain('[[fill-in:')
+    expect(screen.getByLabelText('Anchor story').textContent).not.toContain('Fill in:')
+
+    const openerSection = getSectionContainer('Tell me about yourself')
+    expect(openerSection?.textContent).toContain('Lead with the platform angle')
+    expect(openerSection?.textContent).toContain('Platform was slowing product teams.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compact view' }))
+
+    expect(container.querySelector('.prep-live-mode-compact')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Compact view' }).getAttribute('aria-pressed')).toBe('true')
+    expect(openerSection?.textContent).not.toContain('Lead with the platform angle')
+    expect(openerSection?.textContent).not.toContain('Platform was slowing product teams.')
+    expect(openerSection?.textContent).toContain('I lead backend platform work and enjoy scaling teams and systems.')
   })
 
   it('collapses and expands a rich section', () => {
@@ -1018,13 +1080,16 @@ describe('PrepLiveMode', () => {
     expect(screen.getByRole('columnheader', { name: 'Their Stack' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'Your Match' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'Confidence' })).toBeTruthy()
+    expect(screen.getByLabelText('Confidence legend').textContent).toContain('Working knowledge')
+    expect(screen.getByLabelText('Confidence legend').textContent).toContain('Adjacent experience')
+    expect(screen.getByLabelText('Confidence legend').textContent).toContain('can discuss and ramp quickly with real context')
 
     expect(screen.getByText('Kubernetes')).toBeTruthy()
     expect(screen.getByText('Built and operated shared platform clusters.')).toBeTruthy()
-    expect(screen.getByText('Strong').className).toContain('prep-live-confidence-positive')
-    expect(screen.getByText('Solid').className).toContain('prep-live-confidence-positive')
-    expect(screen.getByText('Adjacent experience').className).toContain('prep-live-confidence-caution')
-    expect(screen.getByText('Gap').className).toContain('prep-live-confidence-gap')
+    expect(screen.getAllByText('Strong')[0]?.className).toContain('prep-live-confidence-positive')
+    expect(screen.getAllByText('Solid')[0]?.className).toContain('prep-live-confidence-positive')
+    expect(screen.getAllByText('Adjacent experience')[0]?.className).toContain('prep-live-confidence-caution')
+    expect(screen.getAllByText('Gap')[0]?.className).toContain('prep-live-confidence-gap')
   })
 
   it('resets transient state when two identity-free decks reuse the live mode component', () => {
@@ -1076,7 +1141,7 @@ describe('PrepLiveMode', () => {
 
     expect(screen.getByText('00:00')).toBeTruthy()
     expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('')
-    expect(screen.getByText('Coach through a scope disagreement')).toBeTruthy()
+    expect(screen.getAllByText('Coach through a scope disagreement').length).toBeGreaterThan(0)
     expect(screen.queryByText('How do you debug a flaky distributed system?')).toBeNull()
   })
 

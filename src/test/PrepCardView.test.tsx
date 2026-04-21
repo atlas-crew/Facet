@@ -491,6 +491,28 @@ describe('PrepCardView', () => {
     expect(screen.getByText('Coaching note.')).toBeTruthy()
   })
 
+  it('sanitizes placeholder markers and coach-copy leaks in read-only mode', () => {
+    render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          title: '[[needs-review]] Why this role',
+          source: 'ai',
+          notes: '[[fill-in: exact product area]]',
+          script: '[[needs-review]] tighten the role-specific proof.',
+          warning: 'no inbound signal noted',
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Why this role')).toBeTruthy()
+    expect(screen.getByText('Fill in: exact product area')).toBeTruthy()
+    expect(screen.getByText('tighten the role-specific proof.')).toBeTruthy()
+    expect(screen.getByText('This looks like a cold application from the notes, so lead with a crisp why-this-role answer.')).toBeTruthy()
+    expect(screen.queryByText('[[needs-review]]')).toBeNull()
+    expect(screen.queryByText('no inbound signal noted')).toBeNull()
+  })
+
   it('renders read-only deep dives inside details disclosures', () => {
     const { container } = render(
       <PrepCardView
@@ -1154,6 +1176,17 @@ describe('PrepCardView', () => {
     expect(writeText).toHaveBeenCalledWith('Copy me anyway.')
     expect(container.querySelector('.lucide-check')).toBeNull()
     vi.useRealTimers()
+  })
+
+  it('keeps the copy button disabled when the script is only a placeholder marker', () => {
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn() },
+    })
+
+    render(<EditableHarness initialCard={makeCard({ script: '[[needs-review]]' })} />)
+
+    expect((screen.getByTitle('Copy script') as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('swallows copy attempts when navigator.clipboard is unavailable', async () => {

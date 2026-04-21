@@ -2,6 +2,17 @@ import { PREP_CONDITIONAL_TONE_VALUES } from '../types/prep'
 import type { PrepCard, PrepConditional, PrepConditionalTone, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../types/prep'
 
 const PREP_NEEDS_REVIEW_PATTERN = /\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]/i
+const PREP_FILL_IN_PATTERN = /\[\[\s*fill-in:[^[\]]+\s*\]\]/i
+const PREP_PLACEHOLDER_ONLY_PATTERN = /^\s*\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]\s*$/i
+const PREP_NEEDS_REVIEW_ONLY_PATTERN = /^\s*\[\[\s*needs-review\s*\]\]\s*$/i
+const PREP_PLACEHOLDER_GLOBAL_PATTERN = /\[\[\s*(needs-review|fill-in:([^[\]]+))\s*\]\]/gi
+// Upstream prep generation can still leak terse metadata phrases; rewrite them into coach-like copy at display time.
+const PREP_COACH_COPY_REPLACEMENTS: Array<[RegExp, string]> = [
+  [
+    /^\s*no inbound signal noted\s*$/i,
+    'This looks like a cold application from the notes, so lead with a crisp why-this-role answer.',
+  ],
+]
 
 function filterPrepContent<T>(items: T[] | undefined, predicate: (item: T) => boolean): T[] {
   return (items ?? []).filter(predicate)
@@ -9,6 +20,77 @@ function filterPrepContent<T>(items: T[] | undefined, predicate: (item: T) => bo
 
 export function hasPrepNeedsReviewText(value: string | undefined | null): boolean {
   return typeof value === 'string' ? PREP_NEEDS_REVIEW_PATTERN.test(value) : false
+}
+
+export function hasPrepFillInPlaceholder(value: string | undefined | null): boolean {
+  return typeof value === 'string' ? PREP_FILL_IN_PATTERN.test(value) : false
+}
+
+export function isPrepPlaceholderOnly(value: string | undefined | null): boolean {
+  return typeof value === 'string' ? PREP_PLACEHOLDER_ONLY_PATTERN.test(value) : false
+}
+
+export function getPrepDisplayText(value: string | undefined | null): string {
+  if (typeof value !== 'string') return ''
+
+  const needsReviewOnly = PREP_NEEDS_REVIEW_ONLY_PATTERN.test(value)
+  const withoutMarkers = value.replace(PREP_PLACEHOLDER_GLOBAL_PATTERN, (_match, marker: string, fillInPrompt: string | undefined) => {
+    if (typeof marker === 'string' && marker.toLowerCase() === 'needs-review') {
+      return ''
+    }
+
+    const prompt = fillInPrompt?.trim()
+    return prompt ? `Fill in: ${prompt}` : ''
+  })
+
+  const normalized = withoutMarkers
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return normalized || (needsReviewOnly ? 'Needs review' : '')
+}
+
+export function getPrepPlainText(value: string | undefined | null): string {
+  if (typeof value !== 'string') return ''
+
+  return value
+    .replace(PREP_PLACEHOLDER_GLOBAL_PATTERN, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export function getPrepDefaultText(value: string | undefined | null): string {
+  return getPrepPlainText(value)
+}
+
+export function getPrepCoachDisplayText(value: string | undefined | null): string {
+  return PREP_COACH_COPY_REPLACEMENTS
+    .reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), getPrepDisplayText(value))
+}
+
+export function getPrepSourceAwareText(
+  value: string | undefined | null,
+  source: PrepCard['source'] | undefined,
+): string {
+  return source === 'manual' ? getPrepDisplayText(value) : getPrepCoachDisplayText(value)
+}
+
+export function getPrepCopyText(
+  value: string | undefined | null,
+  source: PrepCard['source'] | undefined,
+): string {
+  if (isPrepPlaceholderOnly(value) || hasPrepFillInPlaceholder(value)) {
+    return ''
+  }
+
+  const plainText = source === 'manual'
+    ? getPrepPlainText(value)
+    : PREP_COACH_COPY_REPLACEMENTS
+      .reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), getPrepPlainText(value))
+
+  return plainText
 }
 
 export function hasPrepKeyPointContent(point: string): boolean {

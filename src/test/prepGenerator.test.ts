@@ -324,6 +324,126 @@ describe('generateInterviewPrep', () => {
     )
   })
 
+  it('canonicalizes legacy pipeline people gaps from the model without appending duplicates', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        contextGaps: [
+          {
+            id: 'pipeline-people',
+            section: 'People intel',
+            question:
+              'List the people you have identified so far for this process: interviewers, the hiring manager, or anyone influencing the decision.',
+            why: 'Need the names to tailor the prep.',
+            priority: 'required',
+          },
+        ],
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['hm-screen'],
+        research: {
+          status: 'seeded',
+          summary: 'Still missing interviewer names.',
+          interviewSignals: [],
+          people: [],
+          sources: [],
+          searchQueries: [],
+        },
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.contextGaps).toEqual([
+      expect.objectContaining({
+        id: expect.stringContaining('prep-gap-pipeline-people-intel'),
+        section: 'People intel',
+        question:
+          'List the people you have identified so far for this process: interviewers, the hiring manager, or anyone influencing the decision.',
+        feedbackTarget: 'pipeline.research.people',
+        priority: 'required',
+      }),
+    ])
+  })
+
+  it('does not resurrect the pipeline people gap when a legacy answer key already exists', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      contextGapAnswers: {
+        'pipeline-people': 'Hiring manager is Sam; panel includes Priya and Jordan.',
+      },
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['hm-screen'],
+        research: {
+          status: 'seeded',
+          summary: 'Still missing interviewer names in pipeline research.',
+          interviewSignals: [],
+          people: [],
+          sources: [],
+          searchQueries: [],
+        },
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.contextGaps).toBeUndefined()
+  })
+
   it('normalizes rich card fields and deck-level guidance from the AI response', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({

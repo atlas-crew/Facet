@@ -9,7 +9,12 @@ import {
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  getPrepCopyText,
+  getPrepDefaultText,
+  getPrepDisplayText,
+  getPrepSourceAwareText,
   hasPrepCardNeedsReviewContent,
+  hasPrepFillInPlaceholder,
   hasPrepMetricNeedsReview,
   hasPrepNeedsReviewText,
   resolvePrepConditionalTone,
@@ -66,6 +71,7 @@ const LIVE_SHORTCUT_KEYS = {
 } as const
 
 const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = ['Intel', 'Openers', 'Core', 'Technical', 'Tactical']
+const PREP_LIVE_COMPACT_MODE_STORAGE_KEY = 'facet-prep-live-compact-mode'
 const BASE_SHORTCUT_BAR = [
   { keys: 'Space', label: 'Start / Pause' },
   { keys: 'R', label: 'Reset' },
@@ -81,6 +87,23 @@ type ShortcutLegendItem = {
   keys: string
   label: string
 }
+
+type LiveAnchorCard = {
+  title: string
+  summary: string
+  pillars: string[]
+}
+
+const STACK_ALIGNMENT_LEGEND: Array<{
+  confidence: PrepStackAlignmentConfidence
+  description: string
+}> = [
+  { confidence: 'Strong', description: 'direct depth you can lead with immediately' },
+  { confidence: 'Solid', description: 'credible hands-on depth with strong proof' },
+  { confidence: 'Working knowledge', description: 'can discuss and ramp quickly with real context' },
+  { confidence: 'Adjacent experience', description: 'transferable pattern match, but not the same stack' },
+  { confidence: 'Gap', description: 'be explicit about the gap and bridge honestly' },
+]
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -395,6 +418,66 @@ function formatConditionalToneLabel(tone: 'pivot' | 'trap' | 'escalation'): stri
   return 'Pivot'
 }
 
+function scoreAnchorCard(card: PrepCard): number {
+  const searchable = [
+    getPrepDisplayText(card.title),
+    getPrepSourceAwareText(card.notes, card.source),
+    getPrepSourceAwareText(card.script, card.source),
+    ...card.tags.map((tag) => getPrepDefaultText(tag)),
+  ].join(' ').toLowerCase()
+
+  let score = 0
+  if (card.category === 'project') score += 40
+  if (card.category === 'behavioral') score += 24
+  if (card.storyBlocks?.length) score += 12
+  if (card.metrics?.length) score += 6
+  if (searchable.includes('strongest single story')) score += 160
+  if (searchable.includes('only tell one story')) score += 140
+  if (searchable.includes('anchor')) score += 80
+  if (searchable.includes('proudest')) score += 18
+  if (card.tags.some((tag) => tag.toLowerCase().includes('anchor'))) score += 40
+  return score
+}
+
+function getAnchorPillars(deck: PrepDeck, card: PrepCard): string[] {
+  const skillMatchPillars = (deck.skillMatch ?? '')
+    .split(/[\n,;|]/)
+    .map((part) => getPrepDefaultText(part))
+    .filter(Boolean)
+
+  if (skillMatchPillars.length > 0) {
+    return skillMatchPillars.slice(0, 3)
+  }
+
+  return card.tags
+    .map((tag) => getPrepDefaultText(tag))
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function deriveAnchorCard(deck: PrepDeck): LiveAnchorCard | null {
+  const candidate = [...(Array.isArray(deck.cards) ? deck.cards : [])]
+    .filter((card) => (
+      (card.category === 'project' || card.category === 'behavioral') &&
+      !hasPrepCardNeedsReviewContent(card) &&
+      !hasPrepFillInPlaceholder(card.script) &&
+      !hasPrepFillInPlaceholder(card.notes)
+    ))
+    .sort((left, right) => scoreAnchorCard(right) - scoreAnchorCard(left))[0]
+
+  if (!candidate) return null
+
+  const title = getPrepDisplayText(candidate.title) || 'Anchor story'
+  const summary = getPrepCopyText(candidate.script, candidate.source) || getPrepCopyText(candidate.notes, candidate.source)
+  if (!summary) return null
+
+  return {
+    title,
+    summary,
+    pillars: getAnchorPillars(deck, candidate),
+  }
+}
+
 export function PrepLiveMode(props: PrepLiveModeProps) {
   const liveModeDeckKey = buildLiveModeDeckKey(props.deck)
   // Switching decks should start a fresh live session so timer, search, and collapsed sections do not leak across interviews.
@@ -405,6 +488,14 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  const [compactMode, setCompactMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(PREP_LIVE_COMPACT_MODE_STORAGE_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
   const [preInterviewOpen, setPreInterviewOpen] = useState(true)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
@@ -505,9 +596,19 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     return items
   }, [visibleSectionLegend])
   const timerState = useMemo(() => getLiveTimerState(elapsedSeconds), [elapsedSeconds])
+  const anchorCard = useMemo(() => deriveAnchorCard(deck), [deck])
   const effectiveActiveSectionId =
     filteredSections.find((section) => section.id === activeSectionId)?.id ?? filteredSections[0]?.id ?? null
   const deckMeta = [deck.company, deck.role].filter(Boolean).join(' · ') || 'Interview prep set'
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(PREP_LIVE_COMPACT_MODE_STORAGE_KEY, compactMode ? 'true' : 'false')
+    } catch {
+      // Ignore storage failures and keep the preference in-memory for this session.
+    }
+  }, [compactMode])
 
   const scrollToSection = useCallback((sectionId: string) => {
     const section = sectionRefs.current[sectionId]
@@ -721,7 +822,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   ])
 
   return (
-    <div className="prep-live-mode" role="region" aria-label="Live cheatsheet mode">
+    <div className={`prep-live-mode${compactMode ? ' prep-live-mode-compact' : ''}`} role="region" aria-label="Live cheatsheet mode">
       <aside className="prep-live-sidebar">
         <div className="prep-live-sidebar-header">
           {onBack ? (
@@ -789,6 +890,37 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
             placeholder="/ to search"
           />
         </div>
+
+        <div className="prep-live-sidebar-actions">
+          <button
+            type="button"
+            className={`prep-btn prep-live-compact-toggle${compactMode ? ' prep-live-compact-toggle-active' : ''}`}
+            aria-pressed={compactMode}
+            onClick={() => setCompactMode((current) => !current)}
+          >
+            Compact view
+          </button>
+          <p className="prep-live-compact-copy">
+            Compact view keeps the live reference focused on scripts, warnings, and pivots.
+          </p>
+        </div>
+
+        {anchorCard ? (
+          <section className="prep-live-anchor-card" aria-label="Anchor story">
+            <div className="prep-live-anchor-label">Anchor story</div>
+            <h3>{anchorCard.title}</h3>
+            <p>{anchorCard.summary}</p>
+            {anchorCard.pillars.length > 0 ? (
+              <div className="prep-live-anchor-pillars" aria-label="Anchor story JD pillars">
+                {anchorCard.pillars.map((pillar) => (
+                  <span key={pillar} className="prep-live-anchor-pill">
+                    {pillar}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <nav className="prep-live-nav" aria-label="Live cheatsheet sections">
           <div className="prep-live-nav-heading">
@@ -868,6 +1000,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
                     cardNeedsReviewById={cardNeedsReviewById}
                     activeSectionId={effectiveActiveSectionId}
                     collapsedSections={collapsedSections}
+                    compactMode={compactMode}
                     searchActive={searchQuery.trim().length > 0}
                     onToggleSection={toggleSection}
                     onSectionRef={(sectionId, el) => {
@@ -896,6 +1029,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
                 cardNeedsReviewById={cardNeedsReviewById}
                 activeSectionId={effectiveActiveSectionId}
                 collapsedSections={collapsedSections}
+                compactMode={compactMode}
                 searchActive={searchQuery.trim().length > 0}
                 onToggleSection={toggleSection}
                 onSectionRef={(sectionId, el) => {
@@ -982,6 +1116,7 @@ interface SectionBlockProps {
   cardNeedsReviewById: Map<string, boolean>
   isActive: boolean
   isCollapsed: boolean
+  compactMode: boolean
   onToggle: () => void
   sectionRef: (el: HTMLElement | null) => void
 }
@@ -992,6 +1127,7 @@ interface SectionGroupListProps {
   cardNeedsReviewById: Map<string, boolean>
   activeSectionId: string | null
   collapsedSections: Record<string, boolean>
+  compactMode: boolean
   searchActive: boolean
   onToggleSection: (sectionId: string) => void
   onSectionRef: (sectionId: string, el: HTMLElement | null) => void
@@ -1003,6 +1139,7 @@ function SectionGroupList({
   cardNeedsReviewById,
   activeSectionId,
   collapsedSections,
+  compactMode,
   searchActive,
   onToggleSection,
   onSectionRef,
@@ -1025,6 +1162,7 @@ function SectionGroupList({
                 cardNeedsReviewById={cardNeedsReviewById}
                 isActive={activeSectionId === section.id}
                 isCollapsed={!searchActive && collapsedSections[section.id] === true}
+                compactMode={compactMode}
                 onToggle={() => onToggleSection(section.id)}
                 sectionRef={(el) => onSectionRef(section.id, el)}
               />
@@ -1036,7 +1174,7 @@ function SectionGroupList({
   )
 }
 
-function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCollapsed, onToggle, sectionRef }: SectionBlockProps) {
+function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCollapsed, compactMode, onToggle, sectionRef }: SectionBlockProps) {
   let sectionGuidance = section.guidance
   if (!sectionGuidance && section.id === 'questions') {
     sectionGuidance = QUESTIONS_GUIDANCE
@@ -1078,21 +1216,21 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
         className="prep-live-item-list prep-live-item-list-rich"
         hidden={isCollapsed}
       >
-        {renderSectionItems(section, cardsById, cardNeedsReviewById)}
+        {renderSectionItems(section, cardsById, cardNeedsReviewById, compactMode)}
       </div>
     </section>
   )
 }
 
-function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>) {
+function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>, compactMode: boolean) {
   if (section.id === 'questions') return renderQuestionCards(section)
   if (section.id === 'donts') return renderDonts(section)
-  if (section.id === 'metrics') return renderMetricCards(section, cardsById, cardNeedsReviewById)
+  if (section.id === 'metrics') return renderMetricCards(section, cardsById, cardNeedsReviewById, compactMode)
 
   return section.items.flatMap((item) => {
     if (item.cardId) {
       const card = cardsById.get(item.cardId)
-      return card ? [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false)] : [renderSimpleItem(section, item)]
+      return card ? [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false, compactMode)] : [renderSimpleItem(section, item)]
     }
 
     return [renderSimpleItem(section, item)]
@@ -1101,16 +1239,18 @@ function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCar
 
 function renderSimpleItem(section: LiveSection, item: PrepCheatsheetItem) {
   const needsReview = hasPrepNeedsReviewText(item.title) || hasPrepNeedsReviewText(item.detail)
+  const displayTitle = getPrepDisplayText(item.title) || 'Needs review'
+  const displayDetail = getPrepDisplayText(item.detail)
   return (
     <article key={item.id} className={`prep-live-item prep-live-item-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
       <div className="prep-live-item-header">
-        <h3>{item.title}</h3>
+        <h3>{displayTitle}</h3>
         <div className="prep-live-item-meta">
           {item.category ? <span className={`prep-category prep-category-${item.category}`}>{item.category}</span> : null}
           {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
         </div>
       </div>
-      {item.detail ? <p>{item.detail}</p> : null}
+      {displayDetail ? <p>{displayDetail}</p> : null}
     </article>
   )
 }
@@ -1118,13 +1258,15 @@ function renderSimpleItem(section: LiveSection, item: PrepCheatsheetItem) {
 function renderQuestionCards(section: LiveSection) {
   return section.items.map((item) => {
     const needsReview = hasPrepNeedsReviewText(item.title) || hasPrepNeedsReviewText(item.detail)
+    const displayTitle = getPrepDisplayText(item.title) || 'Needs review'
+    const displayDetail = getPrepDisplayText(item.detail)
     return (
       <article key={item.id} className={`prep-live-question-card${needsReview ? ' prep-live-review-surface' : ''}`}>
         <div className="prep-live-question-card-header">
-          <div className="prep-live-question-card-question">{item.title}</div>
+          <div className="prep-live-question-card-question">{displayTitle}</div>
           {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
         </div>
-        {item.detail ? <div className="prep-live-question-card-context">{item.detail}</div> : null}
+        {displayDetail ? <div className="prep-live-question-card-context">{displayDetail}</div> : null}
       </article>
     )
   })
@@ -1133,13 +1275,14 @@ function renderQuestionCards(section: LiveSection) {
 function renderDonts(section: LiveSection) {
   return section.items.map((item) => {
     const needsReview = hasPrepNeedsReviewText(item.title)
+    const displayTitle = getPrepDisplayText(item.title) || 'Needs review'
     return (
-      <article key={item.id} className={`prep-live-dont-card${needsReview ? ' prep-live-review-surface' : ''}`} aria-label={'Do not: ' + item.title}>
+      <article key={item.id} className={`prep-live-dont-card${needsReview ? ' prep-live-review-surface' : ''}`} aria-label={'Do not: ' + displayTitle}>
         <div className="prep-live-dont-card-marker" aria-hidden="true">
           Do not
         </div>
         <div className="prep-live-dont-card-body">
-          <div className="prep-live-dont-card-title">{item.title}</div>
+          <div className="prep-live-dont-card-title">{displayTitle}</div>
           {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
         </div>
       </article>
@@ -1147,11 +1290,17 @@ function renderDonts(section: LiveSection) {
   })
 }
 
-function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>) {
+function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>, compactMode: boolean) {
+  let renderedStackAlignmentLegend = false
+
   return section.items.flatMap((item) => {
     const card = item.cardId ? cardsById.get(item.cardId) : null
-    if (card) return [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false)]
-    if (item.stackAlignment && item.stackAlignment.length > 0) return [renderStackAlignmentItem(section, item)]
+    if (card) return [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false, compactMode)]
+    if (item.stackAlignment && item.stackAlignment.length > 0) {
+      const shouldShowLegend = !compactMode && !renderedStackAlignmentLegend
+      renderedStackAlignmentLegend = true
+      return [renderStackAlignmentItem(section, item, shouldShowLegend)]
+    }
     if (item.metrics && item.metrics.length > 0) return [renderMetricGroupItem(section, item)]
     return [renderSimpleItem(section, item)]
   })
@@ -1163,7 +1312,7 @@ function getStackAlignmentConfidenceClass(confidence: PrepStackAlignmentConfiden
   return 'prep-live-confidence-caution'
 }
 
-function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem) {
+function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem, showLegend: boolean) {
   const rows = item.stackAlignment ?? []
   const needsReview =
     hasPrepNeedsReviewText(item.title) ||
@@ -1182,12 +1331,25 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
       <div className="prep-live-card-block-header">
         <div>
           <div className="prep-live-card-block-title-row">
-            <h3>{item.title}</h3>
+            <h3>{getPrepDisplayText(item.title) || 'Needs review'}</h3>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
-          {item.detail ? <div className="prep-live-card-block-script-label">{item.detail}</div> : null}
+          {getPrepDisplayText(item.detail) ? <div className="prep-live-card-block-script-label">{getPrepDisplayText(item.detail)}</div> : null}
         </div>
       </div>
+
+      {showLegend ? (
+        <div className="prep-live-confidence-legend" aria-label="Confidence legend">
+          {STACK_ALIGNMENT_LEGEND.map((entry) => (
+            <div key={entry.confidence} className="prep-live-confidence-legend-item">
+              <span className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(entry.confidence)}`}>
+                {entry.confidence}
+              </span>
+              <span className="prep-live-confidence-legend-copy">{entry.description}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <table className="prep-live-table prep-live-table-stack-alignment">
         <thead>
@@ -1205,8 +1367,8 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
 
             return (
               <tr key={`${item.id}-stack-row-${rowIndex}`}>
-                <td>{row.theirTech}</td>
-                <td>{row.yourMatch}</td>
+                <td>{getPrepDisplayText(row.theirTech)}</td>
+                <td>{getPrepDisplayText(row.yourMatch)}</td>
                 <td>
                   <span className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(confidence)}`}>
                     {confidence}
@@ -1231,18 +1393,18 @@ function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
       <div className="prep-live-card-block-header">
         <div>
           <div className="prep-live-card-block-title-row">
-            <h3>{item.title}</h3>
+            <h3>{getPrepDisplayText(item.title) || 'Needs review'}</h3>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
-          {item.detail ? <div className="prep-live-card-block-script-label">{item.detail}</div> : null}
+          {getPrepDisplayText(item.detail) ? <div className="prep-live-card-block-script-label">{getPrepDisplayText(item.detail)}</div> : null}
         </div>
       </div>
 
       <div className="prep-live-stat-grid">
         {item.metrics?.map((metric) => (
           <div key={metric.id ?? `${item.id}-${metric.value}-${metric.label}`} className="prep-live-stat-box">
-            <span className="prep-live-stat-value">{metric.value}</span>
-            <span className="prep-live-stat-label">{metric.label}</span>
+            <span className="prep-live-stat-value">{getPrepDisplayText(metric.value)}</span>
+            <span className="prep-live-stat-label">{getPrepDisplayText(metric.label)}</span>
           </div>
         ))}
       </div>
@@ -1250,7 +1412,7 @@ function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
   )
 }
 
-function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: boolean) {
+function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: boolean, compactMode: boolean) {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
   const followUps = filterPrepFollowUps(card.followUps)
@@ -1258,79 +1420,94 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
   const conditionals = filterPrepConditionals(card.conditionals)
   const metrics = filterPrepMetrics(card.metrics)
   const tableData = getRenderableTableData(card.tableData)
+  const displayTitle = getPrepDisplayText(card.title) || 'Needs review'
+  const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || undefined
+  const displayNotes = getPrepSourceAwareText(card.notes, card.source)
+  const displayScript = getPrepSourceAwareText(card.script, card.source)
+  const displayWarning = getPrepSourceAwareText(card.warning, card.source)
+  // Compact mode hides Context once the main spoken answer and risk callout are both present.
+  const showContext = Boolean(displayNotes) && (!compactMode || !displayScript)
 
   return (
     <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
       <div className="prep-live-card-block-header">
         <div>
           <div className="prep-live-card-block-title-row">
-            <h3>{card.title}</h3>
+            <h3>{displayTitle}</h3>
             <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
-          {card.scriptLabel ? <div className="prep-live-card-block-script-label">{card.scriptLabel}</div> : null}
+          {displayScriptLabel ? <div className="prep-live-card-block-script-label">{displayScriptLabel}</div> : null}
         </div>
       </div>
 
-      {keyPoints.length > 0 ? (
+      {!compactMode && keyPoints.length > 0 ? (
         <div className="prep-live-keypoints">
           {keyPoints.map((point, index) => (
             <div key={`${card.id}-keypoint-${point}-${index}`} className="prep-live-keypoint">
               <span className="prep-live-keypoint-marker" aria-hidden="true">
                 -
               </span>
-              <span>{point}</span>
+              <span>{getPrepDisplayText(point)}</span>
             </div>
           ))}
         </div>
       ) : null}
 
       <div className="prep-live-card-block-grid">
-        {card.notes ? (
+        {showContext ? (
           <section className="prep-live-callout prep-live-callout-context">
             <span className="prep-live-callout-label">Context</span>
-            <p>{card.notes}</p>
+            <p>{displayNotes}</p>
           </section>
         ) : null}
 
-        {card.script ? (
+        {displayScript ? (
           <section className="prep-live-callout prep-live-callout-script">
             <span className="prep-live-callout-label">Script</span>
-            <p>{card.script}</p>
+            <p>{displayScript}</p>
           </section>
         ) : null}
 
-        {card.warning ? (
+        {displayWarning ? (
           <section className="prep-live-callout prep-live-callout-warning">
             <span className="prep-live-callout-label">Warning</span>
-            <p>{card.warning}</p>
+            <p>{displayWarning}</p>
           </section>
         ) : null}
 
-        {followUps.map((followUp, index) => (
-          <section
-            key={followUp.id ?? `${card.id}-follow-up-${index}`}
-            className="prep-live-callout prep-live-callout-context"
-          >
-            <span className="prep-live-callout-label">Follow-up</span>
-            <p>{followUp.question}</p>
-            <p>{followUp.answer}</p>
-            {followUp.context ? <p>{followUp.context}</p> : null}
-          </section>
+        {!compactMode && followUps.map((followUp, index) => (
+          (() => {
+            const questionText = getPrepSourceAwareText(followUp.question, card.source)
+            const answerText = getPrepSourceAwareText(followUp.answer, card.source)
+            const contextText = getPrepSourceAwareText(followUp.context, card.source)
+
+            return (
+              <section
+                key={followUp.id ?? `${card.id}-follow-up-${index}`}
+                className="prep-live-callout prep-live-callout-context"
+              >
+                <span className="prep-live-callout-label">Follow-up</span>
+                <p>{questionText}</p>
+                <p>{answerText}</p>
+                {contextText ? <p>{contextText}</p> : null}
+              </section>
+            )
+          })()
         ))}
 
-        {deepDives.map((deepDive, index) => (
+        {!compactMode && deepDives.map((deepDive, index) => (
           <section
             key={deepDive.id ?? `${card.id}-deep-dive-${index}`}
             className="prep-live-callout prep-live-callout-script"
           >
-            <span className="prep-live-callout-label">{deepDive.title}</span>
-            <p>{deepDive.content}</p>
+            <span className="prep-live-callout-label">{getPrepDisplayText(deepDive.title) || 'Details'}</span>
+            <p>{getPrepSourceAwareText(deepDive.content, card.source)}</p>
           </section>
         ))}
       </div>
 
-      {storyBlocks.length > 0 ? (
+      {!compactMode && storyBlocks.length > 0 ? (
         <div className="prep-live-story-blocks">
           {storyBlocks.map((storyBlock, index) => (
             <div
@@ -1338,29 +1515,32 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
               className={`prep-live-story-block prep-live-story-block-${storyBlock.label}`}
             >
               <span className="prep-live-story-block-label">{storyBlock.label}</span>
-              <p>{storyBlock.text}</p>
+              <p>{getPrepSourceAwareText(storyBlock.text, card.source)}</p>
             </div>
           ))}
         </div>
       ) : null}
 
       {conditionals.length > 0 ? (
-        <div className="prep-live-conditionals">
+        <div className="prep-live-conditionals prep-live-conditionals-reactive">
+          <h4 className="prep-live-conditionals-heading">Reactive pivots</h4>
           {conditionals.map((conditional, index) => {
             const tone = resolvePrepConditionalTone(conditional)
             const key = conditional.id ?? `${card.id}-${conditional.trigger}-${conditional.response}-${index}`
+            const triggerText = getPrepSourceAwareText(conditional.trigger, card.source)
+            const responseText = getPrepSourceAwareText(conditional.response, card.source)
 
             if (tone === 'trap') {
               return (
-                <div key={key} className="prep-live-conditional">
+                <div key={key} className="prep-live-conditional prep-live-conditional-reactive">
                   <div className="prep-live-conditional-pair-grid">
                     <div className="prep-live-conditional-pair prep-live-conditional-pair-trap">
                       <span className="prep-live-conditional-label">Trap</span>
-                      <p>{conditional.trigger}</p>
+                      <p>{triggerText}</p>
                     </div>
                     <div className="prep-live-conditional-pair prep-live-conditional-pair-reframe">
                       <span className="prep-live-conditional-label">Reframe</span>
-                      <p>{conditional.response}</p>
+                      <p>{responseText}</p>
                     </div>
                   </div>
                 </div>
@@ -1368,12 +1548,12 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             }
 
             return (
-              <div key={key} className={`prep-live-conditional prep-live-conditional-${tone}`}>
+              <div key={key} className={`prep-live-conditional prep-live-conditional-reactive prep-live-conditional-${tone}`}>
                 <div className="prep-live-conditional-heading">
                   <span className="prep-live-conditional-label">{formatConditionalToneLabel(tone)}</span>
-                  <span>{conditional.trigger}</span>
+                  <span>{triggerText}</span>
                 </div>
-                <p>{conditional.response}</p>
+                <p>{responseText}</p>
               </div>
             )
           })}
@@ -1384,8 +1564,8 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
         <div className="prep-live-stat-grid">
           {metrics.map((metric) => (
             <div key={metric.id ?? `${card.id}-${metric.value}-${metric.label}`} className="prep-live-stat-box">
-              <span className="prep-live-stat-value">{metric.value}</span>
-              <span className="prep-live-stat-label">{metric.label}</span>
+              <span className="prep-live-stat-value">{getPrepDisplayText(metric.value)}</span>
+              <span className="prep-live-stat-label">{getPrepDisplayText(metric.label)}</span>
             </div>
           ))}
         </div>
@@ -1397,7 +1577,7 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             <tr>
               {tableData.headers.map((header, index) => (
                 <th key={`${card.id}-table-header-${header}-${index}`} scope="col">
-                  {header}
+                  {getPrepDisplayText(header)}
                 </th>
               ))}
             </tr>
@@ -1407,7 +1587,7 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
               <tr key={`${card.id}-table-row-${rowIndex}`}>
                 {tableData.headers.map((header, cellIndex) => (
                   <td key={`${card.id}-table-cell-${rowIndex}-${header}-${cellIndex}`}>
-                    {row[cellIndex] ?? ''}
+                    {getPrepDisplayText(row[cellIndex])}
                   </td>
                 ))}
               </tr>

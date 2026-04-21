@@ -11,7 +11,12 @@ import {
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  getPrepCopyText,
+  getPrepDefaultText,
+  getPrepDisplayText,
+  getPrepSourceAwareText,
   hasPrepCardNeedsReviewContent,
+  isPrepPlaceholderOnly,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
 
@@ -34,17 +39,6 @@ export function PrepCardView({
   const [isExpanded, setIsExpanded] = useState(false)
   const [isTableSectionOpen, setIsTableSectionOpen] = useState(Boolean(card.tableData))
 
-  const copyScript = async () => {
-    if (!card.script) return
-    try {
-      await navigator.clipboard.writeText(card.script)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // Ignore clipboard failures in unsupported or restricted contexts.
-    }
-  }
-
   useEffect(() => {
     if (card.tableData) {
       setIsTableSectionOpen(true)
@@ -56,12 +50,31 @@ export function PrepCardView({
   const readOnlyConditionals = filterPrepConditionals(card.conditionals)
   const readOnlyMetrics = filterPrepMetrics(card.metrics)
   const needsReview = useMemo(() => hasPrepCardNeedsReviewContent(card), [card])
+  const displayTitle = getPrepDisplayText(card.title) || 'Needs review'
+  const displayNotes = getPrepSourceAwareText(card.notes, card.source)
+  const displayWarning = getPrepSourceAwareText(card.warning, card.source)
+  const displayScript = getPrepSourceAwareText(card.script, card.source)
+  const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || 'Say This'
+  const copyScriptText = getPrepCopyText(card.script, card.source)
+  const canCopyScript = Boolean(copyScriptText)
+  const renderedScript = displayScript === 'Needs review' ? '' : displayScript
+
+  const copyScript = async () => {
+    if (!canCopyScript) return
+    try {
+      await navigator.clipboard.writeText(copyScriptText)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Ignore clipboard failures in unsupported or restricted contexts.
+    }
+  }
 
   if (readOnly) {
     return (
       <div className={`prep-card${needsReview ? ' prep-card-needs-review' : ''}`}>
         <div className="prep-card-header">
-          <h3 className="prep-card-title">{card.title}</h3>
+          <h3 className="prep-card-title">{displayTitle}</h3>
           <div className="prep-card-meta">
             <span className={`prep-category prep-category-${card.category}`}>
               {card.category}
@@ -78,36 +91,36 @@ export function PrepCardView({
           </div>
         )}
 
-        {card.notes && (
+        {displayNotes && (
           <div className="prep-script">
             <div className="prep-script-label">Notes</div>
-            {card.notes}
+            {displayNotes}
           </div>
         )}
 
-        {card.warning && (
+        {displayWarning && (
           <div className="prep-warning">
             <div className="prep-warning-label">Caution</div>
-            {card.warning}
+            {displayWarning}
           </div>
         )}
 
-        {card.script && (
+        {renderedScript ? (
           <div className="prep-script">
-            <div className="prep-script-label">{card.scriptLabel?.trim() || 'Say This'}</div>
-            {card.script}
-            <button className="prep-script-copy" onClick={() => void copyScript()} title="Copy script">
+            <div className="prep-script-label">{displayScriptLabel}</div>
+            {renderedScript}
+            <button className="prep-script-copy" onClick={() => void copyScript()} title="Copy script" disabled={!canCopyScript}>
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
           </div>
-        )}
+        ) : null}
 
         {readOnlyFollowUps.length > 0 && (
           <div className="prep-followups">
             {readOnlyFollowUps.map((followUp, index) => (
               <div key={index} className="prep-followup">
-                <div className="prep-followup-q">{followUp.question}</div>
-                <div className="prep-followup-a">{followUp.answer}</div>
+                <div className="prep-followup-q">{getPrepSourceAwareText(followUp.question, card.source)}</div>
+                <div className="prep-followup-a">{getPrepSourceAwareText(followUp.answer, card.source)}</div>
               </div>
             ))}
           </div>
@@ -117,8 +130,8 @@ export function PrepCardView({
           <div>
             {readOnlyDeepDives.map((deepDive, index) => (
               <details key={index} className="prep-deepdive">
-                <summary>{deepDive.title}</summary>
-                <div className="prep-deepdive-content">{deepDive.content}</div>
+                <summary>{getPrepDisplayText(deepDive.title) || 'Details'}</summary>
+                <div className="prep-deepdive-content">{getPrepSourceAwareText(deepDive.content, card.source)}</div>
               </details>
             ))}
           </div>
@@ -134,17 +147,17 @@ export function PrepCardView({
                 <div key={key} className="prep-conditional-pair-grid">
                   <div className="prep-conditional-pair prep-conditional-pair-trap">
                     <div className="prep-conditional-label">Trap</div>
-                    <div className="prep-conditional-response">{conditional.trigger}</div>
+                    <div className="prep-conditional-response">{getPrepSourceAwareText(conditional.trigger, card.source)}</div>
                   </div>
                   <div className="prep-conditional-pair prep-conditional-pair-reframe">
                     <div className="prep-conditional-label">Reframe</div>
-                    <div className="prep-conditional-response">{conditional.response}</div>
+                    <div className="prep-conditional-response">{getPrepSourceAwareText(conditional.response, card.source)}</div>
                   </div>
                 </div>
               ) : (
                 <div key={key} className={`prep-conditional prep-conditional-${tone}`}>
-                  <div className="prep-conditional-label">{conditional.trigger}</div>
-                  <div className="prep-conditional-response">{conditional.response}</div>
+                  <div className="prep-conditional-label">{getPrepSourceAwareText(conditional.trigger, card.source)}</div>
+                  <div className="prep-conditional-response">{getPrepSourceAwareText(conditional.response, card.source)}</div>
                 </div>
               )
             })}
@@ -155,8 +168,8 @@ export function PrepCardView({
           <div className="prep-metrics">
             {readOnlyMetrics.map((metric, index) => (
               <div key={index} className="prep-metric">
-                <span className="prep-metric-value">{metric.value}</span>
-                <span className="prep-metric-label">{metric.label}</span>
+                <span className="prep-metric-value">{getPrepDisplayText(metric.value)}</span>
+                <span className="prep-metric-label">{getPrepDisplayText(metric.label)}</span>
               </div>
             ))}
           </div>
@@ -168,7 +181,7 @@ export function PrepCardView({
               <thead>
                 <tr>
                   {card.tableData.headers.map((header, index) => (
-                    <th key={`${header}-${index}`}>{header}</th>
+                    <th key={`${header}-${index}`}>{getPrepDisplayText(header)}</th>
                   ))}
                 </tr>
               </thead>
@@ -176,7 +189,7 @@ export function PrepCardView({
                 {card.tableData.rows.map((row, rowIndex) => (
                   <tr key={rowIndex}>
                     {row.map((cell, cellIndex) => (
-                      <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
+                      <td key={`${rowIndex}-${cellIndex}`}>{getPrepDisplayText(cell)}</td>
                     ))}
                   </tr>
                 ))}
@@ -238,7 +251,7 @@ export function PrepCardView({
         </div>
 
         <div className="prep-card-actions">
-          <button className="prep-icon-btn" type="button" onClick={() => void copyScript()} disabled={!card.script} title="Copy script">
+          <button className="prep-icon-btn" type="button" onClick={() => void copyScript()} disabled={!canCopyScript} title="Copy script">
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
           <button className="prep-icon-btn" type="button" onClick={() => onDuplicateCard?.(card.id)} title="Duplicate card">
@@ -837,10 +850,12 @@ function getConditionalToneLabel(tone: PrepConditional['tone']) {
 
 function summarizePrepCard(card: PrepCard) {
   const normalized = [card.script, card.notes, card.warning]
-    .map((candidate) => candidate?.replace(/\s+/g, ' ').trim() ?? '')
+    .map((candidate) => getPrepDisplayText(candidate).replace(/\s+/g, ' ').trim())
     .find(Boolean) ?? ''
 
-  if (!normalized) {
+  const hasPlaceholderOnlySummary = [card.script, card.notes, card.warning].some((candidate) => isPrepPlaceholderOnly(candidate))
+
+  if (!normalized || hasPlaceholderOnlySummary) {
     return 'Open this card to shape the spoken answer, coaching notes, and supporting proof points.'
   }
 
