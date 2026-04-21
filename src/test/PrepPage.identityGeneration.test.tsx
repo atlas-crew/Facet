@@ -149,6 +149,30 @@ describe('PrepPage identity generation', () => {
           skillMatch: 'distributed systems, platform',
           nextStep: '',
           notes: 'Hiring manager cares about operational excellence.',
+          research: {
+            status: 'investigated',
+            summary: 'Public evidence points to a platform-heavy reliability role.',
+            jobDescriptionSummary: 'Reliability and developer experience.',
+            interviewSignals: ['Public reports mention a recruiter screen and system design round.'],
+            people: [
+              {
+                name: 'Jordan Lee',
+                title: 'Director of Platform',
+                company: 'Acme Corp',
+                profileUrl: 'https://linkedin.example/jordan-lee',
+                relevance: 'Likely org leader for this team.',
+              },
+            ],
+            sources: [
+              {
+                label: 'Acme careers',
+                url: 'https://acme.example/jobs/1',
+                kind: 'job-posting',
+              },
+            ],
+            searchQueries: ['Acme staff engineer interview'],
+            lastInvestigatedAt: '2026-03-08T12:00:00.000Z',
+          },
           appMethod: 'direct-apply',
           response: 'interview-scheduled',
           daysToResponse: null,
@@ -237,11 +261,15 @@ describe('PrepPage identity generation', () => {
     const prompt = body.messages?.[0]?.content ?? ''
 
     expect(prompt).toContain('Structured Identity Context')
+    expect(prompt).toContain('Structured Pipeline Entry Context')
     expect(prompt).toContain('Candidate Metrics From Identity')
     expect(prompt).toContain('Reduced incidents by 38%')
     expect(prompt).toContain('"metricKey": "incidents"')
+    expect(prompt).toContain('Jordan Lee')
+    expect(prompt).toContain('Public reports mention a recruiter screen and system design round.')
+    expect(prompt).toContain('Additional Candidate Metrics Outside The Vector Slice')
+    expect(prompt).toContain('Maintained legacy data feeds.')
     expect(prompt).toContain('Kubernetes')
-    expect(prompt).not.toContain('Maintained legacy data feeds.')
     expect(prompt).not.toContain('COBOL')
     expect(JSON.stringify(useIdentityStore.getState().currentIdentity)).toBe(identityBefore)
 
@@ -376,7 +404,8 @@ describe('PrepPage identity generation', () => {
 
     expect(prompt).toContain('Structured Identity Context')
     expect(prompt).toContain('Reduced incidents by 38%')
-    expect(prompt).not.toContain('Maintained legacy data feeds.')
+    expect(prompt).toContain('Additional Candidate Metrics Outside The Vector Slice')
+    expect(prompt).toContain('Maintained legacy data feeds.')
     expect(prompt).not.toContain('COBOL')
     expect(JSON.stringify(useIdentityStore.getState().currentIdentity)).toBe(identityBefore)
 

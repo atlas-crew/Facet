@@ -18,6 +18,10 @@ import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraf
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
+import {
+  buildPrepCompanyResearchNotes,
+  buildPrepPipelineEntryContext,
+} from '../../utils/prepPipelineContext'
 import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
 import type { InterviewFormat } from '../../types/pipeline'
 import type { PrepCard, PrepCategory, PrepContextGap, PrepDeck, PrepWorkspaceMode } from '../../types/prep'
@@ -271,9 +275,7 @@ export function PrepPage() {
     if (first) {
       setSelectedEntryId(first.id)
       setSelectedVectorId(first.vectorId ?? search.vector ?? '')
-      setCompanyResearchDraft(
-        [first.positioning, first.notes, first.url].filter(Boolean).join('\n\n'),
-      )
+      setCompanyResearchDraft(buildPrepCompanyResearchNotes(first))
     }
   }, [candidateEntries, search.vector, selectedEntryId])
 
@@ -362,6 +364,10 @@ export function PrepPage() {
   const activeDeckContextGaps = useMemo(
     () => sortPrepContextGaps(activeDeck?.contextGaps),
     [activeDeck?.contextGaps],
+  )
+  const hasPipelineContextGap = useMemo(
+    () => activeDeckContextGaps.some((gap) => gap.feedbackTarget?.startsWith('pipeline.')),
+    [activeDeckContextGaps],
   )
   const activeDeckGapSectionCount = useMemo(
     () => countPrepContextGapSections(activeDeckContextGaps),
@@ -599,6 +605,7 @@ export function PrepPage() {
         companyResearch: companyResearchDraft || undefined,
         jobDescription: selectedEntry.jobDescription,
         identityContext: prepIdentityContext,
+        pipelineEntryContext: buildPrepPipelineEntryContext(selectedEntry),
         resumeContext: {
           candidate: freshResumeData.meta,
           ...(vector ? { vector } : {}),
@@ -653,9 +660,7 @@ export function PrepPage() {
 
     if (nextSource === 'pipeline' && selectedEntry) {
       setSelectedVectorId(selectedEntry.vectorId ?? '')
-      setCompanyResearchDraft(
-        [selectedEntry.positioning, selectedEntry.notes, selectedEntry.url].filter(Boolean).join('\n\n'),
-      )
+      setCompanyResearchDraft(buildPrepCompanyResearchNotes(selectedEntry))
     }
   }, [matchMaterial, selectedEntry])
 
@@ -1008,6 +1013,9 @@ export function PrepPage() {
     const vector = latestDeck.vectorId
       ? freshResumeData.vectors.find((entry) => entry.id === latestDeck.vectorId) ?? null
       : null
+    const linkedPipelineEntry = latestDeck.pipelineEntryId
+      ? usePipelineStore.getState().entries.find((entry) => entry.id === latestDeck.pipelineEntryId) ?? null
+      : null
 
     setGenerationError(null)
     setIsGenerating(true)
@@ -1039,6 +1047,9 @@ export function PrepPage() {
         companyResearch: latestDeck.companyResearch,
         jobDescription: latestJobDescription,
         identityContext: prepIdentityContext,
+        pipelineEntryContext: linkedPipelineEntry
+          ? buildPrepPipelineEntryContext(linkedPipelineEntry)
+          : undefined,
         contextGaps: latestDeck.contextGaps,
         contextGapAnswers: latestDeck.contextGapAnswers,
         resumeContext: {
@@ -1384,7 +1395,7 @@ export function PrepPage() {
                     setSelectedEntryId(event.target.value)
                     setSelectedVectorId(nextEntry?.vectorId ?? '')
                     setCompanyResearchDraft(
-                      [nextEntry?.positioning, nextEntry?.notes, nextEntry?.url].filter(Boolean).join('\n\n'),
+                      nextEntry ? buildPrepCompanyResearchNotes(nextEntry) : '',
                     )
                   }}
                 >
@@ -1495,6 +1506,7 @@ export function PrepPage() {
                   <p>
                     {answeredGapCount} of {activeDeckContextGaps.length} prompt{activeDeckContextGaps.length === 1 ? '' : 's'} answered.
                     {currentIdentity ? ' Queue identity-facing answers upstream when they belong in the identity model.' : ' Load an identity model to queue upstream answers.'}
+                    {hasPipelineContextGap ? ' Some missing answers belong in pipeline research, so refresh the pipeline entry before regenerating if the interviewer/company intel is thin.' : ''}
                     {' '}Re-generating refreshes AI-authored cards and may reset rehearsal progress for cards the model replaces.
                   </p>
                 </div>
@@ -1518,6 +1530,15 @@ export function PrepPage() {
                   >
                     Queue for Identity Review
                   </button>
+                  {hasPipelineContextGap && activeDeck?.pipelineEntryId ? (
+                    <button
+                      type="button"
+                      className="prep-btn"
+                      onClick={() => void navigate({ to: '/pipeline' })}
+                    >
+                      Open Pipeline
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}

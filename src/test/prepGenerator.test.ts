@@ -135,6 +135,30 @@ describe('generateInterviewPrep', () => {
           },
         ],
       },
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['hm-screen'],
+        research: {
+          status: 'investigated',
+          summary: 'Public evidence points to a platform-heavy reliability role.',
+          interviewSignals: [],
+          people: [
+            {
+              name: 'Jordan Lee',
+              title: 'Director of Platform',
+              company: 'Acme',
+              relevance: 'Likely org leader for this team.',
+            },
+          ],
+          sources: [],
+          searchQueries: [],
+        },
+      },
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -154,6 +178,7 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('conditionals')
 
     expect(userPrompt).toContain('Structured Identity Context')
+    expect(userPrompt).toContain('Structured Pipeline Entry Context')
     expect(userPrompt).toContain('Candidate Metrics From Identity')
     expect(userPrompt).toContain(
       'Additional Candidate Metrics Outside The Vector Slice',
@@ -163,12 +188,13 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('Latency was spiking during peak load.')
     expect(userPrompt).toContain('"metricKey": "incidents"')
     expect(userPrompt).toContain('"metricKey": "aws_savings_monthly"')
+    expect(userPrompt).toContain('Jordan Lee')
     expect(userPrompt.match(/"metricKey": "incidents"/g)).toHaveLength(1)
     expect(
       userPrompt.match(/"metricKey": "aws_savings_monthly"/g),
     ).toHaveLength(1)
     expect(userPrompt).toContain(
-      'use it as the primary source of candidate evidence',
+      'use it as the source of truth for candidate evidence',
     )
     expect(userPrompt).toContain('Target Round Type: hm-screen')
     expect(userPrompt).toContain('outside the vector slice')
@@ -182,6 +208,9 @@ describe('generateInterviewPrep', () => {
     )
     expect(userPrompt).toContain(
       'Always include a "Tell me about yourself" opener card',
+    )
+    expect(userPrompt).toContain(
+      'use it as the source of truth for company, process, and interviewer intel',
     )
     expect(userPrompt).toContain(
       'Always include a "Why this role/company?" opener card',
@@ -226,6 +255,72 @@ describe('generateInterviewPrep', () => {
       expect.any(String),
       expect.stringContaining('Structured Identity Context:\nNot provided'),
       expect.any(Object),
+    )
+  })
+
+  it('adds a pipeline-owned people intel gap when pipeline context has no researched people', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        contextGaps: [
+          {
+            id: 'gap-existing',
+            section: 'Opening story',
+            question: 'Which project should anchor your opener?',
+            why: 'Needed to sharpen the opening narrative.',
+            priority: 'recommended',
+          },
+        ],
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['hm-screen'],
+        research: {
+          status: 'seeded',
+          summary: 'Strong role fit, but interviewer intel is still thin.',
+          interviewSignals: [],
+          people: [],
+          sources: [],
+          searchQueries: [],
+        },
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.contextGaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.stringContaining('prep-gap-pipeline-people-intel'),
+          feedbackTarget: 'pipeline.research.people',
+          priority: 'required',
+        }),
+      ]),
     )
   })
 

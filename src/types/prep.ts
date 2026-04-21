@@ -88,6 +88,51 @@ export interface PrepIdentityMetricCandidate {
   evidence: string
 }
 
+export interface PrepIdentityContext {
+  candidate_metrics?: PrepIdentityMetricCandidate[]
+  fallback_candidate_metrics?: PrepIdentityMetricCandidate[]
+  [key: string]: unknown
+}
+
+export interface PrepPipelineResearchPersonContext {
+  name: string
+  title?: string
+  company?: string
+  profileUrl?: string
+  relevance?: string
+}
+
+export interface PrepPipelineResearchSourceContext {
+  label: string
+  url?: string
+  kind: string
+}
+
+export interface PrepPipelineEntryContext {
+  company: string
+  role: string
+  tier: string
+  status: string
+  appMethod: string
+  response: string
+  nextStep?: string
+  formats: string[]
+  url?: string
+  positioning?: string
+  skillMatch?: string
+  notes?: string
+  research?: {
+    status: string
+    summary?: string
+    jobDescriptionSummary?: string
+    interviewSignals: string[]
+    people: PrepPipelineResearchPersonContext[]
+    sources: PrepPipelineResearchSourceContext[]
+    searchQueries: string[]
+    lastInvestigatedAt?: string
+  }
+}
+
 export interface PrepNumbersToKnow {
   candidate?: PrepMetric[]
   company?: PrepMetric[]
@@ -221,7 +266,8 @@ export interface PrepGenerationRequest {
   notes?: string
   companyResearch?: string
   jobDescription: string
-  identityContext?: { candidate_metrics?: PrepIdentityMetricCandidate[]; [key: string]: unknown }
+  identityContext?: PrepIdentityContext
+  pipelineEntryContext?: PrepPipelineEntryContext
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   categoryGuidance?: Record<string, string>

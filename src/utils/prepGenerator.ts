@@ -15,6 +15,8 @@ import type {
   PrepIdentityMetricCandidate,
   PrepMetric,
   PrepNumbersToKnow,
+  PrepPipelineResearchPersonContext,
+  PrepPipelineEntryContext,
   PrepQuestionToAsk,
   PrepStackAlignmentConfidence,
   PrepStackAlignmentRow,
@@ -51,6 +53,8 @@ interface PrepGenerationPayload {
   contextGaps?: PrepContextGap[]
   cards: Array<Omit<PrepCard, 'id'>>
 }
+
+const PREP_PIPELINE_PEOPLE_GAP_ID = 'prep-gap-pipeline-people-intel'
 
 const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<
   PrepStackAlignmentConfidence,
@@ -215,6 +219,65 @@ function stripCandidateMetricsFromIdentityContext(
     ...rest
   } = value
   return rest
+}
+
+function readPipelineResearchPeople(
+  value: PrepPipelineEntryContext | undefined,
+): PrepPipelineResearchPersonContext[] | undefined {
+  return value?.research?.people
+}
+
+function buildPipelinePeopleGapId(request: PrepGenerationRequest): string {
+  const pipelineContext = request.pipelineEntryContext
+  if (!pipelineContext) return PREP_PIPELINE_PEOPLE_GAP_ID
+  const slugSource = [
+    pipelineContext.company,
+    pipelineContext.role,
+    pipelineContext.url,
+  ]
+    .filter(Boolean)
+    .join('-')
+  return slugSource
+    ? `${PREP_PIPELINE_PEOPLE_GAP_ID}-${slugify(slugSource)}`
+    : PREP_PIPELINE_PEOPLE_GAP_ID
+}
+
+function ensurePipelineResearchContextGaps(
+  contextGaps: PrepContextGap[] | undefined,
+  request: PrepGenerationRequest,
+): PrepContextGap[] | undefined {
+  if (!request.pipelineEntryContext) {
+    return contextGaps
+  }
+
+  const existingGaps = contextGaps ?? []
+  const hasPipelinePeopleGap = existingGaps.some(
+    (gap) =>
+      gap.feedbackTarget === 'pipeline.research.people' ||
+      gap.id === PREP_PIPELINE_PEOPLE_GAP_ID,
+  )
+  if (hasPipelinePeopleGap) {
+    return contextGaps
+  }
+
+  const pipelinePeople = readPipelineResearchPeople(request.pipelineEntryContext)
+  if (pipelinePeople && pipelinePeople.length > 0) {
+    return contextGaps
+  }
+
+  return [
+    ...existingGaps,
+    {
+      id: buildPipelinePeopleGapId(request),
+      section: 'People intel',
+      question:
+        'Who is likely interviewing you, hiring for this role, or influencing the decision for this opportunity?',
+      why:
+        'The pipeline research does not yet include named people, so the prep cannot tailor interviewer-specific framing or questions.',
+      feedbackTarget: 'pipeline.research.people',
+      priority: 'required',
+    },
+  ]
 }
 
 // Identity context is produced in-process by buildPrepIdentityContext, so array shape is trusted here.
@@ -548,9 +611,10 @@ export async function generateInterviewPrep(
   const structuredIdentityContext = stripCandidateMetricsFromIdentityContext(
     request.identityContext,
   )
+  const structuredPipelineEntryContext = request.pipelineEntryContext
 
   const systemPrompt = `You are an expert interview coach and career strategist. Return JSON only.
-Generate a strong interview prep pack from a candidate's resume context, a job description, company research notes, and (when provided) a target vector to orient the framing.
+Generate a strong interview prep pack from a candidate's resume context, a job description, structured pipeline entry research, company research notes, and (when provided) a target vector to orient the framing.
 Focus on truthful storytelling, quantified evidence, likely interview themes, and specific follow-up questions the candidate should prepare for.
 Include 8 to 12 cards spanning opener, behavioral, technical, project, metrics, and situational categories when supported by the input.
 Use the resume context to ground answers; do not invent facts or metrics not present in the candidate material. If company research is uncertain, say so in notes instead of presenting it as fact.
@@ -637,6 +701,9 @@ Company URL: ${request.companyUrl ?? 'Not provided'}
 Skill Match Notes: ${request.skillMatch ?? 'Not provided'}
 Positioning Notes: ${request.positioning ?? 'Not provided'}
 Additional Notes: ${request.notes ?? 'Not provided'}
+Structured Pipeline Entry Context:
+${structuredPipelineEntryContext ? JSON.stringify(structuredPipelineEntryContext, null, 2) : 'Not provided'}
+
 Company Research Notes: ${request.companyResearch ?? 'Not provided'}
 
 Job Description:
@@ -660,7 +727,10 @@ ${request.contextGapAnswers ? JSON.stringify(request.contextGapAnswers, null, 2)
 Tailored Resume Context:
 ${JSON.stringify(request.resumeContext, null, 2)}
 
-When structured identity context is provided, use it as the primary source of candidate evidence and fall back to the tailored resume context only for missing details.
+When structured identity context is provided, use it as the source of truth for candidate evidence and fall back to the tailored resume context only for missing details.
+When structured pipeline entry context is provided, use it as the source of truth for company, process, and interviewer intel before falling back to freeform companyResearch notes.
+If structured pipeline entry context includes researched people, use them for named-person intel cards, likely-interviewer framing, and sharper questions-to-ask.
+Do not claim named-person intel unless it is grounded in the provided structured pipeline entry context or companyResearch notes.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
 Generate dedicated opener cards for the predictable opening questions instead of a single generic opener bucket.
@@ -761,7 +831,10 @@ Return JSON only (inside the tags).`
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
     stackAlignment,
-    contextGaps: normalizeContextGaps(parsed.contextGaps),
+    contextGaps: ensurePipelineResearchContextGaps(
+      normalizeContextGaps(parsed.contextGaps),
+      request,
+    ),
     categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as
       | Partial<Record<PrepCategory, string>>
       | undefined,
