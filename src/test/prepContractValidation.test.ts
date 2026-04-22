@@ -112,6 +112,18 @@ describe('prep contract validation', () => {
       },
     })
 
+    expect(callLlmProxyMock).toHaveBeenCalledWith(
+      'https://ai.example/proxy',
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        feature: 'prep.generate',
+        model: 'sonnet',
+        timeoutMs: 240000,
+        maxTokens: 8192,
+      }),
+    )
+
     expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(
       true,
     )
@@ -380,7 +392,7 @@ describe('prep contract validation', () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
-        cards: {},
+        cards: 'not-an-array',
       }),
     )
 
