@@ -1,9 +1,11 @@
 ---
 id: TASK-155
 title: Add per-section time tracking to prep live mode
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - Codex
 created_date: '2026-04-19 06:03'
+updated_date: '2026-04-22 08:05'
 labels:
   - prep
   - live-mode
@@ -42,6 +44,28 @@ Reference: doc-25, Gap 5. The `generic-prep.html` reference shows `data-budget` 
 - [ ] #5 AI generation suggests time budgets per section based on content and interview duration
 - [ ] #6 Global timer continues to work alongside per-section tracking
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Review the current prep live-mode section model, sidebar navigation, and timer behavior to identify where section budgets and active-section timing should live.
+Extend the cheatsheet/live-mode section data so each rendered section can carry a recommended time budget, then accumulate elapsed time against the currently active visible section while the global timer runs.
+Render elapsed-versus-budget state in the sidebar with near-budget and over-budget styling, add focused regression coverage for timing behavior, and finish with prep-targeted verification commands.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented per-section prep live-mode timing by adding `timeBudgetMinutes` to prep cards/cheatsheet sections, surfacing elapsed/budget timing in the sidebar, and tracking active-section elapsed time alongside the global timer.
+
+Independent review: `.agents/reviews/review-20260422-035259.md` (Claude contract mismatch fallback, Gemini review succeeded). Addressed P1 findings by tracking the full set of intersecting sections in the observer and switching section timing to delta-based accumulation.
+
+Independent test audit: `.agents/reviews/test-audit-20260422-035721.md` (Claude contract mismatch; Gemini capacity exhaustion; Codex fallback succeeded). Audit reported broader missing direct coverage in `derivePrepCheatsheetSections` and some prompt-normalization failure paths as follow-up debt.
+
+Verification receipts: `npx vitest run src/test/prepGenerator.test.ts src/test/PrepLiveMode.test.tsx` ✅, `npm run typecheck` ✅, `npm run build` ✅, `npx eslint src/routes/prep/PrepLiveMode.tsx src/utils/prepCheatsheet.ts src/utils/prepGenerator.ts src/types/prep.ts src/test/PrepLiveMode.test.tsx src/test/prepGenerator.test.ts` ✅.
+
+Repo-wide `npm run lint` remains non-gating baseline debt in this checkout because it traverses generated artifact directories (`dist*`, `.vercel/output`) and unrelated existing files with hundreds of pre-existing rule-definition / hook warnings.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

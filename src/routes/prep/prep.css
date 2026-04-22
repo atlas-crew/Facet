@@ -1307,6 +1307,22 @@
   color: var(--text-tertiary);
 }
 
+.prep-live-nav-time {
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--success);
+}
+
+.prep-live-nav-time-near {
+  color: var(--warning);
+}
+
+.prep-live-nav-time-over {
+  color: var(--accent-orange);
+}
+
 
 .prep-live-main {
   flex: 1;

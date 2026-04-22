@@ -31,7 +31,7 @@ type SectionPhase = 'pre' | 'live'
 
 type LiveSection = PrepCheatsheetSection & {
   shortcut: string
-  itemBudget?: number
+  timeBudgetMinutes?: number
   phase: SectionPhase
   tone: string
 }
@@ -42,18 +42,18 @@ type SectionGroupView = {
 }
 
 /** Per-item recommended time in minutes. */
-const SECTION_META: Record<string, { itemBudget?: number; shortcut?: string; tone: string; phase: SectionPhase }> = {
-  overview: { shortcut: '1', tone: 'overview', phase: 'pre' },
-  intel: { shortcut: '2', tone: 'intel', phase: 'pre' },
-  questions: { shortcut: 'Q', tone: 'overview', phase: 'pre' },
-  donts: { shortcut: 'D', tone: 'warnings', phase: 'pre' },
-  metrics: { shortcut: 'M', tone: 'metrics', phase: 'pre' },
-  warnings: { shortcut: 'W', tone: 'warnings', phase: 'pre' },
-  opener: { itemBudget: 2, tone: 'opener', phase: 'live' },
-  behavioral: { itemBudget: 3, shortcut: '6', tone: 'behavioral', phase: 'live' },
-  project: { itemBudget: 3, shortcut: '7', tone: 'project', phase: 'live' },
-  technical: { itemBudget: 3, shortcut: '8', tone: 'technical', phase: 'live' },
-  situational: { itemBudget: 2, shortcut: '9', tone: 'situational', phase: 'live' },
+const SECTION_META: Record<string, { defaultTimeBudgetMinutes?: number; shortcut?: string; tone: string; phase: SectionPhase }> = {
+  overview: { defaultTimeBudgetMinutes: 1, shortcut: '1', tone: 'overview', phase: 'pre' },
+  intel: { defaultTimeBudgetMinutes: 2, shortcut: '2', tone: 'intel', phase: 'pre' },
+  questions: { defaultTimeBudgetMinutes: 8, shortcut: 'Q', tone: 'overview', phase: 'pre' },
+  donts: { defaultTimeBudgetMinutes: 1, shortcut: 'D', tone: 'warnings', phase: 'pre' },
+  metrics: { defaultTimeBudgetMinutes: 2, shortcut: 'M', tone: 'metrics', phase: 'pre' },
+  warnings: { defaultTimeBudgetMinutes: 1.5, shortcut: 'W', tone: 'warnings', phase: 'pre' },
+  opener: { defaultTimeBudgetMinutes: 2, tone: 'opener', phase: 'live' },
+  behavioral: { defaultTimeBudgetMinutes: 3, shortcut: '6', tone: 'behavioral', phase: 'live' },
+  project: { defaultTimeBudgetMinutes: 3, shortcut: '7', tone: 'project', phase: 'live' },
+  technical: { defaultTimeBudgetMinutes: 4, shortcut: '8', tone: 'technical', phase: 'live' },
+  situational: { defaultTimeBudgetMinutes: 3, shortcut: '9', tone: 'situational', phase: 'live' },
 }
 
 const QUESTIONS_GUIDANCE = 'Pick 2-3. Save 8-10 minutes for questions.'
@@ -109,6 +109,11 @@ function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function formatBudgetMinutes(minutes: number): string {
+  const rounded = Math.round(minutes * 10) / 10
+  return Number.isInteger(rounded) ? `${rounded}m` : `${rounded.toFixed(1)}m`
 }
 
 function normalizeShortcutKey(key: string): string {
@@ -276,12 +281,21 @@ function matchesShortcut(keys: readonly string[], key: string): boolean {
 }
 
 type LiveTimerState = 'calm' | 'warning' | 'urgent' | 'critical'
+type SectionBudgetState = 'under' | 'near' | 'over'
 
 function getLiveTimerState(totalSeconds: number): LiveTimerState {
   if (totalSeconds >= 90) return 'critical'
   if (totalSeconds >= 60) return 'urgent'
   if (totalSeconds >= 30) return 'warning'
   return 'calm'
+}
+
+function getSectionBudgetState(elapsedSeconds: number, timeBudgetMinutes: number | undefined): SectionBudgetState | null {
+  if (!timeBudgetMinutes) return null
+  const budgetSeconds = Math.round(timeBudgetMinutes * 60)
+  if (elapsedSeconds > budgetSeconds) return 'over'
+  if (elapsedSeconds >= Math.max(0, budgetSeconds - 30)) return 'near'
+  return 'under'
 }
 
 function getSectionMetaKey(section: PrepCheatsheetSection): string {
@@ -498,6 +512,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   })
   const [preInterviewOpen, setPreInterviewOpen] = useState(true)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [sectionElapsedSecondsById, setSectionElapsedSecondsById] = useState<Record<string, number>>({})
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -506,6 +521,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   const timerElapsedBeforeRunRef = useRef(0)
   const elapsedSecondsRef = useRef(0)
   const isTimerRunningRef = useRef(false)
+  const activeTimedSectionIdRef = useRef<string | null>(null)
   // Imported decks can briefly hydrate before store normalization restores cards. Treat that as an empty live session instead of crashing.
   const deckCards = useMemo(() => (Array.isArray(deck.cards) ? deck.cards : []), [deck.cards])
 
@@ -535,7 +551,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
           return {
             ...section,
             shortcut,
-            itemBudget: meta?.itemBudget,
+            timeBudgetMinutes: section.timeBudgetMinutes ?? meta?.defaultTimeBudgetMinutes,
             tone: meta?.tone ?? 'overview',
             phase,
           }
@@ -602,6 +618,10 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   const deckMeta = [deck.company, deck.role].filter(Boolean).join(' · ') || 'Interview prep set'
 
   useEffect(() => {
+    activeTimedSectionIdRef.current = effectiveActiveSectionId
+  }, [effectiveActiveSectionId])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       window.localStorage.setItem(PREP_LIVE_COMPACT_MODE_STORAGE_KEY, compactMode ? 'true' : 'false')
@@ -655,6 +675,56 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     return cancelScroll
   }, [pendingScrollSectionId, preInterviewOpen, scrollToSection])
 
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return
+
+    const sectionIndexById = new Map(visibleSectionLegend.map((section, index) => [section.id, index]))
+    const intersectingSectionEntries = new Map<string, IntersectionObserverEntry>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const sectionId = (entry.target as HTMLElement).dataset.prepLiveSectionId
+          if (!sectionId) continue
+
+          if (entry.isIntersecting) {
+            intersectingSectionEntries.set(sectionId, entry)
+          } else {
+            intersectingSectionEntries.delete(sectionId)
+          }
+        }
+
+        const visibleEntries = [...intersectingSectionEntries.entries()]
+          .map(([sectionId, entry]) => ({ sectionId, entry }))
+          .sort((left, right) => {
+            const ratioDifference = right.entry.intersectionRatio - left.entry.intersectionRatio
+            if (Math.abs(ratioDifference) > 0.01) return ratioDifference
+
+            const topDifference = Math.abs(left.entry.boundingClientRect.top) - Math.abs(right.entry.boundingClientRect.top)
+            if (Math.abs(topDifference) > 1) return topDifference
+
+            return (sectionIndexById.get(left.sectionId) ?? 0) - (sectionIndexById.get(right.sectionId) ?? 0)
+          })
+
+        const nextActiveSectionId = visibleEntries[0]?.sectionId
+        if (nextActiveSectionId) {
+          setActiveSectionId((current) => (current === nextActiveSectionId ? current : nextActiveSectionId))
+        }
+      },
+      {
+        root: null,
+        rootMargin: '-18% 0px -52% 0px',
+        threshold: [0.2, 0.4, 0.6, 0.8],
+      },
+    )
+
+    for (const section of visibleSectionLegend) {
+      const element = sectionRefs.current[section.id]
+      if (element) observer.observe(element)
+    }
+
+    return () => observer.disconnect()
+  }, [visibleSectionLegend, preInterviewOpen])
+
   const toggleSection = useCallback((sectionId: string) => {
     setCollapsedSections((current) => ({
       ...current,
@@ -667,9 +737,11 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     timerElapsedBeforeRunRef.current = 0
     elapsedSecondsRef.current = 0
     isTimerRunningRef.current = false
+    activeTimedSectionIdRef.current = effectiveActiveSectionId
     setIsTimerRunning(false)
     setElapsedSeconds(0)
-  }, [])
+    setSectionElapsedSecondsById({})
+  }, [effectiveActiveSectionId])
 
   const toggleTimer = useCallback(() => {
     if (isTimerRunningRef.current) {
@@ -704,13 +776,33 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   useEffect(() => {
     if (!isTimerRunning) return
 
+    let accumulatedSectionMs = 0
+    let lastSectionTickAt = Date.now()
+
     const syncElapsedSeconds = () => {
       if (timerStartedAtRef.current === null) return
       setElapsedSeconds(Math.floor((Date.now() - timerStartedAtRef.current) / 1000))
     }
 
-    syncElapsedSeconds()
-    const timerId = window.setInterval(syncElapsedSeconds, 1000)
+    const timerId = window.setInterval(() => {
+      syncElapsedSeconds()
+
+      const now = Date.now()
+      accumulatedSectionMs += now - lastSectionTickAt
+      lastSectionTickAt = now
+
+      const secondsToAdd = Math.floor(accumulatedSectionMs / 1000)
+      if (secondsToAdd <= 0) return
+
+      accumulatedSectionMs -= secondsToAdd * 1000
+      const activeSectionId = activeTimedSectionIdRef.current
+      if (!activeSectionId) return
+
+      setSectionElapsedSecondsById((current) => ({
+        ...current,
+        [activeSectionId]: (current[activeSectionId] ?? 0) + secondsToAdd,
+      }))
+    }, 1000)
     return () => window.clearInterval(timerId)
   }, [isTimerRunning])
 
@@ -943,6 +1035,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
                 <SectionGroupNavList
                   groups={preSectionGroups}
                   activeSectionId={effectiveActiveSectionId}
+                  sectionElapsedSecondsById={sectionElapsedSecondsById}
                   onNavigate={(sectionId) => {
                     setActiveSectionId(sectionId)
                     scrollToSection(sectionId)
@@ -960,6 +1053,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
           <SectionGroupNavList
             groups={liveSectionGroups}
             activeSectionId={effectiveActiveSectionId}
+            sectionElapsedSecondsById={sectionElapsedSecondsById}
             onNavigate={(sectionId) => {
               setActiveSectionId(sectionId)
               scrollToSection(sectionId)
@@ -1055,11 +1149,15 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
 interface NavLinkProps {
   section: LiveSection
+  elapsedSeconds: number
   isActive: boolean
   onNavigate: () => void
 }
 
-function NavLink({ section, isActive, onNavigate }: NavLinkProps) {
+function NavLink({ section, elapsedSeconds, isActive, onNavigate }: NavLinkProps) {
+  const budgetState = getSectionBudgetState(elapsedSeconds, section.timeBudgetMinutes)
+  const budgetSeconds = section.timeBudgetMinutes ? Math.round(section.timeBudgetMinutes * 60) : null
+
   return (
     <button
       type="button"
@@ -1074,6 +1172,11 @@ function NavLink({ section, isActive, onNavigate }: NavLinkProps) {
           {section.title}
         </span>
         <span className="prep-live-nav-meta">{section.items.length} items</span>
+        {budgetSeconds !== null ? (
+          <span className={`prep-live-nav-time prep-live-nav-time-${budgetState ?? 'under'}`}>
+            {formatDuration(elapsedSeconds)} / {formatDuration(budgetSeconds)}
+          </span>
+        ) : null}
       </span>
       {section.shortcut ? <span className="prep-live-shortcut-badge">{section.shortcut}</span> : null}
     </button>
@@ -1083,10 +1186,11 @@ function NavLink({ section, isActive, onNavigate }: NavLinkProps) {
 interface SectionGroupNavListProps {
   groups: SectionGroupView[]
   activeSectionId: string | null
+  sectionElapsedSecondsById: Record<string, number>
   onNavigate: (sectionId: string) => void
 }
 
-function SectionGroupNavList({ groups, activeSectionId, onNavigate }: SectionGroupNavListProps) {
+function SectionGroupNavList({ groups, activeSectionId, sectionElapsedSecondsById, onNavigate }: SectionGroupNavListProps) {
   return (
     <div className="prep-live-nav-groups">
       {groups.map((group) => (
@@ -1100,6 +1204,7 @@ function SectionGroupNavList({ groups, activeSectionId, onNavigate }: SectionGro
             <NavLink
               key={section.id}
               section={section}
+              elapsedSeconds={sectionElapsedSecondsById[section.id] ?? 0}
               isActive={activeSectionId === section.id}
               onNavigate={() => onNavigate(section.id)}
             />
@@ -1183,6 +1288,7 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
   return (
     <section
       ref={sectionRef}
+      data-prep-live-section-id={section.id}
       tabIndex={-1}
       className={`prep-live-section prep-live-section-${section.tone} ${isActive ? 'prep-live-section-active' : ''}`}
     >
@@ -1194,7 +1300,7 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
                 {section.shortcut}
               </span>
             ) : null}
-            {section.itemBudget ? <span className="prep-live-budget-badge">{section.itemBudget}m</span> : null}
+            {section.timeBudgetMinutes ? <span className="prep-live-budget-badge">{formatBudgetMinutes(section.timeBudgetMinutes)}</span> : null}
             <span className="prep-live-count-badge">{section.items.length} items</span>
           </div>
           <h2>{section.title}</h2>

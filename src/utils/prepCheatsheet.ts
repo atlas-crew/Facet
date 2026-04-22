@@ -21,6 +21,7 @@ export interface PrepCheatsheetSection {
   title: string
   description: string
   items: PrepCheatsheetItem[]
+  timeBudgetMinutes?: number
   guidance?: string
   group: PrepCheatsheetGroup
   sectionCategory?: PrepCategory
@@ -41,6 +42,22 @@ const CATEGORY_GROUPS = {
 } satisfies Record<string, PrepCheatsheetGroup>
 
 const QUESTIONS_GUIDANCE = 'Pick 2-3. Save 8-10 minutes for questions.'
+const STATIC_SECTION_BUDGETS: Partial<Record<string, number>> = {
+  overview: 1,
+  intel: 2,
+  questions: 8,
+  donts: 1,
+  metrics: 2,
+  warnings: 1.5,
+}
+const DEFAULT_CARD_BUDGETS: Record<PrepCategory, number> = {
+  opener: 2,
+  behavioral: 3,
+  technical: 4,
+  project: 3,
+  metrics: 1.5,
+  situational: 3,
+}
 const NUMBERS_TO_KNOW_GROUPS = {
   candidate: 'Your Work',
   company: 'Their Company',
@@ -234,6 +251,13 @@ function resolveGuidance(deckGuidance: string | undefined, defaultGuidance: stri
   return sanitizeText(defaultGuidance) ?? undefined
 }
 
+function sumCardTimeBudgets(cards: PrepCard[], fallbackBudget: number): number | undefined {
+  if (cards.length === 0) return undefined
+
+  const budgetMinutes = cards.reduce((total, card) => total + (card.timeBudgetMinutes ?? fallbackBudget), 0)
+  return Math.round(budgetMinutes * 10) / 10
+}
+
 function truncate(text: string, maxLength: number): string {
   const normalized = text.trim()
   if (normalized.length <= maxLength) return normalized
@@ -259,6 +283,7 @@ function withSectionMeta(
     title: string
     description: string
     items: PrepCheatsheetItem[]
+    timeBudgetMinutes?: number
     guidance?: string
     group: PrepCheatsheetGroup
     sectionCategory?: PrepCategory
@@ -365,6 +390,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
       title: 'Overview',
       description: 'High-signal context to anchor the conversation before you start answering.',
       items: overviewItems,
+      timeBudgetMinutes: STATIC_SECTION_BUDGETS.overview,
       group: CATEGORY_GROUPS.overview,
     }),
   ]
@@ -389,6 +415,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
             ? [{ id: 'jd', title: 'Job description snapshot', detail: truncate(deck.jobDescription, 320) }]
             : []),
         ],
+        timeBudgetMinutes: STATIC_SECTION_BUDGETS.intel,
         group: CATEGORY_GROUPS.intel,
       }),
     )
@@ -410,6 +437,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
           title: meta.title,
           description: meta.description,
           items: buildCardItems([card]),
+          timeBudgetMinutes: card.timeBudgetMinutes ?? DEFAULT_CARD_BUDGETS.opener,
           guidance,
           group: 'Openers',
           sectionCategory: 'opener',
@@ -441,6 +469,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: config.title,
         description: config.description,
         items,
+        timeBudgetMinutes: sumCardTimeBudgets(cardsByCategory[category], DEFAULT_CARD_BUDGETS[category]),
         group: CATEGORY_GROUPS[category],
         sectionCategory: category,
       }),
@@ -455,6 +484,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: 'Questions to Ask',
         description: 'Prepared questions to ask the interviewer.',
         items: buildQuestionsItems(sanitizedQuestions),
+        timeBudgetMinutes: STATIC_SECTION_BUDGETS.questions,
         guidance: QUESTIONS_GUIDANCE,
         group: CATEGORY_GROUPS.questions,
       }),
@@ -469,6 +499,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: "Don'ts",
         description: 'Personalized anti-patterns to avoid while you are live in the room.',
         items: buildDontsItems(sanitizedDonts),
+        timeBudgetMinutes: STATIC_SECTION_BUDGETS.donts,
         group: CATEGORY_GROUPS.donts,
       }),
     )
@@ -488,6 +519,8 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: metricsTitle,
         description: 'Numbers and measurable outcomes you should keep ready.',
         items: metricItems,
+        timeBudgetMinutes:
+          sumCardTimeBudgets(cardsByCategory.metrics, DEFAULT_CARD_BUDGETS.metrics) ?? STATIC_SECTION_BUDGETS.metrics,
         group: CATEGORY_GROUPS.metrics,
         sectionCategory: 'metrics',
       }),
@@ -506,6 +539,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         title: 'Risks and Reminders',
         description: 'Cautions to keep in view while you are live in the room.',
         items: warningItems,
+        timeBudgetMinutes: STATIC_SECTION_BUDGETS.warnings,
         group: CATEGORY_GROUPS.warnings,
       }),
     )

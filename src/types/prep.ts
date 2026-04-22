@@ -196,6 +196,7 @@ export interface PrepCard {
   category: PrepCategory
   title: string
   tags: string[]
+  timeBudgetMinutes?: number
   notes?: string
   source?: 'ai' | 'manual' | 'imported'
   company?: string

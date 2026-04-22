@@ -194,15 +194,21 @@ function getSectionContainer(title: string) {
   return heading?.closest('.prep-live-section') ?? null
 }
 
+function getNavLink(title: string) {
+  return screen
+    .getAllByRole('button')
+    .find((candidate) => candidate.classList.contains('prep-live-nav-link') && candidate.textContent?.includes(title))
+}
+
 describe('PrepLiveMode', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    window.localStorage.clear()
+    window.localStorage?.clear?.()
   })
 
   afterEach(() => {
     cleanup()
-    window.localStorage.clear()
+    window.localStorage?.clear?.()
     vi.useRealTimers()
   })
 
@@ -261,10 +267,10 @@ describe('PrepLiveMode', () => {
     expect(shortcutBar?.textContent).toContain('6 / 7 / 8 / 9')
 
     expect(container.querySelectorAll('.prep-live-section-opener .prep-live-budget-badge')).toHaveLength(3)
-    expect(getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')).toBeNull()
-    expect(getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')).toBeNull()
-    expect(getSectionContainer('Your Work')?.querySelector('.prep-live-budget-badge')).toBeNull()
-    expect(getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')).toBeNull()
+    expect(getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')?.textContent).toBe('8m')
+    expect(getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')?.textContent).toBe('1m')
+    expect(getSectionContainer('Your Work')?.querySelector('.prep-live-budget-badge')?.textContent).toBe('1.5m')
+    expect(getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')?.textContent).toBe('1.5m')
   })
 
   it('supports search, timer, and section shortcuts', () => {
@@ -366,6 +372,35 @@ describe('PrepLiveMode', () => {
     })
 
     expect(screen.getByText('00:02')).toBeTruthy()
+  })
+
+  it('tracks elapsed time against the active section budget in the sidebar', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: ' ' })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    const overviewNav = getNavLink('Overview')
+    expect(overviewNav?.textContent).toContain('00:02 / 01:00')
+    expect(overviewNav?.querySelector('.prep-live-nav-time-under')).toBeTruthy()
+
+    fireEvent.keyDown(document.body, { key: '3' })
+    act(() => {
+      vi.advanceTimersByTime(91000)
+    })
+
+    const openerNav = getNavLink('Tell me about yourself')
+    expect(openerNav?.textContent).toContain('01:31 / 02:00')
+    expect(openerNav?.querySelector('.prep-live-nav-time-near')).toBeTruthy()
+
+    act(() => {
+      vi.advanceTimersByTime(31000)
+    })
+
+    expect(openerNav?.textContent).toContain('02:02 / 02:00')
+    expect(openerNav?.querySelector('.prep-live-nav-time-over')).toBeTruthy()
   })
 
   it('resumes the timer from the paused value', () => {

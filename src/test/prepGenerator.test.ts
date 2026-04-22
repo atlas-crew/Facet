@@ -258,6 +258,52 @@ describe('generateInterviewPrep', () => {
     )
   })
 
+  it('requests and preserves per-card time budgets for live mode section timing', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+            timeBudgetMinutes: 1.5,
+          },
+          {
+            category: 'technical',
+            title: 'How do you debug a distributed system?',
+            tags: ['debugging'],
+            script: 'Start with the blast radius.',
+            timeBudgetMinutes: '4',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'hm-screen',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    const [, systemPrompt, userPrompt] = callLlmProxyMock.mock.calls[0]
+
+    expect(systemPrompt).toContain('timeBudgetMinutes')
+    expect(userPrompt).toContain('Add timeBudgetMinutes to every card')
+    expect(result.cards[0]?.timeBudgetMinutes).toBe(1.5)
+    expect(result.cards[1]?.timeBudgetMinutes).toBe(4)
+  })
+
   it('adds a pipeline-owned people intel gap when pipeline context has no researched people', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({

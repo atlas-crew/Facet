@@ -128,6 +128,19 @@ function normalizeMetricList(value: unknown): PrepMetric[] | undefined {
   return metrics.length > 0 ? metrics : undefined
 }
 
+function normalizeTimeBudgetMinutes(value: unknown): number | undefined {
+  const numericValue =
+    typeof value === 'number'
+      ? value
+      : isString(value)
+        ? Number(value.trim())
+        : Number.NaN
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return undefined
+
+  return Math.round(numericValue * 10) / 10
+}
+
 function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     return undefined
@@ -485,6 +498,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         category,
         title: record.title.trim(),
         tags,
+        timeBudgetMinutes: normalizeTimeBudgetMinutes(record.timeBudgetMinutes),
         notes: isString(record.notes) ? record.notes.trim() : undefined,
         script: isString(record.script) ? record.script.trim() : undefined,
         scriptLabel: isString(record.scriptLabel)
@@ -733,6 +747,7 @@ Response schema:
       "category": "opener|behavioral|technical|project|metrics|situational",
       "title": "string",
       "tags": ["string"],
+      "timeBudgetMinutes": "optional number",
       "notes": "optional string",
       "script": "optional string",
       "scriptLabel": "optional string",
@@ -801,6 +816,7 @@ Generate dedicated opener cards for the predictable opening questions instead of
 - Include a "Why did you leave your last role?" opener card when departure context is available in structured identity context or contextGapAnswers.
 - When departure context is missing but the answer matters, add a contextGap for identity.departureContext or use a [[fill-in: your departure reason]] placeholder in that opener instead of inventing a reason.
 - Title opener cards clearly so they can render as standalone live sections, and keep each opener script to roughly 75 seconds with a 2 minute answer budget.
+- Add timeBudgetMinutes to every card so live mode can track section budgets. Use realistic interview timing: openers 1.5 to 2 minutes, behavioral/project answers 2 to 3 minutes, technical answers 3 to 5 minutes, situational answers 2 to 3 minutes, and metrics/reference answers 1 to 2 minutes.
 If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
