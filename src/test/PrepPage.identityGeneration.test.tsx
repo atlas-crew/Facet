@@ -202,6 +202,7 @@ describe('PrepPage identity generation', () => {
               content: JSON.stringify({
                 deckTitle: 'Acme Staff Engineer Prep',
                 companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+                rules: ['Lead with specifics.', 'Listen more than you talk.'],
                 donts: ['Do not ramble.'],
                 questionsToAsk: [
                   {
@@ -275,6 +276,7 @@ describe('PrepPage identity generation', () => {
 
     const generatedDeck = usePrepStore.getState().decks[0]
     expect(generatedDeck.roundType).toBe('system-design')
+    expect(generatedDeck.rules).toEqual(['Lead with specifics.', 'Listen more than you talk.'])
     expect(generatedDeck.donts).toEqual(['Do not ramble.'])
     expect(generatedDeck.questionsToAsk).toEqual([
       {
@@ -410,6 +412,7 @@ describe('PrepPage identity generation', () => {
     expect(JSON.stringify(useIdentityStore.getState().currentIdentity)).toBe(identityBefore)
 
     const generatedDeck = usePrepStore.getState().decks[0]
+    expect(generatedDeck.rules).toEqual(['Lead with specifics.', 'Listen more than you talk.'])
     expect(generatedDeck.donts).toEqual(['Do not ramble.'])
     expect(generatedDeck.questionsToAsk).toEqual([
       {

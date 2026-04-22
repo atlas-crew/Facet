@@ -54,6 +54,7 @@ interface CreateDeckInput {
   notes?: string
   companyResearch?: string
   jobDescription?: string
+  rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
@@ -95,6 +96,9 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     category: partial.category ?? 'behavioral',
     title: partial.title?.trim() || 'New Prep Card',
     tags: partial.tags ?? [],
+    timeBudgetMinutes: typeof partial.timeBudgetMinutes === 'number' && Number.isFinite(partial.timeBudgetMinutes)
+      ? partial.timeBudgetMinutes
+      : undefined,
     notes: partial.notes?.trim() || undefined,
     source: partial.source ?? 'manual',
     company: partial.company?.trim() || undefined,
@@ -405,6 +409,9 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
       id: item.id ?? createId('prep-conditional'),
     })),
     metrics: sanitizeMetrics(card.metrics, options),
+    timeBudgetMinutes: typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
+      ? Math.round(card.timeBudgetMinutes * 10) / 10
+      : undefined,
     updatedAt: now(),
   }
 }
@@ -447,6 +454,7 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    rules: sanitizeStringList(deck.rules, options),
     donts: sanitizeStringList(deck.donts, options),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
     numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow, options),
@@ -479,6 +487,9 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
     script: card.script?.trim() || undefined,
     scriptLabel: card.scriptLabel?.trim() || undefined,
     warning: card.warning?.trim() || undefined,
+    timeBudgetMinutes: typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
+      ? Math.round(card.timeBudgetMinutes * 10) / 10
+      : undefined,
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
     keyPoints: sanitizeStringList(card.keyPoints),
     followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
@@ -531,6 +542,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    rules: sanitizeStringList(deck.rules),
     donts: sanitizeStringList(deck.donts),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
     numbersToKnow: sanitizeNumbersToKnow(deck.numbersToKnow),
@@ -632,6 +644,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           notes: input.notes,
           companyResearch: input.companyResearch,
           jobDescription: input.jobDescription,
+          rules: input.rules,
           donts: input.donts,
           questionsToAsk: input.questionsToAsk,
           numbersToKnow: input.numbersToKnow,

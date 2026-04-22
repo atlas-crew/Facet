@@ -45,6 +45,7 @@ const PREP_MAX_TOKENS = 8192
 interface PrepGenerationPayload {
   deckTitle: string
   companyResearchSummary?: string
+  rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
@@ -667,6 +668,7 @@ export async function generateInterviewPrep(
 ): Promise<{
   deckTitle: string
   companyResearchSummary: string
+  rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
@@ -711,6 +713,7 @@ Response schema:
 {
   "deckTitle": "string",
   "companyResearchSummary": "optional string",
+  "rules": ["string"],
   "donts": ["string"],
   "questionsToAsk": [{ "question": "string", "context": "string" }],
   "numbersToKnow": {
@@ -820,6 +823,7 @@ Generate dedicated opener cards for the predictable opening questions instead of
 If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
+Return 3 to 5 deck-level rules as imperative one-liners in the rules array. These should sound like live commands or hard reminders, not passive coaching prose. Tailor them to the round type, application method, round stage, and any inbound versus cold-apply signals in the provided context.
 Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with coaching context, and categoryGuidance keyed by the prep category names.
 When candidate metrics are provided, use them as the primary source for numbersToKnow.candidate. You may curate, sort, relabel, or lightly format their values for readability, but you must not invent new candidate numbers.
 When additional candidate metrics outside the vector slice are provided, treat them as truthful supporting proof for openers, resume-level headline positioning, or gap-avoidance when they clearly strengthen the answer. Do not let them override the target vector framing for the rest of the deck.
@@ -905,6 +909,7 @@ Return JSON only (inside the tags).`
     companyResearchSummary: isString(parsed.companyResearchSummary)
       ? parsed.companyResearchSummary.trim()
       : '',
+    rules: normalizeStringList(parsed.rules),
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),

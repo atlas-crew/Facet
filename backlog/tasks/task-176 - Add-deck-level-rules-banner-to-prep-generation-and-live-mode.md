@@ -1,9 +1,11 @@
 ---
 id: TASK-176
 title: Add deck-level rules banner to prep generation and live mode
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - Codex
 created_date: '2026-04-19 10:00'
+updated_date: '2026-04-22 09:03'
 labels:
   - prep
   - prompt-engineering
@@ -17,7 +19,7 @@ references:
   - src/routes/prep/PrepLiveMode.tsx
 documentation:
   - 'backlog doc-25: Gap 2 Strategic Framing Notes'
-  - 'backlog reference files/blackstone-prep-r3.html (rules-banner pattern)'
+  - backlog reference files/blackstone-prep-r3.html (rules-banner pattern)
 priority: medium
 ---
 
@@ -68,6 +70,14 @@ Keep existing `notes`, `warning`, `categoryGuidance` fields untouched — rules 
 - [ ] #6 Empty rules array does not render an empty banner
 - [ ] #7 Prompt instruction requires imperative one-liners, not passive-voice guidance
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Add a structured `rules?: string[]` field to prep deck generation/types so deck-level interview imperatives have a first-class home distinct from per-card warnings and category guidance.
+Update prep generation to request 3 to 5 imperative one-liners tailored to round/application context, normalize the returned rules, and carry them into generated decks.
+Render the rules surface consistently across live mode, homework mode, and the edit workspace, including deck-level editing controls and empty-state guards, then add focused tests and run the prep verification/review loop.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

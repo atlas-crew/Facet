@@ -242,6 +242,7 @@ export interface PrepDeck {
   notes?: string
   companyResearch?: string
   jobDescription?: string
+  rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow

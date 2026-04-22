@@ -175,6 +175,7 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('stackAlignment')
     expect(systemPrompt).toContain('contextGaps')
     expect(systemPrompt).toContain('categoryGuidance')
+    expect(systemPrompt).toContain('"rules"')
     expect(systemPrompt).toContain('conditionals')
 
     expect(userPrompt).toContain('Structured Identity Context')
@@ -203,6 +204,7 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
     expect(userPrompt).toContain('tag "gap-framing"')
     expect(userPrompt).toContain('include conditionals')
+    expect(userPrompt).toContain('imperative one-liners')
     expect(userPrompt).toContain(
       'Generate dedicated opener cards for the predictable opening questions',
     )
@@ -495,6 +497,7 @@ describe('generateInterviewPrep', () => {
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
         companyResearchSummary: 'Acme is scaling carefully.',
+        rules: [' Lead with specifics ', '', 7],
         donts: [' Be generic ', '', 7],
         questionsToAsk: [
           {
@@ -616,6 +619,7 @@ describe('generateInterviewPrep', () => {
       },
     })
 
+    expect(result.rules).toEqual(['Lead with specifics'])
     expect(result.donts).toEqual(['Be generic'])
     expect(result.questionsToAsk).toEqual([
       {

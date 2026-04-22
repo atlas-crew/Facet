@@ -147,6 +147,34 @@ describe('PrepPracticeMode', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
   })
 
+  it('renders deck-level rules when provided', () => {
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        rules={['Lead with specificity.', 'Pause when you start monologuing.']}
+        onExit={() => {}}
+        onRecordReview={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('The Rules')).toBeTruthy()
+    expect(screen.getByText('Lead with specificity.')).toBeTruthy()
+    expect(screen.getByText('Pause when you start monologuing.')).toBeTruthy()
+  })
+
+  it('omits the rules panel when no deck-level rules exist', () => {
+    render(
+      <PrepPracticeMode
+        cards={mockCards}
+        rules={[]}
+        onExit={() => {}}
+        onRecordReview={() => {}}
+      />,
+    )
+
+    expect(screen.queryByText('The Rules')).toBeNull()
+  })
+
   it('shows category, tags, and keyboard hint on the unrevealed flashcard', () => {
     const { container } = render(
       <PrepPracticeMode

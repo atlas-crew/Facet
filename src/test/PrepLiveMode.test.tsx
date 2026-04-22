@@ -16,6 +16,7 @@ const mockDeck: PrepDeck = {
   skillMatch: 'platform leadership, distributed systems',
   notes: 'Lead with reliability wins.',
   jobDescription: 'Build platform tooling and improve developer velocity.',
+  rules: ['Lead with specifics.', 'Listen more than you talk.'],
   categoryGuidance: {
     opener: 'Keep the opening answer under two minutes and land on your through-line.',
     behavioral: 'Anchor each behavioral answer in one decision you owned.',
@@ -218,6 +219,8 @@ describe('PrepLiveMode', () => {
     expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Warm-up notes' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
+    expect(screen.getByText('The Rules')).toBeTruthy()
+    expect(screen.getByText('Lead with specifics.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Intel' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
@@ -966,6 +969,7 @@ describe('PrepLiveMode', () => {
       skillMatch: undefined,
       notes: undefined,
       jobDescription: undefined,
+      rules: undefined,
       categoryGuidance: undefined,
       donts: undefined,
       questionsToAsk: undefined,
@@ -974,6 +978,7 @@ describe('PrepLiveMode', () => {
     }} />)
 
     expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
+    expect(screen.queryByText('The Rules')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Questions to Ask' })).toBeNull()
     expect(screen.queryByRole('heading', { name: "Don'ts" })).toBeNull()
     expect(screen.queryByText('Your Work')).toBeNull()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
+import { PrepRulesPanel } from './PrepRulesPanel'
 import { derivePrepCheatsheetSections, OPENER_PREFERRED_SHORTCUTS } from '../../utils/prepCheatsheet'
 import { isPrepStackAlignmentConfidence } from '../../types/prep'
 import {
@@ -31,6 +32,7 @@ type SectionPhase = 'pre' | 'live'
 
 type LiveSection = PrepCheatsheetSection & {
   shortcut: string
+  /** Sidebar timing is tracked per visible cheatsheet section, so multi-card sections carry the aggregate budget. */
   timeBudgetMinutes?: number
   phase: SectionPhase
   tone: string
@@ -695,15 +697,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
         const visibleEntries = [...intersectingSectionEntries.entries()]
           .map(([sectionId, entry]) => ({ sectionId, entry }))
-          .sort((left, right) => {
-            const ratioDifference = right.entry.intersectionRatio - left.entry.intersectionRatio
-            if (Math.abs(ratioDifference) > 0.01) return ratioDifference
-
-            const topDifference = Math.abs(left.entry.boundingClientRect.top) - Math.abs(right.entry.boundingClientRect.top)
-            if (Math.abs(topDifference) > 1) return topDifference
-
-            return (sectionIndexById.get(left.sectionId) ?? 0) - (sectionIndexById.get(right.sectionId) ?? 0)
-          })
+          .sort((left, right) => (sectionIndexById.get(left.sectionId) ?? 0) - (sectionIndexById.get(right.sectionId) ?? 0))
 
         const nextActiveSectionId = visibleEntries[0]?.sectionId
         if (nextActiveSectionId) {
@@ -713,7 +707,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
       {
         root: null,
         rootMargin: '-18% 0px -52% 0px',
-        threshold: [0.2, 0.4, 0.6, 0.8],
+        threshold: [0, 0.2, 0.4, 0.6, 0.8],
       },
     )
 
@@ -1063,6 +1057,14 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
       </aside>
 
       <main className="prep-live-main">
+        <PrepRulesPanel
+          rules={deck.rules}
+          variant="live"
+          title="The Rules"
+          subtitle="Keep these deck-level delivery reminders visible while you steer the room."
+          collapsible
+          defaultOpen
+        />
         {filteredSections.length === 0 ? (
           <div className="prep-empty">
             <h2>No cheatsheet sections match that search</h2>

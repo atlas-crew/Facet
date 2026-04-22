@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Eye, Shuffle, X } from 'lucide-react'
 import { PrepCardView } from './PrepCardView'
+import { PrepRulesPanel } from './PrepRulesPanel'
 import type { PrepCard, PrepCardConfidence, PrepCardStudyState } from '../../types/prep'
 import {
   filterPrepConditionals,
@@ -12,6 +13,7 @@ import {
 
 interface PrepPracticeModeProps {
   cards: PrepCard[]
+  rules?: string[]
   studyProgress?: Record<string, PrepCardStudyState>
   onExit: () => void
   onRecordReview: (cardId: string, confidence: PrepCardConfidence) => void
@@ -93,6 +95,7 @@ function createInitialHomeworkQueue(
 
 export function PrepPracticeMode({
   cards,
+  rules,
   studyProgress,
   onExit,
   onRecordReview,
@@ -312,6 +315,12 @@ export function PrepPracticeMode({
   if (cards.length === 0) {
     return (
       <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
+        <PrepRulesPanel
+          rules={rules}
+          variant="practice"
+          title="The Rules"
+          subtitle="Keep these deck-level delivery reminders in view while you drill."
+        />
         <div className="prep-empty">
           <h2>No cards available</h2>
           <button className="prep-btn" onClick={onExit}>Back to Edit</button>
@@ -334,6 +343,13 @@ export function PrepPracticeMode({
             </button>
           </div>
         </div>
+
+        <PrepRulesPanel
+          rules={rules}
+          variant="practice"
+          title="The Rules"
+          subtitle="Keep these deck-level delivery reminders in view while you drill."
+        />
 
         <div className="prep-practice-filter-row">
           {(Object.keys(HOMEWORK_FILTER_LABELS) as HomeworkFilter[]).map((option) => (
@@ -391,6 +407,13 @@ export function PrepPracticeMode({
             </button>
           </div>
         </div>
+
+        <PrepRulesPanel
+          rules={rules}
+          variant="practice"
+          title="The Rules"
+          subtitle="Keep these deck-level delivery reminders in view while you drill."
+        />
 
         <div className="prep-practice-stats" role="status" aria-label="Homework round summary">
           <span className="prep-mode-chip">Reviewed: {sessionReviewedCount}</span>
@@ -454,6 +477,13 @@ export function PrepPracticeMode({
           </button>
         </div>
       </div>
+
+      <PrepRulesPanel
+        rules={rules}
+        variant="practice"
+        title="The Rules"
+        subtitle="Keep these deck-level delivery reminders in view while you drill."
+      />
 
       <div className="prep-practice-filter-row">
         {(Object.keys(HOMEWORK_FILTER_LABELS) as HomeworkFilter[]).map((option) => (

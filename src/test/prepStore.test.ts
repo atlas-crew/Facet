@@ -22,6 +22,7 @@ describe('prepStore', () => {
       role: 'Staff Engineer',
       vectorId: 'backend',
       roundType: 'hm-screen',
+      rules: [' Lead with specifics ', '', 'Listen more than you talk'],
       donts: [' Ramble ', '', 'Skip the ask'],
       questionsToAsk: [
         { question: ' Which team owns this? ', context: ' Clarify collaboration scope ' },
@@ -73,6 +74,7 @@ describe('prepStore', () => {
     expect(state.decks[0].title).toBe('Acme Staff Prep')
     expect(state.decks[0].company).toBe('Acme')
     expect(state.decks[0].roundType).toBe('hm-screen')
+    expect(state.decks[0].rules).toEqual(['Lead with specifics', 'Listen more than you talk'])
     expect(state.decks[0].donts).toEqual(['Ramble', 'Skip the ask'])
     expect(state.decks[0].questionsToAsk).toEqual([
       { question: 'Which team owns this?', context: 'Clarify collaboration scope' },
@@ -370,6 +372,7 @@ describe('prepStore', () => {
       company: 'Acme',
       role: 'Staff Engineer',
       vectorId: 'backend',
+      rules: [],
       donts: [],
       questionsToAsk: [],
       cards: [{
@@ -377,10 +380,12 @@ describe('prepStore', () => {
         category: 'behavioral',
         title: 'Leadership story',
         tags: [],
+        timeBudgetMinutes: 2.5,
       }],
     })
 
     usePrepStore.getState().updateDeck(deckId, {
+      rules: ['Lead with proof', ''],
       donts: ['Do not ramble', ''],
       questionsToAsk: [
         { question: 'What does success look like?', context: 'Align on goals' },
@@ -416,6 +421,7 @@ describe('prepStore', () => {
     })
 
     const editingDeck = usePrepStore.getState().decks[0]
+    expect(editingDeck.rules).toEqual(['Lead with proof', ''])
     expect(editingDeck.donts).toEqual(['Do not ramble', ''])
     expect(editingDeck.questionsToAsk).toEqual([
       { question: 'What does success look like?', context: 'Align on goals' },
@@ -430,6 +436,7 @@ describe('prepStore', () => {
     expect(editingDeck.stackAlignment).toEqual([
       { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
     ])
+    expect(editingDeck.cards[0].timeBudgetMinutes).toBe(2.5)
     expect(editingDeck.cards[0].keyPoints).toEqual(['Lead with scope', ''])
     expect(editingDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -445,6 +452,7 @@ describe('prepStore', () => {
     ])
 
     const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck.rules).toEqual(['Lead with proof'])
     expect(exportedDeck.donts).toEqual(['Do not ramble'])
     expect(exportedDeck.questionsToAsk).toEqual([
       { question: 'What does success look like?', context: 'Align on goals' },
@@ -457,6 +465,7 @@ describe('prepStore', () => {
     expect(exportedDeck.stackAlignment).toEqual([
       { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
     ])
+    expect(exportedDeck.cards[0].timeBudgetMinutes).toBe(2.5)
     expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
     expect(exportedDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -574,6 +583,7 @@ describe('prepStore', () => {
         vectorId: ' backend ',
         pipelineEntryId: null,
         roundType: ' hm-screen ' as never,
+        rules: [' Be specific ', '', 9 as never],
         donts: [' Be vague ', '', null as never, 4 as never],
         questionsToAsk: [
           { question: ' What breaks first? ', context: ' Expose scale tradeoffs ' },
@@ -623,6 +633,7 @@ describe('prepStore', () => {
     const card = deck.cards[0]
 
     expect(deck.roundType).toBe('hm-screen')
+    expect(deck.rules).toEqual(['Be specific'])
     expect(deck.donts).toEqual(['Be vague'])
     expect(deck.questionsToAsk).toEqual([
       { question: 'What breaks first?', context: 'Expose scale tradeoffs' },
@@ -669,6 +680,7 @@ describe('prepStore', () => {
 
     usePrepStore.getState().updateDeck(deckId, {
       roundType: ' system-design ' as never,
+      rules: [' Lead with outcomes ', ''] as never,
       donts: [' Be generic ', ''] as never,
       questionsToAsk: [
         { question: ' Which partner team joins? ', context: ' Surface collaboration scope ' },
@@ -697,6 +709,7 @@ describe('prepStore', () => {
     const card = deck.cards[0]
 
     expect(deck.roundType).toBe('system-design')
+    expect(deck.rules).toEqual(['Lead with outcomes', ''])
     expect(deck.donts).toEqual(['Be generic', ''])
     expect(deck.questionsToAsk).toEqual([
       { question: 'Which partner team joins?', context: 'Surface collaboration scope' },

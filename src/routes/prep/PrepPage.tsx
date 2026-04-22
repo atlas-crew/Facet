@@ -5,6 +5,7 @@ import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
 import { PrepPracticeMode } from './PrepPracticeMode'
+import { PrepRulesPanel } from './PrepRulesPanel'
 import { PrepSearch } from './PrepSearch'
 import { useMatchStore } from '../../store/matchStore'
 import { useIdentityStore } from '../../store/identityStore'
@@ -541,6 +542,7 @@ export function PrepPage() {
           role: activeMatchMaterial.role,
           vectorId: activeMatchMaterial.vector.id,
           pipelineEntryId: null,
+          rules: result.rules,
           donts: result.donts,
           questionsToAsk: result.questionsToAsk,
           numbersToKnow: result.numbersToKnow,
@@ -620,6 +622,7 @@ export function PrepPage() {
         vectorId: vector?.id,
         pipelineEntryId: selectedEntry.id,
         roundType: selectedRoundType,
+        rules: result.rules,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
@@ -751,7 +754,7 @@ export function PrepPage() {
     [activeDeck, updateDeck],
   )
   const updateActiveDeckListItem = useCallback(
-    (field: 'donts', index: number, value: string) => {
+    (field: 'donts' | 'rules', index: number, value: string) => {
       if (!activeDeck) return
       const currentItems = activeDeck[field] ?? []
       updateActiveDeck({
@@ -1061,6 +1064,7 @@ export function PrepPage() {
 
       updateDeck(latestDeck.id, {
         title: result.deckTitle,
+        rules: result.rules,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
@@ -1471,6 +1475,7 @@ export function PrepPage() {
             // Remount practice mode when the visible card set changes so the study queue resets with the filtered cards.
             key={`${activeDeck.id}:${filteredCards.map((card) => card.id).join(',')}`}
             cards={filteredCards}
+            rules={activeDeck.rules}
             studyProgress={activeDeck.studyProgress}
             onExit={() => setActiveMode('edit')}
             onRecordReview={(cardId, confidence) => recordCardReview(activeDeck.id, cardId, confidence)}
@@ -1622,6 +1627,67 @@ export function PrepPage() {
                 </summary>
 
                 <div className="prep-edit-group-body">
+                  <PrepRulesPanel
+                    rules={activeDeck.rules}
+                    variant="edit"
+                    title="The Rules"
+                    subtitle="Deck-scoped imperatives that should shape every answer in this session."
+                    className="prep-edit-rules-preview"
+                  />
+
+                  <section className="prep-section">
+                    <div className="prep-section-header">
+                      <div className="prep-section-heading">
+                        <span className="prep-section-title">Rules</span>
+                        <span className="prep-section-subtitle">Short, imperative reminders that apply to the entire interview, not just one card.</span>
+                      </div>
+                      <div className="prep-section-actions">
+                        <span className="prep-section-count">{(activeDeck.rules ?? []).length} entries</span>
+                        <button
+                          className="prep-link-btn"
+                          type="button"
+                          onClick={() => updateActiveDeck({ rules: [...(activeDeck.rules ?? []), ''] })}
+                        >
+                          <Plus size={14} />
+                          Add Rule
+                        </button>
+                      </div>
+                    </div>
+
+                    {(activeDeck.rules ?? []).length > 0 ? (
+                      <div className="prep-section-body">
+                        {(activeDeck.rules ?? []).map((entry, index) => (
+                          <div key={`rule-${index}`} className="prep-section-item">
+                            <label className="prep-field">
+                              <span className="prep-field-label">Rule</span>
+                              <input
+                                className="prep-input"
+                                aria-label={`Rule ${index + 1}`}
+                                value={entry}
+                                onChange={(event) => updateActiveDeckListItem('rules', index, event.target.value)}
+                                placeholder="Use a short imperative one-liner."
+                              />
+                            </label>
+                            <button
+                              className="prep-icon-btn prep-icon-btn-danger"
+                              type="button"
+                              onClick={() =>
+                                updateActiveDeck({
+                                  rules: (activeDeck.rules ?? []).filter((_, itemIndex) => itemIndex !== index),
+                                })
+                              }
+                              title="Remove rule"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="prep-section-empty">No rules yet.</div>
+                    )}
+                  </section>
+
                   <section className="prep-section">
                     <div className="prep-section-header">
                       <div className="prep-section-heading">

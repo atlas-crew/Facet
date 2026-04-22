@@ -198,7 +198,7 @@ describe('PrepPage', () => {
     expect(screen.getByText('Editable Cards')).toBeTruthy()
   })
 
-  it('persists round type, donts, questions, and category guidance from the active prep set editors', async () => {
+  it('persists round type, rules, donts, questions, and category guidance from the active prep set editors', async () => {
     render(<PrepPage />)
 
     fireEvent.click(screen.getAllByText('Blank Set')[0])
@@ -214,6 +214,9 @@ describe('PrepPage', () => {
     const dontInput = await screen.findByPlaceholderText('What should the candidate avoid?')
     fireEvent.change(dontInput, { target: { value: 'Do not ramble.' } })
 
+    fireEvent.click(screen.getByRole('button', { name: 'Add Rule' }))
+    fireEvent.change(screen.getByPlaceholderText('Use a short imperative one-liner.'), { target: { value: 'Lead with outcomes.' } })
+
     fireEvent.click(screen.getByRole('button', { name: 'Add Question' }))
     fireEvent.change(screen.getByPlaceholderText('What do you want to ask?'), { target: { value: 'What is the team optimizing for next?' } })
     fireEvent.change(screen.getByPlaceholderText('Why does this question matter?'), { target: { value: 'Shows systems thinking.' } })
@@ -222,6 +225,7 @@ describe('PrepPage', () => {
     await waitFor(() => {
       const deck = usePrepStore.getState().decks[0]
       expect(deck.roundType).toBe('system-design')
+      expect(deck.rules).toEqual(['Lead with outcomes.'])
       expect(deck.donts).toEqual(['Do not ramble.'])
       expect(deck.questionsToAsk).toEqual([
         { question: 'What is the team optimizing for next?', context: 'Shows systems thinking.' },
