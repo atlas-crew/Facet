@@ -71,6 +71,15 @@ export interface PrepConditional {
   tone?: PrepConditionalTone
 }
 
+export type PrepCardRoundStatus = 'worked' | 'fumbled' | 'untested' | 'practice-this'
+
+export const PREP_CARD_ROUND_STATUS_VALUES = [
+  'worked',
+  'fumbled',
+  'untested',
+  'practice-this',
+] as const satisfies readonly PrepCardRoundStatus[]
+
 export interface PrepMetric {
   id?: string
   value: string
@@ -190,6 +199,33 @@ export interface PrepFollowUp {
   context?: string
 }
 
+export interface PrepRoundDebriefIntel {
+  teamCulture?: string
+  aiUsage?: string
+  topChallenge?: string
+  volume?: string
+  securityPosture?: string
+  goodSigns?: string[]
+  redFlags?: string[]
+  other?: Record<string, string>
+}
+
+export interface PrepRoundDebrief {
+  round: number
+  date: string
+  intel: PrepRoundDebriefIntel
+  questionsAsked: string[]
+  surprises: string[]
+  newIntel: string[]
+  notes?: string
+}
+
+export interface PrepCardRoundState {
+  round: number
+  status: PrepCardRoundStatus
+  notes?: string
+}
+
 export interface PrepCard {
   id: string
   deckId?: string
@@ -218,6 +254,7 @@ export interface PrepCard {
     headers: string[]
     rows: string[][]
   }
+  perRoundState?: PrepCardRoundState[]
 }
 
 export interface PrepCardStudyState {
@@ -250,6 +287,8 @@ export interface PrepDeck {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
+  roundNumber?: number
+  roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
   updatedAt: string
   cards: PrepCard[]

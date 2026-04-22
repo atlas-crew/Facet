@@ -488,6 +488,38 @@ describe('prepStore', () => {
           role: 'Staff Engineer',
           vectorId: 'backend',
           pipelineEntryId: null,
+          roundNumber: 2.4 as never,
+          roundDebriefs: [
+            {
+              round: 1.8 as never,
+              date: ' 2025-01-03T00:00:00.000Z ',
+              intel: {
+                teamCulture: ' Collaborative ',
+                aiUsage: ' Using Claude ',
+                topChallenge: ' Ownership ',
+                volume: ' High ',
+                securityPosture: ' Tight ',
+                goodSigns: [' Strong questions ', '', 4 as never],
+                redFlags: [' Slow follow-up ', null as never],
+                other: {
+                  ' signal ': ' retained ',
+                  ' ': 'ignored',
+                } as never,
+              },
+              questionsAsked: [' What changed? ', '', 9 as never],
+              surprises: [' Strong signals '],
+              newIntel: [' Need better ownership framing '],
+              notes: ' Keep this for R2 ',
+            },
+            {
+              round: 0 as never,
+              date: '',
+              intel: {},
+              questionsAsked: [],
+              surprises: [],
+              newIntel: [],
+            },
+          ],
           updatedAt: '2025-01-02T00:00:00.000Z',
           cards: [
             {
@@ -495,6 +527,11 @@ describe('prepStore', () => {
               category: 'behavioral',
               title: 'Valid card',
               tags: [],
+              perRoundState: [
+                { round: 1, status: 'worked', notes: ' Tight story ' },
+                { round: 2.2 as never, status: 'bad' as never, notes: 'drop' },
+                { round: 3, status: 'practice-this', notes: ' Practice the pivot ' },
+              ],
             },
           ],
           studyProgress: {
@@ -523,17 +560,59 @@ describe('prepStore', () => {
         lastReviewedAt: undefined,
       },
     })
+    expect(migrated.decks[0].roundNumber).toBe(2)
+    expect(migrated.decks[0].roundDebriefs).toEqual([
+      {
+        round: 1,
+        date: '2025-01-03T00:00:00.000Z',
+        intel: {
+          teamCulture: 'Collaborative',
+          aiUsage: 'Using Claude',
+          topChallenge: 'Ownership',
+          volume: 'High',
+          securityPosture: 'Tight',
+          goodSigns: ['Strong questions'],
+          redFlags: ['Slow follow-up'],
+          other: { signal: 'retained' },
+        },
+        questionsAsked: ['What changed?'],
+        surprises: ['Strong signals'],
+        newIntel: ['Need better ownership framing'],
+        notes: 'Keep this for R2',
+      },
+    ])
+    expect(migrated.decks[0].cards[0].perRoundState).toEqual([
+      { round: 1, status: 'worked', notes: 'Tight story' },
+      { round: 3, status: 'practice-this', notes: 'Practice the pivot' },
+    ])
 
     const deckId = usePrepStore.getState().createDeck({
       title: 'Export Deck',
       company: 'Acme',
       role: 'Staff Engineer',
       vectorId: 'backend',
+      roundNumber: 3,
+      roundDebriefs: [
+        {
+          round: 2,
+          date: '2025-01-04T00:00:00.000Z',
+          intel: {
+            teamCulture: ' Direct ',
+            goodSigns: [' Asked about growth '],
+          },
+          questionsAsked: ['What changed?'],
+          surprises: ['Ownership framing stuck'],
+          newIntel: ['Use more story structure'],
+        },
+      ],
       cards: [{
         id: 'prep-card-export',
         category: 'behavioral',
         title: 'Export card',
         tags: [],
+        perRoundState: [
+          { round: 2, status: 'fumbled', notes: 'R2 needs a tighter story' },
+        ],
       }],
     })
 
@@ -571,6 +650,23 @@ describe('prepStore', () => {
         lastReviewedAt: '2025-01-04T00:00:00.000Z',
       },
     })
+    expect(exportedDeck.roundNumber).toBe(3)
+    expect(exportedDeck.roundDebriefs).toEqual([
+      {
+        round: 2,
+        date: '2025-01-04T00:00:00.000Z',
+        intel: {
+          teamCulture: 'Direct',
+          goodSigns: ['Asked about growth'],
+        },
+        questionsAsked: ['What changed?'],
+        surprises: ['Ownership framing stuck'],
+        newIntel: ['Use more story structure'],
+      },
+    ])
+    expect(exportedDeck.cards[0].perRoundState).toEqual([
+      { round: 2, status: 'fumbled', notes: 'R2 needs a tighter story' },
+    ])
   })
 
   it('sanitizes rich card and deck fields during import', () => {
@@ -582,6 +678,28 @@ describe('prepStore', () => {
         role: ' Staff Engineer ',
         vectorId: ' backend ',
         pipelineEntryId: null,
+        roundNumber: 4.9 as never,
+        roundDebriefs: [
+          {
+            round: 2,
+            date: ' 2025-01-06T00:00:00.000Z ',
+            intel: {
+              teamCulture: ' Team-first ',
+              redFlags: [' Slow decision-making '],
+            },
+            questionsAsked: [' What surprised you? '],
+            surprises: [' Strong ownership signals '],
+            newIntel: [' Need a crisper opener '],
+          },
+          {
+            round: 0 as never,
+            date: ' ',
+            intel: {},
+            questionsAsked: [],
+            surprises: [],
+            newIntel: [],
+          },
+        ],
         roundType: ' hm-screen ' as never,
         rules: [' Be specific ', '', 9 as never],
         donts: [' Be vague ', '', null as never, 4 as never],
@@ -602,6 +720,11 @@ describe('prepStore', () => {
             category: 'behavioral',
             title: ' Leadership story ',
             tags: [' leadership ', ''],
+            perRoundState: [
+              { round: 1, status: 'worked', notes: ' R1 was strong ' },
+              { round: 2, status: 'bad' as never, notes: 'drop' },
+              { round: 3, status: 'practice-this', notes: ' R3 focus ' },
+            ],
             script: ' Lead with the scope ',
             scriptLabel: ' Say This ',
             storyBlocks: [
@@ -633,6 +756,20 @@ describe('prepStore', () => {
     const card = deck.cards[0]
 
     expect(deck.roundType).toBe('hm-screen')
+    expect(deck.roundNumber).toBe(4)
+    expect(deck.roundDebriefs).toEqual([
+      {
+        round: 2,
+        date: '2025-01-06T00:00:00.000Z',
+        intel: {
+          teamCulture: 'Team-first',
+          redFlags: ['Slow decision-making'],
+        },
+        questionsAsked: ['What surprised you?'],
+        surprises: ['Strong ownership signals'],
+        newIntel: ['Need a crisper opener'],
+      },
+    ])
     expect(deck.rules).toEqual(['Be specific'])
     expect(deck.donts).toEqual(['Be vague'])
     expect(deck.questionsToAsk).toEqual([
@@ -640,6 +777,10 @@ describe('prepStore', () => {
     ])
     expect(deck.categoryGuidance).toEqual({ behavioral: 'Use one example' })
     expect(card.scriptLabel).toBe('Say This')
+    expect(card.perRoundState).toEqual([
+      { round: 1, status: 'worked', notes: 'R1 was strong' },
+      { round: 3, status: 'practice-this', notes: 'R3 focus' },
+    ])
     expect(card.storyBlocks).toEqual([{ label: 'problem', text: 'Service health was slipping' }])
     expect(card.keyPoints).toEqual(['Own the incident', 'Close with the metric'])
     expect(card.followUps).toEqual([
@@ -680,6 +821,20 @@ describe('prepStore', () => {
 
     usePrepStore.getState().updateDeck(deckId, {
       roundType: ' system-design ' as never,
+      roundNumber: 2,
+      roundDebriefs: [
+        {
+          round: 1,
+          date: ' ',
+          intel: {
+            teamCulture: ' ',
+            topChallenge: ' Lead with ownership ',
+          },
+          questionsAsked: [' '],
+          surprises: [' '],
+          newIntel: [' '],
+        },
+      ] as never,
       rules: [' Lead with outcomes ', ''] as never,
       donts: [' Be generic ', ''] as never,
       questionsToAsk: [
@@ -694,6 +849,10 @@ describe('prepStore', () => {
 
     usePrepStore.getState().updateCard(deckId, cardId, {
       scriptLabel: ' Lead With ',
+      perRoundState: [
+        { round: 1, status: 'worked', notes: ' ' },
+        { round: 2, status: 'practice-this', notes: ' Pull the thread on scope ' },
+      ] as never,
       keyPoints: [' Keep it crisp ', ''] as never,
       storyBlocks: [
         { label: 'problem', text: ' Latency spiked ' },
@@ -709,6 +868,20 @@ describe('prepStore', () => {
     const card = deck.cards[0]
 
     expect(deck.roundType).toBe('system-design')
+    expect(deck.roundNumber).toBe(2)
+    expect(deck.roundDebriefs).toEqual([
+      {
+        round: 1,
+        date: '',
+        intel: {
+          teamCulture: '',
+          topChallenge: 'Lead with ownership',
+        },
+        questionsAsked: [''],
+        surprises: [''],
+        newIntel: [''],
+      },
+    ])
     expect(deck.rules).toEqual(['Lead with outcomes', ''])
     expect(deck.donts).toEqual(['Be generic', ''])
     expect(deck.questionsToAsk).toEqual([
@@ -717,6 +890,10 @@ describe('prepStore', () => {
     ])
     expect(deck.categoryGuidance).toEqual({ project: 'Name the tradeoff', behavioral: '' })
     expect(card.scriptLabel).toBe('Lead With')
+    expect(card.perRoundState).toEqual([
+      { round: 1, status: 'worked', notes: '' },
+      { round: 2, status: 'practice-this', notes: 'Pull the thread on scope' },
+    ])
     expect(card.keyPoints).toEqual(['Keep it crisp', ''])
     expect(card.storyBlocks).toEqual([
       { label: 'problem', text: 'Latency spiked' },
@@ -750,6 +927,10 @@ describe('prepStore', () => {
         category: 'behavioral',
         title: ' Replacement card ',
         tags: [' ownership ', ''],
+        perRoundState: [
+          { round: 1, status: 'worked', notes: ' Tight story ' },
+          { round: 2, status: 'bad' as never, notes: 'drop' },
+        ],
         keyPoints: [' Close with the metric ', 9 as never] as never,
         storyBlocks: [
           { label: 'result', text: ' Reduced incidents by 38% ' },
@@ -767,6 +948,9 @@ describe('prepStore', () => {
 
     expect(card.title).toBe('Replacement card')
     expect(card.tags).toEqual(['ownership'])
+    expect(card.perRoundState).toEqual([
+      { round: 1, status: 'worked', notes: 'Tight story' },
+    ])
     expect(card.keyPoints).toEqual(['Close with the metric'])
     expect(card.storyBlocks).toEqual([{ label: 'result', text: 'Reduced incidents by 38%' }])
     expect(card.conditionals).toEqual([

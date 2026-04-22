@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type {
   PrepCard,
   PrepCardConfidence,
+  PrepCardRoundState,
+  PrepCardRoundStatus,
   PrepCardStudyState,
   PrepConditional,
   PrepConditionalTone,
@@ -14,6 +16,8 @@ import type {
   PrepMetric,
   PrepNumbersToKnow,
   PrepQuestionToAsk,
+  PrepRoundDebrief,
+  PrepRoundDebriefIntel,
   PrepStackAlignmentRow,
   PrepStoryBlock,
   PrepStoryBlockLabel,
@@ -21,6 +25,7 @@ import type {
 } from '../types/prep'
 import {
   PREP_CARD_CONFIDENCE_VALUES,
+  PREP_CARD_ROUND_STATUS_VALUES,
   PREP_CATEGORY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
@@ -62,6 +67,8 @@ interface CreateDeckInput {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
+  roundNumber?: number
+  roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
   cards?: PrepCard[]
 }
@@ -87,6 +94,25 @@ interface PrepState {
 
 interface SanitizeOptions {
   preserveDrafts?: boolean
+}
+
+function sanitizeText(value: unknown, options: SanitizeOptions = {}): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return options.preserveDrafts ? trimmed : trimmed || undefined
+}
+
+function sanitizeRoundNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  const normalized = Math.trunc(value)
+  return normalized > 0 ? normalized : undefined
+}
+
+function sanitizeCardRoundStatus(value: unknown): PrepCardRoundStatus | undefined {
+  const normalized = sanitizeText(value)
+  return normalized && PREP_CARD_ROUND_STATUS_VALUES.includes(normalized as PrepCardRoundStatus)
+    ? normalized as PrepCardRoundStatus
+    : undefined
 }
 
 function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepCard {
@@ -119,6 +145,7 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     })),
     metrics: sanitizeMetrics(partial.metrics),
     tableData: partial.tableData,
+    perRoundState: sanitizeCardRoundState(partial.perRoundState),
   }
 }
 
@@ -186,6 +213,78 @@ function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>, opt
     }),
   )
   return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
+function sanitizeRoundDebriefIntel(
+  intel?: PrepRoundDebriefIntel,
+  options: SanitizeOptions = {},
+): PrepRoundDebriefIntel | undefined {
+  if (!intel || typeof intel !== 'object' || Array.isArray(intel)) return undefined
+  const record = intel as Partial<PrepRoundDebriefIntel>
+  const teamCulture = sanitizeText(record.teamCulture, options)
+  const aiUsage = sanitizeText(record.aiUsage, options)
+  const topChallenge = sanitizeText(record.topChallenge, options)
+  const volume = sanitizeText(record.volume, options)
+  const securityPosture = sanitizeText(record.securityPosture, options)
+  const goodSigns = sanitizeStringList(record.goodSigns, options)
+  const redFlags = sanitizeStringList(record.redFlags, options)
+  const other = sanitizeCategoryGuidance(record.other, options)
+
+  if (
+    teamCulture === undefined &&
+    aiUsage === undefined &&
+    topChallenge === undefined &&
+    volume === undefined &&
+    securityPosture === undefined &&
+    goodSigns === undefined &&
+    redFlags === undefined &&
+    other === undefined
+  ) {
+    return undefined
+  }
+
+  return {
+    ...(teamCulture !== undefined ? { teamCulture } : {}),
+    ...(aiUsage !== undefined ? { aiUsage } : {}),
+    ...(topChallenge !== undefined ? { topChallenge } : {}),
+    ...(volume !== undefined ? { volume } : {}),
+    ...(securityPosture !== undefined ? { securityPosture } : {}),
+    ...(goodSigns !== undefined ? { goodSigns } : {}),
+    ...(redFlags !== undefined ? { redFlags } : {}),
+    ...(other !== undefined ? { other } : {}),
+  }
+}
+
+function sanitizeRoundDebriefs(
+  roundDebriefs?: PrepRoundDebrief[],
+  options: SanitizeOptions = {},
+): PrepRoundDebrief[] | undefined {
+  if (!Array.isArray(roundDebriefs)) return undefined
+  const sanitized = roundDebriefs.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepRoundDebrief>
+    const round = sanitizeRoundNumber(record.round)
+    const hasDate = typeof record.date === 'string'
+    const date = sanitizeText(record.date, options) ?? ''
+    if (!round || !hasDate || (!options.preserveDrafts && !date)) return []
+
+    const intel = sanitizeRoundDebriefIntel(record.intel, options) ?? {}
+    const questionsAsked = sanitizeStringList(record.questionsAsked, options) ?? []
+    const surprises = sanitizeStringList(record.surprises, options) ?? []
+    const newIntel = sanitizeStringList(record.newIntel, options) ?? []
+    const notes = sanitizeText(record.notes, options)
+
+    return [{
+      round,
+      date,
+      intel,
+      questionsAsked,
+      surprises,
+      newIntel,
+      ...(notes !== undefined ? { notes } : {}),
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
 }
 
 function sanitizeContextGapPriority(value: unknown): PrepContextGapPriority {
@@ -313,6 +412,27 @@ function sanitizeConditionals(conditionals?: PrepConditional[], options: Sanitiz
   return sanitized.length > 0 ? sanitized : undefined
 }
 
+function sanitizeCardRoundState(
+  perRoundState?: PrepCardRoundState[],
+  options: SanitizeOptions = {},
+): PrepCardRoundState[] | undefined {
+  if (!Array.isArray(perRoundState)) return undefined
+  const sanitized = perRoundState.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepCardRoundState>
+    const round = sanitizeRoundNumber(record.round)
+    const status = sanitizeCardRoundStatus(record.status)
+    const notes = sanitizeText(record.notes, options)
+    if (!round || !status) return []
+    return [{
+      round,
+      status,
+      ...(notes !== undefined ? { notes } : {}),
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
 function sanitizeMetrics(metrics?: PrepMetric[], options: SanitizeOptions = {}): PrepMetric[] | undefined {
   if (!Array.isArray(metrics)) return undefined
   const sanitized = metrics.flatMap((item) => {
@@ -409,6 +529,7 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
       id: item.id ?? createId('prep-conditional'),
     })),
     metrics: sanitizeMetrics(card.metrics, options),
+    perRoundState: sanitizeCardRoundState(card.perRoundState, options),
     timeBudgetMinutes: typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
       ? Math.round(card.timeBudgetMinutes * 10) / 10
       : undefined,
@@ -451,6 +572,8 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     roundType: typeof deck.roundType === 'string' && INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
       ? deck.roundType.trim() as InterviewFormat
       : undefined,
+    roundNumber: sanitizeRoundNumber(deck.roundNumber),
+    roundDebriefs: sanitizeRoundDebriefs(deck.roundDebriefs, options),
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
@@ -505,6 +628,7 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
       id: item.id ?? createId('prep-conditional'),
     })),
     metrics: sanitizeMetrics(card.metrics),
+    perRoundState: sanitizeCardRoundState(card.perRoundState),
   }
 }
 
@@ -539,6 +663,8 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     roundType: typeof deck.roundType === 'string' && INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
       ? deck.roundType.trim() as InterviewFormat
       : undefined,
+    roundNumber: sanitizeRoundNumber(deck.roundNumber),
+    roundDebriefs: sanitizeRoundDebriefs(deck.roundDebriefs),
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
@@ -652,6 +778,8 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           categoryGuidance: input.categoryGuidance,
           contextGaps: input.contextGaps,
           contextGapAnswers: input.contextGapAnswers,
+          roundNumber: input.roundNumber,
+          roundDebriefs: input.roundDebriefs,
           generatedAt: input.generatedAt,
           updatedAt: now(),
           cards: (input.cards ?? []).map((card) => sanitizeCard(deckId, card)),
