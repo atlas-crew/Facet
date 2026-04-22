@@ -300,6 +300,7 @@ export interface PrepGenerationRequest {
   role: string
   vectorId?: string
   vectorLabel?: string
+  roundNumber?: number
   companyUrl?: string
   skillMatch?: string
   positioning?: string
@@ -314,5 +315,7 @@ export interface PrepGenerationRequest {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
+  priorRoundDebriefs?: PrepRoundDebrief[]
+  priorRoundCards?: PrepCard[]
   resumeContext: Record<string, unknown>
 }

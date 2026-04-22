@@ -1,10 +1,10 @@
 ---
 id: TASK-156
 title: Add interview debrief capture and round-aware prep generation
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-04-19 06:03'
-updated_date: '2026-04-22 09:59'
+updated_date: '2026-04-22 11:03'
 labels:
   - prep
   - feedback-loop
@@ -106,15 +106,15 @@ Reference: doc-25 Gap 6, doc-26 Stage 6, `blackstone-prep-r3.html` (intel-grid +
 - [x] #1 PrepDeck type has optional roundNumber?: number and roundDebriefs?: PrepRoundDebrief[] fields
 - [x] #2 PrepRoundDebrief has structured intel grid (teamCulture, aiUsage, topChallenge, volume, securityPosture, goodSigns, redFlags, other) plus questionsAsked/surprises/newIntel/notes
 - [x] #3 PrepCard has optional perRoundState?: PrepCardRoundState[] with round/status/notes (status = worked | fumbled | untested | practice-this)
-- [ ] #4 Debrief form has quick-capture mode (intel grid) and per-card review mode (mark cards worked/fumbled)
+- [x] #4 Debrief form has quick-capture mode (intel grid) and per-card review mode (mark cards worked/fumbled)
 - [x] #5 Debrief data persists in prepStore across sessions
-- [ ] #6 When generating prep for round N+1, prompt includes both structured debrief intel and per-card round state
-- [ ] #7 Cards flagged perRoundState.status='fumbled' are regenerated in R2+ with remediation framing; cards flagged 'practice-this' are tagged accordingly in the new deck
-- [ ] #8 AI generation produces deck-level rules (TASK-176) informed by R1 intel (e.g., top challenge becomes a rules-banner item)
-- [ ] #9 Multi-round decks grouped in UI by pipelineEntryId; selecting a round loads the right deck
-- [ ] #10 "Copy from previous round" action preserves perRoundState on carried-forward cards
-- [ ] #11 Contradictions between debrief fields (e.g., "opener worked" + "they cut you off" in questionsAsked) are surfaced to the AI as a flag
-- [ ] #12 Debrief form is lightweight — not a 20-field survey; intel grid defaults to 6 visible fields with "more" toggle
+- [x] #6 When generating prep for round N+1, prompt includes both structured debrief intel and per-card round state
+- [x] #7 Cards flagged perRoundState.status='fumbled' are regenerated in R2+ with remediation framing; cards flagged 'practice-this' are tagged accordingly in the new deck
+- [x] #8 AI generation produces deck-level rules (TASK-176) informed by R1 intel (e.g., top challenge becomes a rules-banner item)
+- [x] #9 Multi-round decks grouped in UI by pipelineEntryId; selecting a round loads the right deck
+- [x] #10 "Copy from previous round" action preserves perRoundState on carried-forward cards
+- [x] #11 Contradictions between debrief fields (e.g., "opener worked" + "they cut you off" in questionsAsked) are surfaced to the AI as a flag
+- [x] #12 Debrief form is lightweight — not a 20-field survey; intel grid defaults to 6 visible fields with "more" toggle
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -147,14 +147,45 @@ Remaining scope:
 - round-aware generation prompt wiring
 - grouped multi-round deck selection and copy-forward flows
 - contradiction surfacing and remediation-aware regeneration
+
+Phase 2 landed the remaining round-aware prep workflow:
+- added quick-capture and per-card review debrief modes in PrepPage with six default intel fields plus a Show more fields toggle
+- grouped related decks by pipeline entry into a round timeline with round selection and a Copy Previous Round Cards action that preserves perRoundState while regenerating IDs
+- threaded roundNumber, priorRoundDebriefs, priorRoundCards, and contradiction flags into generateInterviewPrep, then applied remediation carry-forward for fumbled/practice-this cards
+- preserved round suffixes on regenerated/generated deck titles and locked round-number edits once round-aware data exists to avoid orphaning debrief/card state
+- fixed review follow-ups for newline-only debrief list parsing, local-date defaults, standalone regenerate chronology filtering, accessible Show more fields toggle state, and copied-card identity handling
+
+Verification for this phase:
+- npx vitest run src/test/prepGenerator.test.ts src/test/PrepPage.test.tsx
+- npx vitest run src/test/prepGenerator.test.ts src/test/PrepPage.test.tsx src/test/prepStore.test.ts src/test/PrepLiveMode.test.tsx src/test/PrepPracticeMode.test.tsx src/test/PrepPage.identityGeneration.test.tsx
+- npm run typecheck
+- npx eslint --fix src/routes/prep/PrepPage.tsx src/test/PrepPage.test.tsx src/utils/prepGenerator.ts src/test/prepGenerator.test.ts src/types/prep.ts
+- npx eslint src/routes/prep/PrepPage.tsx src/test/PrepPage.test.tsx src/utils/prepGenerator.ts src/test/prepGenerator.test.ts src/types/prep.ts
+- npm run build
+
+Independent review artifacts:
+- .agents/reviews/review-20260422-064828.md
+- .agents/reviews/review-20260422-065538.md
+- .agents/reviews/test-audit-20260422-070009.md
+- .agents/reviews/test-audit-20260422-070010.md
+
+Residual non-blocking audit follow-ups remain around broader PrepPage CRUD/import-export/filter coverage and prepGenerator schema/landmine edge cases.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed the multi-round prep workflow for interview follow-through. Prep decks now support lightweight debrief capture, round timeline navigation, copy-forward between rounds, contradiction-aware regeneration context, and remediation carry-forward for fumbled/practice-this cards.
+
+Final verification passed with 156 targeted Vitest tests, typecheck, focused ESLint, and a production build. Source review passed with issues after remediation; scoped test audits were recorded and left a few broader non-blocking coverage follow-ups for later prep hardening.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

@@ -249,6 +249,7 @@ describe('PrepPage', () => {
     expect(options).toContain('System Design')
     expect(options).not.toContain('HR Screen')
     expect(roundTypeSelect.value).toBe('system-design')
+    expect((screen.getByLabelText('Round number') as HTMLInputElement).disabled).toBe(true)
   })
 
   it('shows round labels, next up, muted older decks, and overflow expansion in the prep library', () => {
@@ -497,5 +498,331 @@ describe('PrepPage', () => {
 
     expect(screen.getAllByDisplayValue('Acme Staff Engineer Prep').length).toBeGreaterThan(0)
     expect(screen.getByDisplayValue('Atlas')).toBeTruthy()
+  })
+
+  it('captures a round debrief and per-card review on the active deck', async () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-round-1',
+          title: 'Acme Staff Engineer Prep',
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-1',
+          roundNumber: 1,
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          cards: [
+            {
+              id: 'card-leadership',
+              category: 'behavioral',
+              title: 'Leadership story',
+              tags: ['leadership'],
+            },
+          ],
+        } as PrepDeck,
+      ],
+      activeDeckId: 'deck-round-1',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Debrief' }))
+    fireEvent.change(screen.getByLabelText('Team culture'), {
+      target: { value: 'Warm but direct.' },
+    })
+    fireEvent.change(screen.getByLabelText('Top challenge'), {
+      target: { value: 'Ownership under ambiguity.' },
+    })
+    fireEvent.change(screen.getByLabelText('Questions asked'), {
+      target: { value: 'What is this, exactly?' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Per-Card Review' }))
+    fireEvent.change(screen.getByLabelText('Leadership story round status'), {
+      target: { value: 'practice-this' },
+    })
+    fireEvent.change(screen.getByLabelText('Leadership story round notes'), {
+      target: { value: 'Lead with the decision sooner.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Debrief' }))
+
+    await waitFor(() => {
+      const deck = usePrepStore.getState().decks[0]
+        expect(deck.roundDebriefs).toEqual([
+          expect.objectContaining({
+            round: 1,
+            intel: expect.objectContaining({
+              teamCulture: 'Warm but direct.',
+              topChallenge: 'Ownership under ambiguity.',
+            }),
+            questionsAsked: ['What is this, exactly?'],
+          }),
+        ])
+      expect(deck.cards[0]?.perRoundState).toEqual([
+        {
+          round: 1,
+          status: 'practice-this',
+          notes: 'Lead with the decision sooner.',
+        },
+      ])
+    })
+  })
+
+  it('groups related rounds and copies previous-round cards forward', async () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-round-1',
+          title: 'Acme Round 1',
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-1',
+          roundNumber: 1,
+          roundType: 'hm-screen',
+          updatedAt: '2026-04-21T00:00:00.000Z',
+          cards: [
+            {
+              id: 'card-round-1',
+              category: 'behavioral',
+              title: 'Leadership story',
+              tags: ['leadership'],
+              perRoundState: [
+                { round: 1, status: 'fumbled', notes: 'Lead with the decision sooner.' },
+              ],
+            },
+          ],
+        } as PrepDeck,
+        {
+          id: 'deck-round-2',
+          title: 'Acme Round 2',
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-1',
+          roundNumber: 2,
+          roundType: 'system-design',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          cards: [],
+        } as PrepDeck,
+      ],
+      activeDeckId: 'deck-round-2',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    const roundTimeline = screen.getByText('Round Timeline').closest('section')
+    expect(within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 1/i })).toBeTruthy()
+    expect(within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 2/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Previous Round Cards' }))
+
+    await waitFor(() => {
+      const activeDeck = usePrepStore.getState().decks.find((deck) => deck.id === 'deck-round-2')
+      expect(activeDeck?.cards).toHaveLength(1)
+      expect(activeDeck?.cards[0]?.id).not.toBe('card-round-1')
+      expect(activeDeck?.cards[0]?.title).toBe('Leadership story')
+      expect(activeDeck?.cards[0]?.perRoundState).toEqual([
+        { round: 1, status: 'fumbled', notes: 'Lead with the decision sooner.' },
+      ])
+    })
+
+    fireEvent.click(within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 1/i }))
+    expect(usePrepStore.getState().activeDeckId).toBe('deck-round-1')
+  })
+
+  it('creates the next round deck for a pipeline entry and carries prior debrief intel', async () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-round-1',
+          title: 'Acme Round 1',
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-1',
+          roundNumber: 1,
+          roundType: 'system-design',
+          roundDebriefs: [
+            {
+              round: 1,
+              date: '2026-04-21',
+              intel: { topChallenge: 'Ownership under ambiguity.' },
+              questionsAsked: [],
+              surprises: [],
+              newIntel: [],
+            },
+          ],
+          updatedAt: '2026-04-21T00:00:00.000Z',
+          cards: [
+            {
+              id: 'card-round-1',
+              category: 'behavioral',
+              title: 'Leadership story',
+              tags: ['leadership'],
+              perRoundState: [{ round: 1, status: 'practice-this' }],
+            },
+          ],
+        } as PrepDeck,
+      ],
+      activeDeckId: 'deck-round-1',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks).toHaveLength(2)
+    })
+
+    const nextDeck = usePrepStore.getState().decks[0]
+    expect(nextDeck.roundNumber).toBe(2)
+    expect(nextDeck.roundDebriefs).toEqual([
+      expect.objectContaining({
+        round: 1,
+        intel: expect.objectContaining({
+          topChallenge: 'Ownership under ambiguity.',
+        }),
+      }),
+    ])
+    expect(nextDeck.title).toContain('Round 2')
+  })
+
+  it('derives prior debrief history from the latest round records instead of stale carried snapshots', async () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-round-1',
+          title: 'Acme Round 1',
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-1',
+          roundNumber: 1,
+          roundDebriefs: [
+            {
+              round: 1,
+              date: '2026-04-21',
+              intel: { topChallenge: 'Updated intel from round 1.' },
+              questionsAsked: [],
+              surprises: [],
+              newIntel: [],
+            },
+          ],
+          updatedAt: '2026-04-21T00:00:00.000Z',
+          cards: [],
+        } as PrepDeck,
+        {
+          id: 'deck-round-2',
+          title: 'Acme Round 2',
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-1',
+          roundNumber: 2,
+          roundDebriefs: [
+            {
+              round: 1,
+              date: '2026-04-21',
+              intel: { topChallenge: 'Stale snapshot from round 1.' },
+              questionsAsked: [],
+              surprises: [],
+              newIntel: [],
+            },
+          ],
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          cards: [],
+        } as PrepDeck,
+      ],
+      activeDeckId: 'deck-round-2',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks).toHaveLength(3)
+    })
+
+    const nextDeck = usePrepStore.getState().decks[0]
+    expect(nextDeck.roundNumber).toBe(3)
+    expect(nextDeck.roundDebriefs).toEqual([
+      expect.objectContaining({
+        round: 1,
+        intel: expect.objectContaining({
+          topChallenge: 'Updated intel from round 1.',
+        }),
+      }),
+    ])
+  })
+
+  it('does not send current-round debriefs back as prior intel when regenerating a standalone round deck', async () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-standalone-round-2',
+          title: 'Atlas Round 2',
+          company: 'Atlas',
+          role: 'Staff Platform Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          roundNumber: 2,
+          jobDescription: 'Own platform reliability and incident response.',
+          roundDebriefs: [
+            {
+              round: 2,
+              date: '2026-04-22',
+              intel: { topChallenge: 'CURRENT ROUND ONLY' },
+              questionsAsked: [],
+              surprises: [],
+              newIntel: [],
+            },
+          ],
+          contextGaps: [
+            {
+              id: 'gap-1',
+              section: 'Team',
+              question: 'Who owns the on-call rotation?',
+              why: 'This changes the support story.',
+              priority: 'recommended',
+            },
+          ],
+          contextGapAnswers: {
+            'gap-1': 'Platform owns primary on-call with SRE backup.',
+          },
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          cards: [
+            {
+              id: 'card-1',
+              category: 'behavioral',
+              title: 'Support escalation story',
+              tags: ['incident'],
+            },
+          ],
+        } as PrepDeck,
+      ],
+      activeDeckId: 'deck-standalone-round-2',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Re-generate with answers' }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+    })
+
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0]
+    const body = JSON.parse(String(requestInit?.body ?? '{}'))
+    const userPrompt = String(body.messages?.[0]?.content ?? '')
+
+    expect(userPrompt).not.toContain('CURRENT ROUND ONLY')
   })
 })

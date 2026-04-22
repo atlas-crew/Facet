@@ -3454,6 +3454,118 @@
   color: var(--text-tertiary);
 }
 
+.prep-round-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.prep-round-pill {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.prep-round-pill small {
+  color: var(--text-secondary);
+}
+
+.prep-round-pill-active {
+  border-color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-soft) 60%, var(--bg-surface));
+}
+
+.prep-round-actions,
+.prep-round-debrief-actions,
+.prep-round-debrief-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.prep-round-helper {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.prep-round-summary {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.prep-round-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.prep-round-summary-card {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.prep-round-summary-card strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.prep-round-summary-card p,
+.prep-round-summary-meta {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.prep-round-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 13px;
+}
+
+.prep-round-debrief-editor {
+  display: grid;
+  gap: var(--space-4);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-surface) 82%, white 18%);
+}
+
+.prep-round-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.prep-round-debrief-body,
+.prep-round-card-review-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.prep-round-card-review-item {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.prep-round-card-review-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
 @media (max-width: 960px) {
   .prep-generator-grid {
     grid-template-columns: 1fr;
@@ -3521,6 +3633,15 @@
 
   .prep-live-dont-card {
     flex-direction: column;
+  }
+
+  .prep-round-card-review-header,
+  .prep-round-actions,
+  .prep-round-debrief-actions,
+  .prep-round-debrief-footer,
+  .prep-round-summary-meta {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .prep-live-main {

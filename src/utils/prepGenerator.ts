@@ -663,6 +663,7 @@ function ensureGapFramingCards(
 }
 
 const LANDMINE_TAG = 'landmine'
+const PRACTICE_THIS_TAG = 'practice-this'
 
 function isTaggedCard(card: Pick<PrepCard, 'tags'>, tag: string): boolean {
   const normalizedTag = tag.trim().toLowerCase()
@@ -944,6 +945,154 @@ function ensureLandmineCards(
   )
 }
 
+function readLatestRoundState(
+  card: PrepCard,
+  roundNumber: number | undefined,
+) {
+  const states = [...(card.perRoundState ?? [])]
+    .filter((state) => !roundNumber || state.round < roundNumber)
+    .sort((left, right) => right.round - left.round)
+  return states[0]
+}
+
+function buildPriorRoundCardPromptContext(cards: PrepCard[] | undefined) {
+  if (!cards?.length) return undefined
+  return cards.map((card) => ({
+    title: card.title,
+    category: card.category,
+    tags: card.tags,
+    notes: card.notes,
+    script: card.script,
+    keyPoints: card.keyPoints,
+    perRoundState: card.perRoundState,
+  }))
+}
+
+function detectRoundContradictions(
+  debriefs: PrepGenerationRequest['priorRoundDebriefs'],
+): string[] | undefined {
+  if (!debriefs?.length) return undefined
+
+  const contradictions = debriefs.flatMap((debrief) => {
+    const openerSignals = [
+      debrief.notes ?? '',
+      debrief.intel.topChallenge ?? '',
+      debrief.intel.teamCulture ?? '',
+      ...Object.values(debrief.intel.other ?? {}),
+    ]
+      .join(' ')
+      .toLowerCase()
+    const interruptionSignals = [
+      ...debrief.questionsAsked,
+      ...debrief.surprises,
+      ...debrief.newIntel,
+    ]
+      .join(' ')
+      .toLowerCase()
+
+    if (
+      openerSignals.includes('opener worked') &&
+      /(cut (me )?off|cut you off|interrupted|stopped me short)/.test(
+        interruptionSignals,
+      )
+    ) {
+      return [
+        `Round ${debrief.round}: debrief says the opener worked, but the follow-up notes mention the interviewer cutting the answer off.`,
+      ]
+    }
+
+    return []
+  })
+
+  return contradictions.length > 0 ? contradictions : undefined
+}
+
+function ensureRoundAwareRemediationCards(
+  cards: PrepCard[],
+  request: PrepGenerationRequest,
+): PrepCard[] {
+  if (!request.roundNumber || request.roundNumber <= 1) return cards
+  if (!request.priorRoundCards?.length) return cards
+
+  const priorStatesByTitle = new Map(
+    request.priorRoundCards.flatMap((card) => {
+      const latestState = readLatestRoundState(card, request.roundNumber)
+      if (
+        !latestState ||
+        (latestState.status !== 'fumbled' &&
+          latestState.status !== PRACTICE_THIS_TAG)
+      ) {
+        return []
+      }
+      return [[card.title.trim().toLowerCase(), { card, latestState }] as const]
+    }),
+  )
+
+  const normalizedCards = cards.map((card) => {
+    const match = priorStatesByTitle.get(card.title.trim().toLowerCase())
+    if (!match) return card
+    const remediationLead =
+      match.latestState.status === 'fumbled'
+        ? `Round ${match.latestState.round} miss to correct.`
+        : `Keep this sharp for round ${request.roundNumber}.`
+    return {
+      ...card,
+      tags: Array.from(new Set([...card.tags, PRACTICE_THIS_TAG])),
+      notes: [remediationLead, match.latestState.notes, card.notes]
+        .filter(Boolean)
+        .join(' '),
+    }
+  })
+
+  const existingTitles = new Set(
+    normalizedCards.map((card) => card.title.trim().toLowerCase()),
+  )
+  const fallbackCards: PrepCard[] = []
+
+  for (const [title, match] of priorStatesByTitle.entries()) {
+    const remediationTitle = `Practice this again: ${match.card.title}`
+    if (existingTitles.has(title)) continue
+    if (
+      fallbackCards.some(
+        (card) =>
+          card.title.trim().toLowerCase() === remediationTitle.toLowerCase(),
+      )
+    ) {
+      continue
+    }
+
+    const keyPoints = [
+      match.latestState.notes,
+      ...(match.card.keyPoints ?? []),
+      'Make the corrective framing obvious early in the answer.',
+    ].filter(Boolean)
+
+    fallbackCards.push({
+      id: createId('prep-card'),
+      category: match.card.category,
+      title: remediationTitle,
+      tags: Array.from(new Set([...match.card.tags, PRACTICE_THIS_TAG])),
+      timeBudgetMinutes: match.card.timeBudgetMinutes,
+      notes:
+        match.latestState.status === 'fumbled'
+          ? `This answer fumbled in round ${match.latestState.round}. Rebuild it with the corrected framing before the next interview.`
+          : 'Carry this answer forward and keep it sharp for the next round.',
+      scriptLabel: 'Remediation',
+      script: match.card.script
+        ? `Rebuild this answer with the corrected framing: ${match.card.script}`
+        : 'Rebuild this answer so the point lands earlier and the evidence stays concrete.',
+      warning:
+        match.latestState.status === 'fumbled'
+          ? 'Do not repeat the previous miss. Lead with the correction before you add extra context.'
+          : 'Do not assume this answer is ready just because it worked once. Keep it crisp.',
+      keyPoints: keyPoints.slice(0, 4) as string[],
+      source: 'ai',
+    })
+  }
+
+  return [...normalizedCards, ...fallbackCards.slice(0, 3)]
+}
+
 export async function generateInterviewPrep(
   endpoint: string,
   request: PrepGenerationRequest,
@@ -971,6 +1120,12 @@ export async function generateInterviewPrep(
     request.identityContext,
   )
   const structuredPipelineEntryContext = request.pipelineEntryContext
+  const priorRoundCardContext = buildPriorRoundCardPromptContext(
+    request.priorRoundCards,
+  )
+  const roundContradictions = detectRoundContradictions(
+    request.priorRoundDebriefs,
+  )
 
   const systemPrompt = `You are an expert interview coach and career strategist. Return JSON only.
 Generate a strong interview prep pack from a candidate's resume context, a job description, structured pipeline entry research, company research notes, and (when provided) a target vector to orient the framing.
@@ -1058,6 +1213,7 @@ Response schema:
   const userPrompt = `Target Company: ${request.company}
 Target Role: ${request.role}
 ${vectorLine}Target Round Type: ${request.roundType ?? 'Not provided'}
+Target Round Number: ${request.roundNumber ?? 'Not provided'}
 Company URL: ${request.companyUrl ?? 'Not provided'}
 Skill Match Notes: ${request.skillMatch ?? 'Not provided'}
 Positioning Notes: ${request.positioning ?? 'Not provided'}
@@ -1084,6 +1240,15 @@ ${request.contextGaps ? JSON.stringify(request.contextGaps, null, 2) : 'Not prov
 
 Context Gap Answers:
 ${request.contextGapAnswers ? JSON.stringify(request.contextGapAnswers, null, 2) : 'Not provided'}
+
+Prior Round Debriefs:
+${request.priorRoundDebriefs ? JSON.stringify(request.priorRoundDebriefs, null, 2) : 'Not provided'}
+
+Prior Round Card State:
+${priorRoundCardContext ? JSON.stringify(priorRoundCardContext, null, 2) : 'Not provided'}
+
+Detected Round Contradictions:
+${roundContradictions ? JSON.stringify(roundContradictions, null, 2) : 'Not provided'}
 
 Tailored Resume Context:
 ${JSON.stringify(request.resumeContext, null, 2)}
@@ -1125,6 +1290,12 @@ For each gap-framing card:
 - put 3 to 4 transferable-experience bullets in keyPoints, grounded in the actual "yourMatch" evidence
 Do not generate gap-framing cards when stackAlignment contains only Strong, Solid, or Working knowledge entries.
 If a round type is provided, adapt the emphasis and category guidance to that interview round.
+If round-aware prep context is provided:
+- Treat priorRoundDebriefs as source-of-truth interviewer intel for the next round. Refresh rules, questionsToAsk, and categoryGuidance to reflect what the team actually cared about.
+- Treat priorRoundCards plus perRoundState as evidence about which stories worked, fumbled, or still need practice. Cards with latest status "fumbled" should come back with obvious remediation framing in notes, warning, or script.
+- Cards with latest status "practice-this" should remain in the next-round deck and keep the tag "practice-this" so the live deck can spotlight them.
+- If prior debrief intel names a top challenge, team culture cue, AI usage note, or security posture detail, let that reshape the deck-level rules rather than leaving the rules generic.
+- If contradiction flags are provided, surface the contradiction explicitly in notes or context gaps instead of silently pretending the evidence agrees.
 If the source material is missing context for a useful answer, do not hide the gap.
 - Prefix the affected field with [[needs-review]] when you can make a cautious inference that should be verified.
 - Prefix the affected field with [[fill-in: short prompt]] when the answer needs a user-supplied detail before it is trustworthy.
@@ -1180,15 +1351,18 @@ Return JSON only (inside the tags).`
   }
 
   const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
-  const cards = ensureLandmineCards(
-    ensureGapFramingCards(
-      normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : []),
+  const cards = ensureRoundAwareRemediationCards(
+    ensureLandmineCards(
+      ensureGapFramingCards(
+        normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : []),
+        stackAlignment,
+      ),
+      request,
       stackAlignment,
+      candidateMetrics,
+      fallbackCandidateMetrics,
     ),
     request,
-    stackAlignment,
-    candidateMetrics,
-    fallbackCandidateMetrics,
   )
   if (!isString(parsed.deckTitle) || cards.length === 0) {
     throw new Error('Interview prep response schema was invalid.')

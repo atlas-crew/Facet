@@ -1124,4 +1124,167 @@ describe('generateInterviewPrep', () => {
       result.cards.filter((card) => card.tags.includes('gap-framing')),
     ).toHaveLength(1)
   })
+
+  it('passes prior round debriefs and card state into the prompt', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      roundNumber: 2,
+      roundType: 'hm-screen',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      priorRoundDebriefs: [
+        {
+          round: 1,
+          date: '2026-04-21',
+          intel: {
+            teamCulture: 'Warm but direct.',
+            topChallenge: 'Ownership under ambiguity.',
+          },
+          questionsAsked: ['Tell me about your background.'],
+          surprises: ['They cut me off after the opener.'],
+          newIntel: ['opener worked'],
+          notes: 'opener worked',
+        },
+      ],
+      priorRoundCards: [
+        {
+          id: 'card-r1',
+          category: 'behavioral',
+          title: 'Leadership story',
+          tags: ['leadership'],
+          perRoundState: [
+            { round: 1, status: 'fumbled', notes: 'Lead with the decision sooner.' },
+          ],
+        },
+      ],
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    const [, , userPrompt] = callLlmProxyMock.mock.calls[0]
+
+    expect(userPrompt).toContain('Target Round Number: 2')
+    expect(userPrompt).toContain('Prior Round Debriefs')
+    expect(userPrompt).toContain('Prior Round Card State')
+    expect(userPrompt).toContain('Detected Round Contradictions')
+    expect(userPrompt).toContain('Ownership under ambiguity.')
+    expect(userPrompt).toContain('Lead with the decision sooner.')
+    expect(userPrompt).toContain('cut me off')
+  })
+
+  it('adds remediation cards for prior-round misses when the model does not carry them forward', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      roundNumber: 2,
+      jobDescription: 'Build distributed systems and platform tooling.',
+      priorRoundCards: [
+        {
+          id: 'card-r1',
+          category: 'behavioral',
+          title: 'Leadership story',
+          tags: ['leadership'],
+          script: 'Walk through the incident response timeline.',
+          keyPoints: ['Name the decision early.'],
+          perRoundState: [
+            { round: 1, status: 'fumbled', notes: 'Lead with the decision sooner.' },
+          ],
+        },
+      ],
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Practice this again: Leadership story',
+          tags: expect.arrayContaining(['practice-this']),
+          scriptLabel: 'Remediation',
+        }),
+      ]),
+    )
+  })
+
+  it('uses the latest known prior-round state for remediation carry-forward', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      roundNumber: 3,
+      jobDescription: 'Build distributed systems and platform tooling.',
+      priorRoundCards: [
+        {
+          id: 'card-r2',
+          category: 'behavioral',
+          title: 'Leadership story',
+          tags: ['leadership'],
+          perRoundState: [
+            { round: 1, status: 'fumbled', notes: 'Old round 1 miss.' },
+          ],
+        },
+      ],
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Practice this again: Leadership story',
+          tags: expect.arrayContaining(['practice-this']),
+        }),
+      ]),
+    )
+  })
 })

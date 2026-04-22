@@ -25,7 +25,16 @@ import {
 } from '../../utils/prepPipelineContext'
 import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
 import type { InterviewFormat } from '../../types/pipeline'
-import type { PrepCard, PrepCategory, PrepContextGap, PrepDeck, PrepWorkspaceMode } from '../../types/prep'
+import type {
+  PrepCard,
+  PrepCardRoundStatus,
+  PrepCategory,
+  PrepContextGap,
+  PrepDeck,
+  PrepRoundDebrief,
+  PrepRoundDebriefIntel,
+  PrepWorkspaceMode,
+} from '../../types/prep'
 import './prep.css'
 
 const MODE_LABELS: Record<PrepWorkspaceMode, string> = {
@@ -90,10 +99,195 @@ const USER_OWNED_PREP_CARD_FIELDS: Array<keyof PrepCard> = [
 
 const PREP_LIBRARY_UNGROUPED_KEY = '__ungrouped__'
 const PREP_LIBRARY_UNGROUPED_LABEL = 'Ungrouped'
+const PREP_DEBRIEF_VISIBLE_FIELDS: Array<{
+  key: keyof Omit<PrepRoundDebriefIntel, 'other' | 'redFlags'>
+  label: string
+  placeholder: string
+}> = [
+  {
+    key: 'teamCulture',
+    label: 'Team culture',
+    placeholder: 'How did the team feel in the room?',
+  },
+  {
+    key: 'aiUsage',
+    label: 'AI usage',
+    placeholder: 'What did they say about AI, tooling, or automation?',
+  },
+  {
+    key: 'topChallenge',
+    label: 'Top challenge',
+    placeholder: 'What problem felt most important to them?',
+  },
+  {
+    key: 'volume',
+    label: 'Volume / pace',
+    placeholder: 'What did you learn about load, pace, or scope?',
+  },
+  {
+    key: 'securityPosture',
+    label: 'Security posture',
+    placeholder: 'Anything about process, controls, or org structure?',
+  },
+  {
+    key: 'goodSigns',
+    label: 'Good signs',
+    placeholder: 'One signal per line',
+  },
+]
+
+const PREP_CARD_ROUND_STATUS_LABELS: Record<PrepCardRoundStatus, string> = {
+  worked: 'Worked',
+  fumbled: 'Fumbled',
+  untested: 'Untested',
+  'practice-this': 'Practice This',
+}
+
+type PrepDebriefDraft = {
+  date: string
+  intel: Record<string, string>
+  questionsAsked: string
+  surprises: string
+  newIntel: string
+  notes: string
+  other: string
+  cardStates: Record<string, { status: PrepCardRoundStatus; notes: string }>
+}
 
 function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
   if (!roundType) return 'General'
   return ROUND_TYPE_LABELS[roundType] ?? roundType.split('-').map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1)).join(' ')
+}
+
+function formatPrepRoundNumberLabel(roundNumber?: number): string {
+  return roundNumber ? `Round ${roundNumber}` : 'Round TBD'
+}
+
+function sortPrepRoundDecks(decks: PrepDeck[]): PrepDeck[] {
+  return [...decks].sort((left, right) => {
+    const leftRound = left.roundNumber ?? 1
+    const rightRound = right.roundNumber ?? 1
+    if (leftRound !== rightRound) return leftRound - rightRound
+    return left.updatedAt.localeCompare(right.updatedAt)
+  })
+}
+
+function formatPrepListDraft(values?: string[]): string {
+  return (values ?? []).join('\n')
+}
+
+function parsePrepListDraft(value: string): string[] {
+  return value
+    .split('\n')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function getLocalDateInputValue(): string {
+  const now = new Date()
+  const year = String(now.getFullYear())
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatPrepOtherIntelDraft(
+  value?: PrepRoundDebriefIntel['other'],
+): string {
+  return Object.entries(value ?? {})
+    .map(([key, itemValue]) => `${key}: ${itemValue}`)
+    .join('\n')
+}
+
+function parsePrepOtherIntelDraft(value: string): Record<string, string> | undefined {
+  const entries = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      const separatorIndex = line.indexOf(':')
+      if (separatorIndex === -1) return []
+      const key = line.slice(0, separatorIndex).trim()
+      const itemValue = line.slice(separatorIndex + 1).trim()
+      return key && itemValue ? [[key, itemValue] as const] : []
+    })
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
+function buildPrepDebriefDraft(
+  deck: PrepDeck | null,
+  roundNumber: number | undefined,
+): PrepDebriefDraft {
+  const existingDebrief = roundNumber
+    ? deck?.roundDebriefs?.find((item) => item.round === roundNumber)
+    : undefined
+  const cardStates = Object.fromEntries(
+    (deck?.cards ?? []).flatMap((card) => {
+      const state = roundNumber
+        ? card.perRoundState?.find((item) => item.round === roundNumber)
+        : undefined
+      return state
+        ? [[card.id, { status: state.status, notes: state.notes ?? '' }] as const]
+        : []
+    }),
+  )
+
+  return {
+    date: existingDebrief?.date ?? getLocalDateInputValue(),
+    intel: {
+      teamCulture: existingDebrief?.intel.teamCulture ?? '',
+      aiUsage: existingDebrief?.intel.aiUsage ?? '',
+      topChallenge: existingDebrief?.intel.topChallenge ?? '',
+      volume: existingDebrief?.intel.volume ?? '',
+      securityPosture: existingDebrief?.intel.securityPosture ?? '',
+      goodSigns: formatPrepListDraft(existingDebrief?.intel.goodSigns),
+      redFlags: formatPrepListDraft(existingDebrief?.intel.redFlags),
+    },
+    questionsAsked: formatPrepListDraft(existingDebrief?.questionsAsked),
+    surprises: formatPrepListDraft(existingDebrief?.surprises),
+    newIntel: formatPrepListDraft(existingDebrief?.newIntel),
+    notes: existingDebrief?.notes ?? '',
+    other: formatPrepOtherIntelDraft(existingDebrief?.intel.other),
+    cardStates,
+  }
+}
+
+function getPrepDeckOwnRoundDebrief(deck: PrepDeck): PrepRoundDebrief | undefined {
+  const roundNumber = deck.roundNumber ?? 1
+  return deck.roundDebriefs?.find((item) => item.round === roundNumber)
+}
+
+function collectPrepRoundDebriefHistory(
+  decks: PrepDeck[],
+  pipelineEntryId?: string | null,
+  maxRoundExclusive?: number,
+): PrepRoundDebrief[] | undefined {
+  if (!pipelineEntryId) return undefined
+
+  const byRound = new Map<number, PrepRoundDebrief>()
+  for (const deck of sortPrepRoundDecks(
+    decks.filter((item) => item.pipelineEntryId === pipelineEntryId),
+  )) {
+    const ownRoundDebrief = getPrepDeckOwnRoundDebrief(deck)
+    if (!ownRoundDebrief) continue
+    if (maxRoundExclusive && ownRoundDebrief.round >= maxRoundExclusive) continue
+    byRound.set(ownRoundDebrief.round, ownRoundDebrief)
+  }
+
+  const collected = [...byRound.values()].sort((left, right) => left.round - right.round)
+  return collected.length > 0 ? collected : undefined
+}
+
+function filterPriorRoundDebriefs(
+  debriefs: PrepRoundDebrief[] | undefined,
+  roundNumber: number | undefined,
+): PrepRoundDebrief[] | undefined {
+  if (!debriefs?.length) return undefined
+  if (!roundNumber) return debriefs
+
+  const filtered = debriefs.filter((item) => item.round < roundNumber)
+  return filtered.length > 0 ? filtered : undefined
 }
 
 function formatPrepCategoryLabel(category: PrepCategory): string {
@@ -166,6 +360,10 @@ export function PrepPage() {
     categoryGuidance: false,
     sourceMaterial: true,
   })
+  const [isDebriefEditorOpen, setIsDebriefEditorOpen] = useState(false)
+  const [debriefMode, setDebriefMode] = useState<'quick' | 'card-review'>('quick')
+  const [showMoreDebriefFields, setShowMoreDebriefFields] = useState(false)
+  const [debriefDraft, setDebriefDraft] = useState<PrepDebriefDraft>(() => buildPrepDebriefDraft(null, undefined))
   const previousCategoryCountRef = useRef(0)
   const previousContextGapSignatureRef = useRef('')
   const gapModalCardRef = useRef<HTMLDivElement>(null)
@@ -202,6 +400,51 @@ export function PrepPage() {
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [decks, activeDeckId],
   )
+  const activeDeckRoundNumber = activeDeck?.roundNumber ?? (activeDeck?.pipelineEntryId ? 1 : undefined)
+  const activeDeckRoundDebrief = useMemo(
+    () => activeDeckRoundNumber
+      ? activeDeck?.roundDebriefs?.find((item) => item.round === activeDeckRoundNumber)
+      : undefined,
+    [activeDeck?.roundDebriefs, activeDeckRoundNumber],
+  )
+  const relatedRoundDecks = useMemo(
+    () => activeDeck?.pipelineEntryId
+      ? sortPrepRoundDecks(decks.filter((deck) => deck.pipelineEntryId === activeDeck.pipelineEntryId))
+      : [],
+    [activeDeck?.pipelineEntryId, decks],
+  )
+  const previousRoundDeck = useMemo(() => {
+    if (!activeDeck || !activeDeckRoundNumber) return null
+    const candidates = relatedRoundDecks.filter(
+      (deck) => deck.id !== activeDeck.id && (deck.roundNumber ?? 1) < activeDeckRoundNumber,
+    )
+    return candidates.length > 0 ? candidates[candidates.length - 1] : null
+  }, [activeDeck, activeDeckRoundNumber, relatedRoundDecks])
+  const isRoundNumberLocked = useMemo(
+    () => Boolean(activeDeck?.pipelineEntryId) ||
+      Boolean(activeDeck?.roundDebriefs?.length) ||
+      Boolean(activeDeck?.cards.some((card) => (card.perRoundState?.length ?? 0) > 0)),
+    [activeDeck?.cards, activeDeck?.pipelineEntryId, activeDeck?.roundDebriefs?.length],
+  )
+  const getPipelineRoundGenerationContext = useCallback((pipelineEntryId?: string | null) => {
+    if (!pipelineEntryId) {
+      return {
+        nextRoundNumber: undefined as number | undefined,
+        previousDeck: null as PrepDeck | null,
+        carriedRoundDebriefs: undefined as PrepRoundDebrief[] | undefined,
+      }
+    }
+
+    const relatedDecks = sortPrepRoundDecks(
+      decks.filter((deck) => deck.pipelineEntryId === pipelineEntryId),
+    )
+    const previousDeck = relatedDecks.length > 0 ? relatedDecks[relatedDecks.length - 1] : null
+    return {
+      nextRoundNumber: previousDeck ? (previousDeck.roundNumber ?? 1) + 1 : 1,
+      previousDeck,
+      carriedRoundDebriefs: collectPrepRoundDebriefHistory(decks, pipelineEntryId),
+    }
+  }, [decks])
   const deckLibrary = useMemo(
     () => [...decks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [decks],
@@ -405,11 +648,18 @@ export function PrepPage() {
 
   useEffect(() => {
     // Reset gap-modal state when switching between decks so draft answers never bleed across prep sets.
+    const currentDeck = activeDeckId
+      ? usePrepStore.getState().decks.find((deck) => deck.id === activeDeckId) ?? null
+      : null
     setGapStepIndex(0)
     setGapDraftAnswers({})
     setIsGapModalOpen(false)
     setIsIdentityDraftConfirmOpen(false)
-  }, [activeDeck?.id])
+    setIsDebriefEditorOpen(false)
+    setDebriefMode('quick')
+    setShowMoreDebriefFields(false)
+    setDebriefDraft(buildPrepDebriefDraft(currentDeck, activeDeckRoundNumber))
+  }, [activeDeck?.id, activeDeckId, activeDeckRoundNumber])
 
   useEffect(() => {
     if (previousCategoryCountRef.current === 0 && activeDeckCategories.length > 0) {
@@ -461,6 +711,10 @@ export function PrepPage() {
   }, [exportDecks])
 
   const handleCreateBlankDeck = useCallback(() => {
+    const pipelineRoundContext =
+      generationSource === 'pipeline'
+        ? getPipelineRoundGenerationContext(selectedEntry?.id ?? null)
+        : { nextRoundNumber: undefined, carriedRoundDebriefs: undefined }
     const vectorId =
       generationSource === 'match'
         ? (matchMaterial?.vector.id ?? activeDeck?.vectorId ?? '')
@@ -488,9 +742,11 @@ export function PrepPage() {
       notes: generationSource === 'match' ? matchMaterial?.notes : selectedEntry?.notes || undefined,
       companyResearch: companyResearchDraft || undefined,
       jobDescription: generationSource === 'match' ? matchMaterial?.jobDescription : selectedEntry?.jobDescription || undefined,
+      roundNumber: generationSource === 'pipeline' ? pipelineRoundContext.nextRoundNumber : undefined,
+      roundDebriefs: generationSource === 'pipeline' ? pipelineRoundContext.carriedRoundDebriefs : undefined,
       cards: [],
     })
-  }, [activeDeck?.company, activeDeck?.role, activeDeck?.vectorId, companyResearchDraft, createDeck, generationSource, matchMaterial, selectedEntry, selectedVectorId])
+  }, [activeDeck?.company, activeDeck?.role, activeDeck?.vectorId, companyResearchDraft, createDeck, generationSource, getPipelineRoundGenerationContext, matchMaterial, selectedEntry, selectedVectorId])
 
   const handleGenerate = useCallback(async () => {
     if (!aiEndpoint) {
@@ -579,6 +835,7 @@ export function PrepPage() {
       const vector = selectedVectorId
         ? freshResumeData.vectors.find((item) => item.id === selectedVectorId) ?? null
         : null
+      const pipelineRoundContext = getPipelineRoundGenerationContext(selectedEntry.id)
       const selectedRoundType = selectedEntry.format.length === 1 ? selectedEntry.format[0] : undefined
       const prepIdentityContext = currentIdentity
         ? buildPrepIdentityContext(currentIdentity, vector?.id, vector?.label)
@@ -599,6 +856,7 @@ export function PrepPage() {
         role: selectedEntry.role,
         vectorId: vector?.id,
         vectorLabel: vector?.label,
+        roundNumber: pipelineRoundContext.nextRoundNumber,
         roundType: selectedRoundType,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,
@@ -608,6 +866,8 @@ export function PrepPage() {
         jobDescription: selectedEntry.jobDescription,
         identityContext: prepIdentityContext,
         pipelineEntryContext: buildPrepPipelineEntryContext(selectedEntry),
+        priorRoundDebriefs: pipelineRoundContext.carriedRoundDebriefs,
+        priorRoundCards: pipelineRoundContext.previousDeck?.cards,
         resumeContext: {
           candidate: freshResumeData.meta,
           ...(vector ? { vector } : {}),
@@ -616,12 +876,16 @@ export function PrepPage() {
       })
 
       createDeck({
-        title: result.deckTitle,
+        title: pipelineRoundContext.nextRoundNumber && pipelineRoundContext.nextRoundNumber > 1
+          ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(pipelineRoundContext.nextRoundNumber)}`
+          : result.deckTitle,
         company: selectedEntry.company,
         role: selectedEntry.role,
         vectorId: vector?.id,
         pipelineEntryId: selectedEntry.id,
         roundType: selectedRoundType,
+        roundNumber: pipelineRoundContext.nextRoundNumber,
+        roundDebriefs: pipelineRoundContext.carriedRoundDebriefs,
         rules: result.rules,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
@@ -650,7 +914,7 @@ export function PrepPage() {
     } finally {
       setIsGenerating(false)
     }
-  }, [aiEndpoint, companyResearchDraft, createDeck, currentIdentity, currentReport, generationSource, selectedEntry, selectedVectorId])
+  }, [aiEndpoint, companyResearchDraft, createDeck, currentIdentity, currentReport, generationSource, getPipelineRoundGenerationContext, selectedEntry, selectedVectorId])
 
   const handleGenerationSourceChange = useCallback((nextSource: 'match' | 'pipeline') => {
     setGenerationSource(nextSource)
@@ -775,6 +1039,120 @@ export function PrepPage() {
     },
     [activeDeck, updateActiveDeck],
   )
+  const openDebriefEditor = useCallback(() => {
+    setDebriefDraft(buildPrepDebriefDraft(activeDeck, activeDeckRoundNumber))
+    setDebriefMode('quick')
+    setShowMoreDebriefFields(false)
+    setIsDebriefEditorOpen(true)
+  }, [activeDeck, activeDeckRoundNumber])
+  const updateDebriefIntelField = useCallback((field: string, value: string) => {
+    setDebriefDraft((current) => ({
+      ...current,
+      intel: {
+        ...current.intel,
+        [field]: value,
+      },
+    }))
+  }, [])
+  const updateDebriefCardState = useCallback((cardId: string, patch: Partial<{ status: PrepCardRoundStatus; notes: string }>) => {
+    setDebriefDraft((current) => ({
+      ...current,
+      cardStates: {
+        ...current.cardStates,
+        [cardId]: {
+          status: patch.status ?? current.cardStates[cardId]?.status ?? 'untested',
+          notes: patch.notes ?? current.cardStates[cardId]?.notes ?? '',
+        },
+      },
+    }))
+  }, [])
+  const handleSaveDebrief = useCallback(() => {
+    if (!activeDeck || !activeDeckRoundNumber) return
+
+    const nextDebrief: PrepRoundDebrief = {
+      round: activeDeckRoundNumber,
+      date: debriefDraft.date || getLocalDateInputValue(),
+      intel: {
+        ...(debriefDraft.intel.teamCulture.trim()
+          ? { teamCulture: debriefDraft.intel.teamCulture.trim() }
+          : {}),
+        ...(debriefDraft.intel.aiUsage.trim()
+          ? { aiUsage: debriefDraft.intel.aiUsage.trim() }
+          : {}),
+        ...(debriefDraft.intel.topChallenge.trim()
+          ? { topChallenge: debriefDraft.intel.topChallenge.trim() }
+          : {}),
+        ...(debriefDraft.intel.volume.trim()
+          ? { volume: debriefDraft.intel.volume.trim() }
+          : {}),
+        ...(debriefDraft.intel.securityPosture.trim()
+          ? { securityPosture: debriefDraft.intel.securityPosture.trim() }
+          : {}),
+        ...(parsePrepListDraft(debriefDraft.intel.goodSigns).length > 0
+          ? { goodSigns: parsePrepListDraft(debriefDraft.intel.goodSigns) }
+          : {}),
+        ...(parsePrepListDraft(debriefDraft.intel.redFlags).length > 0
+          ? { redFlags: parsePrepListDraft(debriefDraft.intel.redFlags) }
+          : {}),
+        ...(parsePrepOtherIntelDraft(debriefDraft.other)
+          ? { other: parsePrepOtherIntelDraft(debriefDraft.other) }
+          : {}),
+      },
+      questionsAsked: parsePrepListDraft(debriefDraft.questionsAsked),
+      surprises: parsePrepListDraft(debriefDraft.surprises),
+      newIntel: parsePrepListDraft(debriefDraft.newIntel),
+      ...(debriefDraft.notes.trim() ? { notes: debriefDraft.notes.trim() } : {}),
+    }
+
+    const nextRoundDebriefs = [
+      ...(collectPrepRoundDebriefHistory(
+        usePrepStore.getState().decks,
+        activeDeck.pipelineEntryId,
+      ) ?? activeDeck.roundDebriefs ?? []).filter(
+        (item) => item.round !== activeDeckRoundNumber,
+      ),
+      nextDebrief,
+    ].sort((left, right) => left.round - right.round)
+
+    updateDeck(activeDeck.id, { roundDebriefs: nextRoundDebriefs })
+    replaceDeckCards(
+      activeDeck.id,
+      activeDeck.cards.map((card) => {
+        const draftState = debriefDraft.cardStates[card.id]
+        const nextStates = [...(card.perRoundState ?? []).filter((item) => item.round !== activeDeckRoundNumber)]
+        if (draftState && (draftState.status !== 'untested' || draftState.notes.trim())) {
+          nextStates.push({
+            round: activeDeckRoundNumber,
+            status: draftState.status,
+            ...(draftState.notes.trim() ? { notes: draftState.notes.trim() } : {}),
+          })
+        }
+        return {
+          ...card,
+          perRoundState: nextStates.length > 0 ? nextStates.sort((left, right) => left.round - right.round) : undefined,
+        }
+      }),
+    )
+    setIsDebriefEditorOpen(false)
+  }, [activeDeck, activeDeckRoundNumber, debriefDraft, replaceDeckCards, updateDeck])
+  const handleCopyPreviousRoundCards = useCallback(() => {
+    if (!activeDeck || !previousRoundDeck) return
+    const existingTitles = new Set(
+      activeDeck.cards.map((card) => card.title.trim().toLowerCase()),
+    )
+    const cardsToCopy = previousRoundDeck.cards.filter(
+      (card) => !existingTitles.has(card.title.trim().toLowerCase()),
+    )
+    if (cardsToCopy.length === 0) return
+
+    for (const card of [...cardsToCopy].reverse()) {
+      const { id: _cardId, deckId: _deckId, updatedAt: _updatedAt, ...cardData } = card
+      addCard(activeDeck.id, {
+        ...cardData,
+        source: 'manual',
+      })
+    }
+  }, [activeDeck, addCard, previousRoundDeck])
   const updateCategoryGuidance = useCallback(
     (prepCategory: PrepCategory, value: string) => {
       const currentGuidance = activeDeck?.categoryGuidance ?? {}
@@ -1019,6 +1397,14 @@ export function PrepPage() {
     const linkedPipelineEntry = latestDeck.pipelineEntryId
       ? usePipelineStore.getState().entries.find((entry) => entry.id === latestDeck.pipelineEntryId) ?? null
       : null
+    const latestRoundDecks = latestDeck.pipelineEntryId
+      ? sortPrepRoundDecks(
+        usePrepStore.getState().decks.filter((deck) => deck.pipelineEntryId === latestDeck.pipelineEntryId),
+      )
+      : []
+    const latestPreviousRoundDeck = latestRoundDecks.filter(
+      (deck) => deck.id !== latestDeck.id && (deck.roundNumber ?? 1) < (latestDeck.roundNumber ?? 1),
+    ).slice(-1)[0] ?? null
 
     setGenerationError(null)
     setIsGenerating(true)
@@ -1042,6 +1428,7 @@ export function PrepPage() {
         role: latestDeck.role,
         vectorId: vector?.id,
         vectorLabel: vector?.label,
+        roundNumber: latestDeck.roundNumber,
         roundType: latestDeck.roundType,
         companyUrl: latestDeck.companyUrl,
         skillMatch: latestDeck.skillMatch,
@@ -1055,6 +1442,15 @@ export function PrepPage() {
           : undefined,
         contextGaps: latestDeck.contextGaps,
         contextGapAnswers: latestDeck.contextGapAnswers,
+        priorRoundDebriefs: filterPriorRoundDebriefs(
+          collectPrepRoundDebriefHistory(
+            usePrepStore.getState().decks,
+            latestDeck.pipelineEntryId,
+            latestDeck.roundNumber,
+          ) ?? latestDeck.roundDebriefs,
+          latestDeck.roundNumber,
+        ),
+        priorRoundCards: latestPreviousRoundDeck?.cards,
         resumeContext: {
           candidate: freshResumeData.meta,
           ...(vector ? { vector } : {}),
@@ -1063,7 +1459,9 @@ export function PrepPage() {
       })
 
       updateDeck(latestDeck.id, {
-        title: result.deckTitle,
+        title: latestDeck.roundNumber && latestDeck.roundNumber > 1
+          ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(latestDeck.roundNumber)}`
+          : result.deckTitle,
         rules: result.rules,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
@@ -1499,6 +1897,9 @@ export function PrepPage() {
               <div className="prep-edit-active-set-meta">
                 <span className="prep-mode-chip">{activeDeck.cards.length} cards</span>
                 <span className="prep-mode-chip">{activeDeck.vectorId || 'No vector'}</span>
+                {activeDeckRoundNumber ? (
+                  <span className="prep-mode-chip">{formatPrepRoundNumberLabel(activeDeckRoundNumber)}</span>
+                ) : null}
               </div>
             </div>
 
@@ -1604,8 +2005,293 @@ export function PrepPage() {
                       ))}
                     </select>
                   </label>
+                  <label className="prep-field">
+                    <span className="prep-field-label">Round number</span>
+                    <input
+                      className="prep-input"
+                      type="number"
+                      min={1}
+                      disabled={isRoundNumberLocked}
+                      value={activeDeckRoundNumber ?? ''}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value)
+                        updateActiveDeck({
+                          roundNumber: Number.isFinite(nextValue) && nextValue > 0
+                            ? Math.round(nextValue)
+                            : undefined,
+                        })
+                      }}
+                    />
+                  </label>
                 </div>
               </section>
+
+              {activeDeck.pipelineEntryId ? (
+                <section className="prep-edit-group">
+                  <div className="prep-edit-group-header">
+                    <div>
+                      <h3>Round Timeline</h3>
+                      <p>Decks linked to the same pipeline entry stay grouped here so you can jump between rounds and carry prep forward.</p>
+                    </div>
+                    <span className="prep-mode-chip">{relatedRoundDecks.length} rounds</span>
+                  </div>
+
+                  <div className="prep-round-timeline">
+                    {relatedRoundDecks.map((deck) => {
+                      const roundNumber = deck.roundNumber ?? 1
+                      return (
+                        <button
+                          key={deck.id}
+                          type="button"
+                          className={`prep-round-pill ${deck.id === activeDeck.id ? 'prep-round-pill-active' : ''}`}
+                          aria-pressed={deck.id === activeDeck.id}
+                          onClick={() => setActiveDeck(deck.id)}
+                        >
+                          <span>{formatPrepRoundNumberLabel(roundNumber)}</span>
+                          <small>{deck.roundType ? formatPrepRoundTypeLabel(deck.roundType) : 'General'}</small>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="prep-round-actions">
+                    <button
+                      type="button"
+                      className="prep-btn"
+                      onClick={handleCopyPreviousRoundCards}
+                      disabled={!previousRoundDeck}
+                    >
+                      Copy Previous Round Cards
+                    </button>
+                    <span className="prep-round-helper">
+                      {previousRoundDeck
+                        ? `Use Generate with AI on the same pipeline entry to draft ${formatPrepRoundNumberLabel((previousRoundDeck.roundNumber ?? 1) + 1)} with carried debrief intel.`
+                        : 'The next AI-generated deck for this pipeline entry becomes Round 1.'}
+                    </span>
+                  </div>
+                </section>
+              ) : null}
+
+              {activeDeckRoundNumber ? (
+                <section className="prep-edit-group">
+                  <div className="prep-edit-group-header">
+                    <div>
+                      <h3>Round Debrief</h3>
+                      <p>Capture what the team cared about, then mark which cards worked, fumbled, or need another pass before the next round.</p>
+                    </div>
+                    <div className="prep-round-debrief-actions">
+                      <span className="prep-mode-chip">
+                        {activeDeckRoundDebrief ? 'Debrief saved' : 'Debrief missing'}
+                      </span>
+                      <button
+                        type="button"
+                        className="prep-btn prep-btn-primary"
+                        onClick={openDebriefEditor}
+                      >
+                        {activeDeckRoundDebrief ? 'Edit Debrief' : 'Add Debrief'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {activeDeckRoundDebrief ? (
+                    <div className="prep-round-summary">
+                      <div className="prep-round-summary-grid">
+                        {PREP_DEBRIEF_VISIBLE_FIELDS.map((field) => {
+                          const rawValue = activeDeckRoundDebrief.intel[field.key]
+                          const value = Array.isArray(rawValue) ? rawValue.join(', ') : rawValue
+                          return value ? (
+                            <div key={field.key} className="prep-round-summary-card">
+                              <strong>{field.label}</strong>
+                              <p>{value}</p>
+                            </div>
+                          ) : null
+                        })}
+                      </div>
+                      <div className="prep-round-summary-meta">
+                        <span>{formatPrepRoundNumberLabel(activeDeckRoundNumber)}</span>
+                        <span>{activeDeckRoundDebrief.date}</span>
+                        <span>{parsePrepListDraft(formatPrepListDraft(activeDeckRoundDebrief.questionsAsked)).length} questions captured</span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {isDebriefEditorOpen ? (
+                    <div className="prep-round-debrief-editor">
+                      <div className="prep-round-mode-tabs" role="group" aria-label="Debrief capture modes">
+                        <button
+                          type="button"
+                          className={`prep-mode-tab ${debriefMode === 'quick' ? 'prep-mode-tab-active' : ''}`}
+                          aria-pressed={debriefMode === 'quick'}
+                          onClick={() => setDebriefMode('quick')}
+                        >
+                          Quick Capture
+                        </button>
+                        <button
+                          type="button"
+                          className={`prep-mode-tab ${debriefMode === 'card-review' ? 'prep-mode-tab-active' : ''}`}
+                          aria-pressed={debriefMode === 'card-review'}
+                          onClick={() => setDebriefMode('card-review')}
+                        >
+                          Per-Card Review
+                        </button>
+                      </div>
+
+                      {debriefMode === 'quick' ? (
+                        <div className="prep-round-debrief-body">
+                          <div className="prep-generator-grid">
+                            <label className="prep-field">
+                              <span className="prep-field-label">Interview date</span>
+                              <input
+                                className="prep-input"
+                                type="date"
+                                value={debriefDraft.date}
+                                onChange={(event) => setDebriefDraft((current) => ({ ...current, date: event.target.value }))}
+                              />
+                            </label>
+                          </div>
+
+                          <div className="prep-generator-grid">
+                            {PREP_DEBRIEF_VISIBLE_FIELDS.map((field) => (
+                              <label key={field.key} className="prep-field prep-field-span-2">
+                                <span className="prep-field-label">{field.label}</span>
+                                <textarea
+                                  className="prep-textarea"
+                                  value={debriefDraft.intel[field.key] ?? ''}
+                                  onChange={(event) => updateDebriefIntelField(field.key, event.target.value)}
+                                  placeholder={field.placeholder}
+                                />
+                              </label>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="prep-link-btn"
+                            aria-expanded={showMoreDebriefFields}
+                            aria-controls="prep-debrief-more-fields"
+                            onClick={() => setShowMoreDebriefFields((current) => !current)}
+                          >
+                            {showMoreDebriefFields ? 'Show fewer fields' : 'Show more fields'}
+                          </button>
+
+                          {showMoreDebriefFields ? (
+                            <div id="prep-debrief-more-fields" className="prep-generator-grid">
+                              <label className="prep-field prep-field-span-2">
+                                <span className="prep-field-label">Red flags</span>
+                                <textarea
+                                  className="prep-textarea"
+                                  value={debriefDraft.intel.redFlags ?? ''}
+                                  onChange={(event) => updateDebriefIntelField('redFlags', event.target.value)}
+                                  placeholder="One signal per line"
+                                />
+                              </label>
+                              <label className="prep-field prep-field-span-2">
+                                <span className="prep-field-label">Other intel</span>
+                                <textarea
+                                  className="prep-textarea"
+                                  value={debriefDraft.other}
+                                  onChange={(event) => setDebriefDraft((current) => ({ ...current, other: event.target.value }))}
+                                  placeholder="key: value"
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+
+                          <div className="prep-generator-grid">
+                            <label className="prep-field prep-field-span-2">
+                              <span className="prep-field-label">Questions asked</span>
+                              <textarea
+                                className="prep-textarea"
+                                value={debriefDraft.questionsAsked}
+                                onChange={(event) => setDebriefDraft((current) => ({ ...current, questionsAsked: event.target.value }))}
+                                placeholder="One question per line"
+                              />
+                            </label>
+                            <label className="prep-field prep-field-span-2">
+                              <span className="prep-field-label">Surprises</span>
+                              <textarea
+                                className="prep-textarea"
+                                value={debriefDraft.surprises}
+                                onChange={(event) => setDebriefDraft((current) => ({ ...current, surprises: event.target.value }))}
+                                placeholder="What caught you off guard?"
+                              />
+                            </label>
+                            <label className="prep-field prep-field-span-2">
+                              <span className="prep-field-label">New intel</span>
+                              <textarea
+                                className="prep-textarea"
+                                value={debriefDraft.newIntel}
+                                onChange={(event) => setDebriefDraft((current) => ({ ...current, newIntel: event.target.value }))}
+                                placeholder="What changed your read of the role?"
+                              />
+                            </label>
+                            <label className="prep-field prep-field-span-2">
+                              <span className="prep-field-label">Overflow notes</span>
+                              <textarea
+                                className="prep-textarea"
+                                value={debriefDraft.notes}
+                                onChange={(event) => setDebriefDraft((current) => ({ ...current, notes: event.target.value }))}
+                                placeholder="Anything you want the next round to remember?"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="prep-round-card-review-list">
+                          {(activeDeck.cards ?? []).map((card) => {
+                            const currentState = debriefDraft.cardStates[card.id] ?? {
+                              status: 'untested' as const,
+                              notes: '',
+                            }
+                            return (
+                              <div key={card.id} className="prep-round-card-review-item">
+                                <div className="prep-round-card-review-header">
+                                  <strong>{card.title}</strong>
+                                  <span>{formatPrepCategoryLabel(card.category)}</span>
+                                </div>
+                                <div className="prep-inline-grid">
+                                  <label className="prep-field">
+                                    <span className="prep-field-label">Status</span>
+                                    <select
+                                      className="prep-input"
+                                      aria-label={`${card.title} round status`}
+                                      value={currentState.status}
+                                      onChange={(event) => updateDebriefCardState(card.id, { status: event.target.value as PrepCardRoundStatus })}
+                                    >
+                                      {Object.entries(PREP_CARD_ROUND_STATUS_LABELS).map(([status, label]) => (
+                                        <option key={status} value={status}>{label}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <label className="prep-field">
+                                    <span className="prep-field-label">Notes</span>
+                                    <textarea
+                                      className="prep-textarea"
+                                      aria-label={`${card.title} round notes`}
+                                      value={currentState.notes}
+                                      onChange={(event) => updateDebriefCardState(card.id, { notes: event.target.value })}
+                                      placeholder="What should the next round remember about this answer?"
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      <div className="prep-round-debrief-footer">
+                        <button type="button" className="prep-btn" onClick={() => setIsDebriefEditorOpen(false)}>
+                          Cancel
+                        </button>
+                        <button type="button" className="prep-btn prep-btn-primary" onClick={handleSaveDebrief}>
+                          Save Debrief
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
 
               <details
                 className="prep-edit-group prep-edit-group-collapsible"
