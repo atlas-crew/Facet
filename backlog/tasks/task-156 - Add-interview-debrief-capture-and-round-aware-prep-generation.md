@@ -1,9 +1,10 @@
 ---
 id: TASK-156
 title: Add interview debrief capture and round-aware prep generation
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-04-19 06:03'
+updated_date: '2026-04-22 09:59'
 labels:
   - prep
   - feedback-loop
@@ -102,11 +103,11 @@ Reference: doc-25 Gap 6, doc-26 Stage 6, `blackstone-prep-r3.html` (intel-grid +
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PrepDeck type has optional roundNumber?: number and roundDebriefs?: PrepRoundDebrief[] fields
-- [ ] #2 PrepRoundDebrief has structured intel grid (teamCulture, aiUsage, topChallenge, volume, securityPosture, goodSigns, redFlags, other) plus questionsAsked/surprises/newIntel/notes
-- [ ] #3 PrepCard has optional perRoundState?: PrepCardRoundState[] with round/status/notes (status = worked | fumbled | untested | practice-this)
+- [x] #1 PrepDeck type has optional roundNumber?: number and roundDebriefs?: PrepRoundDebrief[] fields
+- [x] #2 PrepRoundDebrief has structured intel grid (teamCulture, aiUsage, topChallenge, volume, securityPosture, goodSigns, redFlags, other) plus questionsAsked/surprises/newIntel/notes
+- [x] #3 PrepCard has optional perRoundState?: PrepCardRoundState[] with round/status/notes (status = worked | fumbled | untested | practice-this)
 - [ ] #4 Debrief form has quick-capture mode (intel grid) and per-card review mode (mark cards worked/fumbled)
-- [ ] #5 Debrief data persists in prepStore across sessions
+- [x] #5 Debrief data persists in prepStore across sessions
 - [ ] #6 When generating prep for round N+1, prompt includes both structured debrief intel and per-card round state
 - [ ] #7 Cards flagged perRoundState.status='fumbled' are regenerated in R2+ with remediation framing; cards flagged 'practice-this' are tagged accordingly in the new deck
 - [ ] #8 AI generation produces deck-level rules (TASK-176) informed by R1 intel (e.g., top challenge becomes a rules-banner item)
@@ -115,6 +116,38 @@ Reference: doc-25 Gap 6, doc-26 Stage 6, `blackstone-prep-r3.html` (intel-grid +
 - [ ] #11 Contradictions between debrief fields (e.g., "opener worked" + "they cut you off" in questionsAsked) are surfaced to the AI as a flag
 - [ ] #12 Debrief form is lightweight — not a 20-field survey; intel grid defaults to 6 visible fields with "more" toggle
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Land the round-aware schema and store persistence first so later UI and generator work has a stable data model.
+2. Add the debrief capture UI and deck/round selection flows on top of the persisted round-aware fields.
+3. Thread previous-round debrief intel and per-card state into prep generation, including copy-forward and contradiction handling.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Foundation slice landed on main in commit dca6620 (feat(prep): add round-aware schema and store foundation).
+
+Completed in this phase:
+- added round-aware types for PrepDeck.roundNumber, PrepDeck.roundDebriefs, and PrepCard.perRoundState
+- updated prepStore sanitization, migration, import/export, and replacement flows to preserve those fields
+- added focused store coverage for migration/import/draft preservation/export behavior
+
+Verification for the landed foundation slice:
+- npx vitest run src/test/prepStore.test.ts
+- npm run typecheck
+- npx vitest run src/test/prepGenerator.test.ts src/test/PrepLiveMode.test.tsx src/test/prepStore.test.ts src/test/PrepPracticeMode.test.tsx src/test/PrepPage.test.tsx src/test/PrepPage.identityGeneration.test.tsx
+- npm run build
+- npx eslint src/utils/prepGenerator.ts src/utils/prepCheatsheet.ts src/routes/prep/PrepLiveMode.tsx src/types/prep.ts src/store/prepStore.ts src/test/prepGenerator.test.ts src/test/PrepLiveMode.test.tsx src/test/prepStore.test.ts
+
+Remaining scope:
+- debrief capture UI
+- round-aware generation prompt wiring
+- grouped multi-round deck selection and copy-forward flows
+- contradiction surfacing and remediation-aware regeneration
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
