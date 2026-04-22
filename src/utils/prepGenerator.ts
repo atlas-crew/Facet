@@ -8,11 +8,14 @@ import type {
   PrepCard,
   PrepCategory,
   PrepConditional,
+  PrepContractViolation,
   PrepContextGap,
   PrepContextGapPriority,
   PrepConditionalTone,
   PrepGenerationRequest,
+  PrepGenerationResult,
   PrepIdentityMetricCandidate,
+  PrepDeck,
   PrepMetric,
   PrepNumbersToKnow,
   PrepPipelineResearchPersonContext,
@@ -53,6 +56,21 @@ interface PrepGenerationPayload {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   cards: Array<Omit<PrepCard, 'id'>>
+}
+
+interface PrepInterviewPrepResult {
+  deckTitle: string
+  companyResearchSummary: string
+  rules?: string[]
+  donts?: string[]
+  questionsToAsk?: PrepQuestionToAsk[]
+  numbersToKnow?: PrepNumbersToKnow
+  stackAlignment?: PrepStackAlignmentRow[]
+  categoryGuidance?: Partial<Record<PrepCategory, string>>
+  contextGaps?: PrepContextGap[]
+  cards: PrepCard[]
+  deck: PrepDeck
+  contractViolations: PrepContractViolation[]
 }
 
 const PREP_PIPELINE_PEOPLE_GAP_ID = 'prep-gap-pipeline-people-intel'
@@ -567,8 +585,287 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
   })
 }
 
-function isGapFramingCard(card: Pick<PrepCard, 'tags'>): boolean {
-  return card.tags.some((tag) => tag.trim().toLowerCase() === 'gap-framing')
+const OPENING_TIME_GUIDANCE_PATTERN =
+  /(?:under\s+\d+(?:\.\d+)?\s*(?:seconds?|minutes?)|\d+(?:\.\d+)?\s*(?:seconds?|minutes?)\s*(?:max|or less|or under)|\d+(?:\.\d+)?\s*minute(?:s)?\s*(?:budget|max)|90\s*seconds?|2\s*minutes?\s*max|2\s*minute\s*answer\s*budget)/i
+
+const HONEST_FRAMING_PATTERN =
+  /(?:don't fake|do not fake|if asked|honest|bounded|don't pretend|do not pretend|don't overstate|acknowledge honestly|bridge to)/i
+
+const RARITY_FRAMING_PATTERN =
+  /(?:rare|uncommon|differentiator|differentiating|unusual|most candidates|market[-\s]?rare|stands out)/i
+
+const ROLE_INFERENCE_PATTERN =
+  /(?:likely|probably|most likely|may be|seems|likely interviewer|hiring manager|sign-off|not the interviewer)/i
+
+const INBOUND_APP_METHODS = new Set([
+  'referral',
+  'recruiter-inbound',
+  'recruiter-outbound',
+])
+
+const COLD_APP_METHODS = new Set(['direct-apply', 'cold-email', 'linkedin'])
+
+function countSentences(text: string): number {
+  const normalized = text.trim()
+  if (!normalized) return 0
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return sentences.length
+}
+
+function countWords(text: string): number {
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .length
+}
+
+function getCardValidationText(card: PrepCard): string {
+  return [
+    card.title,
+    card.notes,
+    card.warning,
+    card.script,
+    ...(card.keyPoints ?? []),
+    ...(card.storyBlocks ?? []).map((block) => block.text),
+    ...(card.deepDives ?? []).map((deepDive) =>
+      [deepDive.title, deepDive.content].filter(Boolean).join(' '),
+    ),
+    ...(card.conditionals ?? []).map((conditional) =>
+      [conditional.trigger, conditional.response].filter(Boolean).join(' '),
+    ),
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function isPrepOpenerCard(card: PrepCard): boolean {
+  return (
+    !isPrepLandmineCard(card) &&
+    (card.category === 'opener' ||
+      (card.tags?.some((tag) => tag.trim().toLowerCase() === 'opener') ?? false))
+  )
+}
+
+function isPrepGapFramingCard(card: PrepCard): boolean {
+  return card.tags?.some((tag) => tag.trim().toLowerCase() === 'gap-framing') ?? false
+}
+
+function isPrepLandmineCard(card: PrepCard): boolean {
+  return card.tags?.some((tag) => tag.trim().toLowerCase() === 'landmine') ?? false
+}
+
+function isPrepIntelCard(card: PrepCard): boolean {
+  return card.tags?.some((tag) => tag.trim().toLowerCase() === 'intel') ?? false
+}
+
+function addViolation(
+  violations: PrepContractViolation[],
+  violation: PrepContractViolation,
+): void {
+  violations.push(violation)
+}
+
+function validatePrepGenerationContract(params: {
+  deck: Pick<
+    PrepDeck,
+    | 'title'
+    | 'rules'
+    | 'cards'
+    | 'stackAlignment'
+    | 'categoryGuidance'
+    | 'contextGaps'
+  >
+  generatedCards: PrepCard[]
+  hasParsedCards: boolean
+  request: PrepGenerationRequest
+}): PrepContractViolation[] {
+  const violations: PrepContractViolation[] = []
+  const { deck, generatedCards, hasParsedCards, request } = params
+
+  if (!hasParsedCards) {
+    addViolation(violations, {
+      kind: 'missing-field',
+      field: 'cards',
+      message: 'Expected the generated prep payload to include a cards array.',
+      severity: 'error',
+    })
+  }
+
+  if ((deck.rules?.length ?? 0) < 3) {
+    addViolation(violations, {
+      kind: 'missing-field',
+      field: 'rules',
+      message: 'Expected at least 3 deck rules, but the generated deck had fewer.',
+      severity: 'error',
+    })
+  }
+
+  const appMethod = request.pipelineEntryContext?.appMethod
+  const guidanceText = Object.values(deck.categoryGuidance ?? {})
+    .join(' ')
+    .trim()
+  if (appMethod && appMethod !== 'unknown') {
+    if (
+      INBOUND_APP_METHODS.has(appMethod) &&
+      !/(?:reached out|conversational|be conversational|not performative)/i.test(guidanceText)
+    ) {
+      addViolation(violations, {
+        kind: 'missing-coaching',
+        field: 'categoryGuidance',
+        message:
+          'Expected category guidance to reflect an inbound conversation and sound conversational.',
+        severity: 'error',
+      })
+    }
+
+    if (
+      COLD_APP_METHODS.has(appMethod) &&
+      !/(?:convince|earn attention|convince me|earn attention quickly)/i.test(guidanceText)
+    ) {
+      addViolation(violations, {
+        kind: 'missing-coaching',
+        field: 'categoryGuidance',
+        message:
+          'Expected category guidance to reflect a cold application and help the candidate earn attention.',
+        severity: 'error',
+      })
+    }
+  }
+
+  const openerCards = generatedCards.filter(isPrepOpenerCard)
+  for (const card of openerCards) {
+    const notes = card.notes?.trim() ?? ''
+    if (countSentences(notes) < 2) {
+      addViolation(violations, {
+        kind: 'short-prose',
+        cardId: card.id,
+        field: 'notes',
+        message: 'Opener cards need at least 2 sentences in notes to explain why the opener is framed this way.',
+        severity: 'error',
+      })
+    }
+
+    const warning = card.warning?.trim() ?? ''
+    if (!OPENING_TIME_GUIDANCE_PATTERN.test(warning)) {
+      addViolation(violations, {
+        kind: 'missing-coaching',
+        cardId: card.id,
+        field: 'warning',
+        message:
+          'Opener warnings need explicit time guidance such as "under 90 seconds" or "2 minutes max".',
+        severity: 'error',
+      })
+    }
+
+    const script = card.script?.trim() ?? ''
+    if (countWords(script) < 12) {
+      addViolation(violations, {
+        kind: 'missing-field',
+        cardId: card.id,
+        field: 'script',
+        message: 'Opener scripts need to be non-trivial and grounded enough to deliver as a real answer.',
+        severity: 'error',
+      })
+    }
+  }
+
+  for (const card of generatedCards.filter(isPrepGapFramingCard)) {
+    const warning = card.warning?.trim() ?? ''
+    if (!HONEST_FRAMING_PATTERN.test(warning)) {
+      addViolation(violations, {
+        kind: 'missing-coaching',
+        cardId: card.id,
+        field: 'warning',
+        message:
+          "Gap-framing cards need honest-framing language such as \"don't fake\", \"if asked\", or \"bounded\".",
+        severity: 'error',
+      })
+    }
+
+    const hasRampStructure =
+      (card.storyBlocks?.length ?? 0) > 0 ||
+      (card.keyPoints?.length ?? 0) >= 3
+
+    if (!hasRampStructure) {
+      addViolation(violations, {
+        kind: 'missing-field',
+        cardId: card.id,
+        field: 'storyBlocks',
+        message:
+          'Gap-framing cards need either a structured story or at least 3 key points that show the ramp strategy.',
+        severity: 'error',
+      })
+    }
+  }
+
+  const knownPeople = request.pipelineEntryContext?.research?.people ?? []
+  if (knownPeople.length > 0) {
+    const knownPeopleNames = knownPeople
+      .map((person) => person.name.trim())
+      .filter(Boolean)
+    const intelCards = generatedCards.filter(isPrepIntelCard)
+    const intelCardWithInference = intelCards.find((card) => {
+      const text = getCardValidationText(card)
+      const normalizedText = text.toLowerCase()
+      return (
+        knownPeopleNames.some((name) => normalizedText.includes(name.toLowerCase())) &&
+        ROLE_INFERENCE_PATTERN.test(text)
+      )
+    })
+
+    if (!intelCardWithInference) {
+      addViolation(violations, {
+        kind: 'missing-intel',
+        field: 'cards',
+        message:
+          'Company research contains named people, but the generated deck did not include a named-person intel card with role inference.',
+        severity: 'error',
+      })
+    }
+  }
+
+  const rarityCards = generatedCards.filter((card) =>
+    RARITY_FRAMING_PATTERN.test(
+      [card.notes, ...(card.deepDives ?? []).map((deepDive) => deepDive.content)]
+        .filter(Boolean)
+        .join(' '),
+    ),
+  )
+  if (rarityCards.length < 2) {
+    addViolation(violations, {
+      kind: 'missing-coaching',
+      field: 'notes',
+      message:
+        'Expected at least 2 cards with market-rarity framing in notes or deep dives.',
+      severity: 'warning',
+    })
+  }
+
+  const hasDepthGaps = (deck.stackAlignment ?? []).some(
+    (row) =>
+      row.confidence === 'Gap' || row.confidence === 'Adjacent experience',
+  )
+  if (hasDepthGaps) {
+    const depthCoverageCount = generatedCards.filter(
+      (card) => isPrepLandmineCard(card) || isPrepGapFramingCard(card),
+    ).length
+    if (depthCoverageCount < 2) {
+      addViolation(violations, {
+        kind: 'missing-landmine',
+        field: 'cards',
+        message:
+          'Decks with depth gaps need at least 2 landmine or gap-framing cards to keep the candidate honest about risk.',
+        severity: 'error',
+      })
+    }
+  }
+
+  return violations
 }
 
 function buildGapFramingFallbackCards(
@@ -639,7 +936,7 @@ function ensureGapFramingCards(
   stackAlignment: PrepStackAlignmentRow[] | undefined,
 ): PrepCard[] {
   const normalizedCards = cards.map((card) =>
-    isGapFramingCard(card)
+    isPrepGapFramingCard(card)
       ? {
           ...card,
           category: 'technical' as const,
@@ -655,7 +952,7 @@ function ensureGapFramingCards(
       : card,
   )
 
-  if (normalizedCards.some((card) => isGapFramingCard(card))) {
+  if (normalizedCards.some((card) => isPrepGapFramingCard(card))) {
     return normalizedCards
   }
 
@@ -974,24 +1271,32 @@ function detectRoundContradictions(
   if (!debriefs?.length) return undefined
 
   const contradictions = debriefs.flatMap((debrief) => {
+    const intel = debrief.intel ?? {}
+    const questionsAsked = Array.isArray(debrief.questionsAsked)
+      ? debrief.questionsAsked
+      : []
+    const surprises = Array.isArray(debrief.surprises) ? debrief.surprises : []
+    const newIntel = Array.isArray(debrief.newIntel) ? debrief.newIntel : []
     const openerSignals = [
       debrief.notes ?? '',
-      debrief.intel.topChallenge ?? '',
-      debrief.intel.teamCulture ?? '',
-      ...Object.values(debrief.intel.other ?? {}),
+      intel.topChallenge ?? '',
+      intel.teamCulture ?? '',
+      ...Object.values(intel.other ?? {}),
     ]
       .join(' ')
       .toLowerCase()
     const interruptionSignals = [
-      ...debrief.questionsAsked,
-      ...debrief.surprises,
-      ...debrief.newIntel,
+      ...questionsAsked,
+      ...surprises,
+      ...newIntel,
     ]
       .join(' ')
       .toLowerCase()
 
     if (
-      openerSignals.includes('opener worked') &&
+      /(opener worked|opener went well|opener successful|opener landed)/.test(
+        openerSignals,
+      ) &&
       /(cut (me )?off|cut you off|interrupted|stopped me short)/.test(
         interruptionSignals,
       )
@@ -1024,12 +1329,15 @@ function ensureRoundAwareRemediationCards(
       ) {
         return []
       }
-      return [[card.title.trim().toLowerCase(), { card, latestState }] as const]
+      const normalizedTitle = card.title?.trim().toLowerCase() ?? ''
+      if (!normalizedTitle) return []
+      return [[normalizedTitle, { card, latestState }] as const]
     }),
   )
 
   const normalizedCards = cards.map((card) => {
-    const match = priorStatesByTitle.get(card.title.trim().toLowerCase())
+    const normalizedCardTitle = card.title?.trim().toLowerCase() ?? ''
+    const match = priorStatesByTitle.get(normalizedCardTitle)
     if (!match) return card
     const remediationLead =
       match.latestState.status === 'fumbled'
@@ -1037,7 +1345,7 @@ function ensureRoundAwareRemediationCards(
         : `Keep this sharp for round ${request.roundNumber}.`
     return {
       ...card,
-      tags: Array.from(new Set([...card.tags, PRACTICE_THIS_TAG])),
+      tags: Array.from(new Set([...(card.tags ?? []), PRACTICE_THIS_TAG])),
       notes: [remediationLead, match.latestState.notes, card.notes]
         .filter(Boolean)
         .join(' '),
@@ -1045,7 +1353,9 @@ function ensureRoundAwareRemediationCards(
   })
 
   const existingTitles = new Set(
-    normalizedCards.map((card) => card.title.trim().toLowerCase()),
+    normalizedCards
+      .map((card) => card.title?.trim().toLowerCase() ?? '')
+      .filter(Boolean),
   )
   const fallbackCards: PrepCard[] = []
 
@@ -1071,7 +1381,9 @@ function ensureRoundAwareRemediationCards(
       id: createId('prep-card'),
       category: match.card.category,
       title: remediationTitle,
-      tags: Array.from(new Set([...match.card.tags, PRACTICE_THIS_TAG])),
+      tags: Array.from(
+        new Set([...(match.card.tags ?? []), PRACTICE_THIS_TAG]),
+      ),
       timeBudgetMinutes: match.card.timeBudgetMinutes,
       notes:
         match.latestState.status === 'fumbled'
@@ -1096,18 +1408,7 @@ function ensureRoundAwareRemediationCards(
 export async function generateInterviewPrep(
   endpoint: string,
   request: PrepGenerationRequest,
-): Promise<{
-  deckTitle: string
-  companyResearchSummary: string
-  rules?: string[]
-  donts?: string[]
-  questionsToAsk?: PrepQuestionToAsk[]
-  numbersToKnow?: PrepNumbersToKnow
-  stackAlignment?: PrepStackAlignmentRow[]
-  categoryGuidance?: Partial<Record<PrepCategory, string>>
-  contextGaps?: PrepContextGap[]
-  cards: PrepCard[]
-}> {
+): Promise<PrepInterviewPrepResult> {
   const candidateMetrics = readIdentityMetricCandidates(
     request.identityContext,
     'candidate_metrics',
@@ -1145,6 +1446,7 @@ You are not just generating scripts — you are coaching the candidate on WHY ea
 4. Named People Intel: When companyResearch mentions specific people by name and title, generate a dedicated card with category "situational" and tag "intel" that structures their information. For each person, infer their likely role in the interview: "SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off" or "Sr. Director Engineering — most likely the hiring manager for this role." If the hiring manager or interviewer is identified, add dynamic coaching: "This person likely cares about X based on their title. Frame your answers accordingly."
 
 5. Competitive Positioning: When the candidate's skills include combinations that are market-rare or unusually valuable for this specific role, generate a notes or deepDives entry explaining WHY it's rare. Example: "GitLab admin experience is genuinely uncommon — most candidates have GitHub Actions or Jenkins. The fact that you administered the instance, not just consumed it, is a differentiator. Lean into it." Or: "The Python + C# combination is rare at production depth. Most engineers live in one ecosystem. This matters at companies with mixed stacks." Look for 2-3 such combinations per deck and call them out explicitly.
+When the deck has depth gaps, make sure at least 2 cards are landmine or gap-framing cards to keep the candidate honest about risk.
 
 Response schema:
 {
@@ -1351,10 +1653,29 @@ Return JSON only (inside the tags).`
   }
 
   const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
+  const generatedCards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
+  const contextGaps = ensurePipelineResearchContextGaps(
+    normalizeContextGaps(parsed.contextGaps),
+    request,
+  )
+  const categoryGuidance = normalizeCategoryGuidance(parsed.categoryGuidance)
+  const contractViolations = validatePrepGenerationContract({
+    deck: {
+      title: isString(parsed.deckTitle) ? parsed.deckTitle.trim() : '',
+      rules: normalizeStringList(parsed.rules),
+      cards: generatedCards,
+      stackAlignment,
+      categoryGuidance,
+      contextGaps,
+    },
+    generatedCards,
+    hasParsedCards: Array.isArray(parsed.cards),
+    request,
+  })
   const cards = ensureRoundAwareRemediationCards(
     ensureLandmineCards(
       ensureGapFramingCards(
-        normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : []),
+        generatedCards,
         stackAlignment,
       ),
       request,
@@ -1368,23 +1689,67 @@ Return JSON only (inside the tags).`
     throw new Error('Interview prep response schema was invalid.')
   }
 
-  return {
-    deckTitle: parsed.deckTitle.trim(),
-    companyResearchSummary: isString(parsed.companyResearchSummary)
-      ? parsed.companyResearchSummary.trim()
-      : '',
+  const now = new Date().toISOString()
+  const deck: PrepDeck = {
+    id: createId('prep-deck'),
+    title: parsed.deckTitle.trim(),
+    company: request.company,
+    role: request.role,
+    vectorId: request.vectorId,
+    pipelineEntryId: null,
+    companyUrl: request.companyUrl,
+    skillMatch: request.skillMatch,
+    positioning: request.positioning,
+    roundType: request.roundType,
+    notes: request.notes,
+    companyResearch: request.companyResearch,
+    jobDescription: request.jobDescription,
     rules: normalizeStringList(parsed.rules),
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),
     numbersToKnow: normalizeNumbersToKnow(parsed.numbersToKnow),
     stackAlignment,
-    contextGaps: ensurePipelineResearchContextGaps(
-      normalizeContextGaps(parsed.contextGaps),
-      request,
-    ),
-    categoryGuidance: normalizeCategoryGuidance(parsed.categoryGuidance) as
+    categoryGuidance,
+    contextGaps,
+    contextGapAnswers: request.contextGapAnswers,
+    roundNumber: request.roundNumber,
+    roundDebriefs: request.priorRoundDebriefs,
+    generatedAt: now,
+    updatedAt: now,
+    cards,
+  }
+
+  const generatedPrepResult: PrepInterviewPrepResult = {
+    deckTitle: deck.title,
+    companyResearchSummary: isString(parsed.companyResearchSummary)
+      ? parsed.companyResearchSummary.trim()
+      : '',
+    rules: deck.rules,
+    donts: deck.donts,
+    questionsToAsk: deck.questionsToAsk,
+    numbersToKnow: deck.numbersToKnow,
+    stackAlignment: deck.stackAlignment,
+    contextGaps: deck.contextGaps,
+    categoryGuidance: deck.categoryGuidance as
       | Partial<Record<PrepCategory, string>>
       | undefined,
-    cards,
+    cards: deck.cards,
+    deck,
+    contractViolations,
+  }
+
+  return generatedPrepResult
+}
+
+export async function generatePrepDeck(
+  endpoint: string,
+  request: PrepGenerationRequest,
+): Promise<PrepGenerationResult> {
+  const result = await generateInterviewPrep(endpoint, request)
+
+  return {
+    deck: result.deck,
+    companyResearchSummary: result.companyResearchSummary,
+    contractViolations: result.contractViolations,
   }
 }

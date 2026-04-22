@@ -295,6 +295,20 @@ export interface PrepDeck {
   studyProgress?: Record<string, PrepCardStudyState>
 }
 
+export interface PrepContractViolation {
+  kind: 'missing-field' | 'short-prose' | 'missing-coaching' | 'missing-intel' | 'missing-landmine'
+  cardId?: string
+  field: string
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export interface PrepGenerationResult {
+  deck: PrepDeck
+  companyResearchSummary: string
+  contractViolations: PrepContractViolation[]
+}
+
 export interface PrepGenerationRequest {
   company: string
   role: string
