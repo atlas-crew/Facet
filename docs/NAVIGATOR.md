@@ -54,6 +54,12 @@ Documentation for contributors and developers working on the Facet codebase.
 | [Wave 1 Beta Support Playbook](development/platform/wave-1-beta-support-playbook.md) | Launch communication, support scenarios, known limits, and escalation guidance for the hosted beta |
 | [Wave 1 Beta Readiness Gate](development/platform/wave-1-beta-readiness-gate.md) | Staging validation checklist, go or no-go criteria, and staged rollout plan for the first hosted beta |
 
+### Reports
+
+| Document | Description |
+|----------|-------------|
+| [Competitive Analysis & Growth Strategy (Apr 2026)](development/reports/competitive-analysis-2026-04.md) | Competitive landscape, market sizing, addressable professions, pricing, scaling roadmap, and data strategy |
+
 ### Plans (Archived)
 
 | Document | Description |
