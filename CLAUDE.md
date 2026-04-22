@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important Notes
+
+- We are pre-launch without users. You do not have to worry about backwards compatibility when making plans or suggestions.
+
+## Reference Materials
+
+Personal reference artifacts (job-search reports, prep transcripts, prior-engagement source material) live in the basic-memory vault at `main/facet/ref-materials`, not in this repo. Query them via the basic-memory MCP server when context from past job-search runs would inform an answer.
+
 ## Project Overview
 
 Facet is a strategic resume assembly tool for senior engineers. Users define their career as a library of tagged, prioritized **components** and define **vectors** (positioning angles like "Backend Engineering", "Security Platform"). The app assembles the optimal resume for each angle, respecting page budgets.
@@ -19,50 +27,11 @@ npm run lint         # ESLint
 
 Tests use Vitest with jsdom. No separate vitest config file — configuration is inline via Vite. Test files live in `src/test/`.
 
-## Workflow
-
-- Always use atomic commits with conventional commit messages.
-
-## Tools
-
-### CLI
-
-- Use `cortex get commit` (file-based) to commit your changes. To commit hunks/lines, use `cortex git patch`.  If a `cortex git` sub-command is not available, fails, or lacks capabilities, escalate to the user; do not work around with other git commands.
-- Use `trash` to delete files. This moves the files to `~/.Trash` where it is recoverable in case of emergency Never delete with `rm`.
-- Use `cortex tmux` to manage local processes in a dedicated tmux window.
-
-### MCP
-
-- Use the **backlog.md** MCP server for task tracking. The `backlog/` folder e is never tracked in git.
-
-### Data Flow
-
-```
-ResumeData (YAML/JSON) → resumeStore (Zustand, persisted) → assembler → AssemblyResult → renderers
-                                                              ↑
-                                                  uiStore (vector selection, overrides, bullet orders)
-```
-
-The assembly pipeline is the core of the app:
-
-1. **`src/engine/serializer.ts`** — Parses and validates YAML/JSON resume configs into `ResumeData`. Handles import/export with strict shape validation and auto-creates missing vectors from component references.
-
-2. **`src/engine/assembler.ts`** — The central engine. Takes `ResumeData` + `AssemblyOptions` (selected vector, manual overrides, variant overrides, bullet ordering) and produces an `AssemblyResult`. Resolves per-vector priorities, applies manual inclusion/exclusion overrides, picks text variants, and sorts bullets by priority rank.
-
-3. **`src/engine/pageBudget.ts`** — Estimates resume length in lines/pages (heuristic: 58 lines/page, 92 chars/line). Trims lowest-priority bullets from the bottom of the last role when over budget. Returns warnings for must-only overflow.
-
-4. **`src/engine/importMerge.ts`** — Merges imported data into existing data by ID (additive only, never replaces existing items).
-
-### State Management
-
-Two Zustand stores, both persisted to localStorage:
-
-- **`resumeStore`** — Holds the canonical `ResumeData` (components, vectors, metadata, presets). Key: `vector-resume-data`.
-- **`uiStore`** — Holds UI state: selected vector, panel ratio, manual overrides, variant overrides, and bullet orders. All keyed by vector so each vector has independent override state. Key: `vector-resume-ui`.
-
 ### Component Override System
 
 Overrides use a hierarchical key system defined in `src/utils/componentKeys.ts`. A bullet's override keys resolve in order: `role:{roleId}:bullet:{bulletId}` → `role:{roleId}:{bulletId}` → `bullet:{bulletId}` → `{bulletId}`. The assembler's `buildComponentKeys()` generates these keys and `resolveManualOverride()` walks them.
+
+- **`uiStore`** — Holds UI state: selected vector, panel ratio, manual overrides, variant overrides, and bullet orders. All keyed by vector so each vector has independent override state. Key: `vector-resume-ui`.
 
 ### Type System
 
@@ -121,29 +90,3 @@ Presets snapshot the current override state (manual overrides, variant text sele
 - **Geist Sans / Geist Mono** font stack
 - Drag-and-drop via `@dnd-kit`
 - Icons from `lucide-react`
-
-<!-- BACKLOG.MD MCP GUIDELINES START -->
-
-## BACKLOG WORKFLOW INSTRUCTIONS
-
-This project uses Backlog.md MCP for all task and project management activities.
-
-**CRITICAL GUIDANCE**
-
-- If your client supports MCP resources, read `backlog://workflow/overview` to understand when and how to use Backlog for this project.
-- If your client only supports tools or the above request fails, call `backlog.get_workflow_overview()` tool to load the tool-oriented overview (it lists the matching guide tools).
-
-- **First time working here?** Read the overview resource IMMEDIATELY to learn the workflow
-- **Already familiar?** You should have the overview cached ("## Backlog.md Overview (MCP)")
-- **When to read it**: BEFORE creating tasks, or when you're unsure whether to track work
-
-These guides cover:
-
-- Decision framework for when to create tasks
-- Search-first workflow to avoid duplicates
-- Links to detailed guides for task creation, execution, and finalization
-- MCP tools reference
-
-You MUST read the overview resource to understand the complete workflow. The information is NOT summarized here.
-
-<!-- BACKLOG.MD MCP GUIDELINES END -->

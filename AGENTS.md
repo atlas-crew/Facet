@@ -3,6 +3,9 @@
 ## Project Structure & Module Organization
 Facet is a Vite + React 19 + TypeScript app. Core assembly logic lives in `src/engine/`, route screens in `src/routes/` (`build`, `pipeline`, `prep`, `letters`, `research`, `help`), shared UI in `src/components/`, and persisted Zustand stores in `src/store/`. Keep helpers in `src/utils/`, theme assets in `src/themes/`, and domain types in `src/types/` plus `src/types.ts`. Tests live in `src/test/`, with fixtures under `src/test/fixtures/`. The optional AI proxy is isolated in `proxy/`.
 
+## Reference Materials
+Personal reference artifacts (prep transcripts, search reports, prior-engagement source material) live in the basic-memory vault at `main/facet/ref-materials`, not in the repo. Query via the basic-memory MCP server when context from past job-search runs would inform an answer.
+
 ## Build, Test, and Development Commands
 Use Node `>=20.19.0`.
 
