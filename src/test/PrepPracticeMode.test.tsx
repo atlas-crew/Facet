@@ -8,7 +8,14 @@ import type { PrepCard } from '../types/prep'
 afterEach(cleanup)
 
 const mockCards: PrepCard[] = [
-  { id: 'c1', category: 'opener', title: 'Card 1', tags: ['tag1'], script: 'Script 1' },
+  {
+    id: 'c1',
+    category: 'opener',
+    title: 'Card 1',
+    tags: ['tag1'],
+    script: 'Script 1',
+    keyPoints: ['Lead with the platform angle', 'Land on the two-minute through-line'],
+  },
   { id: 'c2', category: 'behavioral', title: 'Card 2', tags: ['tag2'], script: 'Script 2' },
   { id: 'c3', category: 'technical', title: 'Card 3', tags: ['tag3'], script: 'Script 3' },
 ]
@@ -141,6 +148,7 @@ describe('PrepPracticeMode', () => {
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     expect(screen.getByText('Script 1')).toBeTruthy()
+    expect(screen.getByLabelText('Beat sheet - if you lose your place').querySelector('ol')).toBeTruthy()
 
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
     expect(handleRecordReview).toHaveBeenCalledWith('c1', 'okay')
@@ -401,6 +409,7 @@ describe('PrepPracticeMode', () => {
     fireEvent.click(screen.getByText('Reveal Answer'))
 
     expect(screen.getByText('Story blocks')).toBeTruthy()
+    expect(screen.getByLabelText('Glance Points').querySelector('ul')).toBeTruthy()
     expect(screen.getByText('The launch was slipping because teams were operating from different timelines.')).toBeTruthy()
     expect(screen.getByText('I created a single cutover plan and ran twice-daily syncs with engineering and support.')).toBeTruthy()
   })
@@ -419,7 +428,7 @@ describe('PrepPracticeMode', () => {
 
     fireEvent.click(screen.getByText('Reveal Answer'))
 
-    expect(screen.getByText('Key points')).toBeTruthy()
+    expect(screen.getByLabelText('Beat sheet - if you lose your place').querySelector('ol')).toBeTruthy()
     expect(screen.getByText('State the tradeoff first')).toBeTruthy()
     expect(screen.getByText('Name the rollback and monitoring plan')).toBeTruthy()
   })

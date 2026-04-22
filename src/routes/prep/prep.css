@@ -1814,7 +1814,6 @@
   gap: var(--space-2);
 }
 
-.prep-live-keypoints,
 .prep-live-story-blocks,
 .prep-live-conditionals,
 .prep-live-stat-grid {
@@ -1822,25 +1821,57 @@
   gap: var(--space-2);
 }
 
-.prep-live-keypoints {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.prep-live-keypoint {
+.prep-live-keypoints-panel {
+  grid-column: 1 / -1;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 1px solid var(--border-subtle);
-  font-size: 13px;
-  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  font-family: var(--font-mono);
 }
 
-.prep-live-keypoint-marker {
-  color: var(--accent-primary);
+.prep-live-keypoints-panel-numbered {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 8%, transparent);
+}
+
+.prep-live-keypoints-panel-bulleted {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 8%, transparent);
+}
+
+.prep-live-keypoints-label {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-tertiary) 14%, transparent);
+}
+
+.prep-live-keypoints-list {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.prep-live-keypoints-panel-numbered .prep-live-keypoints-list {
+  list-style-type: decimal;
+}
+
+.prep-live-keypoints-panel-bulleted .prep-live-keypoints-list {
+  list-style-type: disc;
 }
 
 .prep-live-story-block {
@@ -3314,6 +3345,22 @@
   color: var(--text-primary);
 }
 
+.prep-practice-keypoints {
+  text-align: left;
+}
+
+.prep-practice-keypoints-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
 .prep-practice-story-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -3626,7 +3673,6 @@
   }
 
   .prep-live-card-block-grid,
-  .prep-live-keypoints,
   .prep-live-stat-grid {
     grid-template-columns: 1fr;
   }

@@ -189,6 +189,20 @@ function getRenderableTableData(tableData: PrepCard['tableData']) {
   }
 }
 
+function getKeyPointsPresentation(category: PrepCard['category']) {
+  if (category === 'behavioral') {
+    return {
+      label: 'Glance Points',
+      ordered: false,
+    }
+  }
+
+  return {
+    label: 'Beat sheet - if you lose your place',
+    ordered: true,
+  }
+}
+
 function buildCardSearchText(card: PrepCard): string {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
@@ -1529,6 +1543,7 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
   const conditionals = filterPrepConditionals(card.conditionals)
   const metrics = filterPrepMetrics(card.metrics)
   const tableData = getRenderableTableData(card.tableData)
+  const keyPointsPresentation = getKeyPointsPresentation(card.category)
   const displayTitle = getPrepDisplayText(card.title) || 'Needs review'
   const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || undefined
   const displayNotes = getPrepSourceAwareText(card.notes, card.source)
@@ -1550,19 +1565,6 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
         </div>
       </div>
 
-      {!compactMode && keyPoints.length > 0 ? (
-        <div className="prep-live-keypoints">
-          {keyPoints.map((point, index) => (
-            <div key={`${card.id}-keypoint-${point}-${index}`} className="prep-live-keypoint">
-              <span className="prep-live-keypoint-marker" aria-hidden="true">
-                -
-              </span>
-              <span>{getPrepDisplayText(point)}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
       <div className="prep-live-card-block-grid">
         {showContext ? (
           <section className="prep-live-callout prep-live-callout-context">
@@ -1575,6 +1577,28 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
           <section className="prep-live-callout prep-live-callout-script">
             <span className="prep-live-callout-label">Script</span>
             <p>{displayScript}</p>
+          </section>
+        ) : null}
+
+        {!compactMode && keyPoints.length > 0 ? (
+          <section
+            className={`prep-live-keypoints-panel prep-live-keypoints-panel-${keyPointsPresentation.ordered ? 'numbered' : 'bulleted'}`}
+            aria-labelledby={card.id + '-live-keypoints-label'}
+          >
+            <div id={card.id + '-live-keypoints-label'} className="prep-live-keypoints-label">{keyPointsPresentation.label}</div>
+            {keyPointsPresentation.ordered ? (
+              <ol className="prep-live-keypoints-list">
+                {keyPoints.map((point, index) => (
+                  <li key={`${card.id}-keypoint-${index}`}>{getPrepDisplayText(point)}</li>
+                ))}
+              </ol>
+            ) : (
+              <ul className="prep-live-keypoints-list">
+                {keyPoints.map((point, index) => (
+                  <li key={`${card.id}-keypoint-${index}`}>{getPrepDisplayText(point)}</li>
+                ))}
+              </ul>
+            )}
           </section>
         ) : null}
 

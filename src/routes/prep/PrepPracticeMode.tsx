@@ -7,6 +7,7 @@ import {
   filterPrepConditionals,
   filterPrepKeyPoints,
   filterPrepStoryBlocks,
+  getPrepDisplayText,
   hasPrepCardNeedsReviewContent,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
@@ -51,6 +52,20 @@ const CONFIDENCE_LABELS: Record<PrepCardConfidence, string> = {
   nailed_it: 'Nailed it',
   okay: 'Okay',
   needs_work: 'Needs work',
+}
+
+function getKeyPointsPresentation(category: PrepCard['category']) {
+  if (category === 'behavioral') {
+    return {
+      label: 'Glance Points',
+      ordered: false,
+    }
+  }
+
+  return {
+    label: 'Beat sheet - if you lose your place',
+    ordered: true,
+  }
 }
 
 function fisherYatesShuffle<T>(items: readonly T[]): T[] {
@@ -224,6 +239,9 @@ export function PrepPracticeMode({
     () => filterPrepKeyPoints(currentCard?.keyPoints),
     [currentCard],
   )
+  const keyPointsPresentation = currentCard ? getKeyPointsPresentation(currentCard.category) : null
+  const shouldRenderReadOnlyAnswer =
+    currentEntry?.kind === 'card' && currentKeyPoints.length > 0 && currentStoryBlocks.length === 0
   const isComplete = queue.length > 0 && activeIndex >= queue.length
 
   const handleShuffle = useCallback(() => {
@@ -568,6 +586,8 @@ export function PrepPracticeMode({
           </div>
         ) : (
           <div className="prep-practice-revealed">
+            {shouldRenderReadOnlyAnswer && currentCard ? <PrepCardView card={currentCard} readOnly /> : null}
+
             {revealMode === 'story' ? (
               <section className="prep-practice-section">
                 <div className="prep-practice-section-label">Story blocks</div>
@@ -582,14 +602,22 @@ export function PrepPracticeMode({
               </section>
             ) : null}
 
-            {revealMode === 'key_points' ? (
-              <section className="prep-practice-section">
-                <div className="prep-practice-section-label">Key points</div>
-                <ul className="prep-practice-cue-list prep-practice-answer-list">
-                  {currentKeyPoints.map((point, index) => (
-                    <li key={`${index}:${point}`}>{point}</li>
-                  ))}
-                </ul>
+            {currentEntry.kind === 'card' && currentCard && (revealMode === 'story' || revealMode === 'key_points') && currentKeyPoints.length > 0 && keyPointsPresentation ? (
+              <section className="prep-practice-section prep-practice-keypoints" aria-labelledby={currentCard.id + '-practice-keypoints-label'}>
+                <div id={currentCard.id + '-practice-keypoints-label'} className="prep-practice-section-label">{keyPointsPresentation.label}</div>
+                {keyPointsPresentation.ordered ? (
+                  <ol className="prep-practice-keypoints-list">
+                    {currentKeyPoints.map((point, index) => (
+                      <li key={index}>{getPrepDisplayText(point)}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <ul className="prep-practice-keypoints-list">
+                    {currentKeyPoints.map((point, index) => (
+                      <li key={index}>{getPrepDisplayText(point)}</li>
+                    ))}
+                  </ul>
+                )}
               </section>
             ) : null}
 

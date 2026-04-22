@@ -106,6 +106,7 @@ const mockDeck: PrepDeck = {
       tags: ['stakeholders'],
       script: 'I aligned engineering and product on a reliability roadmap.',
       warning: 'Do not frame product as the enemy.',
+      keyPoints: ['Acknowledge the shared decision', 'Name the tradeoff you owned'],
       conditionals: [
         { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Acknowledge the shared work, then narrow to your decisions.', tone: 'pivot' },
         { id: 'conditional-2', trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
@@ -245,6 +246,12 @@ describe('PrepLiveMode', () => {
 
     expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Warm-up notes' })).toBeTruthy()
+    expect(screen.getAllByLabelText('Beat sheet - if you lose your place').length).toBeGreaterThan(1)
+    expect(screen.getAllByLabelText('Beat sheet - if you lose your place')[0].querySelector('ol')).toBeTruthy()
+    expect(screen.getAllByLabelText('Glance Points').length).toBeGreaterThan(0)
+    expect(screen.getAllByLabelText('Glance Points')[0].querySelector('ul')).toBeTruthy()
+    expect(screen.getAllByText('Acknowledge the shared decision').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Name the tradeoff you owned').length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
     expect(screen.getByText('The Rules')).toBeTruthy()
     expect(screen.getByText('Lead with specifics.')).toBeTruthy()
@@ -547,8 +554,10 @@ describe('PrepLiveMode', () => {
     const { container } = render(<PrepLiveMode deck={draftDeck} />)
 
     const openerSection = getSectionContainer('Tell me about yourself')
-    expect(openerSection?.querySelectorAll('.prep-live-keypoint')).toHaveLength(1)
+    expect(openerSection?.querySelectorAll('.prep-live-keypoints-panel')).toHaveLength(1)
+    expect(openerSection?.querySelector('.prep-live-keypoints-panel-numbered ol')).toBeTruthy()
     expect(openerSection?.querySelectorAll('.prep-live-story-block')).toHaveLength(1)
+    expect(openerSection?.textContent).toContain('Beat sheet - if you lose your place')
     expect(openerSection?.textContent).toContain('If they push on ownership')
     expect(openerSection?.querySelectorAll('.prep-live-stat-box')).toHaveLength(1)
 
