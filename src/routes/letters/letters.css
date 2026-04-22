@@ -220,6 +220,13 @@
   gap: var(--space-2);
 }
 
+.letters-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .letters-field label,
 .letters-field legend {
   font-size: 12px;
@@ -350,6 +357,23 @@
 .letters-paragraph-vectors {
   display: flex;
   gap: var(--space-2);
+}
+
+.letters-paragraph-vectors .vector-priority-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.letters-paragraph-vectors .vector-priority-row {
+  justify-content: flex-start;
+  gap: var(--space-1);
+}
+
+.letters-paragraph-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .letters-vector-label {

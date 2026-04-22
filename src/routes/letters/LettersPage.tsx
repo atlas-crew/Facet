@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Check, Copy, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
-import type { CoverLetterParagraph } from '../../types/coverLetter'
+import type { CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { generateCoverLetter } from '../../utils/coverLetterGenerator'
@@ -16,6 +16,18 @@ import './letters.css'
 
 function buildResearchDraft(positioning: string, notes: string, url: string) {
   return [positioning, notes, url].filter(Boolean).join('\n\n')
+}
+
+function composeLetterText(template: CoverLetterTemplate): string {
+  return [
+    template.header,
+    template.greeting,
+    ...template.paragraphs.map((paragraph) => paragraph.text),
+    template.signOff,
+  ]
+    .map((section) => section.trim())
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 export function LettersPage() {
@@ -32,6 +44,7 @@ export function LettersPage() {
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const candidateEntries = useMemo(
     () => [...pipelineEntries].sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
@@ -125,6 +138,25 @@ export function LettersPage() {
     if (!activeTemplate) return
     const newPars = activeTemplate.paragraphs.filter(p => p.id !== paragraphId)
     updateTemplate(activeTemplate.id, { paragraphs: newPars })
+  }
+
+  const copyTextWithFlag = async (text: string, key: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    try {
+      await navigator.clipboard.writeText(trimmed)
+      setCopiedKey(key)
+      window.setTimeout(() => {
+        setCopiedKey((current) => (current === key ? null : current))
+      }, 1500)
+    } catch {
+      // Ignore clipboard failures in unsupported or restricted contexts.
+    }
+  }
+
+  const handleCopyLetter = () => {
+    if (!activeTemplate) return
+    void copyTextWithFlag(composeLetterText(activeTemplate), 'letter')
   }
 
   const handleDeleteTemplate = (id: string, name: string) => {
@@ -455,8 +487,21 @@ export function LettersPage() {
 
         {activeTemplate ? (
           <div className="letters-editor">
-            <input 
-              className="letters-title-input" 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+              <button
+                className="letters-btn letters-btn-sm"
+                type="button"
+                onClick={handleCopyLetter}
+                disabled={!composeLetterText(activeTemplate)}
+                title="Copy assembled letter to clipboard"
+                aria-label="Copy letter to clipboard"
+              >
+                {copiedKey === 'letter' ? <Check size={14} /> : <Copy size={14} />}{' '}
+                {copiedKey === 'letter' ? 'Copied' : 'Copy Letter'}
+              </button>
+            </div>
+            <input
+              className="letters-title-input"
               value={activeTemplate.name}
               onChange={(e) => updateTemplate(activeTemplate.id, { name: e.target.value })}
               placeholder="Template Name"
@@ -464,20 +509,44 @@ export function LettersPage() {
             />
             
             <div className="letters-field">
-              <label htmlFor="cl-header">Header</label>
-              <textarea 
+              <div className="letters-field-header">
+                <label htmlFor="cl-header">Header</label>
+                <button
+                  className="letters-btn-icon"
+                  type="button"
+                  onClick={() => void copyTextWithFlag(activeTemplate.header, 'header')}
+                  disabled={!activeTemplate.header.trim()}
+                  title="Copy header"
+                  aria-label="Copy header"
+                >
+                  {copiedKey === 'header' ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+              <textarea
                 id="cl-header"
-                value={activeTemplate.header} 
+                value={activeTemplate.header}
                 onChange={(e) => updateTemplate(activeTemplate.id, { header: e.target.value })}
                 rows={3}
               />
             </div>
-            
+
             <div className="letters-field">
-              <label htmlFor="cl-greeting">Greeting</label>
-              <input 
+              <div className="letters-field-header">
+                <label htmlFor="cl-greeting">Greeting</label>
+                <button
+                  className="letters-btn-icon"
+                  type="button"
+                  onClick={() => void copyTextWithFlag(activeTemplate.greeting, 'greeting')}
+                  disabled={!activeTemplate.greeting.trim()}
+                  title="Copy greeting"
+                  aria-label="Copy greeting"
+                >
+                  {copiedKey === 'greeting' ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+              <input
                 id="cl-greeting"
-                value={activeTemplate.greeting} 
+                value={activeTemplate.greeting}
                 onChange={(e) => updateTemplate(activeTemplate.id, { greeting: e.target.value })}
               />
             </div>
@@ -501,42 +570,69 @@ export function LettersPage() {
               </div>
               
               <div className="letters-paragraph-list">
-                {activeTemplate.paragraphs.map((p, index) => (
-                  <div key={p.id} className="letters-paragraph-item">
-                    <div className="letters-paragraph-content">
-                      <textarea 
-                        value={p.text}
-                        onChange={(e) => updateParagraph(p.id, { text: e.target.value })}
-                        rows={3}
-                        aria-label={`Paragraph ${index + 1} text`}
-                        placeholder="Write your paragraph content..."
-                      />
-                      <div className="letters-paragraph-vectors">
-                        <VectorPriorityEditor
-                          vectors={p.vectors}
-                          vectorDefs={vectors}
-                          onChange={(newVectors) => updateParagraph(p.id, { vectors: newVectors })}
+                {activeTemplate.paragraphs.map((p, index) => {
+                  const paragraphKey = `paragraph:${p.id}`
+                  return (
+                    <div key={p.id} className="letters-paragraph-item">
+                      <div className="letters-paragraph-content">
+                        <textarea
+                          value={p.text}
+                          onChange={(e) => updateParagraph(p.id, { text: e.target.value })}
+                          rows={3}
+                          aria-label={`Paragraph ${index + 1} text`}
+                          placeholder="Write your paragraph content..."
                         />
+                        <div className="letters-paragraph-vectors">
+                          <VectorPriorityEditor
+                            vectors={p.vectors}
+                            vectorDefs={vectors}
+                            onChange={(newVectors) => updateParagraph(p.id, { vectors: newVectors })}
+                          />
+                        </div>
+                      </div>
+                      <div className="letters-paragraph-actions">
+                        <button
+                          className="letters-btn-icon"
+                          type="button"
+                          onClick={() => void copyTextWithFlag(p.text, paragraphKey)}
+                          disabled={!p.text.trim()}
+                          aria-label={`Copy paragraph ${index + 1}`}
+                          title={`Copy paragraph ${index + 1}`}
+                        >
+                          {copiedKey === paragraphKey ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                        <button
+                          className="letters-btn-icon letters-text-danger"
+                          onClick={() => removeParagraph(p.id)}
+                          aria-label={`Delete paragraph ${index + 1}`}
+                          title={`Delete paragraph ${index + 1}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
-                    <button 
-                      className="letters-btn-icon letters-text-danger"
-                      onClick={() => removeParagraph(p.id)}
-                      aria-label={`Delete paragraph ${index + 1}`}
-                      title={`Delete paragraph ${index + 1}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
             <div className="letters-field">
-              <label htmlFor="cl-signoff">Sign Off</label>
-              <textarea 
+              <div className="letters-field-header">
+                <label htmlFor="cl-signoff">Sign Off</label>
+                <button
+                  className="letters-btn-icon"
+                  type="button"
+                  onClick={() => void copyTextWithFlag(activeTemplate.signOff, 'signOff')}
+                  disabled={!activeTemplate.signOff.trim()}
+                  title="Copy sign off"
+                  aria-label="Copy sign off"
+                >
+                  {copiedKey === 'signOff' ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+              <textarea
                 id="cl-signoff"
-                value={activeTemplate.signOff} 
+                value={activeTemplate.signOff}
                 onChange={(e) => updateTemplate(activeTemplate.id, { signOff: e.target.value })}
                 rows={2}
               />
