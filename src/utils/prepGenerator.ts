@@ -662,6 +662,288 @@ function ensureGapFramingCards(
   return [...normalizedCards, ...buildGapFramingFallbackCards(stackAlignment)]
 }
 
+const LANDMINE_TAG = 'landmine'
+
+function isTaggedCard(card: Pick<PrepCard, 'tags'>, tag: string): boolean {
+  const normalizedTag = tag.trim().toLowerCase()
+  return card.tags.some((cardTag) => cardTag.trim().toLowerCase() === normalizedTag)
+}
+
+function canonicalizeTaggedCard(card: PrepCard, tag: string): PrepCard {
+  if (!isTaggedCard(card, tag)) return card
+  const normalizedTag = tag.trim().toLowerCase()
+  return {
+    ...card,
+    tags: Array.from(
+      new Set([
+        ...card.tags.filter((cardTag) => cardTag.trim().toLowerCase() !== normalizedTag),
+        normalizedTag,
+      ]),
+    ),
+  }
+}
+
+function buildLandmineCard(params: {
+  category: PrepCategory
+  title: string
+  notes: string
+  warning: string
+  script: string
+  keyPoints: string[]
+}): PrepCard {
+  return {
+    id: createId('prep-card'),
+    category: params.category,
+    title: params.title,
+    tags: [LANDMINE_TAG],
+    notes: params.notes,
+    scriptLabel: 'Predicted trap',
+    script: params.script,
+    warning: params.warning,
+    keyPoints: params.keyPoints,
+    source: 'ai',
+    timeBudgetMinutes: 1,
+  }
+}
+
+function buildLandmineFallbackCards(
+  request: PrepGenerationRequest,
+  candidateMetrics: PrepIdentityMetricCandidate[] | undefined,
+  fallbackCandidateMetrics: PrepIdentityMetricCandidate[] | undefined,
+  stackAlignment: PrepStackAlignmentRow[] | undefined,
+  existingCards: PrepCard[],
+): PrepCard[] {
+  const existingLandmineTitles = new Set(
+    existingCards
+      .filter((card) => isTaggedCard(card, LANDMINE_TAG))
+      .map((card) => card.title.trim().toLowerCase()),
+  )
+  const fallbackCards: PrepCard[] = []
+
+  const addCard = (card: PrepCard) => {
+    const normalizedTitle = card.title.trim().toLowerCase()
+    if (existingLandmineTitles.has(normalizedTitle)) return
+    if (fallbackCards.some((entry) => entry.title.trim().toLowerCase() === normalizedTitle)) return
+    fallbackCards.push(card)
+  }
+
+  const riskyStackRows = (stackAlignment ?? [])
+    .filter((row) => row.confidence === 'Gap' || row.confidence === 'Adjacent experience')
+    .sort((left, right) => {
+      return (
+        GAP_FRAMING_CONFIDENCE_ORDER[left.confidence] -
+          GAP_FRAMING_CONFIDENCE_ORDER[right.confidence] ||
+        left.theirTech.localeCompare(right.theirTech, undefined, {
+          sensitivity: 'base',
+        })
+      )
+    })
+
+  const riskyRow = riskyStackRows[0]
+  if (riskyRow) {
+    const techName = riskyRow.theirTech.trim()
+    const confidenceLabel =
+      riskyRow.confidence === 'Gap'
+        ? 'You do not have direct ownership of this stack yet.'
+        : 'Your experience is adjacent, not exact, so avoid overselling it.'
+
+    addCard(
+      buildLandmineCard({
+        category: 'technical',
+        title: 'Landmine: overstate ' + techName,
+        notes: confidenceLabel,
+        warning: 'Do not imply direct ' + techName + ' ownership if your closest evidence is adjacent.',
+        script:
+          'If they dig into ' + techName +
+          ', name exactly what you ran, exactly what you observed, and exactly where the boundary is. Then bridge to the closest transferable proof.',
+        keyPoints: [
+          'State the boundary clearly.',
+          'Name the transferable proof.',
+          'Do not let confidence outrun evidence.',
+        ],
+      }),
+    )
+  }
+
+  const allMetricCandidates = [...(candidateMetrics ?? []), ...(fallbackCandidateMetrics ?? [])]
+  if (allMetricCandidates.length > 0) {
+    const strongestMetric = allMetricCandidates[0]
+    addCard(
+      buildLandmineCard({
+        category: 'metrics',
+        title: 'Landmine: cite a number you cannot defend',
+        notes: strongestMetric
+          ? 'Keep the source, denominator, and time window ready for ' + strongestMetric.suggestedLabel + '.'
+          : 'A number only helps if you can explain where it came from and what moved.',
+        warning: 'Do not volunteer a metric unless you can back it up on the next follow-up.',
+        script:
+          'If you use a number, be ready to explain the source, the denominator, and the specific change that made it move.',
+        keyPoints: [
+          'Know the source.',
+          'Know the denominator.',
+          'Know what changed.',
+        ],
+      }),
+    )
+  }
+
+  if (request.positioning || request.companyResearch || request.jobDescription) {
+    addCard(
+      buildLandmineCard({
+        category: 'opener',
+        title: 'Landmine: give a generic why this role answer',
+        notes:
+          'The interviewer is testing whether you can make this role feel specific, not interchangeable.',
+        warning: 'Do not make the motivation answer sound like it could fit any company.',
+        script:
+          'Lead with the exact fit between your background and this role, then name one company-specific reason that makes the move compelling.',
+        keyPoints: [
+          'Lead with specificity.',
+          'Name one company detail.',
+          'Keep the answer concrete.',
+        ],
+      }),
+    )
+  }
+
+  const hasDepartureSignal =
+    Boolean(request.contextGapAnswers?.['identity.departureContext']) ||
+    (request.contextGaps ?? []).some((gap) =>
+      (gap.id + ' ' + gap.section + ' ' + gap.question + ' ' + gap.why)
+        .toLowerCase()
+        .includes('departure'),
+    )
+  if (hasDepartureSignal) {
+    addCard(
+      buildLandmineCard({
+        category: 'behavioral',
+        title: 'Landmine: turn your transition into a complaint',
+        notes:
+          'A departure answer should be calm, brief, and future-facing instead of emotional or defensive.',
+        warning: 'Do not vent about the last company, manager, or team.',
+        script:
+          'Keep the transition short and neutral, explain what you want next, and pivot back to the work you want to do here.',
+        keyPoints: [
+          'Keep it brief.',
+          'Stay neutral.',
+          'End on what you want next.',
+        ],
+      }),
+    )
+  }
+
+  if (existingCards.some((card) => card.category === 'behavioral' || card.category === 'project')) {
+    addCard(
+      buildLandmineCard({
+        category: 'behavioral',
+        title: 'Landmine: hide your role inside a team win',
+        notes: 'Shared work is fine, but your decisions still need to be audible.',
+        warning: 'Do not let we-language erase your own contribution.',
+        script:
+          'Name the decision you made, the constraint you handled, and the outcome you influenced.',
+        keyPoints: [
+          'Name your decision.',
+          'State the constraint.',
+          'Make the outcome audible.',
+        ],
+      }),
+    )
+  }
+
+  if (request.pipelineEntryContext?.research?.people?.length) {
+    addCard(
+      buildLandmineCard({
+        category: 'situational',
+        title: 'Landmine: pretend the org chart is settled',
+        notes:
+          'Useful interviewer intel should be grounded in the research you actually have, not guessed from titles.',
+        warning: 'Do not state a manager, interviewer, or sign-off path as fact unless the research supports it.',
+        script:
+          'If you mention the team, speak in probabilities and cite the evidence you actually have.',
+        keyPoints: [
+          'State your confidence level.',
+          'Cite the evidence.',
+          'Avoid org-chart theater.',
+        ],
+      }),
+    )
+  }
+
+  const genericTemplates = [
+    buildLandmineCard({
+      category: 'situational',
+      title: 'Landmine: answer the question you wished they asked',
+      notes: 'The safer answer is usually the one that directly addresses the question in front of you.',
+      warning: 'Do not drift into a different question just because it is easier to answer.',
+      script: 'Pause, answer the exact question, then add one short bridge back to the evidence you want to emphasize.',
+      keyPoints: [
+        'Answer the exact question.',
+        'Add one short bridge.',
+        'Do not overtalk the detour.',
+      ],
+    }),
+    buildLandmineCard({
+      category: 'situational',
+      title: 'Landmine: over-explain the setup',
+      notes: 'A long setup can make a sharp answer feel evasive.',
+      warning: 'Do not spend the first minute on backstory before the point lands.',
+      script: 'Lead with the point first, then give just enough context to make the answer believable.',
+      keyPoints: [
+        'Lead with the point.',
+        'Keep the context short.',
+        'Land the answer fast.',
+      ],
+    }),
+    buildLandmineCard({
+      category: 'situational',
+      title: 'Landmine: sound vague when they want a concrete example',
+      notes: 'Vagueness usually reads like missing ownership or missing memory.',
+      warning: 'Do not answer with abstract principles when the interviewer is asking for a real example.',
+      script: 'Name one real example, one decision, and one result before you zoom out to the pattern.',
+      keyPoints: [
+        'Use one real example.',
+        'Name one decision.',
+        'End with one result.',
+      ],
+    }),
+  ]
+
+  for (const template of genericTemplates) {
+    if (fallbackCards.length >= 3) break
+    addCard(template)
+  }
+
+  return fallbackCards
+}
+
+function ensureLandmineCards(
+  cards: PrepCard[],
+  request: PrepGenerationRequest,
+  stackAlignment: PrepStackAlignmentRow[] | undefined,
+  candidateMetrics: PrepIdentityMetricCandidate[] | undefined,
+  fallbackCandidateMetrics: PrepIdentityMetricCandidate[] | undefined,
+): PrepCard[] {
+  const normalizedCards = cards.map((card) => canonicalizeTaggedCard(card, LANDMINE_TAG))
+  const fallbackCards = buildLandmineFallbackCards(
+    request,
+    candidateMetrics,
+    fallbackCandidateMetrics,
+    stackAlignment,
+    normalizedCards,
+  )
+  const mergedCards = [...normalizedCards, ...fallbackCards]
+  const landmineIds = new Set(
+    mergedCards
+      .filter((card) => isTaggedCard(card, LANDMINE_TAG))
+      .slice(0, 5)
+      .map((card) => card.id),
+  )
+
+  return mergedCards.filter(
+    (card) => !isTaggedCard(card, LANDMINE_TAG) || landmineIds.has(card.id),
+  )
+}
+
 export async function generateInterviewPrep(
   endpoint: string,
   request: PrepGenerationRequest,
@@ -816,10 +1098,12 @@ Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullet
 Generate dedicated opener cards for the predictable opening questions instead of a single generic opener bucket.
 - Always include a "Tell me about yourself" opener card. If identity context is too thin for a trustworthy script, use [[fill-in: your through-line]] instead of inventing one.
 - Always include a "Why this role/company?" opener card grounded in the job description and company research. If the motivation proof is thin, use [[needs-review]] or [[fill-in: why this company now]] instead of guessing.
-- Include a "Why did you leave your last role?" opener card when departure context is available in structured identity context or contextGapAnswers.
-- When departure context is missing but the answer matters, add a contextGap for identity.departureContext or use a [[fill-in: your departure reason]] placeholder in that opener instead of inventing a reason.
-- Title opener cards clearly so they can render as standalone live sections, and keep each opener script to roughly 75 seconds with a 2 minute answer budget.
-- Add timeBudgetMinutes to every card so live mode can track section budgets. Use realistic interview timing: openers 1.5 to 2 minutes, behavioral/project answers 2 to 3 minutes, technical answers 3 to 5 minutes, situational answers 2 to 3 minutes, and metrics/reference answers 1 to 2 minutes.
+  - Include a "Why did you leave your last role?" opener card when departure context is available in structured identity context or contextGapAnswers.
+  - When departure context is missing but the answer matters, add a contextGap for identity.departureContext or use a [[fill-in: your departure reason]] placeholder in that opener instead of inventing a reason.
+  - Title opener cards clearly so they can render as standalone live sections, and keep each opener script to roughly 75 seconds with a 2 minute answer budget.
+  - Generate 3 to 5 landmine cards tagged "landmine" that capture predicted traps, risky follow-ups, and places the candidate may overclaim or go generic. Keep them concise, specific, and grounded in the supplied evidence.
+  - Preserve the existing intel-tag people cards; do not reclassify named-person intel as landmines.
+  - Add timeBudgetMinutes to every card so live mode can track section budgets. Use realistic interview timing: openers 1.5 to 2 minutes, behavioral/project answers 2 to 3 minutes, technical answers 3 to 5 minutes, situational answers 2 to 3 minutes, and metrics/reference answers 1 to 2 minutes.
 If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
@@ -896,9 +1180,15 @@ Return JSON only (inside the tags).`
   }
 
   const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
-  const cards = ensureGapFramingCards(
-    normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : []),
+  const cards = ensureLandmineCards(
+    ensureGapFramingCards(
+      normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : []),
+      stackAlignment,
+    ),
+    request,
     stackAlignment,
+    candidateMetrics,
+    fallbackCandidateMetrics,
   )
   if (!isString(parsed.deckTitle) || cards.length === 0) {
     throw new Error('Interview prep response schema was invalid.')

@@ -158,6 +158,33 @@ const mockDeck: PrepDeck = {
       script: 'I would optimize for customer impact first.',
       warning: 'Do not over-rotate into hypotheticals without data.',
     },
+    {
+      id: 'card-landmine-1',
+      category: 'technical',
+      title: 'Landmine: overstate Kubernetes',
+      tags: ['landmine'],
+      notes: 'You know the orchestration layer, but not every production detail.',
+      script: 'Be precise about the pieces you operated and the pieces you only observed.',
+      warning: 'Do not imply direct Kubernetes ownership if your evidence is adjacent.',
+    },
+    {
+      id: 'card-landmine-2',
+      category: 'metrics',
+      title: 'Landmine: cite a number you cannot defend',
+      tags: ['landmine'],
+      notes: 'Every number needs a source and a denominator.',
+      script: 'Have the source, the denominator, and the change ready before you speak the stat.',
+      warning: 'Do not volunteer a metric you cannot explain on follow-up.',
+    },
+    {
+      id: 'card-landmine-3',
+      category: 'opener',
+      title: 'Landmine: give a generic why this role answer',
+      tags: ['landmine'],
+      notes: 'The motivation answer should sound specific to this role, not interchangeable.',
+      script: 'Lead with the exact fit, then add one company-specific reason the move matters.',
+      warning: 'Do not make the answer sound like it could fit any company.',
+    },
   ],
 }
 
@@ -223,15 +250,26 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('Lead with specifics.')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Intel' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+    expect(screen.getAllByRole('heading', { name: 'Landmines' })).toHaveLength(2)
     expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Technical' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Tactical' })).toBeTruthy()
+    const groupHeadings = Array.from(container.querySelectorAll('.prep-live-section-group-title')).map((node) => node.textContent)
+    expect(groupHeadings).toEqual(
+      expect.arrayContaining(['Intel', 'Openers', 'Landmines', 'Core', 'Technical', 'Tactical']),
+    )
+    expect(groupHeadings.indexOf('Openers')).toBeLessThan(groupHeadings.indexOf('Landmines'))
+    expect(groupHeadings.indexOf('Landmines')).toBeLessThan(groupHeadings.indexOf('Core'))
+    expect(groupHeadings.indexOf('Landmines')).toBeLessThan(groupHeadings.indexOf('Technical'))
     expect(screen.getByRole('heading', { name: 'Questions to Ask' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: "Don'ts" })).toBeTruthy()
     expect(screen.getByText('Your Work')).toBeTruthy()
     expect(screen.getByText('Their Company')).toBeTruthy()
     expect(screen.getByText('Incident reduction')).toBeTruthy()
     expect(screen.getByText('Core platform bets')).toBeTruthy()
+    const landmineSection = container.querySelector('.prep-live-section-landmine')
+    expect(landmineSection?.textContent).toContain('Landmine: overstate Kubernetes')
+    expect(landmineSection?.textContent).toContain('Do not imply direct Kubernetes ownership')
     expect(getSectionContainer('Tell me about yourself')).toBeTruthy()
     expect(getSectionContainer('Why this role/company?')).toBeTruthy()
     expect(getSectionContainer('Why did you leave your last role?')).toBeTruthy()

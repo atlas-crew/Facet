@@ -716,6 +716,7 @@
   --prep-live-tone-project: color-mix(in srgb, var(--accent-primary) 58%, var(--accent-cyan));
   --prep-live-tone-metrics: var(--warning);
   --prep-live-tone-situational: color-mix(in srgb, var(--accent-orange) 74%, var(--warning));
+  --prep-live-tone-landmine: var(--status-critical);
   --prep-live-tone-warnings: var(--status-critical);
   display: flex;
   height: 100%;
@@ -1243,6 +1244,7 @@
 .prep-live-tone-project { background: var(--prep-live-tone-project); }
 .prep-live-tone-metrics { background: var(--prep-live-tone-metrics); }
 .prep-live-tone-situational { background: var(--prep-live-tone-situational); }
+.prep-live-tone-landmine { background: var(--prep-live-tone-landmine); }
 .prep-live-tone-warnings { background: var(--prep-live-tone-warnings); }
 
 .prep-live-nav-link {
@@ -1282,6 +1284,7 @@
 .prep-live-nav-link-project { border-left-color: var(--prep-live-tone-project); }
 .prep-live-nav-link-metrics { border-left-color: var(--prep-live-tone-metrics); }
 .prep-live-nav-link-situational { border-left-color: var(--prep-live-tone-situational); }
+.prep-live-nav-link-landmine { border-left-color: var(--prep-live-tone-landmine); }
 .prep-live-nav-link-warnings { border-left-color: var(--prep-live-tone-warnings); }
 
 .prep-live-nav-copy {
@@ -1358,6 +1361,7 @@
 .prep-live-section-project { border-top: 4px solid var(--prep-live-tone-project); }
 .prep-live-section-metrics { border-top: 4px solid var(--prep-live-tone-metrics); }
 .prep-live-section-situational { border-top: 4px solid var(--prep-live-tone-situational); }
+.prep-live-section-landmine { border-top: 4px solid var(--prep-live-tone-landmine); }
 .prep-live-section-warnings { border-top: 4px solid var(--prep-live-tone-warnings); }
 
 .prep-live-section-active {
@@ -1517,6 +1521,10 @@
 .prep-live-scan-badge-situational {
   background: color-mix(in srgb, var(--prep-live-tone-situational) 18%, transparent);
   color: color-mix(in srgb, var(--prep-live-tone-situational) 84%, var(--text-primary));
+}
+.prep-live-scan-badge-landmine {
+  background: color-mix(in srgb, var(--prep-live-tone-landmine) 18%, transparent);
+  color: color-mix(in srgb, var(--prep-live-tone-landmine) 84%, var(--text-primary));
 }
 .prep-live-scan-badge-warnings {
   background: color-mix(in srgb, var(--prep-live-tone-warnings) 18%, transparent);
@@ -1697,6 +1705,10 @@
   box-shadow: inset 3px 0 0 var(--prep-live-tone-project);
 }
 
+.prep-live-card-block-landmine {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-landmine);
+}
+
 .prep-live-card-block-header {
   display: flex;
   align-items: flex-start;
@@ -1766,6 +1778,17 @@
 
 .prep-live-card-block-opener .prep-live-callout-script {
   background: linear-gradient(180deg, color-mix(in srgb, var(--success) 16%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 94%, transparent) 100%);
+}
+
+.prep-live-card-block-landmine .prep-live-callout-script {
+  border-color: color-mix(in srgb, var(--status-critical) 28%, var(--border-subtle));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--status-critical) 12%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 94%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--status-critical) 10%, transparent);
+}
+
+.prep-live-card-block-landmine .prep-live-callout-script .prep-live-callout-label {
+  background: color-mix(in srgb, var(--status-critical) 12%, transparent);
+  color: var(--status-critical);
 }
 
 .prep-live-callout-warning .prep-live-callout-label {

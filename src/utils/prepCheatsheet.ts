@@ -1,7 +1,7 @@
 import { PREP_CATEGORY_VALUES, isPrepStackAlignmentConfidence } from '../types/prep'
 import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepQuestionToAsk, PrepStackAlignmentRow } from '../types/prep'
 
-export type PrepCheatsheetGroup = 'Intel' | 'Openers' | 'Core' | 'Technical' | 'Tactical'
+export type PrepCheatsheetGroup = 'Intel' | 'Openers' | 'Landmines' | 'Core' | 'Technical' | 'Tactical'
 export type PrepOpenerKind = 'tell-me-about-yourself' | 'why-this-role-company' | 'why-did-you-leave' | 'general'
 
 type CanonicalOpenerKind = Exclude<PrepOpenerKind, 'general'>
@@ -356,7 +356,12 @@ function getOpenerSectionMeta(card: PrepCard, id: string): {
 export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSection[] {
   // Imported decks can briefly exist before store normalization restores cards. Keep cheatsheet derivation resilient during that window.
   const cards = Array.isArray(deck.cards) ? deck.cards : []
-  const cardsByCategory = cards.reduce<Record<PrepCategory, PrepCard[]>>(
+  const landmineCards = cards.filter((card) =>
+    (card.tags ?? []).some((tag) => tag.trim().toLowerCase() === 'landmine'),
+  )
+  const cardsByCategory = cards
+    .filter((card) => !landmineCards.includes(card))
+    .reduce<Record<PrepCategory, PrepCard[]>>(
     (map, card) => {
       const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
       map[category].push(card)
@@ -451,6 +456,20 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
     .map(({ section }) => section)
 
   sections.push(...openerSections)
+
+  if (landmineCards.length > 0) {
+    sections.push(
+      withSectionMeta(deck, {
+        id: 'landmines',
+        title: 'Landmines',
+        description: 'Predicted traps and sharp edges to watch for before you answer.',
+        items: buildCardItems(landmineCards),
+        timeBudgetMinutes: sumCardTimeBudgets(landmineCards, 1),
+        guidance: 'Treat these as the interviewer pressure points where a sharp follow-up is most likely.',
+        group: 'Landmines',
+      }),
+    )
+  }
 
   const categorySections: Record<Exclude<PrepCategory, 'metrics' | 'opener'>, { title: string; description: string }> = {
     behavioral: { title: 'Behavioral Stories', description: 'Leadership, collaboration, conflict, and ownership examples.' },

@@ -52,6 +52,7 @@ const SECTION_META: Record<string, { defaultTimeBudgetMinutes?: number; shortcut
   metrics: { defaultTimeBudgetMinutes: 2, shortcut: 'M', tone: 'metrics', phase: 'pre' },
   warnings: { defaultTimeBudgetMinutes: 1.5, shortcut: 'W', tone: 'warnings', phase: 'pre' },
   opener: { defaultTimeBudgetMinutes: 2, tone: 'opener', phase: 'live' },
+  landmines: { defaultTimeBudgetMinutes: 4, tone: 'landmine', phase: 'live' },
   behavioral: { defaultTimeBudgetMinutes: 3, shortcut: '6', tone: 'behavioral', phase: 'live' },
   project: { defaultTimeBudgetMinutes: 3, shortcut: '7', tone: 'project', phase: 'live' },
   technical: { defaultTimeBudgetMinutes: 4, shortcut: '8', tone: 'technical', phase: 'live' },
@@ -72,7 +73,7 @@ const LIVE_SHORTCUT_KEYS = {
   lastSection: ['l', 'L', 'End'],
 } as const
 
-const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = ['Intel', 'Openers', 'Core', 'Technical', 'Tactical']
+const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = ['Intel', 'Openers', 'Landmines', 'Core', 'Technical', 'Tactical']
 const PREP_LIVE_COMPACT_MODE_STORAGE_KEY = 'facet-prep-live-compact-mode'
 const BASE_SHORTCUT_BAR = [
   { keys: 'Space', label: 'Start / Pause' },

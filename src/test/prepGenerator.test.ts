@@ -203,6 +203,8 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('return a stackAlignment table')
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
     expect(userPrompt).toContain('tag "gap-framing"')
+    expect(userPrompt).toContain('Generate 3 to 5 landmine cards tagged "landmine"')
+    expect(userPrompt).toContain('Preserve the existing intel-tag people cards')
     expect(userPrompt).toContain('include conditionals')
     expect(userPrompt).toContain('imperative one-liners')
     expect(userPrompt).toContain(
@@ -752,13 +754,57 @@ describe('generateInterviewPrep', () => {
 
     expect(result.deckTitle).toBe('Acme Staff Engineer Prep')
     expect(result.companyResearchSummary).toBe('Acme is scaling carefully.')
-    expect(result.cards).toHaveLength(1)
+    expect(result.cards).toHaveLength(4)
     expect(result.cards[0]).toMatchObject({
       category: 'opener',
       title: 'Tell me about yourself',
       script: 'I build reliable systems.',
       keyPoints: ['Lead with platform depth', 'Close with outcomes'],
     })
+    expect(result.cards.filter((card) => card.tags.includes('landmine'))).toHaveLength(3)
+  })
+
+  it('adds fallback landmine cards when the model omits them and preserves intel tags', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        stackAlignment: [
+          {
+            theirTech: 'Go',
+            yourMatch: 'Mostly adjacent systems debugging experience.',
+            confidence: 'Adjacent experience',
+          },
+        ],
+        cards: [
+          {
+            category: 'situational',
+            title: 'Named people intel',
+            tags: ['intel'],
+            script: 'Focus on the hiring manager and team shape.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    const landmineCards = result.cards.filter((card) => card.tags.includes('landmine'))
+    const intelCards = result.cards.filter((card) => card.tags.includes('intel'))
+
+    expect(landmineCards).toHaveLength(3)
+    expect(intelCards).toHaveLength(1)
   })
 
   it('adds fallback technical gap-framing cards when alignment shows gaps and the model omits them', async () => {
@@ -936,7 +982,7 @@ describe('generateInterviewPrep', () => {
       },
     })
 
-    expect(result.cards).toHaveLength(1)
+    expect(result.cards).toHaveLength(4)
     expect(result.cards[0].category).toBe('technical')
     expect(result.cards[0].tags).toEqual(['gap-framing'])
   })
@@ -980,7 +1026,7 @@ describe('generateInterviewPrep', () => {
       },
     })
 
-    expect(result.cards).toHaveLength(2)
+    expect(result.cards).toHaveLength(5)
     expect(
       result.cards.filter((card) => card.tags.includes('gap-framing')),
     ).toHaveLength(1)
@@ -1023,7 +1069,7 @@ describe('generateInterviewPrep', () => {
       },
     })
 
-    expect(result.cards).toHaveLength(1)
+    expect(result.cards).toHaveLength(4)
     expect(result.cards[0].category).toBe('technical')
     expect(
       result.cards[0].tags.filter((tag) => tag === 'gap-framing'),
