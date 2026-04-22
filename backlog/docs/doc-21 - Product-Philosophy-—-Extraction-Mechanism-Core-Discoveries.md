@@ -3,7 +3,7 @@ id: doc-21
 title: Product Philosophy — Extraction Mechanism & Core Discoveries
 type: other
 created_date: '2026-04-16 11:00'
-updated_date: '2026-04-16 11:28'
+updated_date: '2026-04-19 05:24'
 ---
 # Product Philosophy — Extraction Mechanism & Core Discoveries
 
@@ -35,26 +35,58 @@ Implications for product design:
 
 ---
 
-## Discovery 2: Iterative Extraction Produces Level-Correction
+## Discovery 2: Explanatory Correction Produces Level-Correction
 
-Multiple passes through the extraction loop surface a professional narrative at a HIGHER level than the user would self-report. People undersell themselves — not from modesty, but because they're too close to their own work to see the patterns.
+Multiple passes through the extraction loop surface a professional narrative at a HIGHER level than the user would self-report. The specific mechanism:
 
-Example: The AI identifies "you built four platforms end-to-end across two companies" and surfaces the "Builder" archetype. The user would have said "I'm a platform engineer." In the founder's case, this produced "pretty dramatic level-correction."
+1. AI generates resume with assumptions
+2. User sees an assumption or oversimplification
+3. User explains WHY they did what they did — not just "that's wrong" but the reasoning, constraints, and decision-making
+4. AI realizes the judgment was more sophisticated than the resume reflected
+5. AI level-corrects: "you described this as senior work but the scope, autonomy, and decision-making you just explained is staff-level"
+
+**The correction isn't just factual — it's explanatory.** Two examples:
+
+- **Factual correction:** "That's wrong, I used Fargate not EC2" → fixes a fact, doesn't reveal judgment
+- **Explanatory correction:** "I chose Fargate because I identified that per-tenant VPCs were costing $120K/mo and I designed a shared-compute architecture with VPC peering for isolation — the migration saved $60K/mo" → reveals the engineering judgment the resume undersold
+
+The explanatory correction reveals decision-making sophistication the user wouldn't have written unprompted. **When someone writes from scratch, they write at the level they think they are. When they correct an underestimate, they explain themselves into the level they actually are.**
 
 This has profound implications:
 - Facet doesn't just format what users already know about themselves — it reveals what they don't
 - The product creates genuine new value through the extraction process itself
 - Level-correction is a powerful differentiator: no competitor does this because they don't have the iterative extraction loop
+- The AI must generate output that's close enough to be worth correcting but imperfect enough to trigger the explanatory response
 
 ---
 
-## Discovery 3: Fresh Context Windows Improve AI's Own Work
+## Discovery 3: Fresh-Context Self-Critique (The Author/Editor Split)
 
-When the AI re-reads its previous output in a new context window, it makes significant improvements without additional user input. The multi-pass architecture benefits both:
-- **User side**: more context extracted per iteration
-- **AI side**: each fresh-context review improves synthesis quality
+When the AI re-reads its OWN previous output in a new context window — without remembering it was the author — it critiques sharply and produces a significantly better version. This is the "editor vs. author" phenomenon: authors are blind to their own work's weaknesses; a fresh reader sees them immediately.
 
-This suggests that Facet's architecture should intentionally create opportunities for the AI to review its own prior output with fresh context — not just as a user-facing feature, but as an internal quality mechanism.
+**The specific mechanism:**
+
+1. AI generates a resume or LinkedIn bio
+2. Time passes. New context accumulates — user expressed new goals, corrected other assumptions, identity model deepened
+3. User shows the AI its own previous output in a new context window
+4. AI reviews with fresh eyes + updated understanding of the user's goals and identity
+5. AI critiques sharply — sees weaknesses it was blind to as the author
+6. AI produces a significantly improved version, optimized for the user's CURRENT target
+
+**This produced measurable results:** A LinkedIn bio rewritten with a fresh-context pass optimized for "founding engineer" started producing highly relevant recruiter inbound within 24 hours.
+
+**Why this works:** The AI-as-author is constrained by the reasoning path that produced the original output. The AI-as-editor starts from the output itself and evaluates it against the current best understanding of the user. These are structurally different cognitive processes. The editor catches problems the author literally cannot see.
+
+**Product implications:**
+
+The architecture should intentionally create opportunities for the AI to review its own prior output with fresh context:
+
+- **"Refresh" action** on existing resumes/bios/prep — re-evaluate with latest identity context but without memory of authoring the original
+- **Periodic self-critique** — when the identity model changes (new corrections, new depth data, new goals), prompt a fresh-context pass on existing artifacts
+- **Multi-model review** — use a different model or temperature setting for the critique pass to maximize the "fresh eyes" effect
+- **Version diff** — show users what changed and WHY, so the improvement is visible and educational
+
+This is not the same as "regenerate." Regeneration starts from scratch. Fresh-context critique starts from the existing output and improves it — preserving what works, fixing what doesn't, and reoptimizing for current goals.
 
 ---
 
@@ -147,6 +179,16 @@ Voice is the top of the stack — the most defensible and the most valuable for 
 
 ---
 
+## The Engagement Threshold
+
+The product requires a certain level of user engagement and commitment to work. The reference interview prep docs (Unanet HM prep, Blackstone R3 prep) prove that with deep enough context, every downstream output is dramatically better than any competitor. But "deep enough" requires the user to invest: build out career history with real detail, go through multiple correction cycles, be honest about gaps/depths, populate preferences and voice.
+
+The $149/90-day pass is a commitment filter — buyers are in an active job search with real urgency. They'll engage. The risk is users who load a resume, get a decent but not magical first pass, and stop before the correction cycles compound.
+
+**The UX must make corrections feel like visible progress, not friction.** Each correction should show immediate impact downstream: "you fixed your Kubernetes depth → your search thesis updated → your prep cards now correctly frame K8s."
+
+---
+
 ## Core UX Philosophy: Seed → Correct → Converge
 
 This pattern applies at every layer of the product:
@@ -157,6 +199,30 @@ This pattern applies at every layer of the product:
 - Every layer starts with a working default and converges toward the user through corrections
 - The AI generates, the user corrects, the system learns
 - The product gets more personal with every interaction — no settings pages, no questionnaires
+
+---
+
+## The Two Improvement Mechanisms (Resume/Bio Quality)
+
+### Mechanism A: Explanatory Correction → Level-Correction
+The user corrects an assumption by explaining their reasoning. The explanation reveals judgment the resume undersold. The AI level-corrects upward.
+
+**Example:** AI writes "managed Kubernetes deployments." User corrects: "I chose Fargate over K8s because per-tenant VPCs were bleeding $120K/mo — I designed shared-compute with VPC peering for isolation." AI responds: "that's staff-level infrastructure decision-making, not senior ops work."
+
+**When to trigger in product:** During initial resume building, during identity extraction, during search thesis generation (skill depth correction).
+
+### Mechanism B: Fresh-Context Self-Critique → Reoptimization
+The AI reviews its own previous output without remembering it authored it. With fresh eyes and updated context, it critiques sharply and produces a better version.
+
+**Example:** LinkedIn bio written 2 weeks ago. User's goals have shifted to "founding engineer." AI reviews bio in new context: "this undersells the solo shipping speed and overemphasizes team leadership — for founding engineer positioning, lead with the 4-platforms-in-11-months story." Rewritten bio produces relevant inbound within 24 hours.
+
+**When to trigger in product:**
+- When identity model changes significantly (new corrections, new goals)
+- When user switches target vector
+- As a periodic "refresh" action on stale artifacts
+- After search thesis generation reveals new positioning angles
+
+Both mechanisms are extraction multipliers. Mechanism A extracts depth FROM the user. Mechanism B extracts quality from the AI's own prior work. Together they create a ratchet: each pass is strictly better than the last.
 
 ---
 
