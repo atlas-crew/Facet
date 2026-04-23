@@ -27,7 +27,7 @@ Facet's career data is potentially the most valuable asset the company builds. U
 | **Who wants it** | Nobody should, except the user | Recruiters, career coaches, market researchers, the users themselves |
 | **Value** | Only to the individual | Massive at scale — "Bloomberg of careers" potential |
 | **Privacy risk** | Identity, comp, career intentions exposed | Re-identification if not properly anonymized |
-| **Policy** | **Never accessed, encrypted, user-owned, exportable, deletable** | **Opt-in only, anonymized, powers intelligence features** |
+| **Policy** | **Encrypted at rest, user-owned, exportable, deletable, never accessed by operators** | **Opt-in only, anonymized, powers intelligence features** |
 
 You can be maximally private on individual data while building a data moat on aggregate intelligence. These don't have to be the same decision.
 
@@ -101,7 +101,7 @@ The self-hosted option *proves* you respect privacy, which makes the hosted opt-
 ## Phased Rollout
 
 ### Phase 0–1 (0 → 3K users): Build Trust
-- Individual data: encrypted, never accessed, exportable, deletable. Make this provable and loud.
+- Individual data: encrypted at rest via managed Postgres (AES-256 on disk), never accessed by Facet staff (policy-enforced; RLS prevents admin paths from returning user data, audit logs record any service-role access), exportable on demand, hard-deletable via account deletion (cascade removes all tenant data). Make this provable: publish the RLS policies and the anonymization function (AGPL — source-visible). Client-side end-to-end encryption is explicitly deferred — it conflicts with the opt-in anonymized aggregate strategy and creates password-loss-equals-data-loss churn.
 - Aggregate sharing: opt-in, clearly explained, off by default
 - Don't build intelligence features yet — insufficient data
 - **Goal: trust accumulation, not data accumulation**
