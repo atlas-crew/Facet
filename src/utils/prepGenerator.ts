@@ -16,6 +16,8 @@ import type {
   PrepGenerationResult,
   PrepIdentityMetricCandidate,
   PrepDeck,
+  PrepInterviewer,
+  PrepInterviewerIntel,
   PrepMetric,
   PrepNumbersToKnow,
   PrepPipelineResearchPersonContext,
@@ -53,6 +55,7 @@ interface PrepGenerationPayload {
   questionsToAsk?: PrepQuestionToAsk[]
   numbersToKnow?: PrepNumbersToKnow
   stackAlignment?: PrepStackAlignmentRow[]
+  interviewers?: PrepInterviewer[]
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   cards: Array<Omit<PrepCard, 'id'>>
@@ -579,10 +582,63 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
                   : [],
               }
             : undefined,
+        interviewerIds: normalizeStringList(record.interviewerIds),
         source: 'ai',
       },
     ]
   })
+}
+
+function normalizeInterviewers(value: unknown): PrepInterviewer[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const interviewers = value.flatMap((entry): PrepInterviewer[] => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    if (!isString(record.name) || !record.name.trim()) return []
+
+    const intelRaw =
+      record.intel && typeof record.intel === 'object'
+        ? (record.intel as Record<string, unknown>)
+        : {}
+    const pickIntelString = (key: keyof PrepInterviewerIntel): string | undefined => {
+      const raw = intelRaw[key]
+      if (!isString(raw)) return undefined
+      const trimmed = raw.trim()
+      return trimmed || undefined
+    }
+    const intel: PrepInterviewerIntel = {
+      role: pickIntelString('role'),
+      background: pickIntelString('background'),
+      stack: pickIntelString('stack'),
+      caresAbout: pickIntelString('caresAbout'),
+      yourAngle: pickIntelString('yourAngle'),
+      keyTell: pickIntelString('keyTell'),
+      linkedInPositioning: pickIntelString('linkedInPositioning'),
+      education: pickIntelString('education'),
+    }
+
+    const providedId = isString(record.id) ? record.id.trim() : ''
+    const id = providedId || createId('prep-interviewer')
+    const title = isString(record.title) ? record.title.trim() || undefined : undefined
+    const linkedInUrl = isString(record.linkedInUrl)
+      ? record.linkedInUrl.trim() || undefined
+      : undefined
+    const lineThatLands = isString(record.lineThatLands)
+      ? record.lineThatLands.trim() || undefined
+      : undefined
+
+    return [
+      {
+        id,
+        name: record.name.trim(),
+        title,
+        linkedInUrl,
+        intel,
+        lineThatLands,
+      },
+    ]
+  })
+  return interviewers.length > 0 ? interviewers : undefined
 }
 
 const OPENING_TIME_GUIDANCE_PATTERN =
@@ -1443,7 +1499,10 @@ You are not just generating scripts — you are coaching the candidate on WHY ea
 
 3. Strategic Framing (categoryGuidance): When writing categoryGuidance, include interview-dynamic coaching based on context clues. If positioning notes suggest the company reached out first (recruiter inbound, "they contacted me", etc.), include: "They reached out to you — they already believe there's fit. This conversation is 'do I want to work with this person and can they do the job?' not 'convince me you belong here.' Be conversational, not performative." If the candidate applied cold, include: "You applied to them — you need to earn attention in the first 2 minutes. Lead with specificity: why THIS company, why THIS role, what makes you different from the 200 other applicants."
 
-4. Named People Intel: When companyResearch mentions specific people by name and title, generate a dedicated card with category "situational" and tag "intel" that structures their information. For each person, infer their likely role in the interview: "SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off" or "Sr. Director Engineering — most likely the hiring manager for this role." If the hiring manager or interviewer is identified, add dynamic coaching: "This person likely cares about X based on their title. Frame your answers accordingly."
+4. Named People Intel: When companyResearch or pipeline entry research mentions specific people by name, emit BOTH of the following:
+   (a) A structured "interviewers" entry at the deck level for each person. Populate the intel grid (role, background, stack, caresAbout, yourAngle, keyTell, linkedInPositioning, education) only from what the research actually supports — leave a field undefined rather than invent one. Always provide a "lineThatLands" one-liner tuned to the specific concern this person will evaluate, grounded in intel.caresAbout. The line must mirror their known concern back at them ("I have real empathy for on-call burden — ...") — no generic platitudes.
+   (b) A dedicated card with category "situational", tag "intel", and an "interviewerIds" array containing that interviewer's id, linking the card to the structured record. Keep the card compact: the "interviewers" entry supplies the grid; the card is the deck-level anchor and can carry a "warning" (what not to do with this person) plus delivery coaching in "notes".
+   For each person also infer their likely role in the interview ("SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off"). If the hiring manager or interviewer is identified, add dynamic coaching based on their title.
 
 5. Competitive Positioning: When the candidate's skills include combinations that are market-rare or unusually valuable for this specific role, generate a notes or deepDives entry explaining WHY it's rare. Example: "GitLab admin experience is genuinely uncommon — most candidates have GitHub Actions or Jenkins. The fact that you administered the instance, not just consumed it, is a differentiator. Lean into it." Or: "The Python + C# combination is rare at production depth. Most engineers live in one ecosystem. This matters at companies with mixed stacks." Look for 2-3 such combinations per deck and call them out explicitly.
 When the deck has depth gaps, make sure at least 2 cards are landmine or gap-framing cards to keep the candidate honest about risk.
@@ -1464,6 +1523,25 @@ Response schema:
       "theirTech": "string",
       "yourMatch": "string",
       "confidence": "Strong|Solid|Working knowledge|Adjacent experience|Gap"
+    }
+  ],
+  "interviewers": [
+    {
+      "id": "string (stable slug; referenced by card.interviewerIds)",
+      "name": "string",
+      "title": "optional string",
+      "linkedInUrl": "optional string",
+      "intel": {
+        "role": "optional string",
+        "background": "optional string",
+        "stack": "optional string",
+        "caresAbout": "optional string",
+        "yourAngle": "optional string",
+        "keyTell": "optional string",
+        "linkedInPositioning": "optional string",
+        "education": "optional string"
+      },
+      "lineThatLands": "optional string — tuned one-liner grounded in intel.caresAbout"
     }
   ],
   "contextGaps": [
@@ -1500,6 +1578,7 @@ Response schema:
       "deepDives": [{ "title": "string", "content": "string" }],
       "conditionals": [{ "trigger": "string", "response": "string", "tone": "pivot|trap|escalation" }],
       "metrics": [{ "value": "string", "label": "string" }],
+      "interviewerIds": "optional string[] — ids from deck.interviewers this card is tuned for (intel cards should have exactly one)",
       "tableData": {
         "headers": ["string"],
         "rows": [["string"]]
@@ -1703,6 +1782,7 @@ Return JSON only (inside the tags).`
     roundType: request.roundType,
     notes: request.notes,
     companyResearch: request.companyResearch,
+    interviewers: normalizeInterviewers(parsed.interviewers),
     jobDescription: request.jobDescription,
     rules: normalizeStringList(parsed.rules),
     donts: normalizeStringList(parsed.donts),
