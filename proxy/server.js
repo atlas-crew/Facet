@@ -34,13 +34,14 @@ server.listen(PORT, HOST, () => {
   console.log(`Proxy auth: ${PROXY_API_KEY ? 'configured' : 'NOT SET'}`)
   console.log('Persistence API: GET/POST /api/persistence/workspaces and GET/PUT/PATCH/DELETE /api/persistence/workspaces/:workspaceId')
   if (AUTH_MODE === 'hosted') {
-    console.log(
-      `Hosted auth: ${
-        process.env.SUPABASE_JWKS_URL && process.env.HOSTED_WORKSPACE_FILE
-          ? 'configured'
-          : 'INCOMPLETE'
-      }`,
-    )
+    // Hosted auth needs a JWKS endpoint for JWT verification plus a membership
+    // store — either file-backed (HOSTED_WORKSPACE_FILE) or Postgres-backed
+    // (DATABASE_URL). Previously this check only recognized the file path,
+    // causing the banner to misreport 'INCOMPLETE' on Postgres-backed deploys.
+    const hostedAuthConfigured =
+      process.env.SUPABASE_JWKS_URL &&
+      (process.env.HOSTED_WORKSPACE_FILE || process.env.DATABASE_URL)
+    console.log(`Hosted auth: ${hostedAuthConfigured ? 'configured' : 'INCOMPLETE'}`)
   } else {
     console.log(
       `Persistence auth tokens: ${process.env.PERSISTENCE_AUTH_TOKENS ? 'configured' : 'default local dev token'}`,
