@@ -1574,7 +1574,7 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
         ) : null}
 
         {displayScript ? (
-          <section className="prep-live-callout prep-live-callout-script">
+          <section className="prep-live-callout prep-live-callout-script prep-live-callout-primary">
             <span className="prep-live-callout-label">Script</span>
             <p>{displayScript}</p>
           </section>

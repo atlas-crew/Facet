@@ -677,6 +677,22 @@ describe('PrepLiveMode', () => {
     expect(openerSection?.textContent).toContain('I lead backend platform work and enjoy scaling teams and systems.')
   })
 
+  it('treats the main spoken answer as the primary live callout', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const scriptCallout = screen
+      .getAllByText('This role connects the platform work I already love with a product scope that is still growing fast.')
+      .map((candidate) => candidate.closest('.prep-live-callout'))
+      .find((candidate) => candidate?.classList.contains('prep-live-callout-primary'))
+    const warningCallout = screen
+      .getAllByText('Do not make this sound interchangeable with any other staff role.')
+      .map((candidate) => candidate.closest('.prep-live-callout'))
+      .find(Boolean)
+
+    expect(scriptCallout?.className).toContain('prep-live-callout-primary')
+    expect(warningCallout?.className).not.toContain('prep-live-callout-primary')
+  })
+
   it('collapses and expands a rich section', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
