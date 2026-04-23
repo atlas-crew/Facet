@@ -446,6 +446,99 @@
   font-size: 13px;
 }
 
+.prep-contract-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: 12px;
+}
+
+.prep-contract-banner-error {
+  border: 1px solid color-mix(in srgb, var(--status-critical) 24%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-critical) 10%, transparent);
+}
+
+.prep-contract-banner-warning {
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--border-subtle));
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.prep-contract-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prep-contract-copy strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.prep-contract-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 760px;
+}
+
+.prep-contract-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prep-contract-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prep-contract-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.prep-contract-pill-error {
+  background: color-mix(in srgb, var(--status-critical) 14%, transparent);
+  color: var(--status-critical);
+}
+
+.prep-contract-pill-warning {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: color-mix(in srgb, var(--warning) 68%, var(--text-primary));
+}
+
+.prep-contract-more {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.prep-contract-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 .prep-context-gap-banner {
   display: flex;
   align-items: flex-start;

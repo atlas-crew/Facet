@@ -14,6 +14,7 @@ import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { parsePrepImport } from '../utils/prepImport'
 import { generateInterviewPrep } from '../utils/prepGenerator'
 import type { IdentityExtractionDraft } from '../types/identity'
+import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck } from '../types/prep'
 
 const navigateMock = vi.fn()
@@ -31,7 +32,7 @@ vi.mock('../utils/prepGenerator', () => ({
   generateInterviewPrep: vi.fn(),
 }))
 
-const createPipelineEntry = () => ({
+const createPipelineEntry = (): PipelineEntry => ({
   id: 'pipe-1',
   company: 'Acme Corp',
   role: 'Staff Engineer',
@@ -234,7 +235,7 @@ describe('PrepPage behavior follow-ups', () => {
     })
 
     await waitFor(() => {
-      const editedCard = screen.getByDisplayValue('Tell me about yourself, edited').closest('.prep-card')
+      const editedCard = screen.getByDisplayValue('Tell me about yourself, edited').closest('.prep-card') as HTMLElement | null
       expect(editedCard && within(editedCard).getByText('manual')).toBeTruthy()
     })
 
@@ -382,6 +383,130 @@ describe('PrepPage behavior follow-ups', () => {
 
     await waitFor(() => {
       expect(screen.getByText('AI service unavailable')).toBeTruthy()
+    })
+  })
+
+  it('persists contract violations on the deck and exposes a regenerate CTA', async () => {
+    vi.mocked(generateInterviewPrep)
+      .mockResolvedValueOnce({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+        rules: ['Lead with outcomes', 'Stay concise', 'Ground every claim'],
+        donts: [],
+        questionsToAsk: [],
+        numbersToKnow: undefined,
+        stackAlignment: undefined,
+        categoryGuidance: undefined,
+        contextGaps: [],
+        contractViolations: [
+          {
+            kind: 'missing-intel',
+            field: 'cards',
+            message: 'Company research contains named people, but the generated deck did not include a named-person intel card with role inference.',
+            severity: 'error',
+          },
+        ],
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['backend'],
+            script: 'I build resilient backend systems and lead platform improvements.',
+            warning: 'Keep it under 90 seconds.',
+            notes: 'Lead with the systems remit. Close on the kind of platform scope you want next.',
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+        rules: ['Lead with outcomes', 'Stay concise', 'Ground every claim'],
+        donts: [],
+        questionsToAsk: [],
+        numbersToKnow: undefined,
+        stackAlignment: undefined,
+        categoryGuidance: undefined,
+        contextGaps: [],
+        contractViolations: [],
+        cards: [
+          {
+            category: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['backend'],
+            script: 'I build resilient backend systems and lead platform improvements.',
+            warning: 'Keep it under 90 seconds.',
+            notes: 'Lead with the systems remit. Close on the kind of platform scope you want next.',
+          },
+        ],
+      } as never)
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Contract validation flagged 1 issue/i)).toBeTruthy()
+    })
+
+    expect(usePrepStore.getState().decks[0]?.contractViolations).toEqual([
+      expect.objectContaining({
+        kind: 'missing-intel',
+        field: 'cards',
+        severity: 'error',
+      }),
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Re-generate prep' }))
+
+    await waitFor(() => {
+      expect(vi.mocked(generateInterviewPrep)).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.queryByText(/Contract validation flagged 1 issue/i)).toBeNull()
+    })
+    expect(usePrepStore.getState().decks[0]?.contractViolations).toBeUndefined()
+  })
+
+  it('opens the source material editor when manual intel gaps need more research notes', async () => {
+    usePrepStore.getState().createDeck({
+      title: 'Manual intel prep',
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      pipelineEntryId: null,
+      companyResearch: 'Current notes',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      contractViolations: [
+        {
+          kind: 'missing-intel',
+          field: 'cards',
+          message: 'Named people were mentioned, but the deck still needs a role-inference intel card.',
+          severity: 'error',
+        },
+      ],
+      cards: [
+        {
+          id: 'card-manual-intel',
+          category: 'opener',
+          title: 'Tell me about yourself',
+          tags: ['backend'],
+          script: 'I build resilient backend systems and lead platform improvements.',
+        },
+      ],
+    })
+    usePrepStore.getState().setActiveMode('homework')
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit research notes' }))
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().activeMode).toBe('edit')
+    })
+
+    const researchField = screen.getByLabelText('Company research summary') as HTMLTextAreaElement
+    await waitFor(() => {
+      expect(document.activeElement).toBe(researchField)
     })
   })
 

@@ -29,6 +29,7 @@ import type {
   PrepCard,
   PrepCardRoundStatus,
   PrepCategory,
+  PrepContractViolation,
   PrepContextGap,
   PrepDeck,
   PrepRoundDebrief,
@@ -63,6 +64,10 @@ const CONTEXT_GAP_PRIORITY_LABELS: Record<PrepContextGap['priority'], string> = 
   required: 'Required',
   recommended: 'Recommended',
   optional: 'Optional',
+}
+const CONTRACT_VIOLATION_SEVERITY_ORDER: Record<PrepContractViolation['severity'], number> = {
+  error: 0,
+  warning: 1,
 }
 
 const ROUND_TYPE_LABELS: Record<string, string> = {
@@ -322,6 +327,18 @@ function buildPrepContextGapKey(gap: PrepContextGap): string {
   ].join('::')
 }
 
+function sortPrepContractViolations(violations: PrepContractViolation[] | undefined): PrepContractViolation[] {
+  return [...(violations ?? [])].sort((left, right) => {
+    const severityDelta = CONTRACT_VIOLATION_SEVERITY_ORDER[left.severity] - CONTRACT_VIOLATION_SEVERITY_ORDER[right.severity]
+    if (severityDelta !== 0) return severityDelta
+    const fieldDelta = left.field.localeCompare(right.field)
+    if (fieldDelta !== 0) return fieldDelta
+    const kindDelta = left.kind.localeCompare(right.kind)
+    if (kindDelta !== 0) return kindDelta
+    return left.message.localeCompare(right.message)
+  })
+}
+
 function shouldPromotePrepCardToManual(patch: Partial<PrepCard>): boolean {
   return USER_OWNED_PREP_CARD_FIELDS.some((field) => field in patch)
 }
@@ -339,6 +356,7 @@ export function PrepPage() {
   const search = useSearch({ strict: false }) as { vector?: string; skills?: string; q?: string }
   const importRef = useRef<HTMLInputElement>(null)
   const modeTabListRef = useRef<HTMLDivElement>(null)
+  const companyResearchFieldRef = useRef<HTMLTextAreaElement>(null)
   const currentReport = useMatchStore((state) => state.currentReport)
   const [query, setQuery] = useState(search.q ?? '')
   const [category, setCategory] = useState<PrepCategory | 'all'>('all')
@@ -363,6 +381,7 @@ export function PrepPage() {
   const [isDebriefEditorOpen, setIsDebriefEditorOpen] = useState(false)
   const [debriefMode, setDebriefMode] = useState<'quick' | 'card-review'>('quick')
   const [showMoreDebriefFields, setShowMoreDebriefFields] = useState(false)
+  const [pendingFocusTarget, setPendingFocusTarget] = useState<'companyResearch' | null>(null)
   const [debriefDraft, setDebriefDraft] = useState<PrepDebriefDraft>(() => buildPrepDebriefDraft(null, undefined))
   const previousCategoryCountRef = useRef(0)
   const previousContextGapSignatureRef = useRef('')
@@ -401,6 +420,25 @@ export function PrepPage() {
     [decks, activeDeckId],
   )
   const activeDeckRoundNumber = activeDeck?.roundNumber ?? (activeDeck?.pipelineEntryId ? 1 : undefined)
+  const activeDeckContractViolations = useMemo(
+    () => sortPrepContractViolations(activeDeck?.contractViolations),
+    [activeDeck?.contractViolations],
+  )
+  const activeDeckContractViolationCounts = useMemo(
+    () => ({
+      error: activeDeckContractViolations.filter((violation) => violation.severity === 'error').length,
+      warning: activeDeckContractViolations.filter((violation) => violation.severity === 'warning').length,
+    }),
+    [activeDeckContractViolations],
+  )
+  const hasPipelineIntelContractViolation = useMemo(
+    () => Boolean(activeDeck?.pipelineEntryId) && activeDeckContractViolations.some((violation) => violation.kind === 'missing-intel'),
+    [activeDeck?.pipelineEntryId, activeDeckContractViolations],
+  )
+  const hasManualIntelContractViolation = useMemo(
+    () => !activeDeck?.pipelineEntryId && activeDeckContractViolations.some((violation) => violation.kind === 'missing-intel'),
+    [activeDeck?.pipelineEntryId, activeDeckContractViolations],
+  )
   const activeDeckRoundDebrief = useMemo(
     () => activeDeckRoundNumber
       ? activeDeck?.roundDebriefs?.find((item) => item.round === activeDeckRoundNumber)
@@ -805,6 +843,7 @@ export function PrepPage() {
           stackAlignment: result.stackAlignment,
           categoryGuidance: result.categoryGuidance,
           contextGaps: result.contextGaps,
+          contractViolations: result.contractViolations,
           skillMatch: activeMatchMaterial.skillMatch,
           positioning: activeMatchMaterial.positioning,
           notes: activeMatchMaterial.notes,
@@ -893,6 +932,7 @@ export function PrepPage() {
         stackAlignment: result.stackAlignment,
         categoryGuidance: result.categoryGuidance,
         contextGaps: result.contextGaps,
+        contractViolations: result.contractViolations,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,
         positioning: selectedEntry.positioning || undefined,
@@ -984,6 +1024,28 @@ export function PrepPage() {
     if (!window.confirm(`Delete prep set "${activeDeck.title}"?`)) return
     deleteDeck(activeDeck.id)
   }, [activeDeck, deleteDeck])
+
+  const focusSourceMaterial = useCallback(() => {
+    setActiveMode('edit')
+    setEditGroupOpen((current) => ({
+      ...current,
+      sourceMaterial: true,
+    }))
+    setPendingFocusTarget('companyResearch')
+  }, [setActiveMode])
+
+  useEffect(() => {
+    if (pendingFocusTarget !== 'companyResearch' || activeMode !== 'edit' || !editGroupOpen.sourceMaterial) {
+      return
+    }
+    const field = companyResearchFieldRef.current
+    if (!field) return
+    if (typeof field.scrollIntoView === 'function') {
+      field.scrollIntoView({ block: 'center' })
+    }
+    field.focus()
+    setPendingFocusTarget(null)
+  }, [activeMode, editGroupOpen.sourceMaterial, pendingFocusTarget])
 
   const isHomeworkDisabled = !activeDeck || filteredCards.length === 0
   const isLiveDisabled = !activeDeck || activeDeck.cards.length === 0
@@ -1469,6 +1531,7 @@ export function PrepPage() {
         stackAlignment: result.stackAlignment ?? latestDeck.stackAlignment,
         categoryGuidance: result.categoryGuidance,
         contextGaps: result.contextGaps,
+        contractViolations: result.contractViolations,
         contextGapAnswers: (() => {
           const previousAnswers = latestDeck.contextGapAnswers ?? {}
           const previousGaps = latestDeck.contextGaps ?? []
@@ -1861,6 +1924,75 @@ export function PrepPage() {
         </div>
 
         {generationError && <div className="prep-error-banner">{generationError}</div>}
+        {activeDeck && activeDeckContractViolations.length > 0 ? (
+          <div
+            className={`prep-contract-banner prep-contract-banner-${activeDeckContractViolationCounts.error > 0 ? 'error' : 'warning'}`}
+            role={activeDeckContractViolationCounts.error > 0 ? 'alert' : 'status'}
+            aria-live={activeDeckContractViolationCounts.error > 0 ? 'assertive' : 'polite'}
+          >
+            <div className="prep-contract-copy">
+              <strong>
+                Contract validation flagged {activeDeckContractViolations.length} issue{activeDeckContractViolations.length === 1 ? '' : 's'} in this prep set.
+              </strong>
+              <p>
+                {activeDeckContractViolationCounts.error > 0
+                  ? `${activeDeckContractViolationCounts.error} error${activeDeckContractViolationCounts.error === 1 ? '' : 's'} need a cleaner generation pass before relying on this deck.`
+                  : 'The current deck passed hard checks but still has softer coaching warnings.'}
+                {activeDeckContractViolationCounts.warning > 0
+                  ? ` ${activeDeckContractViolationCounts.warning} warning${activeDeckContractViolationCounts.warning === 1 ? ' remains.' : ' remain.'}`
+                  : ''}
+                {' '}Re-generating will refresh AI-authored cards only.
+                {hasPipelineIntelContractViolation
+                  ? ' If the missing intel is about interviewers or named people, refresh the linked pipeline entry before trying again.'
+                  : hasManualIntelContractViolation
+                    ? ' If the missing intel is about named people or company context, focus the research notes before trying again.'
+                    : ''}
+              </p>
+              <ul className="prep-contract-list">
+                {activeDeckContractViolations.slice(0, 4).map((violation, index) => (
+                  <li key={`${violation.cardId ?? 'deck'}:${violation.field}:${violation.kind}:${index}`} className="prep-contract-item">
+                    <span className={`prep-contract-pill prep-contract-pill-${violation.severity}`}>
+                      {violation.severity === 'error' ? 'Error' : 'Warning'}
+                    </span>
+                    <span>{violation.message}</span>
+                  </li>
+                ))}
+              </ul>
+              {activeDeckContractViolations.length > 4 ? (
+                <div className="prep-contract-more">
+                  +{activeDeckContractViolations.length - 4} more validation note{activeDeckContractViolations.length - 4 === 1 ? '' : 's'} on this deck.
+                </div>
+              ) : null}
+            </div>
+            <div className="prep-contract-actions">
+              <button
+                type="button"
+                className="prep-btn prep-btn-primary"
+                onClick={() => void handleRegenerateWithGapAnswers()}
+                disabled={isGenerating || isGapModalOpen}
+              >
+                {isGenerating ? 'Refreshing…' : 'Re-generate prep'}
+              </button>
+              {hasPipelineIntelContractViolation ? (
+                <button
+                  type="button"
+                  className="prep-btn"
+                  onClick={() => void navigate({ to: '/pipeline' })}
+                >
+                  Open Pipeline
+                </button>
+              ) : hasManualIntelContractViolation ? (
+                <button
+                  type="button"
+                  className="prep-btn"
+                  onClick={focusSourceMaterial}
+                >
+                  Edit research notes
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {activeMode === 'homework' && activeDeck ? (
@@ -2562,6 +2694,7 @@ export function PrepPage() {
                     <label className="prep-field prep-field-span-2">
                       <span className="prep-field-label">Company research summary</span>
                       <textarea
+                        ref={companyResearchFieldRef}
                         className="prep-textarea"
                         value={activeDeck.companyResearch ?? ''}
                         onChange={(event) => updateActiveDeck({ companyResearch: event.target.value })}

@@ -287,6 +287,7 @@ export interface PrepDeck {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
+  contractViolations?: PrepContractViolation[]
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
@@ -295,12 +296,29 @@ export interface PrepDeck {
   studyProgress?: Record<string, PrepCardStudyState>
 }
 
+export const PREP_CONTRACT_VIOLATION_KINDS = [
+  'missing-field',
+  'short-prose',
+  'missing-coaching',
+  'missing-intel',
+  'missing-landmine',
+] as const
+
+export type PrepContractViolationKind = typeof PREP_CONTRACT_VIOLATION_KINDS[number]
+
+export const PREP_CONTRACT_VIOLATION_SEVERITIES = [
+  'error',
+  'warning',
+] as const
+
+export type PrepContractViolationSeverity = typeof PREP_CONTRACT_VIOLATION_SEVERITIES[number]
+
 export interface PrepContractViolation {
-  kind: 'missing-field' | 'short-prose' | 'missing-coaching' | 'missing-intel' | 'missing-landmine'
+  kind: PrepContractViolationKind
   cardId?: string
   field: string
   message: string
-  severity: 'error' | 'warning'
+  severity: PrepContractViolationSeverity
 }
 
 export interface PrepGenerationResult {

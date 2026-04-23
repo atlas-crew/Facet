@@ -257,6 +257,88 @@ describe('prepStore', () => {
     expect(updated.durableMeta?.revision).toBe((before.durableMeta?.revision ?? 0) + 1)
   })
 
+  it('sanitizes contract violations during editing and export', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      contractViolations: [
+        {
+          kind: 'missing-field',
+          field: ' rules ',
+          message: ' Add more rules ',
+          severity: 'error',
+        },
+        {
+          kind: 'invalid-kind' as never,
+          field: 'cards',
+          message: 'ignored',
+          severity: 'error',
+        },
+      ] as never,
+      cards: [],
+    })
+
+    usePrepStore.getState().updateDeck(deckId, {
+      contractViolations: [
+        {
+          kind: 'missing-intel',
+          cardId: ' card-1 ',
+          field: ' cards ',
+          message: ' Missing interviewer intel ',
+          severity: 'error',
+        },
+        {
+          kind: 'missing-coaching',
+          field: ' notes ',
+          message: ' Add more coaching ',
+          severity: 'warning',
+        },
+        {
+          kind: 'missing-field',
+          field: ' ',
+          message: 'drop me',
+          severity: 'error',
+        },
+      ] as never,
+    })
+
+    const deck = usePrepStore.getState().decks[0]
+    expect(deck.contractViolations).toEqual([
+      {
+        kind: 'missing-intel',
+        cardId: 'card-1',
+        field: 'cards',
+        message: 'Missing interviewer intel',
+        severity: 'error',
+      },
+      {
+        kind: 'missing-coaching',
+        field: 'notes',
+        message: 'Add more coaching',
+        severity: 'warning',
+      },
+    ])
+
+    const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck.contractViolations).toEqual([
+      {
+        kind: 'missing-intel',
+        cardId: 'card-1',
+        field: 'cards',
+        message: 'Missing interviewer intel',
+        severity: 'error',
+      },
+      {
+        kind: 'missing-coaching',
+        field: 'notes',
+        message: 'Add more coaching',
+        severity: 'warning',
+      },
+    ])
+  })
+
   it('migrates persisted decks and safely defaults invalid state', () => {
     const migrated = migratePrepState({
       decks: [

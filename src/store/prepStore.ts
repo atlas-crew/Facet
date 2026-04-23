@@ -7,6 +7,7 @@ import type {
   PrepCardStudyState,
   PrepConditional,
   PrepConditionalTone,
+  PrepContractViolation,
   PrepContextGap,
   PrepContextGapPriority,
   PrepDeck,
@@ -28,6 +29,8 @@ import {
   PREP_CARD_ROUND_STATUS_VALUES,
   PREP_CATEGORY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
+  PREP_CONTRACT_VIOLATION_KINDS,
+  PREP_CONTRACT_VIOLATION_SEVERITIES,
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
   isPrepStackAlignmentConfidence,
@@ -67,6 +70,7 @@ interface CreateDeckInput {
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
+  contractViolations?: PrepContractViolation[]
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
@@ -342,6 +346,37 @@ function sanitizeContextGapAnswers(
   return Object.keys(sanitized).length > 0 ? sanitized : undefined
 }
 
+function sanitizeContractViolations(
+  violations?: PrepContractViolation[],
+): PrepContractViolation[] | undefined {
+  if (!Array.isArray(violations)) return undefined
+  const sanitized = violations.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Partial<PrepContractViolation>
+    const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
+    const field = typeof record.field === 'string' ? record.field.trim() : ''
+    const message = typeof record.message === 'string' ? record.message.trim() : ''
+    const severity = typeof record.severity === 'string' ? record.severity.trim() : ''
+    if (
+      !PREP_CONTRACT_VIOLATION_KINDS.includes(kind as typeof PREP_CONTRACT_VIOLATION_KINDS[number]) ||
+      !field ||
+      !message ||
+      !PREP_CONTRACT_VIOLATION_SEVERITIES.includes(severity as typeof PREP_CONTRACT_VIOLATION_SEVERITIES[number])
+    ) {
+      return []
+    }
+    const cardId = typeof record.cardId === 'string' ? record.cardId.trim() : ''
+    return [{
+      kind: kind as PrepContractViolation['kind'],
+      ...(cardId ? { cardId } : {}),
+      field,
+      message,
+      severity: severity as PrepContractViolation['severity'],
+    }]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
 function sanitizeFollowUps(followUps?: PrepFollowUp[], options: SanitizeOptions = {}): PrepFollowUp[] | undefined {
   if (!Array.isArray(followUps)) return undefined
   const sanitized = followUps.flatMap((item) => {
@@ -585,6 +620,7 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance, options),
     contextGaps: sanitizeContextGaps(deck.contextGaps, options),
     contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers, options),
+    contractViolations: sanitizeContractViolations(deck.contractViolations),
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
     cards,
@@ -676,6 +712,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     categoryGuidance: sanitizeCategoryGuidance(deck.categoryGuidance),
     contextGaps: sanitizeContextGaps(deck.contextGaps),
     contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers),
+    contractViolations: sanitizeContractViolations(deck.contractViolations),
     cards,
     studyProgress,
   }
@@ -778,6 +815,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           categoryGuidance: input.categoryGuidance,
           contextGaps: input.contextGaps,
           contextGapAnswers: input.contextGapAnswers,
+          contractViolations: input.contractViolations,
           roundNumber: input.roundNumber,
           roundDebriefs: input.roundDebriefs,
           generatedAt: input.generatedAt,
