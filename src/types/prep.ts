@@ -199,6 +199,31 @@ export interface PrepFollowUp {
   context?: string
 }
 
+export interface PrepInterviewerIntel {
+  role?: string
+  background?: string
+  stack?: string
+  caresAbout?: string
+  yourAngle?: string
+  keyTell?: string
+  linkedInPositioning?: string
+  education?: string
+}
+
+export interface PrepInterviewer {
+  id: string
+  name: string
+  title?: string
+  linkedInUrl?: string
+  intel: PrepInterviewerIntel
+  /**
+   * One-liner tuned to this interviewer's known concern — mirrors what
+   * they care about back at them. Grounded in `intel.caresAbout`; should
+   * reference a specific observed concern, never a generic platitude.
+   */
+  lineThatLands?: string
+}
+
 export interface PrepRoundDebriefIntel {
   teamCulture?: string
   aiUsage?: string
@@ -239,6 +264,12 @@ export interface PrepCard {
   role?: string
   vectorId?: string
   pipelineEntryId?: string | null
+  /**
+   * IDs of interviewers this card is tuned for. References
+   * `PrepDeck.interviewers[].id`. Intel cards typically have exactly
+   * one; a story card may be tagged to multiple panelists.
+   */
+  interviewerIds?: string[]
   updatedAt?: string
 
   script?: string
@@ -278,6 +309,13 @@ export interface PrepDeck {
   roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
+  /**
+   * Structured distillation of interviewer intel derived from company
+   * research + pipeline entry context. Each panel member / technical
+   * round interviewer gets one entry. Cards reference these via
+   * `PrepCard.interviewerIds`.
+   */
+  interviewers?: PrepInterviewer[]
   jobDescription?: string
   rules?: string[]
   donts?: string[]
