@@ -668,13 +668,18 @@ describe('PrepLiveMode', () => {
     expect(openerSection?.textContent).toContain('Lead with the platform angle')
     expect(openerSection?.textContent).toContain('Platform was slowing product teams.')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Compact view' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle compact view' }))
 
     expect(container.querySelector('.prep-live-mode-compact')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Compact view' }).getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.prep-live-sidebar-compact')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Toggle compact view' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('Expanded view')).toBeTruthy()
+    expect(screen.queryByText('Compact view keeps the live reference focused on scripts, warnings, and pivots.')).toBeNull()
+    expect(screen.queryByText('Your strongest single story. If you only tell one story, tell this one.')).toBeNull()
     expect(openerSection?.textContent).not.toContain('Lead with the platform angle')
     expect(openerSection?.textContent).not.toContain('Platform was slowing product teams.')
     expect(openerSection?.textContent).toContain('I lead backend platform work and enjoy scaling teams and systems.')
+    expect(screen.getByLabelText('Anchor story').textContent).toContain('A project you are proud of')
   })
 
   it('treats the main spoken answer as the primary live callout', () => {

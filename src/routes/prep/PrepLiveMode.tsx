@@ -924,7 +924,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
   return (
     <div className={`prep-live-mode${compactMode ? ' prep-live-mode-compact' : ''}`} role="region" aria-label="Live cheatsheet mode">
-      <aside className="prep-live-sidebar">
+      <aside className={`prep-live-sidebar${compactMode ? ' prep-live-sidebar-compact' : ''}`}>
         <div className="prep-live-sidebar-header">
           {onBack ? (
             <button className="prep-live-back" type="button" onClick={onBack} aria-label="Back to Prep">
@@ -997,20 +997,23 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
             type="button"
             className={`prep-btn prep-live-compact-toggle${compactMode ? ' prep-live-compact-toggle-active' : ''}`}
             aria-pressed={compactMode}
+            aria-label="Toggle compact view"
             onClick={() => setCompactMode((current) => !current)}
           >
-            Compact view
+            {compactMode ? 'Expanded view' : 'Compact view'}
           </button>
-          <p className="prep-live-compact-copy">
-            Compact view keeps the live reference focused on scripts, warnings, and pivots.
-          </p>
+          {!compactMode ? (
+            <p className="prep-live-compact-copy">
+              Compact view keeps the live reference focused on scripts, warnings, and pivots.
+            </p>
+          ) : null}
         </div>
 
         {anchorCard ? (
           <section className="prep-live-anchor-card" aria-label="Anchor story">
             <div className="prep-live-anchor-label">Anchor story</div>
             <h3>{anchorCard.title}</h3>
-            <p>{anchorCard.summary}</p>
+            {!compactMode ? <p>{anchorCard.summary}</p> : null}
             {anchorCard.pillars.length > 0 ? (
               <div className="prep-live-anchor-pillars" aria-label="Anchor story JD pillars">
                 {anchorCard.pillars.map((pillar) => (

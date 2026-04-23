@@ -829,6 +829,10 @@
   overflow: hidden;
 }
 
+.prep-live-sidebar-compact {
+  width: 220px;
+}
+
 /* Sidebar header — compact row */
 .prep-live-sidebar-header {
   display: flex;
@@ -908,6 +912,32 @@
   color: var(--text-tertiary);
 }
 
+.prep-live-sidebar-compact .prep-live-sidebar-header,
+.prep-live-sidebar-compact .prep-live-sidebar-actions,
+.prep-live-sidebar-compact .prep-live-anchor-card,
+.prep-live-sidebar-compact .prep-live-timer,
+.prep-live-sidebar-compact .prep-live-search {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.prep-live-sidebar-compact .prep-live-sidebar-sub,
+.prep-live-sidebar-compact .prep-live-timer-hint {
+  display: none;
+}
+
+.prep-live-sidebar-compact .prep-live-timer {
+  gap: 6px;
+}
+
+.prep-live-sidebar-compact .prep-live-timer-display {
+  font-size: 20px;
+}
+
+.prep-live-sidebar-compact .prep-live-timer-reset {
+  margin-left: auto;
+}
+
 .prep-live-anchor-card {
   display: grid;
   gap: 10px;
@@ -939,6 +969,15 @@
   line-height: 1.35;
 }
 
+.prep-live-sidebar-compact .prep-live-anchor-card {
+  gap: 8px;
+}
+
+.prep-live-sidebar-compact .prep-live-anchor-card h3 {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
 .prep-live-anchor-card p {
   margin: 0;
   font-size: 12px;
@@ -950,6 +989,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.prep-live-sidebar-compact .prep-live-anchor-pillars {
+  gap: 4px;
 }
 
 .prep-live-anchor-pill {
