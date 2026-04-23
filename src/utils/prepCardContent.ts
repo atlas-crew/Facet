@@ -6,16 +6,140 @@ const PREP_FILL_IN_PATTERN = /\[\[\s*fill-in:[^[\]]+\s*\]\]/i
 const PREP_PLACEHOLDER_ONLY_PATTERN = /^\s*\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]\s*$/i
 const PREP_NEEDS_REVIEW_ONLY_PATTERN = /^\s*\[\[\s*needs-review\s*\]\]\s*$/i
 const PREP_PLACEHOLDER_GLOBAL_PATTERN = /\[\[\s*(needs-review|fill-in:([^[\]]+))\s*\]\]/gi
+const PREP_SENTENCE_SEGMENTER = typeof Intl !== 'undefined' && 'Segmenter' in Intl
+  ? new Intl.Segmenter(undefined, { granularity: 'sentence' })
+  : null
+const PREP_PARAGRAPH_SINGLE_BLOCK_MAX_CHARS = 240
+const PREP_PARAGRAPH_SINGLE_BLOCK_MAX_SENTENCES = 4
+const PREP_PARAGRAPH_PACK_MAX_CHARS = 260
+const PREP_PARAGRAPH_PACK_MAX_SENTENCES = 2
 // Upstream prep generation can still leak terse metadata phrases; rewrite them into coach-like copy at display time.
 const PREP_COACH_COPY_REPLACEMENTS: Array<[RegExp, string]> = [
   [
     /^\s*no inbound signal noted\s*$/i,
     'This looks like a cold application from the notes, so lead with a crisp why-this-role answer.',
   ],
+  [
+    /\(\s*no inbound signal noted\s*\)/gi,
+    '(you applied directly)',
+  ],
+  [
+    /\bno inbound signal noted\b/gi,
+    'you applied directly',
+  ],
 ]
 
 function filterPrepContent<T>(items: T[] | undefined, predicate: (item: T) => boolean): T[] {
   return (items ?? []).filter(predicate)
+}
+
+function splitPrepSentences(value: string): string[] {
+  if (PREP_SENTENCE_SEGMENTER) {
+    const mergedSegments: string[] = []
+    let leadingPunctuation = ''
+
+    for (const { segment } of PREP_SENTENCE_SEGMENTER.segment(value)) {
+      const trimmedSegment = segment.trim()
+      if (!trimmedSegment) continue
+
+      if (/^[.!?]+$/.test(trimmedSegment)) {
+        leadingPunctuation += trimmedSegment
+        continue
+      }
+
+      mergedSegments.push(leadingPunctuation ? leadingPunctuation + trimmedSegment : trimmedSegment)
+      leadingPunctuation = ''
+    }
+
+    if (leadingPunctuation && mergedSegments.length > 0) {
+      mergedSegments[mergedSegments.length - 1] += leadingPunctuation
+    }
+
+    return mergedSegments
+  }
+
+  const sentences: string[] = []
+  let startIndex = 0
+
+  for (let index = 0; index < value.length; index += 1) {
+    if (!'.!?'.includes(value[index])) continue
+
+    let nextIndex = index + 1
+    while (nextIndex < value.length && '.!?'.includes(value[nextIndex])) {
+      nextIndex += 1
+    }
+    while (nextIndex < value.length && /\s/.test(value[nextIndex])) {
+      nextIndex += 1
+    }
+
+    const sentence = value.slice(startIndex, nextIndex).trim()
+    if (sentence) {
+      sentences.push(sentence)
+    }
+    startIndex = nextIndex
+    index = nextIndex - 1
+  }
+
+  const trailingSentence = value.slice(startIndex).trim()
+  if (trailingSentence) {
+    sentences.push(trailingSentence)
+  }
+
+  return sentences
+}
+
+function splitPrepLongSentence(sentence: string): string[] {
+  if (sentence.length <= PREP_PARAGRAPH_PACK_MAX_CHARS) {
+    return [sentence]
+  }
+
+  const clauses: string[] = []
+  let startIndex = 0
+
+  for (let index = 0; index < sentence.length; index += 1) {
+    if (!',;:'.includes(sentence[index])) continue
+
+    let nextIndex = index + 1
+    while (nextIndex < sentence.length && /\s/.test(sentence[nextIndex])) {
+      nextIndex += 1
+    }
+
+    const clause = sentence.slice(startIndex, nextIndex).trim()
+    if (clause) {
+      clauses.push(clause)
+    }
+    startIndex = nextIndex
+    index = nextIndex - 1
+  }
+
+  const trailingClause = sentence.slice(startIndex).trim()
+  if (trailingClause) {
+    clauses.push(trailingClause)
+  }
+
+  if (clauses.length <= 1) {
+    return [sentence]
+  }
+
+  const chunks: string[] = []
+  let currentChunk = ''
+
+  for (const clause of clauses) {
+    const nextChunk = currentChunk ? `${currentChunk} ${clause}` : clause
+    if (currentChunk && nextChunk.length > PREP_PARAGRAPH_PACK_MAX_CHARS) {
+      chunks.push(currentChunk)
+      currentChunk = clause
+      continue
+    }
+
+    currentChunk = nextChunk
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk)
+  }
+
+  return chunks
 }
 
 export function hasPrepNeedsReviewText(value: string | undefined | null): boolean {
@@ -65,6 +189,7 @@ export function getPrepDefaultText(value: string | undefined | null): string {
   return getPrepPlainText(value)
 }
 
+// Live mode uses this exported helper to scrub terse pipeline metadata into coach-like copy.
 export function getPrepCoachDisplayText(value: string | undefined | null): string {
   return PREP_COACH_COPY_REPLACEMENTS
     .reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), getPrepDisplayText(value))
@@ -91,6 +216,69 @@ export function getPrepCopyText(
       .reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), getPrepPlainText(value))
 
   return plainText
+}
+
+export function getPrepParagraphs(text: string, mode: 'default' | 'spoken' = 'default'): string[] {
+  const normalized = getPrepPlainText(text)
+    .replace(/\r\n?/g, '\n')
+    .trim()
+
+  if (!normalized) return []
+
+  const explicitParagraphs = normalized
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' ').replace(/\s{2,}/g, ' ').trim())
+    .filter(Boolean)
+
+  if (explicitParagraphs.length > 1) {
+    return explicitParagraphs
+  }
+
+  const flattened = normalized
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  if (mode !== 'spoken') {
+    return [flattened]
+  }
+
+  const softBreakParagraphs = normalized
+    .split('\n')
+    .map((paragraph) => paragraph.replace(/\s{2,}/g, ' ').trim())
+    .filter(Boolean)
+  const sentences = splitPrepSentences(flattened)
+  if (softBreakParagraphs.length >= 3 && sentences.length <= 1) {
+    return softBreakParagraphs
+  }
+
+  if (sentences.length < PREP_PARAGRAPH_SINGLE_BLOCK_MAX_SENTENCES && flattened.length < PREP_PARAGRAPH_SINGLE_BLOCK_MAX_CHARS) {
+    return [flattened]
+  }
+
+  const paragraphs: string[] = []
+  let currentParagraph: string[] = []
+
+  for (const sentence of sentences.flatMap(splitPrepLongSentence)) {
+    const currentLength = currentParagraph.join(' ').length
+    const nextLength = currentLength + (currentParagraph.length > 0 ? 1 : 0) + sentence.length
+    if (
+      currentParagraph.length >= PREP_PARAGRAPH_PACK_MAX_SENTENCES
+      || (currentParagraph.length > 0 && nextLength > PREP_PARAGRAPH_PACK_MAX_CHARS)
+    ) {
+      paragraphs.push(currentParagraph.join(' '))
+      currentParagraph = [sentence]
+      continue
+    }
+
+    currentParagraph.push(sentence)
+  }
+
+  if (currentParagraph.length > 0) {
+    paragraphs.push(currentParagraph.join(' '))
+  }
+
+  return paragraphs
 }
 
 export function hasPrepKeyPointContent(point: string): boolean {

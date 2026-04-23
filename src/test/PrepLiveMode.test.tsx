@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PrepLiveMode } from '../routes/prep/PrepLiveMode'
+import { getPrepParagraphs } from '../utils/prepCardContent'
 import type { PrepDeck } from '../types/prep'
 
 const mockDeck: PrepDeck = {
@@ -398,6 +399,27 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('00:02')).toBeTruthy()
   })
 
+  it('updates timer severity styling as time passes', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start timer' }))
+
+    act(() => {
+      vi.advanceTimersByTime(35000)
+    })
+    expect(screen.getByRole('timer').className).toContain('prep-live-timer-display-warning')
+
+    act(() => {
+      vi.advanceTimersByTime(30000)
+    })
+    expect(screen.getByRole('timer').className).toContain('prep-live-timer-display-urgent')
+
+    act(() => {
+      vi.advanceTimersByTime(30000)
+    })
+    expect(screen.getByRole('timer').className).toContain('prep-live-timer-display-critical')
+  })
+
   it('does not start the timer when space is pressed on a non-timer button', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
@@ -619,6 +641,72 @@ describe('PrepLiveMode', () => {
     expect(openerSection?.textContent).not.toContain('no inbound signal noted')
   })
 
+  it('rewrites inline metadata phrasing inside opener coaching guidance', () => {
+    const deckWithInlineMetadata: PrepDeck = {
+      ...mockDeck,
+      categoryGuidance: {
+        ...mockDeck.categoryGuidance,
+        opener: 'You applied to this role (no inbound signal noted) so earn attention in the first two minutes.',
+      },
+    }
+
+    render(<PrepLiveMode deck={deckWithInlineMetadata} />)
+
+    const openerSection = getSectionContainer('Tell me about yourself')
+    expect(openerSection?.textContent).toContain('You applied to this role (you applied directly) so earn attention in the first two minutes.')
+    expect(openerSection?.textContent).not.toContain('no inbound signal noted')
+  })
+
+  it('returns no paragraphs for blank spoken copy', () => {
+    expect(getPrepParagraphs('   ', 'spoken')).toEqual([])
+  })
+
+  it('scrubs placeholder-only spoken copy before paragraphing', () => {
+    expect(getPrepParagraphs('[[fill-in: exact metric]]', 'spoken')).toEqual([])
+  })
+
+  it('preserves explicit paragraph breaks in spoken copy', () => {
+    expect(getPrepParagraphs('Lead with the through-line.\n\nLand on the hook.', 'spoken')).toEqual([
+      'Lead with the through-line.',
+      'Land on the hook.',
+    ])
+  })
+
+  it('keeps short spoken copy as a single paragraph', () => {
+    expect(getPrepParagraphs('Lead with the through-line and land on why this team now.', 'spoken')).toEqual([
+      'Lead with the through-line and land on why this team now.',
+    ])
+  })
+
+  it('does not split common abbreviations into stray spoken fragments', () => {
+    const paragraphs = getPrepParagraphs(
+      '.NET services are part of the platform surface too. I look for the real friction, e.g. deployment bottlenecks and observability gaps. Then I turn that into a platform roadmap. I partner closely with Dr. Singh on rollout risk. The through-line is platform as product, measured by adoption.',
+      'spoken',
+    )
+
+    expect(paragraphs.join(' ')).toContain('.NET services are part of the platform surface too.')
+    expect(paragraphs.join(' ')).toContain('e.g. deployment bottlenecks and observability gaps.')
+    expect(paragraphs.join(' ')).toContain('Dr. Singh on rollout risk.')
+    expect(paragraphs).not.toContain('e.g.')
+    expect(paragraphs).not.toContain('Dr.')
+  })
+
+  it('keeps soft-wrapped single-sentence spoken copy as one paragraph', () => {
+    expect(getPrepParagraphs('Here is a long\nthought that wraps across lines', 'spoken')).toEqual([
+      'Here is a long thought that wraps across lines',
+    ])
+  })
+
+  it('splits a pathological long single sentence on clause boundaries', () => {
+    const paragraphs = getPrepParagraphs(
+      'I start by learning the deployment friction across the org, then I map the toil and observability blind spots, then I turn that into a platform roadmap, then I sequence the automation work so teams feel the gain quickly, then I anchor the whole thing in adoption and satisfaction instead of internal platform vanity metrics.',
+      'spoken',
+    )
+
+    expect(paragraphs.length).toBeGreaterThan(1)
+    expect(paragraphs.join(' ')).toContain('platform vanity metrics.')
+  })
+
   it('does not show review styling when the deck has no placeholder markers', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
@@ -667,19 +755,54 @@ describe('PrepLiveMode', () => {
     const openerSection = getSectionContainer('Tell me about yourself')
     expect(openerSection?.textContent).toContain('Lead with the platform angle')
     expect(openerSection?.textContent).toContain('Platform was slowing product teams.')
+    expect(openerSection?.querySelector('.prep-live-section-guidance-opener')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle compact view' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Compact view' }))
 
     expect(container.querySelector('.prep-live-mode-compact')).toBeTruthy()
     expect(container.querySelector('.prep-live-sidebar-compact')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Toggle compact view' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByText('Expanded view')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Compact view' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByText('Compact view keeps the live reference focused on scripts, warnings, and pivots.')).toBeNull()
     expect(screen.queryByText('Your strongest single story. If you only tell one story, tell this one.')).toBeNull()
     expect(openerSection?.textContent).not.toContain('Lead with the platform angle')
     expect(openerSection?.textContent).not.toContain('Platform was slowing product teams.')
     expect(openerSection?.textContent).toContain('I lead backend platform work and enjoy scaling teams and systems.')
     expect(screen.getByLabelText('Anchor story').textContent).toContain('A project you are proud of')
+  })
+
+  it('persists compact mode in localStorage and restores it on mount', () => {
+    window.localStorage.setItem('facet-prep-live-compact-mode', 'true')
+
+    const { container, unmount } = render(<PrepLiveMode deck={mockDeck} />)
+    expect(container.querySelector('.prep-live-mode-compact')).toBeTruthy()
+
+    unmount()
+    window.localStorage.setItem('facet-prep-live-compact-mode', 'false')
+
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compact view' }))
+
+    expect(window.localStorage.getItem('facet-prep-live-compact-mode')).toBe('true')
+  })
+
+  it('falls back safely when compact mode localStorage access throws', () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+
+    try {
+      expect(() => render(<PrepLiveMode deck={mockDeck} />)).not.toThrow()
+      const compactToggle = screen.getByRole('button', { name: 'Compact view' })
+      expect(compactToggle.getAttribute('aria-pressed')).toBe('false')
+      expect(() => fireEvent.click(compactToggle)).not.toThrow()
+    } finally {
+      getItemSpy.mockRestore()
+      setItemSpy.mockRestore()
+    }
   })
 
   it('treats the main spoken answer as the primary live callout', () => {
@@ -695,7 +818,51 @@ describe('PrepLiveMode', () => {
       .find(Boolean)
 
     expect(scriptCallout?.className).toContain('prep-live-callout-primary')
+    expect(scriptCallout?.querySelector('.prep-live-callout-copy-script')).toBeTruthy()
     expect(warningCallout?.className).not.toContain('prep-live-callout-primary')
+    expect(warningCallout?.className).toContain('prep-live-callout-danger')
+    expect(warningCallout?.className).toContain('prep-live-callout-fullwidth')
+  })
+
+  it('breaks long spoken scripts into readable paragraphs', () => {
+    const longScriptDeck: PrepDeck = {
+      ...mockDeck,
+      cards: mockDeck.cards.map((card) => (
+        card.id === 'card-1'
+          ? {
+              ...card,
+              script:
+                'I start by learning how the engineers around me deploy and where the friction is. Then I build the infrastructure and automation that lets them ship faster and sleep better. Most recently at ThreatX, I brought the platform under infrastructure-as-code from nothing and migrated twelve services. I also cut AWS spend by about sixty thousand dollars a month and mentored SOC analysts into SRE practitioners. Before that, I built a developer platform from scratch at Vispero. The pattern is platform as product, measured by adoption.',
+            }
+          : card
+      )),
+    }
+
+    const { container } = render(<PrepLiveMode deck={longScriptDeck} />)
+
+    const scriptCopy = Array.from(container.querySelectorAll('.prep-live-callout-copy-script'))
+      .find((candidate) => candidate.textContent?.includes('I start by learning how the engineers around me deploy'))
+    expect(scriptCopy?.querySelectorAll('p').length).toBeGreaterThan(1)
+  })
+
+  it('treats newline-separated spoken scripts as paragraphs even without punctuation', () => {
+    const newlineScriptDeck: PrepDeck = {
+      ...mockDeck,
+      cards: mockDeck.cards.map((card) => (
+        card.id === 'card-1'
+          ? {
+              ...card,
+              script: 'Platform as product\nThreatX migration and AWS savings\nBuilt the team to run it without me',
+            }
+          : card
+      )),
+    }
+
+    const { container } = render(<PrepLiveMode deck={newlineScriptDeck} />)
+
+    const scriptCopy = Array.from(container.querySelectorAll('.prep-live-callout-copy-script'))
+      .find((candidate) => candidate.textContent?.includes('Platform as product'))
+    expect(scriptCopy?.querySelectorAll('p').length).toBe(3)
   })
 
   it('collapses and expands a rich section', () => {
@@ -719,6 +886,83 @@ describe('PrepLiveMode', () => {
 
     fireEvent.click(technicalToggle!)
     expect(controlledSection?.hasAttribute('hidden')).toBe(false)
+  })
+
+  it("toggles the active section with the 'E' shortcut", () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.keyDown(document.body, { key: '8' })
+
+    const technicalSection = getSectionContainer('Technical Topics')
+    const technicalContent = technicalSection?.querySelector('[id^="prep-live-section-content-"]')
+
+    expect(technicalContent?.hasAttribute('hidden')).toBe(false)
+
+    fireEvent.keyDown(document.body, { key: 'E' })
+    expect(technicalContent?.hasAttribute('hidden')).toBe(true)
+
+    fireEvent.keyDown(document.body, { key: 'E' })
+    expect(technicalContent?.hasAttribute('hidden')).toBe(false)
+  })
+
+  it('updates the active section when the intersection observer reports a new section in view', () => {
+    const observerCallbacks: Array<IntersectionObserverCallback> = []
+    const originalIntersectionObserver = globalThis.IntersectionObserver
+
+    class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallbacks.push(callback)
+      }
+
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+      takeRecords() { return [] }
+      root = null
+      rootMargin = ''
+      thresholds = []
+    }
+
+    globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+
+    try {
+      render(<PrepLiveMode deck={mockDeck} />)
+
+      fireEvent.keyDown(document.body, { key: ' ' })
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+
+      const technicalSection = getSectionContainer('Technical Topics')
+      const overviewSection = getSectionContainer('Overview')
+      expect(technicalSection).toBeTruthy()
+      expect(overviewSection).toBeTruthy()
+      expect(observerCallbacks.length).toBeGreaterThan(0)
+
+      act(() => {
+        observerCallbacks[0]([
+          {
+            target: overviewSection!,
+            isIntersecting: false,
+            intersectionRatio: 0,
+          } as IntersectionObserverEntry,
+          {
+            target: technicalSection!,
+            isIntersecting: true,
+            intersectionRatio: 0.6,
+          } as IntersectionObserverEntry,
+        ], {} as IntersectionObserver)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(3000)
+      })
+
+      expect(getNavLink('Overview')?.textContent).toContain('00:02 / 01:00')
+      expect(getNavLink('Technical Topics')?.textContent).toContain('00:03 / 04:00')
+    } finally {
+      globalThis.IntersectionObserver = originalIntersectionObserver
+    }
   })
 
   it('ignores live shortcuts while typing in the search input', () => {

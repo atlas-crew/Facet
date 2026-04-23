@@ -10,8 +10,10 @@ import {
   filterPrepKeyPoints,
   filterPrepMetrics,
   filterPrepStoryBlocks,
+  getPrepCoachDisplayText,
   getPrepCopyText,
   getPrepDefaultText,
+  getPrepParagraphs,
   getPrepDisplayText,
   getPrepSourceAwareText,
   hasPrepCardNeedsReviewContent,
@@ -447,6 +449,19 @@ function formatConditionalToneLabel(tone: 'pivot' | 'trap' | 'escalation'): stri
   if (tone === 'trap') return 'Trap'
   if (tone === 'escalation') return 'Escalation'
   return 'Pivot'
+}
+
+function renderPrepParagraphBlocks(text: string, className: string, mode: 'default' | 'spoken' = 'default') {
+  const paragraphs = getPrepParagraphs(text, mode)
+  if (paragraphs.length === 0) return null
+
+  return (
+    <div className={className}>
+      {paragraphs.map((paragraph, index) => (
+        <p key={`${index}:${paragraph}`}>{paragraph}</p>
+      ))}
+    </div>
+  )
 }
 
 function scoreAnchorCard(card: PrepCard): number {
@@ -997,10 +1012,9 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
             type="button"
             className={`prep-btn prep-live-compact-toggle${compactMode ? ' prep-live-compact-toggle-active' : ''}`}
             aria-pressed={compactMode}
-            aria-label="Toggle compact view"
             onClick={() => setCompactMode((current) => !current)}
           >
-            {compactMode ? 'Expanded view' : 'Compact view'}
+            Compact view
           </button>
           {!compactMode ? (
             <p className="prep-live-compact-copy">
@@ -1304,6 +1318,11 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
   if (!sectionGuidance && section.id === 'questions') {
     sectionGuidance = QUESTIONS_GUIDANCE
   }
+  const displaySectionDescription = getPrepDisplayText(section.description)
+  const displaySectionGuidance = sectionGuidance ? getPrepCoachDisplayText(sectionGuidance) : null
+  const sectionGuidanceClassName = section.tone === 'opener'
+    ? 'prep-live-section-guidance prep-live-section-guidance-opener'
+    : 'prep-live-section-guidance'
 
   return (
     <section
@@ -1324,8 +1343,8 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
             <span className="prep-live-count-badge">{section.items.length} items</span>
           </div>
           <h2>{section.title}</h2>
-          <p>{section.description}</p>
-          {sectionGuidance ? <div className="prep-live-section-guidance">{sectionGuidance}</div> : null}
+          {displaySectionDescription ? <p className="prep-live-section-description">{displaySectionDescription}</p> : null}
+          {displaySectionGuidance ? <div className={sectionGuidanceClassName}>{displaySectionGuidance}</div> : null}
         </div>
         <button
           className="prep-btn"
@@ -1570,22 +1589,22 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
 
       <div className="prep-live-card-block-grid">
         {showContext ? (
-          <section className="prep-live-callout prep-live-callout-context">
+          <section className="prep-live-callout prep-live-callout-context prep-live-callout-fullwidth">
             <span className="prep-live-callout-label">Context</span>
-            <p>{displayNotes}</p>
+            {renderPrepParagraphBlocks(displayNotes, 'prep-live-callout-copy')}
           </section>
         ) : null}
 
         {displayScript ? (
           <section className="prep-live-callout prep-live-callout-script prep-live-callout-primary">
             <span className="prep-live-callout-label">Script</span>
-            <p>{displayScript}</p>
+            {renderPrepParagraphBlocks(displayScript, 'prep-live-callout-copy prep-live-callout-copy-script', 'spoken')}
           </section>
         ) : null}
 
         {!compactMode && keyPoints.length > 0 ? (
           <section
-            className={`prep-live-keypoints-panel prep-live-keypoints-panel-${keyPointsPresentation.ordered ? 'numbered' : 'bulleted'}`}
+            className={`prep-live-keypoints-panel prep-live-keypoints-panel-${keyPointsPresentation.ordered ? 'numbered' : 'bulleted'}${section.tone === 'opener' && keyPointsPresentation.ordered ? ' prep-live-keypoints-panel-rescue' : ''}`}
             aria-labelledby={card.id + '-live-keypoints-label'}
           >
             <div id={card.id + '-live-keypoints-label'} className="prep-live-keypoints-label">{keyPointsPresentation.label}</div>
@@ -1606,9 +1625,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
         ) : null}
 
         {displayWarning ? (
-          <section className="prep-live-callout prep-live-callout-warning">
+          <section className="prep-live-callout prep-live-callout-warning prep-live-callout-fullwidth prep-live-callout-danger">
             <span className="prep-live-callout-label">Warning</span>
-            <p>{displayWarning}</p>
+            {renderPrepParagraphBlocks(displayWarning, 'prep-live-callout-copy')}
           </section>
         ) : null}
 
