@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
 import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
-import type { PrepCard, PrepConditional, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../../types/prep'
+import type { PrepCard, PrepConditional, PrepDeepDive, PrepFollowUp, PrepInterviewer, PrepMetric, PrepStoryBlock } from '../../types/prep'
 import { createId } from '../../utils/idUtils'
 import { PrepCollapsibleSection } from './PrepCollapsibleSection'
 import {
@@ -26,6 +26,12 @@ interface PrepCardViewProps {
   onDuplicateCard?: (cardId: string) => void
   onRemoveCard?: (cardId: string) => void
   readOnly?: boolean
+  /**
+   * Deck-level interviewer records. When a card has `interviewerIds` that
+   * resolves against this list, the read-only view renders the structured
+   * intel layout instead of the generic card layout.
+   */
+  interviewers?: PrepInterviewer[]
 }
 
 export function PrepCardView({
@@ -34,6 +40,7 @@ export function PrepCardView({
   onDuplicateCard,
   onRemoveCard,
   readOnly = false,
+  interviewers,
 }: PrepCardViewProps) {
   const [copied, setCopied] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -71,6 +78,17 @@ export function PrepCardView({
   }
 
   if (readOnly) {
+    const linkedInterviewer = resolveLinkedInterviewer(card, interviewers)
+    if (linkedInterviewer) {
+      return (
+        <IntelCardReadOnly
+          card={card}
+          interviewer={linkedInterviewer}
+          needsReview={needsReview}
+        />
+      )
+    }
+
     return (
       <div className={`prep-card${needsReview ? ' prep-card-needs-review' : ''}`}>
         <div className="prep-card-header">
@@ -724,6 +742,91 @@ export function PrepCardView({
         </>
       ) : null}
     </article>
+  )
+}
+
+function resolveLinkedInterviewer(
+  card: PrepCard,
+  interviewers: PrepInterviewer[] | undefined,
+): PrepInterviewer | undefined {
+  if (!interviewers || interviewers.length === 0) return undefined
+  const firstId = card.interviewerIds?.[0]
+  if (!firstId) return undefined
+  return interviewers.find((entry) => entry.id === firstId)
+}
+
+interface IntelCardReadOnlyProps {
+  card: PrepCard
+  interviewer: PrepInterviewer
+  needsReview: boolean
+}
+
+function IntelCardReadOnly({ card, interviewer, needsReview }: IntelCardReadOnlyProps) {
+  const { name, title, linkedInUrl, intel, lineThatLands } = interviewer
+  const displayWarning = getPrepSourceAwareText(card.warning, card.source)
+
+  const intelRows: Array<[string, string | undefined]> = [
+    ['Role', intel.role],
+    ['Background', intel.background],
+    ['Stack', intel.stack],
+    ['What they care about', intel.caresAbout],
+    ['Your angle', intel.yourAngle],
+    ['Key tell', intel.keyTell],
+    ['LinkedIn positioning', intel.linkedInPositioning],
+    ['Education', intel.education],
+  ]
+  const populatedRows = intelRows.filter(
+    (row): row is [string, string] => Boolean(row[1] && row[1].trim()),
+  )
+
+  return (
+    <div className={`prep-card prep-intel-card${needsReview ? ' prep-card-needs-review' : ''}`}>
+      <div className="prep-card-header prep-intel-header">
+        <div className="prep-intel-identity">
+          <h3 className="prep-card-title">{name}</h3>
+          {title ? <p className="prep-intel-subtitle">{title}</p> : null}
+          {linkedInUrl ? (
+            <a
+              className="prep-intel-link"
+              href={linkedInUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              LinkedIn
+            </a>
+          ) : null}
+        </div>
+        <div className="prep-card-meta">
+          <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
+          {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+        </div>
+      </div>
+
+      {populatedRows.length > 0 ? (
+        <dl className="prep-intel-grid">
+          {populatedRows.map(([label, value]) => (
+            <div key={label} className="prep-intel-row">
+              <dt className="prep-intel-label">{label}</dt>
+              <dd className="prep-intel-value">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      {lineThatLands ? (
+        <blockquote className="prep-line-that-lands">
+          <div className="prep-line-that-lands-label">Line that lands for {name}</div>
+          <div className="prep-line-that-lands-quote">{lineThatLands}</div>
+        </blockquote>
+      ) : null}
+
+      {displayWarning ? (
+        <div className="prep-warning">
+          <div className="prep-warning-label">Caution</div>
+          {displayWarning}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

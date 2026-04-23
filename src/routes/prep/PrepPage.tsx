@@ -2754,6 +2754,7 @@ export function PrepPage() {
                 onDuplicateCard={handleDuplicateCard}
                 onRemoveCard={handleRemoveCard}
                 layout="single"
+                interviewers={activeDeck?.interviewers}
               />
             ) : (
               <div className="prep-empty prep-edit-empty-state">

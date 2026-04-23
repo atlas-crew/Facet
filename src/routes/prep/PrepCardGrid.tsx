@@ -1,4 +1,4 @@
-import type { PrepCard } from '../../types/prep'
+import type { PrepCard, PrepInterviewer } from '../../types/prep'
 import { PrepCardView } from './PrepCardView'
 
 interface PrepCardGridProps {
@@ -7,6 +7,7 @@ interface PrepCardGridProps {
   onDuplicateCard: (cardId: string) => void
   onRemoveCard: (cardId: string) => void
   layout?: 'responsive' | 'single'
+  interviewers?: PrepInterviewer[]
 }
 
 export function PrepCardGrid({
@@ -15,6 +16,7 @@ export function PrepCardGrid({
   onDuplicateCard,
   onRemoveCard,
   layout = 'responsive',
+  interviewers,
 }: PrepCardGridProps) {
   return (
     <div className={`prep-card-grid ${layout === 'single' ? 'prep-card-grid-single' : ''}`}>
@@ -25,6 +27,7 @@ export function PrepCardGrid({
           onUpdateCard={onUpdateCard}
           onDuplicateCard={onDuplicateCard}
           onRemoveCard={onRemoveCard}
+          interviewers={interviewers}
         />
       ))}
     </div>

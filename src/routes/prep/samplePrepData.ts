@@ -1,4 +1,4 @@
-import type { PrepCard } from '../../types/prep'
+import type { PrepCard, PrepInterviewer } from '../../types/prep'
 
 /**
  * Fictional sample data for development and testing.
@@ -110,5 +110,39 @@ export const samplePrepData: PrepCard[] = [
       { value: '99.97%', label: 'Detection accuracy' },
     ],
     warning: 'Always cite the specific project when using a number. Never present a metric without context.',
+  },
+  {
+    id: 'prep-sample-6',
+    category: 'situational',
+    title: 'Sample Panelist',
+    tags: ['intel'],
+    interviewerIds: ['interviewer-sample-1'],
+    warning: 'Keep the read on this person grounded in what research actually supports.',
+    notes:
+      'Use the intel grid to orient the conversation — lead with what they care about, not a rehearsed opener.',
+  },
+]
+
+/**
+ * Companion interviewer records for the sample deck. Linked by
+ * `PrepCard.interviewerIds`. Fictional — no real people.
+ */
+export const samplePrepInterviewers: PrepInterviewer[] = [
+  {
+    id: 'interviewer-sample-1',
+    name: 'Sample Panelist',
+    title: 'Engineering Manager, Platform',
+    intel: {
+      role: 'Runs the platform team you would be joining.',
+      background: 'Came up through SRE; has been burned by platform teams that ship without listening.',
+      caresAbout:
+        'Does the platform make the product engineers faster, or does it create a new bottleneck?',
+      yourAngle:
+        'Lead with the developer-experience metrics from your prior platform build — adoption and self-service numbers, not the infrastructure diagram.',
+      keyTell:
+        'Will probe for what you would say NO to in the first 90 days. A senior answer names the tradeoff explicitly.',
+    },
+    lineThatLands:
+      'My first month in any platform role is not shipping — it is sitting with the pod leads and watching how they actually work. The platform I build is the one they have told me they need.',
   },
 ]

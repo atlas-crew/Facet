@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PrepCardView } from '../routes/prep/PrepCardView'
 import { PrepCollapsibleSection } from '../routes/prep/PrepCollapsibleSection'
-import type { PrepCard } from '../types/prep'
+import type { PrepCard, PrepInterviewer } from '../types/prep'
 
 function makeCard(overrides: Partial<PrepCard> = {}): PrepCard {
   return {
@@ -489,6 +489,91 @@ describe('PrepCardView', () => {
 
     expect(screen.getByText('Notes')).toBeTruthy()
     expect(screen.getByText('Coaching note.')).toBeTruthy()
+  })
+
+  it('renders the intel grid and line-that-lands when a linked interviewer is resolved', () => {
+    const interviewer: PrepInterviewer = {
+      id: 'iv-1',
+      name: 'Sample Panelist',
+      title: 'Engineering Manager, Platform',
+      intel: {
+        role: 'Runs the platform team',
+        caresAbout: 'Developer velocity, not infra aesthetics',
+        yourAngle: 'Lead with adoption numbers',
+      },
+      lineThatLands: 'My first month is not shipping — it is sitting with the pod leads.',
+    }
+    const card = makeCard({
+      category: 'situational',
+      title: 'Sample Panelist',
+      tags: ['intel'],
+      interviewerIds: ['iv-1'],
+    })
+
+    const { container } = render(
+      <PrepCardView readOnly card={card} interviewers={[interviewer]} />,
+    )
+
+    expect(container.querySelector('.prep-intel-card')).toBeTruthy()
+    expect(screen.getByText('Sample Panelist')).toBeTruthy()
+    expect(screen.getByText('Engineering Manager, Platform')).toBeTruthy()
+    expect(screen.getByText('Role')).toBeTruthy()
+    expect(screen.getByText('Runs the platform team')).toBeTruthy()
+    expect(screen.getByText('What they care about')).toBeTruthy()
+    expect(screen.getByText('Developer velocity, not infra aesthetics')).toBeTruthy()
+    expect(screen.getByText('Line that lands for Sample Panelist')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'My first month is not shipping — it is sitting with the pod leads.',
+      ),
+    ).toBeTruthy()
+    // Intel-only layout — generic meta grid should be absent.
+    expect(screen.queryByText('Key points')).toBeNull()
+  })
+
+  it('falls through to the generic read-only layout when no matching interviewer is provided', () => {
+    const card = makeCard({
+      category: 'situational',
+      title: 'Panel member',
+      tags: ['intel'],
+      interviewerIds: ['iv-missing'],
+      notes: 'Generic coaching note.',
+    })
+
+    const { container } = render(<PrepCardView readOnly card={card} />)
+
+    // Generic readOnly flow — not the structured intel card.
+    expect(container.querySelector('.prep-intel-card')).toBeNull()
+    expect(container.querySelector('.prep-intel-grid')).toBeNull()
+    expect(screen.getByText('Generic coaching note.')).toBeTruthy()
+  })
+
+  it('omits empty intel rows while still rendering the line-that-lands block', () => {
+    const interviewer: PrepInterviewer = {
+      id: 'iv-2',
+      name: 'Minimal Intel',
+      intel: {
+        caresAbout: 'Only this field is populated',
+      },
+      lineThatLands: 'One tuned sentence.',
+    }
+    const card = makeCard({
+      category: 'situational',
+      title: 'Minimal Intel',
+      tags: ['intel'],
+      interviewerIds: ['iv-2'],
+    })
+
+    const { container } = render(
+      <PrepCardView readOnly card={card} interviewers={[interviewer]} />,
+    )
+
+    expect(container.querySelectorAll('.prep-intel-row')).toHaveLength(1)
+    expect(screen.getByText('What they care about')).toBeTruthy()
+    expect(screen.getByText('Only this field is populated')).toBeTruthy()
+    expect(screen.getByText('One tuned sentence.')).toBeTruthy()
+    expect(screen.queryByText('Role')).toBeNull()
+    expect(screen.queryByText('Background')).toBeNull()
   })
 
   it('sanitizes placeholder markers and coach-copy leaks in read-only mode', () => {
