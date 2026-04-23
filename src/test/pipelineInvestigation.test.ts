@@ -105,7 +105,10 @@ describe('investigatePipelineEntry', () => {
     expect(result.nextStep).toContain('system design story')
     expect(result.research.status).toBe('investigated')
     expect(result.research.summary).toContain('platform reliability role')
-    expect(result.research.people).toHaveLength(1)
+    // People discovery is intentionally stripped from the investigator — even
+    // when the AI returns named people, we discard them. Users supply interviewer
+    // names directly when scheduling is known. See doc-30 §Interviewer Capture.
+    expect(result.research.people).toEqual([])
     expect(result.research.sources).toEqual([
       { label: 'Acme Corp job posting', url: 'https://example.com/jobs/acme', kind: 'job-posting' },
       { label: 'Acme careers', url: 'https://example.com/jobs/acme', kind: 'job-posting' },
@@ -187,14 +190,8 @@ describe('investigatePipelineEntry', () => {
       'Public candidate reports mention a recruiter screen and system design loop.',
     ])
     expect(result.research.searchQueries).toEqual(['Acme staff platform engineer'])
-    expect(result.research.people).toEqual([
-      {
-        name: 'Jordan Lee',
-        title: 'Director of Platform',
-        company: 'Acme Corp',
-        relevance: 'Likely org leader for this team.',
-      },
-    ])
+    // AI-provided people are discarded — we do not auto-discover interviewers.
+    expect(result.research.people).toEqual([])
     expect(result.research.sources).toContainEqual({
       label: 'Unsafe source',
       kind: 'other',

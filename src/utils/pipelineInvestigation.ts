@@ -1,7 +1,6 @@
 import type {
   InterviewFormat,
   PipelineEntry,
-  PipelineResearchPerson,
   PipelineResearchSnapshot,
   PipelineResearchSource,
   PipelineResearchSourceKind,
@@ -37,7 +36,6 @@ type PipelineInvestigationPayload = {
   jobDescriptionSummary?: unknown
   interviewSignals?: unknown
   formats?: unknown
-  people?: unknown
   sources?: unknown
   nextStep?: unknown
 }
@@ -123,30 +121,6 @@ const normalizeSources = (value: unknown): PipelineResearchSource[] =>
       })
     : []
 
-const normalizePeople = (value: unknown): PipelineResearchPerson[] =>
-  Array.isArray(value)
-    ? value.flatMap((person) => {
-        if (!isRecord(person)) {
-          return []
-        }
-
-        const name = trimString(person.name)
-        if (!name) {
-          return []
-        }
-
-        const profileUrl = sanitizeUrl(trimString(person.profileUrl)) ?? ''
-
-        return [{
-          name,
-          title: trimString(person.title),
-          company: trimString(person.company),
-          ...(profileUrl ? { profileUrl } : {}),
-          relevance: trimString(person.relevance),
-        }]
-      })
-    : []
-
 const dedupeSources = (sources: PipelineResearchSource[]): PipelineResearchSource[] => {
   const seen = new Set<string>()
   return sources.filter((source) => {
@@ -154,23 +128,6 @@ const dedupeSources = (sources: PipelineResearchSource[]): PipelineResearchSourc
       source.kind,
       source.url?.toLowerCase() ?? '',
       source.label.toLowerCase(),
-    ].join('|')
-    if (seen.has(key)) {
-      return false
-    }
-    seen.add(key)
-    return true
-  })
-}
-
-const dedupePeople = (people: PipelineResearchPerson[]): PipelineResearchPerson[] => {
-  const seen = new Set<string>()
-  return people.filter((person) => {
-    const key = [
-      person.profileUrl?.toLowerCase() ?? '',
-      person.name.toLowerCase(),
-      person.title.toLowerCase(),
-      person.company.toLowerCase(),
     ].join('|')
     if (seen.has(key)) {
       return false
@@ -197,24 +154,17 @@ Return JSON only with this schema:
   "jobDescriptionSummary": "string",
   "interviewSignals": ["string"],
   "formats": ["hr-screen" | "hm-screen" | "tech-discussion" | "system-design" | "take-home" | "live-coding" | "leetcode" | "pair-programming" | "behavioral" | "peer-panel" | "cross-team" | "exec" | "presentation"],
-  "people": [
-    {
-      "name": "string",
-      "title": "string",
-      "company": "string",
-      "profileUrl": "optional string",
-      "relevance": "string"
-    }
-  ],
   "sources": [
     {
       "label": "string",
       "url": "optional string",
-      "kind": "job-posting | company | people | review | other"
+      "kind": "job-posting | company | review | other"
     }
   ],
   "nextStep": "string"
-}`
+}
+
+Do not attempt to identify specific interviewers, recruiters, or team members by name. Who is on a given panel is scheduling-dependent and not reliably inferrable from public sources; users will supply interviewer names when they learn them from the recruiter.`
 
   const userPrompt = `Investigate this pipeline job and gather as much public context as possible.
 
@@ -239,9 +189,9 @@ ${JSON.stringify(
 Goals:
 - Find the best available public job description or a faithful summary if the full posting is inaccessible.
 - Infer likely interview steps only from public evidence such as the job posting, public candidate reports, or other reputable sources.
-- Look up relevant people when possible, such as a recruiter, hiring manager, or likely team leader tied to this role or org.
 - Return source links so the user can verify the research.
-- Suggest one concrete next step the candidate should take from here.`
+- Suggest one concrete next step the candidate should take from here.
+- Do not name specific interviewers, recruiters, or hiring managers. The user provides interviewer names separately when scheduling is known.`
 
   const execution = await callSearchProxy(endpoint, systemPrompt, userPrompt)
 
@@ -267,10 +217,11 @@ Goals:
       ...(existingResearch?.interviewSignals ?? []),
       ...normalizeStringArray(parsed.interviewSignals),
     ]),
-    people: dedupePeople([
-      ...(existingResearch?.people ?? []),
-      ...normalizePeople(parsed.people),
-    ]),
+    // People discovery is intentionally not performed by the investigator —
+    // AI-inferred interviewer identities are reliably wrong (scheduling-dependent,
+    // not inferrable from public sources). Users supply names in the pipeline UI
+    // when they learn them from the recruiter; see doc-30 §Interviewer Capture.
+    people: [],
     sources: dedupeSources([
       ...(existingResearch?.sources ?? []),
       ...normalizeSources(parsed.sources),
