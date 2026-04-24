@@ -913,7 +913,7 @@ describe('resumeScanner parser', () => {
       ...buildLine('example.dev', 684),
       ...buildLine('Open source projects I created and actively maintain.', 668),
       ...buildLine('Inferno Lab: Security testing, simulation, and education platform.', 636),
-      ...buildLine('Apparatus (58+ feature simulation lab), Chimera (450+ endpoint training platform across 22 verticals), and Crucible (enterprise attack validation with MITRE ATT&CK mapping and compliance reporting).', 620),
+      ...buildLine('Workbench (large feature simulation lab), Hydra (endpoint training platform across many verticals), and Gauntlet (enterprise attack validation with MITRE ATT&CK mapping and compliance reporting).', 620),
       ...buildLine('Cortex: AI development framework.', 588),
       ...buildLine('Context orchestration for Claude Code, Codex, and Gemini. 90+ skills, intelligent recommendation engine, memory vault, and a Python CLI/TUI.', 572),
       ...buildLine('Facet: Vector-based job search platform.', 540),
@@ -927,7 +927,7 @@ describe('resumeScanner parser', () => {
         id: 'inferno-lab',
         name: 'Inferno Lab',
         description:
-          'Security testing, simulation, and education platform. Apparatus (58+ feature simulation lab), Chimera (450+ endpoint training platform across 22 verticals), and Crucible (enterprise attack validation with MITRE ATT&CK mapping and compliance reporting).',
+          'Security testing, simulation, and education platform. Workbench (large feature simulation lab), Hydra (endpoint training platform across many verticals), and Gauntlet (enterprise attack validation with MITRE ATT&CK mapping and compliance reporting).',
         tags: [],
       },
       {

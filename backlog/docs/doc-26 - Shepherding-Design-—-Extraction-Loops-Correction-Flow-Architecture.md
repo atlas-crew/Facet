@@ -303,7 +303,7 @@ Lightweight form after the interview:
 - Debrief entered → "Your Round 2 prep should account for what happened in Round 1. Refresh?"
 - Updated prep incorporates R1 intel:
   - "They asked about K8s in R1 — expect deeper follow-up in R2"
-  - "They seemed interested in the Wayfair story — prepare the extended version"
+  - "They seemed interested in the e-commerce customer story — prepare the extended version"
   - "R1 was conversational — R2 is with a more technical person, shift tone"
 
 ### What Gets Extracted

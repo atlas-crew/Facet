@@ -50,7 +50,7 @@ Use the schema from the existing product spec (`version`, `meta`, `vectors`, `ta
 ## Feature 2: Bullet Reordering Per Vector
 
 ### Problem
-Vector priority controls *inclusion* (must/strong/optional/exclude), but the whole point of multi-vector resumes is that the **same bullets appear in different order** depending on the positioning angle. A security resume should lead with the Synapse bullet; a platform resume should lead with the IDP bullet. The user needs to drag bullets into a specific order *per vector*, and that ordering should persist independently.
+Vector priority controls *inclusion* (must/strong/optional/exclude), but the whole point of multi-vector resumes is that the **same bullets appear in different order** depending on the positioning angle. A security resume should lead with the EdgeProbe bullet; a platform resume should lead with the IDP bullet. The user needs to drag bullets into a specific order *per vector*, and that ordering should persist independently.
 
 ### Spec
 

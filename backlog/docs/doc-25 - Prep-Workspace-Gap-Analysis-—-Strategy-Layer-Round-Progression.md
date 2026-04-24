@@ -135,7 +135,7 @@ Use existing `warning` field for delivery coaching, `categoryGuidance` for secti
 
 2. **Round-aware generation:** When generating prep for round N+1, include the debrief from round N as context. The AI can then:
    - "In R1 they asked about K8s admin experience. Expect them to probe deeper in R2. Here's how to handle the follow-up."
-   - "You mentioned the Wayfair engagement in R1. They seemed interested — prepare a deeper version for R2."
+   - "You mentioned the e-commerce engagement in R1. They seemed interested — prepare a deeper version for R2."
    - "R1 was conversational and they seemed positive. R2 is with a more technical person — shift tone."
 
 3. **Multi-deck linking:** Multiple PrepDecks for the same pipeline entry, linked by round number. Or a single PrepDeck with round-scoped sections.

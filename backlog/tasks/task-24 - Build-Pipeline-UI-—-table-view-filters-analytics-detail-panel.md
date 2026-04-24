@@ -43,7 +43,7 @@ Build the full Pipeline route UI as a React implementation of the existing vanil
 5. PipelineAnalytics: port all 8 analytics computations from pipeline-tracker.html lines 1241-1415. All as useMemo derived from pipelineStore entries. Use the funnel, KPI cards, and breakdown table patterns.
 6. PipelineEntryModal: group fields into sections — Core (company, role, tier, status, comp, url), Facet (vector, resumeVariant), Positioning (positioning, skillMatch, nextStep, notes), Tracking (appMethod, response, daysToResponse, rounds, format, rejectionStage, rejectionReason, offerAmount, dateApplied, dateClosed).
 7. CSS: create pipeline.css imported by PipelinePage. Use var(--bg-surface), var(--border-subtle), var(--font-mono) etc. Match the visual density of the build view.
-8. **Visual targets:** `docs/assets/mockups/pipeline-table.png` and `docs/assets/mockups/pipeline-analytics.png`. Match this layout, density, and visual language. Reference `docs/assets/mockups/reference-apparatus-form.png` for entry modal form density.
+8. **Visual targets:** `docs/assets/mockups/pipeline-table.png` and `docs/assets/mockups/pipeline-analytics.png`. Match this layout, density, and visual language. Reference `docs/assets/mockups/reference-dense-form.png` for entry modal form density.
 9. Reference: `docs/PIPELINE_PREP_SPEC.md` §3 (mockups) + §4.3–§4.4, source HTML lines 543-1415.
 <!-- SECTION:PLAN:END -->
 

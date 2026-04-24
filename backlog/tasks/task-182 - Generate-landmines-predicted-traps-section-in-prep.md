@@ -29,7 +29,7 @@ The `General Cheatsheet.html` reference has a "Landmines — Have Answers Ready"
 Examples:
 - **"Why are you leaving?"** → "Acquisition restructured the team. My role was eliminated. **Never mention manager or politics.** Dates tell the story: Feb 2025 acquisition → Feb 2026 = retention cliff."
 - **"You've been mostly solo — can you work on a team?"** → "SOC team mentorship, pro services customer engagements, built tools for other teams. **Solo was context, not preference.**"
-- **"No experience with [Go / Java / specific tool]?"** → "Learned Rust from scratch for Synapse — same systems-level thinking. **Frame: 'productive in weeks, not months.'**"
+- **"No experience with [Go / Java / specific tool]?"** → "Learned Rust from scratch for a prior sensor project — same systems-level thinking. **Frame: 'productive in weeks, not months.'**"
 
 Each landmine has:
 1. The trap question

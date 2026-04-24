@@ -42,7 +42,7 @@ Mockups live in `docs/assets/mockups/`. These are the design targets — agents 
 | Pipeline analytics | `pipeline-analytics.png` | KPI cards (response rate, avg days, avg rounds, app→offer), horizontal bar breakdowns by tier/vector/method/rejection stage/format/variant |
 | Prep cards (openers) | `prep-cards-openers.png` | Two-column card grid, category pills (All/Opener/Behavioral/Technical/Project/Metrics/Situational), CAUTION block (yellow), SAY THIS block (green accent + copy button), Q&A inset cards, tag badges |
 | Prep cards (technical) | `prep-cards-technical.png` | SAY THIS block, collapsible deep-dive arrows (▸), metric badge strip (mono font, green accent), before/after comparison table |
-| Form density reference | `reference-apparatus-form.png` | Apparatus dashboard — dark chrome, checkbox grid layout, input density. Use as tonal reference for pipeline entry modal form layout |
+| Form density reference | `reference-dense-form.png` | reference dense-form dashboard — dark chrome, checkbox grid layout, input density. Use as tonal reference for pipeline entry modal form layout |
 
 **Key design decisions visible in mockups:**
 
@@ -305,7 +305,7 @@ export interface PrepCard {
   category: PrepCategory
   title: string         // The question or topic, e.g. "Tell me about yourself"
   tags: string[]        // Vector IDs and free-text tags for filtering
-                        // e.g. ['security', 'platform', 'rust', 'synapse']
+                        // e.g. ['security', 'platform', 'rust', 'edgeprobe']
 
   // ── Content Blocks (all optional — cards vary in structure) ──
   script?: string                  // "Say This" — the rehearsed answer

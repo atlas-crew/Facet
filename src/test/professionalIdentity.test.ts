@@ -127,7 +127,7 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
           impact: ['Unlocked deployment flexibility', 'Opened new market segment'],
           metrics: { latency_improvement: '4400x', services_replaced: 12 },
           technologies: ['Rust', 'Pingora'],
-          portfolio_dive: '#synapse',
+          portfolio_dive: '#edgeprobe',
           tags: ['Security', 'security', ' Product '],
         },
       ],

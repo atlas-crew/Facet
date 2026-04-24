@@ -69,8 +69,8 @@ vectors:
 Some components have **vector-specific text variants**. Same accomplishment, different framing:
 
 ```yaml
-- id: wayfair-bullet
-  default: "Enabled a $1M enterprise contract by diagnosing Wayfair's failed sensor onboarding..."
+- id: ecommerce-customer-bullet
+  default: "Enabled a seven-figure enterprise contract by diagnosing a major e-commerce customer's failed sensor onboarding..."
   variants:
     security: "Diagnosed conntrack exhaustion under 150K+ RPS attack traffic, tuned Linux TCP stack..."
     platform: "Designed distributed load testing framework, built dynamic conntrack sizing..."
