@@ -129,6 +129,10 @@ async function startHostedServer(options?: {
     billingMutations?: { max: number, windowMs: number }
     persistenceMutations?: { max: number, windowMs: number }
   }
+  usageStore?: {
+    recordCall: (record: Record<string, unknown>) => Promise<void>
+  }
+  anthropicUsage?: { input_tokens: number; output_tokens: number }
 }) {
   const {
     createFacetServer,
@@ -186,10 +190,11 @@ async function startHostedServer(options?: {
       messages: {
         create: async () => ({
           content: [{ type: 'text', text: '{"ok":true}' }],
-          usage: { input_tokens: 0, output_tokens: 0 },
+          usage: options?.anthropicUsage ?? { input_tokens: 0, output_tokens: 0 },
         }),
       },
     },
+    usageStore: options?.usageStore,
     now: () => '2026-03-14T12:00:00.000Z',
     hostedRateLimits: options?.hostedRateLimits,
   })
@@ -796,6 +801,93 @@ describe('facetServer persistence API', () => {
         content: [{ type: 'text', text: '{"ok":true}' }],
       }),
     )
+  })
+
+  it('records ai_call_usage with tokens and cost after a successful hosted AI call', async () => {
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: { recordCall },
+      // 10k input + 5k output at Opus = 15 + ceil(37.5) = 53 cents (see pricing.test.ts)
+      anthropicUsage: { input_tokens: 10_000, output_tokens: 5_000 },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'prep.generate',
+        model: 'opus',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Build me a deck.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    // recordCall is fire-and-forget — await microtasks before asserting.
+    await new Promise((r) => setTimeout(r, 0))
+    expect(recordCall).toHaveBeenCalledTimes(1)
+    expect(recordCall.mock.calls[0][0]).toMatchObject({
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      accountId: 'account-1',
+      feature: 'prep.generate',
+      // Resolved model id, not the 'opus' alias.
+      model: expect.stringMatching(/^claude-opus-4/),
+      inputTokens: 10_000,
+      outputTokens: 5_000,
+      estCostCents: 53,
+      status: 'ok',
+    })
+  })
+
+  it('AI response succeeds even when the usage store throws', async () => {
+    const recordCall = vi.fn().mockRejectedValue(new Error('db down'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: { recordCall },
+      anthropicUsage: { input_tokens: 100, output_tokens: 200 },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'prep.generate',
+        model: 'opus',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Build me a deck.' }],
+      }),
+    })
+
+    // The response MUST succeed — observability failures cannot cascade.
+    expect(response.status).toBe(200)
+    errorSpy.mockRestore()
   })
 
   it('clamps thinking budget below max tokens for search requests', async () => {

@@ -33,6 +33,8 @@ import {
 } from './hostedWorkspaceStore.js'
 import { createPostgresWorkspaceStore } from './postgresWorkspaceStore.js'
 import { createPostgresBillingStore } from './postgresBillingStore.js'
+import { createPostgresUsageStore } from './postgresUsageStore.js'
+import { estimateCostCents } from './pricing.js'
 import pg from 'pg'
 
 const LEGACY_SONNET_MODEL = 'claude-sonnet-4-20250514'
@@ -630,6 +632,10 @@ export function createFacetServer(options = {}) {
     authMode === 'hosted'
       ? (options.billingStore ?? createInMemoryHostedBillingStore())
       : null
+  // Fire-and-forget per-call usage logger. Absent in local mode (no actor
+  // identity) and absent in hosted mode when no store is configured — the
+  // instrumentation point tolerates a null store.
+  const usageStore = authMode === 'hosted' ? (options.usageStore ?? null) : null
   const stripeClient =
     options.stripeClient ??
     (
@@ -851,6 +857,11 @@ export function createFacetServer(options = {}) {
         return
       }
 
+      // Declared at the outer handler scope so the usage-log instrumentation
+      // after the Anthropic call can read actor fields. Only populated in
+      // hosted mode; in local mode this stays undefined and the instrumentation
+      // block no-ops on the `authMode === 'hosted'` guard.
+      let actor
       if (authMode === 'hosted') {
         if (feature === undefined || feature === null) {
           operationsMonitor.record('ai', 'error', {
@@ -865,7 +876,6 @@ export function createFacetServer(options = {}) {
           return
         }
 
-        let actor
         try {
           actor = await resolveRequestActor(req)
         } catch (error) {
@@ -1015,6 +1025,26 @@ export function createFacetServer(options = {}) {
           model: resolvedModel,
           path: url.pathname,
         })
+
+        // Fire-and-forget per-call usage log for cost observability. Actor
+        // is guaranteed non-null here because the hosted path above already
+        // short-circuits on missing actor/tenant. The store's recordCall
+        // handles its own errors — never await it on the response path.
+        if (usageStore && actor) {
+          const inputTokens = Number(result.usage?.input_tokens ?? 0)
+          const outputTokens = Number(result.usage?.output_tokens ?? 0)
+          void usageStore.recordCall({
+            userId: actor.userId,
+            tenantId: actor.tenantId,
+            accountId: actor.accountId,
+            feature,
+            model: resolvedModel,
+            inputTokens,
+            outputTokens,
+            estCostCents: estimateCostCents(resolvedModel, inputTokens, outputTokens),
+            status: 'ok',
+          })
+        }
       }
 
       res.setHeader('X-Facet-Resolved-Model', resolvedModel)
@@ -1102,6 +1132,13 @@ export function createEnvFacetServer(env = process.env) {
         ? createPostgresBillingStore(hostedPool)
         : createFileHostedBillingStore(env.HOSTED_BILLING_FILE)
       : undefined
+  // Usage logging requires Postgres. If hostedPool is absent (file-backed
+  // transitional hosted mode), usage observability is off for that
+  // deployment — the instrumentation point no-ops on null.
+  const usageStore =
+    authMode === 'hosted' && hostedPool
+      ? createPostgresUsageStore(hostedPool)
+      : undefined
 
   if (authMode === 'hosted' && environment !== 'local') {
     if ((env.PROXY_API_KEY ?? DEFAULT_PROXY_API_KEY) === DEFAULT_PROXY_API_KEY) {
@@ -1177,6 +1214,7 @@ export function createEnvFacetServer(env = process.env) {
     hostedWorkspaceStore,
     hostedAuth,
     billingStore,
+    usageStore,
     stripeSecretKey: env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
     stripePriceId: env.STRIPE_PRICE_AI_PRO,
