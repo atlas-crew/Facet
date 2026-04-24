@@ -79,6 +79,7 @@ const FEATURE_MODEL_DEFAULTS = {
   'build.bullet-reframe': CURRENT_OPUS_MODEL,
   'identity.extract': CURRENT_OPUS_MODEL,
   'identity.deepen': CURRENT_OPUS_MODEL,
+  'pipeline.t3.interviewer': CURRENT_OPUS_MODEL,
   'research.profile-inference': CURRENT_OPUS_MODEL,
   'research.search': CURRENT_SONNET_MODEL,
   'prep.generate': CURRENT_OPUS_MODEL,
@@ -87,11 +88,36 @@ const FEATURE_MODEL_DEFAULTS = {
   'debrief.generate': CURRENT_OPUS_MODEL,
 }
 
+const DEFAULT_AI_FEATURE_RATE_LIMITS = {
+  'build.jd-analysis': { max: 18, windowMs: 60_000 },
+  'build.bullet-reframe': { max: 12, windowMs: 60_000 },
+  'identity.extract': { max: 8, windowMs: 60_000 },
+  'identity.deepen': { max: 12, windowMs: 60_000 },
+  'match.jd-analysis': { max: 18, windowMs: 60_000 },
+  'pipeline.t3.interviewer': { max: 3, windowMs: 60_000 },
+  'research.profile-inference': { max: 10, windowMs: 60_000 },
+  'research.search': { max: 45, windowMs: 60_000 },
+  'prep.generate': { max: 5, windowMs: 60_000 },
+  'letters.generate': { max: 8, windowMs: 60_000 },
+  'linkedin.generate': { max: 8, windowMs: 60_000 },
+  'debrief.generate': { max: 8, windowMs: 60_000 },
+}
+
 const DEFAULT_HOSTED_RATE_LIMITS = {
   ai: { max: 30, windowMs: 60_000 },
+  aiFeatures: DEFAULT_AI_FEATURE_RATE_LIMITS,
   billingMutations: { max: 12, windowMs: 60_000 },
   persistenceMutations: { max: 120, windowMs: 60_000 },
 }
+
+const DEFAULT_HOSTED_AI_USAGE_POLICY = {
+  dailyFeatureCaps: {},
+  globalSpendCircuitBreaker: {
+    maxCents: 0,
+    windowMs: 24 * 60 * 60 * 1_000,
+  },
+}
+const GLOBAL_SPEND_CACHE_TTL_MS = 30_000
 
 export const formatModelAliases = () =>
   Object.entries(MODEL_ALIASES)
@@ -142,6 +168,190 @@ function shouldOmitTemperature(model) {
 function parsePositiveInteger(value, fallback) {
   const parsed = parseInt(value ?? '', 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function normalizeRateLimitConfig(config, fallback) {
+  return {
+    max: parsePositiveInteger(config?.max, fallback.max),
+    windowMs: parsePositiveInteger(config?.windowMs, fallback.windowMs),
+  }
+}
+
+function normalizeHostedRateLimits(overrides = {}) {
+  const ai = normalizeRateLimitConfig(overrides.ai, DEFAULT_HOSTED_RATE_LIMITS.ai)
+  const aiFeatures = Object.fromEntries(
+    Object.entries(DEFAULT_AI_FEATURE_RATE_LIMITS).map(([feature, config]) => [
+      feature,
+      normalizeRateLimitConfig(overrides.aiFeatures?.[feature], config),
+    ]),
+  )
+
+  for (const [feature, config] of Object.entries(overrides.aiFeatures ?? {})) {
+    if (!aiFeatures[feature]) {
+      aiFeatures[feature] = normalizeRateLimitConfig(config, ai)
+    }
+  }
+
+  return {
+    ai,
+    aiFeatures,
+    billingMutations: normalizeRateLimitConfig(
+      overrides.billingMutations,
+      DEFAULT_HOSTED_RATE_LIMITS.billingMutations,
+    ),
+    persistenceMutations: normalizeRateLimitConfig(
+      overrides.persistenceMutations,
+      DEFAULT_HOSTED_RATE_LIMITS.persistenceMutations,
+    ),
+  }
+}
+
+function normalizeDailyFeatureCaps(caps = {}) {
+  return Object.fromEntries(
+    Object.entries(caps).flatMap(([feature, cap]) => {
+      const parsed = parsePositiveInteger(cap, 0)
+      return parsed > 0 ? [[feature, parsed]] : []
+    }),
+  )
+}
+
+function normalizeHostedAiUsagePolicy(policy = {}) {
+  const breaker = policy.globalSpendCircuitBreaker ?? {}
+  return {
+    dailyFeatureCaps: normalizeDailyFeatureCaps(policy.dailyFeatureCaps),
+    globalSpendCircuitBreaker: {
+      maxCents: parsePositiveInteger(
+        breaker.maxCents,
+        DEFAULT_HOSTED_AI_USAGE_POLICY.globalSpendCircuitBreaker.maxCents,
+      ),
+      windowMs: parsePositiveInteger(
+        breaker.windowMs,
+        DEFAULT_HOSTED_AI_USAGE_POLICY.globalSpendCircuitBreaker.windowMs,
+      ),
+    },
+  }
+}
+
+function parseJsonObjectEnv(value, label) {
+  if (!value?.trim()) {
+    return {}
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch (error) {
+    throw new Error(`${label} must be valid JSON object syntax.`)
+  }
+}
+
+function envFeatureSuffix(feature) {
+  return feature.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
+}
+
+function parseHostedAiFeatureRateLimits(env, baseLimits) {
+  const jsonOverrides = parseJsonObjectEnv(
+    env.HOSTED_AI_FEATURE_RATE_LIMITS_JSON,
+    'HOSTED_AI_FEATURE_RATE_LIMITS_JSON',
+  )
+  for (const feature of Object.keys(jsonOverrides)) {
+    if (!baseLimits[feature]) {
+      throw new Error(
+        `HOSTED_AI_FEATURE_RATE_LIMITS_JSON contains unknown AI feature "${feature}".`,
+      )
+    }
+  }
+  const envOverrides = {}
+
+  for (const feature of Object.keys(baseLimits)) {
+    const suffix = envFeatureSuffix(feature)
+    const max = env[`HOSTED_AI_RATE_LIMIT_${suffix}_MAX`]
+    const windowMs = env[`HOSTED_AI_RATE_LIMIT_${suffix}_WINDOW_MS`]
+    if (max !== undefined || windowMs !== undefined) {
+      envOverrides[feature] = {
+        ...(jsonOverrides[feature] && typeof jsonOverrides[feature] === 'object'
+          ? jsonOverrides[feature]
+          : {}),
+        ...(max !== undefined ? { max } : {}),
+        ...(windowMs !== undefined ? { windowMs } : {}),
+      }
+    }
+  }
+
+  return {
+    ...jsonOverrides,
+    ...envOverrides,
+  }
+}
+
+function parseHostedAiUsagePolicy(env) {
+  const jsonCaps = parseJsonObjectEnv(
+    env.HOSTED_AI_DAILY_FEATURE_CAPS_JSON,
+    'HOSTED_AI_DAILY_FEATURE_CAPS_JSON',
+  )
+  const dailyFeatureCaps = { ...jsonCaps }
+
+  for (const feature of Object.keys(DEFAULT_AI_FEATURE_RATE_LIMITS)) {
+    const value = env[`HOSTED_AI_DAILY_CAP_${envFeatureSuffix(feature)}`]
+    if (value !== undefined) {
+      dailyFeatureCaps[feature] = value
+    }
+  }
+
+  return normalizeHostedAiUsagePolicy({
+    dailyFeatureCaps,
+    globalSpendCircuitBreaker: {
+      maxCents: env.HOSTED_AI_GLOBAL_SPEND_LIMIT_CENTS,
+      windowMs: env.HOSTED_AI_GLOBAL_SPEND_WINDOW_MS,
+    },
+  })
+}
+
+function resolveRateLimitConfig(limits, bucket) {
+  if (bucket.startsWith('ai:')) {
+    const feature = bucket.slice('ai:'.length)
+    return limits.aiFeatures?.[feature] ?? limits.ai
+  }
+
+  return limits[bucket]
+}
+
+function listRateLimitConfigs(limits) {
+  return [
+    limits.ai,
+    ...Object.values(limits.aiFeatures ?? {}),
+    limits.billingMutations,
+    limits.persistenceMutations,
+  ].filter(Boolean)
+}
+
+function aiFeatureBucket(feature) {
+  return `ai:${feature}`
+}
+
+function monitorScopeForBucket(bucket) {
+  return bucket.startsWith('ai:') ? 'ai' : bucket
+}
+
+function secondsUntilNextUtcDay(nowMs) {
+  const current = new Date(nowMs)
+  const next = Date.UTC(
+    current.getUTCFullYear(),
+    current.getUTCMonth(),
+    current.getUTCDate() + 1,
+  )
+  return Math.max(1, Math.ceil((next - nowMs) / 1000))
+}
+
+function usageDateForTimestamp(nowMs) {
+  return new Date(nowMs).toISOString().slice(0, 10)
+}
+
+function isHostedAiUsagePolicyEnabled(policy) {
+  return (
+    Object.keys(policy.dailyFeatureCaps).length > 0 ||
+    policy.globalSpendCircuitBreaker.maxCents > 0
+  )
 }
 
 function createHostedOperationsMonitor({
@@ -201,9 +411,10 @@ function createFixedWindowRateLimiter({
   limits = DEFAULT_HOSTED_RATE_LIMITS,
 } = {}) {
   const windows = new Map()
+  const configs = listRateLimitConfigs(limits)
   const cleanupIntervalMs = Math.max(
     1_000,
-    Math.min(...Object.values(limits).map((config) => config.windowMs)),
+    Math.min(...configs.map((config) => config.windowMs)),
   )
   const cleanupExpired = () => {
     const currentTime = now()
@@ -218,7 +429,7 @@ function createFixedWindowRateLimiter({
 
   return {
     consume(bucket, key) {
-      const config = limits[bucket]
+      const config = resolveRateLimitConfig(limits, bucket)
       if (!config?.max || !config?.windowMs) {
         return { allowed: true, retryAfterSeconds: 0 }
       }
@@ -571,16 +782,19 @@ export function createFacetServer(options = {}) {
   const authMode = options.authMode === 'hosted' ? 'hosted' : 'local'
   const hostedRateLimits =
     authMode === 'hosted'
-      ? {
-          ai: options.hostedRateLimits?.ai ?? DEFAULT_HOSTED_RATE_LIMITS.ai,
-          billingMutations:
-            options.hostedRateLimits?.billingMutations ??
-            DEFAULT_HOSTED_RATE_LIMITS.billingMutations,
-          persistenceMutations:
-            options.hostedRateLimits?.persistenceMutations ??
-            DEFAULT_HOSTED_RATE_LIMITS.persistenceMutations,
-        }
-      : DEFAULT_HOSTED_RATE_LIMITS
+      ? normalizeHostedRateLimits(options.hostedRateLimits)
+      : normalizeHostedRateLimits()
+  const hostedAiUsagePolicy =
+    authMode === 'hosted'
+      ? normalizeHostedAiUsagePolicy(options.hostedAiUsagePolicy)
+      : normalizeHostedAiUsagePolicy()
+  const hostedAiUsagePolicyNow = options.usagePolicyNow ?? (() => Date.now())
+  let globalSpendCache = {
+    expiresAt: 0,
+    since: '',
+    spendCents: 0,
+  }
+  let globalSpendRefreshPromise = null
   const operationsMonitor = createHostedOperationsMonitor({
     now: options.monitorNow ?? (() => Date.now()),
     logger: options.logger ?? console,
@@ -636,6 +850,121 @@ export function createFacetServer(options = {}) {
   // identity) and absent in hosted mode when no store is configured — the
   // instrumentation point tolerates a null store.
   const usageStore = authMode === 'hosted' ? (options.usageStore ?? null) : null
+  const sendUsagePolicyUnavailable = (res, feature, error) => {
+    if (error) {
+      console.error('[proxy] ai_usage_policy_error', error)
+    }
+    operationsMonitor.record('ai', 'error', {
+      code: 'ai_usage_policy_unavailable',
+      feature,
+    })
+    sendJson(res, 503, {
+      error: 'Hosted AI usage limits are enabled but usage storage is unavailable.',
+      code: 'ai_usage_policy_unavailable',
+    })
+  }
+  const enforceHostedAiUsagePolicy = async (res, actor, feature, onDailyReservation = () => {}) => {
+    if (!isHostedAiUsagePolicyEnabled(hostedAiUsagePolicy)) {
+      return true
+    }
+
+    if (!usageStore) {
+      sendUsagePolicyUnavailable(res, feature)
+      return false
+    }
+
+    const nowMs = hostedAiUsagePolicyNow()
+    const breaker = hostedAiUsagePolicy.globalSpendCircuitBreaker
+    if (breaker.maxCents > 0) {
+      if (typeof usageStore.getSpendCentsSince !== 'function') {
+        sendUsagePolicyUnavailable(res, feature)
+        return false
+      }
+
+      const since = new Date(nowMs - breaker.windowMs).toISOString()
+      let spendCents = globalSpendCache.spendCents
+      if (globalSpendCache.expiresAt <= nowMs) {
+        globalSpendRefreshPromise ??= usageStore.getSpendCentsSince({ since })
+          .then((freshSpendCents) => {
+            globalSpendCache = {
+              expiresAt: nowMs + Math.min(GLOBAL_SPEND_CACHE_TTL_MS, breaker.windowMs),
+              since,
+              spendCents: freshSpendCents,
+            }
+            return freshSpendCents
+          })
+          .finally(() => {
+            globalSpendRefreshPromise = null
+          })
+
+        try {
+          spendCents = await globalSpendRefreshPromise
+        } catch (error) {
+          sendUsagePolicyUnavailable(res, feature, error)
+          return false
+        }
+      }
+      if (spendCents >= breaker.maxCents) {
+        operationsMonitor.record('ai', 'denied', {
+          code: 'ai_spend_circuit_open',
+          feature,
+        })
+        sendJson(res, 503, {
+          error: 'Hosted AI is temporarily paused because the global spend circuit breaker is open.',
+          code: 'ai_spend_circuit_open',
+        })
+        return false
+      }
+    }
+
+    const dailyCap = hostedAiUsagePolicy.dailyFeatureCaps[feature] ?? 0
+    if (dailyCap > 0) {
+      if (typeof usageStore.reserveDailyFeatureCall !== 'function') {
+        sendUsagePolicyUnavailable(res, feature)
+        return false
+      }
+
+      let reservation
+      try {
+        reservation = await usageStore.reserveDailyFeatureCall({
+          userId: actor.userId,
+          tenantId: actor.tenantId,
+          accountId: actor.accountId,
+          feature,
+          usageDate: usageDateForTimestamp(nowMs),
+          cap: dailyCap,
+        })
+      } catch (error) {
+        sendUsagePolicyUnavailable(res, feature, error)
+        return false
+      }
+      if (!reservation.allowed) {
+        const retryAfterSeconds = secondsUntilNextUtcDay(nowMs)
+        operationsMonitor.record('ai', 'denied', {
+          code: 'daily_feature_cap_exceeded',
+          feature,
+        })
+        res.setHeader('Retry-After', String(retryAfterSeconds))
+        sendJson(res, 429, {
+          error: `Daily hosted AI limit exceeded for ${feature}.`,
+          code: 'daily_feature_cap_exceeded',
+          feature,
+          limit: dailyCap,
+          retryAfterSeconds,
+        })
+        return false
+      }
+      onDailyReservation({
+        userId: actor.userId,
+        tenantId: actor.tenantId,
+        accountId: actor.accountId,
+        feature,
+        usageDate: usageDateForTimestamp(nowMs),
+      })
+    }
+
+    return true
+  }
   const stripeClient =
     options.stripeClient ??
     (
@@ -695,7 +1024,9 @@ export function createFacetServer(options = {}) {
       return true
     }
 
-    operationsMonitor.record(bucket, 'rate_limited', {
+    operationsMonitor.record(monitorScopeForBucket(bucket), 'rate_limited', {
+      bucket,
+      feature: bucket.startsWith('ai:') ? bucket.slice('ai:'.length) : undefined,
       method: req.method,
       path: pathname,
     })
@@ -796,6 +1127,7 @@ export function createFacetServer(options = {}) {
       return
     }
 
+    let dailyUsageReservation = null
     try {
       // Keep the explicit billing routes ahead of the generic AI handler.
       if (billingApi?.canHandle(req)) {
@@ -918,7 +1250,7 @@ export function createFacetServer(options = {}) {
           return
         }
 
-        if (!enforceHostedRateLimit(req, res, url.pathname, 'ai', actor)) {
+        if (!enforceHostedRateLimit(req, res, url.pathname, aiFeatureBucket(feature), actor)) {
           return
         }
 
@@ -959,6 +1291,12 @@ export function createFacetServer(options = {}) {
             error: 'Hosted billing state could not be loaded for this AI request.',
             code: 'billing_state_error',
           })
+          return
+        }
+
+        if (!await enforceHostedAiUsagePolicy(res, actor, feature, (reservation) => {
+          dailyUsageReservation = reservation
+        })) {
           return
         }
       }
@@ -1030,9 +1368,17 @@ export function createFacetServer(options = {}) {
         // is guaranteed non-null here because the hosted path above already
         // short-circuits on missing actor/tenant. The store's recordCall
         // handles its own errors — never await it on the response path.
-        if (usageStore && actor) {
+        if (usageStore && actor && typeof usageStore.recordCall === 'function') {
           const inputTokens = Number(result.usage?.input_tokens ?? 0)
           const outputTokens = Number(result.usage?.output_tokens ?? 0)
+          const estCostCents = estimateCostCents(resolvedModel, inputTokens, outputTokens)
+          const cacheNow = hostedAiUsagePolicyNow()
+          if (globalSpendCache.expiresAt > cacheNow) {
+            globalSpendCache = {
+              ...globalSpendCache,
+              spendCents: globalSpendCache.spendCents + estCostCents,
+            }
+          }
           void usageStore.recordCall({
             userId: actor.userId,
             tenantId: actor.tenantId,
@@ -1041,7 +1387,7 @@ export function createFacetServer(options = {}) {
             model: resolvedModel,
             inputTokens,
             outputTokens,
-            estCostCents: estimateCostCents(resolvedModel, inputTokens, outputTokens),
+            estCostCents,
             status: 'ok',
           })
         }
@@ -1050,6 +1396,17 @@ export function createFacetServer(options = {}) {
       res.setHeader('X-Facet-Resolved-Model', resolvedModel)
       sendJson(res, 200, result)
     } catch (error) {
+      if (
+        dailyUsageReservation &&
+        usageStore &&
+        typeof usageStore.refundDailyFeatureCall === 'function'
+      ) {
+        try {
+          await usageStore.refundDailyFeatureCall(dailyUsageReservation)
+        } catch (refundError) {
+          console.error('[proxy] failed to refund AI daily usage reservation', refundError)
+        }
+      }
       const status = error?.status ?? 500
       const fallbackMessage = 'Internal proxy error'
       const upstreamMessage =
@@ -1186,6 +1543,7 @@ export function createEnvFacetServer(env = process.env) {
           DEFAULT_HOSTED_RATE_LIMITS.ai.windowMs,
         ),
       },
+      aiFeatures: parseHostedAiFeatureRateLimits(env, DEFAULT_AI_FEATURE_RATE_LIMITS),
       billingMutations: {
         max: parsePositiveInteger(
           env.HOSTED_BILLING_RATE_LIMIT_MAX,
@@ -1215,6 +1573,7 @@ export function createEnvFacetServer(env = process.env) {
     hostedAuth,
     billingStore,
     usageStore,
+    hostedAiUsagePolicy: parseHostedAiUsagePolicy(env),
     stripeSecretKey: env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
     stripePriceId: env.STRIPE_PRICE_AI_PRO,

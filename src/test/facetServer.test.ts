@@ -126,13 +126,29 @@ async function startHostedServer(options?: {
   includeDefaultWorkspace?: boolean
   hostedRateLimits?: {
     ai?: { max: number, windowMs: number }
+    aiFeatures?: Record<string, { max: number, windowMs: number }>
     billingMutations?: { max: number, windowMs: number }
     persistenceMutations?: { max: number, windowMs: number }
   }
   usageStore?: {
     recordCall: (record: Record<string, unknown>) => Promise<void>
+    reserveDailyFeatureCall?: (request: Record<string, unknown>) => Promise<{
+      allowed: boolean
+      count: number
+    }>
+    refundDailyFeatureCall?: (request: Record<string, unknown>) => Promise<void>
+    getSpendCentsSince?: (request: { since: string }) => Promise<number>
   }
+  hostedAiUsagePolicy?: {
+    dailyFeatureCaps?: Record<string, number>
+    globalSpendCircuitBreaker?: {
+      maxCents?: number
+      windowMs?: number
+    }
+  }
+  usagePolicyNow?: () => number
   anthropicUsage?: { input_tokens: number; output_tokens: number }
+  anthropicCreate?: () => Promise<unknown>
 }) {
   const {
     createFacetServer,
@@ -188,15 +204,17 @@ async function startHostedServer(options?: {
     billingStore,
     anthropicClient: {
       messages: {
-        create: async () => ({
+        create: options?.anthropicCreate ?? (async () => ({
           content: [{ type: 'text', text: '{"ok":true}' }],
           usage: options?.anthropicUsage ?? { input_tokens: 0, output_tokens: 0 },
-        }),
+        })),
       },
     },
     usageStore: options?.usageStore,
     now: () => '2026-03-14T12:00:00.000Z',
     hostedRateLimits: options?.hostedRateLimits,
+    hostedAiUsagePolicy: options?.hostedAiUsagePolicy,
+    usagePolicyNow: options?.usagePolicyNow,
   })
 
   await new Promise<void>((resolve) => {
@@ -1389,6 +1407,9 @@ describe('facetServer persistence API', () => {
       },
       hostedRateLimits: {
         ai: { max: 1, windowMs: 60_000 },
+        aiFeatures: {
+          'research.search': { max: 1, windowMs: 60_000 },
+        },
       },
     })
     servers.add(server)
@@ -1446,6 +1467,9 @@ describe('facetServer persistence API', () => {
       },
       hostedRateLimits: {
         ai: { max: 1, windowMs: 60_000 },
+        aiFeatures: {
+          'research.search': { max: 1, windowMs: 60_000 },
+        },
       },
     })
     servers.add(server)
@@ -1484,6 +1508,527 @@ describe('facetServer persistence API', () => {
       }),
     })
     expect(second.status).toBe(429)
+  })
+
+  it('applies hosted AI burst limits per feature bucket', async () => {
+    const { server, baseUrl, accessToken, operationsMonitor } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate', 'research.search'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      hostedRateLimits: {
+        ai: { max: 99, windowMs: 60_000 },
+        aiFeatures: {
+          'prep.generate': { max: 1, windowMs: 60_000 },
+          'research.search': { max: 2, windowMs: 60_000 },
+        },
+      },
+    })
+    servers.add(server)
+
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      Origin: 'http://localhost:5173',
+    }
+
+    const postAi = (feature: string) => fetch(baseUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        feature,
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Generate.' }],
+      }),
+    })
+
+    expect((await postAi('prep.generate')).status).toBe(200)
+
+    const cappedPrep = await postAi('prep.generate')
+    expect(cappedPrep.status).toBe(429)
+    await expect(cappedPrep.json()).resolves.toEqual(
+      expect.objectContaining({
+        code: 'rate_limited',
+        error: 'Rate limit exceeded for hosted ai:prep.generate.',
+      }),
+    )
+
+    expect((await postAi('research.search')).status).toBe(200)
+    expect(operationsMonitor.snapshot().counters).toMatchObject({
+      'ai.success': 2,
+      'ai.rate_limited': 1,
+    })
+  })
+
+  it('enforces configured daily feature caps through the usage store', async () => {
+    const reserveDailyFeatureCall = vi.fn()
+      .mockResolvedValueOnce({ allowed: true, count: 1 })
+      .mockResolvedValueOnce({ allowed: false, count: 1 })
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        reserveDailyFeatureCall,
+      },
+      hostedAiUsagePolicy: {
+        dailyFeatureCaps: {
+          'prep.generate': 1,
+        },
+      },
+      usagePolicyNow: () => Date.UTC(2026, 2, 14, 12, 0, 0),
+    })
+    servers.add(server)
+
+    const request = () => fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'prep.generate',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Prepare me.' }],
+      }),
+    })
+
+    expect((await request()).status).toBe(200)
+    const capped = await request()
+
+    expect(capped.status).toBe(429)
+    expect(capped.headers.get('Retry-After')).toBeTruthy()
+    await expect(capped.json()).resolves.toEqual(
+      expect.objectContaining({
+        code: 'daily_feature_cap_exceeded',
+        feature: 'prep.generate',
+        limit: 1,
+      }),
+    )
+    expect(reserveDailyFeatureCall).toHaveBeenNthCalledWith(1, {
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      accountId: 'account-1',
+      feature: 'prep.generate',
+      usageDate: '2026-03-14',
+      cap: 1,
+    })
+    expect(recordCall).toHaveBeenCalledTimes(1)
+  })
+
+  it('refunds a daily feature reservation when the upstream AI call fails', async () => {
+    const reserveDailyFeatureCall = vi.fn().mockResolvedValue({ allowed: true, count: 1 })
+    const refundDailyFeatureCall = vi.fn().mockResolvedValue(undefined)
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const upstreamError = Object.assign(new Error('upstream unavailable'), { status: 529 })
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        reserveDailyFeatureCall,
+        refundDailyFeatureCall,
+      },
+      hostedAiUsagePolicy: {
+        dailyFeatureCaps: {
+          'prep.generate': 1,
+        },
+      },
+      usagePolicyNow: () => Date.UTC(2026, 2, 14, 12, 0, 0),
+      anthropicCreate: async () => {
+        throw upstreamError
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'prep.generate',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Prepare me.' }],
+      }),
+    })
+
+    expect(response.status).toBe(529)
+    expect(refundDailyFeatureCall).toHaveBeenCalledWith({
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      accountId: 'account-1',
+      feature: 'prep.generate',
+      usageDate: '2026-03-14',
+    })
+    expect(recordCall).not.toHaveBeenCalled()
+  })
+
+  it('opens the global AI spend circuit breaker when configured spend is exhausted', async () => {
+    const getSpendCentsSince = vi.fn().mockResolvedValue(500)
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        getSpendCentsSince,
+      },
+      hostedAiUsagePolicy: {
+        globalSpendCircuitBreaker: {
+          maxCents: 500,
+          windowMs: 60_000,
+        },
+      },
+      usagePolicyNow: () => Date.UTC(2026, 2, 14, 12, 0, 0),
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hosted AI is temporarily paused because the global spend circuit breaker is open.',
+      code: 'ai_spend_circuit_open',
+    })
+    expect(getSpendCentsSince).toHaveBeenCalledWith({
+      since: '2026-03-14T11:59:00.000Z',
+    })
+    expect(recordCall).not.toHaveBeenCalled()
+  })
+
+  it('returns a stable usage-policy error when global spend storage fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const getSpendCentsSince = vi.fn().mockRejectedValue(new Error('database unavailable'))
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        getSpendCentsSince,
+      },
+      hostedAiUsagePolicy: {
+        globalSpendCircuitBreaker: {
+          maxCents: 500,
+          windowMs: 60_000,
+        },
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hosted AI usage limits are enabled but usage storage is unavailable.',
+      code: 'ai_usage_policy_unavailable',
+    })
+    expect(recordCall).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('returns a stable usage-policy error when daily reservation storage fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const reserveDailyFeatureCall = vi.fn().mockRejectedValue(new Error('database unavailable'))
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        reserveDailyFeatureCall,
+      },
+      hostedAiUsagePolicy: {
+        dailyFeatureCaps: {
+          'prep.generate': 1,
+        },
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'prep.generate',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Prepare me.' }],
+      }),
+    })
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hosted AI usage limits are enabled but usage storage is unavailable.',
+      code: 'ai_usage_policy_unavailable',
+    })
+    expect(recordCall).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('fails closed when usage policy is enabled without a usage store', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['prep.generate'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      hostedAiUsagePolicy: {
+        dailyFeatureCaps: {
+          'prep.generate': 1,
+        },
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'prep.generate',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Prepare me.' }],
+      }),
+    })
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hosted AI usage limits are enabled but usage storage is unavailable.',
+      code: 'ai_usage_policy_unavailable',
+    })
+  })
+
+  it('caches global spend checks briefly instead of summing on every AI request', async () => {
+    const getSpendCentsSince = vi.fn().mockResolvedValue(100)
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    let now = Date.UTC(2026, 2, 14, 12, 0, 0)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        getSpendCentsSince,
+      },
+      hostedAiUsagePolicy: {
+        globalSpendCircuitBreaker: {
+          maxCents: 500,
+          windowMs: 60_000,
+        },
+      },
+      usagePolicyNow: () => now,
+    })
+    servers.add(server)
+
+    const request = () => fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect((await request()).status).toBe(200)
+    now += 1_000
+    expect((await request()).status).toBe(200)
+
+    expect(getSpendCentsSince).toHaveBeenCalledTimes(1)
+    expect(recordCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('coalesces concurrent global spend refreshes into one store query', async () => {
+    let resolveSpend: (value: number) => void = () => {}
+    const spendPromise = new Promise<number>((resolve) => {
+      resolveSpend = resolve
+    })
+    const getSpendCentsSince = vi.fn().mockReturnValue(spendPromise)
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        getSpendCentsSince,
+      },
+      hostedAiUsagePolicy: {
+        globalSpendCircuitBreaker: {
+          maxCents: 500,
+          windowMs: 60_000,
+        },
+      },
+      usagePolicyNow: () => Date.UTC(2026, 2, 14, 12, 0, 0),
+    })
+    servers.add(server)
+
+    const request = () => fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    const responses = Promise.all([request(), request(), request()])
+    await vi.waitFor(() => {
+      expect(getSpendCentsSince).toHaveBeenCalledTimes(1)
+    })
+    resolveSpend(100)
+
+    await expect(responses).resolves.toEqual([
+      expect.objectContaining({ status: 200 }),
+      expect.objectContaining({ status: 200 }),
+      expect.objectContaining({ status: 200 }),
+    ])
+    expect(getSpendCentsSince).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds successful in-process usage to the cached global spend breaker', async () => {
+    const getSpendCentsSince = vi.fn().mockResolvedValue(499)
+    const recordCall = vi.fn().mockResolvedValue(undefined)
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-05-14T00:00:00.000Z',
+      },
+      usageStore: {
+        recordCall,
+        getSpendCentsSince,
+      },
+      hostedAiUsagePolicy: {
+        globalSpendCircuitBreaker: {
+          maxCents: 500,
+          windowMs: 60_000,
+        },
+      },
+      usagePolicyNow: () => Date.UTC(2026, 2, 14, 12, 0, 0),
+      anthropicUsage: { input_tokens: 100, output_tokens: 100 },
+    })
+    servers.add(server)
+
+    const request = () => fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect((await request()).status).toBe(200)
+    const denied = await request()
+
+    expect(denied.status).toBe(503)
+    await expect(denied.json()).resolves.toEqual({
+      error: 'Hosted AI is temporarily paused because the global spend circuit breaker is open.',
+      code: 'ai_spend_circuit_open',
+    })
+    expect(getSpendCentsSince).toHaveBeenCalledTimes(1)
+    expect(recordCall).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed with a billing_state_error when hosted billing state cannot be loaded', async () => {
@@ -1698,6 +2243,69 @@ describe('facetServer persistence API', () => {
         HOSTED_BILLING_FILE: './hosted-billing.example.json',
       }),
     ).toThrow(/FACET_ENVIRONMENT=local\|staging\|production/i)
+  })
+
+  it('parses hosted AI feature rate and usage policy env overrides', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { createEnvFacetServer } = await loadProxyModules()
+
+    const { operationsMonitor } = createEnvFacetServer({
+      FACET_AUTH_MODE: 'hosted',
+      FACET_ENVIRONMENT: 'local',
+      ALLOWED_ORIGINS: 'http://localhost:5173',
+      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+      HOSTED_BILLING_FILE: './hosted-billing.example.json',
+      SUPABASE_URL: 'https://supabase.example',
+      SUPABASE_JWKS_URL: 'https://supabase.example/auth/v1/keys',
+      HOSTED_AI_RATE_LIMIT_MAX: '99',
+      HOSTED_AI_FEATURE_RATE_LIMITS_JSON: JSON.stringify({
+        'prep.generate': { max: 7, windowMs: 12_000 },
+      }),
+      HOSTED_AI_RATE_LIMIT_PREP_GENERATE_MAX: '3',
+      HOSTED_AI_DAILY_FEATURE_CAPS_JSON: JSON.stringify({
+        'prep.generate': 11,
+      }),
+      HOSTED_AI_DAILY_CAP_PIPELINE_T3_INTERVIEWER: '2',
+      HOSTED_AI_GLOBAL_SPEND_LIMIT_CENTS: '500',
+      HOSTED_AI_GLOBAL_SPEND_WINDOW_MS: '60000',
+    })
+    const snapshot = operationsMonitor.snapshot()
+    expect(snapshot.rateLimits.ai).toEqual({ max: 99, windowMs: 60_000 })
+    expect(snapshot.rateLimits.aiFeatures['prep.generate']).toEqual({
+      max: 3,
+      windowMs: 12_000,
+    })
+    warnSpy.mockRestore()
+  })
+
+  it('rejects invalid hosted AI feature rate-limit env configuration', async () => {
+    const { createEnvFacetServer } = await loadProxyModules()
+
+    expect(() => createEnvFacetServer({
+      FACET_AUTH_MODE: 'hosted',
+      FACET_ENVIRONMENT: 'local',
+      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+      HOSTED_BILLING_FILE: './hosted-billing.example.json',
+      HOSTED_AI_FEATURE_RATE_LIMITS_JSON: '{not-json',
+    })).toThrow(/HOSTED_AI_FEATURE_RATE_LIMITS_JSON must be valid JSON object syntax/)
+
+    expect(() => createEnvFacetServer({
+      FACET_AUTH_MODE: 'hosted',
+      FACET_ENVIRONMENT: 'local',
+      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+      HOSTED_BILLING_FILE: './hosted-billing.example.json',
+      HOSTED_AI_DAILY_FEATURE_CAPS_JSON: '{not-json',
+    })).toThrow(/HOSTED_AI_DAILY_FEATURE_CAPS_JSON must be valid JSON object syntax/)
+
+    expect(() => createEnvFacetServer({
+      FACET_AUTH_MODE: 'hosted',
+      FACET_ENVIRONMENT: 'local',
+      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+      HOSTED_BILLING_FILE: './hosted-billing.example.json',
+      HOSTED_AI_FEATURE_RATE_LIMITS_JSON: JSON.stringify({
+        'typo.feature': { max: 1, windowMs: 60_000 },
+      }),
+    })).toThrow(/unknown AI feature "typo.feature"/)
   })
 
   it('rejects hosted staging persistence token maps and transitional file stores without an explicit override', async () => {

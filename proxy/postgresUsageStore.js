@@ -34,7 +34,7 @@ export function createPostgresUsageStore(pool) {
       const status = record.status ?? 'ok'
       const inputTokens = clampNonNegativeInt(record.inputTokens)
       const outputTokens = clampNonNegativeInt(record.outputTokens)
-      const estCostCents = clampNonNegativeInt(record.estCostCents)
+      const estCostCents = clampNonNegativeCostCents(record.estCostCents)
 
       try {
         await pool.query(
@@ -63,11 +63,135 @@ export function createPostgresUsageStore(pool) {
         })
       }
     },
+
+    /**
+     * Atomically reserve one daily feature call for an actor.
+     *
+     * @param {object} request
+     * @param {string} request.userId
+     * @param {string} request.tenantId
+     * @param {string} request.accountId
+     * @param {string} request.feature
+     * @param {string} request.usageDate YYYY-MM-DD in UTC
+     * @param {number} request.cap Inclusive daily cap
+     * @returns {Promise<{allowed: boolean, count: number}>}
+     */
+    async reserveDailyFeatureCall(request) {
+      const cap = clampNonNegativeInt(request.cap)
+      if (cap <= 0) {
+        return { allowed: true, count: 0 }
+      }
+
+      const result = await pool.query(
+        `INSERT INTO public.ai_feature_daily_usage
+           (usage_date, user_id, tenant_id, account_id, feature, request_count)
+         VALUES ($1, $2, $3, $4, $5, 1)
+         ON CONFLICT (usage_date, tenant_id, account_id, user_id, feature)
+         DO UPDATE SET
+           request_count = public.ai_feature_daily_usage.request_count + 1,
+           updated_at = now()
+         WHERE public.ai_feature_daily_usage.request_count < $6
+         RETURNING request_count`,
+        [
+          request.usageDate,
+          request.userId,
+          request.tenantId,
+          request.accountId,
+          request.feature,
+          cap,
+        ],
+      )
+
+      const row = result.rows?.[0]
+      if (row) {
+        return {
+          allowed: true,
+          count: clampNonNegativeInt(row.request_count),
+        }
+      }
+
+      const existing = await pool.query(
+        `SELECT request_count
+           FROM public.ai_feature_daily_usage
+          WHERE usage_date = $1
+            AND tenant_id = $2
+            AND account_id = $3
+            AND user_id = $4
+            AND feature = $5`,
+        [
+          request.usageDate,
+          request.tenantId,
+          request.accountId,
+          request.userId,
+          request.feature,
+        ],
+      )
+
+      return {
+        allowed: false,
+        count: clampNonNegativeInt(existing.rows?.[0]?.request_count ?? cap),
+      }
+    },
+
+    /**
+     * Refund a previously reserved daily feature call after upstream failure.
+     *
+     * @param {object} request
+     * @param {string} request.userId
+     * @param {string} request.tenantId
+     * @param {string} request.accountId
+     * @param {string} request.feature
+     * @param {string} request.usageDate YYYY-MM-DD in UTC
+     */
+    async refundDailyFeatureCall(request) {
+      await pool.query(
+        `UPDATE public.ai_feature_daily_usage
+            SET request_count = GREATEST(request_count - 1, 0),
+                updated_at = now()
+          WHERE usage_date = $1
+            AND tenant_id = $2
+            AND account_id = $3
+            AND user_id = $4
+            AND feature = $5`,
+        [
+          request.usageDate,
+          request.tenantId,
+          request.accountId,
+          request.userId,
+          request.feature,
+        ],
+      )
+    },
+
+    /**
+     * Sum logged hosted AI spend since an ISO timestamp.
+     *
+     * @param {{ since: string }} request
+     * @returns {Promise<number>}
+     */
+    async getSpendCentsSince(request) {
+      const result = await pool.query(
+        `SELECT COALESCE(SUM(est_cost_cents), 0)::integer AS spend_cents
+           FROM public.ai_call_usage
+          WHERE created_at >= $1
+            AND status = 'ok'`,
+        [request.since],
+      )
+      return clampNonNegativeInt(result.rows?.[0]?.spend_cents ?? 0)
+    },
   }
 }
 
 function clampNonNegativeInt(value) {
-  if (!Number.isFinite(value)) return 0
-  const floored = Math.floor(value)
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  const floored = Math.floor(numeric)
   return floored < 0 ? 0 : floored
+}
+
+function clampNonNegativeCostCents(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  const ceiled = Math.ceil(numeric)
+  return ceiled < 0 ? 0 : ceiled
 }

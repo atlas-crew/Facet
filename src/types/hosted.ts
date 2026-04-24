@@ -4,6 +4,7 @@ export const FACET_AI_FEATURE_KEYS = [
   'identity.extract',
   'identity.deepen',
   'match.jd-analysis',
+  'pipeline.t3.interviewer',
   'research.profile-inference',
   'research.search',
   'prep.generate',
