@@ -75,18 +75,25 @@ interface PipelineState {
 const now = () => new Date().toISOString().split('T')[0]
 const timestamp = () => new Date().toISOString()
 
-// Stored-XSS defense: strip URL schemes that execute JS / data when rendered
-// as <a href>. Intentionally narrower than sanitizeUrl() — we keep partial /
-// bare-domain URLs so the user can type "linkedin.com/..." without the value
-// vanishing on keystroke. The only render path that must NOT be trusted is
-// <a href>, which any downstream consumer must still wrap in sanitizeUrl().
-const DANGEROUS_URL_SCHEME = /^\s*(?:javascript|data|vbscript|file):/i
+// Stored-XSS defense: strip URL schemes that execute JS / data / blob content
+// when rendered as <a href>. Intentionally narrower than sanitizeUrl() — we
+// keep partial / bare-domain URLs so the user can type "linkedin.com/..."
+// without the value vanishing on keystroke.
+//
+// The HTML URL parser strips ASCII tab, LF, and CR before resolving schemes,
+// so `java\tscript:alert(1)` is equivalent to `javascript:alert(1)` at
+// render time. The check strips those same bytes from a copy of the input
+// before testing the denylist, while the stored value keeps the original
+// trimmed form (the browser will still see the same normalized string).
+const DANGEROUS_URL_SCHEME = /^\s*(?:javascript|data|vbscript|file|blob):/i
+const BROWSER_STRIPPED_CHARS = /[\t\n\r]/g
 
 const safeLinkedInUrl = (value: string | undefined): string | undefined => {
   if (!value) return undefined
   const trimmed = value.trim()
   if (!trimmed) return undefined
-  return DANGEROUS_URL_SCHEME.test(trimmed) ? undefined : trimmed
+  const normalized = trimmed.replace(BROWSER_STRIPPED_CHARS, '')
+  return DANGEROUS_URL_SCHEME.test(normalized) ? undefined : trimmed
 }
 
 const normalizeEntry = (

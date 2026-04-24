@@ -409,28 +409,35 @@ describe('pipelineStore', () => {
       usePipelineStore.getState().addRound(id, { label: 'Panel', format: 'peer-panel' })
       const roundId = getEntry(id).interviewRounds![0].id
 
-      usePipelineStore.getState().addInterviewer(id, roundId, {
-        name: 'Mallory',
-        linkedInUrl: 'javascript:alert(1)',
-      })
-      usePipelineStore.getState().addInterviewer(id, roundId, {
-        name: 'Eve',
-        linkedInUrl: 'data:text/html,<script>alert(1)</script>',
-      })
-      usePipelineStore.getState().addInterviewer(id, roundId, {
-        name: 'Alice',
-        linkedInUrl: 'https://linkedin.com/in/alice',
-      })
-      usePipelineStore.getState().addInterviewer(id, roundId, {
-        name: 'Bob',
-        linkedInUrl: '  JAVASCRIPT:alert(1)  ',
-      })
+      const cases: Array<{ name: string; input: string; expect: string | undefined }> = [
+        { name: 'Mallory', input: 'javascript:alert(1)', expect: undefined },
+        { name: 'Eve', input: 'data:text/html,<script>alert(1)</script>', expect: undefined },
+        { name: 'Bob', input: '  JAVASCRIPT:alert(1)  ', expect: undefined },
+        { name: 'Vbs', input: 'vbscript:msgbox(1)', expect: undefined },
+        { name: 'File', input: 'file:///etc/passwd', expect: undefined },
+        { name: 'Blob', input: 'blob:https://evil.example/abcd', expect: undefined },
+        // HTML URL parser strips tab/LF/CR before scheme resolution — so these
+        // would execute as javascript: at render time. Sanitizer must mirror.
+        { name: 'Tab', input: 'java\tscript:alert(1)', expect: undefined },
+        { name: 'Newline', input: 'j\nav\nascript:alert(1)', expect: undefined },
+        { name: 'CR', input: 'javas\rcript:alert(1)', expect: undefined },
+        // Legitimate values must survive untouched.
+        { name: 'Alice', input: 'https://linkedin.com/in/alice', expect: 'https://linkedin.com/in/alice' },
+        { name: 'Partial', input: 'linkedin.com/in/partial', expect: 'linkedin.com/in/partial' },
+        { name: 'BareHttp', input: 'http://example.com', expect: 'http://example.com' },
+      ]
+
+      for (const c of cases) {
+        usePipelineStore.getState().addInterviewer(id, roundId, {
+          name: c.name,
+          linkedInUrl: c.input,
+        })
+      }
 
       const ivs = getEntry(id).interviewRounds![0].interviewers
-      expect(ivs.find((i) => i.name === 'Mallory')!.linkedInUrl).toBeUndefined()
-      expect(ivs.find((i) => i.name === 'Eve')!.linkedInUrl).toBeUndefined()
-      expect(ivs.find((i) => i.name === 'Alice')!.linkedInUrl).toBe('https://linkedin.com/in/alice')
-      expect(ivs.find((i) => i.name === 'Bob')!.linkedInUrl).toBeUndefined()
+      for (const c of cases) {
+        expect(ivs.find((i) => i.name === c.name)!.linkedInUrl).toBe(c.expect)
+      }
     })
 
     it('updateInterviewer strips dangerous URL schemes from linkedInUrl', () => {
