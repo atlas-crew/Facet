@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type {
+  InterviewFormat,
   PipelineEntry,
+  PipelineInterviewer,
+  PipelineRound,
   PipelineStatus,
   PipelineTier,
 } from '../types/pipeline'
@@ -26,6 +29,20 @@ interface PipelineFilters {
   search: string
 }
 
+export type RoundInput = {
+  label: string
+  format: InterviewFormat
+  scheduledFor?: string
+  durationMinutes?: number
+  notes?: string
+}
+
+export type InterviewerInput = {
+  name: string
+  title?: string
+  linkedInUrl?: string
+}
+
 interface PipelineState {
   entries: PipelineEntry[]
   sortField: string
@@ -41,10 +58,36 @@ interface PipelineState {
   setFilter: (key: keyof PipelineFilters, value: string) => void
   importEntries: (entries: PipelineEntry[]) => void
   exportEntries: () => PipelineEntry[]
+
+  addRound: (entryId: string, input: RoundInput) => void
+  updateRound: (entryId: string, roundId: string, patch: Partial<PipelineRound>) => void
+  deleteRound: (entryId: string, roundId: string) => void
+  addInterviewer: (entryId: string, roundId: string, input: InterviewerInput) => void
+  updateInterviewer: (
+    entryId: string,
+    roundId: string,
+    interviewerId: string,
+    patch: Partial<PipelineInterviewer>,
+  ) => void
+  deleteInterviewer: (entryId: string, roundId: string, interviewerId: string) => void
 }
 
 const now = () => new Date().toISOString().split('T')[0]
 const timestamp = () => new Date().toISOString()
+
+// Stored-XSS defense: strip URL schemes that execute JS / data when rendered
+// as <a href>. Intentionally narrower than sanitizeUrl() — we keep partial /
+// bare-domain URLs so the user can type "linkedin.com/..." without the value
+// vanishing on keystroke. The only render path that must NOT be trusted is
+// <a href>, which any downstream consumer must still wrap in sanitizeUrl().
+const DANGEROUS_URL_SCHEME = /^\s*(?:javascript|data|vbscript|file):/i
+
+const safeLinkedInUrl = (value: string | undefined): string | undefined => {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return DANGEROUS_URL_SCHEME.test(trimmed) ? undefined : trimmed
+}
 
 const normalizeEntry = (
   entry: PipelineEntry,
@@ -198,4 +241,122 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
       },
 
       exportEntries: () => get().entries,
+
+      addRound: (entryId, input) => {
+        const iso = timestamp()
+        const date = now()
+        const round: PipelineRound = {
+          id: createId('round'),
+          label: input.label,
+          format: input.format,
+          scheduledFor: input.scheduledFor,
+          durationMinutes: input.durationMinutes,
+          notes: input.notes,
+          interviewers: [],
+          createdAt: iso,
+          updatedAt: iso,
+        }
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            e.id === entryId
+              ? normalizeEntry(
+                  {
+                    ...e,
+                    interviewRounds: [...(e.interviewRounds ?? []), round],
+                    lastAction: date,
+                    history: [...e.history, { date, note: `Added round: ${round.label}` }],
+                  },
+                  { touch: true },
+                )
+              : e
+          ),
+        }))
+      },
+
+      updateRound: (entryId, roundId, patch) => {
+        const iso = timestamp()
+        set((s) => ({
+          entries: s.entries.map((e) => {
+            if (e.id !== entryId) return e
+            const rounds = e.interviewRounds ?? []
+            const next = rounds.map((r) =>
+              r.id === roundId
+                ? { ...r, ...patch, id: r.id, createdAt: r.createdAt, updatedAt: iso }
+                : r
+            )
+            return normalizeEntry({ ...e, interviewRounds: next }, { touch: true })
+          }),
+        }))
+      },
+
+      deleteRound: (entryId, roundId) => {
+        set((s) => ({
+          entries: s.entries.map((e) => {
+            if (e.id !== entryId) return e
+            const rounds = (e.interviewRounds ?? []).filter((r) => r.id !== roundId)
+            return normalizeEntry({ ...e, interviewRounds: rounds }, { touch: true })
+          }),
+        }))
+      },
+
+      addInterviewer: (entryId, roundId, input) => {
+        const iso = timestamp()
+        const interviewer: PipelineInterviewer = {
+          id: createId('iv'),
+          name: input.name,
+          title: input.title,
+          linkedInUrl: safeLinkedInUrl(input.linkedInUrl),
+        }
+        set((s) => ({
+          entries: s.entries.map((e) => {
+            if (e.id !== entryId) return e
+            const rounds = (e.interviewRounds ?? []).map((r) =>
+              r.id === roundId
+                ? { ...r, interviewers: [...r.interviewers, interviewer], updatedAt: iso }
+                : r
+            )
+            return normalizeEntry({ ...e, interviewRounds: rounds }, { touch: true })
+          }),
+        }))
+      },
+
+      updateInterviewer: (entryId, roundId, interviewerId, patch) => {
+        const iso = timestamp()
+        const safePatch =
+          'linkedInUrl' in patch
+            ? { ...patch, linkedInUrl: safeLinkedInUrl(patch.linkedInUrl) }
+            : patch
+        set((s) => ({
+          entries: s.entries.map((e) => {
+            if (e.id !== entryId) return e
+            const rounds = (e.interviewRounds ?? []).map((r) => {
+              if (r.id !== roundId) return r
+              const interviewers = r.interviewers.map((i) =>
+                i.id === interviewerId ? { ...i, ...safePatch, id: i.id } : i
+              )
+              return { ...r, interviewers, updatedAt: iso }
+            })
+            return normalizeEntry({ ...e, interviewRounds: rounds }, { touch: true })
+          }),
+        }))
+      },
+
+      deleteInterviewer: (entryId, roundId, interviewerId) => {
+        const iso = timestamp()
+        set((s) => ({
+          entries: s.entries.map((e) => {
+            if (e.id !== entryId) return e
+            const rounds = (e.interviewRounds ?? []).map((r) =>
+              r.id === roundId
+                ? {
+                    ...r,
+                    interviewers: r.interviewers.filter((i) => i.id !== interviewerId),
+                    updatedAt: iso,
+                  }
+                : r
+            )
+            return normalizeEntry({ ...e, interviewRounds: rounds }, { touch: true })
+          }),
+        }))
+      },
     }))

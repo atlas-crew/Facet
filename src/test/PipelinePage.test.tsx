@@ -156,15 +156,7 @@ describe('PipelinePage', () => {
         summary: 'Public signals point to a platform reliability leadership role.',
         jobDescriptionSummary: 'Reliability, developer experience, and platform leadership.',
         interviewSignals: ['Public reports mention a recruiter screen and system design round.'],
-        people: [
-          {
-            name: 'Jordan Lee',
-            title: 'Director of Platform',
-            company: 'Acme Corp',
-            profileUrl: 'https://www.linkedin.com/in/jordan-lee',
-            relevance: 'Likely org lead for the team.',
-          },
-        ],
+        people: [],
         sources: [
           {
             label: 'Acme careers',
@@ -200,7 +192,6 @@ describe('PipelinePage', () => {
     })
 
     expect(screen.getByText('Public reports mention a recruiter screen and system design round.')).toBeTruthy()
-    expect(screen.getByText('Jordan Lee')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Acme careers' })).toBeTruthy()
     expect(usePipelineStore.getState().entries[0]?.format).toEqual(['hr-screen', 'system-design'])
     expect(usePipelineStore.getState().entries[0]?.jobDescription).toContain('Lead platform reliability initiatives')

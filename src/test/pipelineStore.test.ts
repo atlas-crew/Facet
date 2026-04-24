@@ -317,4 +317,157 @@ describe('pipelineStore', () => {
       },
     })
   })
+
+  describe('rounds and interviewers', () => {
+    const addEntryAndGetId = () => {
+      usePipelineStore.getState().addEntry(makeEntry())
+      return usePipelineStore.getState().entries[0].id
+    }
+
+    const getEntry = (id: string) =>
+      usePipelineStore.getState().entries.find((e) => e.id === id)!
+
+    it('adds a round with generated id, timestamps, and history note', () => {
+      const id = addEntryAndGetId()
+      usePipelineStore.getState().addRound(id, { label: 'HM screen', format: 'hm-screen' })
+
+      const entry = getEntry(id)
+      expect(entry.interviewRounds).toHaveLength(1)
+      const round = entry.interviewRounds![0]
+      expect(round.id).toMatch(/^round-/)
+      expect(round.label).toBe('HM screen')
+      expect(round.format).toBe('hm-screen')
+      expect(round.interviewers).toEqual([])
+      expect(round.createdAt).toBeTruthy()
+      expect(round.updatedAt).toBe(round.createdAt)
+      expect(entry.history.at(-1)?.note).toBe('Added round: HM screen')
+    })
+
+    it('updateRound bumps updatedAt but preserves id and createdAt', async () => {
+      const id = addEntryAndGetId()
+      usePipelineStore.getState().addRound(id, { label: 'First', format: 'hr-screen' })
+      const original = getEntry(id).interviewRounds![0]
+
+      await new Promise((r) => setTimeout(r, 5))
+      usePipelineStore
+        .getState()
+        .updateRound(id, original.id, { label: 'Renamed', id: 'hacked' as never, createdAt: 'nope' })
+
+      const updated = getEntry(id).interviewRounds![0]
+      expect(updated.id).toBe(original.id)
+      expect(updated.createdAt).toBe(original.createdAt)
+      expect(updated.label).toBe('Renamed')
+      expect(updated.updatedAt).not.toBe(original.updatedAt)
+    })
+
+    it('deleteRound removes the target round and leaves siblings', () => {
+      const id = addEntryAndGetId()
+      usePipelineStore.getState().addRound(id, { label: 'A', format: 'hr-screen' })
+      usePipelineStore.getState().addRound(id, { label: 'B', format: 'hm-screen' })
+      const [roundA] = getEntry(id).interviewRounds!
+
+      usePipelineStore.getState().deleteRound(id, roundA.id)
+
+      const rounds = getEntry(id).interviewRounds!
+      expect(rounds).toHaveLength(1)
+      expect(rounds[0].label).toBe('B')
+    })
+
+    it('addInterviewer, updateInterviewer, and deleteInterviewer are scoped to the right round', () => {
+      const id = addEntryAndGetId()
+      usePipelineStore.getState().addRound(id, { label: 'Panel', format: 'peer-panel' })
+      const roundId = getEntry(id).interviewRounds![0].id
+
+      usePipelineStore.getState().addInterviewer(id, roundId, {
+        name: 'Doug',
+        title: 'Staff',
+        linkedInUrl: 'https://linkedin.com/in/doug',
+      })
+
+      const afterAdd = getEntry(id).interviewRounds![0]
+      expect(afterAdd.interviewers).toHaveLength(1)
+      const doug = afterAdd.interviewers[0]
+      expect(doug.id).toMatch(/^iv-/)
+      expect(doug.name).toBe('Doug')
+      expect(doug.title).toBe('Staff')
+      expect(doug.linkedInUrl).toBe('https://linkedin.com/in/doug')
+
+      usePipelineStore.getState().updateInterviewer(id, roundId, doug.id, {
+        title: 'Principal',
+        id: 'hacked' as never,
+      })
+      const updated = getEntry(id).interviewRounds![0].interviewers[0]
+      expect(updated.id).toBe(doug.id)
+      expect(updated.title).toBe('Principal')
+
+      usePipelineStore.getState().deleteInterviewer(id, roundId, doug.id)
+      expect(getEntry(id).interviewRounds![0].interviewers).toHaveLength(0)
+    })
+
+    it('addInterviewer strips dangerous URL schemes from linkedInUrl', () => {
+      const id = addEntryAndGetId()
+      usePipelineStore.getState().addRound(id, { label: 'Panel', format: 'peer-panel' })
+      const roundId = getEntry(id).interviewRounds![0].id
+
+      usePipelineStore.getState().addInterviewer(id, roundId, {
+        name: 'Mallory',
+        linkedInUrl: 'javascript:alert(1)',
+      })
+      usePipelineStore.getState().addInterviewer(id, roundId, {
+        name: 'Eve',
+        linkedInUrl: 'data:text/html,<script>alert(1)</script>',
+      })
+      usePipelineStore.getState().addInterviewer(id, roundId, {
+        name: 'Alice',
+        linkedInUrl: 'https://linkedin.com/in/alice',
+      })
+      usePipelineStore.getState().addInterviewer(id, roundId, {
+        name: 'Bob',
+        linkedInUrl: '  JAVASCRIPT:alert(1)  ',
+      })
+
+      const ivs = getEntry(id).interviewRounds![0].interviewers
+      expect(ivs.find((i) => i.name === 'Mallory')!.linkedInUrl).toBeUndefined()
+      expect(ivs.find((i) => i.name === 'Eve')!.linkedInUrl).toBeUndefined()
+      expect(ivs.find((i) => i.name === 'Alice')!.linkedInUrl).toBe('https://linkedin.com/in/alice')
+      expect(ivs.find((i) => i.name === 'Bob')!.linkedInUrl).toBeUndefined()
+    })
+
+    it('updateInterviewer strips dangerous URL schemes from linkedInUrl', () => {
+      const id = addEntryAndGetId()
+      usePipelineStore.getState().addRound(id, { label: 'Panel', format: 'peer-panel' })
+      const roundId = getEntry(id).interviewRounds![0].id
+      usePipelineStore.getState().addInterviewer(id, roundId, {
+        name: 'Alice',
+        linkedInUrl: 'https://linkedin.com/in/alice',
+      })
+      const ivId = getEntry(id).interviewRounds![0].interviewers[0].id
+
+      usePipelineStore.getState().updateInterviewer(id, roundId, ivId, {
+        linkedInUrl: 'javascript:alert(1)',
+      })
+      expect(getEntry(id).interviewRounds![0].interviewers[0].linkedInUrl).toBeUndefined()
+
+      // Patches without linkedInUrl must not clobber the existing value.
+      usePipelineStore.getState().updateInterviewer(id, roundId, ivId, {
+        linkedInUrl: 'https://linkedin.com/in/alice-v2',
+      })
+      usePipelineStore.getState().updateInterviewer(id, roundId, ivId, { title: 'Staff' })
+      const iv = getEntry(id).interviewRounds![0].interviewers[0]
+      expect(iv.linkedInUrl).toBe('https://linkedin.com/in/alice-v2')
+      expect(iv.title).toBe('Staff')
+    })
+
+    it('round mutations bump the entry durableMeta revision', () => {
+      const id = addEntryAndGetId()
+      const beforeRev = getEntry(id).durableMeta!.revision
+
+      usePipelineStore.getState().addRound(id, { label: 'R', format: 'hr-screen' })
+      expect(getEntry(id).durableMeta!.revision).toBe(beforeRev + 1)
+
+      const roundId = getEntry(id).interviewRounds![0].id
+      usePipelineStore.getState().updateRound(id, roundId, { notes: 'hi' })
+      expect(getEntry(id).durableMeta!.revision).toBe(beforeRev + 2)
+    })
+  })
 })
