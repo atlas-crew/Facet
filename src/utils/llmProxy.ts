@@ -162,6 +162,10 @@ export interface LlmProxyOptions {
    * raising past that env ceiling requires a proxy-side env change.
    */
   maxTokens?: number
+  /** Optional Anthropic Messages output_config passthrough. */
+  outputConfig?: Record<string, unknown>
+  /** Optional Anthropic beta names; proxy forwards them as anthropic-beta. */
+  betas?: string[]
   /** Optional API key header. */
   apiKey?: string
   /** Optional proxy auth header override. */
@@ -217,6 +221,8 @@ export async function callLlmProxy(
         ...(options.model ? { model: options.model } : {}),
         ...(options.feature ? { feature: options.feature } : {}),
         ...(typeof options.maxTokens === 'number' ? { max_tokens: options.maxTokens } : {}),
+        ...(options.outputConfig ? { output_config: options.outputConfig } : {}),
+        ...(options.betas ? { betas: options.betas } : {}),
       }),
       signal: controller.signal,
     })

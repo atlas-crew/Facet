@@ -49,6 +49,8 @@ const MODELS_OMIT_TEMPERATURE = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODE
 const DEFAULT_MODEL = LEGACY_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+const TASK_BUDGET_FEATURE_MAX_TOKENS = 128_000
+const TASK_BUDGET_FEATURES = new Set(['research.deep-search', 'research.thesis'])
 const TEXT_UTF8_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.map', '.svg', '.txt', '.xml'])
 const STATIC_CONTENT_TYPES = {
   '.css': 'text/css',
@@ -80,8 +82,10 @@ const FEATURE_MODEL_DEFAULTS = {
   'identity.extract': CURRENT_OPUS_MODEL,
   'identity.deepen': CURRENT_OPUS_MODEL,
   'pipeline.t3.interviewer': CURRENT_OPUS_MODEL,
+  'research.deep-search': CURRENT_OPUS_MODEL,
   'research.profile-inference': CURRENT_OPUS_MODEL,
   'research.search': CURRENT_SONNET_MODEL,
+  'research.thesis': CURRENT_OPUS_MODEL,
   'prep.generate': CURRENT_OPUS_MODEL,
   'letters.generate': CURRENT_OPUS_MODEL,
   'linkedin.generate': CURRENT_OPUS_MODEL,
@@ -95,8 +99,10 @@ const DEFAULT_AI_FEATURE_RATE_LIMITS = {
   'identity.deepen': { max: 12, windowMs: 60_000 },
   'match.jd-analysis': { max: 18, windowMs: 60_000 },
   'pipeline.t3.interviewer': { max: 3, windowMs: 60_000 },
+  'research.deep-search': { max: 6, windowMs: 60_000 },
   'research.profile-inference': { max: 10, windowMs: 60_000 },
   'research.search': { max: 45, windowMs: 60_000 },
+  'research.thesis': { max: 12, windowMs: 60_000 },
   'prep.generate': { max: 5, windowMs: 60_000 },
   'letters.generate': { max: 8, windowMs: 60_000 },
   'linkedin.generate': { max: 8, windowMs: 60_000 },
@@ -129,12 +135,13 @@ function createUnauthenticatedAnthropicCompatClient({ baseURL }) {
 
   return {
     messages: {
-      async create(params) {
+      async create(params, options = {}) {
         const response = await fetch(`${normalizedBaseUrl}/v1/messages`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
             'anthropic-version': '2023-06-01',
+            ...(options?.headers ?? {}),
           },
           body: JSON.stringify(params),
         })
@@ -501,7 +508,7 @@ function extractBearerToken(authorizationHeader) {
   return match?.[1] ?? null
 }
 
-const ALLOWED_TOOL_TYPES = new Set(['web_search_20250305'])
+const ALLOWED_TOOL_TYPES = new Set(['web_search_20250305', 'web_search_20260209'])
 
 function resolveModel(requested, defaultModel) {
   if (!requested) return defaultModel
@@ -526,6 +533,39 @@ function resolveFeatureModel(requested, feature, defaultModel) {
   // Generic aliases are treated as feature-agnostic defaults and may be routed by feature.
   // Raw model ids remain an explicit escape hatch for testing and targeted overrides.
   return MODEL_ALIASES[requested] ? featureDefaultModel : resolvedRequestedModel
+}
+
+function maxRequestTokensForFeature(feature, defaultCap) {
+  return TASK_BUDGET_FEATURES.has(feature) ? Math.max(defaultCap, TASK_BUDGET_FEATURE_MAX_TOKENS) : defaultCap
+}
+
+function normalizeOutputConfig(outputConfig) {
+  if (outputConfig === undefined || outputConfig === null) {
+    return null
+  }
+
+  if (typeof outputConfig !== 'object' || Array.isArray(outputConfig)) {
+    return null
+  }
+
+  return outputConfig
+}
+
+function normalizeBetas(betas) {
+  if (betas === undefined || betas === null) {
+    return []
+  }
+
+  if (!Array.isArray(betas)) {
+    return null
+  }
+
+  const normalized = betas
+    .filter((beta) => typeof beta === 'string')
+    .map((beta) => beta.trim())
+    .filter((beta) => beta.length > 0)
+
+  return normalized.length === betas.length ? normalized : null
 }
 
 function hasValidMessages(messages) {
@@ -1167,7 +1207,18 @@ export function createFacetServer(options = {}) {
       }
 
       const body = await readBody(req, maxBodyBytes)
-      const { system, messages, temperature, max_tokens, model, thinking_budget, tools, feature } = body
+      const {
+        system,
+        messages,
+        temperature,
+        max_tokens,
+        model,
+        thinking_budget,
+        tools,
+        feature,
+        output_config,
+        betas,
+      } = body
 
       if (!hasValidMessages(messages)) {
         sendJson(res, 400, { error: 'Missing or invalid "messages" array' })
@@ -1310,10 +1361,11 @@ export function createFacetServer(options = {}) {
       const resolvedTemp = Number.isFinite(defaultTemperature)
         ? defaultTemperature
         : (temperature ?? 0.3)
+      const featureMaxRequestTokens = maxRequestTokensForFeature(feature, maxRequestTokens)
       const resolvedMaxTokens = Math.max(
         1,
         Math.min(
-          maxRequestTokens,
+          featureMaxRequestTokens,
           typeof max_tokens === 'number' ? Math.floor(max_tokens) : defaultMaxTokens,
         ),
       )
@@ -1331,6 +1383,16 @@ export function createFacetServer(options = {}) {
         sendJson(res, 400, { error: 'One or more requested tools are not allowed' })
         return
       }
+      const normalizedOutputConfig = normalizeOutputConfig(output_config)
+      if (output_config !== undefined && output_config !== null && !normalizedOutputConfig) {
+        sendJson(res, 400, { error: 'Requested output_config must be an object' })
+        return
+      }
+      const normalizedBetas = normalizeBetas(betas)
+      if (normalizedBetas === null) {
+        sendJson(res, 400, { error: 'Requested betas must be an array of strings' })
+        return
+      }
 
       const params = {
         model: resolvedModel,
@@ -1338,6 +1400,7 @@ export function createFacetServer(options = {}) {
         system: system || undefined,
         messages,
         ...(normalizedTools.length > 0 ? { tools: normalizedTools } : {}),
+        ...(normalizedOutputConfig ? { output_config: normalizedOutputConfig } : {}),
       }
 
       if (useThinking) {
@@ -1350,7 +1413,12 @@ export function createFacetServer(options = {}) {
       }
 
       const start = Date.now()
-      const result = await anthropicClient.messages.create(params)
+      const requestOptions = normalizedBetas.length > 0
+        ? { headers: { 'anthropic-beta': normalizedBetas.join(',') } }
+        : undefined
+      const result = requestOptions
+        ? await anthropicClient.messages.create(params, requestOptions)
+        : await anthropicClient.messages.create(params)
       const elapsed = Date.now() - start
 
       console.log(

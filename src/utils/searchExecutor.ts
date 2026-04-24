@@ -21,14 +21,26 @@ import { readAiProxyError } from './aiProxyErrors'
 import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
 import { createId } from './idUtils'
+import type { FacetAiFeatureKey } from '../types/hosted'
 
 const REQUEST_TIMEOUT_MS = 120000
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
+const DEFAULT_WEB_SEARCH_TOOL_TYPE = 'web_search_20250305'
 
 interface SearchExecutionPayload {
   text: string
   searchLog: string[]
   tokenUsage?: SearchTokenUsage
+}
+
+export interface SearchProxyOptions {
+  feature?: FacetAiFeatureKey
+  maxTokens?: number
+  outputConfig?: Record<string, unknown>
+  betas?: string[]
+  thinkingBudget?: number
+  webSearchToolType?: string
+  webSearchMaxUses?: number
 }
 
 // Consolidate with the canonical extractor in llmProxy (TASK-167). Both paths now
@@ -67,6 +79,7 @@ export async function callSearchProxy(
   endpoint: string,
   systemPrompt: string,
   userPrompt: string,
+  options: SearchProxyOptions = {},
 ): Promise<SearchExecutionPayload> {
   const controller = new AbortController()
   const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -88,10 +101,19 @@ export async function callSearchProxy(
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
         temperature: 1,
-        thinking_budget: 8000,
+        thinking_budget: options.thinkingBudget ?? 8000,
         model: 'sonnet',
-        feature: 'research.search',
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 15 }],
+        feature: options.feature ?? 'research.search',
+        tools: [
+          {
+            type: options.webSearchToolType ?? DEFAULT_WEB_SEARCH_TOOL_TYPE,
+            name: 'web_search',
+            max_uses: options.webSearchMaxUses ?? 15,
+          },
+        ],
+        ...(typeof options.maxTokens === 'number' ? { max_tokens: options.maxTokens } : {}),
+        ...(options.outputConfig ? { output_config: options.outputConfig } : {}),
+        ...(options.betas ? { betas: options.betas } : {}),
       }),
       signal: controller.signal,
     })

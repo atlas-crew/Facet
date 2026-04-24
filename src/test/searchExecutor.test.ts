@@ -412,7 +412,7 @@ describe('searchExecutor', () => {
 
     await expect(
       executeSearch(baseProfile, baseRequest, 'https://ai.example/proxy'),
-    ).rejects.toThrow('AI proxy error (429)')
+    ).rejects.toThrow('AI provider rate limit reached. Please wait a minute and try again.')
 
     const timeoutError = new Error('timed out')
     timeoutError.name = 'AbortError'
@@ -458,6 +458,51 @@ describe('searchExecutor', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual(
       expect.objectContaining({
         feature: 'research.search',
+        thinking_budget: 8000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 15 }],
+      }),
+    )
+  })
+
+  it('passes optional task-budget proxy parameters for deep search callers', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        content: [{ type: 'text', text: '{"results":[]}' }],
+      }),
+    } as Response)
+
+    await callSearchProxy('https://ai.example/proxy', 'System', 'User prompt', {
+      feature: 'research.deep-search',
+      maxTokens: 128000,
+      outputConfig: {
+        task_budget: { type: 'tokens', total: 80000 },
+        effort: 'xhigh',
+      },
+      betas: ['task-budgets-2026-03-13'],
+      thinkingBudget: 16000,
+      webSearchToolType: 'web_search_20260209',
+      webSearchMaxUses: 20,
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(
+      expect.objectContaining({
+        feature: 'research.deep-search',
+        thinking_budget: 16000,
+        max_tokens: 128000,
+        output_config: {
+          task_budget: { type: 'tokens', total: 80000 },
+          effort: 'xhigh',
+        },
+        betas: ['task-budgets-2026-03-13'],
+        tools: [
+          {
+            type: 'web_search_20260209',
+            name: 'web_search',
+            max_uses: 20,
+          },
+        ],
       }),
     )
   })

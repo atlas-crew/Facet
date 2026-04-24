@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { createServer as createHttpServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -964,6 +965,292 @@ describe('facetServer persistence API', () => {
         thinking: { type: 'enabled', budget_tokens: 4095 },
       }),
     )
+  })
+
+  it('passes task-budget params, beta headers, and updated web-search tool versions through for deep research features', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      defaultMaxTokens: 4096,
+      maxRequestTokens: 4096,
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind task-budget passthrough test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.deep-search',
+        model: 'sonnet',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Run deep research.' }],
+        max_tokens: 200000,
+        output_config: {
+          task_budget: { type: 'tokens', total: 80000 },
+          effort: 'xhigh',
+        },
+        betas: [' task-budgets-2026-03-13 ', ' other-beta '],
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 20 }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-opus-4-7',
+        max_tokens: 128000,
+        output_config: {
+          task_budget: { type: 'tokens', total: 80000 },
+          effort: 'xhigh',
+        },
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 15 }],
+      }),
+      {
+        headers: {
+          'anthropic-beta': 'task-budgets-2026-03-13,other-beta',
+        },
+      },
+    )
+  })
+
+  it('forwards beta headers through the unauthenticated Anthropic-compatible client', async () => {
+    const upstreamRequests: Array<{
+      beta: string | null
+      body: Record<string, unknown>
+    }> = []
+    const upstream = createHttpServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        upstreamRequests.push({
+          beta: req.headers['anthropic-beta']?.toString() ?? null,
+          body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>,
+        })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({
+          content: [{ type: 'text', text: '{"ok":true}' }],
+          usage: { input_tokens: 0, output_tokens: 0 },
+        }))
+      })
+    })
+    servers.add(upstream)
+
+    await new Promise<void>((resolve) => {
+      upstream.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const upstreamAddress = upstream.address()
+    if (!upstreamAddress || typeof upstreamAddress === 'string') {
+      throw new Error('Failed to bind Anthropic-compatible upstream test server.')
+    }
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      anthropicBaseUrl: `http://127.0.0.1:${upstreamAddress.port}`,
+      defaultMaxTokens: 4096,
+      maxRequestTokens: 4096,
+      persistenceStore: createInMemoryWorkspaceStore(),
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind compat passthrough test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.thesis',
+        model: 'sonnet',
+        messages: [{ role: 'user', content: 'Draft a thesis.' }],
+        betas: ['task-budgets-2026-03-13'],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(upstreamRequests).toEqual([
+      expect.objectContaining({
+        beta: 'task-budgets-2026-03-13',
+        body: expect.objectContaining({
+          model: 'claude-opus-4-7',
+        }),
+      }),
+    ])
+  })
+
+  it('rejects invalid task-budget passthrough option shapes before calling Anthropic', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind invalid task-budget option test server.')
+    }
+
+    const post = (body: Record<string, unknown>) => fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.deep-search',
+        model: 'sonnet',
+        messages: [{ role: 'user', content: 'Run deep research.' }],
+        ...body,
+      }),
+    })
+
+    const invalidOutputConfig = await post({ output_config: ['not-an-object'] })
+    expect(invalidOutputConfig.status).toBe(400)
+    await expect(invalidOutputConfig.json()).resolves.toEqual({
+      error: 'Requested output_config must be an object',
+    })
+
+    const primitiveOutputConfig = await post({ output_config: 'not-an-object' })
+    expect(primitiveOutputConfig.status).toBe(400)
+    await expect(primitiveOutputConfig.json()).resolves.toEqual({
+      error: 'Requested output_config must be an object',
+    })
+
+    const invalidBetas = await post({ betas: ['task-budgets-2026-03-13', 123] })
+    expect(invalidBetas.status).toBe(400)
+    await expect(invalidBetas.json()).resolves.toEqual({
+      error: 'Requested betas must be an array of strings',
+    })
+
+    const nonArrayBetas = await post({ betas: 'task-budgets-2026-03-13' })
+    expect(nonArrayBetas.status).toBe(400)
+    await expect(nonArrayBetas.json()).resolves.toEqual({
+      error: 'Requested betas must be an array of strings',
+    })
+
+    const blankBeta = await post({ betas: ['task-budgets-2026-03-13', '  '] })
+    expect(blankBeta.status).toBe(400)
+    await expect(blankBeta.json()).resolves.toEqual({
+      error: 'Requested betas must be an array of strings',
+    })
+
+    expect(messagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the default max token cap for non-task-budget features', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      defaultMaxTokens: 4096,
+      maxRequestTokens: 4096,
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind max-token cap test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'sonnet',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Run regular search.' }],
+        max_tokens: 128000,
+        output_config: null,
+        betas: [],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        max_tokens: 4096,
+      }),
+    )
+    const [params] = messagesCreate.mock.calls[0] as unknown as [Record<string, unknown>]
+    expect(params).not.toHaveProperty('output_config')
+    expect(messagesCreate.mock.calls[0]).toHaveLength(1)
   })
 
   it('routes drafting and suggestion features to opus 4.7 when callers send generic aliases', async () => {
