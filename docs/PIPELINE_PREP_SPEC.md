@@ -546,7 +546,7 @@ These files are reference for **feature design and data schema** only. They cont
 - **Interview prep feature reference:** `/mnt/user-data/uploads/interview-prep.html` (1067 lines)
   - Section structure (categories, content block patterns): lines 424–478
   - Content block types to support: lines 481–1036
-  - Section types: opener, behavioral, a10-post, threatx-pre, vispero, deep-dive, numbers
+  - Section types: opener, behavioral, current-role, prior-role, earlier-role, deep-dive, numbers
   - ⚠️ All section content is personal interview prep material — only use the HTML patterns to define PrepCard schema
 
 ---

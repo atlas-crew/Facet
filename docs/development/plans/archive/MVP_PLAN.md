@@ -39,7 +39,7 @@ An atomic unit of resume content. Types:
 | `target_line` | One-line positioning statement under name | "Sr. Platform Engineer \| Edge Security \| Rust / Python" |
 | `profile` | 3–5 sentence summary paragraph | Different narrative per vector |
 | `skill_group` | A labeled group of skills | "Languages: Python, Rust, Go" |
-| `role` | Employer + title + dates (container for bullets) | "A10 Networks — Sr. Platform Engineer" |
+| `role` | Employer + title + dates (container for bullets) | "Contoso Networks — Sr. Platform Engineer" |
 | `bullet` | Single accomplishment under a role | The core content unit |
 | `project` | Side/open-source project entry | Name + description + URL |
 | `education` | Degree, school, year | Usually just one |
@@ -268,7 +268,7 @@ When a vector is selected, the tool auto-selects components based on tags and pr
 
 ## Template System
 
-The initial release ships with one template: **"Editorial Dense"** — the format from Nicholas Ferguson's resume (tight spacing, bold section headers with horizontal rules, bullet-heavy, no visual fluff).
+The initial release ships with one template: **"Editorial Dense"** — a senior-engineer resume format (tight spacing, bold section headers with horizontal rules, bullet-heavy, no visual fluff).
 
 Template is a separate module that receives assembled components and renders them. Future templates can be added without touching the assembly engine.
 

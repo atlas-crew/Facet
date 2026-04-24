@@ -42,7 +42,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/nickcrew/facet
+          images: ghcr.io/atlas-crew/facet
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
