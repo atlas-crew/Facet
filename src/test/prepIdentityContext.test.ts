@@ -10,7 +10,7 @@ const identityFixture: ProfessionalIdentityV3 = {
     name: 'Alex Example',
     display_name: 'Alex',
     email: 'alex@example.com',
-    phone: '555-0100',
+    phone: '555-555-0100',
     location: 'New York, NY',
     links: [],
     thesis: 'Builds reliable backend platforms.',

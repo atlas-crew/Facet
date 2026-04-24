@@ -7,10 +7,10 @@ const identityFixture: ProfessionalIdentityV3 = {
   schema_revision: '3.1',
   model_revision: 0,
   identity: {
-    name: 'Nick Ferguson',
-    email: 'nick@example.com',
-    phone: '555-0100',
-    location: 'Tampa, FL',
+    name: 'Alex Example',
+    email: 'alex@example.com',
+    phone: '555-555-0100',
+    location: 'Denver, CO',
     links: [],
     thesis: 'I build platform systems that make hard things routine.',
   },
@@ -58,8 +58,8 @@ const identityFixture: ProfessionalIdentityV3 = {
   ],
   roles: [
     {
-      id: 'a10',
-      company: 'A10 Networks',
+      id: 'contoso',
+      company: 'Contoso Networks',
       title: 'Senior Platform Engineer',
       dates: '2025-2026',
       bullets: [

@@ -23,7 +23,7 @@ const matchReportFixture: MatchReport = {
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration',
-      sourceLabel: 'A10 Networks',
+      sourceLabel: 'Contoso Networks',
       text: 'Ported the platform to Kubernetes-based installs.',
       tags: ['platform', 'kubernetes'],
       matchedTags: ['platform'],
@@ -102,7 +102,7 @@ describe('RecruiterPage', () => {
 
     expect(screen.getByLabelText('Company')).toHaveProperty('value', 'Atlas')
     expect(screen.getByLabelText('Role')).toHaveProperty('value', 'Staff Platform Engineer')
-    expect(screen.getByLabelText('Candidate name')).toHaveProperty('value', 'Nick Ferguson')
+    expect(screen.getByLabelText('Candidate name')).toHaveProperty('value', 'Alex Example')
 
     fireEvent.change(screen.getByLabelText('Summary'), {
       target: { value: 'Edited recruiter-facing summary.' },

@@ -49,7 +49,7 @@ const DOMAIN_MATCH_PATTERN = /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9.
 const DOMAIN_TEST_PATTERN = /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/i
 const SPACED_CAPS_PATTERN = /^(?:[A-Z]\s+){2,}[A-Z]$/i
 // Resume Scanner v1 intentionally tunes location detection to US state codes plus Remote/Hybrid.
-// Matches: "Tampa, FL", "FL", "Remote", "Tampa, FL (Remote)", "Remote - Tampa, FL".
+// Matches: "Denver, CO", "CO", "Remote", "Denver, CO (Remote)", "Remote - Denver, CO".
 const LOCATION_LINE_PATTERN = new RegExp(
   `^(?:${WORK_MODEL_SOURCE}|${LOCATION_CORE_SOURCE}|${LOCATION_CORE_SOURCE}\\s*(?:\\(\\s*${WORK_MODEL_SOURCE}\\s*\\)|[-–—]\\s*${WORK_MODEL_SOURCE})|${WORK_MODEL_SOURCE}\\s*[-–—]\\s*${LOCATION_CORE_SOURCE})$`,
   'i',

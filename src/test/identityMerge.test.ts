@@ -3,14 +3,14 @@ import { importProfessionalIdentity, type ProfessionalIdentityV3 } from '../iden
 import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils/identityMerge'
 
 const createIdentity = (): ProfessionalIdentityV3 => ({
-  $schema: 'https://atlascrew.dev/schemas/identity.json',
+  $schema: 'https://example.dev/schemas/identity.json',
   version: 3,
   schema_revision: '3.1',
   model_revision: 0,
   identity: {
     name: 'Jordan Example',
     email: 'jordan@example.com',
-    phone: '555-0100',
+    phone: '555-555-0100',
     location: 'Remote',
     links: [{ id: 'linkedin', url: 'https://example.com/in/jordan' }],
     thesis: 'Platform-minded staff engineer.',

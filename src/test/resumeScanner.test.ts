@@ -24,33 +24,33 @@ const buildLine = (text: string, y: number, x = 72, page = 1): ResumeTextItem[] 
 ]
 
 const sampleItems: ResumeTextItem[] = [
-  ...buildLine('Nick Ferguson', 760),
+  ...buildLine('Alex Example', 760),
   ...buildLine('Staff Platform Engineer', 744),
-  ...buildLine('nick@example.com | (727) 555-0100 | Tampa, FL | https://github.com/nick', 728),
+  ...buildLine('alex@example.com | (727) 555-555-0100 | Denver, CO | https://github.com/alex-example', 728),
   ...buildLine('Summary', 696),
   ...buildLine('I build platform systems that make complex delivery work routine.', 680),
   ...buildLine('Experience', 648),
-  ...buildLine('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026', 632),
+  ...buildLine('Senior Platform Engineer | Contoso Networks | Feb 2025 - Mar 2026', 632),
   ...buildLine('• Ported the platform to Kubernetes-based installs.', 616),
   ...buildLine('• Automated release workflows for on-prem deploys.', 600),
   ...buildLine('Skills', 568),
   ...buildLine('Languages: TypeScript, Python', 552),
   ...buildLine('Infra: Kubernetes, Terraform', 536),
   ...buildLine('Education', 504),
-  ...buildLine('St. Petersburg College | AAS, Computer Information Systems | Clearwater, FL | 2020', 488),
+  ...buildLine('Glen Hollow Community College | AAS, Computer Information Systems | Rivertown, OR | 2020', 488),
 ]
 
 describe('resumeScanner parser', () => {
   it('only inserts spaces between neighboring text items once the x-gap exceeds tolerance', () => {
     const items: ResumeTextItem[] = [
-      { text: 'Nick', x: 72, y: 760, width: 24, height: 12, page: 1 },
-      { text: 'Ferguson', x: 98, y: 760, width: 52, height: 12, page: 1 },
+      { text: 'Alex', x: 72, y: 760, width: 24, height: 12, page: 1 },
+      { text: 'Example', x: 98, y: 760, width: 52, height: 12, page: 1 },
       { text: 'Platform', x: 153, y: 760, width: 50, height: 12, page: 1 },
     ]
 
     const [line] = groupTextItemsIntoLines(items)
 
-    expect(line?.text).toBe('NickFerguson Platform')
+    expect(line?.text).toBe('AlexExample Platform')
   })
 
   it('extracts segmented date entries from pipe-delimited headers', () => {
@@ -113,28 +113,28 @@ describe('resumeScanner parser', () => {
 
   it('groups positioned text into ordered lines', () => {
     const items: ResumeTextItem[] = [
-      { text: 'Nick', x: 72, y: 760, width: 24, height: 12, page: 1 },
-      { text: 'Ferguson', x: 104, y: 760.4, width: 52, height: 12, page: 1 },
+      { text: 'Alex', x: 72, y: 760, width: 24, height: 12, page: 1 },
+      { text: 'Example', x: 104, y: 760.4, width: 52, height: 12, page: 1 },
       { text: 'Summary', x: 72, y: 700, width: 48, height: 12, page: 1 },
     ]
 
     const lines = groupTextItemsIntoLines(items)
 
-    expect(lines.map((line) => line.text)).toEqual(['Nick Ferguson', 'Summary'])
+    expect(lines.map((line) => line.text)).toEqual(['Alex Example', 'Summary'])
   })
 
   it('sorts scrambled text items into visual reading order before grouping lines', () => {
     const items: ResumeTextItem[] = [
       { text: 'Summary', x: 72, y: 700, width: 48, height: 12, page: 1 },
-      { text: 'Ferguson', x: 104, y: 760.4, width: 52, height: 12, page: 1 },
+      { text: 'Example', x: 104, y: 760.4, width: 52, height: 12, page: 1 },
       { text: 'Platform Engineer', x: 72, y: 744, width: 96, height: 12, page: 1 },
-      { text: 'Nick', x: 72, y: 760, width: 24, height: 12, page: 1 },
+      { text: 'Alex', x: 72, y: 760, width: 24, height: 12, page: 1 },
     ]
 
     const lines = groupTextItemsIntoLines(items)
 
     expect(lines.map((line) => line.text)).toEqual([
-      'Nick Ferguson',
+      'Alex Example',
       'Platform Engineer',
       'Summary',
     ])
@@ -157,21 +157,21 @@ describe('resumeScanner parser', () => {
     const skillGroups = extractSkillGroups(sections)
     const education = extractEducation(sections)
 
-    expect(contact.name).toBe('Nick Ferguson')
-    expect(contact.email).toBe('nick@example.com')
-    expect(roles[0]?.company).toBe('A10 Networks')
+    expect(contact.name).toBe('Alex Example')
+    expect(contact.email).toBe('alex@example.com')
+    expect(roles[0]?.company).toBe('Contoso Networks')
     expect(roles[0]?.bullets).toEqual([
       'Ported the platform to Kubernetes-based installs.',
       'Automated release workflows for on-prem deploys.',
     ])
     expect(skillGroups.map((group) => group.label)).toEqual(['Languages', 'Infra'])
-    expect(education[0]?.school).toBe('St. Petersburg College')
+    expect(education[0]?.school).toBe('Glen Hollow Community College')
   })
 
   it('maps a parsed resume into a partial identity shell with source_text bullets', () => {
     const parsed = parseResumeTextItems(sampleItems)
 
-    expect(parsed.identity.identity.name).toBe('Nick Ferguson')
+    expect(parsed.identity.identity.name).toBe('Alex Example')
     expect(parsed.identity.roles).toHaveLength(1)
     expect(parsed.identity.roles[0]?.bullets[0]?.source_text).toBe(
       'Ported the platform to Kubernetes-based installs.',
@@ -490,8 +490,8 @@ describe('resumeScanner parser', () => {
 
   it('falls back to summary text for thesis when the header omits a title', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
-      ...buildLine('nick@example.com | Tampa, FL | www.nick.dev | https://github.com/nick', 744),
+      ...buildLine('Alex Example', 760),
+      ...buildLine('alex@example.com | Denver, CO | www.example.dev | https://github.com/alex-example', 744),
       ...buildLine('Summary', 712),
       ...buildLine('I build platform systems that make complex delivery work routine.', 696),
     ]
@@ -505,9 +505,9 @@ describe('resumeScanner parser', () => {
 
   it('does not treat email-first headers as the contact name', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('nick@example.com', 760),
+      ...buildLine('alex@example.com', 760),
       ...buildLine('Platform Engineer', 744),
-      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Denver, CO', 728),
       ...buildLine('Summary', 696),
       ...buildLine('I build platform systems that make complex delivery work routine.', 680),
     ]
@@ -516,32 +516,32 @@ describe('resumeScanner parser', () => {
     const contact = extractContact(sections)
 
     expect(contact.name).toBe('')
-    expect(contact.email).toBe('nick@example.com')
+    expect(contact.email).toBe('alex@example.com')
     expect(contact.title).toBe('Platform Engineer')
-    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.location).toBe('Denver, CO')
     expect(contact.thesis).toBe('I build platform systems that make complex delivery work routine.')
   })
 
   it('extracts the name when the first header line combines name and email', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson — nick@example.com', 760),
+      ...buildLine('Alex Example — alex@example.com', 760),
       ...buildLine('Platform Engineer', 744),
-      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Denver, CO', 728),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
     const contact = extractContact(sections)
 
-    expect(contact.name).toBe('Nick Ferguson')
-    expect(contact.email).toBe('nick@example.com')
+    expect(contact.name).toBe('Alex Example')
+    expect(contact.email).toBe('alex@example.com')
     expect(contact.title).toBe('Platform Engineer')
-    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.location).toBe('Denver, CO')
   })
 
   it('extracts bare-domain links from the header without treating them as the title', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
-      ...buildLine('github.com/NickCrew | linkedin.com/in/ncferguson | portfolio.atlascrew.dev', 744),
+      ...buildLine('Alex Example', 760),
+      ...buildLine('github.com/alex-example | linkedin.com/in/alex-example | portfolio.example.dev', 744),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
@@ -549,58 +549,61 @@ describe('resumeScanner parser', () => {
 
     expect(contact.title).toBeUndefined()
     expect(contact.links).toEqual([
-      { id: 'github-com', url: 'https://github.com/NickCrew' },
-      { id: 'linkedin-com', url: 'https://linkedin.com/in/ncferguson' },
-      { id: 'portfolio-atlascrew-dev', url: 'https://portfolio.atlascrew.dev' },
+      { id: 'github-com', url: 'https://github.com/alex-example' },
+      { id: 'linkedin-com', url: 'https://linkedin.com/in/alex-example' },
+      { id: 'portfolio-example-dev', url: 'https://portfolio.example.dev' },
     ])
   })
 
   it('collapses spaced-cap names in the header into a usable name candidate', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('N I C H O L A S F E R G U S O N', 760),
+      // normalizeNameLine splits at midpoint only when the letter count is
+      // even and >= 12, and the split is at total/2 — so first and last
+      // names must have matching letter counts. Use 6+6 for a clean test.
+      ...buildLine('J O R D A N P A R K E R', 760),
       ...buildLine('Platform Engineer', 744),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
     const contact = extractContact(sections)
 
-    expect(contact.name).toBe('NICHOLAS FERGUSON')
+    expect(contact.name).toBe('JORDAN PARKER')
     expect(contact.title).toBe('Platform Engineer')
   })
 
   it('extracts the name when the first header line also contains multiple URLs', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson — https://nick.dev — https://github.com/nick', 760),
+      ...buildLine('Alex Example — https://example.dev — https://github.com/alex-example', 760),
       ...buildLine('Platform Engineer', 744),
-      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Denver, CO', 728),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
     const contact = extractContact(sections)
 
-    expect(contact.name).toBe('Nick Ferguson')
+    expect(contact.name).toBe('Alex Example')
     expect(contact.title).toBe('Platform Engineer')
-    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.location).toBe('Denver, CO')
   })
 
   it('preserves titles that contain uppercase abbreviations', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Alex Example', 760),
       ...buildLine('AI Engineer', 744),
-      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Denver, CO', 728),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
     const contact = extractContact(sections)
 
-    expect(contact.name).toBe('Nick Ferguson')
+    expect(contact.name).toBe('Alex Example')
     expect(contact.title).toBe('AI Engineer')
-    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.location).toBe('Denver, CO')
   })
 
   it('classifies remote work-model lines as location rather than title', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Alex Example', 760),
       ...buildLine('Platform Engineer', 744),
       ...buildLine('Remote', 728),
     ]
@@ -614,23 +617,23 @@ describe('resumeScanner parser', () => {
 
   it('classifies compound city-state remote labels as location rather than title', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Alex Example', 760),
       ...buildLine('Platform Engineer', 744),
-      ...buildLine('Tampa, FL (Remote)', 728),
+      ...buildLine('Denver, CO (Remote)', 728),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
     const contact = extractContact(sections)
 
     expect(contact.title).toBe('Platform Engineer')
-    expect(contact.location).toBe('Tampa, FL (Remote)')
+    expect(contact.location).toBe('Denver, CO (Remote)')
   })
 
   it('does not treat URL-only detail lines as the title across consecutive extractions', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
-      ...buildLine('https://portfolio.nick.dev', 744),
-      ...buildLine('https://github.com/nick', 728),
+      ...buildLine('Alex Example', 760),
+      ...buildLine('https://portfolio.example.dev', 744),
+      ...buildLine('https://github.com/alex-example', 728),
       ...buildLine('Platform Engineer', 712),
     ]
 
@@ -641,20 +644,20 @@ describe('resumeScanner parser', () => {
     expect(firstContact.title).toBe('Platform Engineer')
     expect(secondContact.title).toBe('Platform Engineer')
     expect(firstContact.links).toEqual([
-      { id: 'portfolio-nick-dev', url: 'https://portfolio.nick.dev' },
-      { id: 'github-com', url: 'https://github.com/nick' },
+      { id: 'portfolio-example-dev', url: 'https://portfolio.example.dev' },
+      { id: 'github-com', url: 'https://github.com/alex-example' },
     ])
     expect(secondContact.links).toEqual(firstContact.links)
   })
 
   it('rejects oversized title candidates in the header detail lines', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Alex Example', 760),
       ...buildLine(
         'I build platform systems that make complex delivery work routine across product, platform, and infrastructure teams.',
         744,
       ),
-      ...buildLine('Tampa, FL', 728),
+      ...buildLine('Denver, CO', 728),
       ...buildLine('Summary', 696),
       ...buildLine('Short summary used as the thesis instead.', 680),
     ]
@@ -663,29 +666,29 @@ describe('resumeScanner parser', () => {
     const contact = extractContact(sections)
 
     expect(contact.title).toBeUndefined()
-    expect(contact.location).toBe('Tampa, FL')
+    expect(contact.location).toBe('Denver, CO')
     expect(contact.thesis).toBe('Short summary used as the thesis instead.')
   })
 
   it('extracts and normalizes contact links from the header line', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
-      ...buildLine('nick@example.com | Tampa, FL | www.nick.dev | https://github.com/nick', 744),
+      ...buildLine('Alex Example', 760),
+      ...buildLine('alex@example.com | Denver, CO | www.example.dev | https://github.com/alex-example', 744),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
     const contact = extractContact(sections)
 
     expect(contact.links).toEqual([
-      { id: 'nick-dev', url: 'https://www.nick.dev' },
-      { id: 'github-com', url: 'https://github.com/nick' },
+      { id: 'example-dev', url: 'https://www.example.dev' },
+      { id: 'github-com', url: 'https://github.com/alex-example' },
     ])
   })
 
   it('falls back to generated link ids when URL normalization fails', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
-      ...buildLine('nick@example.com | Tampa, FL | http://[::1', 744),
+      ...buildLine('Alex Example', 760),
+      ...buildLine('alex@example.com | Denver, CO | http://[::1', 744),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
@@ -719,7 +722,7 @@ describe('resumeScanner parser', () => {
 
   it('surfaces fallback warnings when structural sections are missing after text extraction succeeds', () => {
     const sparseItems: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Alex Example', 760),
       ...buildLine('Platform Engineer', 744),
       ...buildLine('Summary', 712),
       ...buildLine('I build delivery systems for product teams.', 696),
@@ -746,11 +749,11 @@ describe('resumeScanner parser', () => {
 
   it('extracts roles from unlabeled experience blocks after a summary section', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
+      ...buildLine('Alex Example', 760),
       ...buildLine('Platform Engineer', 744),
       ...buildLine('Summary', 712),
       ...buildLine('I build delivery systems for product teams.', 696),
-      ...buildLine('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026', 664),
+      ...buildLine('Senior Platform Engineer | Contoso Networks | Feb 2025 - Mar 2026', 664),
       ...buildLine('• Ported the platform to Kubernetes-based installs.', 648),
     ]
 
@@ -759,7 +762,7 @@ describe('resumeScanner parser', () => {
     expect(parsed.warnings.map((warning) => warning.code)).not.toContain('role-parse-fallback')
     expect(parsed.identity.roles).toEqual([
       expect.objectContaining({
-        company: 'A10 Networks',
+        company: 'Contoso Networks',
         title: 'Senior Platform Engineer',
         dates: 'Feb 2025 - Mar 2026',
         bullets: [
@@ -773,17 +776,17 @@ describe('resumeScanner parser', () => {
 
   it('does not promote phone, location, or link lines into roles during fallback parsing', () => {
     const items: ResumeTextItem[] = [
-      ...buildLine('Nick Ferguson', 760),
-      ...buildLine('727.266.8813 | Tampa Bay Area, FL (Remote)', 744),
-      ...buildLine('github.com/NickCrew | linkedin.com/in/ncferguson', 728),
-      ...buildLine('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026', 696),
+      ...buildLine('Alex Example', 760),
+      ...buildLine('555-555-0100 | Denver, CO (Remote)', 744),
+      ...buildLine('github.com/alexexample | linkedin.com/in/alexexample', 728),
+      ...buildLine('Senior Platform Engineer | Contoso Networks | Feb 2025 - Mar 2026', 696),
       ...buildLine('• Ported the platform to Kubernetes-based installs.', 680),
     ]
 
     const parsed = parseResumeTextItems(items)
 
     expect(parsed.identity.roles).toHaveLength(1)
-    expect(parsed.identity.roles[0]?.company).toBe('A10 Networks')
+    expect(parsed.identity.roles[0]?.company).toBe('Contoso Networks')
     expect(parsed.identity.roles[0]?.title).toBe('Senior Platform Engineer')
   })
 
@@ -791,7 +794,7 @@ describe('resumeScanner parser', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Experience', 700),
       ...buildLine('Senior Platform Engineer', 684),
-      ...buildLine('A10 Networks', 668),
+      ...buildLine('Contoso Networks', 668),
       ...buildLine('Feb 2025 - Mar 2026', 652),
       ...buildLine('• Ported the platform to Kubernetes-based installs.', 636),
     ]
@@ -801,7 +804,7 @@ describe('resumeScanner parser', () => {
 
     expect(roles).toEqual([
       {
-        company: 'A10 Networks',
+        company: 'Contoso Networks',
         title: 'Senior Platform Engineer',
         dates: 'Feb 2025 - Mar 2026',
         bullets: ['Ported the platform to Kubernetes-based installs.'],
@@ -812,7 +815,7 @@ describe('resumeScanner parser', () => {
   it('extracts company-first stacked role headers when the title/date line follows', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Experience', 700),
-      ...buildLine('ThreatX (acquired by A10 Networks, Feb 2025)', 684),
+      ...buildLine('Helios Security (acquired by Contoso Networks, Feb 2025)', 684),
       ...buildLine('Senior Platform Engineer Jan 2022 - Feb 2025', 668),
       ...buildLine('• Built the internal developer platform.', 652),
     ]
@@ -822,7 +825,7 @@ describe('resumeScanner parser', () => {
 
     expect(roles).toEqual([
       {
-        company: 'ThreatX (acquired by A10 Networks, Feb 2025)',
+        company: 'Helios Security (acquired by Contoso Networks, Feb 2025)',
         title: 'Senior Platform Engineer',
         dates: 'Jan 2022 - Feb 2025',
         bullets: ['Built the internal developer platform.'],
@@ -833,7 +836,7 @@ describe('resumeScanner parser', () => {
   it('does not turn wrapped bullet continuation lines with incidental "at" text into role headers', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Experience', 700),
-      ...buildLine('ThreatX (acquired by A10 Networks, Feb 2025)', 684),
+      ...buildLine('Helios Security (acquired by Contoso Networks, Feb 2025)', 684),
       ...buildLine('Senior Platform Engineer Jan 2022 - Feb 2025', 668),
       ...buildLine('• Diagnosed a production failure that two weeks of planned optimizations could not fix. Built a distributed load', 652),
       ...buildLine('testing framework from scratch, identified Linux conntrack table exhaustion at the kernel level at 150K RPS, built', 636),
@@ -845,7 +848,7 @@ describe('resumeScanner parser', () => {
 
     expect(roles).toEqual([
       {
-        company: 'ThreatX (acquired by A10 Networks, Feb 2025)',
+        company: 'Helios Security (acquired by Contoso Networks, Feb 2025)',
         title: 'Senior Platform Engineer',
         dates: 'Jan 2022 - Feb 2025',
         bullets: [
@@ -861,7 +864,7 @@ describe('resumeScanner parser', () => {
       ...buildLine('P R O J E C T S', 700),
       ...buildLine('Facet: Vector-based job search platform.', 684),
       ...buildLine('E D U C A T I O N', 652),
-      ...buildLine('St. Petersburg College | AAS, Computer Information Systems | 2020', 636),
+      ...buildLine('Glen Hollow Community College | AAS, Computer Information Systems | 2020', 636),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
@@ -878,7 +881,7 @@ describe('resumeScanner parser', () => {
       ...buildLine('C O R E C O M P E T E N C I E S', 720),
       ...buildLine('Languages: TypeScript, Rust, Python', 704),
       ...buildLine('P R O F E S S I O N A L E X P E R I E N C E', 672),
-      ...buildLine('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026', 656),
+      ...buildLine('Senior Platform Engineer | Contoso Networks | Feb 2025 - Mar 2026', 656),
       ...buildLine('• Ported the platform to Kubernetes-based installs.', 640),
     ]
 
@@ -896,7 +899,7 @@ describe('resumeScanner parser', () => {
     ])
     expect(roles).toEqual([
       {
-        company: 'A10 Networks',
+        company: 'Contoso Networks',
         title: 'Senior Platform Engineer',
         dates: 'Feb 2025 - Mar 2026',
         bullets: ['Ported the platform to Kubernetes-based installs.'],
@@ -907,7 +910,7 @@ describe('resumeScanner parser', () => {
   it('extracts project entries from a projects section into identity projects', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('P R O J E C T S', 700),
-      ...buildLine('atlascrew.dev', 684),
+      ...buildLine('example.dev', 684),
       ...buildLine('Open source projects I created and actively maintain.', 668),
       ...buildLine('Inferno Lab: Security testing, simulation, and education platform.', 636),
       ...buildLine('Apparatus (58+ feature simulation lab), Chimera (450+ endpoint training platform across 22 verticals), and Crucible (enterprise attack validation with MITRE ATT&CK mapping and compliance reporting).', 620),
@@ -1002,7 +1005,7 @@ describe('resumeScanner parser', () => {
   it('extracts location and degree from compact school-city-state education lines', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Education', 700),
-      ...buildLine('St. Petersburg College, Clearwater, FL. AAS, Computer Information Systems', 684),
+      ...buildLine('Glen Hollow Community College, Rivertown, OR. AAS, Computer Information Systems', 684),
     ]
 
     const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
@@ -1010,8 +1013,8 @@ describe('resumeScanner parser', () => {
 
     expect(education).toEqual([
       {
-        school: 'St. Petersburg College',
-        location: 'Clearwater, FL',
+        school: 'Glen Hollow Community College',
+        location: 'Rivertown, OR',
         degree: 'AAS, Computer Information Systems',
       },
     ])

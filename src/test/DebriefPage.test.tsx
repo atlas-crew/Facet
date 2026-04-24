@@ -31,7 +31,7 @@ const matchReport: MatchReport = {
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration story',
-      sourceLabel: 'A10 Networks',
+      sourceLabel: 'Contoso Networks',
       text: 'Ported the platform to Kubernetes-based installs.',
       tags: ['platform'],
       matchedTags: ['platform'],
@@ -103,7 +103,7 @@ describe('DebriefPage', () => {
                     id: 'platform-migration',
                     label: 'Platform migration story',
                     reason: 'High interviewer engagement.',
-                    roleId: 'a10',
+                    roleId: 'contoso',
                     bulletId: 'platform-migration',
                   },
                 ],
@@ -130,7 +130,7 @@ describe('DebriefPage', () => {
                   },
                   bulletUpdates: [
                     {
-                      roleId: 'a10',
+                      roleId: 'contoso',
                       bulletId: 'platform-migration',
                       addTags: ['interview-tested'],
                       impactAdditions: ['Validated in hiring-manager interview'],

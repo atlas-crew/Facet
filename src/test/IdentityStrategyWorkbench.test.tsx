@@ -13,7 +13,7 @@ const createIdentity = () => {
   identity.education = [
     {
       school: 'USF',
-      location: 'Tampa, FL',
+      location: 'Denver, CO',
       degree: 'Bachelor of Science in Computer Science',
     },
   ]

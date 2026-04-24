@@ -40,7 +40,7 @@ const matchReportFixture: MatchReport = {
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration',
-      sourceLabel: 'A10 Networks',
+      sourceLabel: 'Contoso Networks',
       text: 'Ported the platform to Kubernetes-based installs.',
       tags: ['platform', 'kubernetes'],
       matchedTags: ['platform'],
@@ -142,7 +142,7 @@ describe('recruiterCardGenerator', () => {
       id: 'recruiter-1',
       company: 'Atlas',
       role: 'Staff Platform Engineer',
-      candidateName: 'Nick Ferguson',
+      candidateName: 'Alex Example',
       candidateTitle: 'Staff Platform Engineer',
       matchScore: 0.84,
       summary: 'Strong platform fit with credible migration and reliability evidence.',
@@ -150,7 +150,7 @@ describe('recruiterCardGenerator', () => {
     expect(result.recruiterHook).toContain('84% match')
     expect(result.suggestedIntro).toContain('Kubernetes')
     expect(result.topReasons).toContain('Brings credible platform modernization evidence.')
-    expect(result.proofPoints).toContain('A10 Networks: Ported the platform to Kubernetes-based installs.')
+    expect(result.proofPoints).toContain('Contoso Networks: Ported the platform to Kubernetes-based installs.')
     expect(result.skillHighlights).toEqual(['Kubernetes'])
     expect(result.likelyConcerns).toContain(
       'Reliability leadership: Less explicit ownership over SRE-style incident programs.',

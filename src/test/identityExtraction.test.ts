@@ -23,13 +23,13 @@ import {
 import { callLlmProxy } from '../utils/llmProxy'
 
 const responseIdentityResult = importProfessionalIdentity({
-  $schema: 'https://atlascrew.dev/schemas/identity.json',
+  $schema: 'https://example.dev/schemas/identity.json',
   version: 3,
   schema_revision: '3.1',
   identity: {
     name: 'Jordan Example',
     email: 'jordan@example.com',
-    phone: '555-0100',
+    phone: '555-555-0100',
     location: 'Remote',
     links: [{ id: 'linkedin', url: 'https://example.com/in/jordan' }],
     thesis: 'Platform-minded staff engineer.',

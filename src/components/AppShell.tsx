@@ -839,10 +839,10 @@ export function AppShell() {
         <footer className="app-footer">
           <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
           <nav className="app-footer-links" aria-label="Footer links">
-            <a href="https://github.com/NickCrew/Facet" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/atlas-crew/Facet" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
-            <a href="https://github.com/NickCrew/Facet/issues" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/atlas-crew/Facet/issues" target="_blank" rel="noopener noreferrer">
               Report an Issue
             </a>
             <Link to="/terms">Terms</Link>

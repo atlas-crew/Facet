@@ -9,21 +9,21 @@ import {
 } from '../identity/schema'
 
 const baseIdentityFixture: ProfessionalIdentityV3 = {
-  $schema: 'https://atlascrew.dev/schemas/identity.json',
+  $schema: 'https://example.dev/schemas/identity.json',
   version: 3,
   schema_revision: '3.1',
   model_revision: 0,
   identity: {
-    name: 'Nicholas Ferguson',
-    display_name: 'Nicholas Crew Ferguson',
-    email: 'nick@atlascrew.dev',
-    phone: '727.266.8813',
-    location: 'Tampa Bay Area, FL',
+    name: 'Alex Example',
+    display_name: 'Alex Example',
+    email: 'alex@example.dev',
+    phone: '555-555-0100',
+    location: 'Denver Metro, CO',
     remote: true,
     title: 'Product Engineer',
     links: [
-      { id: 'github', url: 'https://github.com/NickCrew' },
-      { id: 'portfolio', url: 'https://portfolio.atlascrew.dev' },
+      { id: 'github', url: 'https://github.com/alex-example' },
+      { id: 'portfolio', url: 'https://portfolio.example.dev' },
     ],
     thesis: 'I solve business problems with computers.',
     elaboration: 'Bridge prototype-to-production gaps.',
@@ -31,8 +31,8 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
   },
   self_model: {
     arc: [
-      { company: 'vispero', chapter: 'I can build anything' },
-      { company: 'a10', chapter: 'I know why to build it' },
+      { company: 'northwind', chapter: 'I can build anything' },
+      { company: 'contoso', chapter: 'I know why to build it' },
     ],
     philosophy: [
       {
@@ -112,9 +112,9 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
   ],
   roles: [
     {
-      id: 'a10',
-      company: 'A10 Networks',
-      subtitle: '(acquired ThreatX)',
+      id: 'contoso',
+      company: 'Contoso Networks',
+      subtitle: '(acquired Helios Security)',
       title: 'Senior Platform Engineer',
       dates: 'Feb 2025 – Mar 2026',
       portfolio_anchor: '#background',
@@ -137,7 +137,7 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
     {
       id: 'proj-facet',
       name: 'Facet',
-      url: 'https://atlascrew.dev/facet',
+      url: 'https://example.dev/facet',
       description: 'Targeted resume generation and job search workflow.',
       portfolio_dive: '#opensource',
       tags: ['product', 'typescript'],
@@ -145,8 +145,8 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
   ],
   education: [
     {
-      school: 'St. Petersburg College',
-      location: 'Clearwater, FL',
+      school: 'Glen Hollow Community College',
+      location: 'Rivertown, OR',
       degree: 'AAS, Computer Information Systems',
     },
   ],
@@ -313,7 +313,7 @@ describe('professional identity schema', () => {
     const parsed = importResumeConfig(JSON.stringify(baseIdentityFixture), 'json')
 
     expect(parsed.sourceKind).toBe('professional-identity-v3')
-    expect(parsed.data.meta.name).toBe('Nicholas Crew Ferguson')
+    expect(parsed.data.meta.name).toBe('Alex Example')
     expect(parsed.data.generation).toEqual({
       mode: 'single',
       vectorMode: 'manual',
@@ -646,9 +646,9 @@ describe('professional identity schema', () => {
   it('rejects duplicate bullet ids across different roles', () => {
     const invalid = clone(baseIdentityFixture)
     invalid.roles.push({
-      id: 'threatx',
-      company: 'ThreatX',
-      subtitle: '(acquired by A10 Networks)',
+      id: 'helios',
+      company: 'Helios Security',
+      subtitle: '(acquired by Contoso Networks)',
       title: 'Senior Platform Engineer',
       dates: 'Jan 2022 – Feb 2025',
       portfolio_anchor: '#background',
@@ -691,10 +691,10 @@ describe('professional identity schema', () => {
     const parsed = importResumeConfig(JSON.stringify(minimal), 'json')
 
     expect(parsed.sourceKind).toBe('professional-identity-v3')
-    expect(parsed.data.meta.name).toBe('Nicholas Ferguson')
+    expect(parsed.data.meta.name).toBe('Alex Example')
     expect(parsed.data.target_lines[0]?.text).toBe('I solve business problems with computers.')
     expect(parsed.data.projects[0]?.url).toBeUndefined()
-    expect(parsed.data.education[0]?.id).toBe('edu-st-petersburg-college-aas-computer-information-systems-clearwater-fl')
+    expect(parsed.data.education[0]?.id).toBe('edu-glen-hollow-community-college-aas-computer-information-systems-rivertown-or')
   })
 
   it('supports sparse sections and stable deduplicated education ids', () => {
@@ -714,8 +714,8 @@ describe('professional identity schema', () => {
     expect(parsed.data.roles).toEqual([])
     expect(parsed.data.projects).toEqual([])
     expect(parsed.data.education.map((entry) => entry.id)).toEqual([
-      'edu-st-petersburg-college-aas-computer-information-systems-clearwater-fl',
-      'edu-st-petersburg-college-aas-computer-information-systems-clearwater-fl--2',
+      'edu-glen-hollow-community-college-aas-computer-information-systems-rivertown-or',
+      'edu-glen-hollow-community-college-aas-computer-information-systems-rivertown-or--2',
     ])
   })
 

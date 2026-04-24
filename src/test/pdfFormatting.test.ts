@@ -3,16 +3,16 @@ import { buildResumePdfFileName } from '../utils/pdfFormatting'
 
 describe('pdfFormatting', () => {
   it('builds vector-aware pdf filenames from candidate and vector labels', () => {
-    const fileName = buildResumePdfFileName('Nicholas Ferguson', 'security-platform', [
+    const fileName = buildResumePdfFileName('Alex Example', 'security-platform', [
       { id: 'security-platform', label: 'Security Platform', color: '#000000' },
     ])
 
-    expect(fileName).toBe('NicholasFerguson_Resume_SecurityPlatform.pdf')
+    expect(fileName).toBe('AlexExample_Resume_SecurityPlatform.pdf')
   })
 
   it('uses AllVectors suffix when selection is all', () => {
-    const fileName = buildResumePdfFileName('Nicholas Ferguson', 'all', [])
-    expect(fileName).toBe('NicholasFerguson_Resume_AllVectors.pdf')
+    const fileName = buildResumePdfFileName('Alex Example', 'all', [])
+    expect(fileName).toBe('AlexExample_Resume_AllVectors.pdf')
   })
 
   it.each([

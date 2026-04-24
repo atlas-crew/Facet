@@ -26,7 +26,7 @@ describe('debriefGenerator', () => {
                     id: 'platform-migration',
                     label: 'Platform migration story',
                     reason: 'High interviewer engagement.',
-                    roleId: 'a10',
+                    roleId: 'contoso',
                     bulletId: 'platform-migration',
                   },
                 ],
@@ -53,7 +53,7 @@ describe('debriefGenerator', () => {
                   },
                   bulletUpdates: [
                     {
-                      roleId: 'a10',
+                      roleId: 'contoso',
                       bulletId: 'platform-migration',
                       addTags: ['interview-tested'],
                       impactAdditions: ['Validated in hiring-manager interview'],
@@ -93,7 +93,7 @@ describe('debriefGenerator', () => {
       storiesTold: [
         {
           id: 'story-1',
-          roleId: 'a10',
+          roleId: 'contoso',
           bulletId: 'platform-migration',
           notes: 'Migration story',
           outcome: 'strong',

@@ -28,7 +28,7 @@ const createScanResult = () => {
     fileName: 'resume.pdf',
     pageCount: 1,
     scannedAt: '2026-04-05T00:00:00.000Z',
-    rawText: 'Nick Ferguson\nA10 Networks',
+    rawText: 'Alex Example\nContoso Networks',
     identity,
     warnings: [],
     counts: {
@@ -79,7 +79,7 @@ describe('identityStore scan progress', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
 
     const state = useIdentityStore.getState().scanResult
-    expect(state?.progress.bullets['a10::platform-migration']).toMatchObject({
+    expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
       status: 'idle',
       confidence: 'stated',
       lastError: null,
@@ -107,7 +107,7 @@ describe('identityStore scan progress', () => {
         JSON.stringify({
           summary: 'Deepened the migration bullet.',
           bullet: {
-            role_id: 'a10',
+            role_id: 'contoso',
             bullet_id: 'platform-migration',
             problem: 'Cloud-only delivery blocked on-prem installs.',
             action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
@@ -148,7 +148,7 @@ describe('identityStore scan progress', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().completeScannedBulletDeepen({
       summary: 'Deepened the migration bullet.',
-      roleId: 'a10',
+      roleId: 'contoso',
       bulletId: 'platform-migration',
       bullet: {
         id: 'platform-migration',
@@ -167,7 +167,7 @@ describe('identityStore scan progress', () => {
     })
 
     const state = useIdentityStore.getState().scanResult
-    expect(state?.progress.bullets['a10::platform-migration']).toMatchObject({
+    expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
       status: 'completed',
       confidence: 'guessing',
       lastError: null,
@@ -199,7 +199,7 @@ describe('identityStore scan progress', () => {
 
     useIdentityStore.getState().completeScannedBulletDeepen({
       summary: 'Deepened the migration bullet.',
-      roleId: 'a10',
+      roleId: 'contoso',
       bulletId: 'platform-migration',
       bullet: {
         id: 'platform-migration',
@@ -230,13 +230,13 @@ describe('identityStore scan progress', () => {
       'description',
       'Targeted resume generation and pipeline tracking.',
     )
-    useIdentityStore.getState().updateScannedProjectEntry(0, 'url', 'https://facet.atlascrew.dev')
+    useIdentityStore.getState().updateScannedProjectEntry(0, 'url', 'https://facet.example.dev')
 
     const state = useIdentityStore.getState().scanResult
     expect(state?.identity.projects[0]).toMatchObject({
       name: 'Facet OSS',
       description: 'Targeted resume generation and pipeline tracking.',
-      url: 'https://facet.atlascrew.dev',
+      url: 'https://facet.example.dev',
     })
     expect(state?.counts.projects).toBe(1)
   })
@@ -252,18 +252,18 @@ describe('identityStore scan progress', () => {
   it('tracks failure, edit, and bulk cancellation state without clearing completed work', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().startScanBulkDeepen()
-    useIdentityStore.getState().updateScanBulkProgress('a10::platform-migration')
+    useIdentityStore.getState().updateScanBulkProgress('contoso::platform-migration')
     useIdentityStore.getState().failScannedBulletDeepen(
-      'a10',
+      'contoso',
       'platform-migration',
       'Timed out while deepening.',
     )
-    useIdentityStore.getState().markScannedBulletEdited('a10', 'platform-migration')
+    useIdentityStore.getState().markScannedBulletEdited('contoso', 'platform-migration')
     useIdentityStore.getState().requestCancelScanBulkDeepen()
     useIdentityStore.getState().finishScanBulkDeepen()
 
     const state = useIdentityStore.getState().scanResult
-    expect(state?.progress.bullets['a10::platform-migration']).toMatchObject({
+    expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
       status: 'edited',
       confidence: 'corrected',
     })

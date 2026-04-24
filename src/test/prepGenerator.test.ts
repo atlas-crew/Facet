@@ -109,7 +109,7 @@ describe('generateInterviewPrep', () => {
             metricKey: 'aws_savings_monthly',
             metricValue: '$60K/mo',
             suggestedLabel: 'AWS Savings Monthly',
-            company: 'ThreatX',
+            company: 'Helios Security',
             roleTitle: 'Platform Engineer',
             bulletId: 'bullet-2',
             roleId: 'role-2',
@@ -414,7 +414,7 @@ describe('generateInterviewPrep', () => {
               role: 'Principal on the platform team',
               caresAbout: 'reliability over velocity',
             },
-            lineThatLands: 'I have empathy for on-call burden.',
+            lineThatLands: 'I lean on specific reliability outcomes.',
           },
         ],
         cards: [

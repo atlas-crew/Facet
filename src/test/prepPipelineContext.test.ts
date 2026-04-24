@@ -161,7 +161,7 @@ describe('prepPipelineContext', () => {
                   role: 'Principal on platform team',
                   caresAbout: 'reliability over velocity',
                 },
-                lineThatLands: 'I take on-call burden seriously.',
+                lineThatLands: 'I take deployment reliability seriously.',
               },
             ],
           }),
@@ -173,7 +173,7 @@ describe('prepPipelineContext', () => {
         'reliability over velocity',
       )
       expect(context.round?.interviewers[0].lineThatLands).toBe(
-        'I take on-call burden seriously.',
+        'I take deployment reliability seriously.',
       )
     })
 

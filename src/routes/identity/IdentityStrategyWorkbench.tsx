@@ -1248,8 +1248,8 @@ export function IdentityStrategyWorkbench({
                 summary="Examples for accuracy rules"
                 items={[
                   "preferred-title: Platform Engineer",
-                  "avoid-company-name: Do not rewrite A10 Networks as a generic networking company",
-                  "location: Tampa, FL and remote-first",
+                  "avoid-company-name: Do not rewrite your employer as a generic industry label",
+                  "location: Denver, CO and remote-first",
                 ]}
               />
             </section>

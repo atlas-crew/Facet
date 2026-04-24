@@ -27,7 +27,7 @@ const prepIdentityFixture: ProfessionalIdentityV3 = {
   identity: {
     name: 'Alex Example',
     email: 'alex@example.com',
-    phone: '555-0100',
+    phone: '555-555-0100',
     location: 'New York, NY',
     links: [],
     thesis: 'Builds reliable backend platforms.',

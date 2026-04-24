@@ -52,7 +52,7 @@ describe('resumeScanner pdf', () => {
           .mockResolvedValueOnce({
             getTextContent: vi.fn().mockResolvedValue({
               items: [
-                buildPdfTextItem('Nick Ferguson', 760),
+                buildPdfTextItem('Alex Example', 760),
                 buildPdfTextItem('\u0000Staff Engineer', 744),
                 buildPdfTextItem('   ', 728),
                 { nope: true },
@@ -72,7 +72,7 @@ describe('resumeScanner pdf', () => {
     expect(result.pageCount).toBe(2)
     expect(result.items).toEqual([
       expect.objectContaining({
-        text: 'Nick Ferguson',
+        text: 'Alex Example',
         x: 72,
         y: 760,
         page: 1,
@@ -98,7 +98,7 @@ describe('resumeScanner pdf', () => {
       getTextContent: vi.fn().mockImplementation(async () => {
         abortController.abort()
         return {
-          items: [buildPdfTextItem('Nick Ferguson', 760)],
+          items: [buildPdfTextItem('Alex Example', 760)],
         }
       }),
     }
@@ -144,20 +144,20 @@ describe('resumeScanner pdf', () => {
         getPage: vi.fn().mockResolvedValue({
           getTextContent: vi.fn().mockResolvedValue({
             items: [
-              buildPdfTextItem('Nick Ferguson', 760),
+              buildPdfTextItem('Alex Example', 760),
               buildPdfTextItem('Staff Engineer', 744),
-              buildPdfTextItem('nick@example.com | (727) 555-0100 | Tampa, FL | https://github.com/nick', 728),
+              buildPdfTextItem('alex@example.com | (727) 555-555-0100 | Denver, CO | https://github.com/nick', 728),
               buildPdfTextItem('Summary', 696),
               buildPdfTextItem('I build platform systems that make complex delivery work routine.', 680),
               buildPdfTextItem('Experience', 648),
-              buildPdfTextItem('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026', 632),
+              buildPdfTextItem('Senior Platform Engineer | Contoso Networks | Feb 2025 - Mar 2026', 632),
               buildPdfTextItem('• Ported the platform to Kubernetes-based installs.', 616),
               buildPdfTextItem('• Automated release workflows for on-prem deploys.', 600),
               buildPdfTextItem('Skills', 568),
               buildPdfTextItem('Languages: TypeScript, Python', 552),
               buildPdfTextItem('Infra: Kubernetes, Terraform', 536),
               buildPdfTextItem('Education', 504),
-              buildPdfTextItem('St. Petersburg College | AAS, Computer Information Systems | Clearwater, FL | 2020', 488),
+              buildPdfTextItem('Glen Hollow Community College | AAS, Computer Information Systems | Rivertown, OR | 2020', 488),
             ],
           }),
         }),
@@ -183,12 +183,12 @@ describe('resumeScanner pdf', () => {
       editedBullets: 0,
       failedBullets: 0,
     })
-    expect(result.identity.identity.name).toBe('Nick Ferguson')
+    expect(result.identity.identity.name).toBe('Alex Example')
     expect(result.identity.roles[0]?.bullets[0]?.source_text).toBe(
       'Ported the platform to Kubernetes-based installs.',
     )
     expect(result.warnings).toEqual([])
-    expect(result.rawText).toContain('Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026')
+    expect(result.rawText).toContain('Senior Platform Engineer | Contoso Networks | Feb 2025 - Mar 2026')
   })
 
   it('rejects image-only or empty pdfs at the top-level scan entrypoint', async () => {
@@ -218,9 +218,9 @@ describe('resumeScanner pdf', () => {
           .mockResolvedValueOnce({
             getTextContent: vi.fn().mockResolvedValue({
               items: [
-                buildPdfTextItem('Nick Ferguson', 760),
+                buildPdfTextItem('Alex Example', 760),
                 buildPdfTextItem('Staff Engineer', 744),
-                buildPdfTextItem('nick@example.com | Tampa, FL | https://github.com/nick', 728),
+                buildPdfTextItem('alex@example.com | Denver, CO | https://github.com/nick', 728),
                 buildPdfTextItem('Experience', 696),
                 buildPdfTextItem('Staff Engineer | Acme Corp | 2022 - Present', 680),
                 buildPdfTextItem('• Built the scanner ingestion path.', 664),

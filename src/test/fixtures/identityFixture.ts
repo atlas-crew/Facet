@@ -5,10 +5,10 @@ export const identityFixture: ProfessionalIdentityV3 = {
   schema_revision: '3.1',
   model_revision: 0,
   identity: {
-    name: 'Nick Ferguson',
-    email: 'nick@example.com',
-    phone: '555-0100',
-    location: 'Tampa, FL',
+    name: 'Alex Example',
+    email: 'alex@example.com',
+    phone: '555-555-0100',
+    location: 'Denver, CO',
     links: [],
     thesis: 'I build platform systems that make hard things routine.',
   },
@@ -57,8 +57,8 @@ export const identityFixture: ProfessionalIdentityV3 = {
   ],
   roles: [
     {
-      id: 'a10',
-      company: 'A10 Networks',
+      id: 'contoso',
+      company: 'Contoso Networks',
       title: 'Senior Platform Engineer',
       dates: '2025-2026',
       bullets: [
@@ -68,7 +68,7 @@ export const identityFixture: ProfessionalIdentityV3 = {
           action: 'Ported the platform to Kubernetes-based installs.',
           outcome: 'Made the product deployable in customer environments.',
           impact: ['Unlocked on-prem delivery'],
-          metrics: { services_ported: 12 },
+          metrics: { services_ported: 8 },
           technologies: ['Kubernetes'],
           tags: ['platform', 'kubernetes'],
         },
@@ -78,8 +78,8 @@ export const identityFixture: ProfessionalIdentityV3 = {
   projects: [],
   education: [],
   generator_rules: {
-    voice_skill: 'nick-voice',
-    resume_skill: 'nick-resume',
+    voice_skill: 'candidate-voice',
+    resume_skill: 'candidate-resume',
   },
 }
 

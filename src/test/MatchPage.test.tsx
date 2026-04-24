@@ -39,7 +39,7 @@ const reportFixture: MatchReport = {
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration',
-      sourceLabel: 'A10 Networks - Senior Platform Engineer',
+      sourceLabel: 'Contoso Networks - Senior Platform Engineer',
       text: 'Migrated the platform to Kubernetes-based on-prem installs.',
       tags: ['platform', 'kubernetes'],
       matchedTags: ['platform'],

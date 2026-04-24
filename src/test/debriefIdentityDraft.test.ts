@@ -19,7 +19,7 @@ const generationResult: DebriefGenerationResult = {
       id: 'platform-migration',
       label: 'Platform migration story',
       reason: 'Strong interviewer engagement.',
-      roleId: 'a10',
+      roleId: 'contoso',
       bulletId: 'platform-migration',
     },
   ],
@@ -47,7 +47,7 @@ const generationResult: DebriefGenerationResult = {
     },
     bulletUpdates: [
       {
-        roleId: 'a10',
+        roleId: 'contoso',
         bulletId: 'platform-migration',
         addTags: ['interview-tested'],
         impactAdditions: ['Validated by hiring-manager interview feedback'],
@@ -55,7 +55,7 @@ const generationResult: DebriefGenerationResult = {
     ],
     newBullets: [
       {
-        roleId: 'a10',
+        roleId: 'contoso',
         bullet: {
           id: 'platform-migration-followup',
           problem: 'Customers needed confidence in the new install path.',
@@ -76,7 +76,7 @@ const generationResult: DebriefGenerationResult = {
 describe('debriefIdentityDraft', () => {
   it('builds a reviewable identity draft from the debrief patch', () => {
     const draft = buildDebriefIdentityDraft(cloneIdentityFixture(), generationResult)
-    const updatedRole = draft.identity.roles.find((role) => role.id === 'a10')
+    const updatedRole = draft.identity.roles.find((role) => role.id === 'contoso')
     const updatedBullet = updatedRole?.bullets.find((bullet) => bullet.id === 'platform-migration')
     const newBullet = updatedRole?.bullets.find((bullet) => bullet.id === 'platform-migration-followup')
 

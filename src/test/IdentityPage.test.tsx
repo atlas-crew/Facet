@@ -49,7 +49,7 @@ vi.mock("../utils/resumeScanner", () => ({
 
 const scanFixture = (): ResumeScanResult => {
   const identity = cloneIdentityFixture();
-  identity.identity.name = "Nick Ferguson";
+  identity.identity.name = "Alex Example";
   identity.roles[0].bullets[0].problem = "";
   identity.roles[0].bullets[0].action = "";
   identity.roles[0].bullets[0].outcome = "";
@@ -67,9 +67,9 @@ const scanFixture = (): ResumeScanResult => {
   ];
   identity.education = [
     {
-      school: "St. Petersburg College",
+      school: "Glen Hollow Community College",
       degree: "AAS, Computer Information Systems",
-      location: "Clearwater, FL",
+      location: "Rivertown, OR",
     },
   ];
 
@@ -78,7 +78,7 @@ const scanFixture = (): ResumeScanResult => {
     pageCount: 1,
     scannedAt: "2026-04-05T00:00:00.000Z",
     rawText:
-      "Nick Ferguson\nExperience\n• Ported the platform to Kubernetes-based installs.",
+      "Alex Example\nExperience\n• Ported the platform to Kubernetes-based installs.",
     identity,
     warnings: [
       {
@@ -233,7 +233,7 @@ describe("IdentityPage", () => {
     identityExtractionMocks.deepenIdentityBulletMock.mockReset();
     identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValue({
       summary: "Deepened the migration bullet.",
-      roleId: "a10",
+      roleId: "contoso",
       bulletId: "platform-migration",
       bullet: {
         id: "platform-migration",
@@ -268,14 +268,14 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     expect(screen.getByDisplayValue("Facet")).toBeTruthy();
     expect(
       screen.getByDisplayValue("Vector-based job search platform."),
     ).toBeTruthy();
-    expect(screen.getByDisplayValue("Clearwater, FL")).toBeTruthy();
+    expect(screen.getByDisplayValue("Rivertown, OR")).toBeTruthy();
     expect(screen.getByLabelText("Projects: 1")).toBeTruthy();
     const skillGroupToggle = screen.getByRole("button", {
       name: /Platform.*1 skill.*Expand/i,
@@ -343,7 +343,7 @@ describe("IdentityPage", () => {
     ).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceMaterial:
-          "Nick Ferguson\nExperience\n• Ported the platform to Kubernetes-based installs.",
+          "Alex Example\nExperience\n• Ported the platform to Kubernetes-based installs.",
         seedIdentity: expect.objectContaining({
           roles: [
             expect.objectContaining({
@@ -396,7 +396,7 @@ describe("IdentityPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
   });
 
@@ -467,7 +467,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(
@@ -542,7 +542,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));
@@ -557,7 +557,7 @@ describe("IdentityPage", () => {
       identityExtractionMocks.deepenIdentityBulletMock,
     ).toHaveBeenCalledWith(
       expect.objectContaining({
-        roleId: "a10",
+        roleId: "contoso",
         bulletId: "platform-migration",
       }),
     );
@@ -592,7 +592,7 @@ describe("IdentityPage", () => {
   it("shows structured-only deepen results inline even when prose fields stay empty", async () => {
     identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
       summary: "Extracted structured details from the migration bullet.",
-      roleId: "a10",
+      roleId: "contoso",
       bulletId: "platform-migration",
       bullet: {
         id: "platform-migration",
@@ -615,7 +615,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));
@@ -633,7 +633,7 @@ describe("IdentityPage", () => {
     identityExtractionMocks.deepenIdentityBulletMock.mockResolvedValueOnce({
       summary:
         "Guessed the customer-facing rollout context from the scanned bullet.",
-      roleId: "a10",
+      roleId: "contoso",
       bulletId: "platform-migration",
       bullet: {
         id: "platform-migration",
@@ -664,7 +664,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));
@@ -725,7 +725,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.change(
@@ -763,7 +763,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));
@@ -780,7 +780,7 @@ describe("IdentityPage", () => {
     await act(async () => {
       resolveDeepen({
         summary: "Deepened the migration bullet.",
-        roleId: "a10",
+        roleId: "contoso",
         bulletId: "platform-migration",
         bullet: {
           id: "platform-migration",
@@ -827,7 +827,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));
@@ -845,7 +845,7 @@ describe("IdentityPage", () => {
     await act(async () => {
       resolveFirstDeepen({
         summary: "Deepened the migration bullet.",
-        roleId: "a10",
+        roleId: "contoso",
         bulletId: "platform-migration",
         bullet: {
           id: "platform-migration",
@@ -870,14 +870,14 @@ describe("IdentityPage", () => {
     await waitFor(() => {
       expect(
         useIdentityStore.getState().scanResult?.progress.bullets[
-          "a10::platform-migration"
+          "contoso::platform-migration"
         ]?.status,
       ).toBe("completed");
     });
 
     expect(
       useIdentityStore.getState().scanResult?.progress.bullets[
-        "a10::second-migration"
+        "contoso::second-migration"
       ]?.status,
     ).toBe("idle");
     expect((screen.getByText("Deepen All") as HTMLButtonElement).disabled).toBe(
@@ -916,7 +916,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen All"));
@@ -938,7 +938,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));
@@ -988,7 +988,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen All"));
@@ -1021,7 +1021,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen All"));
@@ -1060,7 +1060,7 @@ describe("IdentityPage", () => {
     uploadPdf(container);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Nick Ferguson")).toBeTruthy();
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText("Deepen"));

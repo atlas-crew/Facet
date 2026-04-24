@@ -832,7 +832,7 @@ describe('PrepLiveMode', () => {
           ? {
               ...card,
               script:
-                'I start by learning how the engineers around me deploy and where the friction is. Then I build the infrastructure and automation that lets them ship faster and sleep better. Most recently at ThreatX, I brought the platform under infrastructure-as-code from nothing and migrated twelve services. I also cut AWS spend by about sixty thousand dollars a month and mentored SOC analysts into SRE practitioners. Before that, I built a developer platform from scratch at Vispero. The pattern is platform as product, measured by adoption.',
+                'I start by learning how the engineers around me deploy and where the friction is. Then I build the infrastructure and automation that lets them ship faster and sleep better. Most recently at Helios Security, I brought the platform under infrastructure-as-code from nothing and migrated twelve services. I also cut AWS spend by about sixty thousand dollars a month and mentored SOC analysts into SRE practitioners. Before that, I built a developer platform from scratch at Northwind. The pattern is platform as product, measured by adoption.',
             }
           : card
       )),
@@ -852,7 +852,7 @@ describe('PrepLiveMode', () => {
         card.id === 'card-1'
           ? {
               ...card,
-              script: 'Platform as product\nThreatX migration and AWS savings\nBuilt the team to run it without me',
+              script: 'Platform as product\nHelios Security migration and AWS savings\nBuilt the team to run it without me',
             }
           : card
       )),
