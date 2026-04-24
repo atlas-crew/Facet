@@ -117,6 +117,37 @@ export interface PrepPipelineResearchSourceContext {
   kind: string
 }
 
+/**
+ * Per-round slice of pipeline context handed to the prep generator when a
+ * specific `PipelineRound` is targeted for prep-gen. Carries the round's
+ * identity and — critically — the user-sourced interviewer list. No research-
+ * discovered people ever flow in here: AI-inferred interviewer identities are
+ * unreliable (see doc-30 §Interviewer Capture and the ai-inference-vs-user-
+ * input rule). If `interviewers[]` is empty, the generator must not emit any
+ * interviewer intel for the deck.
+ */
+export interface PrepPipelineRoundInterviewerContext {
+  id: string
+  name: string
+  title?: string
+  linkedInUrl?: string
+  /**
+   * Pre-populated intel from prior T3 research on this person. Step 5 of
+   * doc-30 writes here; step 4 passes through whatever the pipeline store
+   * already holds (typically undefined until T3 runs).
+   */
+  intel?: PrepInterviewerIntel
+  lineThatLands?: string
+}
+
+export interface PrepPipelineRoundContext {
+  id: string
+  label: string
+  format: InterviewFormat
+  scheduledFor?: string
+  interviewers: PrepPipelineRoundInterviewerContext[]
+}
+
 export interface PrepPipelineEntryContext {
   company: string
   role: string
@@ -135,11 +166,16 @@ export interface PrepPipelineEntryContext {
     summary?: string
     jobDescriptionSummary?: string
     interviewSignals: string[]
-    people: PrepPipelineResearchPersonContext[]
     sources: PrepPipelineResearchSourceContext[]
     searchQueries: string[]
     lastInvestigatedAt?: string
   }
+  /**
+   * Populated when the prep-gen targets a specific round on this entry.
+   * Absence means deck-generation is at the entry level (pre-panel-known)
+   * and the generator should not emit interviewer intel.
+   */
+  round?: PrepPipelineRoundContext
 }
 
 export interface PrepNumbersToKnow {
@@ -303,6 +339,12 @@ export interface PrepDeck {
   role: string
   vectorId?: string
   pipelineEntryId: string | null
+  /**
+   * Set when the deck was generated for a specific `PipelineRound`. Links
+   * deck.interviewers[] back to the user-sourced names in the pipeline (the
+   * generator does not populate interviewers unless a round ID is supplied).
+   */
+  pipelineRoundId?: string | null
   companyUrl?: string
   skillMatch?: string
   positioning?: string
@@ -380,6 +422,13 @@ export interface PrepGenerationRequest {
   jobDescription: string
   identityContext?: PrepIdentityContext
   pipelineEntryContext?: PrepPipelineEntryContext
+  /**
+   * When set, the deck is scoped to a specific `PipelineRound`. The generator
+   * uses the round's user-sourced interviewer names as the source of truth
+   * for `PrepDeck.interviewers[]`; when unset, no interviewer intel is
+   * emitted (doc-30 §Interviewer Capture — no AI-inferred identities).
+   */
+  pipelineRoundId?: string | null
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
   categoryGuidance?: Record<string, string>

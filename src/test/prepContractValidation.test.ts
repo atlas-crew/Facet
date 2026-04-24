@@ -87,22 +87,17 @@ describe('prep contract validation', () => {
           status: 'investigated',
           summary: 'Still mapping the team.',
           interviewSignals: [],
-          people: [
-            {
-              name: 'Jordan Lee',
-              title: 'Director of Platform',
-              company: 'Acme',
-              relevance: 'Likely hiring manager.',
-            },
-            {
-              name: 'Priya Shah',
-              title: 'Sr. Director of Engineering',
-              company: 'Acme',
-              relevance: 'Likely senior interviewer.',
-            },
-          ],
           sources: [],
           searchQueries: [],
+        },
+        round: {
+          id: 'round-1',
+          label: 'HM panel',
+          format: 'hm-screen',
+          interviewers: [
+            { id: 'iv-jordan', name: 'Jordan Lee', title: 'Director of Platform' },
+            { id: 'iv-priya', name: 'Priya Shah', title: 'Sr. Director of Engineering' },
+          ],
         },
       },
       resumeContext: {
@@ -285,22 +280,17 @@ describe('prep contract validation', () => {
           status: 'investigated',
           summary: 'Still mapping the team.',
           interviewSignals: [],
-          people: [
-            {
-              name: 'Jordan Lee',
-              title: 'Director of Platform',
-              company: 'Acme',
-              relevance: 'Likely hiring manager.',
-            },
-            {
-              name: 'Priya Shah',
-              title: 'Sr. Director of Engineering',
-              company: 'Acme',
-              relevance: 'Likely senior interviewer.',
-            },
-          ],
           sources: [],
           searchQueries: [],
+        },
+        round: {
+          id: 'round-1',
+          label: 'HM panel',
+          format: 'hm-screen',
+          interviewers: [
+            { id: 'iv-jordan', name: 'Jordan Lee', title: 'Director of Platform' },
+            { id: 'iv-priya', name: 'Priya Shah', title: 'Sr. Director of Engineering' },
+          ],
         },
       },
       resumeContext: {
@@ -338,7 +328,6 @@ describe('prep contract validation', () => {
             status: 'investigated',
             summary: 'Still mapping the team.',
             interviewSignals: [],
-            people: [],
             sources: [],
             searchQueries: [],
           },
@@ -374,7 +363,6 @@ describe('prep contract validation', () => {
             status: 'investigated',
             summary: 'Still mapping the team.',
             interviewSignals: [],
-            people: [],
             sources: [],
             searchQueries: [],
           },
@@ -414,7 +402,6 @@ describe('prep contract validation', () => {
           status: 'investigated',
           summary: 'Still mapping the team.',
           interviewSignals: [],
-          people: [],
           sources: [],
           searchQueries: [],
         },
@@ -574,16 +561,16 @@ describe('prep contract validation', () => {
           status: 'investigated',
           summary: 'Still mapping the team.',
           interviewSignals: [],
-          people: [
-            {
-              name: 'Jordan Lee',
-              title: 'Director of Platform',
-              company: 'Acme',
-              relevance: 'Likely hiring manager.',
-            },
-          ],
           sources: [],
           searchQueries: [],
+        },
+        round: {
+          id: 'round-1',
+          label: 'HM panel',
+          format: 'hm-screen',
+          interviewers: [
+            { id: 'iv-jordan', name: 'Jordan Lee', title: 'Director of Platform' },
+          ],
         },
       },
       resumeContext: {
@@ -624,7 +611,6 @@ describe('prep contract validation', () => {
             status: 'investigated',
             summary: 'Still mapping the team.',
             interviewSignals: [],
-            people: [],
             sources: [],
             searchQueries: [],
           },

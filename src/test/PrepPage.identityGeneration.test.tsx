@@ -154,15 +154,7 @@ describe('PrepPage identity generation', () => {
             summary: 'Public evidence points to a platform-heavy reliability role.',
             jobDescriptionSummary: 'Reliability and developer experience.',
             interviewSignals: ['Public reports mention a recruiter screen and system design round.'],
-            people: [
-              {
-                name: 'Jordan Lee',
-                title: 'Director of Platform',
-                company: 'Acme Corp',
-                profileUrl: 'https://linkedin.example/jordan-lee',
-                relevance: 'Likely org leader for this team.',
-              },
-            ],
+            people: [],
             sources: [
               {
                 label: 'Acme careers',
@@ -266,7 +258,9 @@ describe('PrepPage identity generation', () => {
     expect(prompt).toContain('Candidate Metrics From Identity')
     expect(prompt).toContain('Reduced incidents by 38%')
     expect(prompt).toContain('"metricKey": "incidents"')
-    expect(prompt).toContain('Jordan Lee')
+    // Interviewer names intentionally absent — doc-30 §Interviewer Capture
+    // gates panel data on round.interviewers, not legacy research.people.
+    expect(prompt).not.toContain('Jordan Lee')
     expect(prompt).toContain('Public reports mention a recruiter screen and system design round.')
     expect(prompt).toContain('Additional Candidate Metrics Outside The Vector Slice')
     expect(prompt).toContain('Maintained legacy data feeds.')

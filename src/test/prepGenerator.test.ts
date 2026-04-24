@@ -147,16 +147,20 @@ describe('generateInterviewPrep', () => {
           status: 'investigated',
           summary: 'Public evidence points to a platform-heavy reliability role.',
           interviewSignals: [],
-          people: [
-            {
-              name: 'Jordan Lee',
-              title: 'Director of Platform',
-              company: 'Acme',
-              relevance: 'Likely org leader for this team.',
-            },
-          ],
           sources: [],
           searchQueries: [],
+        },
+        round: {
+          id: 'round-1',
+          label: 'HM screen',
+          format: 'hm-screen',
+          interviewers: [
+            {
+              id: 'iv-jordan',
+              name: 'Jordan Lee',
+              title: 'Director of Platform',
+            },
+          ],
         },
       },
       resumeContext: {
@@ -308,20 +312,11 @@ describe('generateInterviewPrep', () => {
     expect(result.cards[1]?.timeBudgetMinutes).toBe(4)
   })
 
-  it('adds a pipeline-owned people intel gap when pipeline context has no researched people', async () => {
+  it('persists pipelineRoundId on the generated deck when supplied', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
         companyResearchSummary: 'Acme is scaling carefully.',
-        contextGaps: [
-          {
-            id: 'gap-existing',
-            section: 'Opening story',
-            question: 'Which project should anchor your opener?',
-            why: 'Needed to sharpen the opening narrative.',
-            priority: 'recommended',
-          },
-        ],
         cards: [
           {
             category: 'opener',
@@ -339,56 +334,17 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
-      pipelineEntryContext: {
-        company: 'Acme',
-        role: 'Staff Engineer',
-        tier: '1',
-        status: 'interviewing',
-        appMethod: 'direct-apply',
-        response: 'interview-scheduled',
-        formats: ['hm-screen'],
-        research: {
-          status: 'seeded',
-          summary: 'Strong role fit, but interviewer intel is still thin.',
-          interviewSignals: [],
-          people: [],
-          sources: [],
-          searchQueries: [],
-        },
-      },
-      resumeContext: {
-        resume: {
-          basics: { name: 'Alex Example' },
-        },
-      },
+      pipelineRoundId: 'round-42',
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
     })
 
-    expect(result.contextGaps).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: expect.stringContaining('prep-gap-pipeline-people-intel'),
-          feedbackTarget: 'pipeline.research.people',
-          priority: 'required',
-        }),
-      ]),
-    )
+    expect(result.deck.pipelineRoundId).toBe('round-42')
   })
 
-  it('canonicalizes legacy pipeline people gaps from the model without appending duplicates', async () => {
+  it('defaults pipelineRoundId to null when no round was targeted', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
-        companyResearchSummary: 'Acme is scaling carefully.',
-        contextGaps: [
-          {
-            id: 'pipeline-people',
-            section: 'People intel',
-            question:
-              'List the people you have identified so far for this process: interviewers, the hiring manager, or anyone influencing the decision.',
-            why: 'Need the names to tailor the prep.',
-            priority: 'required',
-          },
-        ],
         cards: [
           {
             category: 'opener',
@@ -403,50 +359,27 @@ describe('generateInterviewPrep', () => {
     const result = await generateInterviewPrep('https://ai.example/proxy', {
       company: 'Acme',
       role: 'Staff Engineer',
-      vectorId: 'backend',
-      vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
-      pipelineEntryContext: {
-        company: 'Acme',
-        role: 'Staff Engineer',
-        tier: '1',
-        status: 'interviewing',
-        appMethod: 'direct-apply',
-        response: 'interview-scheduled',
-        formats: ['hm-screen'],
-        research: {
-          status: 'seeded',
-          summary: 'Still missing interviewer names.',
-          interviewSignals: [],
-          people: [],
-          sources: [],
-          searchQueries: [],
-        },
-      },
-      resumeContext: {
-        resume: {
-          basics: { name: 'Alex Example' },
-        },
-      },
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
     })
 
-    expect(result.contextGaps).toEqual([
-      expect.objectContaining({
-        id: expect.stringContaining('prep-gap-pipeline-people-intel'),
-        section: 'People intel',
-        question:
-          'List the people you have identified so far for this process: interviewers, the hiring manager, or anyone influencing the decision.',
-        feedbackTarget: 'pipeline.research.people',
-        priority: 'required',
-      }),
-    ])
+    expect(result.deck.pipelineRoundId).toBeNull()
   })
 
-  it('does not resurrect the pipeline people gap when a legacy answer key already exists', async () => {
+  it('drops AI-emitted interviewers when no round was targeted', async () => {
+    // Even if the model speculates interviewer records (despite the prompt
+    // instruction), the store must not persist names unless the user supplied
+    // them via round.interviewers. See doc-30 §Interviewer Capture.
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
-        companyResearchSummary: 'Acme is scaling carefully.',
+        interviewers: [
+          {
+            id: 'speculated',
+            name: 'Speculated Name',
+            intel: { role: 'guessed' },
+          },
+        ],
         cards: [
           {
             category: 'opener',
@@ -461,12 +394,46 @@ describe('generateInterviewPrep', () => {
     const result = await generateInterviewPrep('https://ai.example/proxy', {
       company: 'Acme',
       role: 'Staff Engineer',
-      vectorId: 'backend',
-      vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
-      contextGapAnswers: {
-        'pipeline-people': 'Hiring manager is Sam; panel includes Priya and Jordan.',
-      },
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
+    })
+
+    expect(result.deck.interviewers).toBeUndefined()
+  })
+
+  it('preserves AI-emitted interviewers when round.interviewers is present', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        interviewers: [
+          {
+            id: 'iv-1',
+            name: 'Alice',
+            title: 'Principal',
+            intel: {
+              role: 'Principal on the platform team',
+              caresAbout: 'reliability over velocity',
+            },
+            lineThatLands: 'I have empathy for on-call burden.',
+          },
+        ],
+        cards: [
+          {
+            category: 'situational',
+            title: 'Alice — intel',
+            tags: ['intel'],
+            interviewerIds: ['iv-1'],
+            notes: 'Alice — likely hiring manager. Lead with on-call stories.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      pipelineRoundId: 'round-42',
       pipelineEntryContext: {
         company: 'Acme',
         role: 'Staff Engineer',
@@ -475,23 +442,20 @@ describe('generateInterviewPrep', () => {
         appMethod: 'direct-apply',
         response: 'interview-scheduled',
         formats: ['hm-screen'],
-        research: {
-          status: 'seeded',
-          summary: 'Still missing interviewer names in pipeline research.',
-          interviewSignals: [],
-          people: [],
-          sources: [],
-          searchQueries: [],
+        round: {
+          id: 'round-42',
+          label: 'HM panel',
+          format: 'hm-screen',
+          interviewers: [
+            { id: 'iv-1', name: 'Alice', title: 'Principal' },
+          ],
         },
       },
-      resumeContext: {
-        resume: {
-          basics: { name: 'Alex Example' },
-        },
-      },
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
     })
 
-    expect(result.contextGaps).toBeUndefined()
+    expect(result.deck.interviewers).toHaveLength(1)
+    expect(result.deck.interviewers?.[0].name).toBe('Alice')
   })
 
   it('normalizes rich card fields and deck-level guidance from the AI response', async () => {

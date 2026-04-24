@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import type { PipelineEntry } from '../types/pipeline'
+import type { PipelineEntry, PipelineRound } from '../types/pipeline'
 import {
   buildPrepCompanyResearchNotes,
   buildPrepPipelineEntryContext,
 } from '../utils/prepPipelineContext'
+
+const makeRound = (overrides: Partial<PipelineRound> = {}): PipelineRound => ({
+  id: 'round-42',
+  label: 'HM panel',
+  format: 'hm-screen',
+  scheduledFor: '2026-05-01T14:00:00.000Z',
+  interviewers: [
+    {
+      id: 'iv-jordan',
+      name: 'Jordan Lee',
+      title: 'Director of Platform',
+      linkedInUrl: 'https://linkedin.example/jordan-lee',
+    },
+  ],
+  createdAt: '2026-04-10T10:00:00.000Z',
+  updatedAt: '2026-04-10T10:00:00.000Z',
+  ...overrides,
+})
 
 const pipelineEntryFixture: PipelineEntry = {
   id: 'pipe-1',
@@ -44,6 +62,8 @@ const pipelineEntryFixture: PipelineEntry = {
     summary: 'Public evidence points to a platform-heavy reliability role.',
     jobDescriptionSummary: 'Reliability, developer experience, and cross-functional influence.',
     interviewSignals: ['Public reports mention a recruiter screen and system design loop.'],
+    // Legacy people data — kept in the fixture to prove the context builder
+    // intentionally does not forward it under the new architecture.
     people: [
       {
         name: 'Jordan Lee',
@@ -63,34 +83,107 @@ const pipelineEntryFixture: PipelineEntry = {
     searchQueries: ['Acme staff engineer interview'],
     lastInvestigatedAt: '2026-03-08T12:00:00.000Z',
   },
+  interviewRounds: [makeRound()],
 }
 
 describe('prepPipelineContext', () => {
-  it('builds a research-rich notes draft from the pipeline entry', () => {
-    const notes = buildPrepCompanyResearchNotes(pipelineEntryFixture)
+  describe('buildPrepCompanyResearchNotes', () => {
+    it('builds a research-rich notes draft from the pipeline entry', () => {
+      const notes = buildPrepCompanyResearchNotes(pipelineEntryFixture)
 
-    expect(notes).toContain('Positioning Notes:')
-    expect(notes).toContain('Pipeline Notes:')
-    expect(notes).toContain('Research Summary:')
-    expect(notes).toContain('Interview Signals:')
-    expect(notes).toContain('Relevant People:')
-    expect(notes).toContain('Jordan Lee')
-    expect(notes).toContain('Research Sources:')
+      expect(notes).toContain('Positioning Notes:')
+      expect(notes).toContain('Pipeline Notes:')
+      expect(notes).toContain('Research Summary:')
+      expect(notes).toContain('Interview Signals:')
+      expect(notes).toContain('Research Sources:')
+    })
+
+    it('never includes a Relevant People section even when legacy data exists', () => {
+      // doc-30 §Interviewer Capture: user-sourced round.interviewers is the
+      // only valid source of interviewer identity; legacy research.people
+      // must not flow into the generator as a prose section.
+      const notes = buildPrepCompanyResearchNotes(pipelineEntryFixture)
+
+      expect(notes).not.toContain('Relevant People')
+      expect(notes).not.toContain('Jordan Lee')
+    })
   })
 
-  it('builds structured pipeline context for prep generation', () => {
-    const context = buildPrepPipelineEntryContext(pipelineEntryFixture) as {
-      research?: {
-        people?: Array<{ name: string }>
-        summary?: string
-      }
-      nextStep?: string
-      status?: string
-    }
+  describe('buildPrepPipelineEntryContext', () => {
+    it('carries status, nextStep, and research summary into the structured context', () => {
+      const context = buildPrepPipelineEntryContext(pipelineEntryFixture)
 
-    expect(context.status).toBe('interviewing')
-    expect(context.nextStep).toBe('Prepare for the system design round.')
-    expect(context.research?.summary).toContain('platform-heavy reliability role')
-    expect(context.research?.people?.[0]?.name).toBe('Jordan Lee')
+      expect(context.status).toBe('interviewing')
+      expect(context.nextStep).toBe('Prepare for the system design round.')
+      expect(context.research?.summary).toContain('platform-heavy reliability role')
+    })
+
+    it('omits the round field when no roundId is supplied', () => {
+      const context = buildPrepPipelineEntryContext(pipelineEntryFixture)
+      expect(context.round).toBeUndefined()
+    })
+
+    it('populates the round field when roundId matches an entry round', () => {
+      const context = buildPrepPipelineEntryContext(pipelineEntryFixture, 'round-42')
+
+      expect(context.round).toBeDefined()
+      expect(context.round?.id).toBe('round-42')
+      expect(context.round?.label).toBe('HM panel')
+      expect(context.round?.format).toBe('hm-screen')
+      expect(context.round?.scheduledFor).toBe('2026-05-01T14:00:00.000Z')
+      expect(context.round?.interviewers).toHaveLength(1)
+      expect(context.round?.interviewers[0]).toMatchObject({
+        id: 'iv-jordan',
+        name: 'Jordan Lee',
+        title: 'Director of Platform',
+        linkedInUrl: 'https://linkedin.example/jordan-lee',
+      })
+    })
+
+    it('leaves round undefined when roundId does not match any entry round', () => {
+      const context = buildPrepPipelineEntryContext(pipelineEntryFixture, 'round-nonexistent')
+      expect(context.round).toBeUndefined()
+    })
+
+    it('propagates PipelineInterviewer.dossier as round interviewer intel', () => {
+      // Future-proofs step 5: once T3 writes dossiers onto PipelineInterviewer,
+      // the context builder hands them through as intel for the generator.
+      const entry: PipelineEntry = {
+        ...pipelineEntryFixture,
+        interviewRounds: [
+          makeRound({
+            interviewers: [
+              {
+                id: 'iv-alice',
+                name: 'Alice',
+                title: 'Principal',
+                dossier: {
+                  role: 'Principal on platform team',
+                  caresAbout: 'reliability over velocity',
+                },
+                lineThatLands: 'I take on-call burden seriously.',
+              },
+            ],
+          }),
+        ],
+      }
+
+      const context = buildPrepPipelineEntryContext(entry, 'round-42')
+      expect(context.round?.interviewers[0].intel?.caresAbout).toBe(
+        'reliability over velocity',
+      )
+      expect(context.round?.interviewers[0].lineThatLands).toBe(
+        'I take on-call burden seriously.',
+      )
+    })
+
+    it('never exposes research.people on the structured context', () => {
+      // The context type deliberately omits `people` from research; the
+      // runtime must match. Legacy blob data on `entry.research.people` is
+      // ignored at the translation boundary.
+      const context = buildPrepPipelineEntryContext(pipelineEntryFixture)
+      expect(context.research).toBeDefined()
+      expect('people' in (context.research ?? {})).toBe(false)
+    })
   })
 })

@@ -1,5 +1,9 @@
-import type { PipelineEntry, PipelineResearchSnapshot } from '../types/pipeline'
-import type { PrepPipelineEntryContext } from '../types/prep'
+import type { PipelineEntry, PipelineRound } from '../types/pipeline'
+import type {
+  PrepPipelineEntryContext,
+  PrepPipelineRoundContext,
+  PrepPipelineResearchSourceContext,
+} from '../types/prep'
 import { normalizePipelineResearchSnapshot } from './pipelineResearch'
 
 const trimString = (value: string | null | undefined): string => value?.trim() ?? ''
@@ -7,22 +11,18 @@ const trimString = (value: string | null | undefined): string => value?.trim() ?
 const buildSection = (label: string, body: string | undefined): string =>
   body ? `${label}:\n${body}` : ''
 
-const formatPeopleLine = (
-  person: NonNullable<PipelineResearchSnapshot['people']>[number],
-): string => {
-  const roleLine = [person.title, person.company].filter(Boolean).join(' @ ')
-  const relevanceLine = person.relevance ? ' — ' + person.relevance : ''
-  const profileLine = person.profileUrl ? ' (' + person.profileUrl + ')' : ''
-  return `- ${[person.name, roleLine].filter(Boolean).join(' — ')}${relevanceLine}${profileLine}`
-}
-
-const formatSourceLine = (
-  source: NonNullable<PipelineResearchSnapshot['sources']>[number],
-): string => {
+const formatSourceLine = (source: PrepPipelineResearchSourceContext): string => {
   const sourceUrl = source.url ? ' (' + source.url + ')' : ''
   return `- [${source.kind}] ${source.label}${sourceUrl}`
 }
 
+/**
+ * Prose research notes handed to the prep generator. Interviewer names and
+ * per-person intel are explicitly NOT included here: per doc-30
+ * §Interviewer Capture, those come only from `PrepPipelineEntryContext.round`
+ * (user-sourced names) — never from inferred research.people data, even
+ * when legacy snapshots carry it.
+ */
 export function buildPrepCompanyResearchNotes(entry: PipelineEntry): string {
   const research = normalizePipelineResearchSnapshot(entry.research)
   const positioning = trimString(entry.positioning)
@@ -43,12 +43,6 @@ export function buildPrepCompanyResearchNotes(entry: PipelineEntry): string {
         : undefined,
     ),
     buildSection(
-      'Relevant People',
-      research?.people?.length
-        ? research.people.map((person) => formatPeopleLine(person)).join('\n')
-        : undefined,
-    ),
-    buildSection(
       'Research Sources',
       research?.sources?.length
         ? research.sources.map((source) => formatSourceLine(source)).join('\n')
@@ -59,10 +53,38 @@ export function buildPrepCompanyResearchNotes(entry: PipelineEntry): string {
   return sections.join('\n\n')
 }
 
+function buildRoundContext(round: PipelineRound): PrepPipelineRoundContext {
+  return {
+    id: round.id,
+    label: round.label,
+    format: round.format,
+    scheduledFor: round.scheduledFor,
+    interviewers: round.interviewers.map((iv) => ({
+      id: iv.id,
+      name: iv.name,
+      title: iv.title,
+      linkedInUrl: iv.linkedInUrl,
+      intel: iv.dossier,
+      lineThatLands: iv.lineThatLands,
+    })),
+  }
+}
+
+/**
+ * Build the structured pipeline context passed to the prep generator. When
+ * `roundId` matches an entry round, the `.round` field carries the user-
+ * sourced interviewer list — this is the only path through which interviewer
+ * names ever reach the generator.
+ */
 export function buildPrepPipelineEntryContext(
   entry: PipelineEntry,
+  roundId?: string,
 ): PrepPipelineEntryContext {
   const research = normalizePipelineResearchSnapshot(entry.research)
+  const round =
+    roundId
+      ? (entry.interviewRounds ?? []).find((r) => r.id === roundId)
+      : undefined
 
   return {
     company: trimString(entry.company),
@@ -86,11 +108,11 @@ export function buildPrepPipelineEntryContext(
             jobDescriptionSummary:
               trimString(research.jobDescriptionSummary) || undefined,
             interviewSignals: research.interviewSignals ?? [],
-            people: research.people ?? [],
             sources: research.sources ?? [],
             searchQueries: research.searchQueries ?? [],
             lastInvestigatedAt:
               trimString(research.lastInvestigatedAt) || undefined,
           },
+    round: round ? buildRoundContext(round) : undefined,
   }
 }

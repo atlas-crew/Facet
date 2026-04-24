@@ -20,8 +20,8 @@ import type {
   PrepInterviewerIntel,
   PrepMetric,
   PrepNumbersToKnow,
-  PrepPipelineResearchPersonContext,
   PrepPipelineEntryContext,
+  PrepPipelineRoundInterviewerContext,
   PrepQuestionToAsk,
   PrepStackAlignmentConfidence,
   PrepStackAlignmentRow,
@@ -75,11 +75,6 @@ interface PrepInterviewPrepResult {
   deck: PrepDeck
   contractViolations: PrepContractViolation[]
 }
-
-const PREP_PIPELINE_PEOPLE_GAP_ID = 'prep-gap-pipeline-people-intel'
-const PREP_PIPELINE_PEOPLE_GAP_SECTION = 'People intel'
-const PREP_PIPELINE_PEOPLE_GAP_QUESTION =
-  'List the people you have identified so far for this process: interviewers, the hiring manager, or anyone influencing the decision.'
 
 const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<
   PrepStackAlignmentConfidence,
@@ -259,121 +254,17 @@ function stripCandidateMetricsFromIdentityContext(
   return rest
 }
 
-function readPipelineResearchPeople(
+/**
+ * Returns the user-sourced interviewers for the targeted round, or an empty
+ * array when no round was specified. This is the sole path by which
+ * interviewer names enter the prep generator — the prompt emission is gated
+ * on this being non-empty, and no other code path reads interviewer identity
+ * (see doc-30 §Interviewer Capture and the ai-inference-vs-user-input rule).
+ */
+function readRoundInterviewers(
   value: PrepPipelineEntryContext | undefined,
-): PrepPipelineResearchPersonContext[] | undefined {
-  return value?.research?.people
-}
-
-function buildPipelinePeopleGapId(request: PrepGenerationRequest): string {
-  const pipelineContext = request.pipelineEntryContext
-  if (!pipelineContext) return PREP_PIPELINE_PEOPLE_GAP_ID
-
-  const slugSource = [
-    pipelineContext.company,
-    pipelineContext.role,
-    pipelineContext.url,
-  ]
-    .filter(Boolean)
-    .join('-')
-
-  return slugSource
-    ? `${PREP_PIPELINE_PEOPLE_GAP_ID}-${slugify(slugSource)}`
-    : PREP_PIPELINE_PEOPLE_GAP_ID
-}
-
-function buildLegacyPipelinePeopleGapIds(request: PrepGenerationRequest): string[] {
-  const pipelineContext = request.pipelineEntryContext
-  if (!pipelineContext) return ['pipeline-people']
-
-  const slugSource = [
-    pipelineContext.company,
-    pipelineContext.role,
-    pipelineContext.url,
-  ]
-    .filter(Boolean)
-    .join('-')
-
-  return [
-    'pipeline-people',
-    slugSource ? `${PREP_PIPELINE_PEOPLE_GAP_ID}-${slugify(slugSource)}` : PREP_PIPELINE_PEOPLE_GAP_ID,
-  ]
-}
-
-function isPipelinePeopleGap(gap: PrepContextGap): boolean {
-  return (
-    gap.feedbackTarget === 'pipeline.research.people' ||
-    gap.id === PREP_PIPELINE_PEOPLE_GAP_ID ||
-    (
-      gap.section.trim().toLowerCase() === PREP_PIPELINE_PEOPLE_GAP_SECTION.toLowerCase() &&
-      gap.question.trim().toLowerCase() === PREP_PIPELINE_PEOPLE_GAP_QUESTION.toLowerCase()
-    )
-  )
-}
-
-function normalizePipelinePeopleGap(gap: PrepContextGap, gapId: string): PrepContextGap {
-  if (!isPipelinePeopleGap(gap)) return gap
-
-  return {
-    ...gap,
-    id: gapId,
-    section: PREP_PIPELINE_PEOPLE_GAP_SECTION,
-    question: PREP_PIPELINE_PEOPLE_GAP_QUESTION,
-    feedbackTarget: 'pipeline.research.people',
-    priority: gap.priority,
-  }
-}
-
-function ensurePipelineResearchContextGaps(
-  contextGaps: PrepContextGap[] | undefined,
-  request: PrepGenerationRequest,
-): PrepContextGap[] | undefined {
-  if (!request.pipelineEntryContext) {
-    return contextGaps
-  }
-
-  const rawExistingGaps = contextGaps ?? []
-  const pipelinePeopleGapId = buildPipelinePeopleGapId(request)
-  const existingGaps = rawExistingGaps.map((gap) => normalizePipelinePeopleGap(gap, pipelinePeopleGapId))
-  const hasPipelinePeopleGap = existingGaps.some((gap) => isPipelinePeopleGap(gap))
-  const pipelinePeopleGapIds = new Set(
-    existingGaps
-      .filter((gap) => isPipelinePeopleGap(gap))
-      .map((gap) => gap.id)
-      .filter((gapId) => gapId.trim().length > 0),
-  )
-  pipelinePeopleGapIds.add(pipelinePeopleGapId)
-  for (const legacyGapId of buildLegacyPipelinePeopleGapIds(request)) {
-    pipelinePeopleGapIds.add(legacyGapId)
-  }
-  for (const rawGap of rawExistingGaps) {
-    if (isPipelinePeopleGap(rawGap)) {
-      pipelinePeopleGapIds.add(rawGap.id)
-    }
-  }
-  const hasAnsweredPipelinePeopleGap = [...pipelinePeopleGapIds].some((gapId) => Boolean(request.contextGapAnswers?.[gapId]?.trim()))
-
-  if (hasPipelinePeopleGap || hasAnsweredPipelinePeopleGap) {
-    return existingGaps.length > 0 ? existingGaps : undefined
-  }
-
-  const pipelinePeople = readPipelineResearchPeople(request.pipelineEntryContext)
-  if (pipelinePeople && pipelinePeople.length > 0) {
-    return existingGaps.length > 0 ? existingGaps : undefined
-  }
-
-  return [
-    ...existingGaps,
-    {
-      id: pipelinePeopleGapId,
-      section: PREP_PIPELINE_PEOPLE_GAP_SECTION,
-      question: PREP_PIPELINE_PEOPLE_GAP_QUESTION,
-      why:
-        'Named people let the prep tailor framing and questions to who is actually in the room.',
-      feedbackTarget: 'pipeline.research.people',
-      priority: 'required',
-    },
-  ]
+): PrepPipelineRoundInterviewerContext[] {
+  return value?.round?.interviewers ?? []
 }
 
 // Identity context is produced in-process by buildPrepIdentityContext, so array shape is trusted here.
@@ -859,9 +750,9 @@ function validatePrepGenerationContract(params: {
     }
   }
 
-  const knownPeople = request.pipelineEntryContext?.research?.people ?? []
-  if (knownPeople.length > 0) {
-    const knownPeopleNames = knownPeople
+  const knownInterviewers = readRoundInterviewers(request.pipelineEntryContext)
+  if (knownInterviewers.length > 0) {
+    const knownInterviewerNames = knownInterviewers
       .map((person) => person.name.trim())
       .filter(Boolean)
     const intelCards = generatedCards.filter(isPrepIntelCard)
@@ -869,7 +760,7 @@ function validatePrepGenerationContract(params: {
       const text = getCardValidationText(card)
       const normalizedText = text.toLowerCase()
       return (
-        knownPeopleNames.some((name) => normalizedText.includes(name.toLowerCase())) &&
+        knownInterviewerNames.some((name) => normalizedText.includes(name.toLowerCase())) &&
         ROLE_INFERENCE_PATTERN.test(text)
       )
     })
@@ -879,7 +770,7 @@ function validatePrepGenerationContract(params: {
         kind: 'missing-intel',
         field: 'cards',
         message:
-          'Company research contains named people, but the generated deck did not include a named-person intel card with role inference.',
+          'Round interviewers were supplied, but the generated deck did not include a named-person intel card with role inference.',
         severity: 'error',
       })
     }
@@ -1204,7 +1095,7 @@ function buildLandmineFallbackCards(
     )
   }
 
-  if (request.pipelineEntryContext?.research?.people?.length) {
+  if (readRoundInterviewers(request.pipelineEntryContext).length > 0) {
     addCard(
       buildLandmineCard({
         category: 'situational',
@@ -1499,10 +1390,11 @@ You are not just generating scripts — you are coaching the candidate on WHY ea
 
 3. Strategic Framing (categoryGuidance): When writing categoryGuidance, include interview-dynamic coaching based on context clues. If positioning notes suggest the company reached out first (recruiter inbound, "they contacted me", etc.), include: "They reached out to you — they already believe there's fit. This conversation is 'do I want to work with this person and can they do the job?' not 'convince me you belong here.' Be conversational, not performative." If the candidate applied cold, include: "You applied to them — you need to earn attention in the first 2 minutes. Lead with specificity: why THIS company, why THIS role, what makes you different from the 200 other applicants."
 
-4. Named People Intel: When companyResearch or pipeline entry research mentions specific people by name, emit BOTH of the following:
-   (a) A structured "interviewers" entry at the deck level for each person. Populate the intel grid (role, background, stack, caresAbout, yourAngle, keyTell, linkedInPositioning, education) only from what the research actually supports — leave a field undefined rather than invent one. Always provide a "lineThatLands" one-liner tuned to the specific concern this person will evaluate, grounded in intel.caresAbout. The line must mirror their known concern back at them ("I have real empathy for on-call burden — ...") — no generic platitudes.
+4. Named People Intel: Emit "interviewers" entries ONLY when structured pipeline entry context includes a non-empty "round.interviewers" list. Those names are user-sourced (entered from the recruiter's calendar invite) and are the exclusive authoritative source of interviewer identity. NEVER invent or guess interviewer names from company research, role patterns, LinkedIn surface, or org-chart inference — if "round.interviewers" is absent or empty, OMIT the "interviewers" field and any intel cards that would reference interviewer ids.
+   When "round.interviewers" is provided, for each listed person emit BOTH of the following:
+   (a) A structured "interviewers" entry at the deck level reusing the supplied id, name, title, and linkedInUrl. Populate the intel grid (role, background, stack, caresAbout, yourAngle, keyTell, linkedInPositioning, education) only from what the supplied "intel" seed or supporting research actually supports — leave a field undefined rather than invent one. Always provide a "lineThatLands" one-liner tuned to the specific concern this person will evaluate, grounded in intel.caresAbout. The line must mirror their known concern back at them ("I have real empathy for on-call burden — ...") — no generic platitudes.
    (b) A dedicated card with category "situational", tag "intel", and an "interviewerIds" array containing that interviewer's id, linking the card to the structured record. Keep the card compact: the "interviewers" entry supplies the grid; the card is the deck-level anchor and can carry a "warning" (what not to do with this person) plus delivery coaching in "notes".
-   For each person also infer their likely role in the interview ("SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off"). If the hiring manager or interviewer is identified, add dynamic coaching based on their title.
+   For each person also infer their likely role in the interview ("SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off") from supplied research only.
 
 5. Competitive Positioning: When the candidate's skills include combinations that are market-rare or unusually valuable for this specific role, generate a notes or deepDives entry explaining WHY it's rare. Example: "GitLab admin experience is genuinely uncommon — most candidates have GitHub Actions or Jenkins. The fact that you administered the instance, not just consumed it, is a differentiator. Lean into it." Or: "The Python + C# combination is rare at production depth. Most engineers live in one ecosystem. This matters at companies with mixed stacks." Look for 2-3 such combinations per deck and call them out explicitly.
 When the deck has depth gaps, make sure at least 2 cards are landmine or gap-framing cards to keep the candidate honest about risk.
@@ -1636,8 +1528,8 @@ ${JSON.stringify(request.resumeContext, null, 2)}
 
 When structured identity context is provided, use it as the source of truth for candidate evidence and fall back to the tailored resume context only for missing details.
 When structured pipeline entry context is provided, use it as the source of truth for company, process, and interviewer intel before falling back to freeform companyResearch notes.
-If structured pipeline entry context includes researched people, use them for named-person intel cards, likely-interviewer framing, and sharper questions-to-ask.
-Do not claim named-person intel unless it is grounded in the provided structured pipeline entry context or companyResearch notes.
+If structured pipeline entry context includes a round.interviewers list, those are the exact user-supplied panel members; use them for named-person intel cards, likely-interviewer framing, and sharper questions-to-ask. If the list is absent, emit no interviewer names at all.
+Do not claim named-person intel unless it is grounded in a user-supplied round.interviewers entry and corroborated by the provided structured pipeline entry context or companyResearch notes.
 Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
@@ -1733,10 +1625,7 @@ Return JSON only (inside the tags).`
 
   const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
   const generatedCards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
-  const contextGaps = ensurePipelineResearchContextGaps(
-    normalizeContextGaps(parsed.contextGaps),
-    request,
-  )
+  const contextGaps = normalizeContextGaps(parsed.contextGaps)
   const categoryGuidance = normalizeCategoryGuidance(parsed.categoryGuidance)
   const contractViolations = validatePrepGenerationContract({
     deck: {
@@ -1769,6 +1658,12 @@ Return JSON only (inside the tags).`
   }
 
   const now = new Date().toISOString()
+  // Gate: interviewers only flow onto the deck when the request targeted a
+  // specific round with at least one user-supplied name. If the round has no
+  // interviewers (or no round was targeted), the AI may still have emitted
+  // speculative records — drop them at this boundary rather than trust them.
+  const roundHasInterviewers =
+    readRoundInterviewers(request.pipelineEntryContext).length > 0
   const deck: PrepDeck = {
     id: createId('prep-deck'),
     title: parsed.deckTitle.trim(),
@@ -1776,13 +1671,16 @@ Return JSON only (inside the tags).`
     role: request.role,
     vectorId: request.vectorId,
     pipelineEntryId: null,
+    pipelineRoundId: request.pipelineRoundId ?? null,
     companyUrl: request.companyUrl,
     skillMatch: request.skillMatch,
     positioning: request.positioning,
     roundType: request.roundType,
     notes: request.notes,
     companyResearch: request.companyResearch,
-    interviewers: normalizeInterviewers(parsed.interviewers),
+    interviewers: roundHasInterviewers
+      ? normalizeInterviewers(parsed.interviewers)
+      : undefined,
     jobDescription: request.jobDescription,
     rules: normalizeStringList(parsed.rules),
     donts: normalizeStringList(parsed.donts),
