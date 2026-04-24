@@ -26,7 +26,7 @@ The Platform/Security Job Search Report includes an explicit "Assumptions" secti
 
 > Assumptions (because they were not fully specified in the parameters file):
 > - You are eligible to work in the United States without sponsorship (several top roles explicitly state no visa sponsorship).
-> - Your "hybrid acceptable" constraint applies only within the Greater Tampa Bay area; otherwise you are targeting remote-first roles (I treated this as equivalent to "remote US required" for ranking).
+> - Your "hybrid acceptable" constraint applies only within the Greater Denver Metro area; otherwise you are targeting remote-first roles (I treated this as equivalent to "remote US required" for ranking).
 > - You are located in Florida (used only to sanity-check "US remote / state eligibility" language where postings restrict locations).
 
 This is a credibility-earning transparency mechanism: any time the search has to fill gaps in the input, it surfaces what it filled. The user can correct the assumptions before committing to Phase 2 — or flag them if Phase 2 used them incorrectly.
@@ -70,7 +70,7 @@ Render `assumptions[]` as a collapsible section at the top of the thesis editor 
 
 > **Assumptions (3)** — we made these calls because the input was ambiguous:
 > • You are eligible to work in the US without sponsorship — low confidence. *Correct?*
-> • You are open to remote-US roles outside Tampa Bay — high confidence. *Correct?*
+> • You are open to remote-US roles outside Denver Metro — high confidence. *Correct?*
 > • Compensation floor is the target, not a hard floor — medium confidence. *Correct?*
 
 Clicking "Correct?" opens the relevant identity field with the current value pre-filled, letting the user adjust. Corrections bump `identity.version` (TASK-159) and surface via downstream impact (TASK-168).

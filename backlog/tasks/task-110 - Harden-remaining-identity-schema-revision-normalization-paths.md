@@ -11,10 +11,10 @@ labels:
   - frontend
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/src/store/identityStore.ts
-  - /Users/nick/Developer/Facet/src/identity/schema.ts
-  - /Users/nick/Developer/Facet/src/test/identityStore.test.ts
-  - /Users/nick/Developer/Facet/src/test/IdentityPage.test.tsx
+  - ./src/store/identityStore.ts
+  - ./src/identity/schema.ts
+  - ./src/test/identityStore.test.ts
+  - ./src/test/IdentityPage.test.tsx
 priority: medium
 ---
 

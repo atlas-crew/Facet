@@ -15,7 +15,7 @@ milestone: m-15
 dependencies:
   - TASK-98
 documentation:
-  - /Users/nick/Developer/Facet/src/identity/schema.ts
+  - ./src/identity/schema.ts
 parent_task_id: TASK-98
 priority: medium
 ---

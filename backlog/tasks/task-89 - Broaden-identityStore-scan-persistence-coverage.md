@@ -8,14 +8,14 @@ labels:
   - scanner
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-005817.md
+  - ./.agents/reviews/test-audit-20260407-005817.md
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifact /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-005817.md.
+Deferred from test audit artifact ./.agents/reviews/test-audit-20260407-005817.md.
 
 Remaining medium-severity gaps to cover:
 - P2-001: requestCancelScanBulkDeepen intermediate state

@@ -17,7 +17,7 @@ dependencies:
   - TASK-83
 references:
   - >-
-    /Users/nick/Developer/Facet/docs/development/platform/wave-1-beta-readiness-gate.md
+    ./docs/development/platform/wave-1-beta-readiness-gate.md
 documentation:
   - doc-6
   - doc-7

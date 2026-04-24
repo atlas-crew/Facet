@@ -10,14 +10,14 @@ labels:
   - playwright
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/review-20260407-182509.md
+  - ./.agents/reviews/review-20260407-182509.md
 priority: low
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from source review artifact /Users/nick/Developer/Facet/.agents/reviews/review-20260407-182509.md.
+Deferred from source review artifact ./.agents/reviews/review-20260407-182509.md.
 
 Reviewer noted that spreading process.env inside playwright.config.ts webServer.env is redundant. In this repo, removing the spread caused the Playwright web server to time out during startup after moving away from the POSIX-only inline env assignment. This needs a scoped investigation to determine the minimal cross-platform env shape that both passes review and keeps preview startup reliable.
 <!-- SECTION:DESCRIPTION:END -->

@@ -14,7 +14,7 @@ labels:
 milestone: m-15
 dependencies: []
 documentation:
-  - /Users/nick/Developer/Facet/src/utils/identityExtraction.ts
+  - ./src/utils/identityExtraction.ts
 priority: high
 ---
 

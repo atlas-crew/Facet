@@ -11,14 +11,14 @@ labels:
   - playwright
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-181109.md
+  - ./.agents/reviews/test-audit-20260407-181109.md
 priority: high
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from scanner browser audits, most recently /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-181109.md.
+Deferred from scanner browser audits, most recently ./.agents/reviews/test-audit-20260407-181109.md.
 
 Remaining high-priority browser acceptance gaps:
 - P1-001: network and server error handling during scan/upload
@@ -42,9 +42,9 @@ Remaining high-priority browser acceptance gaps:
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-2026-04-07: Closed P1-001 with browser coverage in tests/identity-scanner.spec.ts (`recovers with a valid pdf after a rejected upload`). Verified with `npx playwright test tests/identity-scanner.spec.ts --project=chromium --workers=1` and audit artifact /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-162400.md.
+2026-04-07: Closed P1-001 with browser coverage in tests/identity-scanner.spec.ts (`recovers with a valid pdf after a rejected upload`). Verified with `npx playwright test tests/identity-scanner.spec.ts --project=chromium --workers=1` and audit artifact ./.agents/reviews/test-audit-20260407-162400.md.
 
-2026-04-07: Closed prior high-priority gaps for rejected-upload recovery, field editability, multi-skill-group parsing, reload persistence, route persistence, paste fallback recovery, page-spanning bullets, and clear-during-rescan cancellation. Verified by npx playwright test tests/identity-scanner.spec.ts --project=chromium --workers=1 and audit artifact /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-181109.md.
+2026-04-07: Closed prior high-priority gaps for rejected-upload recovery, field editability, multi-skill-group parsing, reload persistence, route persistence, paste fallback recovery, page-spanning bullets, and clear-during-rescan cancellation. Verified by npx playwright test tests/identity-scanner.spec.ts --project=chromium --workers=1 and audit artifact ./.agents/reviews/test-audit-20260407-181109.md.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

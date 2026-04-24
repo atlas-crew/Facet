@@ -92,7 +92,7 @@ This is not the same as "regenerate." Regeneration starts from scratch. Fresh-co
 
 ## Discovery 4: The Method Is Free; The Product Is the Shepherd
 
-The Facet Method page (atlascrew.dev/facet-method.html) and DIY templates are given away freely. This costs nothing because the real barrier isn't knowing what to do — it's doing it when faced with a blank chat prompt.
+The Facet Method page (example.dev/facet-method.html) and DIY templates are given away freely. This costs nothing because the real barrier isn't knowing what to do — it's doing it when faced with a blank chat prompt.
 
 Facet's value proposition is NOT "we have a secret methodology." It's "we structure the engagement model so you naturally go through the extraction → iteration → refinement loop without having to design the process yourself."
 

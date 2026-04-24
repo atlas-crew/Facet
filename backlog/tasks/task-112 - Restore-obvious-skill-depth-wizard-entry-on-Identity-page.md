@@ -12,8 +12,8 @@ labels:
   - ux
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/src/routes/identity/IdentityPage.tsx
-  - /Users/nick/Developer/Facet/src/test/IdentityPage.test.tsx
+  - ./src/routes/identity/IdentityPage.tsx
+  - ./src/test/IdentityPage.test.tsx
 priority: medium
 ---
 

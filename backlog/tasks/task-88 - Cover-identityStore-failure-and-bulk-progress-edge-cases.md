@@ -8,14 +8,14 @@ labels:
   - scanner
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-005817.md
+  - ./.agents/reviews/test-audit-20260407-005817.md
 priority: high
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from test audit artifact /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-005817.md.
+Deferred from test audit artifact ./.agents/reviews/test-audit-20260407-005817.md.
 
 High-severity gaps to cover:
 - P0-001: assert failScannedBulletDeepen stores lastError

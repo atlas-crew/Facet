@@ -154,7 +154,7 @@ The search redesign directly improves every downstream feature by producing rich
 
 ## Identity Model Gap Analysis
 
-The founder's Job Search Parameters document (`/Users/nick/Documents/Career/Job Search/Job Search Parameters.html`) represents the ideal input for search. Mapping it against the current identity model (`ProfessionalIdentityV3` in `src/identity/schema.ts`) reveals what's covered and what's missing.
+The founder's Job Search Parameters reference document (stored outside this repo) represents the ideal input for search. Mapping it against the current identity model (`ProfessionalIdentityV3` in `src/identity/schema.ts`) reveals what's covered and what's missing.
 
 ### What the Identity Model Already Captures (~80%)
 

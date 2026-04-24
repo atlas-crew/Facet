@@ -11,14 +11,14 @@ labels:
   - playwright
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-181109.md
+  - ./.agents/reviews/test-audit-20260407-181109.md
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from scanner browser audits, most recently /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260407-181109.md.
+Deferred from scanner browser audits, most recently ./.agents/reviews/test-audit-20260407-181109.md.
 
 Remaining medium-priority browser acceptance gaps:
 - P2-001: extreme string length handling in parsed fields

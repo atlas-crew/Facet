@@ -12,10 +12,10 @@ labels:
   - frontend
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/src/routes/identity/IdentityPage.tsx
-  - /Users/nick/Developer/Facet/src/routes/identity/BulletConfidenceCard.tsx
-  - /Users/nick/Developer/Facet/src/routes/identity/DraftSummaryCard.tsx
-  - /Users/nick/Developer/Facet/src/routes/identity/identity.css
+  - ./src/routes/identity/IdentityPage.tsx
+  - ./src/routes/identity/BulletConfidenceCard.tsx
+  - ./src/routes/identity/DraftSummaryCard.tsx
+  - ./src/routes/identity/identity.css
 parent_task_id: TASK-107
 priority: medium
 ---

@@ -27,8 +27,8 @@ priority: low
 <!-- SECTION:DESCRIPTION:BEGIN -->
 `blackstone-prep-r1.html` shows behavioral cards with multiple story options per question, not a single story:
 
-- **"Influence without authority"** → Primary: Vispero IDP Adoption. Alternative: VP Demo at A10. Each with its own Glance Points.
-- **"Managing ambiguity"** → Primary: Post-Acquisition Rebuild. Alternative: Vispero from Scratch.
+- **"Influence without authority"** → Primary: Northwind IDP Adoption. Alternative: VP Demo at A10. Each with its own Glance Points.
+- **"Managing ambiguity"** → Primary: Post-Acquisition Rebuild. Alternative: Northwind from Scratch.
 - **"Pressure / production incident"** → Primary: $1M Contract Save. Alternative: AWS Cost Crisis.
 
 Current `PrepCard` has singular `storyBlocks` — forces one story per question. The reference pattern lets the candidate choose whichever fits the conversation flow.
@@ -38,10 +38,10 @@ Current `PrepCard` has singular `storyBlocks` — forces one story per question.
 ```typescript
 interface PrepStoryVariant {
   id: string
-  label: string                      // "Primary — Vispero IDP Adoption", "Alternative — VP Demo"
+  label: string                      // "Primary — Northwind IDP Adoption", "Alternative — VP Demo"
   storyBlocks: PrepStoryBlock[]
   keyPoints?: string[]               // Glance points for this variant (TASK-177)
-  roleContext?: string               // "Vispero", "A10" — which career era this comes from
+  roleContext?: string               // "Northwind", "A10" — which career era this comes from
   when?: string                      // When to pick this variant ("if they care about X")
 }
 

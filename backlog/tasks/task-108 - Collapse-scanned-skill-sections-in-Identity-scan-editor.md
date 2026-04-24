@@ -12,8 +12,8 @@ labels:
   - frontend
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/src/routes/identity/ScannedIdentityEditor.tsx
-  - /Users/nick/Developer/Facet/src/test/IdentityPage.test.tsx
+  - ./src/routes/identity/ScannedIdentityEditor.tsx
+  - ./src/test/IdentityPage.test.tsx
 priority: medium
 ---
 

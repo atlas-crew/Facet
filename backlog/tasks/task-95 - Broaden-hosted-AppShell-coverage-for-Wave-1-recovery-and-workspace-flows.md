@@ -10,9 +10,9 @@ labels:
   - wave-1
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260408-042346.md
-  - /Users/nick/Developer/Facet/src/components/AppShell.tsx
-  - /Users/nick/Developer/Facet/src/test/AppShell.test.tsx
+  - ./.agents/reviews/test-audit-20260408-042346.md
+  - ./src/components/AppShell.tsx
+  - ./src/test/AppShell.test.tsx
 priority: medium
 ---
 

@@ -6,9 +6,9 @@ created_date: '2026-04-19 05:14'
 ---
 # Prep Workspace Gap Analysis — Strategy Layer & Round Progression
 
-Gap analysis comparing the current prep workspace against reference interview prep documents (Unanet HM Prep, Blackstone R3 Prep, Generic Prep). The foundation is strong — the gaps are in the strategy/meta-coaching layer, not the architecture.
+Gap analysis comparing the current prep workspace against reference interview-prep documents (one hiring-manager round, one technical / final round, and a generic template). The foundation is strong — the gaps are in the strategy/meta-coaching layer, not the architecture.
 
-Reference material: `/Users/nick/Documents/Career/Job Search/Interview Prep/unanet-hm-prep.html`, `blackstone-prep-r3.html`, `generic-prep.html`, `/Users/nick/Documents/Career/Job Search/Interview Prep.html`
+Reference material: the founder's personal prep artifacts (HM round, final round, generic template) stored outside this repo. Referenced by role-archetype, not by company name.
 
 ---
 
@@ -236,6 +236,6 @@ The current system produces items 1, 4, 6, 7, 8 at decent quality. Items 2, 3, 5
 - `unanet-hm-prep.html` — Company-specific HM prep: intel grid, named people, strategic framing, custom opener with "why this works" meta-card, release engineering 3-act story with company connection, stack-specific sections (GitLab), gap framing (K8s, GovCloud, vertical), predicted Q&A with tailored answers, time budgets per section, keyboard shortcuts
 - `blackstone-prep-r3.html` — Round-specific prep: "The Rules" banner, round 1 intel section, story cards with Problem/Solution/Result/Lesson structure, anti-pattern "Don'ts" list, tech refresh table, timer
 - `generic-prep.html` — General cheatsheet: sidebar nav with section groups, per-section time tracking with over/near budget coloring, timer, keyboard shortcuts with nav-key display in sidebar, expandable card system
-- `Interview Prep.html` — Earlier version of generic prep: section tags by era (A10/ThreatX/Vispero), variant scripts per answer
+- `Interview Prep.html` — Earlier version of generic prep: section tags by era (A10/Helios Security/Northwind), variant scripts per answer
 - Current implementation: `src/utils/prepGenerator.ts` (generation), `src/routes/prep/PrepLiveMode.tsx` (live cheatsheet), `src/routes/prep/PrepPracticeMode.tsx` (homework), `src/routes/prep/PrepPage.tsx` (workspace), `src/types/prep.ts` (data model), `src/store/prepStore.ts` (state)
 - Search redesign: backlog doc-24 (enriched search results → richer pipeline entries → better prep)

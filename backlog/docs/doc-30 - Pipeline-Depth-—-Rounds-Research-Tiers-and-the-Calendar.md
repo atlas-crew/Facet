@@ -29,11 +29,11 @@ created_date: '2026-04-23 14:34'
 
 This plan is the product of one scoping session that progressively corrected three drafts of the same problem. The corrections matter — they shape every decision below:
 
-1. **Prep quality is capped by research depth.** Phase 1 of doc-28 added `PrepInterviewer` records to prep decks, but the generator infers those records from whatever `PipelineResearchSnapshot.people[]` holds — today a flat `{ name, title, company, profileUrl?, relevance }` shape with one-sentence relevance. The Updater interview-prep artifacts demonstrated what prep looks like when research is actually deep — each panelist had a real intel grid because the investigation went deep per person. Closing that gap is this document's primary purpose.
+1. **Prep quality is capped by research depth.** Phase 1 of doc-28 added `PrepInterviewer` records to prep decks, but the generator infers those records from whatever `PipelineResearchSnapshot.people[]` holds — today a flat `{ name, title, company, profileUrl?, relevance }` shape with one-sentence relevance. The reference interview-prep artifacts demonstrated what prep looks like when research is actually deep — each panelist had a real intel grid because the investigation went deep per person. Closing that gap is this document's primary purpose.
 
 2. **Pipeline is not thin glue.** Earlier framings called pipeline a "conveyor belt" not worth depth investment. That's wrong for two reasons: (a) pipeline owns the investigation layer that feeds prep (company research, JD analysis, per-person dossiers), and (b) outcome-touching workflow features — rounds, scheduling, a calendar across all tracked jobs, prep-readiness signals — are genuinely differentiating. Analytics dashboards and funnel reports are the thin part that doesn't earn investment. Outcome-touching workflow + investigation layer = pipeline depth.
 
-3. **Wrong > missing for transient specifics.** The current `investigatePipelineEntry` auto-discovers interviewers via LinkedIn-mention-plus-title heuristics. The discovered people are typically wrong (not the actual panel), and wrong-but-confident AI output erodes trust more than a blank field does. The correct pattern is what worked for the Updater artifacts: the user supplies names (they're in the calendar invite), and AI does the deep research on those specific names.
+3. **Wrong > missing for transient specifics.** The current `investigatePipelineEntry` auto-discovers interviewers via LinkedIn-mention-plus-title heuristics. The discovered people are typically wrong (not the actual panel), and wrong-but-confident AI output erodes trust more than a blank field does. The correct pattern is what worked for the reference artifacts: the user supplies names (they're in the calendar invite), and AI does the deep research on those specific names.
 
 ## Guiding Principles
 
@@ -329,5 +329,5 @@ Atomic PRs / migrations, in order:
   - `src/utils/prepGenerator.ts` — `normalizeInterviewers()` (Phase 1; accepts the intel shape directly)
   - `src/utils/prepPipelineContext.ts` — the pipeline → prep translation seam
   - `src/persistence/contracts.ts` — `FacetWorkspaceSnapshot` (domain data rides through here, no schema change needed for additive fields)
-- **Updater reference artifacts** (in basic-memory vault under `facet/main/ref-materials` per doc-28 context): `updater-panel-prep.html`, `updater-doug-prep.html` — these are the output quality target for what this plan's tiered research enables
+- **reference artifacts** (in the founder's basic-memory vault under `facet/main/ref-materials` per doc-28 context) — panel-round and technical-round prep docs that serve as the output quality target for this plan's tiered research. Referenced by document type, not by company or interviewer name.
 - **Phase 1 commits:** `9f4c270` (schema), `49d74c9` (generator), `72b3880` (renderer), `40d514e` (doc-28 plan)

@@ -12,11 +12,11 @@ labels:
   - frontend
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/src/routes/identity/ExtractionAgentCard.tsx
-  - /Users/nick/Developer/Facet/src/routes/identity/IdentityModelBuilderCard.tsx
+  - ./src/routes/identity/ExtractionAgentCard.tsx
+  - ./src/routes/identity/IdentityModelBuilderCard.tsx
   - >-
-    /Users/nick/Developer/Facet/src/routes/identity/IdentityStrategyWorkbench.tsx
-  - /Users/nick/Developer/Facet/src/routes/identity/identity.css
+    ./src/routes/identity/IdentityStrategyWorkbench.tsx
+  - ./src/routes/identity/identity.css
 parent_task_id: TASK-107
 priority: medium
 ---

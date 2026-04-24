@@ -16,10 +16,10 @@ created_date: '2026-04-23 05:40'
 
 ## Context & Source Artifacts
 
-Two recent Prep artifacts were produced for the Updater job search and go meaningfully beyond what the current Facet Prep workspace can represent structurally:
+Two recent Prep artifacts were produced for the interview-intensive job search and go meaningfully beyond what the current Facet Prep workspace can represent structurally:
 
-- **`/Users/nick/Downloads/updater-panel-prep_2.html`** — Panel round prep for Andrew Regan (Manager, Production Support), Chandeka Ork (Sr TPM II, Delivery Ops & Engineering), and Annie Lin (Sr Manager, Data Engineering). Each interviewer has their own intel card and a personalized "line that lands" tuned to their specific background and concerns.
-- **`/Users/nick/Downloads/updater-doug-prep_1.html`** — Deep technical round prep for Doug Roccato (Manager, DevOps). Organized around one anchor story (ThreatX Platform Rebuild, 8-min budget) with five nested sub-decision cards, plus dedicated scenario cards with decision trees.
+- **`<reference: panel-round prep artifact>`** — Panel round prep for the Production Support Manager (Manager, Production Support), the Sr TPM (Sr TPM II, Delivery Ops & Engineering), and the Data Engineering Manager (Sr Manager, Data Engineering). Each interviewer has their own intel card and a personalized "line that lands" tuned to their specific background and concerns.
+- **`<reference: technical-round prep artifact>`** — Deep technical round prep for the DevOps Manager (Manager, DevOps). Organized around one anchor story (Helios Security Platform Rebuild, 8-min budget) with five nested sub-decision cards, plus dedicated scenario cards with decision trees.
 
 Both artifacts are the same Prep product, but they are clearly *interviewer-tuned* rather than just role-tuned. The user's comment on how they were produced: **"the model did all of the research for me, i just told the model the names and the format"** — meaning the tuning came from public signals (LinkedIn, GitHub) combined with structure the user imposed via the prompt. That structure is what this doc proposes to lift into the schema.
 
@@ -38,9 +38,9 @@ doc-25 ("Prep Workspace Gap Analysis — Strategy Layer & Round Progression") al
 - Time budgets per section / per card
 - Round progression across multi-round loops
 
-doc-25 explicitly flagged interviewer intel as "structured later." The Updater artifacts are the evidence that *structured is now warranted* — three named interviewers per panel, each with distinct concerns, each deserving a distinct line-that-lands, is not something prompt-only can produce reproducibly.
+doc-25 explicitly flagged interviewer intel as "structured later." The reference artifacts are the evidence that *structured is now warranted* — three named interviewers per panel, each with distinct concerns, each deserving a distinct line-that-lands, is not something prompt-only can produce reproducibly.
 
-**doc-25 remains authoritative for the strategy / meta-coaching layer.** This doc is additive and lives adjacent to it, focused on the structural / schema layer that the Updater artifacts now justify.
+**doc-25 remains authoritative for the strategy / meta-coaching layer.** This doc is additive and lives adjacent to it, focused on the structural / schema layer that the reference artifacts now justify.
 
 ---
 
@@ -58,11 +58,13 @@ The Panel artifact dedicates a full card per interviewer with a consistent struc
 - **LinkedIn Positioning**
 - **Education**
 
-And a separate, highly-tuned one-liner — **"Line that lands for \[name\]"** — that references their specific concern. Examples from the Panel artifact:
+And a separate, highly-tuned one-liner — **"Line that lands for \[name\]"** — that references their specific concern. Structurally each line mirrors a concrete thing the interviewer cares about (per their `intel.caresAbout`) through a specific thing the candidate has actually done. Examples by archetype:
 
-- For **Andrew Regan** (Manager, Production Support — owns on-call): *"I have real empathy for on-call burden. 'You build it you run it' looks clean on a slide and feels rough at 3am on a Tuesday. Platform exists to reduce that burden, not add to it — which means runbooks, observability, and shift-left docs aren't afterthoughts, they're core platform output."*
-- For **Chandeka Ork** (Sr TPM II, Delivery Ops & Engineering — delivery-coordination voice): *"Platform work is interrupt-driven by nature. I manage it by being ruthless about what goes on the roadmap — only the things that compound. Day-to-day interrupts get handled and captured. The goal is no surprises: partners know what's coming, what's shipped, and what I said no to."*
-- For **Annie Lin** (Sr Manager, Data Engineering — pod lead whose team the platform would serve): *"My first month in any platform role isn't shipping anything — it's sitting with the pod leads. What are you running, what's painful, what's invisible? You'll know better than I will what would help. My job is building what you'd pull in, not what I think should exist."*
+- For a **Production Support Manager** (owns on-call): the line should open with a concrete reliability concern the candidate has measurable experience with, not a generic empathy statement. The shape is "I've felt this specific thing → here's the specific work I did → here's the outcome."
+- For a **Senior TPM** (delivery coordination): the line should reference a trade-off the candidate has actually navigated — scope compression, cross-team sequencing, interrupt management — not a general "I work well with TPMs" phrase.
+- For a **Manager whose team the platform would serve** (pod lead / product partner): the line should invert the usual "here's what I'll build" into "here's how I learn what you need" — grounded in a specific past listening ritual or discovery pattern.
+
+The structural principle: swap-test each line. If "Manager A" and "Manager B" from two different companies could receive the same line and both read it as tailored to them, it's not tailored enough.
 
 Current `PrepDeck` has no notion of a named interviewer as a first-class entity. Stories/cards can't be routed to a specific person. The "line that lands" move has no home.
 
@@ -76,7 +78,7 @@ A **Scenario** card is not laid out the same way as a **Story** card, which is n
 
 ### 3. Anchor Story with Nested Sub-Decisions
 
-Doug's artifact is organized around a single anchor: **ThreatX Platform Rebuild** with an 8-minute budget. Inside the anchor are five sub-decision cards, each its own mini-STAR:
+Doug's artifact is organized around a single anchor: **Helios Security Platform Rebuild** with an 8-minute budget. Inside the anchor are five sub-decision cards, each its own mini-STAR:
 
 1. **Flux over Argo CD** (GitOps — pull-model + Kustomize-native fit the team shape)
 2. **Terragrunt over raw Terraform** (IaC — DRY across dev/staging/prod + per-tenant stacks)
@@ -391,7 +393,7 @@ If any existing test fixtures hardcode `PrepCard` shape, update them in the same
 - **Emit one anchor card per technical round**, with three to five sub-decisions, each with its own problem/solution/result + pushbackResponse + honestTradeoff.
 - **Emit `scriptKind`-aware scripts** — specifically, the honest-bridge move should be an emittable pattern when the stack-alignment row shows a gap.
 
-**This is a prompt-engineering project of similar scale to the schema changes.** Flag explicitly: the schema changes alone don't produce the Updater-quality output — the generator prompt has to be rewritten to match the new affordances. Plan for schema and prompt work to ship together within each phase, not sequentially.
+**This is a prompt-engineering project of similar scale to the schema changes.** Flag explicitly: the schema changes alone don't produce the reference-quality output — the generator prompt has to be rewritten to match the new affordances. Plan for schema and prompt work to ship together within each phase, not sequentially.
 
 ---
 
@@ -399,9 +401,9 @@ If any existing test fixtures hardcode `PrepCard` shape, update them in the same
 
 - **doc-25** — Prep Workspace Gap Analysis — Strategy Layer & Round Progression (strategy / coaching / round-progression layer; this doc is the structural/schema companion)
 - **Source artifacts:**
-  - `/Users/nick/Downloads/updater-panel-prep_2.html` (Panel round: Andrew Regan, Chandeka Ork, Annie Lin)
-  - `/Users/nick/Downloads/updater-doug-prep_1.html` (Technical round: Doug Roccato)
+  - `<reference: panel-round prep artifact>` (Panel round: the Production Support Manager, the Sr TPM, the Data Engineering Manager)
+  - `<reference: technical-round prep artifact>` (Technical round: the DevOps Manager)
   - Also mirrored in the basic-memory vault under `facet/main/ref-materials` (authoritative personal copy; query via the basic-memory MCP server)
-- **Current types:** `/Users/nick/Developer/Facet/src/types/prep.ts`
-- **Current card renderer:** `/Users/nick/Developer/Facet/src/routes/prep/PrepCardView.tsx`
-- **Current generator:** `/Users/nick/Developer/Facet/src/utils/prepGenerator.ts`
+- **Current types:** `./src/types/prep.ts`
+- **Current card renderer:** `./src/routes/prep/PrepCardView.tsx`
+- **Current generator:** `./src/utils/prepGenerator.ts`

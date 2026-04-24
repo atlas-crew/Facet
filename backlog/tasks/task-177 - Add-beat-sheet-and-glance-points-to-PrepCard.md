@@ -30,8 +30,8 @@ Reference prep docs use two distinct compressed-recall patterns:
 
 > **Beat sheet — if you lose your place**
 > 1. Eight years, platform = making engineers' lives easier
-> 2. Vispero → first platform hire, IDP, 600 pipelines, $50M/yr
-> 3. ThreatX → K8s migration, fleet management, 3 years
+> 2. Northwind → first platform hire, IDP, 600 pipelines, $50M/yr
+> 3. Helios Security → K8s migration, fleet management, 3 years
 > 4. A10 → acquisition, solo rebuild, air-gapped/GDPR
 > 5. Why Blackstone → ownership problem, scale, learn + teach
 

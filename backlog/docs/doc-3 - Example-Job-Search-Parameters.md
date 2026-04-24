@@ -11,7 +11,7 @@ created_date: '2026-03-10 21:37'
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Job Search Parameters — Nicholas Ferguson</title>
+<title>Job Search Parameters — Alex Example</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -400,7 +400,7 @@ li { margin-bottom: 4px; font-size: 13px; }
 <div class="layout">
 <nav>
   <div class="nav-title">Search Params</div>
-  <span class="nav-subtitle">Nicholas Ferguson</span>
+  <span class="nav-subtitle">Alex Example</span>
 
   <div class="nav-group">
     <div class="nav-group-label">Parameters</div>
@@ -458,7 +458,7 @@ li { margin-bottom: 4px; font-size: 13px; }
   <div class="constraint">
     <div class="label">Location</div>
     <div class="value">Remote preferred</div>
-    <div class="note">Hybrid ok in greater Tampa Bay. No relocation.</div>
+    <div class="note">Hybrid ok in greater Denver Metro. No relocation.</div>
   </div>
   <div class="constraint">
     <div class="label">Clearance</div>
@@ -477,7 +477,7 @@ li { margin-bottom: 4px; font-size: 13px; }
   </div>
   <div class="constraint">
     <div class="label">Education</div>
-    <div class="value">AAS — St. Petersburg College, 2020</div>
+    <div class="value">AAS — Glen Hollow Community College, 2020</div>
     <div class="note">BAS in progress, leave off resume. May filter out roles with strict degree requirements.</div>
   </div>
 </div>
@@ -526,25 +526,25 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Python</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>Primary language at ThreatX/A10. Platform backends, automation, tooling, custom Ansible modules, Flask apps. Daily driver.</td>
+      <td>Primary language at Helios Security/A10. Platform backends, automation, tooling, custom Ansible modules, Flask apps. Daily driver.</td>
       <td>Strong match signal. List first.</td>
     </tr>
     <tr>
       <td class="bright">C# / .NET / ASP.NET</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>3+ years at Vispero. Full platform in C#/ASP.NET/SQL Server. OOP development was 75%+ of tenure. Build systems, tooling, web interfaces.</td>
+      <td>3+ years at Northwind. Full platform in C#/ASP.NET/SQL Server. OOP development was 75%+ of tenure. Build systems, tooling, web interfaces.</td>
       <td>Strong match signal, especially with Python. Rare combo.</td>
     </tr>
     <tr>
       <td class="bright">PowerShell</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>Extensive use at Vispero for build automation, CLI tools, pipeline management. Cross-platform. Daily driver alongside Python.</td>
+      <td>Extensive use at Northwind for build automation, CLI tools, pipeline management. Cross-platform. Daily driver alongside Python.</td>
       <td>Signals Windows release engineering depth.</td>
     </tr>
     <tr>
       <td class="bright">SQL</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>All join types, views, schema design, normalization. SQL Server at Vispero, PostgreSQL at ThreatX.</td>
+      <td>All join types, views, schema design, normalization. SQL Server at Northwind, PostgreSQL at Helios Security.</td>
       <td>Standard. Don't oversell.</td>
     </tr>
     <tr>
@@ -568,7 +568,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">C++</td>
       <td><span class="depth depth-working">Working</span></td>
-      <td>License management library extraction at Vispero. Can read and modify, not leading C++ projects.</td>
+      <td>License management library extraction at Northwind. Can read and modify, not leading C++ projects.</td>
       <td>Don't lead with this.</td>
     </tr>
     <tr>
@@ -600,19 +600,19 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Fargate / ECS</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Rearchitected ThreatX sensor fleet from EC2 to shared Fargate clusters. Production operations.</td>
+      <td>Rearchitected Helios Security sensor fleet from EC2 to shared Fargate clusters. Production operations.</td>
     </tr>
     <tr>
       <td class="bright">VMware / KVM / QEMU</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>VMware at Vispero (cluster telemetry, build farms). KVM/QEMU deep experience for Linux virtualization — near-expert. Shipped a VMware appliance for a customer.</td>
+      <td>VMware at Northwind (cluster telemetry, build farms). KVM/QEMU deep experience for Linux virtualization — near-expert. Shipped a VMware appliance for a customer.</td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========== BUILD & RELEASE ========== -->
 <h2 id="build-release">Build & Release Engineering</h2>
-<p style="margin-bottom: 16px;">This is a primary differentiator. 3+ years as a dedicated build/release engineer at Vispero, then CI/CD ownership at ThreatX and A10.</p>
+<p style="margin-bottom: 16px;">This is a primary differentiator. 3+ years as a dedicated build/release engineer at Northwind, then CI/CD ownership at Helios Security and A10.</p>
 <table class="skill-table">
   <thead>
     <tr><th>Capability</th><th>Depth</th><th>Context</th></tr>
@@ -626,22 +626,22 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Pipeline design & management</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>600+ pipelines at Vispero. Pipeline diff/merge tools, orchestration, self-service portal. Designed hybrid CI/CD (AWS control plane + on-prem agents).</td>
+      <td>600+ pipelines at Northwind. Pipeline diff/merge tools, orchestration, self-service portal. Designed hybrid CI/CD (AWS control plane + on-prem agents).</td>
     </tr>
     <tr>
       <td class="bright">GoCD</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>Administered at Vispero. Primary CI/CD system for 3+ years.</td>
+      <td>Administered at Northwind. Primary CI/CD system for 3+ years.</td>
     </tr>
     <tr>
       <td class="bright">GitHub Actions</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Administered at ThreatX/A10. Production CI/CD workflows.</td>
+      <td>Administered at Helios Security/A10. Production CI/CD workflows.</td>
     </tr>
     <tr>
       <td class="bright">GitLab CI/CD</td>
       <td><span class="depth depth-working">Working</span></td>
-      <td>Administered GitLab instance at Vispero. Used for Android project subset.</td>
+      <td>Administered GitLab instance at Northwind. Used for Android project subset.</td>
     </tr>
     <tr>
       <td class="bright">Windows release engineering</td>
@@ -656,7 +656,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Jenkins</td>
       <td><span class="depth depth-avoid">Avoid</span></td>
-      <td>Brief use at ThreatX. Specifically does not want Jenkins-centric roles.</td>
+      <td>Brief use at Helios Security. Specifically does not want Jenkins-centric roles.</td>
     </tr>
   </tbody>
 </table>
@@ -672,7 +672,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">WAF / Edge protection systems</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>4+ years at ThreatX (WAF company). Built fleet management for sensor infrastructure. Architected edge protection sensor (Synapse). Deep understanding of how WAFs work operationally.</td>
+      <td>4+ years at Helios Security (WAF company). Built fleet management for sensor infrastructure. Architected edge protection sensor (Synapse). Deep understanding of how WAFs work operationally.</td>
     </tr>
     <tr>
       <td class="bright">Threat intelligence platforms</td>
@@ -687,7 +687,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Security-aware infrastructure</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>SELinux, tenant isolation (VPC Peering, PrivateLink), ransomware mitigation (migrated Vispero to AWS before attack), network security fundamentals.</td>
+      <td>SELinux, tenant isolation (VPC Peering, PrivateLink), ransomware mitigation (migrated Northwind to AWS before attack), network security fundamentals.</td>
     </tr>
     <tr>
       <td class="bright">eBPF endpoint agent</td>
@@ -707,12 +707,12 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">PostgreSQL</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>ThreatX/A10 platforms. Schema design, normalization, all join types, views.</td>
+      <td>Helios Security/A10 platforms. Schema design, normalization, all join types, views.</td>
     </tr>
     <tr>
       <td class="bright">SQL Server</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Vispero platform backend. C#/ASP.NET + SQL Server stack.</td>
+      <td>Northwind platform backend. C#/ASP.NET + SQL Server stack.</td>
     </tr>
     <tr>
       <td class="bright">Kafka (AWS MSK)</td>
@@ -752,12 +752,12 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Grafana</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>Designed and built dashboards from scratch at Vispero. Used at ThreatX/A10. Custom metrics, alerting.</td>
+      <td>Designed and built dashboards from scratch at Northwind. Used at Helios Security/A10. Custom metrics, alerting.</td>
     </tr>
     <tr>
       <td class="bright">InfluxDB</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Primary time-series DB at Vispero. VMware telemetry, build metrics, custom instrumentation.</td>
+      <td>Primary time-series DB at Northwind. VMware telemetry, build metrics, custom instrumentation.</td>
     </tr>
     <tr>
       <td class="bright">Prometheus</td>
@@ -767,7 +767,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Observability system design</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Designed monitoring ground-up at Vispero: chose instrumentation points, built dashboards, defined alerting policies, used data to justify resource requests and identify root causes.</td>
+      <td>Designed monitoring ground-up at Northwind: chose instrumentation points, built dashboards, defined alerting policies, used data to justify resource requests and identify root causes.</td>
     </tr>
     <tr>
       <td class="bright">ELK / Loki</td>
@@ -940,7 +940,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">ASP.NET Core (web)</td>
       <td><span class="depth depth-strong">Strong+</span></td>
-      <td>Vispero platforms, web frontends for internal tools. MVC pattern, API controllers, middleware. Production web applications in C#.</td>
+      <td>Northwind platforms, web frontends for internal tools. MVC pattern, API controllers, middleware. Production web applications in C#.</td>
     </tr>
     <tr>
       <td class="bright">Flask</td>
@@ -959,15 +959,15 @@ li { margin-bottom: 4px; font-size: 13px; }
   <tbody>
     <tr>
       <td class="bright">Technical documentation</td>
-      <td>Authored all published docs across ThreatX and A10 eras. ADRs, runbooks, API refs, onboarding guides. Built docs-as-code platform (Antora, Vale). "If it isn't documented, it doesn't exist."</td>
+      <td>Authored all published docs across Helios Security and A10 eras. ADRs, runbooks, API refs, onboarding guides. Built docs-as-code platform (Antora, Vale). "If it isn't documented, it doesn't exist."</td>
     </tr>
     <tr>
       <td class="bright">Build the system, hand it off</td>
-      <td>Pattern repeats: position created at Vispero, built IDP then handed off. Built SOC tooling at ThreatX, mentored team member to ownership. Delivered four platforms at A10 in 11 months. The through-line is identifying bottlenecks, building the system that removes them, then enabling others to own it.</td>
+      <td>Pattern repeats: position created at Northwind, built IDP then handed off. Built SOC tooling at Helios Security, mentored team member to ownership. Delivered four platforms at A10 in 11 months. The through-line is identifying bottlenecks, building the system that removes them, then enabling others to own it.</td>
     </tr>
     <tr>
       <td class="bright">Pre-sales / professional services</td>
-      <td>Recognized the need and created the professional services capability at ThreatX. 4 enterprise engagements. Microsoft-ecosystem integrations, VMware appliance for customer that wouldn't run Linux containers, pre-sales technical translation that opened new market segments.</td>
+      <td>Recognized the need and created the professional services capability at Helios Security. 4 enterprise engagements. Microsoft-ecosystem integrations, VMware appliance for customer that wouldn't run Linux containers, pre-sales technical translation that opened new market segments.</td>
     </tr>
     <tr>
       <td class="bright">AI-augmented development</td>
@@ -975,15 +975,15 @@ li { margin-bottom: 4px; font-size: 13px; }
     </tr>
     <tr>
       <td class="bright">Post-acquisition integration</td>
-      <td>Twice: Vispero (3 new product lines from merged teams) and ThreatX→A10 (acquisition).</td>
+      <td>Twice: Northwind (3 new product lines from merged teams) and Helios Security→A10 (acquisition).</td>
     </tr>
     <tr>
       <td class="bright">Cost optimization with receipts</td>
-      <td>$60K/month AWS reduction (50% of bill). Data-driven resource requests at Vispero.</td>
+      <td>$60K/month AWS reduction (50% of bill). Data-driven resource requests at Northwind.</td>
     </tr>
     <tr>
       <td class="bright">Mentoring without authority</td>
-      <td>Mentored SOC team member to platform ownership. 1-on-1 interviews and surveys with 80%+ response rates at Vispero.</td>
+      <td>Mentored SOC team member to platform ownership. 1-on-1 interviews and surveys with 80%+ response rates at Northwind.</td>
     </tr>
   </tbody>
 </table>
@@ -1013,7 +1013,7 @@ li { margin-bottom: 4px; font-size: 13px; }
 <div class="vector-card high-priority">
   <div class="vector-title">Vector 2: Release / Build Engineer (Cross-Platform)</div>
   <div class="vector-subtitle">High priority — rare skill combo</div>
-  <p>Windows release engineering is a dying art. Combining it with Linux, modern CI/CD, and actual software development (not just scripting) is extremely rare. The Vispero story is 3+ years of shipping $50M/year of software across every major platform with EV code signing, driver signing, and a self-built task DSL. Most "DevOps" engineers have never touched Windows build toolchains.</p>
+  <p>Windows release engineering is a dying art. Combining it with Linux, modern CI/CD, and actual software development (not just scripting) is extremely rare. The Northwind story is 3+ years of shipping $50M/year of software across every major platform with EV code signing, driver signing, and a self-built task DSL. Most "DevOps" engineers have never touched Windows build toolchains.</p>
   <p><strong>Target roles:</strong> Senior Build Engineer, Senior Release Engineer, Build Platform Engineer, Developer Productivity Engineer (at companies shipping desktop/cross-platform software).</p>
   <div class="keywords">
     <span class="tag tag-green">release engineering</span>
@@ -1131,19 +1131,19 @@ li { margin-bottom: 4px; font-size: 13px; }
   <thead><tr><th>Company</th><th>Title</th><th>Dates</th><th>Key Narrative</th></tr></thead>
   <tbody>
     <tr>
-      <td class="bright">A10 Networks</td>
+      <td class="bright">Contoso Networks</td>
       <td>Senior Platform Engineer</td>
       <td>Feb 2025 – Present</td>
       <td>Post-acquisition. 4 production platforms in 11 months. Edge protection sensor (4,400× latency improvement, 99.8% OWASP), Signal Horizon fleet management, security tooling suite, eBPF endpoint agent. AI-augmented development methodology. API authorization intelligence gap identification.</td>
     </tr>
     <tr>
-      <td class="bright">ThreatX</td>
+      <td class="bright">Helios Security</td>
       <td>Senior Platform Engineer</td>
       <td>Jan 2022 – Feb 2025</td>
       <td>WAF company. Fleet management (built, then handed off to SOC team), ~$60K/mo AWS savings, Kafka/MSK, Wayfair engagement ($1M contract), docs-as-code platform, created professional services capability, Black Hat demo.</td>
     </tr>
     <tr>
-      <td class="bright">Vispero</td>
+      <td class="bright">Northwind</td>
       <td>Senior Platform / Build Engineer</td>
       <td>Oct 2018 – Dec 2021</td>
       <td>Position created after meeting leadership. C#/.NET IDP from scratch. $50M/yr software across 6 platforms. 600+ pipelines. Cross-platform builds (Windows EV signing, macOS, iOS, Android, Linux). Post-acquisition integrations. Ransomware resilience. Reverse-engineered legacy license system.</td>
@@ -1185,7 +1185,7 @@ li { margin-bottom: 4px; font-size: 13px; }
   <ul style="margin-top: 8px;">
     <li><strong>Prior research staleness:</strong> The "20 High-Advantage Targets" and deep research docs were created ~Feb 23, 2026. Some roles may have closed. Need to re-validate open positions before applying.</li>
     <li><strong>Degree filter risk:</strong> AAS only (BAS in progress, left off). Some companies auto-filter on "Bachelor's required." Worth checking if target companies have this filter.</li>
-    <li><strong>Tampa Bay hybrid options:</strong> No research done on local hybrid roles. Could be a parallel track — lower comp but faster hiring at smaller companies.</li>
+    <li><strong>Denver Metro hybrid options:</strong> No research done on local hybrid roles. Could be a parallel track — lower comp but faster hiring at smaller companies.</li>
     <li><strong>Go ramp-up story:</strong> Several high-value targets (Spacelift, Grafana, Teleport) use Go. If applying, need a credible "I'll ramp fast" narrative backed by the Python→Rust→Go trajectory.</li>
     <li><strong>Commit history on OSS projects:</strong> Hiring managers may notice single-push history. Consider whether this needs addressing in cover letters or portfolio deck.</li>
     <li><strong>Salary negotiation anchor:</strong> Current $145K is well below market for this profile. Research suggests $170K-$200K+ is realistic. Need to practice not anchoring to current comp.</li>

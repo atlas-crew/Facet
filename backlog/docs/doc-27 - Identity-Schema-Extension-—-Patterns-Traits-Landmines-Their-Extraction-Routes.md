@@ -32,7 +32,7 @@ It does not hold:
 
 Examples surfaced by the user:
 - Pre-sales / post-sales go-to engineer (every company)
-- Formalizes functions that didn't exist (Pro Services at ThreatX, SRE team from SOC, platform at Vispero)
+- Formalizes functions that didn't exist (Pro Services at Helios Security, SRE team from SOC, platform at Northwind)
 - Introduces new tooling ahead of the team's adoption curve
 - Builds licensing/tooling for non-engineering teams who need it
 
@@ -46,7 +46,7 @@ Sits between philosophy (how you think about work) and interview_style (how you 
 
 ### 3. Landmines — interview "do not discuss" items
 
-Examples: A10 politics, Atlas Crew runway, comp-too-early.
+Examples: employer politics, startup runway, comp-too-early.
 
 Currently lives in the user's head and gets re-explained per interview prep cycle. Every prep doc generated without these will need the same correction.
 
@@ -137,8 +137,8 @@ The extraction agent (`src/utils/identityExtraction.ts`, `EXTRACTION_SYSTEM_PROM
       "name": "Pre/post-sales engineer",
       "instances": [
         { "role_id": "a10-staff", "bullet_id": "a10-customer-deploys" },
-        { "role_id": "threatx-pe", "bullet_id": "tx-pro-services-formed" },
-        { "role_id": "vispero-sre", "bullet_id": "vsp-sales-eng-support" }
+        { "role_id": "helios-pe", "bullet_id": "helios-pro-services-formed" },
+        { "role_id": "northwind-sre", "bullet_id": "nw-sales-eng-support" }
       ],
       "evidence": [...],
       "rationale": "Same behavior surfaced at three companies across distinct roles"

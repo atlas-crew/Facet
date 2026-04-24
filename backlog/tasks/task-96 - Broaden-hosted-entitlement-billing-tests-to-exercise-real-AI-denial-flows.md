@@ -10,7 +10,7 @@ labels:
   - hosted
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/test-audit-20260408-124654.md
+  - ./.agents/reviews/test-audit-20260408-124654.md
 priority: high
 ---
 

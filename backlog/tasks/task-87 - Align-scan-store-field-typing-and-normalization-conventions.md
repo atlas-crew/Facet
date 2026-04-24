@@ -8,14 +8,14 @@ labels:
   - scanner
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/review-20260407-005752.md
+  - ./.agents/reviews/review-20260407-005752.md
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from source review artifact /Users/nick/Developer/Facet/.agents/reviews/review-20260407-005752.md.
+Deferred from source review artifact ./.agents/reviews/review-20260407-005752.md.
 
 Findings bundled into this task:
 - P2-001: align scanned updater field typing safety between project and education editors

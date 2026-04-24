@@ -17,14 +17,14 @@ dependencies:
   - TASK-82
 references:
   - >-
-    /Users/nick/Developer/Facet/docs/development/platform/wave-1-pricing-and-entitlements.md
+    ./docs/development/platform/wave-1-pricing-and-entitlements.md
   - >-
-    /Users/nick/Developer/Facet/docs/development/platform/wave-1-beta-support-playbook.md
+    ./docs/development/platform/wave-1-beta-support-playbook.md
   - >-
-    /Users/nick/Developer/Facet/docs/development/platform/wave-1-operations-runbook.md
+    ./docs/development/platform/wave-1-operations-runbook.md
   - >-
-    /Users/nick/Developer/Facet/docs/development/platform/wave-1-beta-readiness-gate.md
-  - /Users/nick/Developer/Facet/docs/user-guides/hosted-accounts.md
+    ./docs/development/platform/wave-1-beta-readiness-gate.md
+  - ./docs/user-guides/hosted-accounts.md
 documentation:
   - doc-6
   - doc-7

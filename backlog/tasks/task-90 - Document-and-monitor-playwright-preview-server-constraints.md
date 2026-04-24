@@ -9,14 +9,14 @@ labels:
   - playwright
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/.agents/reviews/review-20260407-020352.md
+  - ./.agents/reviews/review-20260407-020352.md
 priority: low
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from source review artifact /Users/nick/Developer/Facet/.agents/reviews/review-20260407-020352.md.
+Deferred from source review artifact ./.agents/reviews/review-20260407-020352.md.
 
 Remaining low-severity follow-ups:
 - P3-001: local Playwright runs can reuse a stale preview server when port 4173 is already occupied

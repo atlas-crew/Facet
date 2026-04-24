@@ -12,9 +12,9 @@ labels:
   - wave-1
 dependencies: []
 references:
-  - /Users/nick/Developer/Facet/src/routes/match/MatchPage.tsx
-  - /Users/nick/Developer/Facet/src/store/matchStore.ts
-  - /Users/nick/Developer/Facet/src/test/jobMatch.test.ts
+  - ./src/routes/match/MatchPage.tsx
+  - ./src/store/matchStore.ts
+  - ./src/test/jobMatch.test.ts
 priority: high
 ---
 
