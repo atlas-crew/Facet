@@ -556,13 +556,13 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">TypeScript</td>
       <td><span class="depth depth-working">Working</span></td>
-      <td>&lt;1 year. Used for A10 platform projects (Apparatus, Crucible, Chimera). AI-augmented development.</td>
+      <td>&lt;1 year. Used for A10 platform projects (Workbench, Gauntlet, Hydra). AI-augmented development.</td>
       <td>Can claim working proficiency. Not a TS role primary.</td>
     </tr>
     <tr>
       <td class="bright">Rust</td>
       <td><span class="depth depth-working">Working</span></td>
-      <td>&lt;1 year. Synapse edge protection sensor, Kafka reference implementations, eBPF endpoint agent (AI-assisted). Working proficiency — builds production systems in Rust with AI augmentation, not writing unsafe blocks from scratch.</td>
+      <td>&lt;1 year. EdgeProbe edge protection sensor, Kafka reference implementations, eBPF endpoint agent (AI-assisted). Working proficiency — builds production systems in Rust with AI augmentation, not writing unsafe blocks from scratch.</td>
       <td>Can mention. Avoid "deep Rust required" roles.</td>
     </tr>
     <tr>
@@ -626,7 +626,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Pipeline design & management</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>600+ pipelines at Northwind. Pipeline diff/merge tools, orchestration, self-service portal. Designed hybrid CI/CD (AWS control plane + on-prem agents).</td>
+      <td>hundreds of pipelines at Northwind. Pipeline diff/merge tools, orchestration, self-service portal. Designed hybrid CI/CD (AWS control plane + on-prem agents).</td>
     </tr>
     <tr>
       <td class="bright">GoCD</td>
@@ -672,17 +672,17 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">WAF / Edge protection systems</td>
       <td><span class="depth depth-expert">Expert</span></td>
-      <td>4+ years at Helios Security (WAF company). Built fleet management for sensor infrastructure. Architected edge protection sensor (Synapse). Deep understanding of how WAFs work operationally.</td>
+      <td>several years at Helios Security (WAF company). Built fleet management for sensor infrastructure. Architected edge protection sensor (EdgeProbe). Deep understanding of how WAFs work operationally.</td>
     </tr>
     <tr>
       <td class="bright">Threat intelligence platforms</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Built Signal Horizon — central management platform for distributed sensor fleet. Cross-deployment threat intelligence, privacy-preserving multi-tenant sharing (HMAC-SHA256), fleet operations.</td>
+      <td>Built Beacon Fleet Manager — central management platform for distributed sensor fleet. Cross-deployment threat intelligence, privacy-preserving multi-tenant sharing (HMAC-SHA256), fleet operations.</td>
     </tr>
     <tr>
       <td class="bright">Attack simulation / security tooling</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Built Crucible (119 scenarios: OWASP, APT, HIPAA, PCI, nation-state). Built Chimera (vulnerable app platform). Built Apparatus (AI-augmented red/blue team platform).</td>
+      <td>Built Gauntlet (a scenarios catalog (OWASP, APT, HIPAA, PCI, nation-state)). Built Hydra (vulnerable app platform). Built Workbench (AI-augmented red/blue team platform).</td>
     </tr>
     <tr>
       <td class="bright">Security-aware infrastructure</td>
@@ -727,7 +727,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">ClickHouse</td>
       <td><span class="depth depth-basic">Basic</span></td>
-      <td>Used for Signal Horizon analytics. Limited operational depth.</td>
+      <td>Used for Beacon Fleet Manager analytics. Limited operational depth.</td>
     </tr>
     <tr>
       <td class="bright">REST API design</td>
@@ -737,7 +737,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">WebSocket</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Signal Horizon tunnel broker for secure remote sensor access.</td>
+      <td>Beacon Fleet Manager tunnel broker for secure remote sensor access.</td>
     </tr>
   </tbody>
 </table>
@@ -762,7 +762,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Prometheus</td>
       <td><span class="depth depth-working">Working</span></td>
-      <td>Consumer — uses it, exports metrics to it (Synapse sensor has Prometheus export). Has not designed a Prometheus architecture from scratch.</td>
+      <td>Consumer — uses it, exports metrics to it (EdgeProbe sensor has Prometheus export). Has not designed a Prometheus architecture from scratch.</td>
     </tr>
     <tr>
       <td class="bright">Observability system design</td>
@@ -807,7 +807,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Linux TCP/IP tuning</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>The Wayfair engagement: conntrack table exhaustion diagnosis, TCP stack tuning, kernel parameter optimization under 150K+ RPS load.</td>
+      <td>The a major e-commerce engagement: conntrack table exhaustion diagnosis, TCP stack tuning, kernel parameter optimization under ~200K RPS load.</td>
     </tr>
     <tr>
       <td class="bright">Linux kernel programming</td>
@@ -832,7 +832,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Nginx / Pingora</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Optimized Nginx configs for Fargate sensor fleet. Pingora experience from Synapse sensor design.</td>
+      <td>Optimized Nginx configs for Fargate sensor fleet. Pingora experience from EdgeProbe sensor design.</td>
     </tr>
     <tr>
       <td class="bright">netfilter / iptables</td>
@@ -876,7 +876,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr><td class="bright">VPC / Peering / PrivateLink</td><td><span class="depth depth-strong">Strong</span></td><td>Consolidated per-customer VPCs into shared architecture. Tenant isolation.</td></tr>
     <tr><td class="bright">MSK (Kafka)</td><td><span class="depth depth-strong">Strong</span></td><td>Managed production clusters.</td></tr>
     <tr><td class="bright">EKS</td><td><span class="depth depth-working">Working</span></td><td>Deployed to. Not a k8s admin.</td></tr>
-    <tr><td class="bright">Lambda / Step Functions / Serverless</td><td><span class="depth depth-strong">Strong</span></td><td>Event-driven architecture. Demo platform at Black Hat. Comfortable with serverless patterns and Step Functions orchestration.</td></tr>
+    <tr><td class="bright">Lambda / Step Functions / Serverless</td><td><span class="depth depth-strong">Strong</span></td><td>Event-driven architecture. Demo platform at a security conference. Comfortable with serverless patterns and Step Functions orchestration.</td></tr>
     <tr><td class="bright">CloudFront</td><td><span class="depth depth-working">Working</span></td><td>CDN configuration and distribution management.</td></tr>
     <tr><td class="bright">SNS / SQS / SES</td><td><span class="depth depth-working">Working</span></td><td>Event-driven messaging patterns, email services.</td></tr>
     <tr><td class="bright">SSM (Systems Manager)</td><td><span class="depth depth-working">Working</span></td><td>Parameter store, session management, fleet operations.</td></tr>
@@ -945,7 +945,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     <tr>
       <td class="bright">Flask</td>
       <td><span class="depth depth-strong">Strong</span></td>
-      <td>Chimera platform backend. Python web apps.</td>
+      <td>Hydra platform backend. Python web apps.</td>
     </tr>
   </tbody>
 </table>
@@ -963,15 +963,15 @@ li { margin-bottom: 4px; font-size: 13px; }
     </tr>
     <tr>
       <td class="bright">Build the system, hand it off</td>
-      <td>Pattern repeats: position created at Northwind, built IDP then handed off. Built SOC tooling at Helios Security, mentored team member to ownership. Delivered four platforms at A10 in 11 months. The through-line is identifying bottlenecks, building the system that removes them, then enabling others to own it.</td>
+      <td>Pattern repeats: position created at Northwind, built IDP then handed off. Built SOC tooling at Helios Security, mentored team member to ownership. Delivered multiple platforms in under a year at Contoso. The through-line is identifying bottlenecks, building the system that removes them, then enabling others to own it.</td>
     </tr>
     <tr>
       <td class="bright">Pre-sales / professional services</td>
-      <td>Recognized the need and created the professional services capability at Helios Security. 4 enterprise engagements. Microsoft-ecosystem integrations, VMware appliance for customer that wouldn't run Linux containers, pre-sales technical translation that opened new market segments.</td>
+      <td>Recognized the need and created the professional services capability at Helios Security. several enterprise engagements. Microsoft-ecosystem integrations, VMware appliance for customer that wouldn't run Linux containers, pre-sales technical translation that opened new market segments.</td>
     </tr>
     <tr>
       <td class="bright">AI-augmented development</td>
-      <td>Multi-LLM QA workflow gating changes behind tests, linters, and multi-perspective analysis. Behavioral test gap analysis identifying missing scenarios based on expected behavior, not just coverage. Delivered four production platforms in 11 months. This is the workflow companies are trying to institutionalize.</td>
+      <td>Multi-LLM QA workflow gating changes behind tests, linters, and multi-perspective analysis. Behavioral test gap analysis identifying missing scenarios based on expected behavior, not just coverage. Delivered multiple production platforms in under a year. This is the workflow companies are trying to institutionalize.</td>
     </tr>
     <tr>
       <td class="bright">Post-acquisition integration</td>
@@ -979,7 +979,7 @@ li { margin-bottom: 4px; font-size: 13px; }
     </tr>
     <tr>
       <td class="bright">Cost optimization with receipts</td>
-      <td>$60K/month AWS reduction (50% of bill). Data-driven resource requests at Northwind.</td>
+      <td>~$50K/month AWS reduction (~half the bill). Data-driven resource requests at Northwind.</td>
     </tr>
     <tr>
       <td class="bright">Mentoring without authority</td>
@@ -1134,19 +1134,19 @@ li { margin-bottom: 4px; font-size: 13px; }
       <td class="bright">Contoso Networks</td>
       <td>Senior Platform Engineer</td>
       <td>Feb 2025 – Present</td>
-      <td>Post-acquisition. 4 production platforms in 11 months. Edge protection sensor (4,400× latency improvement, 99.8% OWASP), Signal Horizon fleet management, security tooling suite, eBPF endpoint agent. AI-augmented development methodology. API authorization intelligence gap identification.</td>
+      <td>Post-acquisition. multiple production platforms in under a year. Edge protection sensor (~4000× latency improvement, ~99% OWASP), Beacon Fleet Manager fleet management, security tooling suite, eBPF endpoint agent. AI-augmented development methodology. API authorization intelligence gap identification.</td>
     </tr>
     <tr>
       <td class="bright">Helios Security</td>
       <td>Senior Platform Engineer</td>
       <td>Jan 2022 – Feb 2025</td>
-      <td>WAF company. Fleet management (built, then handed off to SOC team), ~$60K/mo AWS savings, Kafka/MSK, Wayfair engagement ($1M contract), docs-as-code platform, created professional services capability, Black Hat demo.</td>
+      <td>WAF company. Fleet management (built, then handed off to SOC team), ~~$50K/mo AWS savings, Kafka/MSK, a major e-commerce engagement (seven-figure contract), docs-as-code platform, created professional services capability, a security-conference demo.</td>
     </tr>
     <tr>
       <td class="bright">Northwind</td>
       <td>Senior Platform / Build Engineer</td>
       <td>Oct 2018 – Dec 2021</td>
-      <td>Position created after meeting leadership. C#/.NET IDP from scratch. $50M/yr software across 6 platforms. 600+ pipelines. Cross-platform builds (Windows EV signing, macOS, iOS, Android, Linux). Post-acquisition integrations. Ransomware resilience. Reverse-engineered legacy license system.</td>
+      <td>Position created after meeting leadership. C#/.NET IDP from scratch. $50M/yr software across 6 platforms. hundreds of pipelines. Cross-platform builds (Windows EV signing, macOS, iOS, Android, Linux). Post-acquisition integrations. Ransomware resilience. Reverse-engineered legacy license system.</td>
     </tr>
   </tbody>
 </table>
@@ -1157,19 +1157,19 @@ li { margin-bottom: 4px; font-size: 13px; }
   <thead><tr><th>Project</th><th>What It Is</th><th>Stack</th><th>Status</th></tr></thead>
   <tbody>
     <tr>
-      <td class="bright">Apparatus</td>
+      <td class="bright">Workbench</td>
       <td>AI-augmented network security platform. Red/blue teams, visual scenario builder, chaos engineering, LLM honeypots.</td>
       <td>TypeScript</td>
       <td><span class="tag tag-green">Public + README + CI</span></td>
     </tr>
     <tr>
-      <td class="bright">Crucible</td>
+      <td class="bright">Gauntlet</td>
       <td>Attack simulation + compliance engine. 119 scenarios (OWASP, APT, HIPAA, PCI, nation-state).</td>
       <td>TypeScript</td>
       <td><span class="tag tag-green">Public + README + CI</span></td>
     </tr>
     <tr>
-      <td class="bright">Chimera</td>
+      <td class="bright">Hydra</td>
       <td>Vulnerable app platform. 22 verticals, 13 web apps, 450 endpoints. OWASP LLM teaching env.</td>
       <td>Python Flask + TS</td>
       <td><span class="tag tag-green">Public + README + CI</span></td>

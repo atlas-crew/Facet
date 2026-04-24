@@ -771,6 +771,34 @@ describe('PrepLiveMode', () => {
   })
 
   it('persists compact mode in localStorage and restores it on mount', () => {
+    vi.useRealTimers()
+    // Node 25+ ships a global `localStorage` behind the --localstorage-file
+    // flag; when the flag is provided without a path (vitest's default
+    // environment) the exposed object has typeof 'object' but no Storage
+    // methods, shadowing jsdom's proper Storage. Rebind window.localStorage
+    // to an in-memory Storage for this test so setItem/getItem behave.
+    const inMemoryStorage = (() => {
+      const map = new Map<string, string>()
+      return {
+        get length() {
+          return map.size
+        },
+        clear: () => map.clear(),
+        getItem: (key: string) => (map.has(key) ? map.get(key) ?? null : null),
+        key: (index: number) => Array.from(map.keys())[index] ?? null,
+        removeItem: (key: string) => {
+          map.delete(key)
+        },
+        setItem: (key: string, value: string) => {
+          map.set(key, String(value))
+        },
+      } satisfies Storage
+    })()
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: inMemoryStorage,
+    })
+
     window.localStorage.setItem('facet-prep-live-compact-mode', 'true')
 
     const { container, unmount } = render(<PrepLiveMode deck={mockDeck} />)

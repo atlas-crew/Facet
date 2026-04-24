@@ -7,7 +7,7 @@ Relates to:
   - doc-29 (Close-Out Hosted Persistence) — real infrastructure state
   - doc-30 (Pipeline Depth — Rounds, Research Tiers, and the Calendar) — three-tier research, rounds, calendar
 Scope: >-
-  Copywriter brief for the Facet landing page rewrite at atlascrew.dev/facet.html.
+  Copywriter brief for the Facet landing page rewrite at example.dev/facet.html.
   Defines audience, positioning, differentiators, honesty boundaries, voice, and
   the structural agenda. Covers hero, The Loop, new differentiator section,
   terminal sample replacement, AGPL/trust elevation, and CTA scope. Delivered
@@ -25,7 +25,7 @@ created_date: '2026-04-23 17:00'
 
 ## Delivered (2026-04-23)
 
-Executed copy-only pass on `atlascrew.dev/facet.html`:
+Executed copy-only pass on `example.dev/facet.html`:
 
 - **Title / meta / OG / Twitter** — replaced "AI-Powered Career Platform" positioning with "Identity-driven workspace for serious interview prep"; description rewritten to lead with identity model + per-person research.
 - **Hero body** — replaced abstract "deep model of who you are" framing with concrete "structured library of roles, accomplishments, and anchor stories"; introduced the opinionated "You supply the names on your panel" line; trust signals elevated to three short sentences (open source, self-hostable, your data stays yours).
@@ -117,11 +117,36 @@ Changes applied:
 
 **The Workspaces section now argues the same hierarchy as The Loop on two independent surfaces.** A reader who skims Loop → Workspaces sees the same primary/derived story twice, not a contradiction.
 
+### Identity foundation added (late-v2)
+
+The Workspaces restructure (above) produced a two-tier grid — primary + derived — but left a load-bearing omission: **Identity**, the #1 critical data model per `project_critical-models-and-scopes.md` and the substrate the entire product reads from. The hero's promise ("Build a structured library of your roles, accomplishments, and anchor stories") is Identity work; without an Identity card on the page, the promise had no landing spot.
+
+More structurally: the product's foundational insight per `doc-21 Product Philosophy` is *extraction is the bottleneck, not generation* — and extraction is exactly what the Identity workspace does. Leaving it off the page meant the sharpest philosophical wedge Facet has was invisible to readers.
+
+Changes applied:
+
+- **Workspaces section now renders three tiers, not two.** Foundation → Primary → Derived.
+  - `FOUNDATION` label (accent-colored, not muted — signals upward tier change) above a full-width Identity card with an accent left-border and slightly larger type.
+  - Primary row (Research / Pipeline / Prep) and `DERIVED OUTPUTS` row (Build / Letters) unchanged from the previous restructure.
+- **Identity card copy** names the extraction mechanism explicitly and ties it to the correction-loop insight:
+
+  > The foundation. Feed in what already exists — resume, LinkedIn, prior AI chats, brag docs — and the correction loop does the rest. AI drafts assumptions about your career; you correct them by explaining why you made each decision. In explaining, you surface the judgment your resume never captured. Every other workspace reads from this model.
+
+  Badge: `AI` (the correction loop is AI-driven). "In explaining, you surface the judgment your resume never captured" is the doc-21 "explanatory correction → level-correction" insight compressed to a single sentence.
+- **Loop feedback caption corrected.** `← Interview outcomes feed back into Research →` → `← Outcomes feed back into your Identity model →`. Per `project_critical-models-and-scopes.md`, across-process carry-over (evergreen stories, known tics, gap-framing scripts that land) belongs on Identity, not on Research. The v2 caption was a compression that became inaccurate once the Identity card made the architecture explicit.
+- **CSS additions** — `.ws-foundation-label`, `.ws-foundation`, `.ws-foundation .ws-card` (accent left-border, larger padding, larger h3), `.ws-foundation .ws-card p` (13.5px text-secondary, brighter than the muted register used in smaller cards).
+
+**The page now argues a three-tier data hierarchy that matches the actual product architecture.** Identity (foundation) → Research / Pipeline / Prep (workflows) → Build / Letters (derived). The hero's "build a structured library" promise now has a concrete home on the page.
+
+### Known remaining lopsidedness (flagged, not fixed)
+
+The "What Facet replaces." section now lists five incumbents but none map to Identity. The Identity incumbents exist — *"the career story you've explained five different ways in five different tools," "the half-remembered accomplishment that doesn't appear in your resume," "the AI chat where you accidentally captured the best description of your career — and then the tab closed"* — but adding a sixth bullet would break the five-bullet rhythm and risk dilution. A future pass could decide whether to swap one of the existing five (recruiter emails is the weakest, conceptually overlapping with spreadsheet) for an Identity incumbent, or leave the section as-is and rely on the Identity card itself to carry that argument. Flagged here so the next session doesn't miss the lopsidedness.
+
 ---
 
 ## Scope
 
-Substantive rewrite of `/Users/nick/Developer/atlascrew.dev/facet.html` — hero, The Loop section, differentiator section (new), terminal sample replacement, AGPL/trust elevation, CTA tightening. Workspace cards and pricing were already updated in a prior pass; don't rewrite unless there's a specific issue.
+Substantive rewrite of `<local>/example.dev/facet.html` — hero, The Loop section, differentiator section (new), terminal sample replacement, AGPL/trust elevation, CTA tightening. Workspace cards and pricing were already updated in a prior pass; don't rewrite unless there's a specific issue.
 
 **Constraint:** Copy work only. Keep the existing visual design; structural layout changes are a separate pass.
 
@@ -199,8 +224,8 @@ Every other copy decision cascades from that answer. The briefing provides conte
 - `backlog/docs/doc-28 - Prep-Workspace-Structural-Additions-...md` — Phase 1 shipped, Phase 2 spec'd
 - `backlog/docs/doc-29 - Close-Out-Hosted-Persistence-...md` — real infrastructure state
 - `backlog/docs/doc-30 - Pipeline-Depth-...md` — three-tier research, rounds, calendar
-- Project memories at `~/.claude/projects/-Users-nick-Developer-Facet/memory/` — especially `project_critical-models-and-scopes.md`, `project_ai-inference-vs-user-input.md`, `project_search-pipeline-prep-flow.md`
-- Updater interview-prep artifacts (in basic-memory vault `facet/main/ref-materials/`) — the output-quality target the prep system is designed to produce
+- Agent project memories for this repo — especially `project_critical-models-and-scopes.md`, `project_ai-inference-vs-user-input.md`, `project_search-pipeline-prep-flow.md`
+- Reference interview-prep artifacts (in the founder's basic-memory vault under `facet/main/ref-materials/`) — the output-quality target the prep system is designed to produce
 
 ## Known-good vs Known-bad Examples (from the pre-rewrite page)
 
