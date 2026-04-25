@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'lucide-react'
@@ -8,14 +8,27 @@ import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useSearchStore } from '../../store/searchStore'
 import type {
+  DeepResearchIdentityEvidence,
+  ResearchJob,
   SearchCompanySize,
   SearchProfile,
+  SearchRequest,
   SearchResultEntry,
+  SearchThesis,
   SkillCatalogEntry,
 } from '../../types/search'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
-import { executeSearch } from '../../utils/searchExecutor'
+import {
+  buildDeepResearchIdentityEvidence,
+  buildDeepResearchThesisSnapshot,
+  cancelDeepResearchJob,
+  createDeepResearchJob,
+  fetchDeepResearchJob,
+  getResearchJobPollDelay,
+  hydrateSearchRunFromResearchJob,
+  streamDeepResearchJob,
+} from '../../utils/deepSearchClient'
 import {
   inferSearchProfile,
   inferSearchProfileFromIdentity,
@@ -35,6 +48,8 @@ import './research.css'
 
 type ResearchTab = 'profile' | 'search' | 'results'
 const RESEARCH_TABS: ResearchTab[] = ['profile', 'search', 'results']
+const TERMINAL_RESEARCH_JOB_STATUSES = new Set(['completed', 'failed', 'canceled'])
+type ResearchJobEventLogEntry = { id: number; text: string }
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
   { value: '', label: 'No preference' },
@@ -45,6 +60,38 @@ const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string
   { value: 'public', label: 'Public' },
   { value: 'any', label: 'Any size' },
 ]
+
+const formatElapsedTime = (elapsedMs: number): string => {
+  const safeMs = Math.max(0, elapsedMs)
+  const totalSeconds = Math.floor(safeMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return minutes + 'm ' + seconds.toString().padStart(2, '0') + 's'
+}
+
+function ResearchJobElapsedTimer({
+  startedAt,
+  fallbackElapsedMs,
+  active,
+}: {
+  startedAt?: string
+  fallbackElapsedMs?: number
+  active: boolean
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!active || !startedAt) return
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(interval)
+  }, [active, startedAt])
+
+  const elapsedMs =
+    active && startedAt
+      ? nowMs - Date.parse(startedAt)
+      : fallbackElapsedMs ?? 0
+  return <>{formatElapsedTime(elapsedMs)}</>
+}
 
 const serializeIdentityProfile = (profile: {
   inferredFromResumeVersion: number
@@ -151,6 +198,10 @@ export function ResearchPage() {
     addRequest,
     addRun,
     updateRun,
+    activeResearchJob,
+    setActiveResearchJob,
+    updateActiveResearchJob,
+    clearActiveResearchJob,
   } = useSearchStore()
 
   const [activeTab, setActiveTab] = useState<ResearchTab>('profile')
@@ -160,11 +211,21 @@ export function ResearchPage() {
   const [isInferring, setIsInferring] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
+  const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
+  const [researchJobTransport, setResearchJobTransport] = useState<'polling' | 'sse'>('polling')
   const identityProfileRef = useRef({
     id: createId('sprof'),
     inferredAt: new Date().toISOString(),
   })
   const preservedResumeProfileRef = useRef<SearchProfile | null>(null)
+  const pollTimerRef = useRef<number | null>(null)
+  const eventSourceRef = useRef<{ close: () => void } | null>(null)
+  const hiddenDuringJobRef = useRef(false)
+  const notifiedJobsRef = useRef(new Set<string>())
+  const researchJobEventIdRef = useRef(0)
+  const activeResearchJobId = activeResearchJob?.jobId
+  const activeResearchRunId = activeResearchJob?.runId
 
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
@@ -351,6 +412,256 @@ export function ResearchPage() {
     }
   }
 
+  const clearPollTimer = useCallback(() => {
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
+  }, [])
+
+  const closeResearchEventSource = useCallback(() => {
+    eventSourceRef.current?.close()
+    eventSourceRef.current = null
+    setResearchJobTransport('polling')
+  }, [])
+
+  const prepareResearchNotifications = () => {
+    if ('Notification' in globalThis && Notification.permission === 'default') {
+      void Notification.requestPermission()
+    }
+  }
+
+  const notifyResearchComplete = useCallback((job: ResearchJob) => {
+    if (
+      notifiedJobsRef.current.has(job.id) ||
+      !('Notification' in globalThis) ||
+      (!hiddenDuringJobRef.current && document.visibilityState !== 'hidden')
+    ) {
+      return
+    }
+
+    notifiedJobsRef.current.add(job.id)
+    if (Notification.permission === 'granted') {
+      new Notification('Facet deep research is ready', {
+        body: 'Your completed search report is available in Research.',
+      })
+    }
+  }, [])
+
+  const applyResearchJobUpdate = useCallback((job: ResearchJob) => {
+    setObservedResearchJob(job)
+    updateActiveResearchJob({
+      status: job.status,
+      startedAt: job.startedAt,
+      lastObservedAt: new Date().toISOString(),
+    })
+
+    if (activeResearchJob?.runId) {
+      const runPatch = hydrateSearchRunFromResearchJob(job)
+      updateRun(activeResearchJob.runId, runPatch)
+      if (runPatch.contractViolations?.length) {
+        console.warn('[research] deep research contract violations', runPatch.contractViolations)
+      }
+    }
+
+    if (job.status === 'completed') {
+      notifyResearchComplete(job)
+    }
+
+    if (TERMINAL_RESEARCH_JOB_STATUSES.has(job.status)) {
+      clearPollTimer()
+      closeResearchEventSource()
+      clearActiveResearchJob(job.id)
+      setIsSearching(false)
+    } else {
+      setIsSearching(true)
+    }
+  }, [
+    activeResearchJob?.runId,
+    clearActiveResearchJob,
+    clearPollTimer,
+    closeResearchEventSource,
+    notifyResearchComplete,
+    updateActiveResearchJob,
+    updateRun,
+  ])
+
+  const openResearchEventSource = useCallback((jobId: string) => {
+    if (
+      document.visibilityState === 'hidden' ||
+      eventSourceRef.current
+    ) {
+      return
+    }
+
+    const appendEvent = (text: string) => {
+      researchJobEventIdRef.current += 1
+      setResearchJobEvents((current) => [
+        ...current.slice(-7),
+        { id: researchJobEventIdRef.current, text },
+      ])
+    }
+
+    eventSourceRef.current = streamDeepResearchJob(aiEndpoint, jobId, {
+      onEvent: (event) => {
+        if (event.type === 'thinking') {
+          appendEvent('Thinking: ' + event.data)
+        } else if (event.type === 'search_query') {
+          appendEvent('Search: ' + event.data)
+        } else if (event.type === 'finding') {
+          appendEvent('Finding: ' + event.data)
+        } else if (event.type === 'status') {
+          appendEvent('Status: ' + event.data)
+        } else if (event.type === 'complete') {
+          void fetchDeepResearchJob(aiEndpoint, jobId)
+            .then(applyResearchJobUpdate)
+            .catch((error) => {
+              setPageError(error instanceof Error ? error.message : 'Failed to refresh completed research job.')
+            })
+        }
+      },
+      onError: () => {
+        closeResearchEventSource()
+      },
+      onClose: () => {
+        closeResearchEventSource()
+      },
+    })
+    setResearchJobTransport('sse')
+  }, [aiEndpoint, applyResearchJobUpdate, closeResearchEventSource])
+
+  const startDeepResearchRun = async ({
+    request,
+    thesisSnapshot,
+    identityEvidence,
+  }: {
+    request: SearchRequest
+    thesisSnapshot: SearchThesis
+    identityEvidence: DeepResearchIdentityEvidence
+  }) => {
+    const run = addRun({
+      requestId: request.id,
+      status: 'running',
+      results: [],
+      searchLog: [],
+      thesisId: thesisSnapshot.id,
+      thesisSnapshot,
+      identityVersion: thesisSnapshot.identityVersion,
+    })
+
+    setActiveRunId(run.id)
+    setActiveTab('results')
+    setIsSearching(true)
+    hiddenDuringJobRef.current = document.visibilityState === 'hidden'
+    setResearchJobEvents([])
+
+    let created: Awaited<ReturnType<typeof createDeepResearchJob>>
+    try {
+      created = await createDeepResearchJob({
+        endpoint: aiEndpoint,
+        thesisSnapshot,
+        params: request,
+        identityEvidence,
+      })
+    } catch (error) {
+      updateRun(run.id, {
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Failed to create deep research job.',
+      })
+      throw error
+    }
+    updateRun(run.id, { jobId: created.jobId })
+    setActiveResearchJob({
+      jobId: created.jobId,
+      runId: run.id,
+      requestId: request.id,
+      thesisId: thesisSnapshot.id,
+      status: created.status,
+      lastObservedAt: new Date().toISOString(),
+    })
+    setObservedResearchJob({
+      id: created.jobId,
+      userId: '',
+      thesisId: thesisSnapshot.id,
+      thesisSnapshot,
+      identityEvidence,
+      identityVersion: thesisSnapshot.identityVersion,
+      params: request,
+      paramsHash: '',
+      status: created.status,
+      createdAt: run.createdAt,
+      ttlAt: run.createdAt,
+    })
+  }
+
+  useEffect(() => {
+    if (!activeResearchJobId || !activeResearchRunId || !aiEndpoint) {
+      setIsSearching(false)
+      return
+    }
+
+    let disposed = false
+    const pollJob = (attempt: number) => {
+      clearPollTimer()
+      if (document.visibilityState === 'hidden') {
+        hiddenDuringJobRef.current = true
+      }
+
+      void fetchDeepResearchJob(aiEndpoint, activeResearchJobId)
+        .then((job) => {
+          if (disposed) return
+          applyResearchJobUpdate(job)
+          if (!TERMINAL_RESEARCH_JOB_STATUSES.has(job.status)) {
+            pollTimerRef.current = window.setTimeout(
+              () => pollJob(attempt + 1),
+              getResearchJobPollDelay(attempt),
+            )
+          }
+        })
+        .catch((error) => {
+          if (disposed) return
+          setPageError(error instanceof Error ? error.message : 'Failed to poll research job.')
+          pollTimerRef.current = window.setTimeout(
+            () => pollJob(attempt + 1),
+            getResearchJobPollDelay(attempt),
+          )
+        })
+    }
+
+    const resumePolling = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenDuringJobRef.current = true
+        closeResearchEventSource()
+      } else {
+        openResearchEventSource(activeResearchJobId)
+      }
+      pollJob(0)
+    }
+
+    setIsSearching(true)
+    setActiveRunId(activeResearchRunId)
+    setActiveTab('results')
+    resumePolling()
+    document.addEventListener('visibilitychange', resumePolling)
+    window.addEventListener('focus', resumePolling)
+
+    return () => {
+      disposed = true
+      clearPollTimer()
+      closeResearchEventSource()
+      document.removeEventListener('visibilitychange', resumePolling)
+      window.removeEventListener('focus', resumePolling)
+    }
+  }, [
+    activeResearchJobId,
+    activeResearchRunId,
+    aiEndpoint,
+    applyResearchJobUpdate,
+    clearPollTimer,
+    closeResearchEventSource,
+    openResearchEventSource,
+  ])
+
   const setTabByOffset = (current: ResearchTab, offset: number) => {
     const currentIndex = RESEARCH_TABS.indexOf(current)
     const nextIndex = (currentIndex + offset + RESEARCH_TABS.length) % RESEARCH_TABS.length
@@ -423,47 +734,66 @@ export function ResearchPage() {
       return
     }
 
-    let runId: string | null = null
-
     try {
       ensureEndpoint()
       setPageError(null)
-      setIsSearching(true)
+      prepareResearchNotifications()
 
       const request = addRequest({
         ...requestDraft,
         excludeCompanies: closedPipelineCompanies,
       })
-      const run = addRun({
-        requestId: request.id,
-        status: 'running',
-        results: [],
-        searchLog: [],
+      const thesisSnapshot = buildDeepResearchThesisSnapshot({
+        profile: executableProfile,
+        request,
+        identity: currentIdentity,
       })
-      runId = run.id
-
-      setActiveRunId(run.id)
-      setActiveTab('results')
-
-      const result = await executeSearch(executableProfile, request, aiEndpoint)
-      updateRun(run.id, {
-        status: 'completed',
-        results: result.results,
-        searchLog: result.searchLog,
-        tokenUsage: result.tokenUsage,
-        error: undefined,
+      await startDeepResearchRun({
+        request,
+        thesisSnapshot,
+        identityEvidence: buildDeepResearchIdentityEvidence(currentIdentity, executableProfile),
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search execution failed.'
-      if (runId) {
-        updateRun(runId, {
-          status: 'failed',
-          error: message,
-        })
-      }
       setPageError(message)
-    } finally {
       setIsSearching(false)
+    }
+  }
+
+  const handleRetryActiveRun = async () => {
+    if (!activeRun?.thesisSnapshot || !activeRequest || !executableProfile) {
+      setPageError('The preserved thesis or request was not available for retry.')
+      return
+    }
+
+    try {
+      ensureEndpoint()
+      setPageError(null)
+      prepareResearchNotifications()
+      await startDeepResearchRun({
+        request: activeRequest,
+        thesisSnapshot: {
+          ...activeRun.thesisSnapshot,
+          updatedAt: new Date().toISOString(),
+        },
+        identityEvidence: buildDeepResearchIdentityEvidence(currentIdentity, executableProfile),
+      })
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Retry failed.')
+      setIsSearching(false)
+    }
+  }
+
+  const handleCancelActiveJob = async () => {
+    if (!activeResearchJob) return
+
+    try {
+      ensureEndpoint()
+      setPageError(null)
+      const job = await cancelDeepResearchJob(aiEndpoint, activeResearchJob.jobId)
+      applyResearchJobUpdate(job)
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Failed to cancel research job.')
     }
   }
 
@@ -509,6 +839,22 @@ export function ResearchPage() {
   }
 
   const groupedResults = groupByTier(activeRun?.results ?? [])
+  const visibleResearchJob =
+    activeResearchJob && activeRun?.id === activeResearchJob.runId ? observedResearchJob : null
+  const visibleJobProgress = visibleResearchJob?.progress
+  const visibleJobStartedAt = visibleResearchJob?.startedAt ?? visibleResearchJob?.createdAt
+  const visibleJobEndedAt = visibleResearchJob?.completedAt ?? visibleResearchJob?.heartbeatAt
+  const visibleJobElapsedMs =
+    visibleJobProgress?.elapsedMs ??
+    (visibleJobStartedAt
+      ? (visibleJobEndedAt ? Date.parse(visibleJobEndedAt) : Date.now()) -
+        Date.parse(visibleJobStartedAt)
+      : 0)
+  const visibleJobIsActive =
+    visibleResearchJob !== null &&
+    visibleResearchJob !== undefined &&
+    !TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status)
+  const activeRunContractViolations = activeRun?.contractViolations ?? []
 
   return (
     <div className="research-page">
@@ -1294,8 +1640,122 @@ export function ResearchPage() {
 
                   {activeRun.error ? (
                     <div className="research-alert" role="alert">
-                      {activeRun.error}
+                      <p>{activeRun.error}</p>
+                      {activeRun.thesisSnapshot ? (
+                        <button
+                          type="button"
+                          className="research-btn"
+                          onClick={() => void handleRetryActiveRun()}
+                          disabled={isSearching}
+                        >
+                          Retry preserved thesis
+                        </button>
+                      ) : null}
                     </div>
+                  ) : null}
+
+                  {visibleResearchJob ? (
+                    <section className="research-job-progress" aria-label="Deep research progress">
+                      <div className="research-job-progress-main">
+                        <div>
+                          <p className="research-eyebrow">Async Deep Research</p>
+                          <h3>{visibleJobProgress?.phase ?? visibleResearchJob.status}</h3>
+                          <p className="research-muted">
+                            Typical 10-20 min. This job keeps running server-side if the tab closes.
+                          </p>
+                        </div>
+                        <AiActivityIndicator
+                          active={!TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status)}
+                          label="Deep research job is running server-side."
+                        />
+                      </div>
+                      <dl className="research-job-stats">
+                        <div>
+                          <dt>Elapsed</dt>
+                          <dd>
+                            <ResearchJobElapsedTimer
+                              startedAt={visibleJobStartedAt}
+                              fallbackElapsedMs={visibleJobElapsedMs}
+                              active={visibleJobIsActive}
+                            />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Transport</dt>
+                          <dd>{researchJobTransport === 'sse' ? 'Live stream + polling' : 'Polling'}</dd>
+                        </div>
+                        <div>
+                          <dt>Queries</dt>
+                          <dd>{visibleJobProgress?.searchQueries.length ?? activeRun.searchLog.length}</dd>
+                        </div>
+                        <div>
+                          <dt>Findings</dt>
+                          <dd>{visibleJobProgress?.findingsCount ?? activeRun.results.length}</dd>
+                        </div>
+                      </dl>
+                      {researchJobEvents.length > 0 ? (
+                        <ul className="research-list">
+                          {researchJobEvents.map((event) => (
+                            <li key={event.id}>{event.text}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {!TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status) ? (
+                        <button
+                          type="button"
+                          className="research-btn research-btn-danger"
+                          onClick={() => void handleCancelActiveJob()}
+                        >
+                          Cancel deep research
+                        </button>
+                      ) : null}
+                    </section>
+                  ) : null}
+
+                  {activeRunContractViolations.length > 0 ? (
+                    <div className="research-warning" role="status">
+                      <strong>Output quality warnings</strong>
+                      <p>
+                        Some deep research fields came back shorter than the contract expects.
+                        You can review the result or regenerate from the preserved thesis.
+                      </p>
+                      <ul className="research-list">
+                        {activeRunContractViolations.map((violation) => (
+                          <li key={violation}>{violation}</li>
+                        ))}
+                      </ul>
+                      {activeRun.thesisSnapshot ? (
+                        <button
+                          type="button"
+                          className="research-btn"
+                          onClick={() => void handleRetryActiveRun()}
+                          disabled={isSearching}
+                        >
+                          Regenerate from preserved thesis
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {activeRun.narrative ? (
+                    <section className="research-narrative" aria-label="Search narrative">
+                      <h3>Run Narrative</h3>
+                      <p>{activeRun.narrative.executiveSummary}</p>
+                      <div className="research-narrative-grid">
+                        <div>
+                          <strong>Competitive moat</strong>
+                          <p>{activeRun.narrative.competitiveMoat}</p>
+                        </div>
+                        <div>
+                          <strong>Selection methodology</strong>
+                          <p>{activeRun.narrative.selectionMethodology}</p>
+                        </div>
+                        <div>
+                          <strong>Market context</strong>
+                          <p>{activeRun.narrative.marketContext}</p>
+                        </div>
+                      </div>
+                    </section>
                   ) : null}
 
                   <details className="research-log">
@@ -1362,6 +1822,43 @@ export function ResearchPage() {
                                   <strong>Vector alignment</strong>
                                   <p>{result.vectorAlignment || 'No vector note returned.'}</p>
                                 </div>
+
+                                {result.candidateEdge ? (
+                                  <div className="research-result-block">
+                                    <strong>Candidate edge</strong>
+                                    <p>{result.candidateEdge}</p>
+                                  </div>
+                                ) : null}
+
+                                {result.signalGroup || result.advantageMatch ? (
+                                  <div className="research-result-meta">
+                                    {result.signalGroup ? <span>{result.signalGroup}</span> : null}
+                                    {result.advantageMatch ? <span>{result.advantageMatch}</span> : null}
+                                  </div>
+                                ) : null}
+
+                                {result.companyIntel ? (
+                                  <div className="research-result-block">
+                                    <strong>Company intelligence</strong>
+                                    <p>
+                                      {[result.companyIntel.stage, result.companyIntel.aiCulture, result.companyIntel.remotePolicy]
+                                        .filter(Boolean)
+                                        .join(' · ')}
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                {result.interviewProcess ? (
+                                  <div className="research-result-block">
+                                    <strong>Interview process</strong>
+                                    <p>
+                                      {result.interviewProcess.format}
+                                      {result.interviewProcess.estimatedTimeline
+                                        ? ' · ' + result.interviewProcess.estimatedTimeline
+                                        : ''}
+                                    </p>
+                                  </div>
+                                ) : null}
 
                                 <div className="research-result-block">
                                   <strong>Risks</strong>

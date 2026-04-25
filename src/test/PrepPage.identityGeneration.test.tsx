@@ -241,6 +241,7 @@ describe('PrepPage identity generation', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -386,6 +387,7 @@ describe('PrepPage identity generation', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -432,6 +434,7 @@ describe('PrepPage identity generation', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {

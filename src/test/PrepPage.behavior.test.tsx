@@ -220,6 +220,7 @@ describe('PrepPage behavior follow-ups', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -381,6 +382,7 @@ describe('PrepPage behavior follow-ups', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -444,6 +446,7 @@ describe('PrepPage behavior follow-ups', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -811,6 +814,7 @@ describe('PrepPage behavior follow-ups', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Generate with AI' }))
 
     await waitFor(() => {

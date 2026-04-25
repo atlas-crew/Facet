@@ -15,10 +15,15 @@
 
 .prep-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
+}
+
+.prep-header-titles {
+  flex: 1;
+  min-width: 240px;
 }
 
 .prep-header h1 {
@@ -185,6 +190,94 @@
   background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
   border-color: color-mix(in srgb, var(--accent-primary) 28%, var(--border-subtle));
   color: var(--accent-primary);
+}
+
+/* Mode-tabs in standalone bar mode (no longer wrapped in a panel header).
+ * Sits as a slim row directly under the page header — segmented control
+ * on its own row, no chrome competing with content below. */
+.prep-mode-tabs-bar {
+  margin-top: var(--space-3);
+  align-self: flex-start;
+}
+
+/* ── Generation drawer ──────────────────────────────────────
+ * Slide-in panel from the right. Replaces the inline "Generate Prep"
+ * panel that previously sat as one of several boxes on the page. The
+ * drawer reserves vertical space for future interviewer-name capture
+ * (doc-30 step 5) without adding chrome to the main page layout.
+ */
+.prep-generate-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black 56%, transparent);
+  border: 0;
+  cursor: pointer;
+  z-index: 50;
+}
+
+.prep-generate-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.32);
+  z-index: 51;
+  animation: prep-generate-drawer-in var(--duration-normal) var(--easing);
+}
+
+@keyframes prep-generate-drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.prep-generate-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.prep-generate-drawer-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.prep-generate-drawer-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.prep-generate-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.prep-generate-drawer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-surface) 92%, var(--bg-inset));
+}
+
+.prep-generate-drawer-footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .prep-mode-tab-launch:disabled {

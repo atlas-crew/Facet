@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight, Download, ExternalLink, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, ExternalLink, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
@@ -34,15 +34,8 @@ import type {
   PrepDeck,
   PrepRoundDebrief,
   PrepRoundDebriefIntel,
-  PrepWorkspaceMode,
 } from '../../types/prep'
 import './prep.css'
-
-const MODE_LABELS: Record<PrepWorkspaceMode, string> = {
-  edit: 'Edit',
-  homework: 'Homework',
-  live: 'Live Cheatsheet',
-}
 
 function formatPrepDeckUpdatedAt(updatedAt: string): string {
   const timestamp = Date.parse(updatedAt)
@@ -368,6 +361,7 @@ export function PrepPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [isGapModalOpen, setIsGapModalOpen] = useState(false)
+  const [isGenerateDrawerOpen, setIsGenerateDrawerOpen] = useState(false)
   const [isIdentityDraftConfirmOpen, setIsIdentityDraftConfirmOpen] = useState(false)
   const [gapStepIndex, setGapStepIndex] = useState(0)
   const [gapDraftAnswers, setGapDraftAnswers] = useState<Record<string, string>>({})
@@ -1573,7 +1567,7 @@ export function PrepPage() {
   return (
     <div className="prep-page">
       <div className="prep-header">
-        <div>
+        <div className="prep-header-titles">
           <h1>Interview Prep</h1>
           <p className="prep-header-copy">
             Build one prep deck, then switch between editing, homework rehearsal, and a live interview cheatsheet from the same source.
@@ -1581,6 +1575,13 @@ export function PrepPage() {
         </div>
 
         <div className="prep-header-actions">
+          <button
+            className="prep-btn prep-btn-primary"
+            onClick={() => setIsGenerateDrawerOpen(true)}
+          >
+            <Sparkles size={16} />
+            Generate
+          </button>
           <button className="prep-btn" onClick={handleAddCard} disabled={!activeDeck}>
             <Plus size={16} />
             Add Card
@@ -1599,6 +1600,59 @@ export function PrepPage() {
             Delete Set
           </button>
         </div>
+      </div>
+
+      {/* Mode tabs in their own slim row — no longer wrapped in a panel.
+          The chip-row "Deck: ... / Cards: ... / Mode: ..." was dropped per
+          design direction; mode is visible in the segmented control,
+          deck/card counts are visible in deck headers downstream. */}
+      <div
+        ref={modeTabListRef}
+        className="prep-mode-tabs prep-mode-tabs-bar"
+        role="tablist"
+        aria-label="Prep workspace modes"
+        onKeyDown={handleModeTabKeyDown}
+      >
+        <button
+          type="button"
+          className={`prep-mode-tab ${activeMode === 'edit' ? 'prep-mode-tab-active' : ''}`}
+          role="tab"
+          id="prep-mode-tab-edit"
+          aria-selected={activeMode === 'edit'}
+          aria-controls={activeMode === 'edit' ? 'prep-mode-panel-edit' : undefined}
+          tabIndex={activeMode === 'edit' ? 0 : -1}
+          onClick={() => setActiveMode('edit')}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className={`prep-mode-tab ${activeMode === 'homework' ? 'prep-mode-tab-active' : ''}`}
+          role="tab"
+          id="prep-mode-tab-homework"
+          aria-selected={activeMode === 'homework'}
+          aria-controls={activeMode === 'homework' ? 'prep-mode-panel-homework' : undefined}
+          aria-disabled={isHomeworkDisabled || undefined}
+          tabIndex={activeMode === 'homework' ? 0 : -1}
+          onClick={() => {
+            if (isHomeworkDisabled) return
+            setActiveMode('homework')
+          }}
+        >
+          Homework
+        </button>
+        <button
+          type="button"
+          className="prep-mode-tab prep-mode-tab-launch"
+          disabled={isLiveDisabled}
+          onClick={() => {
+            if (isLiveDisabled) return
+            void navigate({ to: '/prep/live' })
+          }}
+        >
+          <ExternalLink size={14} />
+          Live Cheatsheet
+        </button>
       </div>
 
       {deckLibrary.length > 0 ? (
@@ -1714,98 +1768,43 @@ export function PrepPage() {
         </section>
       ) : null}
 
-      <section className="prep-panel prep-mode-shell">
-        <div className="prep-panel-header">
-          <div>
-            <h2>Workspace Mode</h2>
-            <p>Edit the deck, rehearse with flash cards, or open a compact cheatsheet view tuned for the live interview.</p>
-          </div>
-          <div
-            ref={modeTabListRef}
-            className="prep-mode-tabs"
-            role="tablist"
-            aria-label="Prep workspace modes"
-            onKeyDown={handleModeTabKeyDown}
+      {/*
+        Generation drawer — slides in from the right when the user clicks
+        "Generate" in the header. Reserves space below for interviewer-name
+        capture (doc-30 step 5) without crowding the main page chrome.
+      */}
+      {isGenerateDrawerOpen ? (
+        <>
+          <button
+            type="button"
+            className="prep-generate-drawer-scrim"
+            aria-label="Close generation drawer"
+            onClick={() => setIsGenerateDrawerOpen(false)}
+          />
+          <aside
+            className="prep-generate-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Generate prep deck"
           >
-            <button
-              type="button"
-              className={`prep-mode-tab ${activeMode === 'edit' ? 'prep-mode-tab-active' : ''}`}
-              role="tab"
-              id="prep-mode-tab-edit"
-              aria-selected={activeMode === 'edit'}
-              // Panels mount only for the active mode, so aria-controls is only valid when present in the DOM.
-              aria-controls={activeMode === 'edit' ? 'prep-mode-panel-edit' : undefined}
-              tabIndex={activeMode === 'edit' ? 0 : -1}
-              onClick={() => setActiveMode('edit')}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className={`prep-mode-tab ${activeMode === 'homework' ? 'prep-mode-tab-active' : ''}`}
-              role="tab"
-              id="prep-mode-tab-homework"
-              aria-selected={activeMode === 'homework'}
-              aria-controls={activeMode === 'homework' ? 'prep-mode-panel-homework' : undefined}
-              aria-disabled={isHomeworkDisabled || undefined}
-              tabIndex={activeMode === 'homework' ? 0 : -1}
-              onClick={() => {
-                if (isHomeworkDisabled) return
-                setActiveMode('homework')
-              }}
-            >
-              Homework
-            </button>
-            <button
-              type="button"
-              className="prep-mode-tab prep-mode-tab-launch"
-              disabled={isLiveDisabled}
-              onClick={() => {
-                if (isLiveDisabled) return
-                void navigate({ to: '/prep/live' })
-              }}
-            >
-              <ExternalLink size={14} />
-              Live Cheatsheet
-            </button>
-          </div>
-        </div>
-        <div className="prep-mode-summary">
-          <span className="prep-mode-chip">Deck: {activeDeck?.title ?? 'No active deck yet'}</span>
-          <span className="prep-mode-chip">Cards: {activeDeck?.cards.length ?? 0}</span>
-          <span className="prep-mode-chip">
-            Mode: {MODE_LABELS[activeMode]}
-          </span>
-        </div>
-      </section>
+            <header className="prep-generate-drawer-header">
+              <div>
+                <h2>Generate Prep</h2>
+                <p>
+                  Match mode uses the current Phase 1 report. Pipeline mode remains available for older opportunities and manual research notes.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="prep-icon-btn"
+                aria-label="Close drawer"
+                onClick={() => setIsGenerateDrawerOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </header>
 
-      <section className="prep-panel">
-        <div className="prep-panel-header">
-          <div>
-            <h2>Generate Prep</h2>
-            <p>Match mode uses the current Phase 1 report. Pipeline mode remains available for older opportunities and manual research notes.</p>
-          </div>
-          <div className="prep-panel-actions">
-            <button className="prep-btn" onClick={handleCreateBlankDeck}>
-              <Plus size={16} />
-              Blank Set
-            </button>
-            <button
-              className="prep-btn prep-btn-primary ai-working-button"
-              onClick={() => void handleGenerate()}
-              disabled={isGenerating}
-              aria-busy={isGenerating}
-            >
-              <Sparkles size={16} />
-              {isGenerating ? 'Generating...' : 'Generate with AI'}
-            </button>
-            <AiActivityIndicator
-              active={isGenerating}
-              label="AI is drafting prep cards and talking points."
-            />
-          </div>
-        </div>
-
+            <div className="prep-generate-drawer-body">
         <div className="prep-generator-grid">
           {currentReport && (
             <fieldset className="prep-field prep-field-span-2 prep-fieldset">
@@ -1922,14 +1921,54 @@ export function PrepPage() {
             </div>
           )}
         </div>
+            </div>
 
-        {generationError && <div className="prep-error-banner">{generationError}</div>}
-        {activeDeck && activeDeckContractViolations.length > 0 ? (
-          <div
-            className={`prep-contract-banner prep-contract-banner-${activeDeckContractViolationCounts.error > 0 ? 'error' : 'warning'}`}
-            role={activeDeckContractViolationCounts.error > 0 ? 'alert' : 'status'}
-            aria-live={activeDeckContractViolationCounts.error > 0 ? 'assertive' : 'polite'}
-          >
+            <footer className="prep-generate-drawer-footer">
+              <AiActivityIndicator
+                active={isGenerating}
+                label="AI is drafting prep cards and talking points."
+              />
+              <div className="prep-generate-drawer-footer-actions">
+                <button
+                  type="button"
+                  className="prep-btn"
+                  onClick={() => {
+                    handleCreateBlankDeck()
+                    setIsGenerateDrawerOpen(false)
+                  }}
+                >
+                  <Plus size={16} />
+                  Blank Set
+                </button>
+                <button
+                  type="button"
+                  className="prep-btn prep-btn-primary ai-working-button"
+                  onClick={() => {
+                    void handleGenerate()
+                    setIsGenerateDrawerOpen(false)
+                  }}
+                  disabled={isGenerating}
+                  aria-busy={isGenerating}
+                >
+                  <Sparkles size={16} />
+                  {isGenerating ? 'Generating...' : 'Generate with AI'}
+                </button>
+              </div>
+            </footer>
+          </aside>
+        </>
+      ) : null}
+
+      {/* Page-level banners — visible regardless of drawer state so the
+          user sees generation errors / contract violations after the
+          drawer auto-closes on submit. */}
+      {generationError && <div className="prep-error-banner">{generationError}</div>}
+      {activeDeck && activeDeckContractViolations.length > 0 ? (
+        <div
+          className={`prep-contract-banner prep-contract-banner-${activeDeckContractViolationCounts.error > 0 ? 'error' : 'warning'}`}
+          role={activeDeckContractViolationCounts.error > 0 ? 'alert' : 'status'}
+          aria-live={activeDeckContractViolationCounts.error > 0 ? 'assertive' : 'polite'}
+        >
             <div className="prep-contract-copy">
               <strong>
                 Contract validation flagged {activeDeckContractViolations.length} issue{activeDeckContractViolations.length === 1 ? '' : 's'} in this prep set.
@@ -1991,9 +2030,8 @@ export function PrepPage() {
                 </button>
               ) : null}
             </div>
-          </div>
-        ) : null}
-      </section>
+        </div>
+      ) : null}
 
       {activeMode === 'homework' && activeDeck ? (
         <section

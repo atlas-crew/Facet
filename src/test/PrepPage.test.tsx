@@ -114,6 +114,7 @@ describe('PrepPage', () => {
   it('generates a deck from the selected pipeline entry', async () => {
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -237,6 +238,7 @@ describe('PrepPage', () => {
   it('uses linked pipeline round options when a deck comes from a pipeline entry', async () => {
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -407,6 +409,7 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -490,6 +493,7 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -673,6 +677,7 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -744,6 +749,7 @@ describe('PrepPage', () => {
 
     render(<PrepPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
