@@ -593,8 +593,12 @@ export function PrepPracticeMode({
                 <div className="prep-practice-section-label">Story blocks</div>
                 <div className="prep-practice-story-grid">
                   {currentStoryBlocks.map((block, index) => (
-                    <article key={`${index}:${block.label}:${block.text}`} className="prep-practice-story-card">
-                      <div className="prep-practice-section-label">{block.label}</div>
+                    <article
+                      key={`${index}:${block.label}:${block.text}`}
+                      className="prep-practice-story-card"
+                      data-story-label={block.label}
+                    >
+                      <div className="prep-practice-section-label prep-practice-story-card-label">{block.label}</div>
                       <p>{block.text}</p>
                     </article>
                   ))}

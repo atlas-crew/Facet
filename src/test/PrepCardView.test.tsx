@@ -48,6 +48,20 @@ function ControlledSectionHarness({ onToggle = vi.fn() }: { onToggle?: (nextOpen
   )
 }
 
+/**
+ * After PR E2 (color-striped section re-architecture), every section in
+ * the editable card variant starts collapsed — even when it has content.
+ * Tests that assert on field-level display values must explicitly open
+ * the sections they care about. This helper clicks every section toggle
+ * that is currently aria-expanded=false, opening all of them in one call.
+ */
+function expandAllSections() {
+  const toggles = document.querySelectorAll<HTMLButtonElement>('button.prep-section-toggle[aria-expanded="false"]')
+  for (const toggle of Array.from(toggles)) {
+    fireEvent.click(toggle)
+  }
+}
+
 describe('PrepCardView', () => {
   afterEach(() => {
     cleanup()
@@ -128,6 +142,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    // Test exercises section-toggle behavior; do NOT pre-expand sections.
     expect(screen.queryByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.')).toBeNull()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Notes & Risks' })[0] as HTMLElement)
@@ -144,6 +159,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ followUps: [] })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     expect(screen.queryByPlaceholderText('Likely follow-up question')).toBeNull()
 
     const followUpsSection = screen.getAllByRole('button', { name: 'Follow-Ups' })[0]?.closest('section')
@@ -160,6 +176,7 @@ describe('PrepCardView', () => {
     render(<PrepCardView card={makeCard({ followUps: [], deepDives: [], conditionals: [], metrics: [] })} onUpdateCard={onUpdateCard} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Add follow-up' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add deep dive' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add conditional' }))
@@ -189,6 +206,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
 
     expect(screen.getByDisplayValue('Lead With')).toBeTruthy()
     expect(screen.getByDisplayValue('The service was unstable.')).toBeTruthy()
@@ -218,6 +236,7 @@ describe('PrepCardView', () => {
     expect(categoryOptions).toEqual(['opener', 'behavioral', 'technical', 'project', 'metrics', 'situational'])
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     const storyLabelOptions = Array.from(screen.getByLabelText('Story block label 1').querySelectorAll('option')).map((option) => option.getAttribute('value'))
     expect(storyLabelOptions).toEqual(['problem', 'solution', 'result', 'closer', 'note'])
   })
@@ -232,6 +251,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByDisplayValue('Original script'), {
       target: { value: 'Updated script' },
     })
@@ -254,6 +274,7 @@ describe('PrepCardView', () => {
     fireEvent.change(screen.getByLabelText('Card title'), { target: { value: 'Updated story' } })
     fireEvent.change(screen.getByLabelText('Card category'), { target: { value: 'technical' } })
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByPlaceholderText('behavioral, scale, leadership'), {
       target: { value: 'architecture, scale, systems' },
     })
@@ -268,6 +289,7 @@ describe('PrepCardView', () => {
     render(<PrepCardView card={makeCard()} onUpdateCard={onUpdateCard} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByPlaceholderText('behavioral, scale, leadership'), {
       target: { value: '  arch , ,  scale  , ' },
     })
@@ -280,6 +302,7 @@ describe('PrepCardView', () => {
     render(<PrepCardView card={makeCard({ tags: ['scale, leadership'] })} onUpdateCard={onUpdateCard} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByPlaceholderText('behavioral, scale, leadership'), {
       target: { value: 'scale, leadership, ' },
     })
@@ -297,6 +320,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ script: 'Keep it simple.', storyBlocks: undefined })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
 
     expect(screen.getByDisplayValue('Keep it simple.')).toBeTruthy()
     expect(screen.getByDisplayValue('Keep it simple.')).toBeTruthy()
@@ -313,6 +337,7 @@ describe('PrepCardView', () => {
     render(<PrepCardView card={makeCard({ storyBlocks: [] })} onUpdateCard={onUpdateCard} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Add story block' }))
 
     expect(onUpdateCard).toHaveBeenCalledWith('card-1', {
@@ -324,12 +349,14 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ keyPoints: undefined })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Add key point' }))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse details' }))
 
     expect(screen.queryByText('1 key point')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByLabelText('Key point 1'), { target: { value: 'Lead with the impact' } })
     fireEvent.click(screen.getByRole('button', { name: 'Collapse details' }))
 
@@ -375,6 +402,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
 
     expect(screen.getByDisplayValue('How did you align teams?')).toBeTruthy()
     expect(screen.getByDisplayValue('Weekly review cadence.')).toBeTruthy()
@@ -664,6 +692,8 @@ describe('PrepCardView', () => {
     render(<EditableHarness />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    // Open Notes & Risks specifically — pre-expanding-all would re-toggle
+    // it closed when the next line clicks the section header.
     fireEvent.click(screen.getAllByRole('button', { name: 'Notes & Risks' })[0] as HTMLElement)
     fireEvent.change(screen.getByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.'), {
       target: { value: 'Lead with the operating context.' },
@@ -680,6 +710,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ notes: 'Existing note' })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
 
     expect(screen.getByDisplayValue('Existing note')).toBeTruthy()
   })
@@ -697,6 +728,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByDisplayValue('Second question'), { target: { value: 'Updated follow-up' } })
     fireEvent.change(screen.getByDisplayValue('Second answer'), { target: { value: 'Updated answer' } })
     fireEvent.click(screen.getAllByTitle('Remove follow-up')[1] as HTMLElement)
@@ -719,6 +751,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     const secondQuestionInput = screen.getByDisplayValue('Second question') as HTMLInputElement
 
     fireEvent.click(screen.getAllByTitle('Remove follow-up')[0] as HTMLElement)
@@ -740,6 +773,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByDisplayValue('Architecture'), { target: { value: 'Updated architecture' } })
     fireEvent.change(screen.getByDisplayValue('Original detail'), { target: { value: 'Updated detail' } })
     fireEvent.change(screen.getByDisplayValue('20%'), { target: { value: '38%' } })
@@ -764,6 +798,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByDisplayValue('Initial trigger'), { target: { value: 'Updated trigger' } })
     fireEvent.change(screen.getByDisplayValue('Initial response'), { target: { value: 'Updated response' } })
     fireEvent.change(screen.getByLabelText('Conditional tone 1'), { target: { value: 'escalation' } })
@@ -790,6 +825,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Add deep dive' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add metric' }))
 
@@ -814,6 +850,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getAllByTitle('Remove deep dive')[1] as HTMLElement)
     fireEvent.click(screen.getAllByTitle('Remove metric')[1] as HTMLElement)
 
@@ -837,6 +874,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getAllByTitle('Remove story block')[1] as HTMLElement)
     fireEvent.click(screen.getAllByTitle('Remove key point')[1] as HTMLElement)
 
@@ -856,6 +894,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getAllByTitle('Remove key point')[1] as HTMLElement)
 
     expect(screen.getByDisplayValue('First point')).toBeTruthy()
@@ -867,6 +906,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ tableData: undefined })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     const tableToggle = screen.getByRole('button', { name: 'Table' })
     fireEvent.click(tableToggle)
 
@@ -891,6 +931,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByDisplayValue('Prompt, Evidence'), {
       target: { value: 'Signal, Response' },
     })
@@ -906,6 +947,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ tableData: undefined })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Add Table' }))
 
     expect(screen.getByDisplayValue('Prompt, Evidence')).toBeTruthy()
@@ -942,6 +984,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
 
     expect(screen.getByDisplayValue('Signal, Response')).toBeTruthy()
@@ -962,6 +1005,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     expect(screen.getByText('1 row')).toBeTruthy()
 
     rerender(
@@ -995,6 +1039,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
 
     expect(screen.getByText('2 entries')).toBeTruthy()
   })
@@ -1012,6 +1057,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     const rowsInput = screen.getByDisplayValue('1 | 2 | 3') as HTMLTextAreaElement
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Row' }))
@@ -1040,6 +1086,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.change(screen.getByDisplayValue('pager spike | throttle retries'), {
       target: { value: 'first | second\n   \nthird | ' },
     })
@@ -1065,6 +1112,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     const tableToggle = screen.getByRole('button', { name: 'Table' })
 
     expect(screen.getByDisplayValue('Signal, Response')).toBeTruthy()
@@ -1080,6 +1128,7 @@ describe('PrepCardView', () => {
     render(<EditableHarness initialCard={makeCard({ followUps: [] })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    // Open the specific section under test rather than pre-expanding all.
     fireEvent.click(screen.getAllByRole('button', { name: 'Follow-Ups' })[0] as HTMLElement)
 
     expect(screen.getByText('No follow-ups yet.')).toBeTruthy()
@@ -1120,6 +1169,7 @@ describe('PrepCardView', () => {
     const { rerender } = render(<PrepCardView card={makeCard({ tableData: undefined })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     expect(screen.queryByDisplayValue('Prompt, Evidence')).toBeNull()
 
     rerender(
@@ -1166,6 +1216,7 @@ describe('PrepCardView', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate for Another Angle' }))
 
     expect(onDuplicateCard).toHaveBeenCalledWith('card-1')
@@ -1178,6 +1229,7 @@ describe('PrepCardView', () => {
     expect(() => fireEvent.click(screen.getByTitle('Duplicate card'))).not.toThrow()
     expect(() => fireEvent.click(screen.getByTitle('Delete card'))).not.toThrow()
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
     expect(() => fireEvent.click(screen.getByRole('button', { name: 'Duplicate for Another Angle' }))).not.toThrow()
     expect(() => fireEvent.change(screen.getByLabelText('Card title'), { target: { value: 'Safe edit' } })).not.toThrow()
     expect(() => fireEvent.change(screen.getByLabelText('Card category'), { target: { value: 'technical' } })).not.toThrow()

@@ -230,6 +230,8 @@ describe('PrepPage behavior follow-ups', () => {
       target: { value: 'Tell me about yourself, edited' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    // After PR E2, Core Story starts collapsed. Open it before editing the script.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Core Story' })[0] as HTMLElement)
     fireEvent.change(screen.getByPlaceholderText('What should the candidate actually say?'), {
       target: { value: 'I build resilient backend systems and lead platform improvements, with more context.' },
     })

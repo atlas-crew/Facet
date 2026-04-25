@@ -3,7 +3,7 @@ import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucid
 import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
 import type { PrepCard, PrepConditional, PrepDeepDive, PrepFollowUp, PrepInterviewer, PrepMetric, PrepStoryBlock } from '../../types/prep'
 import { createId } from '../../utils/idUtils'
-import { PrepCollapsibleSection } from './PrepCollapsibleSection'
+import { PrepCollapsibleSection, type PrepSectionTone } from './PrepCollapsibleSection'
 import {
   filterPrepConditionals,
   filterPrepDeepDives,
@@ -326,7 +326,9 @@ export function PrepCardView({
           <PrepCollapsibleSection
             title="Core Story"
             subtitle="The answer the candidate should be able to say smoothly out loud."
-            defaultOpen
+            tone="success"
+            preview={truncatePreview(card.script)}
+            isEmpty={!card.script}
           >
             <div className="prep-inline-grid">
               <label className="prep-field">
@@ -353,6 +355,8 @@ export function PrepCardView({
           <EditableListSection<PrepStoryBlock>
             title="Story Blocks"
             subtitle="Structure the answer as problem, solution, result, or a short closer."
+            tone="warning"
+            preview={truncatePreview(card.storyBlocks?.[0]?.text)}
             items={card.storyBlocks ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
@@ -405,6 +409,8 @@ export function PrepCardView({
           <EditableListSection<string>
             title="Key Points"
             subtitle="Short glance bullets for the live view."
+            tone="accent-primary"
+            preview={truncatePreview(card.keyPoints?.[0])}
             items={card.keyPoints ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
@@ -437,7 +443,9 @@ export function PrepCardView({
           <PrepCollapsibleSection
             title="Notes & Risks"
             subtitle="Keep internal coaching separate from the polished spoken answer."
-            defaultOpen={Boolean(card.notes || card.warning)}
+            tone="critical"
+            preview={truncatePreview(card.warning) ?? truncatePreview(card.notes)}
+            isEmpty={!card.notes && !card.warning}
           >
             <div className="prep-card-section-grid">
               <label className="prep-field">
@@ -465,6 +473,8 @@ export function PrepCardView({
           <EditableListSection<PrepFollowUp>
             title="Follow-Ups"
             subtitle="Likely follow-up prompts and short answer outlines."
+            tone="accent-violet"
+            preview={truncatePreview(card.followUps?.[0]?.question)}
             items={card.followUps ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
@@ -505,6 +515,8 @@ export function PrepCardView({
           <EditableListSection<PrepDeepDive>
             title="Deep Dives"
             subtitle="Extra depth for architecture, tradeoffs, or implementation specifics."
+            tone="accent-cyan"
+            preview={truncatePreview(card.deepDives?.[0]?.title)}
             items={card.deepDives ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
@@ -545,6 +557,8 @@ export function PrepCardView({
           <EditableListSection<PrepConditional>
             title="Conditionals"
             subtitle="Coach the pivot when an interviewer pushes on a weak spot, trap, or escalation."
+            tone="accent-orange"
+            preview={truncatePreview(card.conditionals?.[0]?.trigger)}
             items={card.conditionals ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
@@ -614,6 +628,12 @@ export function PrepCardView({
           <EditableListSection<PrepMetric>
             title="Metrics"
             subtitle="Outcomes, deltas, and proof points worth citing quickly."
+            tone="accent-primary"
+            preview={truncatePreview(
+              card.metrics?.[0]
+                ? `${card.metrics[0].value} ${card.metrics[0].label}`.trim()
+                : undefined,
+            )}
             items={card.metrics ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
@@ -654,7 +674,18 @@ export function PrepCardView({
           <PrepCollapsibleSection
             title="Table"
             subtitle="Useful when you want prompts, evidence, or comparisons to scan quickly."
-            countLabel={card.tableData ? `${card.tableData.rows.length} row${card.tableData.rows.length === 1 ? '' : 's'}` : undefined}
+            tone="neutral"
+            isEmpty={!card.tableData}
+            preview={
+              card.tableData
+                ? `${card.tableData.headers.length} cols × ${card.tableData.rows.length} rows`
+                : undefined
+            }
+            countLabel={
+              card.tableData
+                ? `${card.tableData.rows.length} row${card.tableData.rows.length === 1 ? '' : 's'}`
+                : 'empty'
+            }
             open={isTableSectionOpen}
             onToggle={setIsTableSectionOpen}
             actions={(
@@ -837,6 +868,8 @@ function EditableListSection<T>({
   onAdd,
   onRemove,
   renderItem,
+  tone,
+  preview,
 }: {
   title: string
   subtitle?: string
@@ -844,17 +877,30 @@ function EditableListSection<T>({
   onAdd: () => void
   onRemove: (index: number) => void
   renderItem: (item: T, index: number) => ReactElement
+  tone?: PrepSectionTone
+  preview?: string
 }) {
-  const [isOpen, setIsOpen] = useState(items.length > 0)
+  // Collapsed by default — even when items exist. Per the edit-view density
+  // direction, an open card surfaces 9 colored section markers; the user
+  // chooses which to expand. Auto-opening on items.length > 0 caused all
+  // populated sections to render simultaneously, defeating progressive
+  // disclosure for cards with many filled fields.
+  const [isOpen, setIsOpen] = useState(false)
 
   const singularTitle = title.endsWith('s') ? title.slice(0, -1) : title
-  const countLabel = `${items.length} ${items.length === 1 ? singularTitle.toLowerCase() : 'entries'}`
+  const countLabel =
+    items.length > 0
+      ? `${items.length} ${items.length === 1 ? singularTitle.toLowerCase() : 'entries'}`
+      : 'empty'
 
   return (
     <PrepCollapsibleSection
       title={title}
       subtitle={subtitle}
       countLabel={countLabel}
+      preview={preview}
+      tone={tone}
+      isEmpty={items.length === 0}
       open={isOpen}
       onToggle={setIsOpen}
       actions={(
@@ -903,6 +949,18 @@ function updateArrayItem<T>(
 ) {
   const nextItems = items.map((item, itemIndex) => (itemIndex === index ? nextItem : item))
   onCommit(nextItems)
+}
+
+/**
+ * Truncate a string for display in a collapsed section header. The
+ * preview lives next to the section title and competes with the count
+ * badge for space; ~70 chars keeps it scannable on a 1280px viewport.
+ */
+function truncatePreview(value: string | undefined | null, max = 70): string | undefined {
+  if (!value) return undefined
+  const trimmed = value.replace(/\s+/g, ' ').trim()
+  if (!trimmed) return undefined
+  return trimmed.length > max ? trimmed.slice(0, max).trimEnd() + '…' : trimmed
 }
 
 function getStableKey<T>(item: T, index: number) {
