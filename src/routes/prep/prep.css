@@ -399,6 +399,11 @@
   padding: 0 var(--space-3) var(--space-3);
 }
 
+.prep-edit-group-body > .prep-guidance-section + .prep-guidance-section,
+.prep-edit-group-body > .prep-guidance-section + .prep-edit-group {
+  margin-top: var(--space-3);
+}
+
 .prep-edit-filter-panel {
   display: flex;
   flex-direction: column;
@@ -2030,6 +2035,17 @@
   text-transform: uppercase;
 }
 
+.prep-live-callout-context {
+  /* Blue left-stripe = "information for the user". Pairs with the green
+   * script ("user says") and red warning ("user avoids") so every callout
+   * on the page reads its semantic from a single 3px stripe. */
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 0 var(--prep-live-callout-radius) var(--prep-live-callout-radius) 0;
+  background: var(--prep-live-surface-2);
+  box-shadow: none;
+}
+
 .prep-live-callout-context .prep-live-callout-label {
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
   color: var(--accent-primary);
@@ -2077,14 +2093,6 @@
   /* Opener carries an extra tint on the surface to signal "this is the
    * money block" — the story you actually lead with. Solid, no gradient. */
   background: color-mix(in srgb, var(--success) 10%, var(--prep-live-surface-2));
-}
-
-.prep-live-card-block-opener .prep-live-callout-context {
-  border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--accent-primary);
-  border-radius: 0 var(--prep-live-callout-radius) var(--prep-live-callout-radius) 0;
-  background: var(--prep-live-surface-2);
-  box-shadow: none;
 }
 
 .prep-live-card-block-landmine .prep-live-callout-script {
@@ -2143,23 +2151,29 @@
 }
 
 .prep-live-keypoints-panel {
+  /* Blue left-stripe = "information for the user" — same semantic carrier
+   * as Context/Follow-up callouts so keypoints rhyme visually with the
+   * rest of the page instead of reading as a separate component. */
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 10px 14px;
-  border-radius: var(--prep-live-callout-radius);
   border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 0 var(--prep-live-callout-radius) var(--prep-live-callout-radius) 0;
   background: var(--prep-live-surface-3);
   font-family: var(--font-mono);
 }
 
 .prep-live-keypoints-panel-numbered {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  /* Beat sheet — active recovery aid, slightly more prominent via a
+   * faint blue surface tint. Same stripe color as bulleted, just louder. */
+  background: color-mix(in srgb, var(--accent-primary) 5%, var(--prep-live-surface-3));
 }
 
 .prep-live-keypoints-panel-bulleted {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 8%, transparent);
+  /* Glance Points — passive informational, no extra tint. */
 }
 
 .prep-live-keypoints-label {
@@ -2338,14 +2352,17 @@
 }
 
 .prep-live-conditional-pair-trap {
-  border-color: color-mix(in srgb, var(--accent-orange) 42%, var(--border-subtle));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-orange) 12%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 96%, transparent) 100%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-orange) 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--accent-orange) 8%, transparent);
+  /* Caution semantic uses --warning (the established amber state token)
+   * so traps read at the same severity as escalation conditionals and the
+   * "solution" stage of STAR-arc story blocks — one orange across the page. */
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--border-subtle));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 12%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 96%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
 .prep-live-conditional-pair-trap .prep-live-conditional-label {
-  background: color-mix(in srgb, var(--accent-orange) 16%, transparent);
-  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
 }
 
 .prep-live-conditional-pair-reframe {
@@ -3103,6 +3120,33 @@
   font-size: 12px;
 }
 
+.prep-guidance-section {
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 82%, var(--bg-inset));
+}
+
+.prep-guidance-section-open {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent-cyan) 62%, transparent);
+}
+
+.prep-guidance-section .prep-section-heading {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.prep-guidance-section .prep-section-title {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.prep-guidance-section .prep-section-subtitle {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .prep-inline-grid {
   display: grid;
   gap: var(--space-2);
@@ -3197,10 +3241,8 @@
 }
 
 .prep-rules-panel-live {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  backdrop-filter: blur(12px);
+  /* Live rules stay in normal scroll flow so the panel cannot cover answer sections. */
+  position: static;
 }
 
 .prep-rules-panel-practice {
@@ -3225,12 +3267,17 @@
 }
 
 .prep-rules-panel-toggle {
+  width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.prep-rules-panel-toggle .prep-rules-panel-copy {
+  flex: 1;
 }
 
 .prep-rules-panel-chevron,
@@ -3276,6 +3323,18 @@
   color: color-mix(in srgb, var(--accent-cyan) 76%, var(--text-primary));
   font-size: 11px;
   font-weight: 700;
+}
+
+.prep-rules-panel-action {
+  align-self: flex-start;
+  margin-left: auto;
+  padding-top: 2px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .prep-rules-panel-subtitle {

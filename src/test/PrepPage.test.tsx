@@ -199,6 +199,114 @@ describe('PrepPage', () => {
     expect(screen.getByText('Editable Cards')).toBeTruthy()
   })
 
+  it('collapses live guidance editor subsections', async () => {
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getAllByText('Blank Set')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Add Rule' }))
+    fireEvent.click(screen.getByRole('button', { name: "Add Don't" }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Question' }))
+
+    expect(await screen.findByPlaceholderText('Use a short imperative one-liner.')).toBeTruthy()
+    expect(screen.getByPlaceholderText('What should the candidate avoid?')).toBeTruthy()
+    expect(screen.getByPlaceholderText('What do you want to ask?')).toBeTruthy()
+
+    const rulesToggle = screen.getByRole('button', {
+      name: /RulesShort, imperative reminders/i,
+    })
+    const dontsToggle = screen.getByRole('button', {
+      name: /Don'tsShort reminders/i,
+    })
+    const questionsToggle = screen.getByRole('button', {
+      name: /Questions to AskPrompts/i,
+    })
+    expect(rulesToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(dontsToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(questionsToggle.getAttribute('aria-expanded')).toBe('true')
+
+    fireEvent.click(dontsToggle)
+
+    expect(dontsToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(true)
+    expect(rulesToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(questionsToggle.getAttribute('aria-expanded')).toBe('true')
+
+    fireEvent.click(questionsToggle)
+
+    expect(questionsToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById('prep-live-questions-editor')?.hasAttribute('hidden')).toBe(true)
+    expect(rulesToggle.getAttribute('aria-expanded')).toBe('true')
+
+    fireEvent.click(rulesToggle)
+
+    expect(rulesToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(true)
+
+    fireEvent.click(rulesToggle)
+
+    expect(rulesToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(false)
+    expect(screen.getByPlaceholderText('Use a short imperative one-liner.')).toBeTruthy()
+  })
+
+  it('reopens live guidance editor subsections when switching decks', () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-a',
+          title: 'Alpha Prep',
+          company: 'Acme',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-15T00:00:00.000Z',
+          rules: ['Lead with outcomes.'],
+          donts: ['Do not ramble.'],
+          questionsToAsk: [{ question: 'What is next?', context: 'Scope signal.' }],
+          cards: [],
+        },
+        {
+          id: 'deck-b',
+          title: 'Beta Prep',
+          company: 'Beta',
+          role: 'Principal Engineer',
+          vectorId: 'platform',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-16T00:00:00.000Z',
+          rules: ['Anchor the platform story.'],
+          donts: ['Do not overclaim.'],
+          questionsToAsk: [{ question: 'Where is the risk?', context: 'Execution signal.' }],
+          cards: [],
+        },
+      ],
+      activeDeckId: 'deck-a',
+      activeMode: 'edit',
+    })
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /RulesShort, imperative reminders/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Don'tsShort reminders/i }))
+
+    expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(true)
+    expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Prep/i }))
+
+    expect(screen.getByRole('button', { name: /RulesShort, imperative reminders/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /Questions to AskPrompts/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(false)
+    expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Prep/i }))
+
+    expect(screen.getByRole('button', { name: /RulesShort, imperative reminders/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(true)
+    expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(true)
+  })
+
   it('persists round type, rules, donts, questions, and category guidance from the active prep set editors', async () => {
     render(<PrepPage />)
 

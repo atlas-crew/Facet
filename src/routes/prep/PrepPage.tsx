@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronDown, ChevronRight, Download, ExternalLink, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
@@ -344,6 +344,78 @@ function getPrepLibraryGroupMeta(company?: string | null) {
   }
 }
 
+interface PrepGuidanceEditorSectionProps {
+  title: string
+  subtitle: string
+  countLabel: string
+  editorId: string
+  isOpen: boolean
+  onToggle: () => void
+  actions: ReactNode
+  children: ReactNode
+}
+
+function PrepGuidanceEditorSection({
+  title,
+  subtitle,
+  countLabel,
+  editorId,
+  isOpen,
+  onToggle,
+  actions,
+  children,
+}: PrepGuidanceEditorSectionProps) {
+  return (
+    <section className={`prep-section prep-guidance-section ${isOpen ? 'prep-guidance-section-open' : ''}`}>
+      <div className="prep-section-header prep-section-header-collapsible">
+        <button
+          type="button"
+          className="prep-section-toggle"
+          aria-expanded={isOpen}
+          aria-controls={editorId}
+          onClick={onToggle}
+        >
+          <ChevronRight
+            size={16}
+            className={`prep-section-toggle-icon ${isOpen ? 'prep-section-toggle-icon-open' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="prep-section-heading">
+            <span className="prep-section-title">{title}</span>
+            <span className="prep-section-subtitle">{subtitle}</span>
+          </span>
+        </button>
+        <div className="prep-section-actions">
+          <span className="prep-section-count">{countLabel}</span>
+          {actions}
+        </div>
+      </div>
+
+      <div className="prep-section-body" id={editorId} hidden={!isOpen}>
+        {children}
+      </div>
+    </section>
+  )
+}
+
+const DEFAULT_EDIT_GROUP_OPEN = {
+  liveGuidance: true,
+  liveRules: true,
+  liveDonts: true,
+  liveQuestions: true,
+  categoryGuidance: false,
+  sourceMaterial: true,
+}
+
+type EditGroupOpenState = typeof DEFAULT_EDIT_GROUP_OPEN
+
+function createDefaultEditGroupOpen(overrides: Partial<EditGroupOpenState> = {}): EditGroupOpenState {
+  return {
+    ...DEFAULT_EDIT_GROUP_OPEN,
+    ...overrides,
+  }
+}
+
 export function PrepPage() {
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { vector?: string; skills?: string; q?: string }
@@ -367,11 +439,7 @@ export function PrepPage() {
   const [gapDraftAnswers, setGapDraftAnswers] = useState<Record<string, string>>({})
   const [expandedLibraryGroups, setExpandedLibraryGroups] = useState<Record<string, boolean>>({})
   const [collapsedLibraryGroups, setCollapsedLibraryGroups] = useState<Record<string, boolean>>({})
-  const [editGroupOpen, setEditGroupOpen] = useState({
-    liveGuidance: true,
-    categoryGuidance: false,
-    sourceMaterial: true,
-  })
+  const [editGroupOpen, setEditGroupOpen] = useState<EditGroupOpenState>(() => createDefaultEditGroupOpen())
   const [isDebriefEditorOpen, setIsDebriefEditorOpen] = useState(false)
   const [debriefMode, setDebriefMode] = useState<'quick' | 'card-review'>('quick')
   const [showMoreDebriefFields, setShowMoreDebriefFields] = useState(false)
@@ -379,6 +447,7 @@ export function PrepPage() {
   const [debriefDraft, setDebriefDraft] = useState<PrepDebriefDraft>(() => buildPrepDebriefDraft(null, undefined))
   const previousCategoryCountRef = useRef(0)
   const previousContextGapSignatureRef = useRef('')
+  const editGroupOpenByDeckRef = useRef<Record<string, EditGroupOpenState>>({})
   const gapModalCardRef = useRef<HTMLDivElement>(null)
   const gapAnswerFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
   const identityDraftConfirmCardRef = useRef<HTMLDivElement>(null)
@@ -413,6 +482,24 @@ export function PrepPage() {
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [decks, activeDeckId],
   )
+  const updateEditGroupOpen = useCallback(
+    (updater: (current: EditGroupOpenState) => EditGroupOpenState) => {
+      setEditGroupOpen((current) => {
+        const next = updater(current)
+        if (activeDeckId) {
+          editGroupOpenByDeckRef.current[activeDeckId] = next
+        }
+        return next
+      })
+    },
+    [activeDeckId],
+  )
+  const toggleEditGroupOpen = useCallback((key: keyof EditGroupOpenState) => {
+    updateEditGroupOpen((current) => ({
+      ...current,
+      [key]: !current[key],
+    }))
+  }, [updateEditGroupOpen])
   const activeDeckRoundNumber = activeDeck?.roundNumber ?? (activeDeck?.pipelineEntryId ? 1 : undefined)
   const activeDeckContractViolations = useMemo(
     () => sortPrepContractViolations(activeDeck?.contractViolations),
@@ -668,13 +755,26 @@ export function PrepPage() {
   const activeGap = activeDeckContextGaps[gapStepIndex] ?? null
 
   useEffect(() => {
+    const currentDeckIds = new Set(decks.map((deck) => deck.id))
+    for (const deckId of Object.keys(editGroupOpenByDeckRef.current)) {
+      if (!currentDeckIds.has(deckId)) {
+        delete editGroupOpenByDeckRef.current[deckId]
+      }
+    }
+  }, [decks])
+
+  useEffect(() => {
     const hasCategoryGuidance = activeDeckCategories.length > 0
     previousCategoryCountRef.current = activeDeckCategories.length
-    setEditGroupOpen({
-      liveGuidance: true,
+    const defaultOpen = createDefaultEditGroupOpen({
       categoryGuidance: hasCategoryGuidance,
-      sourceMaterial: true,
     })
+    const savedOpen = activeDeck?.id ? editGroupOpenByDeckRef.current[activeDeck.id] : undefined
+    const nextOpen = savedOpen ?? defaultOpen
+    if (activeDeck?.id && !savedOpen) {
+      editGroupOpenByDeckRef.current[activeDeck.id] = nextOpen
+    }
+    setEditGroupOpen(nextOpen)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset panel state when the active deck changes
   }, [activeDeck?.id])
 
@@ -695,13 +795,13 @@ export function PrepPage() {
 
   useEffect(() => {
     if (previousCategoryCountRef.current === 0 && activeDeckCategories.length > 0) {
-      setEditGroupOpen((current) => ({
+      updateEditGroupOpen((current) => ({
         ...current,
         categoryGuidance: true,
       }))
     }
     previousCategoryCountRef.current = activeDeckCategories.length
-  }, [activeDeckCategories.length])
+  }, [activeDeckCategories.length, updateEditGroupOpen])
 
   useEffect(() => {
     if (!activeDeck && activeMode !== 'edit') {
@@ -1021,12 +1121,12 @@ export function PrepPage() {
 
   const focusSourceMaterial = useCallback(() => {
     setActiveMode('edit')
-    setEditGroupOpen((current) => ({
+    updateEditGroupOpen((current) => ({
       ...current,
       sourceMaterial: true,
     }))
     setPendingFocusTarget('companyResearch')
-  }, [setActiveMode])
+  }, [setActiveMode, updateEditGroupOpen])
 
   useEffect(() => {
     if (pendingFocusTarget !== 'companyResearch' || activeMode !== 'edit' || !editGroupOpen.sourceMaterial) {
@@ -2468,7 +2568,7 @@ export function PrepPage() {
                 open={editGroupOpen.liveGuidance}
                 onToggle={(event) => {
                   const nextOpen = event.currentTarget.open
-                  setEditGroupOpen((current) => ({
+                  updateEditGroupOpen((current) => ({
                     ...current,
                     liveGuidance: nextOpen,
                   }))
@@ -2491,187 +2591,178 @@ export function PrepPage() {
                     className="prep-edit-rules-preview"
                   />
 
-                  <section className="prep-section">
-                    <div className="prep-section-header">
-                      <div className="prep-section-heading">
-                        <span className="prep-section-title">Rules</span>
-                        <span className="prep-section-subtitle">Short, imperative reminders that apply to the entire interview, not just one card.</span>
-                      </div>
-                      <div className="prep-section-actions">
-                        <span className="prep-section-count">{(activeDeck.rules ?? []).length} entries</span>
-                        <button
-                          className="prep-link-btn"
-                          type="button"
-                          onClick={() => updateActiveDeck({ rules: [...(activeDeck.rules ?? []), ''] })}
-                        >
-                          <Plus size={14} />
-                          Add Rule
-                        </button>
-                      </div>
-                    </div>
-
+                  <PrepGuidanceEditorSection
+                    title="Rules"
+                    subtitle="Short, imperative reminders that apply to the entire interview, not just one card."
+                    countLabel={`${(activeDeck.rules ?? []).length} entries`}
+                    editorId="prep-live-rules-editor"
+                    isOpen={editGroupOpen.liveRules}
+                    onToggle={() => toggleEditGroupOpen('liveRules')}
+                    actions={(
+                      <button
+                        className="prep-link-btn"
+                        type="button"
+                        onClick={() => updateActiveDeck({ rules: [...(activeDeck.rules ?? []), ''] })}
+                      >
+                        <Plus size={14} />
+                        Add Rule
+                      </button>
+                    )}
+                  >
                     {(activeDeck.rules ?? []).length > 0 ? (
-                      <div className="prep-section-body">
-                        {(activeDeck.rules ?? []).map((entry, index) => (
-                          <div key={`rule-${index}`} className="prep-section-item">
-                            <label className="prep-field">
-                              <span className="prep-field-label">Rule</span>
-                              <input
-                                className="prep-input"
-                                aria-label={`Rule ${index + 1}`}
-                                value={entry}
-                                onChange={(event) => updateActiveDeckListItem('rules', index, event.target.value)}
-                                placeholder="Use a short imperative one-liner."
-                              />
-                            </label>
-                            <button
-                              className="prep-icon-btn prep-icon-btn-danger"
-                              type="button"
-                              onClick={() =>
-                                updateActiveDeck({
-                                  rules: (activeDeck.rules ?? []).filter((_, itemIndex) => itemIndex !== index),
-                                })
-                              }
-                              title="Remove rule"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      (activeDeck.rules ?? []).map((entry, index) => (
+                        <div key={`rule-${index}`} className="prep-section-item">
+                          <label className="prep-field">
+                            <span className="prep-field-label">Rule</span>
+                            <input
+                              className="prep-input"
+                              aria-label={`Rule ${index + 1}`}
+                              value={entry}
+                              onChange={(event) => updateActiveDeckListItem('rules', index, event.target.value)}
+                              placeholder="Use a short imperative one-liner."
+                            />
+                          </label>
+                          <button
+                            className="prep-icon-btn prep-icon-btn-danger"
+                            type="button"
+                            onClick={() =>
+                              updateActiveDeck({
+                                rules: (activeDeck.rules ?? []).filter((_, itemIndex) => itemIndex !== index),
+                              })
+                            }
+                            title="Remove rule"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))
                     ) : (
                       <div className="prep-section-empty">No rules yet.</div>
                     )}
-                  </section>
+                  </PrepGuidanceEditorSection>
 
-                  <section className="prep-section">
-                    <div className="prep-section-header">
-                      <div className="prep-section-heading">
-                        <span className="prep-section-title">Don'ts</span>
-                        <span className="prep-section-subtitle">Short reminders about what to avoid in the room.</span>
-                      </div>
-                      <div className="prep-section-actions">
-                        <span className="prep-section-count">{(activeDeck.donts ?? []).length} entries</span>
-                        <button
-                          className="prep-link-btn"
-                          type="button"
-                          onClick={() => updateActiveDeck({ donts: [...(activeDeck.donts ?? []), ''] })}
-                        >
-                          <Plus size={14} />
-                          Add Don't
-                        </button>
-                      </div>
-                    </div>
-
+                  <PrepGuidanceEditorSection
+                    title="Don'ts"
+                    subtitle="Short reminders about what to avoid in the room."
+                    countLabel={`${(activeDeck.donts ?? []).length} entries`}
+                    editorId="prep-live-donts-editor"
+                    isOpen={editGroupOpen.liveDonts}
+                    onToggle={() => toggleEditGroupOpen('liveDonts')}
+                    actions={(
+                      <button
+                        className="prep-link-btn"
+                        type="button"
+                        onClick={() => updateActiveDeck({ donts: [...(activeDeck.donts ?? []), ''] })}
+                      >
+                        <Plus size={14} />
+                        Add Don't
+                      </button>
+                    )}
+                  >
                     {(activeDeck.donts ?? []).length > 0 ? (
-                      <div className="prep-section-body">
-                        {(activeDeck.donts ?? []).map((entry, index) => (
-                          <div key={`dont-${index}`} className="prep-section-item">
-                            <label className="prep-field">
-                              <span className="prep-field-label">Don't</span>
-                              <input
-                                className="prep-input"
-                                aria-label={`Don't ${index + 1}`}
-                                value={entry}
-                                onChange={(event) => updateActiveDeckListItem('donts', index, event.target.value)}
-                                placeholder="What should the candidate avoid?"
-                              />
-                            </label>
-                            <button
-                              className="prep-icon-btn prep-icon-btn-danger"
-                              type="button"
-                              onClick={() =>
-                                updateActiveDeck({
-                                  donts: (activeDeck.donts ?? []).filter((_, itemIndex) => itemIndex !== index),
-                                })
-                              }
-                              title="Remove don't"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      (activeDeck.donts ?? []).map((entry, index) => (
+                        <div key={`dont-${index}`} className="prep-section-item">
+                          <label className="prep-field">
+                            <span className="prep-field-label">Don't</span>
+                            <input
+                              className="prep-input"
+                              aria-label={`Don't ${index + 1}`}
+                              value={entry}
+                              onChange={(event) => updateActiveDeckListItem('donts', index, event.target.value)}
+                              placeholder="What should the candidate avoid?"
+                            />
+                          </label>
+                          <button
+                            className="prep-icon-btn prep-icon-btn-danger"
+                            type="button"
+                            onClick={() =>
+                              updateActiveDeck({
+                                donts: (activeDeck.donts ?? []).filter((_, itemIndex) => itemIndex !== index),
+                              })
+                            }
+                            title="Remove don't"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))
                     ) : (
                       <div className="prep-section-empty">No don'ts yet.</div>
                     )}
-                  </section>
+                  </PrepGuidanceEditorSection>
 
-                  <section className="prep-section">
-                    <div className="prep-section-header">
-                      <div className="prep-section-heading">
-                        <span className="prep-section-title">Questions to Ask</span>
-                        <span className="prep-section-subtitle">Prompts and why they matter so the ask-back feels intentional.</span>
-                      </div>
-                      <div className="prep-section-actions">
-                        <span className="prep-section-count">{(activeDeck.questionsToAsk ?? []).length} entries</span>
-                        <button
-                          className="prep-link-btn"
-                          type="button"
-                          onClick={() =>
-                            updateActiveDeck({
-                              questionsToAsk: [...(activeDeck.questionsToAsk ?? []), { question: '', context: '' }],
-                            })
-                          }
-                        >
-                          <Plus size={14} />
-                          Add Question
-                        </button>
-                      </div>
-                    </div>
-
+                  <PrepGuidanceEditorSection
+                    title="Questions to Ask"
+                    subtitle="Prompts and why they matter so the ask-back feels intentional."
+                    countLabel={`${(activeDeck.questionsToAsk ?? []).length} entries`}
+                    editorId="prep-live-questions-editor"
+                    isOpen={editGroupOpen.liveQuestions}
+                    onToggle={() => toggleEditGroupOpen('liveQuestions')}
+                    actions={(
+                      <button
+                        className="prep-link-btn"
+                        type="button"
+                        onClick={() =>
+                          updateActiveDeck({
+                            questionsToAsk: [...(activeDeck.questionsToAsk ?? []), { question: '', context: '' }],
+                          })
+                        }
+                      >
+                        <Plus size={14} />
+                        Add Question
+                      </button>
+                    )}
+                  >
                     {(activeDeck.questionsToAsk ?? []).length > 0 ? (
-                      <div className="prep-section-body">
-                        {(activeDeck.questionsToAsk ?? []).map((entry, index) => (
-                          <div key={`question-${index}`} className="prep-section-item">
-                            <div className="prep-inline-grid">
-                              <label className="prep-field">
-                                <span className="prep-field-label">Question</span>
-                                <input
-                                  className="prep-input"
-                                  aria-label={`Question to ask ${index + 1}`}
-                                  value={entry.question}
-                                  onChange={(event) => updateQuestionToAsk(index, { question: event.target.value })}
-                                  placeholder="What do you want to ask?"
-                                />
-                              </label>
-                              <label className="prep-field">
-                                <span className="prep-field-label">Context</span>
-                                <input
-                                  className="prep-input"
-                                  aria-label={`Question context ${index + 1}`}
-                                  value={entry.context}
-                                  onChange={(event) => updateQuestionToAsk(index, { context: event.target.value })}
-                                  placeholder="Why does this question matter?"
-                                />
-                              </label>
-                            </div>
-                            <button
-                              className="prep-icon-btn prep-icon-btn-danger"
-                              type="button"
-                              onClick={() =>
-                                updateActiveDeck({
-                                  questionsToAsk: (activeDeck.questionsToAsk ?? []).filter((_, itemIndex) => itemIndex !== index),
-                                })
-                              }
-                              title="Remove question"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                      (activeDeck.questionsToAsk ?? []).map((entry, index) => (
+                        <div key={`question-${index}`} className="prep-section-item">
+                          <div className="prep-inline-grid">
+                            <label className="prep-field">
+                              <span className="prep-field-label">Question</span>
+                              <input
+                                className="prep-input"
+                                aria-label={`Question to ask ${index + 1}`}
+                                value={entry.question}
+                                onChange={(event) => updateQuestionToAsk(index, { question: event.target.value })}
+                                placeholder="What do you want to ask?"
+                              />
+                            </label>
+                            <label className="prep-field">
+                              <span className="prep-field-label">Context</span>
+                              <input
+                                className="prep-input"
+                                aria-label={`Question context ${index + 1}`}
+                                value={entry.context}
+                                onChange={(event) => updateQuestionToAsk(index, { context: event.target.value })}
+                                placeholder="Why does this question matter?"
+                              />
+                            </label>
                           </div>
-                        ))}
-                      </div>
+                          <button
+                            className="prep-icon-btn prep-icon-btn-danger"
+                            type="button"
+                            onClick={() =>
+                              updateActiveDeck({
+                                questionsToAsk: (activeDeck.questionsToAsk ?? []).filter((_, itemIndex) => itemIndex !== index),
+                              })
+                            }
+                            title="Remove question"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))
                     ) : (
                       <div className="prep-section-empty">No questions to ask yet.</div>
                     )}
-                  </section>
+                  </PrepGuidanceEditorSection>
 
                   <details
                     className="prep-edit-group prep-edit-group-collapsible"
                     open={editGroupOpen.categoryGuidance}
                     onToggle={(event) => {
                       const nextOpen = event.currentTarget.open
-                      setEditGroupOpen((current) => ({
+                      updateEditGroupOpen((current) => ({
                         ...current,
                         categoryGuidance: nextOpen,
                       }))
@@ -2713,7 +2804,7 @@ export function PrepPage() {
                 open={editGroupOpen.sourceMaterial}
                 onToggle={(event) => {
                   const nextOpen = event.currentTarget.open
-                  setEditGroupOpen((current) => ({
+                  updateEditGroupOpen((current) => ({
                     ...current,
                     sourceMaterial: nextOpen,
                   }))

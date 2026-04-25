@@ -770,6 +770,25 @@ describe('PrepLiveMode', () => {
     expect(screen.getByLabelText('Anchor story').textContent).toContain('A project you are proud of')
   })
 
+  it('collapses the live rules panel without removing the rest of the cheatsheet', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const rulesToggle = screen.getByRole('button', { name: /The Rules/i })
+    const controlledId = rulesToggle.getAttribute('aria-controls')
+    expect(controlledId).toBeTruthy()
+
+    const rulesList = document.getElementById(controlledId!)
+    expect(rulesList?.hasAttribute('hidden')).toBe(false)
+    expect(rulesToggle.textContent).toContain('Collapse')
+
+    fireEvent.click(rulesToggle)
+
+    expect(rulesToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(rulesToggle.textContent).toContain('Expand')
+    expect(rulesList?.hasAttribute('hidden')).toBe(true)
+    expect(screen.getByRole('heading', { name: 'Warm-up notes' })).toBeTruthy()
+  })
+
   it('persists compact mode in localStorage and restores it on mount', () => {
     vi.useRealTimers()
     // Node 25+ ships a global `localStorage` behind the --localstorage-file

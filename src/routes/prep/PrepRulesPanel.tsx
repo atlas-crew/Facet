@@ -66,11 +66,13 @@ export function PrepRulesPanel({
           onClick={() => setIsOpen((current) => !current)}
           aria-expanded={isOpen}
           aria-controls={listId}
+          aria-label={isOpen ? `Collapse ${title}, ${normalizedRules.length} rules` : `Expand ${title}, ${normalizedRules.length} rules`}
         >
           <span className="prep-rules-panel-chevron" aria-hidden="true">
             {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </span>
           {headerCopy}
+          <span className="prep-rules-panel-action" aria-hidden="true">{isOpen ? 'Collapse' : 'Expand'}</span>
         </button>
       ) : (
         <div className="prep-rules-panel-header">{headerCopy}</div>
