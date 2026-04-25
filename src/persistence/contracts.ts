@@ -11,6 +11,7 @@ import type {
   SearchProfile,
   SearchRequest,
   SearchRun,
+  SearchThesis,
 } from '../types/search'
 import type { ResumeData, VectorSelection } from '../types'
 
@@ -59,6 +60,8 @@ export interface ResearchWorkspaceData {
   profile: SearchProfile | null
   requests: SearchRequest[]
   runs: SearchRun[]
+  theses?: SearchThesis[]
+  activeThesisId?: string | null
   /**
    * Feedback events raised against results (TASK-163). Optional in persisted snapshots
    * for backward compatibility — snapshots written before TASK-163 lack this field and

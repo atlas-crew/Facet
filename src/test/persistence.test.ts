@@ -255,6 +255,43 @@ describe('persistence foundation', () => {
       },
       requests: [],
       runs: [],
+      theses: [
+        {
+          id: 'sthesis-1',
+          createdAt: '2026-03-11T11:50:00.000Z',
+          updatedAt: '2026-03-11T11:55:00.000Z',
+          narrative: 'A search thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+          competitiveMoat: 'A specific platform moat with clear evidence.',
+          unfairAdvantages: [],
+          searchLanes: [
+            {
+              id: 'lane-1',
+              title: 'Platform modernization',
+              rationale:
+                'This lane targets strategic platform migration. It matches the candidate evidence.',
+              targetSignals: ['platform modernization'],
+            },
+          ],
+          interviewStrategy: 'Anchor on platform tradeoffs.',
+          lookFor: ['platform modernization'],
+          avoid: [],
+          keywordCombinations: [],
+          skillDepthMap: [
+            {
+              skill: 'Kubernetes',
+              depth: 'strong',
+              context: 'Specific deployment evidence from the identity model.',
+              searchSignal: 'Strong match signal.',
+            },
+          ],
+          source: 'generated',
+          identityVersion: 1,
+          feedbackIncorporated: [],
+        },
+      ],
+      activeThesisId: 'sthesis-1',
+      feedbackEvents: [],
+      activeResearchJob: null,
     })
     useUiStore.setState({
       selectedVector: 'backend',
@@ -295,6 +332,8 @@ describe('persistence foundation', () => {
     expect(snapshot.artifacts.recruiter.payload.cards).toHaveLength(1)
     expect(snapshot.artifacts.debrief.payload.sessions).toEqual([])
     expect(snapshot.artifacts.research.payload.profile?.id).toBe('sprof-1')
+    expect(snapshot.artifacts.research.payload.theses?.[0]?.id).toBe('sthesis-1')
+    expect(snapshot.artifacts.research.payload.activeThesisId).toBe('sthesis-1')
     expect(snapshot.artifacts.pipeline.payload).not.toHaveProperty('sortField')
     expect(snapshot.artifacts.prep.payload).not.toHaveProperty('activeDeckId')
 
@@ -620,6 +659,38 @@ describe('persistence foundation', () => {
 
     expect(hydrateStoresFromLegacyStorage()).toBe(true)
     expect(useSearchStore.getState().activeResearchJob).toEqual(activeResearchJob)
+  })
+
+  it('drops dangling active thesis ids during snapshot hydration', () => {
+    const snapshot = createWorkspaceSnapshotFromStores({
+      workspaceId: 'ws-thesis',
+      exportedAt: '2026-03-11T12:10:00.000Z',
+    })
+    snapshot.artifacts.research.payload.theses = [
+      {
+        id: 'sthesis-real',
+        createdAt: '2026-03-11T12:00:00.000Z',
+        updatedAt: '2026-03-11T12:00:00.000Z',
+        narrative: 'A thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+        competitiveMoat: 'A specific platform moat with evidence.',
+        unfairAdvantages: [],
+        searchLanes: [],
+        interviewStrategy: '',
+        lookFor: [],
+        avoid: [],
+        keywordCombinations: [],
+        skillDepthMap: [],
+        source: 'generated',
+        identityVersion: 1,
+        feedbackIncorporated: [],
+      },
+    ]
+    snapshot.artifacts.research.payload.activeThesisId = 'missing-thesis'
+
+    applyWorkspaceSnapshotToStores(snapshot)
+
+    expect(useSearchStore.getState().theses[0]?.id).toBe('sthesis-real')
+    expect(useSearchStore.getState().activeThesisId).toBeNull()
   })
 
   it('hydrates local preferences into UI, pipeline, and prep stores', () => {
@@ -1065,6 +1136,22 @@ describe('persistence foundation', () => {
         },
       }),
     ).toThrow(/artifacts.resume/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              ...valid.artifacts.research.payload,
+              theses: [],
+              activeThesisId: 'missing-thesis',
+            },
+          },
+        },
+      }),
+    ).toThrow(/activeThesisId/)
     expect(() =>
       assertValidWorkspaceSnapshot({
         ...valid,

@@ -15,7 +15,7 @@ import { useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useSearchStore } from '../store/searchStore'
-import type { SearchFeedbackEvent } from '../types/search'
+import type { SearchFeedbackEvent, SearchThesis } from '../types/search'
 import { slugify } from '../utils/idUtils'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
@@ -31,6 +31,40 @@ const backupSnapshot = () =>
     userId: null,
     exportedAt: '2026-03-11T12:00:00.000Z',
   })
+
+const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
+  id: 'sthesis-current',
+  createdAt: '2026-03-11T12:00:00.000Z',
+  updatedAt: '2026-03-11T12:00:00.000Z',
+  narrative: 'A thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+  competitiveMoat: 'A specific platform moat with clear evidence.',
+  unfairAdvantages: [],
+  searchLanes: [
+    {
+      id: 'lane-1',
+      title: 'Platform modernization',
+      rationale:
+        'This lane targets strategic platform migration. It matches the candidate evidence.',
+      targetSignals: ['platform modernization'],
+    },
+  ],
+  interviewStrategy: 'Anchor on platform tradeoffs.',
+  lookFor: ['platform modernization'],
+  avoid: [],
+  keywordCombinations: [],
+  skillDepthMap: [
+    {
+      skill: 'Kubernetes',
+      depth: 'strong',
+      context: 'Specific deployment evidence from the identity model.',
+      searchSignal: 'Strong match signal.',
+    },
+  ],
+  source: 'generated',
+  identityVersion: 1,
+  feedbackIncorporated: [],
+  ...overrides,
+})
 
 describe('workspace backup bundle', () => {
   beforeEach(() => {
@@ -348,6 +382,88 @@ describe('workspace backup merge helpers', () => {
 
     imported.artifacts.research.payload.activeResearchJob = null
     expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toBeNull()
+  })
+
+  it('merges search theses additively and preserves the current active thesis', () => {
+    useSearchStore.setState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [buildSearchThesis({ id: 'sthesis-current' })],
+      activeThesisId: 'sthesis-current',
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+    const current = createWorkspaceSnapshotFromStores({
+      workspaceId: 'facet-local-workspace',
+      exportedAt: '2026-03-11T12:00:00.000Z',
+    })
+
+    useSearchStore.setState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [buildSearchThesis({ id: 'sthesis-imported', source: 'user-edited' })],
+      activeThesisId: 'sthesis-imported',
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+    const imported = createWorkspaceSnapshotFromStores({
+      workspaceId: 'facet-local-workspace',
+      exportedAt: '2026-03-11T13:00:00.000Z',
+    })
+
+    const merged = mergeWorkspaceSnapshots(current, imported)
+
+    expect(merged.artifacts.research.payload.theses?.map((thesis) => thesis.id)).toEqual([
+      'sthesis-current',
+      'sthesis-imported',
+    ])
+    expect(merged.artifacts.research.payload.activeThesisId).toBe('sthesis-current')
+
+    current.artifacts.research.payload.activeThesisId = 'missing-thesis'
+    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeThesisId).toBe(
+      'sthesis-imported',
+    )
+  })
+
+  it('keeps the newest thesis copy when import snapshots collide by id', () => {
+    useSearchStore.setState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [buildSearchThesis({ id: 'sthesis-same', updatedAt: '2026-03-11T12:00:00.000Z' })],
+      activeThesisId: 'sthesis-same',
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+    const current = createWorkspaceSnapshotFromStores({
+      workspaceId: 'facet-local-workspace',
+      exportedAt: '2026-03-11T12:00:00.000Z',
+    })
+
+    useSearchStore.setState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [
+        buildSearchThesis({
+          id: 'sthesis-same',
+          updatedAt: '2026-03-11T13:00:00.000Z',
+          narrative: 'Imported newer thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+        }),
+      ],
+      activeThesisId: 'sthesis-same',
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+    const imported = createWorkspaceSnapshotFromStores({
+      workspaceId: 'facet-local-workspace',
+      exportedAt: '2026-03-11T13:00:00.000Z',
+    })
+
+    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.theses?.[0]?.narrative)
+      .toBe('Imported newer thesis.\n\nSecond paragraph.\n\nThird paragraph.')
   })
 
   it('scopes imported snapshots to the active workspace id', () => {

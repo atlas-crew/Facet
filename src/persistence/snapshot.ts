@@ -307,6 +307,8 @@ export const createWorkspaceSnapshotFromStores = (
           profile: persistableResearchProfile(searchState.profile),
           requests: cloneValue(searchState.requests),
           runs: cloneValue(searchState.runs),
+          theses: cloneValue(searchState.theses),
+          activeThesisId: searchState.activeThesisId,
           feedbackEvents: cloneValue(searchState.feedbackEvents),
           activeResearchJob: cloneValue(searchState.activeResearchJob),
         },

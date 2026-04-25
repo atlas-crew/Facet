@@ -139,10 +139,19 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       null,
   }))
 
+  const researchTheses = cloneValue(snapshot.artifacts.research.payload.theses ?? [])
+  const activeThesisId =
+    snapshot.artifacts.research.payload.activeThesisId &&
+    researchTheses.some((thesis) => thesis.id === snapshot.artifacts.research.payload.activeThesisId)
+      ? snapshot.artifacts.research.payload.activeThesisId
+      : null
+
   useSearchStore.setState({
     profile: persistedResearchProfile(cloneValue(snapshot.artifacts.research.payload.profile)),
     requests: cloneValue(snapshot.artifacts.research.payload.requests),
     runs: cloneValue(snapshot.artifacts.research.payload.runs),
+    theses: researchTheses,
+    activeThesisId,
     feedbackEvents: cloneValue(
       snapshot.artifacts.research.payload.feedbackEvents ?? [],
     ),
@@ -284,10 +293,19 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
       null,
   }))
 
+  const researchTheses = cloneValue(migratedSearch.theses ?? [])
+  const activeThesisId =
+    migratedSearch.activeThesisId &&
+    researchTheses.some((thesis) => thesis.id === migratedSearch.activeThesisId)
+      ? migratedSearch.activeThesisId
+      : null
+
   useSearchStore.setState({
     profile: persistedResearchProfile(cloneValue(migratedSearch.profile ?? null)),
     requests: cloneValue(migratedSearch.requests ?? []),
     runs: cloneValue(migratedSearch.runs ?? []),
+    theses: researchTheses,
+    activeThesisId,
     feedbackEvents: cloneValue(migratedSearch.feedbackEvents ?? []),
     activeResearchJob: cloneValue(migratedSearch.activeResearchJob ?? null),
   })

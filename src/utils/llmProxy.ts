@@ -164,6 +164,8 @@ export interface LlmProxyOptions {
   maxTokens?: number
   /** Optional Anthropic Messages output_config passthrough. */
   outputConfig?: Record<string, unknown>
+  /** Optional Facet proxy thinking budget; the proxy translates this to Anthropic thinking. */
+  thinkingBudget?: number
   /** Optional Anthropic beta names; proxy forwards them as anthropic-beta. */
   betas?: string[]
   /** Optional API key header. */
@@ -221,6 +223,7 @@ export async function callLlmProxy(
         ...(options.model ? { model: options.model } : {}),
         ...(options.feature ? { feature: options.feature } : {}),
         ...(typeof options.maxTokens === 'number' ? { max_tokens: options.maxTokens } : {}),
+        ...(typeof options.thinkingBudget === 'number' ? { thinking_budget: options.thinkingBudget } : {}),
         ...(options.outputConfig ? { output_config: options.outputConfig } : {}),
         ...(options.betas ? { betas: options.betas } : {}),
       }),

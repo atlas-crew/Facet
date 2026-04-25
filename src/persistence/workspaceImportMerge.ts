@@ -10,6 +10,7 @@ import type {
   SearchProfile,
   SearchRequest,
   SearchRun,
+  SearchThesis,
 } from '../types/search'
 import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
@@ -104,6 +105,18 @@ const mergeSearchRequests = (existing: SearchRequest[], incoming: SearchRequest[
 const mergeSearchRuns = (existing: SearchRun[], incoming: SearchRun[]) =>
   mergeById(existing, incoming)
 
+const mergeSearchTheses = (existing: SearchThesis[], incoming: SearchThesis[]) => {
+  const byId = new Map<string, SearchThesis>()
+  for (const thesis of existing) byId.set(thesis.id, thesis)
+  for (const imported of incoming) {
+    const current = byId.get(imported.id)
+    if (!current || imported.updatedAt.localeCompare(current.updatedAt) > 0) {
+      byId.set(imported.id, imported)
+    }
+  }
+  return Array.from(byId.values())
+}
+
 /**
  * Feedback events are mutated post-creation by `markFeedbackApplied` and
  * `markFeedbackReflectedInThesis`. A plain mergeById (which keeps the local
@@ -178,6 +191,20 @@ export const mergeWorkspaceSnapshots = (
     current.artifacts.debrief ??
     imported.artifacts.debrief ??
     createEmptyDebriefArtifactSnapshot(current.workspace.id, imported.exportedAt)
+  const mergedSearchTheses = mergeSearchTheses(
+    current.artifacts.research.payload.theses ?? [],
+    imported.artifacts.research.payload.theses ?? [],
+  )
+  // Keep the first explicitly active thesis id that still points at a merged thesis:
+  // current workspace selection wins, imported selection is used only when current is absent.
+  const mergedActiveThesisId =
+    [
+      current.artifacts.research.payload.activeThesisId,
+      imported.artifacts.research.payload.activeThesisId,
+    ].find(
+      (id): id is string =>
+        typeof id === 'string' && mergedSearchTheses.some((thesis) => thesis.id === id),
+    ) ?? null
 
   return {
     ...cloneValue(current),
@@ -263,6 +290,8 @@ export const mergeWorkspaceSnapshots = (
             current.artifacts.research.payload.runs,
             imported.artifacts.research.payload.runs,
           ),
+          theses: mergedSearchTheses,
+          activeThesisId: mergedActiveThesisId,
           feedbackEvents: mergeSearchFeedbackEvents(
             current.artifacts.research.payload.feedbackEvents ?? [],
             imported.artifacts.research.payload.feedbackEvents ?? [],

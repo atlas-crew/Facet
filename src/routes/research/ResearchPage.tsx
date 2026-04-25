@@ -30,6 +30,10 @@ import {
   streamDeepResearchJob,
 } from '../../utils/deepSearchClient'
 import {
+  generateSearchThesisFromIdentity,
+  validateSearchThesis,
+} from '../../utils/thesisGenerator'
+import {
   inferSearchProfile,
   inferSearchProfileFromIdentity,
 } from '../../utils/searchProfileInference'
@@ -198,10 +202,17 @@ export function ResearchPage() {
     addRequest,
     addRun,
     updateRun,
+    theses,
+    activeThesisId,
+    addThesis,
+    saveThesisRevision,
+    setActiveThesis,
     activeResearchJob,
     setActiveResearchJob,
     updateActiveResearchJob,
     clearActiveResearchJob,
+    getUnreflectedFeedback,
+    markFeedbackReflectedInThesis,
   } = useSearchStore()
 
   const [activeTab, setActiveTab] = useState<ResearchTab>('profile')
@@ -209,8 +220,12 @@ export function ResearchPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(runs.at(-1)?.id ?? null)
   const [resultVectorSelections, setResultVectorSelections] = useState<Record<string, string>>({})
   const [isInferring, setIsInferring] = useState(false)
+  const [isGeneratingThesis, setIsGeneratingThesis] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [thesisDraft, setThesisDraft] = useState<SearchThesis | null>(null)
+  const [thesisDraftIsDirty, setThesisDraftIsDirty] = useState(false)
+  const [thesisContractViolations, setThesisContractViolations] = useState<string[]>([])
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
   const [researchJobTransport, setResearchJobTransport] = useState<'polling' | 'sse'>('polling')
@@ -226,6 +241,10 @@ export function ResearchPage() {
   const researchJobEventIdRef = useRef(0)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
+  const activeThesis = useMemo(
+    () => theses.find((thesis) => thesis.id === activeThesisId) ?? null,
+    [activeThesisId, theses],
+  )
 
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
@@ -269,6 +288,12 @@ export function ResearchPage() {
     !currentIdentity &&
     effectiveProfile != null &&
     effectiveProfile.inferredFromResumeVersion !== resumeData.version
+  const thesisIsStale =
+    Boolean(
+      currentIdentity &&
+      activeThesis &&
+      currentIdentity.model_revision > activeThesis.identityVersion,
+    )
 
   const sortedRuns = useMemo(
     () => [...runs].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
@@ -360,6 +385,14 @@ export function ResearchPage() {
   useEffect(() => {
     setRequestDraft(buildRequestDraft(effectiveProfile))
   }, [effectiveProfile])
+
+  useEffect(() => {
+    setThesisDraft(activeThesis ? structuredClone(activeThesis) : null)
+    setThesisDraftIsDirty(false)
+    setThesisContractViolations(
+      activeThesis ? validateSearchThesis(activeThesis, currentIdentity) : [],
+    )
+  }, [activeThesis, currentIdentity])
 
   useEffect(() => {
     if (currentIdentity && profileSourceKind !== 'identity' && profile) {
@@ -727,6 +760,175 @@ export function ResearchPage() {
     }
   }
 
+  const handleGenerateThesis = async () => {
+    if (!currentIdentity) {
+      setPageError('Generate a thesis from the Identity model before running thesis-driven search.')
+      setActiveTab('profile')
+      return
+    }
+
+    try {
+      if (thesisDraftIsDirty) {
+        setPageError('Save or discard thesis edits before regenerating.')
+        return
+      }
+      ensureEndpoint()
+      setPageError(null)
+      setIsGeneratingThesis(true)
+      const feedbackEvents = getUnreflectedFeedback(activeThesis?.id)
+      const generated = await generateSearchThesisFromIdentity(
+        currentIdentity,
+        aiEndpoint,
+        feedbackEvents,
+      )
+      const saved = addThesis(generated.thesis)
+      setActiveThesis(saved.id)
+      setThesisDraft(structuredClone(saved))
+      setThesisDraftIsDirty(false)
+      setThesisContractViolations(generated.contractViolations)
+      setActiveTab('search')
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Thesis generation failed.')
+    } finally {
+      setIsGeneratingThesis(false)
+    }
+  }
+
+  const updateThesisDraft = (patch: Partial<SearchThesis>) => {
+    setThesisDraft((current) => (current ? { ...current, ...patch } : current))
+    setThesisDraftIsDirty(true)
+  }
+
+  const updateThesisLane = (
+    index: number,
+    patch: Partial<SearchThesis['searchLanes'][number]>,
+  ) => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            searchLanes: current.searchLanes.map((lane, laneIndex) =>
+              laneIndex === index ? { ...lane, ...patch } : lane,
+            ),
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const addThesisLane = () => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            searchLanes: [
+              ...current.searchLanes,
+              {
+                id: createId('slane'),
+                title: 'New search lane',
+                rationale: 'Describe why this lane is strategically useful before launching search.',
+                competitiveContext: '',
+                targetSignals: [],
+              },
+            ],
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const removeThesisLane = (index: number) => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            searchLanes: current.searchLanes.filter((_, laneIndex) => laneIndex !== index),
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const updateThesisAvoid = (
+    index: number,
+    patch: Partial<SearchThesis['avoid'][number]>,
+  ) => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            avoid: current.avoid.map((entry, entryIndex) =>
+              entryIndex === index ? { ...entry, ...patch } : entry,
+            ),
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const addThesisAvoid = () => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            avoid: [...current.avoid, { label: 'New avoid signal', condition: '' }],
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const removeThesisAvoid = (index: number) => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            avoid: current.avoid.filter((_, entryIndex) => entryIndex !== index),
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const updateThesisSkillDepth = (
+    index: number,
+    patch: Partial<SearchThesis['skillDepthMap'][number]>,
+  ) => {
+    setThesisDraft((current) =>
+      current
+        ? {
+            ...current,
+            skillDepthMap: current.skillDepthMap.map((entry, entryIndex) =>
+              entryIndex === index ? { ...entry, ...patch } : entry,
+            ),
+          }
+        : current,
+    )
+    setThesisDraftIsDirty(true)
+  }
+
+  const handleSaveThesisDraft = () => {
+    if (!thesisDraft) return
+    if (!activeThesis) {
+      setPageError('Generate or select a thesis before saving edits.')
+      return
+    }
+
+    const saved = saveThesisRevision(activeThesis.id, thesisDraft)
+    if (!saved) {
+      setPageError('Could not save thesis revision.')
+      return
+    }
+
+    setActiveThesis(saved.id)
+    if (saved.feedbackIncorporated.length > 0) {
+      markFeedbackReflectedInThesis(saved.feedbackIncorporated, saved.id)
+    }
+    setThesisDraft(structuredClone(saved))
+    setThesisDraftIsDirty(false)
+    setThesisContractViolations(validateSearchThesis(saved, currentIdentity))
+  }
+
   const handleLaunchSearch = async () => {
     if (!effectiveProfile || !executableProfile) {
       setPageError('Build or restore a search profile before launching search.')
@@ -743,16 +945,23 @@ export function ResearchPage() {
         ...requestDraft,
         excludeCompanies: closedPipelineCompanies,
       })
-      const thesisSnapshot = buildDeepResearchThesisSnapshot({
-        profile: executableProfile,
-        request,
-        identity: currentIdentity,
-      })
+      // Reviewed theses are the strategy artifact for Phase 2; request knobs stay
+      // on the SearchRequest while the thesis remains stable across retries.
+      const thesisSnapshot =
+        activeThesis ??
+        buildDeepResearchThesisSnapshot({
+          profile: executableProfile,
+          request,
+          identity: currentIdentity,
+        })
       await startDeepResearchRun({
         request,
         thesisSnapshot,
         identityEvidence: buildDeepResearchIdentityEvidence(currentIdentity, executableProfile),
       })
+      if (activeThesis?.feedbackIncorporated.length) {
+        markFeedbackReflectedInThesis(activeThesis.feedbackIncorporated, activeThesis.id)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search execution failed.'
       setPageError(message)
@@ -1371,6 +1580,283 @@ export function ResearchPage() {
         hidden={activeTab !== 'search'}
       >
           <div className="research-grid research-grid-two">
+            <section className="research-card research-field-span research-thesis-card">
+              <div className="research-card-header">
+                <div>
+                  <p className="research-eyebrow">Phase 1</p>
+                  <h2>Search Thesis</h2>
+                  <p>
+                    Generate a strategy thesis from Identity, review the structured lanes, then
+                    use the saved thesis as the preserved input for deep research.
+                  </p>
+                </div>
+                <div className="research-header-actions">
+                  <button
+                    type="button"
+                    className="research-btn"
+                    onClick={() => void handleGenerateThesis()}
+                    disabled={!currentIdentity || isGeneratingThesis || isSearching || thesisDraftIsDirty}
+                    aria-busy={isGeneratingThesis}
+                  >
+                    <Sparkles size={16} />
+                    {isGeneratingThesis
+                      ? 'Generating thesis…'
+                      : activeThesis
+                        ? 'Regenerate Thesis'
+                        : 'Generate Thesis'}
+                  </button>
+                  <button
+                    type="button"
+                    className="research-btn research-btn-primary"
+                    onClick={handleSaveThesisDraft}
+                    disabled={!thesisDraft || !activeThesis || isGeneratingThesis || isSearching}
+                  >
+                    Save thesis edits
+                  </button>
+                </div>
+              </div>
+
+              {!currentIdentity ? (
+                <p className="research-muted">
+                  Identity model required for AI thesis generation. Resume-backed search can
+                  still launch with a deterministic fallback thesis.
+                </p>
+              ) : null}
+
+              {thesisIsStale ? (
+                <div className="research-warning" role="status">
+                  <strong>Thesis may be stale</strong>
+                  <p>
+                    This thesis was generated from identity v{activeThesis?.identityVersion};
+                    the current identity model is v{currentIdentity?.model_revision}.
+                  </p>
+                </div>
+              ) : null}
+
+              {thesisDraftIsDirty ? (
+                <p className="research-muted">
+                  Save thesis edits before regenerating so local changes are not lost.
+                </p>
+              ) : null}
+
+              {thesisContractViolations.length > 0 ? (
+                <div className="research-warning" role="status">
+                  <strong>Thesis quality warnings</strong>
+                  <ul className="research-list">
+                    {thesisContractViolations.map((violation) => (
+                      <li key={violation}>{violation}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {!thesisDraft ? (
+                <div className="research-empty">
+                  <h2>No thesis reviewed yet</h2>
+                  <p>
+                    Generate a thesis to expose the strategic narrative, search lanes,
+                    avoid list, and skill-depth calibration before deep research starts.
+                  </p>
+                </div>
+              ) : (
+                <div className="research-stack">
+                  <div className="research-form-grid">
+                    <label className="research-field research-field-span">
+                      <span>Strategic narrative</span>
+                      <textarea
+                        className="research-textarea"
+                        rows={7}
+                        aria-label="Thesis narrative"
+                        value={thesisDraft.narrative}
+                        onChange={(event) => updateThesisDraft({ narrative: event.target.value })}
+                      />
+                    </label>
+
+                    <label className="research-field research-field-span">
+                      <span>Competitive moat</span>
+                      <textarea
+                        className="research-textarea"
+                        rows={3}
+                        aria-label="Competitive moat"
+                        value={thesisDraft.competitiveMoat}
+                        onChange={(event) =>
+                          updateThesisDraft({ competitiveMoat: event.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <section className="research-stack" aria-label="Thesis search lanes">
+                    <div className="research-vector-card-header">
+                      <h3 className="research-subtitle">Search lanes</h3>
+                      <button type="button" className="research-btn" onClick={addThesisLane}>
+                        Add lane
+                      </button>
+                    </div>
+                    {thesisDraft.searchLanes.length === 0 ? (
+                      <p className="research-muted">No lanes yet.</p>
+                    ) : (
+                      thesisDraft.searchLanes.map((lane, index) => (
+                        <div key={lane.id} className="research-thesis-editor-card">
+                          <div className="research-form-grid">
+                            <label className="research-field">
+                              <span>Lane title</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Lane ${index + 1} title`}
+                                value={lane.title}
+                                onChange={(event) =>
+                                  updateThesisLane(index, { title: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field">
+                              <span>Target signals</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Lane ${index + 1} target signals`}
+                                value={lane.targetSignals.join(', ')}
+                                onChange={(event) =>
+                                  updateThesisLane(index, {
+                                    targetSignals: splitTags(event.target.value),
+                                  })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Rationale</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={3}
+                                aria-label={`Lane ${index + 1} rationale`}
+                                value={lane.rationale}
+                                onChange={(event) =>
+                                  updateThesisLane(index, { rationale: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Competitive context</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Lane ${index + 1} competitive context`}
+                                value={lane.competitiveContext ?? ''}
+                                onChange={(event) =>
+                                  updateThesisLane(index, { competitiveContext: event.target.value })
+                                }
+                              />
+                            </label>
+                          </div>
+                          <button
+                            type="button"
+                            className="research-btn research-btn-danger"
+                            onClick={() => removeThesisLane(index)}
+                          >
+                            Remove lane
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </section>
+
+                  <section className="research-stack" aria-label="Thesis avoid list">
+                    <div className="research-vector-card-header">
+                      <h3 className="research-subtitle">Avoid and qualifying conditions</h3>
+                      <button type="button" className="research-btn" onClick={addThesisAvoid}>
+                        Add avoid signal
+                      </button>
+                    </div>
+                    {thesisDraft.avoid.length === 0 ? (
+                      <p className="research-muted">No avoid signals yet.</p>
+                    ) : (
+                      thesisDraft.avoid.map((entry, index) => (
+                        <div key={`${entry.label}-${index}`} className="research-thesis-row">
+                          <label className="research-field">
+                            <span>Avoid</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Avoid ${index + 1} label`}
+                              value={entry.label}
+                              onChange={(event) =>
+                                updateThesisAvoid(index, { label: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field">
+                            <span>Condition</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Avoid ${index + 1} condition`}
+                              value={entry.condition ?? ''}
+                              onChange={(event) =>
+                                updateThesisAvoid(index, { condition: event.target.value })
+                              }
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="research-btn research-btn-danger"
+                            onClick={() => removeThesisAvoid(index)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </section>
+
+                  <section className="research-stack" aria-label="Thesis skill depth map">
+                    <h3 className="research-subtitle">Skill-depth calibration</h3>
+                    {thesisDraft.skillDepthMap.length === 0 ? (
+                      <p className="research-muted">No skill-depth entries yet.</p>
+                    ) : (
+                      thesisDraft.skillDepthMap.map((entry, index) => (
+                        <div key={`${entry.skill}-${index}`} className="research-thesis-editor-card">
+                          <div className="research-form-grid">
+                            <label className="research-field">
+                              <span>Skill</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} skill`}
+                                value={entry.skill}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { skill: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field">
+                              <span>Depth</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} depth`}
+                                value={entry.depth}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { depth: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Context</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} context`}
+                                value={entry.context}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { context: event.target.value })
+                                }
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </section>
+                </div>
+              )}
+            </section>
+
             <section className="research-card">
               <div className="research-card-header">
                 <div>

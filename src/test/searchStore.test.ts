@@ -3,7 +3,42 @@ import {
   migrateSearchState,
   useSearchStore,
 } from '../store/searchStore'
+import type { SearchThesis } from '../types/search'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+
+const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
+  id: 'sthesis-1',
+  createdAt: '2026-04-20T10:00:00.000Z',
+  updatedAt: '2026-04-20T10:00:00.000Z',
+  narrative: 'A saved thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+  competitiveMoat: 'A specific platform moat with strong identity evidence.',
+  unfairAdvantages: [],
+  searchLanes: [
+    {
+      id: 'lane-1',
+      title: 'Platform modernization',
+      rationale:
+        'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+      targetSignals: ['platform modernization'],
+    },
+  ],
+  interviewStrategy: 'Anchor on deployment architecture.',
+  lookFor: ['platform modernization'],
+  avoid: [],
+  keywordCombinations: [],
+  skillDepthMap: [
+    {
+      skill: 'Kubernetes',
+      depth: 'strong',
+      context: 'Specific customer deployment evidence from the identity model.',
+      searchSignal: 'Strong match signal.',
+    },
+  ],
+  source: 'generated',
+  identityVersion: 1,
+  feedbackIncorporated: [],
+  ...overrides,
+})
 
 describe('searchStore', () => {
   beforeEach(() => {
@@ -11,6 +46,8 @@ describe('searchStore', () => {
       profile: null,
       requests: [],
       runs: [],
+      theses: [],
+      activeThesisId: null,
       feedbackEvents: [],
       activeResearchJob: null,
     })
@@ -232,6 +269,61 @@ describe('searchStore', () => {
     expect(useSearchStore.getState().profile).toBeNull()
   })
 
+  it('stores thesis revisions and tracks the active thesis', () => {
+    const first = useSearchStore.getState().addThesis(buildSearchThesis({
+      unfairAdvantages: [
+        {
+          combination: 'Kubernetes plus product judgment',
+          depth: 'strong',
+          targetCompanyProfile: 'Platform modernization teams',
+        },
+      ],
+      interviewStrategy: 'Preserve this interview strategy.',
+      lookFor: ['platform modernization', 'developer leverage'],
+      keywordCombinations: [
+        { query: '"platform modernization"', lane: 'lane-1', noiseLevel: 'low' },
+      ],
+      feedbackIncorporated: ['sfe-1'],
+    }))
+
+    expect(first.id).toBe('sthesis-1')
+    expect(useSearchStore.getState().activeThesisId).toBe(first.id)
+
+    const savedRevision = useSearchStore.getState().saveThesisRevision(first.id, {
+      narrative: 'Edited narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+      searchLanes: [
+        {
+          id: 'lane-1',
+          title: 'Developer platform modernization',
+          rationale:
+            'This lane narrows the search to platform modernization. It keeps the search away from pure operations.',
+          targetSignals: ['developer platform'],
+        },
+      ],
+    })
+
+    expect(savedRevision?.id).toBe(first.id)
+    expect(savedRevision).toMatchObject({
+      source: 'user-edited',
+      narrative: 'Edited narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+      unfairAdvantages: first.unfairAdvantages,
+      interviewStrategy: first.interviewStrategy,
+      lookFor: first.lookFor,
+      keywordCombinations: first.keywordCombinations,
+      feedbackIncorporated: first.feedbackIncorporated,
+    })
+    expect(useSearchStore.getState().activeThesisId).toBe(savedRevision?.id)
+    expect(useSearchStore.getState().theses).toHaveLength(1)
+
+    useSearchStore.getState().setActiveThesis(first.id)
+    expect(useSearchStore.getState().activeThesisId).toBe(first.id)
+    useSearchStore.getState().setActiveThesis('missing-thesis')
+    expect(useSearchStore.getState().activeThesisId).toBeNull()
+    expect(useSearchStore.getState().saveThesisRevision('missing-thesis', {})).toBeNull()
+    expect(() => useSearchStore.getState().addThesis(buildSearchThesis({ id: first.id })))
+      .toThrow(/duplicate search thesis id/i)
+  })
+
   it('migrates persisted profile, request, and run metadata and safely defaults invalid state', () => {
     const migrated = migrateSearchState({
       profile: {
@@ -280,8 +372,35 @@ describe('searchStore', () => {
       profile: null,
       requests: [],
       runs: [],
+      theses: [],
+      activeThesisId: null,
       feedbackEvents: [],
       activeResearchJob: null,
+    })
+
+    expect(migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [buildSearchThesis({ id: 'sthesis-legacy' })],
+      activeThesisId: 'sthesis-legacy',
+    })).toMatchObject({
+      theses: [expect.objectContaining({ id: 'sthesis-legacy' })],
+      activeThesisId: 'sthesis-legacy',
+    })
+
+    expect(migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [{ id: 'partial-thesis' }],
+      activeThesisId: 'partial-thesis',
+    }).theses[0]).toMatchObject({
+      id: 'partial-thesis',
+      narrative: '',
+      searchLanes: [],
+      avoid: [],
+      skillDepthMap: [],
     })
 
     expect(migrateSearchState({

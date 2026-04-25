@@ -66,6 +66,29 @@ const assertValidArtifactPayload = (
           'Workspace snapshot has invalid artifacts.research.payload.feedbackEvents (expected array).',
         )
       }
+      if (payload.theses !== undefined && !Array.isArray(payload.theses)) {
+        throw new Error(
+          'Workspace snapshot has invalid artifacts.research.payload.theses (expected array).',
+        )
+      }
+      if (
+        payload.activeThesisId !== undefined &&
+        payload.activeThesisId !== null &&
+        typeof payload.activeThesisId !== 'string'
+      ) {
+        throw new Error(
+          'Workspace snapshot has invalid artifacts.research.payload.activeThesisId (expected string or null).',
+        )
+      }
+      if (
+        typeof payload.activeThesisId === 'string' &&
+        Array.isArray(payload.theses) &&
+        !payload.theses.some((thesis) => isRecord(thesis) && thesis.id === payload.activeThesisId)
+      ) {
+        throw new Error(
+          'Workspace snapshot has invalid artifacts.research.payload.activeThesisId (must reference a thesis).',
+        )
+      }
       if (
         payload.activeResearchJob !== undefined &&
         payload.activeResearchJob !== null &&

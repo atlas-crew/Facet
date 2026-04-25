@@ -23,12 +23,14 @@ const {
   mockFetchDeepResearchJob,
   mockCancelDeepResearchJob,
   mockStreamDeepResearchJob,
+  mockGenerateSearchThesisFromIdentity,
 } = vi.hoisted(() => ({
   mockInferSearchProfile: vi.fn(),
   mockCreateDeepResearchJob: vi.fn(),
   mockFetchDeepResearchJob: vi.fn(),
   mockCancelDeepResearchJob: vi.fn(),
   mockStreamDeepResearchJob: vi.fn(),
+  mockGenerateSearchThesisFromIdentity: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', async () => {
@@ -60,6 +62,16 @@ vi.mock('../utils/deepSearchClient', async () => {
       mockCancelDeepResearchJob(...args),
     streamDeepResearchJob: (...args: Parameters<typeof actual.streamDeepResearchJob>) =>
       mockStreamDeepResearchJob(...args),
+  }
+})
+
+vi.mock('../utils/thesisGenerator', async () => {
+  const actual = await vi.importActual<typeof import('../utils/thesisGenerator')>('../utils/thesisGenerator')
+  return {
+    ...actual,
+    generateSearchThesisFromIdentity: (
+      ...args: Parameters<typeof actual.generateSearchThesisFromIdentity>
+    ) => mockGenerateSearchThesisFromIdentity(...args),
   }
 })
 
@@ -109,6 +121,7 @@ describe('ResearchPage', () => {
     mockFetchDeepResearchJob.mockReset()
     mockCancelDeepResearchJob.mockReset()
     mockStreamDeepResearchJob.mockReset()
+    mockGenerateSearchThesisFromIdentity.mockReset()
     mockStreamDeepResearchJob.mockReturnValue({ close: vi.fn() })
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
@@ -210,6 +223,8 @@ describe('ResearchPage', () => {
           ],
         },
       ],
+      theses: [],
+      activeThesisId: null,
       activeResearchJob: null,
     })
 
@@ -232,6 +247,38 @@ describe('ResearchPage', () => {
       status: 'queued',
     })
     mockFetchDeepResearchJob.mockResolvedValue(buildResearchJob())
+    mockGenerateSearchThesisFromIdentity.mockResolvedValue({
+      thesis: buildTestThesis({
+        id: 'thesis-generated',
+        narrative: [
+          'This thesis positions Alex as a platform engineer whose strongest signal is translating infrastructure complexity into reliable product delivery. The search should privilege companies where platform leverage, deployment architecture, and customer-facing reliability all matter together.',
+          'The unfair advantage is the pairing of Kubernetes delivery work with clear product-facing judgment. That combination should show up in roles that need someone to design around infrastructure constraints without turning the job into pure cluster administration.',
+          'The strongest lanes are platform modernization and developer-productivity infrastructure. Both lanes let the candidate use depth in Kubernetes while keeping the search calibrated toward systems ownership, architecture judgment, and cross-functional delivery.',
+        ].join('\n\n'),
+        competitiveMoat:
+          'Production Kubernetes delivery paired with product-aware platform judgment and evidence of making complex deployment constraints legible.',
+        searchLanes: [
+          {
+            id: 'lane-platform',
+            title: 'Platform modernization',
+            rationale:
+              'This lane targets companies whose deployment model is becoming strategically important. It is strong because the candidate can connect infrastructure implementation to product delivery outcomes.',
+            competitiveContext: 'Look for teams modernizing delivery without hiring for narrow cluster operations.',
+            targetSignals: ['on-prem delivery', 'platform modernization'],
+          },
+        ],
+        avoid: [{ label: 'Pure Kubernetes administration', condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.' }],
+        skillDepthMap: [
+          {
+            skill: 'Kubernetes',
+            depth: 'strong',
+            context: 'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths.',
+            searchSignal: 'Strong match signal for platform modernization roles.',
+          },
+        ],
+      }),
+      contractViolations: [],
+    })
   })
 
   afterEach(() => {
@@ -308,6 +355,105 @@ describe('ResearchPage', () => {
 
     expect(screen.getByRole('button', { name: 'Run Search' })).toBeTruthy()
     expect(screen.getByText('Your search profile is being driven by the identity model.')).toBeTruthy()
+  })
+
+  it('generates, edits, and saves a search thesis revision from identity', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate Thesis/i }))
+
+    await waitFor(() => {
+      expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledWith(
+        identity,
+        'https://ai.example/proxy',
+        [],
+      )
+      expect(useSearchStore.getState().activeThesisId).toBe('thesis-generated')
+    })
+
+    const narrative = screen.getByLabelText('Thesis narrative')
+    fireEvent.change(narrative, {
+      target: { value: 'Edited thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.' },
+    })
+    fireEvent.change(screen.getByLabelText('Lane 1 title'), {
+      target: { value: 'Developer platform modernization' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses).toHaveLength(1)
+    })
+    expect(useSearchStore.getState().theses.at(-1)).toMatchObject({
+      source: 'user-edited',
+      narrative: 'Edited thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+      searchLanes: [expect.objectContaining({ title: 'Developer platform modernization' })],
+    })
+  })
+
+  it('uses the reviewed active thesis when launching deep research', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate Thesis/i }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().activeThesisId).toBe('thesis-generated')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+
+    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].thesisSnapshot.id).toBe('thesis-generated')
+  })
+
+  it('marks incorporated feedback reflected when saving a reviewed thesis', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-feedback',
+      feedbackIncorporated: ['sfe-1'],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+      feedbackEvents: [
+        {
+          id: 'sfe-1',
+          createdAt: '2026-03-10T10:00:00.000Z',
+          runId: 'srun-1',
+          resultId: 'sres-1',
+          rating: 'down',
+          appliedToIdentity: true,
+        },
+      ],
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().feedbackEvents[0]?.reflectedInThesisId).toBe(thesis.id)
+    })
   })
 
   it('does not resync an identity-backed profile when the derived payload is unchanged', async () => {

@@ -8,6 +8,7 @@ import type {
   SearchRequest,
   SearchRun,
   ActiveResearchJobState,
+  SearchThesis,
   SkillCatalogEntry,
   VectorSearchConfig,
 } from '../types/search'
@@ -27,6 +28,9 @@ type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt'> &
 type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt'> &
   Partial<Pick<SearchRun, 'id' | 'createdAt'>>
 
+type SearchThesisInput = Omit<SearchThesis, 'id' | 'createdAt' | 'updatedAt'> &
+  Partial<Pick<SearchThesis, 'id' | 'createdAt' | 'updatedAt'>>
+
 /** Caller supplies every feedback-event field except the store-generated id and timestamp. */
 export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt'>
 
@@ -34,6 +38,8 @@ interface SearchState {
   profile: SearchProfile | null
   requests: SearchRequest[]
   runs: SearchRun[]
+  theses: SearchThesis[]
+  activeThesisId: string | null
   feedbackEvents: SearchFeedbackEvent[]
   activeResearchJob: ActiveResearchJobState | null
 
@@ -51,6 +57,9 @@ interface SearchState {
   updateRun: (id: string, patch: Partial<SearchRun>) => void
   deleteRun: (id: string) => void
   getRunsForRequest: (requestId: string) => SearchRun[]
+  addThesis: (thesis: SearchThesisInput) => SearchThesis
+  saveThesisRevision: (baseId: string, patch: Partial<SearchThesis>) => SearchThesis | null
+  setActiveThesis: (id: string | null) => void
   setActiveResearchJob: (job: ActiveResearchJobState) => void
   updateActiveResearchJob: (patch: Partial<ActiveResearchJobState>) => void
   clearActiveResearchJob: (jobId?: string) => void
@@ -94,6 +103,25 @@ const hydrateRun = (run: SearchRunInput): SearchRun => ({
   durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
 })
 
+const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
+  const createdAt = thesis.createdAt ?? now()
+  return {
+    ...thesis,
+    narrative: thesis.narrative ?? '',
+    competitiveMoat: thesis.competitiveMoat ?? '',
+    unfairAdvantages: thesis.unfairAdvantages ?? [],
+    searchLanes: thesis.searchLanes ?? [],
+    interviewStrategy: thesis.interviewStrategy ?? '',
+    lookFor: thesis.lookFor ?? [],
+    avoid: thesis.avoid ?? [],
+    keywordCombinations: thesis.keywordCombinations ?? [],
+    skillDepthMap: thesis.skillDepthMap ?? [],
+    id: thesis.id ?? createId('sthesis'),
+    createdAt,
+    updatedAt: thesis.updatedAt ?? createdAt,
+  }
+}
+
 export const migrateSearchState = (persistedState: unknown) => {
   const state =
     typeof persistedState === 'object' && persistedState !== null
@@ -101,6 +129,8 @@ export const migrateSearchState = (persistedState: unknown) => {
           profile?: SearchProfile | null
           requests?: SearchRequest[]
           runs?: SearchRun[]
+          theses?: SearchThesis[]
+          activeThesisId?: string | null
           feedbackEvents?: SearchFeedbackEvent[]
           activeResearchJob?: ActiveResearchJobState | null
         })
@@ -128,6 +158,15 @@ export const migrateSearchState = (persistedState: unknown) => {
     runs: Array.isArray(state?.runs)
       ? state.runs.map((run) => hydrateRun(run))
       : [],
+    theses: Array.isArray(state?.theses)
+      ? state.theses.map((thesis) => hydrateThesis(thesis))
+      : [],
+    activeThesisId:
+      typeof state?.activeThesisId === 'string' &&
+      Array.isArray(state?.theses) &&
+      state.theses.some((thesis) => thesis.id === state.activeThesisId)
+        ? state.activeThesisId
+        : null,
     feedbackEvents: Array.isArray(state?.feedbackEvents) ? state.feedbackEvents : [],
     activeResearchJob,
   }
@@ -137,6 +176,8 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       profile: null,
       requests: [],
       runs: [],
+      theses: [],
+      activeThesisId: null,
       feedbackEvents: [],
       activeResearchJob: null,
 
@@ -293,6 +334,43 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
       getRunsForRequest: (requestId) =>
         get().runs.filter((run) => run.requestId === requestId),
+
+      addThesis: (thesis) => {
+        const existingIds = new Set(get().theses.map((item) => item.id))
+        const hydrated = hydrateThesis(thesis)
+        if (existingIds.has(hydrated.id)) {
+          throw new Error('Cannot add duplicate search thesis id.')
+        }
+        set((state) => ({
+          theses: [...state.theses, hydrated],
+          activeThesisId: hydrated.id,
+        }))
+        return hydrated
+      },
+
+      saveThesisRevision: (baseId, patch) => {
+        const base = get().theses.find((thesis) => thesis.id === baseId)
+        if (!base) return null
+        const updated: SearchThesis = {
+          ...base,
+          ...patch,
+          id: base.id,
+          createdAt: base.createdAt,
+          updatedAt: now(),
+          source: 'user-edited',
+        }
+        set((state) => ({
+          theses: state.theses.map((thesis) => (thesis.id === baseId ? updated : thesis)),
+          activeThesisId: updated.id,
+        }))
+        return updated
+      },
+
+      setActiveThesis: (id) => {
+        set((state) => ({
+          activeThesisId: id && state.theses.some((thesis) => thesis.id === id) ? id : null,
+        }))
+      },
 
       setActiveResearchJob: (job) => {
         set({ activeResearchJob: job })

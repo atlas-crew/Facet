@@ -1,9 +1,11 @@
 ---
 id: TASK-151.1
 title: Build thesis generation engine and thesis editor UI
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 06:02'
+updated_date: '2026-04-25 09:33'
 labels:
   - search-redesign
 milestone: m-23
@@ -82,6 +84,20 @@ This task is large — consider splitting into 151.1a (generator + read-only ren
 - [ ] #13 Thesis can be reused with different search parameters (geo, company size, etc.)
 - [ ] #14 Staleness indicator shown when identity.version > thesis.identityVersion; regeneration preserves prior user edits
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Claim TASK-151.1 and keep the first loop focused on a reviewable foundation slice rather than trying to swallow the whole thesis editor in one commit.\n2. Inspect current SearchThesis/SearchRun types, searchStore, ResearchPage, AI proxy/client helpers, and existing Research tests.\n3. Implement thesis generation foundations: prompt/client module, store thesis collection + active draft metadata, persistence/migration support, and minimal Research UI affordance for generating/reusing a thesis before deep search.\n4. Add focused tests for thesis generation payload, validation/contract violations, store persistence, and Research UI launch handoff.\n5. Run focused tests/typecheck/lint, independent review/test-audit, remediate, update Backlog, and commit via cortex git commit.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Started first implementation loop for thesis generation/editor foundations after TASK-151.2 async job client landed. Scope is a coherent foundation slice, not the full large task if review/test gates reveal it should be split.
+
+Foundation implementation loop completed: added thesis generation client/prompt validation, Facet proxy thinking-budget passthrough, searchStore thesis persistence + active selection, workspace snapshot/hydration/merge validation, and ResearchPage thesis generate/review/edit/reuse UI. Deep search now uses the approved active thesis snapshot when present. Verification: npm run typecheck; npx vitest run src/test/thesisGenerator.test.ts src/test/llmProxy.test.ts src/test/searchStore.test.ts src/test/workspaceBackup.test.ts src/test/persistence.test.ts src/test/ResearchPage.test.tsx; targeted eslint on changed TS/TSX; npm run test; npm run build. Independent review/test-audit artifacts: .agents/reviews/review-20260425-052336.md and .agents/reviews/test-audit-20260425-052737.md. Remaining TASK-151.1 scope: identity writeback confirmation/impact flow, lane reorder + keyword editor depth, and final AC reconciliation.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

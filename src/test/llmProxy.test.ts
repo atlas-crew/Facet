@@ -18,6 +18,7 @@ describe('callLlmProxy', () => {
       feature: 'research.thesis',
       model: 'sonnet',
       maxTokens: 128000,
+      thinkingBudget: 10000,
       outputConfig: {
         task_budget: { type: 'tokens', total: 80000 },
         effort: 'high',
@@ -31,6 +32,7 @@ describe('callLlmProxy', () => {
         feature: 'research.thesis',
         model: 'sonnet',
         max_tokens: 128000,
+        thinking_budget: 10000,
         output_config: {
           task_budget: { type: 'tokens', total: 80000 },
           effort: 'high',
