@@ -1,9 +1,11 @@
 ---
 id: TASK-161
 title: 'Build async research job infrastructure: storage, endpoints, runner lifecycle'
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-04-19 09:00'
+updated_date: '2026-04-25 00:11'
 labels:
   - search-redesign
   - proxy
@@ -78,29 +80,41 @@ Build the server-side async job infrastructure that runs Phase 2 deep research c
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 POST /research/jobs validates thesis, creates durable job record, enqueues runner, returns jobId immediately
-- [ ] #2 GET /research/jobs/:id returns full ResearchJob record, auth-scoped to owner
-- [ ] #3 POST /research/jobs/:id/cancel transitions job to canceled and aborts upstream
-- [ ] #4 GET /research/jobs lists user's recent jobs with pagination
-- [ ] #5 Runner executes Anthropic Task Budgets call with correct parameters (from TASK-153 passthrough)
-- [ ] #6 Runner writes periodic progress updates (phase, searchQueries, elapsedMs)
-- [ ] #7 Runner validates reasoning output contract on completion; flags violations on result record
-- [ ] #8 Double-submit guard returns existing jobId for duplicate (thesisId + paramsHash + userId)
-- [ ] #9 Retriable upstream errors are retried up to N times; fatal errors captured with code/message
-- [ ] #10 Heartbeat mechanism detects and fails orphaned jobs
-- [ ] #11 TTL cleanup removes completed/failed jobs after configured window
-- [ ] #12 Cross-user isolation verified: user A cannot read/cancel user B's jobs
-- [ ] #13 Observability: every transition logged with jobId, userId, status, tokenUsage
-- [ ] #14 Integration test: full happy-path (create → running → completed → fetch result) with mock Anthropic responses
-- [ ] #15 Integration test: cancel-mid-run path correctly aborts and preserves thesis
+- [x] #1 POST /research/jobs validates thesis, creates durable job record, enqueues runner, returns jobId immediately
+- [x] #2 GET /research/jobs/:id returns full ResearchJob record, auth-scoped to owner
+- [x] #3 POST /research/jobs/:id/cancel transitions job to canceled and aborts upstream
+- [x] #4 GET /research/jobs lists user's recent jobs with pagination
+- [x] #5 Runner executes Anthropic Task Budgets call with correct parameters (from TASK-153 passthrough)
+- [x] #6 Runner writes periodic progress updates (phase, searchQueries, elapsedMs)
+- [x] #7 Runner validates reasoning output contract on completion; flags violations on result record
+- [x] #8 Double-submit guard returns existing jobId for duplicate (thesisId + paramsHash + userId)
+- [x] #9 Retriable upstream errors are retried up to N times; fatal errors captured with code/message
+- [x] #10 Heartbeat mechanism detects and fails orphaned jobs
+- [x] #11 TTL cleanup removes completed/failed jobs after configured window
+- [x] #12 Cross-user isolation verified: user A cannot read/cancel user B's jobs
+- [x] #13 Observability: every transition logged with jobId, userId, status, tokenUsage
+- [x] #14 Integration test: full happy-path (create → running → completed → fetch result) with mock Anthropic responses
+- [x] #15 Integration test: cancel-mid-run path correctly aborts and preserves thesis
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented async research job infrastructure: file/in-memory job stores, /research/jobs endpoints, auth-scoped reads/cancel/list, duplicate-submit guard, hosted rate limiting, Anthropic Task Budgets runner, progress/heartbeat/orphan cleanup, retries/backoff, result contract validation, and transition observability. Added integration and store tests for happy path, cancellation, isolation, validation, persistence, shutdown abort, cache headers, heartbeat, parser edge cases, and failure paths.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented TASK-161 async deep-research job infrastructure. Verification: npx vitest run src/test/researchJobs.test.ts src/test/facetServer.test.ts passed (59 tests); npm run typecheck passed; focused eslint on touched files passed; npm run build passed; npm run test passed (128 files, 1479 tests). Independent review artifact: .agents/reviews/review-20260424-195958.md; final test audit artifact: .agents/reviews/test-audit-20260424-200740.md.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

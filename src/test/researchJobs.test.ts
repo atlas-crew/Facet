@@ -1,0 +1,868 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import type { Server } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+type AnthropicCreate = (params: unknown, options?: {
+  headers?: Record<string, string>
+  signal?: AbortSignal
+}) => Promise<unknown>
+
+async function loadProxyModules() {
+  const [
+    { createFacetServer },
+    { createFileResearchJobStore, createInMemoryResearchJobStore },
+  ] = await Promise.all([
+    // @ts-expect-error runtime-tested local proxy module
+    import('../../proxy/facetServer.js'),
+    // @ts-expect-error runtime-tested local proxy module
+    import('../../proxy/researchJobs.js'),
+  ])
+
+  return {
+    createFacetServer,
+    createFileResearchJobStore,
+    createInMemoryResearchJobStore,
+  }
+}
+
+const servers = new Set<Server>()
+const tempDirs = new Set<string>()
+
+afterEach(async () => {
+  await Promise.all(
+    [...servers].map((server) => new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+          reject(error)
+          return
+        }
+        resolve()
+      })
+    })),
+  )
+  servers.clear()
+  await Promise.all([...tempDirs].map((dir) => rm(dir, { recursive: true, force: true })))
+  tempDirs.clear()
+})
+
+function jsonHeaders(token = 'member-token') {
+  return {
+    Authorization: 'Bearer ' + token,
+    'Content-Type': 'application/json',
+    Origin: 'http://localhost:5173',
+    'X-Proxy-API-Key': 'proxy-key',
+  }
+}
+
+function localJsonHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    Origin: 'http://localhost:5173',
+    'X-Proxy-API-Key': 'proxy-key',
+  }
+}
+
+function thesisSnapshot() {
+  return {
+    id: 'thesis-1',
+    createdAt: '2026-03-15T11:00:00.000Z',
+    updatedAt: '2026-03-15T11:05:00.000Z',
+    narrative: 'A focused security-platform thesis with concrete identity evidence.',
+    competitiveMoat: 'Deep WAF and platform ownership.',
+    unfairAdvantages: [
+      {
+        combination: 'WAF internals plus developer platform delivery',
+        depth: 'hands-on',
+        targetCompanyProfile: 'security platform teams',
+      },
+    ],
+    searchLanes: [
+      {
+        id: 'lane-1',
+        title: 'Security platform builders',
+        rationale: 'Find teams where WAF depth changes the hiring signal.',
+        targetSignals: ['WAF', 'edge security'],
+      },
+    ],
+    interviewStrategy: 'Use architectural walkthroughs over Leetcode framing.',
+    lookFor: ['security platform', 'edge protection'],
+    avoid: [],
+    keywordCombinations: [
+      {
+        query: 'security platform engineer WAF',
+        lane: 'lane-1',
+        noiseLevel: 'low',
+      },
+    ],
+    skillDepthMap: [
+      {
+        skill: 'WAF',
+        depth: 'expert',
+        context: 'Built and operated WAF detection systems.',
+        searchSignal: 'Prioritize roles that need WAF internals.',
+      },
+    ],
+    source: 'generated',
+    identityVersion: 7,
+    feedbackIncorporated: [],
+  }
+}
+
+function researchPayload() {
+  return {
+    thesisId: 'thesis-1',
+    identityVersion: 7,
+    thesisSnapshot: thesisSnapshot(),
+    params: {
+      id: 'request-1',
+      createdAt: '2026-03-15T11:10:00.000Z',
+      focusVectors: ['security-platform'],
+      companySizeOverride: '',
+      salaryAnchorOverride: '',
+      geoExpand: true,
+      customKeywords: 'WAF security platform',
+      excludeCompanies: [],
+      maxResults: { tier1: 1, tier2: 1, tier3: 0 },
+    },
+  }
+}
+
+function researchResponse(candidateEdge = 'The candidate wins because they have production WAF depth. That makes them credible fast.') {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          narrative: {
+            competitiveMoat: 'WAF systems plus platform execution.',
+            selectionMethodology: 'Prioritized companies where edge security is central.',
+            marketContext: 'Security platforms are consolidating edge controls.',
+            executiveSummary: 'This search favors security platform teams.',
+          },
+          results: [
+            {
+              id: 'result-1',
+              tier: 1,
+              company: 'Edge Co',
+              title: 'Security Platform Engineer',
+              url: 'https://example.com/jobs/1',
+              matchScore: 94,
+              matchReason: 'Strong WAF alignment.',
+              vectorAlignment: 'security-platform',
+              risks: [],
+              source: 'mock',
+              candidateEdge,
+            },
+          ],
+          tokenUsage: { inputTokens: 11, outputTokens: 22, totalTokens: 33 },
+        }),
+      },
+    ],
+    usage: { input_tokens: 11, output_tokens: 22 },
+  }
+}
+
+function fencedResearchResponse() {
+  const response = researchResponse()
+  const fence = String.fromCharCode(96, 96, 96)
+  const rawPayload = JSON.parse(response.content[0].text)
+  delete rawPayload.narrative.marketContext
+  return {
+    ...response,
+    content: [
+      {
+        type: 'text',
+        text: 'Here is the result.\n' + fence + 'json\n' + JSON.stringify(rawPayload) + '\n' + fence + '\nDone.',
+      },
+    ],
+  }
+}
+
+function prefixedRawJsonResearchResponse() {
+  const response = researchResponse()
+  return {
+    ...response,
+    content: [
+      {
+        type: 'text',
+        text: 'Sure, here is the research payload:\n' + response.content[0].text + '\nEnd of payload.',
+      },
+    ],
+  }
+}
+
+async function startResearchServer(options: {
+  anthropicCreate?: AnthropicCreate
+  maxAttempts?: number
+  progressIntervalMs?: number
+  heartbeatTimeoutMs?: number
+  ttlMs?: number
+} = {}) {
+  const { createFacetServer } = await loadProxyModules()
+  let nowMs = Date.parse('2026-03-15T12:00:00.000Z')
+  const { server, operationsMonitor, researchJobStore } = createFacetServer({
+    allowedOrigins: ['http://localhost:5173'],
+    proxyApiKey: 'proxy-key',
+    persistenceAuthTokens: [
+      {
+        token: 'member-token',
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+        workspaces: ['ws-1'],
+      },
+      {
+        token: 'other-token',
+        tenantId: 'tenant-1',
+        userId: 'user-2',
+        workspaces: ['ws-2'],
+      },
+    ],
+    anthropicClient: {
+      messages: {
+        create: options.anthropicCreate ?? (async () => researchResponse()),
+      },
+    },
+    researchJobNow: () => nowMs,
+    researchJobProgressIntervalMs: options.progressIntervalMs ?? 5,
+    researchJobHeartbeatTimeoutMs: options.heartbeatTimeoutMs,
+    researchJobTtlMs: options.ttlMs,
+    researchJobMaxAttempts: options.maxAttempts ?? 2,
+    researchJobRetryBaseDelayMs: 0,
+    logger: {
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+    },
+  })
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  servers.add(server)
+
+  const address = server.address()
+  if (!address || typeof address === 'string') {
+    throw new Error('Failed to bind research job test server.')
+  }
+
+  return {
+    advance(ms: number) {
+      nowMs += ms
+    },
+    baseUrl: 'http://127.0.0.1:' + address.port,
+    operationsMonitor,
+    researchJobStore,
+    server,
+  }
+}
+
+async function waitUntil<T>(load: () => Promise<T>, predicate: (value: T) => boolean) {
+  let latest: T | null = null
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    latest = await load()
+    if (predicate(latest)) {
+      return latest
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error('Timed out waiting for condition. Latest: ' + JSON.stringify(latest))
+}
+
+async function fetchJob(baseUrl: string, jobId: string, token = 'member-token') {
+  const response = await fetch(baseUrl + '/research/jobs/' + jobId, {
+    headers: jsonHeaders(token),
+  })
+  const body = await response.json()
+  return { response, body }
+}
+
+async function createResearchJob(baseUrl: string, token = 'member-token') {
+  return fetch(baseUrl + '/research/jobs', {
+    method: 'POST',
+    headers: jsonHeaders(token),
+    body: JSON.stringify(researchPayload()),
+  })
+}
+
+describe('research job API', () => {
+  it('rejects invalid job creation payloads before enqueueing', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(async () => researchResponse())
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+    const valid = researchPayload()
+    const invalidPayloads = [
+      {},
+      { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, narrative: '' } },
+      { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, skillDepthMap: [] } },
+      { ...valid, params: undefined },
+      { ...valid, identityVersion: -1 },
+    ]
+
+    for (const payload of invalidPayloads) {
+      const response = await fetch(baseUrl + '/research/jobs', {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify(payload),
+      })
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({
+        code: 'invalid_research_job_request',
+      })
+    }
+    expect(anthropicCreate).not.toHaveBeenCalled()
+  })
+
+  it('rate limits hosted job creation on the deep-research feature bucket', async () => {
+    const { createFacetServer } = await loadProxyModules()
+    const { server } = createFacetServer({
+      authMode: 'hosted',
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceActorResolver: async () => ({
+        accountId: 'account-1',
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+      }),
+      hostedRateLimits: {
+        aiFeatures: {
+          'research.deep-search': { max: 1, windowMs: 60_000 },
+        },
+      },
+      anthropicClient: {
+        messages: {
+          create: async () => researchResponse(),
+        },
+      },
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+      },
+    })
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+    servers.add(server)
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind hosted research job test server.')
+    }
+    const baseUrl = 'http://127.0.0.1:' + address.port
+
+    const firstResponse = await createResearchJob(baseUrl, 'hosted-token')
+    expect(firstResponse.status).toBe(202)
+
+    const secondPayload = researchPayload()
+    secondPayload.params.id = 'request-2'
+    const secondResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders('hosted-token'),
+      body: JSON.stringify(secondPayload),
+    })
+    expect(secondResponse.status).toBe(429)
+    await expect(secondResponse.json()).resolves.toMatchObject({
+      code: 'rate_limited',
+    })
+  })
+
+  it('creates, retries, completes, and exposes async research jobs', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>()
+      .mockRejectedValueOnce(Object.assign(new Error('temporarily overloaded'), { status: 529 }))
+      .mockResolvedValueOnce(researchResponse('Only one sentence.'))
+    const { baseUrl, operationsMonitor } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    expect(createResponse.status).toBe(202)
+    const created = await createResponse.json()
+    expect(created).toEqual({
+      jobId: expect.any(String),
+      status: 'queued',
+    })
+
+    const completed = await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'completed',
+    )
+
+    expect(anthropicCreate).toHaveBeenCalledTimes(2)
+    const [anthropicParams, requestOptions] = anthropicCreate.mock.calls[1]
+    expect(anthropicParams).toMatchObject({
+      model: 'claude-opus-4-7',
+      max_tokens: 128000,
+      thinking: { type: 'enabled', budget_tokens: 15000 },
+      output_config: {
+        effort: 'high',
+        task_budget: { type: 'tokens', total: 80000 },
+      },
+      tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 20 }],
+    })
+    expect(requestOptions).toMatchObject({
+      headers: { 'anthropic-beta': 'task-budgets-2026-03-13' },
+    })
+    expect(completed).toMatchObject({
+      id: created.jobId,
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      thesisId: 'thesis-1',
+      status: 'completed',
+      paramsHash: expect.any(String),
+      progress: {
+        phase: 'completed',
+        searchQueries: [],
+        findingsCount: 1,
+      },
+      result: {
+        tokenUsage: { inputTokens: 11, outputTokens: 22, totalTokens: 33 },
+        contractViolations: ['results[0].candidateEdge: expected at least 2 sentences'],
+      },
+    })
+    expect(operationsMonitor.snapshot().counters).toMatchObject({
+      'research_job.queued': 1,
+      'research_job.running': 1,
+      'research_job.retry.upstream_529': 1,
+      'research_job.completed': 1,
+    })
+
+    const completedFetch = await fetchJob(baseUrl, created.jobId)
+    expect(completedFetch.response.headers.get('cache-control')).toBe('no-cache')
+  })
+
+  it('writes heartbeat progress while a job is running', async () => {
+    let resolveResponse: ((value: unknown) => void) | null = null
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise((resolve) => {
+      resolveResponse = resolve
+    }))
+    const { advance, baseUrl } = await startResearchServer({
+      anthropicCreate,
+      progressIntervalMs: 5,
+    })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    advance(25)
+
+    const runningFetch = await waitUntil(
+      async () => fetchJob(baseUrl, created.jobId),
+      ({ body }) => (
+        body.job.progress?.phase === 'running deep research' &&
+        Date.parse(body.job.heartbeatAt) > Date.parse(body.job.startedAt)
+      ),
+    )
+    expect(runningFetch.response.headers.get('cache-control')).toBe('no-store')
+    expect(Date.parse(runningFetch.body.job.heartbeatAt)).toBeGreaterThan(
+      Date.parse(runningFetch.body.job.startedAt),
+    )
+
+    expect(resolveResponse).toBeTruthy()
+    const finishResearch = resolveResponse as unknown as (value: unknown) => void
+    finishResearch(researchResponse())
+    await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'completed',
+    )
+  })
+
+  it('aborts active research runners when the server closes', async () => {
+    let aborted = false
+    const anthropicCreate = vi.fn<AnthropicCreate>((_params, options) => new Promise((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () => {
+        aborted = true
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        reject(error)
+      })
+    }))
+    const { baseUrl, server } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    expect(createResponse.status).toBe(202)
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+
+    await new Promise<void>((resolve, reject) => {
+      server.close((error?: Error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve()
+      })
+    })
+    servers.delete(server)
+    expect(aborted).toBe(true)
+  })
+
+  it('parses fenced LLM JSON and flags missing narrative contract fields', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(async () => fencedResearchResponse())
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    const completed = await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'completed',
+    )
+
+    expect(completed.result.contractViolations).toContain('narrative.marketContext: missing or empty')
+  })
+
+  it('parses un-fenced LLM JSON with conversational prefix and suffix text', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(async () => prefixedRawJsonResearchResponse())
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    const completed = await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'completed',
+    )
+
+    expect(completed.result.results[0]).toMatchObject({
+      company: 'Edge Co',
+      title: 'Security Platform Engineer',
+    })
+  })
+
+  it('fails immediately on non-retriable upstream errors', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>()
+      .mockRejectedValue(Object.assign(new Error('bad request'), { status: 400 }))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    const failed = await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'failed',
+    )
+
+    expect(anthropicCreate).toHaveBeenCalledTimes(1)
+    expect(failed.error).toMatchObject({
+      code: 'upstream_400',
+      message: 'bad request',
+      retriable: false,
+    })
+  })
+
+  it('fails jobs when the LLM omits the required narrative object', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(async () => ({
+      content: [{ type: 'text', text: JSON.stringify({ results: [] }) }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    const failed = await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'failed',
+    )
+
+    expect(failed.error).toMatchObject({
+      code: 'invalid_research_result',
+      message: 'Research result did not include a narrative object.',
+      retriable: false,
+    })
+  })
+
+  it('returns duplicate in-flight jobs and isolates reads by actor', async () => {
+    let abortCount = 0
+    const anthropicCreate = vi.fn<AnthropicCreate>((_params, options) => new Promise((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () => {
+        abortCount += 1
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        reject(error)
+      })
+    }))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const firstResponse = await createResearchJob(baseUrl)
+    expect(firstResponse.status).toBe(202)
+    const first = await firstResponse.json()
+
+    const duplicateResponse = await createResearchJob(baseUrl)
+    expect(duplicateResponse.status).toBe(200)
+    await expect(duplicateResponse.json()).resolves.toEqual({
+      jobId: first.jobId,
+      status: expect.stringMatching(/queued|running/),
+      duplicate: true,
+    })
+
+    const otherRead = await fetchJob(baseUrl, first.jobId, 'other-token')
+    expect(otherRead.response.status).toBe(404)
+
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    const otherCancel = await fetch(baseUrl + '/research/jobs/' + first.jobId + '/cancel', {
+      method: 'POST',
+      headers: jsonHeaders('other-token'),
+    })
+    expect(otherCancel.status).toBe(404)
+    expect(abortCount).toBe(0)
+
+    const otherList = await fetch(baseUrl + '/research/jobs?limit=5&offset=0', {
+      headers: jsonHeaders('other-token'),
+    })
+    await expect(otherList.json()).resolves.toEqual({
+      jobs: [],
+      pagination: { limit: 5, offset: 0, nextOffset: null },
+    })
+
+    const ownerList = await fetch(baseUrl + '/research/jobs?limit=1&offset=0', {
+      headers: jsonHeaders(),
+    })
+    expect(ownerList.headers.get('cache-control')).toBe('no-store')
+    const ownerBody = await ownerList.json()
+    expect(ownerBody.jobs).toHaveLength(1)
+    expect(ownerBody.jobs[0]).toMatchObject({ id: first.jobId, thesisId: 'thesis-1' })
+    expect(ownerBody.pagination).toEqual({ limit: 1, offset: 0, nextOffset: 1 })
+
+    const clampedList = await fetch(baseUrl + '/research/jobs?limit=5000&offset=-10', {
+      headers: jsonHeaders(),
+    })
+    await expect(clampedList.json()).resolves.toMatchObject({
+      pagination: { limit: 100, offset: 0 },
+    })
+
+    const defaultedList = await fetch(baseUrl + '/research/jobs?limit=abc', {
+      headers: jsonHeaders(),
+    })
+    await expect(defaultedList.json()).resolves.toMatchObject({
+      pagination: { limit: 20, offset: 0 },
+    })
+  })
+
+  it('cancels a running job and aborts the upstream request', async () => {
+    let aborted = false
+    const anthropicCreate = vi.fn<AnthropicCreate>((_params, options) => new Promise((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () => {
+        aborted = true
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        reject(error)
+      })
+    }))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+
+    const cancelResponse = await fetch(baseUrl + '/research/jobs/' + created.jobId + '/cancel', {
+      method: 'POST',
+      headers: jsonHeaders(),
+    })
+    expect(cancelResponse.status).toBe(200)
+    const canceled = await cancelResponse.json()
+    expect(canceled.job).toMatchObject({
+      id: created.jobId,
+      status: 'canceled',
+      thesisSnapshot: expect.objectContaining({
+        narrative: 'A focused security-platform thesis with concrete identity evidence.',
+      }),
+      progress: { phase: 'canceled' },
+    })
+    expect(aborted).toBe(true)
+
+    const fetched = await fetchJob(baseUrl, created.jobId)
+    expect(fetched.body.job.status).toBe('canceled')
+  })
+
+  it('uses the local development actor when no bearer token is present', async () => {
+    const { baseUrl } = await startResearchServer()
+
+    const createResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: localJsonHeaders(),
+      body: JSON.stringify(researchPayload()),
+    })
+    expect(createResponse.status).toBe(202)
+    const created = await createResponse.json()
+    const completed = await waitUntil(
+      async () => {
+        const response = await fetch(baseUrl + '/research/jobs/' + created.jobId, {
+          headers: localJsonHeaders(),
+        })
+        return (await response.json()).job
+      },
+      (job) => job.status === 'completed',
+    )
+
+    expect(completed).toMatchObject({
+      userId: 'local-user',
+      tenantId: 'local',
+      accountId: 'local',
+    })
+  })
+})
+
+describe('research job stores', () => {
+  function storedJob(overrides: Record<string, unknown>) {
+    return {
+      id: 'job-' + String(overrides.id ?? '1'),
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      accountId: null,
+      thesisId: 'thesis-1',
+      thesisSnapshot: thesisSnapshot(),
+      identityVersion: 7,
+      params: researchPayload().params,
+      paramsHash: 'hash-' + String(overrides.id ?? '1'),
+      status: 'queued',
+      createdAt: '2026-03-15T11:00:00.000Z',
+      ttlAt: '2026-04-14T11:00:00.000Z',
+      ...overrides,
+    }
+  }
+
+  it('fails stale runners, cleans terminal jobs by TTL, and persists file-backed records', async () => {
+    const { createFileResearchJobStore, createInMemoryResearchJobStore } = await loadProxyModules()
+    const nowMs = Date.parse('2026-03-15T12:00:00.000Z')
+    const staleIso = new Date(nowMs - 10_000).toISOString()
+    const store = createInMemoryResearchJobStore([
+      storedJob({
+        id: 'expired',
+        status: 'completed',
+        completedAt: staleIso,
+        ttlAt: new Date(nowMs - 1).toISOString(),
+      }),
+      storedJob({
+        id: 'stale',
+        status: 'running',
+        startedAt: staleIso,
+        heartbeatAt: staleIso,
+      }),
+      storedJob({
+        id: 'stale-queued',
+        status: 'queued',
+        createdAt: staleIso,
+      }),
+    ])
+    const isolatedStore = createInMemoryResearchJobStore([
+      storedJob({ id: 'account-bound', accountId: 'account-1' }),
+    ])
+    await expect(
+      isolatedStore.getJobForActor('account-bound', { tenantId: 'tenant-1', userId: 'user-1' }, nowMs),
+    ).resolves.toBeNull()
+
+    const failed = await store.failOrphanedJobs(nowMs, 1_000, 30_000)
+    expect(failed.map((job: { id: string }) => job.id).sort()).toEqual(['stale', 'stale-queued'])
+    expect(failed).toContainEqual(expect.objectContaining({
+      id: 'stale',
+      status: 'failed',
+      error: expect.objectContaining({ code: 'runner_heartbeat_timeout', retriable: true }),
+    }))
+    expect(failed).toContainEqual(expect.objectContaining({
+      id: 'stale-queued',
+      status: 'failed',
+      error: expect.objectContaining({ code: 'runner_heartbeat_timeout', retriable: true }),
+    }))
+
+    await store.cleanup(nowMs)
+    const remainingJobs = await store.allJobs()
+    expect(remainingJobs.map((job: { id: string }) => job.id).sort()).toEqual(['stale', 'stale-queued'])
+    expect(remainingJobs).toContainEqual(expect.objectContaining({ id: 'stale', status: 'failed' }))
+    expect(remainingJobs).toContainEqual(expect.objectContaining({ id: 'stale-queued', status: 'failed' }))
+
+    const tempDir = await mkdtemp(join(tmpdir(), 'facet-research-jobs-'))
+    tempDirs.add(tempDir)
+    const filePath = join(tempDir, 'nested', 'jobs.json')
+    const fileStore = createFileResearchJobStore(filePath)
+    const actor = { tenantId: 'tenant-1', userId: 'user-1' }
+    const created = await fileStore.createJob({
+      actor,
+      thesisId: 'thesis-1',
+      thesisSnapshot: thesisSnapshot(),
+      identityVersion: 7,
+      params: researchPayload().params,
+      hash: 'file-hash',
+      nowMs,
+      ttlMs: 30_000,
+    })
+
+    expect(await readFile(filePath, 'utf8')).toContain(created.job.id)
+    const reloadedStore = createFileResearchJobStore(filePath)
+    await expect(reloadedStore.getJobForActor(created.job.id, actor, nowMs)).resolves.toMatchObject({
+      id: created.job.id,
+      paramsHash: 'file-hash',
+      status: 'queued',
+    })
+
+    await reloadedStore.cancelJobForActor(created.job.id, actor, nowMs, 30_000)
+    const canceledDiskState = JSON.parse(await readFile(filePath, 'utf8'))
+    expect(canceledDiskState.jobs).toContainEqual(expect.objectContaining({
+      id: created.job.id,
+      status: 'canceled',
+    }))
+
+    const mutationFilePath = join(tempDir, 'nested', 'mutation-jobs.json')
+    await writeFile(mutationFilePath, JSON.stringify({
+      jobs: [
+        storedJob({
+          id: 'file-stale',
+          status: 'running',
+          startedAt: staleIso,
+          heartbeatAt: staleIso,
+        }),
+      ],
+    }))
+    const mutationStore = createFileResearchJobStore(mutationFilePath)
+    await mutationStore.failOrphanedJobs(nowMs, 1_000, 30_000)
+    const failedDiskState = JSON.parse(await readFile(mutationFilePath, 'utf8'))
+    expect(failedDiskState.jobs).toContainEqual(expect.objectContaining({
+      id: 'file-stale',
+      status: 'failed',
+    }))
+    await mutationStore.cleanup(nowMs + 31_000)
+    await expect(readFile(mutationFilePath, 'utf8').then(JSON.parse)).resolves.toEqual({ jobs: [] })
+
+    const concurrentFilePath = join(tempDir, 'nested', 'concurrent-jobs.json')
+    const concurrentStore = createFileResearchJobStore(concurrentFilePath)
+    await Promise.all([
+      concurrentStore.createJob({
+        actor,
+        thesisId: 'thesis-1',
+        thesisSnapshot: thesisSnapshot(),
+        identityVersion: 7,
+        params: { ...researchPayload().params, id: 'concurrent-1' },
+        hash: 'concurrent-hash-1',
+        nowMs,
+        ttlMs: 30_000,
+      }),
+      concurrentStore.createJob({
+        actor: { tenantId: 'tenant-1', userId: 'user-2' },
+        thesisId: 'thesis-2',
+        thesisSnapshot: { ...thesisSnapshot(), id: 'thesis-2' },
+        identityVersion: 7,
+        params: { ...researchPayload().params, id: 'concurrent-2' },
+        hash: 'concurrent-hash-2',
+        nowMs,
+        ttlMs: 30_000,
+      }),
+    ])
+    await expect(concurrentStore.allJobs()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ paramsHash: 'concurrent-hash-1' }),
+      expect.objectContaining({ paramsHash: 'concurrent-hash-2' }),
+    ]))
+
+    const corruptPath = join(tempDir, 'nested', 'corrupt-jobs.json')
+    await writeFile(corruptPath, '{')
+    const corruptStore = createFileResearchJobStore(corruptPath)
+    await expect(corruptStore.allJobs()).rejects.toThrow(SyntaxError)
+
+    await writeFile(corruptPath, JSON.stringify({ jobs: [] }))
+    await expect(corruptStore.createJob({
+      actor,
+      thesisId: 'thesis-1',
+      thesisSnapshot: thesisSnapshot(),
+      identityVersion: 7,
+      params: researchPayload().params,
+      hash: 'recovered-hash',
+      nowMs,
+      ttlMs: 30_000,
+    })).resolves.toMatchObject({
+      job: expect.objectContaining({ paramsHash: 'recovered-hash' }),
+      duplicate: false,
+    })
+  })
+})

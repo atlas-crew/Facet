@@ -484,6 +484,8 @@ export interface ResearchJobResult {
   narrative: SearchRunNarrative
   results: SearchResultEntry[]
   tokenUsage: SearchTokenUsage
+  /** Output-contract issues found after the model response was normalized. */
+  contractViolations?: string[]
 }
 
 export interface ResearchJobError {
@@ -503,15 +505,20 @@ export interface ResearchJobError {
 export interface ResearchJob {
   id: string
   userId: string
+  tenantId?: string | null
+  accountId?: string | null
   thesisId: string
   /** Immutable thesis snapshot — runs do not mutate when the source thesis evolves. */
   thesisSnapshot: SearchThesis
   /** `identity.model_revision` at job creation time (TASK-159). */
   identityVersion: number
   params: SearchRequest
+  /** Stable duplicate-submit guard for thesisId + params + userId. */
+  paramsHash: string
   status: ResearchJobStatus
   createdAt: string
   startedAt?: string
+  heartbeatAt?: string
   completedAt?: string
   progress?: ResearchJobProgress
   result?: ResearchJobResult

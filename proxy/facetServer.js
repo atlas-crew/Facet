@@ -34,6 +34,11 @@ import {
 import { createPostgresWorkspaceStore } from './postgresWorkspaceStore.js'
 import { createPostgresBillingStore } from './postgresBillingStore.js'
 import { createPostgresUsageStore } from './postgresUsageStore.js'
+import {
+  createFileResearchJobStore,
+  createInMemoryResearchJobStore,
+  createResearchJobService,
+} from './researchJobs.js'
 import { estimateCostCents } from './pricing.js'
 import pg from 'pg'
 
@@ -354,6 +359,21 @@ function usageDateForTimestamp(nowMs) {
   return new Date(nowMs).toISOString().slice(0, 10)
 }
 
+function normalizeTimestampMs(value, fallback = Date.now()) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return fallback
+}
+
 function isHostedAiUsagePolicyEnabled(policy) {
   return (
     Object.keys(policy.dailyFeatureCaps).length > 0 ||
@@ -494,6 +514,10 @@ function resolveHostedRateLimitBucket(req, pathname) {
     (req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE')
   ) {
     return 'persistenceMutations'
+  }
+
+  if (pathname === '/research/jobs' && req.method === 'POST') {
+    return 'ai:research.deep-search'
   }
 
   return null
@@ -873,6 +897,18 @@ export function createFacetServer(options = {}) {
     req[requestActorSymbol] = actor
     return actor
   }
+  const localResearchActor = {
+    tenantId: 'local',
+    accountId: 'local',
+    userId: 'local-user',
+  }
+  const resolveResearchJobActor = async (req) => {
+    if (authMode === 'hosted' || extractBearerToken(req.headers.authorization)) {
+      return resolveRequestActor(req)
+    }
+
+    return localResearchActor
+  }
   const persistenceApi = createPersistenceApi({
     actorResolver: resolveRequestActor,
     store: persistenceStore,
@@ -1044,6 +1080,32 @@ export function createFacetServer(options = {}) {
           onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
         })
       : null
+  const researchJobStore =
+    options.researchJobStore ??
+    (
+      options.researchJobStoreFile
+        ? createFileResearchJobStore(options.researchJobStoreFile)
+        : createInMemoryResearchJobStore()
+    )
+  const researchJobNow =
+    options.researchJobNow ??
+    (() => normalizeTimestampMs(options.now?.(), Date.now()))
+  const researchJobApi = createResearchJobService({
+    actorResolver: resolveResearchJobActor,
+    anthropicClient,
+    store: researchJobStore,
+    readBody: (request) => readBody(request, maxBodyBytes),
+    sendJson,
+    now: researchJobNow,
+    ttlMs: options.researchJobTtlMs,
+    heartbeatTimeoutMs: options.researchJobHeartbeatTimeoutMs,
+    progressIntervalMs: options.researchJobProgressIntervalMs,
+    maxAttempts: options.researchJobMaxAttempts,
+    retryBaseDelayMs: options.researchJobRetryBaseDelayMs,
+    model: CURRENT_OPUS_MODEL,
+    logger: options.logger ?? console,
+    onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
+  })
 
   const isAllowedOrigin = (origin) => allowedOrigins.includes(origin)
   const createHostedRateLimitKey = (actor, req) => {
@@ -1193,6 +1255,14 @@ export function createFacetServer(options = {}) {
           (request) => readBody(request, maxBodyBytes),
           sendJson,
         )
+        return
+      }
+
+      if (researchJobApi.canHandle(url.pathname)) {
+        if (!await enforceHostedRouteRateLimit(req, res, url.pathname)) {
+          return
+        }
+        await researchJobApi.handle(req, res, url)
         return
       }
 
@@ -1492,11 +1562,14 @@ export function createFacetServer(options = {}) {
 
   server.on('close', () => {
     hostedRateLimiter.dispose?.()
+    researchJobApi.dispose?.()
   })
 
   return {
     server,
     persistenceStore,
+    researchJobStore,
+    researchJobApi,
     operationsMonitor,
   }
 }
@@ -1641,6 +1714,9 @@ export function createEnvFacetServer(env = process.env) {
     hostedAuth,
     billingStore,
     usageStore,
+    researchJobStore: env.RESEARCH_JOBS_FILE
+      ? createFileResearchJobStore(env.RESEARCH_JOBS_FILE)
+      : undefined,
     hostedAiUsagePolicy: parseHostedAiUsagePolicy(env),
     stripeSecretKey: env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
