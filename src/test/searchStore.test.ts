@@ -12,6 +12,7 @@ describe('searchStore', () => {
       requests: [],
       runs: [],
       feedbackEvents: [],
+      activeResearchJob: null,
     })
   })
 
@@ -280,7 +281,72 @@ describe('searchStore', () => {
       requests: [],
       runs: [],
       feedbackEvents: [],
+      activeResearchJob: null,
     })
+
+    expect(migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      activeResearchJob: {
+        jobId: 'job-legacy',
+        runId: 'srun-legacy',
+        requestId: 'sreq-legacy',
+        thesisId: 'sthesis-legacy',
+        status: 'running',
+      },
+    }).activeResearchJob).toMatchObject({
+      jobId: 'job-legacy',
+      runId: 'srun-legacy',
+      requestId: 'sreq-legacy',
+      thesisId: 'sthesis-legacy',
+      status: 'running',
+      lastObservedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    })
+
+    expect(migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      activeResearchJob: { jobId: 'job-missing-fields' },
+    }).activeResearchJob).toBeNull()
+    expect(migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      activeResearchJob: [],
+    }).activeResearchJob).toBeNull()
+  })
+
+  it('tracks active async research job metadata for reload rejoin', () => {
+    useSearchStore.getState().updateActiveResearchJob({ status: 'running' })
+    expect(useSearchStore.getState().activeResearchJob).toBeNull()
+
+    useSearchStore.getState().setActiveResearchJob({
+      jobId: 'job-1',
+      runId: 'srun-1',
+      requestId: 'sreq-1',
+      thesisId: 'sthesis-1',
+      status: 'queued',
+      lastObservedAt: '2026-03-10T10:00:00.000Z',
+    })
+
+    useSearchStore.getState().updateActiveResearchJob({
+      status: 'running',
+      startedAt: '2026-03-10T10:01:00.000Z',
+    })
+
+    expect(useSearchStore.getState().activeResearchJob).toMatchObject({
+      jobId: 'job-1',
+      status: 'running',
+      startedAt: '2026-03-10T10:01:00.000Z',
+    })
+
+    useSearchStore.getState().clearActiveResearchJob('other-job')
+    expect(useSearchStore.getState().activeResearchJob?.jobId).toBe('job-1')
+
+    useSearchStore.getState().clearActiveResearchJob('job-1')
+    expect(useSearchStore.getState().activeResearchJob).toBeNull()
   })
 
   describe('feedback events', () => {

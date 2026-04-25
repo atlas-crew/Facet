@@ -494,6 +494,18 @@ export interface ResearchJobError {
   retriable: boolean
 }
 
+export interface DeepResearchIdentityEvidence {
+  archetype: string
+  arc: string[]
+  profiles: Array<{
+    id: string
+    tags: string[]
+    text: string
+  }>
+  paioHighlights: string[]
+  calibrations: string[]
+}
+
 /**
  * Durable job record for Phase 2 async deep research (TASK-161 runs this server-side).
  *
@@ -510,6 +522,10 @@ export interface ResearchJob {
   thesisId: string
   /** Immutable thesis snapshot — runs do not mutate when the source thesis evolves. */
   thesisSnapshot: SearchThesis
+  /** Raw identity evidence that keeps Phase 2 from over-compressing the approved thesis. */
+  identityEvidence?: DeepResearchIdentityEvidence
+  /** Client-owned output contract sent to the runner prompt at job creation time. */
+  promptContract?: string
   /** `identity.model_revision` at job creation time (TASK-159). */
   identityVersion: number
   params: SearchRequest
@@ -525,6 +541,16 @@ export interface ResearchJob {
   error?: ResearchJobError
   /** ISO timestamp at which the job record becomes eligible for cleanup. */
   ttlAt: string
+}
+
+export interface ActiveResearchJobState {
+  jobId: string
+  runId: string
+  requestId: string
+  thesisId: string
+  status: ResearchJobStatus
+  startedAt?: string
+  lastObservedAt: string
 }
 
 export const DEFAULT_SEARCH_MAX_RESULTS: SearchRequestMaxResults = {

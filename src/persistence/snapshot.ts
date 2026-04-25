@@ -308,6 +308,7 @@ export const createWorkspaceSnapshotFromStores = (
           requests: cloneValue(searchState.requests),
           runs: cloneValue(searchState.runs),
           feedbackEvents: cloneValue(searchState.feedbackEvents),
+          activeResearchJob: cloneValue(searchState.activeResearchJob),
         },
         exportedAt,
       ),

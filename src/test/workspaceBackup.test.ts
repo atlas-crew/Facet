@@ -307,6 +307,49 @@ describe('workspace backup merge helpers', () => {
     ])
   })
 
+  it('merges active research jobs without overwriting an in-flight current job', () => {
+    const current = createWorkspaceSnapshotFromStores({
+      workspaceId: 'facet-local-workspace',
+      workspaceName: 'Current Workspace',
+      exportedAt: '2026-03-11T12:00:00.000Z',
+    })
+    const imported = createWorkspaceSnapshotFromStores({
+      workspaceId: 'facet-local-workspace',
+      workspaceName: 'Imported Workspace',
+      exportedAt: '2026-03-11T13:00:00.000Z',
+    })
+    const currentJob = {
+      jobId: 'job-current',
+      runId: 'srun-current',
+      requestId: 'sreq-current',
+      thesisId: 'sthesis-current',
+      status: 'running' as const,
+      lastObservedAt: '2026-03-11T12:05:00.000Z',
+    }
+    const importedJob = {
+      jobId: 'job-imported',
+      runId: 'srun-imported',
+      requestId: 'sreq-imported',
+      thesisId: 'sthesis-imported',
+      status: 'queued' as const,
+      lastObservedAt: '2026-03-11T13:05:00.000Z',
+    }
+
+    current.artifacts.research.payload.activeResearchJob = currentJob
+    imported.artifacts.research.payload.activeResearchJob = importedJob
+    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toEqual(
+      currentJob,
+    )
+
+    current.artifacts.research.payload.activeResearchJob = null
+    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toEqual(
+      importedJob,
+    )
+
+    imported.artifacts.research.payload.activeResearchJob = null
+    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toBeNull()
+  })
+
   it('scopes imported snapshots to the active workspace id', () => {
     const snapshot = createWorkspaceSnapshotFromStores({
       workspaceId: 'remote-workspace',

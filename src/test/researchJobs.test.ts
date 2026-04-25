@@ -115,6 +115,14 @@ function researchPayload() {
     thesisId: 'thesis-1',
     identityVersion: 7,
     thesisSnapshot: thesisSnapshot(),
+    identityEvidence: {
+      archetype: 'Security-platform builder',
+      arc: ['Edge Co: built WAF detection systems'],
+      profiles: [{ id: 'profile-1', tags: ['security'], text: 'Platform security profile.' }],
+      paioHighlights: ['Cut false positives with production WAF tuning.'],
+      calibrations: ['Strong WAF internals; avoid generic SOC work.'],
+    },
+    promptContract: 'candidateEdge must be 2-4 sentences and factual claims need citations.',
     params: {
       id: 'request-1',
       createdAt: '2026-03-15T11:10:00.000Z',
@@ -296,6 +304,9 @@ describe('research job API', () => {
       { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, narrative: '' } },
       { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, skillDepthMap: [] } },
       { ...valid, params: undefined },
+      { ...valid, identityEvidence: [] },
+      { ...valid, identityEvidence: {} },
+      { ...valid, identityEvidence: { profiles: [{}] } },
       { ...valid, identityVersion: -1 },
     ]
 
@@ -311,6 +322,56 @@ describe('research job API', () => {
       })
     }
     expect(anthropicCreate).not.toHaveBeenCalled()
+  })
+
+  it('normalizes oversized identity evidence and ignores blank prompt contracts', async () => {
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate: vi.fn<AnthropicCreate>(() => new Promise(() => {})),
+    })
+    const longText = 'x'.repeat(5000)
+    const payload = researchPayload()
+    payload.promptContract = '   '
+    payload.identityEvidence = {
+      archetype: 'a'.repeat(1200),
+      arc: Array.from({ length: 30 }, (_, index) => 'arc-' + index + '-' + longText),
+      profiles: [
+        { id: '   ', tags: Array.from({ length: 25 }, (_, index) => 'tag-' + index + '-' + longText), text: longText },
+        { id: 'blank-text', tags: ['drop-me'], text: '   ' },
+        ...Array.from({ length: 29 }, (_, index) => ({
+          id: 'profile-extra-' + index,
+          tags: ['security'],
+          text: 'profile text ' + index,
+        })),
+      ],
+      paioHighlights: Array.from({ length: 55 }, (_, index) => 'paio-' + index + '-' + longText),
+      calibrations: Array.from({ length: 55 }, (_, index) => 'calibration-' + index + '-' + longText),
+    }
+
+    const createResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    expect(createResponse.status).toBe(202)
+    const created = await createResponse.json()
+    const { body } = await fetchJob(baseUrl, created.jobId)
+
+    expect(body.job).not.toHaveProperty('promptContract')
+    expect(body.job.identityEvidence.archetype).toHaveLength(1000)
+    expect(body.job.identityEvidence.arc).toHaveLength(24)
+    expect(body.job.identityEvidence.arc[0]).toHaveLength(500)
+    expect(body.job.identityEvidence.profiles).toHaveLength(24)
+    expect(body.job.identityEvidence.profiles[0]).toMatchObject({
+      id: 'profile-1',
+      text: expect.stringMatching(/^x+$/),
+    })
+    expect(body.job.identityEvidence.profiles[0].text).toHaveLength(4000)
+    expect(body.job.identityEvidence.profiles[0].tags).toHaveLength(20)
+    expect(body.job.identityEvidence.profiles.some((profile: { id: string }) => profile.id === 'blank-text')).toBe(false)
+    expect(body.job.identityEvidence.paioHighlights).toHaveLength(48)
+    expect(body.job.identityEvidence.paioHighlights[0]).toHaveLength(1000)
+    expect(body.job.identityEvidence.calibrations).toHaveLength(48)
+    expect(body.job.identityEvidence.calibrations[0]).toHaveLength(1000)
   })
 
   it('rate limits hosted job creation on the deep-research feature bucket', async () => {
@@ -397,6 +458,13 @@ describe('research job API', () => {
       },
       tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 20 }],
     })
+    const anthropicMessageContent = String(
+      (anthropicParams as { messages: Array<{ content: unknown }> }).messages[0]?.content,
+    )
+    expect(anthropicMessageContent).toContain('Client output contract')
+    expect(anthropicMessageContent).toContain('candidateEdge must be 2-4 sentences')
+    expect(anthropicMessageContent).toContain('Identity evidence')
+    expect(anthropicMessageContent).not.toContain('tokenUsage')
     expect(requestOptions).toMatchObject({
       headers: { 'anthropic-beta': 'task-budgets-2026-03-13' },
     })

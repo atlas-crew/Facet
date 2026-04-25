@@ -66,6 +66,15 @@ const assertValidArtifactPayload = (
           'Workspace snapshot has invalid artifacts.research.payload.feedbackEvents (expected array).',
         )
       }
+      if (
+        payload.activeResearchJob !== undefined &&
+        payload.activeResearchJob !== null &&
+        !isRecord(payload.activeResearchJob)
+      ) {
+        throw new Error(
+          'Workspace snapshot has invalid artifacts.research.payload.activeResearchJob (expected object or null).',
+        )
+      }
       break
     default: {
       const exhaustiveCheck: never = artifactType

@@ -6,6 +6,7 @@ import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck, PrepWorkspaceMode } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
 import type {
+  ActiveResearchJobState,
   SearchFeedbackEvent,
   SearchProfile,
   SearchRequest,
@@ -64,6 +65,8 @@ export interface ResearchWorkspaceData {
    * are hydrated with an empty array.
    */
   feedbackEvents?: SearchFeedbackEvent[]
+  /** In-flight async research job metadata used to rejoin long-running searches. */
+  activeResearchJob?: ActiveResearchJobState | null
 }
 
 export interface FacetWorkspaceDescriptor {

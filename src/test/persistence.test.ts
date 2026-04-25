@@ -101,6 +101,8 @@ describe('persistence foundation', () => {
       profile: null,
       requests: [],
       runs: [],
+      feedbackEvents: [],
+      activeResearchJob: null,
     })
     useUiStore.setState({
       selectedVector: 'all',
@@ -569,6 +571,55 @@ describe('persistence foundation', () => {
     expect(useDebriefStore.getState().sessions).toHaveLength(1)
     expect(useSearchStore.getState().profile?.id).toBe('profile-1')
     expect(snapshot.artifacts.resume.payload.meta.name).toBe('Hydrated Name')
+  })
+
+  it('round-trips active research jobs through workspace snapshots and legacy hydration', () => {
+    const activeResearchJob = {
+      jobId: 'job-active',
+      runId: 'srun-active',
+      requestId: 'sreq-active',
+      thesisId: 'sthesis-active',
+      status: 'running' as const,
+      startedAt: '2026-03-11T12:00:00.000Z',
+      lastObservedAt: '2026-03-11T12:05:00.000Z',
+    }
+
+    useSearchStore.setState({
+      profile: null,
+      requests: [],
+      runs: [],
+      feedbackEvents: [],
+      activeResearchJob,
+    })
+
+    const snapshot = createWorkspaceSnapshotFromStores({
+      workspaceId: 'ws-active',
+      exportedAt: '2026-03-11T12:10:00.000Z',
+    })
+
+    expect(snapshot.artifacts.research.payload.activeResearchJob).toEqual(activeResearchJob)
+
+    useSearchStore.setState({ activeResearchJob: null })
+    applyWorkspaceSnapshotToStores(snapshot)
+    expect(useSearchStore.getState().activeResearchJob).toEqual(activeResearchJob)
+
+    snapshot.artifacts.research.payload.activeResearchJob!.status = 'completed'
+    expect(useSearchStore.getState().activeResearchJob?.status).toBe('running')
+
+    useSearchStore.setState({ activeResearchJob: null })
+    resolveStorage().setItem('facet-search-data', JSON.stringify({
+      state: {
+        profile: null,
+        requests: [],
+        runs: [],
+        feedbackEvents: [],
+        activeResearchJob,
+      },
+      version: 0,
+    }))
+
+    expect(hydrateStoresFromLegacyStorage()).toBe(true)
+    expect(useSearchStore.getState().activeResearchJob).toEqual(activeResearchJob)
   })
 
   it('hydrates local preferences into UI, pipeline, and prep stores', () => {
@@ -1103,6 +1154,62 @@ describe('persistence foundation', () => {
         },
       }),
     ).toThrow(/invalid artifacts.research.payload shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              profile: null,
+              requests: [],
+              runs: [],
+              activeResearchJob: 'job-active',
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.research.payload.activeResearchJob/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              profile: null,
+              requests: [],
+              runs: [],
+              activeResearchJob: [],
+            },
+          },
+        },
+      }),
+    ).toThrow(/invalid artifacts.research.payload.activeResearchJob/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          research: {
+            ...valid.artifacts.research,
+            payload: {
+              profile: null,
+              requests: [],
+              runs: [],
+              activeResearchJob: {
+                jobId: 'job-active',
+                runId: 'srun-active',
+                requestId: 'sreq-active',
+                thesisId: 'sthesis-active',
+              },
+            },
+          },
+        },
+      }),
+    ).not.toThrow()
     expect(() =>
       assertValidWorkspaceSnapshot({
         ...valid,

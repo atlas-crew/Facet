@@ -146,6 +146,7 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     feedbackEvents: cloneValue(
       snapshot.artifacts.research.payload.feedbackEvents ?? [],
     ),
+    activeResearchJob: cloneValue(snapshot.artifacts.research.payload.activeResearchJob ?? null),
   })
 }
 
@@ -288,6 +289,7 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
     requests: cloneValue(migratedSearch.requests ?? []),
     runs: cloneValue(migratedSearch.runs ?? []),
     feedbackEvents: cloneValue(migratedSearch.feedbackEvents ?? []),
+    activeResearchJob: cloneValue(migratedSearch.activeResearchJob ?? null),
   })
 
   return true

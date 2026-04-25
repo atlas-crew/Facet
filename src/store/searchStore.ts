@@ -7,6 +7,7 @@ import type {
   SearchProfileFilters,
   SearchRequest,
   SearchRun,
+  ActiveResearchJobState,
   SkillCatalogEntry,
   VectorSearchConfig,
 } from '../types/search'
@@ -34,6 +35,7 @@ interface SearchState {
   requests: SearchRequest[]
   runs: SearchRun[]
   feedbackEvents: SearchFeedbackEvent[]
+  activeResearchJob: ActiveResearchJobState | null
 
   setProfile: (profile: SearchProfileInput) => SearchProfile
   updateProfileSkills: (skills: SkillCatalogEntry[]) => void
@@ -49,6 +51,9 @@ interface SearchState {
   updateRun: (id: string, patch: Partial<SearchRun>) => void
   deleteRun: (id: string) => void
   getRunsForRequest: (requestId: string) => SearchRun[]
+  setActiveResearchJob: (job: ActiveResearchJobState) => void
+  updateActiveResearchJob: (patch: Partial<ActiveResearchJobState>) => void
+  clearActiveResearchJob: (jobId?: string) => void
 
   addFeedbackEvent: (event: SearchFeedbackEventInput) => SearchFeedbackEvent
   /** Flip `appliedToIdentity=true` and record the identity version that absorbed the event. */
@@ -97,8 +102,22 @@ export const migrateSearchState = (persistedState: unknown) => {
           requests?: SearchRequest[]
           runs?: SearchRun[]
           feedbackEvents?: SearchFeedbackEvent[]
+          activeResearchJob?: ActiveResearchJobState | null
         })
       : undefined
+
+  const activeResearchJob =
+    state?.activeResearchJob &&
+    typeof state.activeResearchJob === 'object' &&
+    typeof state.activeResearchJob.jobId === 'string' &&
+    typeof state.activeResearchJob.runId === 'string' &&
+    typeof state.activeResearchJob.requestId === 'string' &&
+    typeof state.activeResearchJob.thesisId === 'string'
+      ? {
+          ...state.activeResearchJob,
+          lastObservedAt: state.activeResearchJob.lastObservedAt ?? now(),
+        }
+      : null
 
   return {
     ...state,
@@ -110,6 +129,7 @@ export const migrateSearchState = (persistedState: unknown) => {
       ? state.runs.map((run) => hydrateRun(run))
       : [],
     feedbackEvents: Array.isArray(state?.feedbackEvents) ? state.feedbackEvents : [],
+    activeResearchJob,
   }
 }
 
@@ -118,6 +138,7 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       requests: [],
       runs: [],
       feedbackEvents: [],
+      activeResearchJob: null,
 
       setProfile: (profile) => {
         const hydrated = hydrateProfile(profile)
@@ -272,6 +293,26 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
       getRunsForRequest: (requestId) =>
         get().runs.filter((run) => run.requestId === requestId),
+
+      setActiveResearchJob: (job) => {
+        set({ activeResearchJob: job })
+      },
+
+      updateActiveResearchJob: (patch) => {
+        set((state) =>
+          state.activeResearchJob
+            ? { activeResearchJob: { ...state.activeResearchJob, ...patch } }
+            : state,
+        )
+      },
+
+      clearActiveResearchJob: (jobId) => {
+        set((state) =>
+          !state.activeResearchJob || (jobId && state.activeResearchJob.jobId !== jobId)
+            ? state
+            : { activeResearchJob: null },
+        )
+      },
 
       addFeedbackEvent: (input) => {
         const event: SearchFeedbackEvent = {

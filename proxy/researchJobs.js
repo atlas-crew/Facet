@@ -58,7 +58,7 @@ function normalizeJob(value) {
   return clone(value)
 }
 
-function makeJob({ actor, thesisId, thesisSnapshot, identityVersion, params, hash, nowMs, ttlMs }) {
+function makeJob({ actor, thesisId, thesisSnapshot, identityEvidence, promptContract, identityVersion, params, hash, nowMs, ttlMs }) {
   const nowIso = new Date(nowMs).toISOString()
   return {
     id: randomUUID(),
@@ -67,6 +67,8 @@ function makeJob({ actor, thesisId, thesisSnapshot, identityVersion, params, has
     accountId: actor.accountId ?? null,
     thesisId,
     thesisSnapshot: clone(thesisSnapshot),
+    ...(identityEvidence ? { identityEvidence: clone(identityEvidence) } : {}),
+    ...(promptContract ? { promptContract } : {}),
     identityVersion,
     params: clone(params),
     paramsHash: hash,
@@ -353,22 +355,88 @@ function validateCreatePayload(body) {
   if (!Number.isFinite(identityVersion) || identityVersion < 0) {
     return { error: 'Research job requires identityVersion.' }
   }
+  const identityEvidence = normalizeIdentityEvidence(body.identityEvidence)
+  if (identityEvidence?.error) return { error: identityEvidence.error }
   return {
     thesisId,
     thesisSnapshot,
+    identityEvidence: identityEvidence?.value,
+    promptContract:
+      typeof body.promptContract === 'string' && body.promptContract.trim()
+        ? body.promptContract.trim()
+        : undefined,
     params: body.params,
     identityVersion: Math.floor(identityVersion),
   }
+}
+
+function boundedString(value, maxLength) {
+  if (typeof value !== 'string') return ''
+  return Array.from(value.trim()).slice(0, maxLength).join('')
+}
+
+function boundedStringArray(value, maxItems, maxLength) {
+  if (!Array.isArray(value)) return []
+  return value
+    .flatMap((item) => {
+      const normalized = boundedString(item, maxLength)
+      return normalized ? [normalized] : []
+    })
+    .slice(0, maxItems)
+}
+
+function normalizeIdentityEvidence(value) {
+  if (value === undefined || value === null) return undefined
+  if (!isRecord(value)) return { error: 'Research job identityEvidence must be an object when provided.' }
+
+  const profiles = Array.isArray(value.profiles)
+    ? value.profiles.flatMap((profile, index) => {
+        if (!isRecord(profile)) return []
+        const text = boundedString(profile.text, 4000)
+        if (!text) return []
+        return [{
+          id: boundedString(profile.id, 120) || 'profile-' + String(index + 1),
+          tags: boundedStringArray(profile.tags, 20, 80),
+          text,
+        }]
+      }).slice(0, 24)
+    : []
+
+  const normalized = {
+    archetype: boundedString(value.archetype, 1000),
+    arc: boundedStringArray(value.arc, 24, 500),
+    profiles,
+    paioHighlights: boundedStringArray(value.paioHighlights, 48, 1000),
+    calibrations: boundedStringArray(value.calibrations, 48, 1000),
+  }
+
+  if (
+    !normalized.archetype &&
+    normalized.arc.length === 0 &&
+    normalized.profiles.length === 0 &&
+    normalized.paioHighlights.length === 0 &&
+    normalized.calibrations.length === 0
+  ) {
+    return { error: 'Research job identityEvidence must include at least one evidence field.' }
+  }
+
+  return { value: normalized }
 }
 
 function buildPrompt(job) {
   return [
     'Execute deep job research from this approved search thesis.',
     'Return strict JSON with keys: narrative, results.',
-    'Narrative must include competitiveMoat, selectionMethodology, marketContext, executiveSummary.',
-    'Each result should include candidateEdge with at least two sentences when possible.',
+    'Narrative must include competitiveMoat, selectionMethodology, marketContext, executiveSummary, surprises[], rejectedCandidates[], nextSteps[], and references[] when factual claims are cited.',
+    'Each result must include candidateEdge with 2-4 sentences using candidate fact + company fact + interpretation.',
+    'Include interviewProcess, companyIntel, signalGroup, and advantageMatch on results when evidence is available.',
+    'Every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding must use [cite:<id>] markers resolving to citations/references.',
+    'Do not collapse reasoning into fragments. Fields labeled narrative or summary expect prose. Fields labeled edge or reason expect 2-4 sentences. If you cannot cite a factual claim, do not claim it.',
+    ...(job.promptContract ? ['', 'Client output contract:\n' + job.promptContract] : []),
     '',
     'Thesis snapshot:\n' + JSON.stringify(job.thesisSnapshot, null, 2),
+    '',
+    'Identity evidence:\n' + JSON.stringify(job.identityEvidence ?? {}, null, 2),
     '',
     'Search params:\n' + JSON.stringify(job.params, null, 2),
   ].join('\n')
@@ -579,6 +647,8 @@ export function createResearchJobService(options) {
       actor,
       thesisId: validation.thesisId,
       thesisSnapshot: validation.thesisSnapshot,
+      identityEvidence: validation.identityEvidence,
+      promptContract: validation.promptContract,
       identityVersion: validation.identityVersion,
       params: validation.params,
       hash,

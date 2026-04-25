@@ -267,6 +267,10 @@ export const mergeWorkspaceSnapshots = (
             current.artifacts.research.payload.feedbackEvents ?? [],
             imported.artifacts.research.payload.feedbackEvents ?? [],
           ),
+          activeResearchJob:
+            current.artifacts.research.payload.activeResearchJob ??
+            imported.artifacts.research.payload.activeResearchJob ??
+            null,
         },
       },
     },
