@@ -8,9 +8,21 @@
       "command": "codanna",
       "args": ["--config", ".codanna/settings.toml", "serve", "--watch"]
     },
+    "flyctl": {
+      "command": "fly",
+      "args": ["mcp", "server"]
+    },
+    "stripe": {
+      "type": "http",
+      "url": "https://mcp.stripe.com"
+    },
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=zxcptjtlcvbtvzxybqio"
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com"
     }
   }
 }
