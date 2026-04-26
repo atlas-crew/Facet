@@ -328,6 +328,7 @@ export function buildDeepResearchThesisSnapshot({
   const keywordCombinations = safeLanes.flatMap((lane) => {
     const keywords = lane.targetSignals.length > 0 ? lane.targetSignals : [lane.title]
     return keywords.slice(0, 3).map((keyword) => ({
+      id: createId('skwd'),
       query: [keyword, request.customKeywords].filter(Boolean).join(' '),
       lane: lane.id,
       noiseLevel: 'medium' as const,
@@ -350,6 +351,7 @@ export function buildDeepResearchThesisSnapshot({
     narrative,
     competitiveMoat: moat,
     unfairAdvantages: safeSkillDepthMap.slice(0, 4).map((skill) => ({
+      id: createId('sadv'),
       combination: skill.skill,
       depth: skill.depth,
       targetCompanyProfile: safeLanes[0]?.title ?? 'High-fit teams',

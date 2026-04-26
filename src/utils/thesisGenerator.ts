@@ -101,7 +101,7 @@ const normalizeUnfairAdvantages = (value: unknown): SearchUnfairAdvantage[] =>
         const depth = normalizeString(entry.depth)
         const targetCompanyProfile = normalizeString(entry.targetCompanyProfile)
         return combination && depth && targetCompanyProfile
-          ? [{ combination, depth, targetCompanyProfile }]
+          ? [{ id: normalizeString(entry.id) || createId('sadv'), combination, depth, targetCompanyProfile }]
           : []
       })
     : []
@@ -170,6 +170,7 @@ const normalizeKeywordCombinations = (value: unknown, fallbackLaneId: string): S
           ? (entry.noiseLevel as SearchKeywordCombination['noiseLevel'])
           : 'medium'
         return [{
+          id: normalizeString(entry.id) || createId('skwd'),
           query,
           lane: normalizeString(entry.lane) || fallbackLaneId,
           noiseLevel,

@@ -305,6 +305,7 @@ export type SearchUrgency = 'critical' | 'active' | 'exploratory'
 export type SearchNoiseLevel = 'low' | 'medium' | 'high'
 
 export interface SearchUnfairAdvantage {
+  id: string
   /** Skill combination that creates competitive edge. */
   combination: string
   /** Semantic depth description for this combination. */
@@ -339,6 +340,7 @@ export interface SearchTimeline {
 }
 
 export interface SearchKeywordCombination {
+  id: string
   /** Search query string, e.g. '"platform engineer" + security'. */
   query: string
   /** Which SearchLane.id this keyword combination targets. */

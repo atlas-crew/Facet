@@ -257,6 +257,14 @@ describe('ResearchPage', () => {
         ].join('\n\n'),
         competitiveMoat:
           'Production Kubernetes delivery paired with product-aware platform judgment and evidence of making complex deployment constraints legible.',
+        unfairAdvantages: [
+          {
+            id: 'sadv-generated',
+            combination: 'Kubernetes delivery plus product judgment',
+            depth: 'strong production evidence',
+            targetCompanyProfile: 'Platform teams modernizing deployment paths',
+          },
+        ],
         searchLanes: [
           {
             id: 'lane-platform',
@@ -266,8 +274,31 @@ describe('ResearchPage', () => {
             competitiveContext: 'Look for teams modernizing delivery without hiring for narrow cluster operations.',
             targetSignals: ['on-prem delivery', 'platform modernization'],
           },
+          {
+            id: 'lane-devex',
+            title: 'Developer productivity infrastructure',
+            rationale:
+              'This lane targets teams where platform work is measured by developer leverage. It fits because the candidate evidence connects infrastructure tradeoffs to faster product delivery.',
+            competitiveContext: 'Look for teams that treat internal platform work as product leverage.',
+            targetSignals: ['developer productivity', 'internal platform'],
+          },
         ],
+        interviewStrategy: 'Lead with deployment architecture tradeoffs and product delivery outcomes.',
+        lookFor: ['platform modernization', 'developer leverage'],
         avoid: [{ label: 'Pure Kubernetes administration', condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.' }],
+        timeline: {
+          urgency: 'active',
+          deadline: '2026-05-01',
+          strategyImpact: 'Prioritize active platform openings with clear modernization signals.',
+        },
+        keywordCombinations: [
+          {
+            id: 'skwd-generated',
+            query: '"platform modernization" Kubernetes',
+            lane: 'lane-platform',
+            noiseLevel: 'low',
+          },
+        ],
         skillDepthMap: [
           {
             skill: 'Kubernetes',
@@ -383,18 +414,79 @@ describe('ResearchPage', () => {
     fireEvent.change(narrative, {
       target: { value: 'Edited thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.' },
     })
+    fireEvent.change(screen.getByLabelText('Advantage 1 combination'), {
+      target: { value: 'Deployment architecture plus product judgment' },
+    })
+    fireEvent.change(screen.getByLabelText('Interview strategy'), {
+      target: { value: 'Open with tradeoffs, then map evidence to platform leverage.' },
+    })
+    fireEvent.change(screen.getByLabelText('Look-for signals'), {
+      target: { value: 'platform modernization, internal developer leverage' },
+    })
+    fireEvent.change(screen.getByLabelText('Timeline urgency'), {
+      target: { value: 'critical' },
+    })
+    fireEvent.change(screen.getByLabelText('Timeline deadline'), {
+      target: { value: '2026-06-01' },
+    })
+    fireEvent.change(screen.getByLabelText('Timeline strategy impact'), {
+      target: { value: 'Prioritize roles with active platform modernization mandates.' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Move lane up' })[1]!)
     fireEvent.change(screen.getByLabelText('Lane 1 title'), {
       target: { value: 'Developer platform modernization' },
+    })
+    fireEvent.change(screen.getByLabelText('Keyword 1 query'), {
+      target: { value: '"developer platform" modernization' },
+    })
+    fireEvent.change(screen.getByLabelText('Keyword 1 lane'), {
+      target: { value: 'lane-devex' },
+    })
+    fireEvent.change(screen.getByLabelText('Keyword 1 noise'), {
+      target: { value: 'medium' },
+    })
+    fireEvent.change(screen.getByLabelText('Skill depth 1 search signal'), {
+      target: { value: 'Prioritize roles where Kubernetes unlocks product delivery.' },
+    })
+    fireEvent.change(screen.getByLabelText('Skill depth 1 calibration'), {
+      target: { value: 'Avoid cluster-admin-only roles.' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
     await waitFor(() => {
       expect(useSearchStore.getState().theses).toHaveLength(1)
     })
-    expect(useSearchStore.getState().theses.at(-1)).toMatchObject({
+    const savedThesis = useSearchStore.getState().theses.at(-1)
+    expect(savedThesis).toMatchObject({
       source: 'user-edited',
       narrative: 'Edited thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
-      searchLanes: [expect.objectContaining({ title: 'Developer platform modernization' })],
+      unfairAdvantages: [
+        expect.objectContaining({ combination: 'Deployment architecture plus product judgment' }),
+      ],
+      interviewStrategy: 'Open with tradeoffs, then map evidence to platform leverage.',
+      lookFor: ['platform modernization', 'internal developer leverage'],
+      timeline: expect.objectContaining({
+        urgency: 'critical',
+        deadline: '2026-06-01',
+        strategyImpact: 'Prioritize roles with active platform modernization mandates.',
+      }),
+      keywordCombinations: [
+        {
+          query: '"developer platform" modernization',
+          lane: 'lane-devex',
+          noiseLevel: 'medium',
+        },
+      ],
+      skillDepthMap: [
+        expect.objectContaining({
+          searchSignal: 'Prioritize roles where Kubernetes unlocks product delivery.',
+          calibration: 'Avoid cluster-admin-only roles.',
+        }),
+      ],
+    })
+    expect(savedThesis?.searchLanes[0]).toMatchObject({
+      id: 'lane-devex',
+      title: 'Developer platform modernization',
     })
   })
 
@@ -453,6 +545,452 @@ describe('ResearchPage', () => {
 
     await waitFor(() => {
       expect(useSearchStore.getState().feedbackEvents[0]?.reflectedInThesisId).toBe(thesis.id)
+    })
+  })
+
+  it('removes keyword rows linked to a deleted thesis lane', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-keyword-reconcile',
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'This lane targets platform modernization. It fits the thesis.',
+          targetSignals: ['platform modernization'],
+        },
+        {
+          id: 'lane-devex',
+          title: 'Developer productivity infrastructure',
+          rationale: 'This lane targets developer leverage. It fits the thesis.',
+          targetSignals: ['developer productivity'],
+        },
+      ],
+      keywordCombinations: [
+        {
+          id: 'skwd-1',
+          query: '"platform modernization"',
+          lane: 'lane-platform',
+          noiseLevel: 'low',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove lane' })[0]!)
+    expect(screen.getByText('Removed the lane and 1 linked keyword combination.')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.searchLanes.map((lane) => lane.id)).toEqual([
+        'lane-devex',
+      ])
+    })
+    expect(useSearchStore.getState().theses[0]?.keywordCombinations).toEqual([])
+  })
+
+  it('keeps keyword combinations disabled until a thesis lane exists', async () => {
+    const thesis = buildTestThesis({ id: 'thesis-empty-lanes' })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+
+    expect(screen.getByRole('button', { name: 'Add keyword' })).toHaveProperty('disabled', true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add lane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add keyword' }))
+    fireEvent.change(screen.getByLabelText('Keyword 1 query'), {
+      target: { value: '"new platform lane"' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]).toMatchObject({
+        query: '"new platform lane"',
+        lane: expect.stringMatching(/^slane-/),
+        noiseLevel: 'medium',
+      })
+    })
+  })
+
+  it('blocks saving keyword combinations linked to missing lanes', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-invalid-keyword-lane',
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'This lane targets platform modernization. It fits the thesis.',
+          targetSignals: ['platform modernization'],
+        },
+      ],
+      keywordCombinations: [
+        {
+          id: 'skwd-orphan',
+          query: '"orphan keyword"',
+          lane: 'missing-lane',
+          noiseLevel: 'low',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Every keyword combination must be linked to an existing search lane.',
+    )
+    expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.lane).toBe(
+      'missing-lane',
+    )
+  })
+
+  it('rebinds orphan keyword combinations when adding a rescue lane', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-rebind-orphan-keyword',
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'This lane targets platform modernization. It fits the thesis.',
+          targetSignals: ['platform modernization'],
+        },
+      ],
+      keywordCombinations: [
+        {
+          id: 'skwd-orphan',
+          query: '"orphan keyword"',
+          lane: 'missing-lane',
+          noiseLevel: 'high',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add lane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]).toMatchObject({
+        id: 'skwd-orphan',
+        query: '"orphan keyword"',
+        lane: expect.stringMatching(/^slane-/),
+        noiseLevel: 'high',
+      })
+    })
+  })
+
+  it('restores thesis draft state when discarding edits after a save error', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-discard-restore',
+      narrative: 'Original narrative.',
+      lookFor: ['platform, observability'],
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'This lane targets platform modernization. It fits the thesis.',
+          targetSignals: ['platform modernization'],
+        },
+      ],
+      keywordCombinations: [
+        {
+          id: 'skwd-orphan',
+          query: '"orphan keyword"',
+          lane: 'missing-lane',
+          noiseLevel: 'low',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Thesis narrative'), {
+      target: { value: 'Unsaved narrative.' },
+    })
+    fireEvent.change(screen.getByLabelText('Look-for signals'), {
+      target: { value: 'changed signal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+    expect(screen.getByRole('alert').textContent).toContain('Every keyword combination')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard edits' }))
+
+    expect(screen.getByLabelText('Thesis narrative')).toHaveProperty('value', 'Original narrative.')
+    expect(screen.getByLabelText('Look-for signals')).toHaveProperty('value', 'platform, observability')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Discard edits' })).toHaveProperty('disabled', true)
+  })
+
+  it('falls back to medium noise when a keyword noise value is invalid', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-invalid-noise',
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'This lane targets platform modernization. It fits the thesis.',
+          targetSignals: ['platform modernization'],
+        },
+      ],
+      keywordCombinations: [
+        {
+          id: 'skwd-1',
+          query: '"platform modernization"',
+          lane: 'lane-platform',
+          noiseLevel: 'low',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Keyword 1 noise'), {
+      target: { value: 'invalid' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.noiseLevel).toBe(
+        'medium',
+      )
+    })
+  })
+
+  it('adds and removes unfair advantage rows with stable ids', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-advantage-crud',
+      unfairAdvantages: [
+        {
+          id: 'sadv-original',
+          combination: 'Original combination',
+          depth: 'Original depth',
+          targetCompanyProfile: 'Original target company profile',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add advantage' }))
+    fireEvent.change(screen.getByLabelText('Advantage 2 combination'), {
+      target: { value: 'New combination' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.unfairAdvantages).toHaveLength(2)
+    })
+    expect(useSearchStore.getState().theses[0]?.unfairAdvantages[1]).toMatchObject({
+      id: expect.stringMatching(/^sadv-/),
+      combination: 'New combination',
+      depth: 'Describe the depth signal',
+      targetCompanyProfile: 'Describe the target company profile',
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove advantage' })[1]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.unfairAdvantages).toEqual([
+        {
+          id: 'sadv-original',
+          combination: 'Original combination',
+          depth: 'Original depth',
+          targetCompanyProfile: 'Original target company profile',
+        },
+      ])
+    })
+  })
+
+  it('removes a keyword combination directly without disturbing siblings', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-remove-keyword',
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'This lane targets platform modernization. It fits the thesis.',
+          targetSignals: ['platform modernization'],
+        },
+      ],
+      keywordCombinations: [
+        {
+          id: 'skwd-1',
+          query: '"platform modernization"',
+          lane: 'lane-platform',
+          noiseLevel: 'low',
+        },
+        {
+          id: 'skwd-2',
+          query: '"developer platform"',
+          lane: 'lane-platform',
+          noiseLevel: 'high',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove keyword' })[1]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.keywordCombinations).toEqual([
+        {
+          id: 'skwd-1',
+          query: '"platform modernization"',
+          lane: 'lane-platform',
+          noiseLevel: 'low',
+        },
+      ])
+    })
+  })
+
+  it('clears optional timeline metadata when urgency is removed', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-clear-timeline',
+      timeline: {
+        urgency: 'active',
+        deadline: '2026-05-01',
+        strategyImpact: 'Prioritize active searches.',
+      },
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Timeline urgency'), {
+      target: { value: '' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.timeline).toBeUndefined()
+    })
+  })
+
+  it('requires timeline strategy impact before saving an urgent thesis timeline', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-timeline-validation',
+      timeline: {
+        urgency: 'active',
+        strategyImpact: 'Prioritize active searches.',
+      },
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Timeline strategy impact'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Timeline strategy impact is required when timeline urgency is set.',
+    )
+    expect(useSearchStore.getState().theses[0]?.timeline?.strategyImpact).toBe(
+      'Prioritize active searches.',
+    )
+  })
+
+  it('preserves unchanged look-for entries that contain commas', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-look-for-commas',
+      lookFor: ['k8s, observability', 'developer platform'],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Thesis narrative'), {
+      target: { value: 'Edited narrative without touching look-for text.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.lookFor).toEqual([
+        'k8s, observability',
+        'developer platform',
+      ])
     })
   })
 

@@ -433,6 +433,16 @@
   background: var(--bg-surface);
 }
 
+.research-thesis-keyword-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(160px, 0.8fr) minmax(140px, 0.6fr) auto;
+}
+
+.research-thesis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .research-vector-card-header,
 .research-tier-header,
 .research-result-header,
@@ -567,6 +577,7 @@
   .research-grid-two,
   .research-form-grid,
   .research-thesis-row,
+  .research-thesis-keyword-row,
   .research-skill-row {
     grid-template-columns: minmax(0, 1fr);
   }

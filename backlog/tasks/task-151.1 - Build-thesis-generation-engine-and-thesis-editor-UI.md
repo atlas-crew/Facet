@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:02'
-updated_date: '2026-04-25 09:33'
+updated_date: '2026-04-26 05:50'
 labels:
   - search-redesign
 milestone: m-23
@@ -97,6 +97,10 @@ This task is large — consider splitting into 151.1a (generator + read-only ren
 Started first implementation loop for thesis generation/editor foundations after TASK-151.2 async job client landed. Scope is a coherent foundation slice, not the full large task if review/test gates reveal it should be split.
 
 Foundation implementation loop completed: added thesis generation client/prompt validation, Facet proxy thinking-budget passthrough, searchStore thesis persistence + active selection, workspace snapshot/hydration/merge validation, and ResearchPage thesis generate/review/edit/reuse UI. Deep search now uses the approved active thesis snapshot when present. Verification: npm run typecheck; npx vitest run src/test/thesisGenerator.test.ts src/test/llmProxy.test.ts src/test/searchStore.test.ts src/test/workspaceBackup.test.ts src/test/persistence.test.ts src/test/ResearchPage.test.tsx; targeted eslint on changed TS/TSX; npm run test; npm run build. Independent review/test-audit artifacts: .agents/reviews/review-20260425-052336.md and .agents/reviews/test-audit-20260425-052737.md. Remaining TASK-151.1 scope: identity writeback confirmation/impact flow, lane reorder + keyword editor depth, and final AC reconciliation.
+
+Deep editor loop completed: expanded the Search Thesis editor with editable interview strategy/look-for/timeline, unfair advantage CRUD, lane reorder/removal, keyword combination CRUD with lane integrity guards, and skill-depth search signal/calibration edits. Tightened SearchUnfairAdvantage/SearchKeywordCombination ids to required, added hydration/generator/fallback snapshot id population, preserved unchanged look-for entries containing commas, and kept orphan keyword save validation explicit.
+
+Verification receipts: npm run typecheck; npx vitest run src/test/ResearchPage.test.tsx src/test/thesisGenerator.test.ts src/test/searchStore.test.ts src/test/researchJobs.test.ts; scoped ESLint for changed research/store/generator files; npm run test (130 files, 1540 tests); npm run build. Independent review artifacts: .agents/reviews/review-20260426-013802.md. Test-audit artifacts: .agents/reviews/test-audit-20260426-014231.md and .agents/reviews/test-audit-20260426-014527.md. Remaining TASK-151.1 scope is identity writeback confirmation/impact flow and final AC reconciliation.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

@@ -273,6 +273,7 @@ describe('searchStore', () => {
     const first = useSearchStore.getState().addThesis(buildSearchThesis({
       unfairAdvantages: [
         {
+          id: 'sadv-1',
           combination: 'Kubernetes plus product judgment',
           depth: 'strong',
           targetCompanyProfile: 'Platform modernization teams',
@@ -281,7 +282,7 @@ describe('searchStore', () => {
       interviewStrategy: 'Preserve this interview strategy.',
       lookFor: ['platform modernization', 'developer leverage'],
       keywordCombinations: [
-        { query: '"platform modernization"', lane: 'lane-1', noiseLevel: 'low' },
+        { id: 'skwd-1', query: '"platform modernization"', lane: 'lane-1', noiseLevel: 'low' },
       ],
       feedbackIncorporated: ['sfe-1'],
     }))
@@ -402,6 +403,34 @@ describe('searchStore', () => {
       avoid: [],
       skillDepthMap: [],
     })
+
+    const migratedLegacyThesis = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [
+        {
+          ...buildSearchThesis({ id: 'legacy-thesis-missing-row-ids' }),
+          unfairAdvantages: [
+            {
+              combination: 'Legacy advantage',
+              depth: 'strong',
+              targetCompanyProfile: 'Platform teams',
+            },
+          ],
+          keywordCombinations: [
+            {
+              query: '"legacy platform"',
+              lane: 'lane-1',
+              noiseLevel: 'low',
+            },
+          ],
+        },
+      ],
+      activeThesisId: 'legacy-thesis-missing-row-ids',
+    }).theses[0]
+    expect(migratedLegacyThesis?.unfairAdvantages[0]?.id).toMatch(/^sadv-/)
+    expect(migratedLegacyThesis?.keywordCombinations[0]?.id).toMatch(/^skwd-/)
 
     expect(migrateSearchState({
       profile: null,
