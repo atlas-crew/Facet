@@ -571,6 +571,63 @@ describe('professional identity schema', () => {
     expect(() => importProfessionalIdentity(invalid)).toThrow(/duplicate id/i)
   })
 
+  it('rejects duplicate ids across schema collections that resolve by id', () => {
+    const cases: Array<{
+      label: string
+      mutate: (identity: ProfessionalIdentityV3) => void
+      error: RegExp
+    }> = [
+      {
+        label: 'identity links',
+        mutate: (identity) => {
+          identity.identity.links.push({ id: identity.identity.links[0]!.id, url: 'https://duplicate.example.dev' })
+        },
+        error: /identity.links has duplicate id "github"/,
+      },
+      {
+        label: 'skill groups',
+        mutate: (identity) => {
+          identity.skills.groups.push({
+            id: identity.skills.groups[0]!.id,
+            label: 'Duplicate languages',
+            items: [],
+          })
+        },
+        error: /skills.groups has duplicate id "sg-languages"/,
+      },
+      {
+        label: 'profiles',
+        mutate: (identity) => {
+          identity.profiles.push({
+            id: identity.profiles[0]!.id,
+            tags: ['duplicate'],
+            text: 'Duplicate profile id.',
+          })
+        },
+        error: /profiles has duplicate id "profile-default"/,
+      },
+      {
+        label: 'projects',
+        mutate: (identity) => {
+          identity.projects.push({
+            id: identity.projects[0]!.id,
+            name: 'Duplicate project',
+            description: 'Duplicate project id.',
+            tags: ['duplicate'],
+          })
+        },
+        error: /projects has duplicate id "proj-facet"/,
+      },
+    ]
+
+    for (const testCase of cases) {
+      const invalid = clone(baseIdentityFixture)
+      testCase.mutate(invalid)
+
+      expect(() => importProfessionalIdentity(invalid), testCase.label).toThrow(testCase.error)
+    }
+  })
+
   it('rejects duplicate matching ids', () => {
     const invalid = clone(baseIdentityFixture)
     invalid.schema_revision = '3.1'
@@ -670,8 +727,107 @@ describe('professional identity schema', () => {
     expect(() => importProfessionalIdentity(invalid)).toThrow(/duplicate id/i)
   })
 
+  it('rejects invalid enum values in native identity fields', () => {
+    const cases: Array<{
+      label: string
+      mutate: (identity: ProfessionalIdentityV3) => void
+      error: RegExp
+    }> = [
+      {
+        label: 'skill depth',
+        mutate: (identity) => {
+          identity.skills.groups[0]!.items[0]!.depth = 'wizard' as never
+        },
+        error: /skills\.groups\[0\]\.items\[0\]\.depth/,
+      },
+      {
+        label: 'matching priority weight',
+        mutate: (identity) => {
+          identity.preferences.matching.prioritize[0]!.weight = 'urgent' as never
+        },
+        error: /preferences\.matching\.prioritize\[0\]\.weight/,
+      },
+      {
+        label: 'matching avoid severity',
+        mutate: (identity) => {
+          identity.preferences.matching.avoid[0]!.severity = 'maybe' as never
+        },
+        error: /preferences\.matching\.avoid\[0\]\.severity/,
+      },
+      {
+        label: 'search vector priority',
+        mutate: (identity) => {
+          identity.search_vectors = [
+            {
+              id: 'v-invalid-priority',
+              title: 'Invalid priority',
+              priority: 'urgent' as never,
+              thesis: 'Invalid priority vector.',
+              target_roles: ['Engineer'],
+              keywords: { primary: ['platform'], secondary: [] },
+            },
+          ]
+        },
+        error: /search_vectors\[0\]\.priority/,
+      },
+      {
+        label: 'awareness severity',
+        mutate: (identity) => {
+          identity.awareness = {
+            open_questions: [
+              {
+                id: 'awareness-invalid-severity',
+                topic: 'Invalid severity',
+                description: 'Invalid severity.',
+                action: 'Reject it.',
+                severity: 'urgent' as never,
+              },
+            ],
+          }
+        },
+        error: /awareness\.open_questions\[0\]\.severity/,
+      },
+    ]
+
+    for (const testCase of cases) {
+      const invalid = clone(baseIdentityFixture)
+      testCase.mutate(invalid)
+
+      expect(() => importProfessionalIdentity(invalid), testCase.label).toThrow(testCase.error)
+    }
+  })
+
   it('does not confuse resume configs for professional identity files', () => {
     expect(looksLikeProfessionalIdentity(defaultResumeData)).toBe(false)
+  })
+
+  it('detects native-looking professional identity files by root schema shape', () => {
+    expect(looksLikeProfessionalIdentity(clone(baseIdentityFixture))).toBe(true)
+
+    const wrongVersion = clone(baseIdentityFixture)
+    wrongVersion.version = 2 as 3
+    expect(looksLikeProfessionalIdentity(wrongVersion)).toBe(false)
+
+    for (const key of [
+      'identity',
+      'self_model',
+      'preferences',
+      'skills',
+      'profiles',
+      'roles',
+      'projects',
+      'education',
+      'generator_rules',
+    ]) {
+      const missingRootSection = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+      delete missingRootSection[key]
+
+      expect(looksLikeProfessionalIdentity(missingRootSection), key).toBe(false)
+    }
+
+    for (const nonObject of [null, undefined, [], 'identity']) {
+      expect(looksLikeProfessionalIdentity(nonObject), String(nonObject)).toBe(false)
+    }
   })
 
   it('handles identity files with optional fields omitted', () => {
@@ -720,14 +876,53 @@ describe('professional identity schema', () => {
   })
 
   it('rejects prototype pollution keys in identity input', () => {
-    const polluted = clone(baseIdentityFixture) as unknown as Record<string, unknown>
-    Object.defineProperty(polluted, '__proto__', {
-      value: { polluted: true },
-      enumerable: true,
-      configurable: true,
-    })
+    for (const key of ['__proto__', 'prototype', 'constructor']) {
+      const polluted = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+      Object.defineProperty(polluted, key, {
+        value: { polluted: true },
+        enumerable: true,
+        configurable: true,
+      })
 
-    expect(() => importProfessionalIdentity(polluted)).toThrow(/unsupported key/i)
+      expect(() => importProfessionalIdentity(polluted), key).toThrow(
+        new RegExp(`identity contains unsupported key "${key}"`),
+      )
+    }
+  })
+
+  it('rejects prototype pollution keys in nested identity input objects', () => {
+    const cases: Array<{
+      label: string
+      selectTarget: (identity: ProfessionalIdentityV3) => Record<string, unknown>
+    }> = [
+      {
+        label: 'direct child object',
+        selectTarget: (identity) => identity.identity as unknown as Record<string, unknown>,
+      },
+      {
+        label: 'array element object',
+        selectTarget: (identity) => identity.skills.groups[0] as unknown as Record<string, unknown>,
+      },
+      {
+        label: 'deep array element object',
+        selectTarget: (identity) => identity.roles[0].bullets[0] as unknown as Record<string, unknown>,
+      },
+    ]
+
+    for (const testCase of cases) {
+      for (const key of ['__proto__', 'prototype', 'constructor']) {
+        const polluted = clone(baseIdentityFixture)
+        Object.defineProperty(testCase.selectTarget(polluted), key, {
+          value: { polluted: true },
+          enumerable: true,
+          configurable: true,
+        })
+
+        expect(() => importProfessionalIdentity(polluted), `${testCase.label}: ${key}`).toThrow(
+          new RegExp(`contains unsupported key "${key}"`),
+        )
+      }
+    }
   })
 
   it('trims empty bullet fragments when adapting bullet text', () => {
