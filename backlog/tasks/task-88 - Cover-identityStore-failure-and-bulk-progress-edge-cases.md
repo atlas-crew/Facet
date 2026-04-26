@@ -4,6 +4,7 @@ title: Cover identityStore failure and bulk-progress edge cases
 status: To Do
 assignee: []
 created_date: '2026-04-07 05:00'
+updated_date: '2026-04-25 19:15'
 labels:
   - scanner
 dependencies: []
