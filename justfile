@@ -3,8 +3,9 @@
 # Usage:  just <recipe>   or   just --list
 
 set dotenv-load := false
+set shell := ["zsh", "-c"]
 
-svc_session := env_var_or_default("TMUX_SESSION", "facet")
+svc_session := env("TMUX_SESSION", "facet")
 tmux_app_window := "facet-app"
 tmux_proxy_window := "facet-proxy"
 
@@ -14,7 +15,7 @@ default:
 
 # Create the tmux session used by cortex tmux
 tmux-new:
-    @session="{{svc_session}}"; \
+    @session="{{ svc_session }}"; \
     if tmux has-session -t "$session" 2>/dev/null; then \
         echo "tmux session '$session' already exists"; \
     else \
@@ -40,7 +41,7 @@ dev-all:
 
 # Start Vite dev server in a dedicated service window
 svc-dev: tmux-new
-    @session="{{svc_session}}"; window="{{tmux_app_window}}"; \
+    @session="{{ svc_session }}"; window="{{ tmux_app_window }}"; \
     if tmux list-windows -t "$session" -F "#{window_name}" | grep -qx "$window"; then \
         if cortex tmux running "$window" >/dev/null 2>&1; then \
             echo "$window is already running"; \
@@ -51,14 +52,14 @@ svc-dev: tmux-new
         tmux new-window -d -t "$session:" -n "$window"; \
         tmux send-keys -t "$session:$window" "cd \"$PWD\" && ./scripts/tx-start-app.sh" C-m; \
     fi
-    @cortex tmux read {{tmux_app_window}} 20
+    @cortex tmux read {{ tmux_app_window }} 20
 
 # Alias for the Vite dev server service target
 svc-app: svc-dev
 
 # Start the local AI proxy in a dedicated service window
 svc-proxy: tmux-new
-    @session="{{svc_session}}"; window="{{tmux_proxy_window}}"; \
+    @session="{{ svc_session }}"; window="{{ tmux_proxy_window }}"; \
     if tmux list-windows -t "$session" -F "#{window_name}" | grep -qx "$window"; then \
         if cortex tmux running "$window" >/dev/null 2>&1; then \
             echo "$window is already running"; \
@@ -69,7 +70,7 @@ svc-proxy: tmux-new
         tmux new-window -d -t "$session:" -n "$window"; \
         tmux send-keys -t "$session:$window" "cd \"$PWD\" && ./scripts/tx-start-proxy.sh" C-m; \
     fi
-    @cortex tmux read {{tmux_proxy_window}} 20
+    @cortex tmux read {{ tmux_proxy_window }} 20
 
 # Alias that mirrors the package script naming for the local AI proxy
 svc-dev-proxy: svc-proxy
@@ -83,27 +84,27 @@ svc-list: tmux-new
 
 # Show status for service windows
 svc-status:
-    @echo "== {{tmux_app_window}} =="
-    @cortex tmux status {{tmux_app_window}} || true
+    @echo "== {{ tmux_app_window }} =="
+    @cortex tmux status {{ tmux_app_window }} || true
     @echo ""
-    @echo "== {{tmux_proxy_window}} =="
-    @cortex tmux status {{tmux_proxy_window}} || true
+    @echo "== {{ tmux_proxy_window }} =="
+    @cortex tmux status {{ tmux_proxy_window }} || true
 
 # Read recent output from the Vite dev server window
 svc-read-dev:
-    @cortex tmux read {{tmux_app_window}} 50
+    @cortex tmux read {{ tmux_app_window }} 50
 
 # Read recent output from the local AI proxy window
 svc-read-proxy:
-    @cortex tmux read {{tmux_proxy_window}} 50
+    @cortex tmux read {{ tmux_proxy_window }} 50
 
 # Print the tmux session name used by service recipes
 svc-session:
-    @echo "{{svc_session}}"
+    @echo "{{ svc_session }}"
 
 # Enter the shell window for the service tmux session
 svc-shell: tmux-new
-    @session="{{svc_session}}"; \
+    @session="{{ svc_session }}"; \
     tmux select-window -t "$session:shell"; \
     if [ -n "$TMUX" ]; then \
         tmux switch-client -t "$session"; \
@@ -116,16 +117,16 @@ svc-attach: svc-shell
 
 # Stop the Vite dev server service window
 svc-stop-dev:
-    @if tmux list-windows -t "{{svc_session}}" -F "#{window_name}" | grep -qx "{{tmux_app_window}}"; then cortex tmux kill {{tmux_app_window}}; fi
+    @if tmux list-windows -t "{{ svc_session }}" -F "#{window_name}" | grep -qx "{{ tmux_app_window }}"; then cortex tmux kill {{ tmux_app_window }}; fi
 
 # Stop the local AI proxy service window
 svc-stop-proxy:
-    @if tmux list-windows -t "{{svc_session}}" -F "#{window_name}" | grep -qx "{{tmux_proxy_window}}"; then cortex tmux kill {{tmux_proxy_window}}; fi
+    @if tmux list-windows -t "{{ svc_session }}" -F "#{window_name}" | grep -qx "{{ tmux_proxy_window }}"; then cortex tmux kill {{ tmux_proxy_window }}; fi
 
 # Stop service windows
 svc-stop: svc-stop-dev svc-stop-proxy
-    @if ! tmux list-windows -t "{{svc_session}}" -F "#{window_name}" | grep -qx "{{tmux_app_window}}"; then echo "{{tmux_app_window}} is not running"; fi
-    @if ! tmux list-windows -t "{{svc_session}}" -F "#{window_name}" | grep -qx "{{tmux_proxy_window}}"; then echo "{{tmux_proxy_window}} is not running"; fi
+    @if ! tmux list-windows -t "{{ svc_session }}" -F "#{window_name}" | grep -qx "{{ tmux_app_window }}"; then echo "{{ tmux_app_window }} is not running"; fi
+    @if ! tmux list-windows -t "{{ svc_session }}" -F "#{window_name}" | grep -qx "{{ tmux_proxy_window }}"; then echo "{{ tmux_proxy_window }} is not running"; fi
 
 # Alias for stopping both service windows
 svc-down: svc-stop
@@ -150,7 +151,7 @@ svc-restart-all: svc-stop
 
 # Recreate the tmux session used by the service recipes
 svc-reset:
-    @if tmux has-session -t "{{svc_session}}" 2>/dev/null; then tmux kill-session -t "{{svc_session}}"; fi
+    @if tmux has-session -t "{{ svc_session }}" 2>/dev/null; then tmux kill-session -t "{{ svc_session }}"; fi
     @just tmux-new
 
 # TypeScript check + Vite production build
