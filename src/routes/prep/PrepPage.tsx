@@ -5,7 +5,6 @@ import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
 import { PrepPracticeMode } from './PrepPracticeMode'
-import { PrepRulesPanel } from './PrepRulesPanel'
 import { PrepSearch } from './PrepSearch'
 import { useMatchStore } from '../../store/matchStore'
 import { useIdentityStore } from '../../store/identityStore'
@@ -2583,14 +2582,6 @@ export function PrepPage() {
                 </summary>
 
                 <div className="prep-edit-group-body">
-                  <PrepRulesPanel
-                    rules={activeDeck.rules}
-                    variant="edit"
-                    title="The Rules"
-                    subtitle="Deck-scoped imperatives that should shape every answer in this session."
-                    className="prep-edit-rules-preview"
-                  />
-
                   <PrepGuidanceEditorSection
                     title="Rules"
                     subtitle="Short, imperative reminders that apply to the entire interview, not just one card."
@@ -2610,32 +2601,34 @@ export function PrepPage() {
                     )}
                   >
                     {(activeDeck.rules ?? []).length > 0 ? (
-                      (activeDeck.rules ?? []).map((entry, index) => (
-                        <div key={`rule-${index}`} className="prep-section-item">
-                          <label className="prep-field">
-                            <span className="prep-field-label">Rule</span>
-                            <input
-                              className="prep-input"
-                              aria-label={`Rule ${index + 1}`}
-                              value={entry}
-                              onChange={(event) => updateActiveDeckListItem('rules', index, event.target.value)}
-                              placeholder="Use a short imperative one-liner."
-                            />
-                          </label>
-                          <button
-                            className="prep-icon-btn prep-icon-btn-danger"
-                            type="button"
-                            onClick={() =>
-                              updateActiveDeck({
-                                rules: (activeDeck.rules ?? []).filter((_, itemIndex) => itemIndex !== index),
-                              })
-                            }
-                            title="Remove rule"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))
+                      <ol className="prep-guidance-list" role="list">
+                        {(activeDeck.rules ?? []).map((entry, index) => (
+                          <li key={`rule-${index}`} className="prep-guidance-list-item">
+                            <span className="prep-guidance-index" aria-hidden="true">{index + 1}</span>
+                            <label className="prep-field prep-guidance-field">
+                              <input
+                                className="prep-input"
+                                aria-label={`Rule ${index + 1}`}
+                                value={entry}
+                                onChange={(event) => updateActiveDeckListItem('rules', index, event.target.value)}
+                                placeholder="Use a short imperative one-liner."
+                              />
+                            </label>
+                            <button
+                              className="prep-icon-btn prep-icon-btn-danger"
+                              type="button"
+                              onClick={() =>
+                                updateActiveDeck({
+                                  rules: (activeDeck.rules ?? []).filter((_, itemIndex) => itemIndex !== index),
+                                })
+                              }
+                              title="Remove rule"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
                     ) : (
                       <div className="prep-section-empty">No rules yet.</div>
                     )}
@@ -2660,32 +2653,34 @@ export function PrepPage() {
                     )}
                   >
                     {(activeDeck.donts ?? []).length > 0 ? (
-                      (activeDeck.donts ?? []).map((entry, index) => (
-                        <div key={`dont-${index}`} className="prep-section-item">
-                          <label className="prep-field">
-                            <span className="prep-field-label">Don't</span>
-                            <input
-                              className="prep-input"
-                              aria-label={`Don't ${index + 1}`}
-                              value={entry}
-                              onChange={(event) => updateActiveDeckListItem('donts', index, event.target.value)}
-                              placeholder="What should the candidate avoid?"
-                            />
-                          </label>
-                          <button
-                            className="prep-icon-btn prep-icon-btn-danger"
-                            type="button"
-                            onClick={() =>
-                              updateActiveDeck({
-                                donts: (activeDeck.donts ?? []).filter((_, itemIndex) => itemIndex !== index),
-                              })
-                            }
-                            title="Remove don't"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))
+                      <ol className="prep-guidance-list" role="list">
+                        {(activeDeck.donts ?? []).map((entry, index) => (
+                          <li key={`dont-${index}`} className="prep-guidance-list-item">
+                            <span className="prep-guidance-index" aria-hidden="true">{index + 1}</span>
+                            <label className="prep-field prep-guidance-field">
+                              <input
+                                className="prep-input"
+                                aria-label={`Don't ${index + 1}`}
+                                value={entry}
+                                onChange={(event) => updateActiveDeckListItem('donts', index, event.target.value)}
+                                placeholder="What should the candidate avoid?"
+                              />
+                            </label>
+                            <button
+                              className="prep-icon-btn prep-icon-btn-danger"
+                              type="button"
+                              onClick={() =>
+                                updateActiveDeck({
+                                  donts: (activeDeck.donts ?? []).filter((_, itemIndex) => itemIndex !== index),
+                                })
+                              }
+                              title="Remove don't"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
                     ) : (
                       <div className="prep-section-empty">No don'ts yet.</div>
                     )}

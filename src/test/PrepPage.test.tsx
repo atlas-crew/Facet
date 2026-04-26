@@ -200,7 +200,7 @@ describe('PrepPage', () => {
   })
 
   it('collapses live guidance editor subsections', async () => {
-    render(<PrepPage />)
+    const { container } = render(<PrepPage />)
 
     fireEvent.click(screen.getAllByText('Blank Set')[0])
     fireEvent.click(screen.getByRole('button', { name: 'Add Rule' }))
@@ -210,6 +210,14 @@ describe('PrepPage', () => {
     expect(await screen.findByPlaceholderText('Use a short imperative one-liner.')).toBeTruthy()
     expect(screen.getByPlaceholderText('What should the candidate avoid?')).toBeTruthy()
     expect(screen.getByPlaceholderText('What do you want to ask?')).toBeTruthy()
+    expect(screen.queryByText('The Rules')).toBeNull()
+    expect(screen.queryByText('Deck-scoped imperatives that should shape every answer in this session.')).toBeNull()
+    expect(
+      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map((node) => node.textContent),
+    ).toEqual(['1'])
+    expect(
+      Array.from(container.querySelectorAll('#prep-live-donts-editor .prep-guidance-index')).map((node) => node.textContent),
+    ).toEqual(['1'])
 
     const rulesToggle = screen.getByRole('button', {
       name: /RulesShort, imperative reminders/i,
@@ -305,6 +313,47 @@ describe('PrepPage', () => {
     expect(screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded')).toBe('false')
     expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(true)
     expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(true)
+  })
+
+  it('numbers and removes live guidance list entries from the refactored editors', () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-guidance-list',
+          title: 'Guidance List Prep',
+          company: 'Acme',
+          role: 'Staff Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: null,
+          updatedAt: '2026-04-15T00:00:00.000Z',
+          rules: ['Rule A', 'Rule B', 'Rule C'],
+          donts: ['Avoid A', 'Avoid B'],
+          cards: [],
+        },
+      ],
+      activeDeckId: 'deck-guidance-list',
+      activeMode: 'edit',
+    })
+
+    const { container } = render(<PrepPage />)
+
+    expect(
+      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map((node) => node.textContent),
+    ).toEqual(['1', '2', '3'])
+    expect(
+      Array.from(container.querySelectorAll('#prep-live-donts-editor .prep-guidance-index')).map((node) => node.textContent),
+    ).toEqual(['1', '2'])
+
+    const ruleRemoveButtons = container.querySelectorAll('#prep-live-rules-editor .prep-icon-btn-danger')
+    fireEvent.click(ruleRemoveButtons[1]!)
+    const dontRemoveButtons = container.querySelectorAll('#prep-live-donts-editor .prep-icon-btn-danger')
+    fireEvent.click(dontRemoveButtons[0]!)
+
+    expect(usePrepStore.getState().decks[0]?.rules).toEqual(['Rule A', 'Rule C'])
+    expect(usePrepStore.getState().decks[0]?.donts).toEqual(['Avoid B'])
+    expect(
+      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map((node) => node.textContent),
+    ).toEqual(['1', '2'])
   })
 
   it('persists round type, rules, donts, questions, and category guidance from the active prep set editors', async () => {
