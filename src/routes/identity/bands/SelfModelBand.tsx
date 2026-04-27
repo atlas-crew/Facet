@@ -38,8 +38,10 @@ export function SelfModelBand() {
   const fill = selfModelFillStrength(identity)
 
   const self = identity?.self_model
-  const roles = identity?.roles ?? []
-  const arc = useMemo(() => deriveCareerArc(self?.arc ?? [], roles), [self?.arc, roles])
+  const arc = useMemo(
+    () => deriveCareerArc(self?.arc ?? [], identity?.roles ?? []),
+    [self?.arc, identity?.roles],
+  )
   const philosophy = self?.philosophy ?? []
   const interview = self?.interview_style
 

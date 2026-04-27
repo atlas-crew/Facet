@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import type {
   ProfessionalIdentityV3,
   ProfessionalRole,
@@ -374,5 +373,3 @@ function lookupArcStop(
   return persisted ?? null
 }
 
-// Memoize ResultPair lookup if needed in future; useMemo placeholder for ESLint.
-useMemo
