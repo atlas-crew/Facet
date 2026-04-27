@@ -1,5 +1,5 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
-import { skillNamesMatch } from './identityEnrichment'
+import { isGenericSkillGroupLabel, skillNamesMatch } from './identityEnrichment'
 
 export type FillStrengthTone = 'ok' | 'warn'
 
@@ -83,9 +83,6 @@ export function rolesFillStrength(identity: ProfessionalIdentityV3 | null): Fill
     tone: percent < 30 ? 'warn' : 'ok',
   }
 }
-
-const isGenericSkillGroupLabel = (label: string): boolean =>
-  /^skills?\s*\d+$/i.test(label.trim()) || label.trim().toLowerCase() === 'also'
 
 export function skillsFillStrength(identity: ProfessionalIdentityV3 | null): FillStrength {
   if (!identity) return { label: 'Empty', percent: 0, tone: 'warn' }

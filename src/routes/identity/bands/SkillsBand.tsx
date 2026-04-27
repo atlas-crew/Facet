@@ -1,10 +1,11 @@
 import { useIdentityStore } from '../../../store/identityStore'
 import { skillsFillStrength } from '../../../utils/identityFillStrength'
-import { skillNamesMatch } from '../../../utils/identityEnrichment'
+import {
+  displaySkillGroupLabel,
+  isGenericSkillGroupLabel,
+  skillNamesMatch,
+} from '../../../utils/identityEnrichment'
 import { IdentityBand } from '../IdentityBand'
-
-const isGenericSkillGroupLabel = (label: string): boolean =>
-  /^skills?\s*\d+$/i.test(label.trim()) || label.trim().toLowerCase() === 'also'
 
 export function SkillsBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
@@ -25,6 +26,7 @@ export function SkillsBand() {
         <div className="skills-shell">
           {groups.map((group) => {
             const isProblematic = isGenericSkillGroupLabel(group.label)
+            const displayLabel = displaySkillGroupLabel(group.label)
             const isGroupSelected = selection?.type === 'skill-group' && selection.id === group.id
             return (
               <div key={group.id} className={`skill-group${isProblematic ? ' problematic' : ''}`}>
@@ -34,8 +36,9 @@ export function SkillsBand() {
                     className={`skill-group-label label-tracked${isGroupSelected ? ' selected' : ''}`}
                     onClick={() => setSelection({ type: 'skill-group', id: group.id })}
                     aria-pressed={isGroupSelected}
+                    title={isProblematic ? `Source label: "${group.label}" — auto-generated, needs renaming` : undefined}
                   >
-                    {group.label}
+                    {displayLabel}
                   </button>
                   <span className="skill-group-count label-tracked">{group.items.length} items</span>
                 </div>

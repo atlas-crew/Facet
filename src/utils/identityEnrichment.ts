@@ -13,6 +13,33 @@ export interface IdentityEnrichmentResolvedSkill extends IdentityEnrichmentSkill
 export const skillNamesMatch = (left: string, right: string): boolean =>
   left.localeCompare(right, undefined, { sensitivity: 'accent' }) === 0
 
+/**
+ * Detect skill-group labels that look like AI-generated placeholders rather
+ * than something the user authored. Two patterns surface today:
+ *   - `Skills 5`, `Skills5`, `skill 12` — index-suffixed auto-names. These also
+ *     visually collide with the band header literally named "Skills".
+ *   - `Also` — fallback bucket the extractor uses for ungrouped items.
+ */
+export const isGenericSkillGroupLabel = (label: string): boolean => {
+  const trimmed = label.trim()
+  return /^skills?\s*\d+$/i.test(trimmed) || trimmed.toLowerCase() === 'also'
+}
+
+/**
+ * Map a possibly-generic group label to a display string. We swap the literal
+ * "Skills N" label out of the rendered chip-group header so it stops colliding
+ * with the band-level "Skills" eyebrow. Returns the original label unchanged
+ * for user-authored names. The source data is never mutated — re-extraction
+ * still finds the original label.
+ */
+export const displaySkillGroupLabel = (label: string): string => {
+  const trimmed = label.trim()
+  const match = /^skills?\s*(\d+)$/i.exec(trimmed)
+  if (match) return `Unnamed group · #${match[1]}`
+  if (trimmed.toLowerCase() === 'also') return 'Uncategorized'
+  return trimmed || '(no label)'
+}
+
 export const skillGroupHasSkillName = (
   group: Pick<ProfessionalSkillGroup, 'items'>,
   skillName: string,
