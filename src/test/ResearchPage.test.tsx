@@ -7,6 +7,7 @@ import type { ResearchJob, SearchThesis } from '../types/search'
 import { defaultResumeData } from '../store/defaultData'
 import { useIdentityStore } from '../store/identityStore'
 import { usePipelineStore } from '../store/pipelineStore'
+import { usePrepStore } from '../store/prepStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
@@ -129,6 +130,7 @@ describe('ResearchPage', () => {
     })
     resolveStorage().removeItem('facet-search-data')
     resolveStorage().removeItem('facet-pipeline-data')
+    resolveStorage().removeItem('facet-prep-data')
     resolveStorage().removeItem('vector-resume-data')
 
     useResumeStore.setState({
@@ -144,6 +146,12 @@ describe('ResearchPage', () => {
       sortField: 'tier',
       sortDir: 'asc',
       filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    usePrepStore.setState({
+      decks: [],
+      activeDeckId: null,
+      activeMode: 'edit',
     })
 
     useIdentityStore.setState({
@@ -490,6 +498,375 @@ describe('ResearchPage', () => {
     })
   })
 
+  it('writes thesis skill-depth corrections back to Identity after confirmation', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Acme prep',
+      company: 'Acme',
+      role: 'Staff Platform Engineer',
+    })
+    usePrepStore.getState().addCard(deckId, {
+      title: 'Platform story',
+      category: 'technical',
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Architected Kubernetes delivery paths for customer environments.',
+          searchSignal: 'Prioritize architecture-heavy platform roles.',
+          calibration: 'Avoid cluster-administration-only roles.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+      runs: [{
+        ...state.runs[0]!,
+        identityVersion: 2,
+        thesisId: thesis.id,
+        thesisSnapshot: thesis,
+      }],
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Thesis narrative'), {
+      target: { value: 'Unsaved thesis edits should survive identity writeback.' },
+    })
+    fireEvent.change(screen.getByLabelText('Look-for signals'), {
+      target: { value: 'unsaved platform signal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+
+    const confirmPanel = screen
+      .getByText('Confirm Identity writeback')
+      .closest('[role="region"]') as HTMLElement
+    expect(confirmPanel.textContent).toContain('This will update your identity model. Your workspace currently has')
+    expect(confirmPanel.textContent).toContain('1 search result')
+    expect(confirmPanel.textContent).toContain('1 prep card')
+    expect(confirmPanel.textContent).toContain('0 saved theses')
+    expect(confirmPanel.textContent).toContain('1 search run')
+    fireEvent.change(screen.getByLabelText('Skill depth 1 depth'), {
+      target: { value: 'expert' },
+    })
+    fireEvent.change(screen.getByLabelText('Skill depth 1 context'), {
+      target: { value: 'Current visible thesis row context wins.' },
+    })
+    expect(confirmPanel.textContent).toContain('Depth: expert')
+
+    fireEvent.click(within(confirmPanel).getByRole('button', { name: 'Apply to Identity' }))
+
+    const updatedIdentity = useIdentityStore.getState().currentIdentity
+    const updatedSkill = updatedIdentity?.skills.groups[0]?.items[0]
+    expect(updatedIdentity?.model_revision).toBe(3)
+    expect(updatedSkill).toMatchObject({
+      name: 'Kubernetes',
+      depth: 'expert',
+      depthSource: 'corrected',
+      context: 'Current visible thesis row context wins.',
+      positioning:
+        'Prioritize architecture-heavy platform roles.\n\nAvoid cluster-administration-only roles.',
+      enriched_by: 'user',
+    })
+    expect(screen.getByLabelText('Thesis narrative')).toHaveProperty(
+      'value',
+      'Unsaved thesis edits should survive identity writeback.',
+    )
+    expect(screen.getByLabelText('Look-for signals')).toHaveProperty(
+      'value',
+      'unsaved platform signal',
+    )
+    expect(screen.getByText(/Updated Identity skill "Kubernetes"/)).toBeTruthy()
+  })
+
+  it('cancels identity writeback when the selected skill changes after confirmation opens', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-stale-skill',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Architected Kubernetes delivery paths for customer environments.',
+          searchSignal: 'Prioritize architecture-heavy platform roles.',
+          calibration: 'Avoid cluster-administration-only roles.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+    fireEvent.change(screen.getByLabelText('Skill depth 1 skill'), {
+      target: { value: 'Rust' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to Identity' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'The selected thesis skill changed after confirmation opened.',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
+  })
+
+  it('cancels identity writeback when Identity changes after confirmation opens', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-stale-identity',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Architected Kubernetes delivery paths for customer environments.',
+          searchSignal: 'Prioritize architecture-heavy platform roles.',
+          calibration: 'Avoid cluster-administration-only roles.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+    identity.model_revision = 3
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to Identity' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Identity changed after confirmation opened.',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(3)
+  })
+
+  it('blocks identity writeback when thesis positioning fields are empty', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-empty-positioning',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Architected Kubernetes delivery paths for customer environments.',
+          searchSignal: '   ',
+          calibration: '   ',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to Identity' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Add a search signal or calibration note before writing positioning back to Identity.',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]?.enriched_by)
+      .not
+      .toBe('user')
+  })
+
+  it('blocks identity writeback when the thesis skill is not in Identity', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-missing-skill',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Made-up Skill',
+          depth: 'architectural',
+          context: 'Context.',
+          searchSignal: 'Signal.',
+          calibration: 'Calibration.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Could not find "Made-up Skill" in the Identity skill model.',
+    )
+    expect(screen.queryByText('Confirm Identity writeback')).toBeNull()
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
+  })
+
+  it('blocks identity writeback when skill depth is unsupported', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const invalidDepth = 'operator-grade' as SearchThesis['skillDepthMap'][number]['depth']
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-invalid-depth',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: invalidDepth,
+          context: 'Context.',
+          searchSignal: 'Signal.',
+          calibration: 'Calibration.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Choose a supported identity depth before writing "Kubernetes" back to Identity.',
+    )
+    expect(screen.queryByText('Confirm Identity writeback')).toBeNull()
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
+  })
+
+  it('blocks identity writeback when skill depth becomes unsupported after confirmation opens', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-invalid-depth-confirm',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Context.',
+          searchSignal: 'Signal.',
+          calibration: 'Calibration.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+    fireEvent.change(screen.getByLabelText('Skill depth 1 depth'), {
+      target: { value: 'operator-grade' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to Identity' }))
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Choose a supported identity depth before writing "Kubernetes" back to Identity.',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
+  })
+
+  it('cancels pending identity writeback without modifying Identity', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-cancel',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Context.',
+          searchSignal: 'Signal.',
+          calibration: 'Calibration.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Identity writeback' }))
+
+    expect(screen.queryByText('Confirm Identity writeback')).toBeNull()
+    expect(screen.getByText('Identity writeback canceled.')).toBeTruthy()
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
+  })
+
   it('uses the reviewed active thesis when launching deep research', async () => {
     const identity = cloneIdentityFixture()
     useIdentityStore.setState({
@@ -585,7 +962,7 @@ describe('ResearchPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove lane' })[0]!)
-    expect(screen.getByText('Removed the lane and 1 linked keyword combination.')).toBeTruthy()
+    expect(screen.getByText(/Dropped 1 linked keyword combination/)).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
@@ -661,14 +1038,15 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
     expect(screen.getByRole('alert').textContent).toContain(
-      'Every keyword combination must be linked to an existing search lane.',
+      '1 keyword combination is linked to a removed lane.',
     )
+    expect(screen.getByText('Choose a current search lane before saving.')).toBeTruthy()
     expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.lane).toBe(
       'missing-lane',
     )
   })
 
-  it('rebinds orphan keyword combinations when adding a rescue lane', async () => {
+  it('keeps orphan keyword combinations blocked after adding a new lane', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-rebind-orphan-keyword',
       searchLanes: [
@@ -701,13 +1079,14 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add lane' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
-    await waitFor(() => {
-      expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]).toMatchObject({
-        id: 'skwd-orphan',
-        query: '"orphan keyword"',
-        lane: expect.stringMatching(/^slane-/),
-        noiseLevel: 'high',
-      })
+    expect(screen.getByRole('alert').textContent).toContain(
+      '1 keyword combination is linked to a removed lane.',
+    )
+    expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]).toMatchObject({
+      id: 'skwd-orphan',
+      query: '"orphan keyword"',
+      lane: 'missing-lane',
+      noiseLevel: 'high',
     })
   })
 
@@ -750,7 +1129,9 @@ describe('ResearchPage', () => {
       target: { value: 'changed signal' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
-    expect(screen.getByRole('alert').textContent).toContain('Every keyword combination')
+    expect(screen.getByRole('alert').textContent).toContain(
+      '1 keyword combination is linked to a removed lane.',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard edits' }))
 
@@ -953,15 +1334,57 @@ describe('ResearchPage', () => {
     render(<ResearchPage />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Look-for signals'), {
+      target: { value: 'fresh platform signal' },
+    })
     fireEvent.change(screen.getByLabelText('Timeline strategy impact'), {
       target: { value: '   ' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
     expect(screen.getByRole('alert').textContent).toContain(
-      'Timeline strategy impact is required when timeline urgency is set.',
+      'Timeline strategy impact is required before saving thesis edits.',
+    )
+    expect(screen.getByText('Add strategy impact before saving this timeline.')).toBeTruthy()
+    expect(screen.getByLabelText('Look-for signals')).toHaveProperty(
+      'value',
+      'fresh platform signal',
     )
     expect(useSearchStore.getState().theses[0]?.timeline?.strategyImpact).toBe(
+      'Prioritize active searches.',
+    )
+  })
+
+  it('restores timeline details when urgency is toggled off and back on before save', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-timeline-toggle-restore',
+      timeline: {
+        urgency: 'active',
+        deadline: '2026-06-01',
+        strategyImpact: 'Prioritize active searches.',
+      },
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Timeline urgency'), {
+      target: { value: '' },
+    })
+    expect(screen.getByLabelText('Timeline deadline')).toHaveProperty('value', '')
+    fireEvent.change(screen.getByLabelText('Timeline urgency'), {
+      target: { value: 'critical' },
+    })
+
+    expect(screen.getByLabelText('Timeline deadline')).toHaveProperty('value', '2026-06-01')
+    expect(screen.getByLabelText('Timeline strategy impact')).toHaveProperty(
+      'value',
       'Prioritize active searches.',
     )
   })

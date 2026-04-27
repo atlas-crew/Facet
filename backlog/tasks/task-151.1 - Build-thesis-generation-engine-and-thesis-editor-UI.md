@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:02'
-updated_date: '2026-04-26 05:50'
+updated_date: '2026-04-27 08:04'
 labels:
   - search-redesign
 milestone: m-23
@@ -75,8 +75,8 @@ This task is large — consider splitting into 151.1a (generator + read-only ren
 - [ ] #4 Prompt enforces reasoning output contract: narrative is 3-5 paragraphs, lane rationales are prose, skill depth context cites PAIO evidence
 - [ ] #5 Output validation flags contract violations and surfaces regenerate affordance
 - [ ] #6 Thesis editor renders all thesis sections as reviewable/editable content, narrative at top
-- [ ] #7 Skill depth corrections update identity model with depthSource='corrected' flag; bumps identity.version
-- [ ] #8 Confirmation dialog shows downstream impact before writeback
+- [x] #7 Skill depth corrections update identity model with depthSource='corrected' flag; bumps identity.version
+- [x] #8 Confirmation dialog shows downstream impact before writeback
 - [ ] #9 Search lanes can be added, removed, and reordered
 - [ ] #10 Avoid-list entries can be added with qualifying condition
 - [ ] #11 Thesis collection persists in searchStore (append-on-edit, not mutate-in-place)
@@ -101,6 +101,10 @@ Foundation implementation loop completed: added thesis generation client/prompt 
 Deep editor loop completed: expanded the Search Thesis editor with editable interview strategy/look-for/timeline, unfair advantage CRUD, lane reorder/removal, keyword combination CRUD with lane integrity guards, and skill-depth search signal/calibration edits. Tightened SearchUnfairAdvantage/SearchKeywordCombination ids to required, added hydration/generator/fallback snapshot id population, preserved unchanged look-for entries containing commas, and kept orphan keyword save validation explicit.
 
 Verification receipts: npm run typecheck; npx vitest run src/test/ResearchPage.test.tsx src/test/thesisGenerator.test.ts src/test/searchStore.test.ts src/test/researchJobs.test.ts; scoped ESLint for changed research/store/generator files; npm run test (130 files, 1540 tests); npm run build. Independent review artifacts: .agents/reviews/review-20260426-013802.md. Test-audit artifacts: .agents/reviews/test-audit-20260426-014231.md and .agents/reviews/test-audit-20260426-014527.md. Remaining TASK-151.1 scope is identity writeback confirmation/impact flow and final AC reconciliation.
+
+Identity writeback loop completed: skill-depth rows now open an inline confirmation region with workspace impact context, write back to Identity through saveSkillEnrichment with depthSource='corrected', and guard against stale identity revisions, renamed/missing skills, unsupported depths, empty positioning, and cancel/apply flows. Added inline lane/timeline validation affordances and preserved unsaved thesis edits during writeback.
+
+Verification receipts: npm run typecheck; npm run build; npx vitest run src/test/ResearchPage.test.tsx (57 tests); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; tab scan on touched TS/TSX files. Independent review artifacts include .agents/reviews/review-20260427-033712.md (fallback after Claude invalid artifact and Gemini capacity timeout; final P1 remediated) and test audit .agents/reviews/test-audit-20260427-035003.md (P1 cancel gap remediated after audit).
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

@@ -5,8 +5,10 @@ import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'luc
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
+import { usePrepStore } from '../../store/prepStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useSearchStore } from '../../store/searchStore'
+import type { ProfessionalIdentityV3, ProfessionalSkillDepth } from '../../identity/schema'
 import type {
   DeepResearchIdentityEvidence,
   ResearchJob,
@@ -38,6 +40,7 @@ import {
   inferSearchProfileFromIdentity,
 } from '../../utils/searchProfileInference'
 import { adaptIdentityToSearchProfile } from '../../utils/identitySearchProfile'
+import { skillNamesMatch } from '../../utils/identityEnrichment'
 import {
   buildRequestDraft,
   createPipelineEntryDraft,
@@ -56,6 +59,24 @@ const TERMINAL_RESEARCH_JOB_STATUSES = new Set(['completed', 'failed', 'canceled
 type ResearchJobEventLogEntry = { id: number; text: string }
 type ThesisNoiseLevel = SearchThesis['keywordCombinations'][number]['noiseLevel']
 type ThesisUrgency = NonNullable<SearchThesis['timeline']>['urgency']
+type ThesisSkillCorrectionTarget = {
+  groupId: string
+  skillName: string
+  groupLabel: string
+}
+type ThesisWritebackImpact = {
+  savedTheses: number
+  searchRuns: number
+  searchResults: number
+  prepCards: number
+  totalArtifacts: number
+}
+type PendingThesisSkillWriteback = {
+  skillIndex: number
+  skillName: string
+  identityRevision: number
+  target: ThesisSkillCorrectionTarget
+}
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
   { value: '', label: 'No preference' },
@@ -83,8 +104,22 @@ const THESIS_URGENCY_OPTIONS: Array<{ value: ThesisUrgency; label: string }> = [
   { value: 'critical', label: 'Critical' },
 ]
 
+const THESIS_SKILL_DEPTH_VALUES = new Set<ProfessionalSkillDepth>([
+  'expert',
+  'strong',
+  'hands-on-working',
+  'architectural',
+  'conceptual',
+  'working',
+  'basic',
+  'avoid',
+])
+
 const isThesisNoiseLevel = (value: string): value is ThesisNoiseLevel =>
   THESIS_NOISE_LEVELS.has(value as ThesisNoiseLevel)
+
+const isProfessionalSkillDepth = (value: string): value is ProfessionalSkillDepth =>
+  THESIS_SKILL_DEPTH_VALUES.has(value as ProfessionalSkillDepth)
 
 const normalizeEditableTimeline = (
   timeline: SearchThesis['timeline'],
@@ -98,6 +133,38 @@ const normalizeEditableTimeline = (
     ...(deadline ? { deadline } : {}),
     strategyImpact,
   }
+}
+
+const formatCount = (count: number, singular: string, plural: string): string =>
+  `${count} ${count === 1 ? singular : plural}`
+
+const formatThesisWritebackImpact = (impact: ThesisWritebackImpact): string =>
+  formatCount(impact.totalArtifacts, 'workspace artifact', 'workspace artifacts') +
+  ': ' +
+  formatCount(impact.searchResults, 'search result', 'search results') +
+  ', ' +
+  formatCount(impact.prepCards, 'prep card', 'prep cards') +
+  ', ' +
+  formatCount(impact.savedTheses, 'saved thesis', 'saved theses') +
+  ', and ' +
+  formatCount(impact.searchRuns, 'search run', 'search runs')
+
+const resolveThesisSkillCorrectionTarget = (
+  identity: ProfessionalIdentityV3,
+  skillName: string,
+): ThesisSkillCorrectionTarget | null => {
+  for (const group of identity.skills.groups) {
+    const skill = group.items.find((entry) => skillNamesMatch(entry.name, skillName))
+    if (skill) {
+      return {
+        groupId: group.id,
+        skillName: skill.name,
+        groupLabel: group.label,
+      }
+    }
+  }
+
+  return null
 }
 
 const formatElapsedTime = (elapsedMs: number): string => {
@@ -221,6 +288,8 @@ export function ResearchPage() {
   const navigate = useNavigate()
   const resumeData = useResumeStore((state) => state.data)
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
+  const saveSkillEnrichment = useIdentityStore((state) => state.saveSkillEnrichment)
+  const prepDecks = usePrepStore((state) => state.decks)
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const addPipelineEntry = usePipelineStore((state) => state.addEntry)
   const {
@@ -263,6 +332,8 @@ export function ResearchPage() {
   const [thesisDraftIsDirty, setThesisDraftIsDirty] = useState(false)
   const [thesisLookForText, setThesisLookForText] = useState('')
   const [thesisLookForBaselineText, setThesisLookForBaselineText] = useState('')
+  const [pendingSkillWriteback, setPendingSkillWriteback] =
+    useState<PendingThesisSkillWriteback | null>(null)
   const [thesisContractViolations, setThesisContractViolations] = useState<string[]>([])
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
@@ -272,6 +343,7 @@ export function ResearchPage() {
     inferredAt: new Date().toISOString(),
   })
   const preservedResumeProfileRef = useRef<SearchProfile | null>(null)
+  const preservedTimelineRef = useRef<SearchThesis['timeline']>(null)
   const pollTimerRef = useRef<number | null>(null)
   const eventSourceRef = useRef<{ close: () => void } | null>(null)
   const hiddenDuringJobRef = useRef(false)
@@ -283,7 +355,39 @@ export function ResearchPage() {
     () => theses.find((thesis) => thesis.id === activeThesisId) ?? null,
     [activeThesisId, theses],
   )
-
+  const thesisWritebackImpact = useMemo<ThesisWritebackImpact>(() => {
+    const prepCards = prepDecks.reduce((total, deck) => total + deck.cards.length, 0)
+    const savedTheses = Math.max(0, theses.length - (activeThesis ? 1 : 0))
+    const searchResults = runs.reduce((total, run) => total + run.results.length, 0)
+    return {
+      savedTheses,
+      searchRuns: runs.length,
+      searchResults,
+      prepCards,
+      totalArtifacts: savedTheses + runs.length + searchResults + prepCards,
+    }
+  }, [activeThesis, prepDecks, runs, theses])
+  const thesisLookForPreview = useMemo(
+    () =>
+      thesisLookForText === thesisLookForBaselineText
+        ? thesisDraft?.lookFor ?? []
+        : splitTags(thesisLookForText),
+    [thesisDraft?.lookFor, thesisLookForBaselineText, thesisLookForText],
+  )
+  const thesisLookForPreviewLabel =
+    thesisLookForText === thesisLookForBaselineText
+      ? 'Will keep stored signals unchanged: '
+      : 'Will normalize to: '
+  const thesisTimelineStrategyMissing = Boolean(
+    thesisDraft?.timeline?.urgency && !thesisDraft.timeline.strategyImpact.trim(),
+  )
+  const thesisLaneIds = useMemo(
+    () => new Set(thesisDraft?.searchLanes.map((lane) => lane.id) ?? []),
+    [thesisDraft?.searchLanes],
+  )
+  const pendingSkillWritebackEntry = pendingSkillWriteback
+    ? thesisDraft?.skillDepthMap[pendingSkillWriteback.skillIndex] ?? null
+    : null
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
     [],
@@ -430,6 +534,12 @@ export function ResearchPage() {
     setThesisLookForText(lookForText)
     setThesisLookForBaselineText(lookForText)
     setThesisDraftIsDirty(false)
+    setPendingSkillWriteback(null)
+    preservedTimelineRef.current = null
+  }, [activeThesis])
+
+  useEffect(() => {
+    // Contract warnings intentionally track the saved thesis; draft validation runs on save.
     setThesisContractViolations(
       activeThesis ? validateSearchThesis(activeThesis, currentIdentity) : [],
     )
@@ -829,6 +939,7 @@ export function ResearchPage() {
       setThesisLookForText(lookForText)
       setThesisLookForBaselineText(lookForText)
       setThesisDraftIsDirty(false)
+      setPendingSkillWriteback(null)
       setThesisContractViolations(generated.contractViolations)
       setActiveTab('search')
     } catch (error) {
@@ -877,7 +988,6 @@ export function ResearchPage() {
   const addThesisLane = () => {
     setThesisDraft((current) => {
       if (!current) return current
-      const currentLaneIds = new Set(current.searchLanes.map((currentLane) => currentLane.id))
       const lane = {
         id: createId('slane'),
         title: 'New search lane',
@@ -888,37 +998,39 @@ export function ResearchPage() {
       return {
         ...current,
         searchLanes: [...current.searchLanes, lane],
-        keywordCombinations: current.keywordCombinations.map((entry) =>
-          currentLaneIds.has(entry.lane) ? entry : { ...entry, lane: lane.id },
-        ),
       }
     })
     setThesisDraftIsDirty(true)
   }
 
   const removeThesisLane = (index: number) => {
-    if (!thesisDraft) return
-    const removedLaneId = thesisDraft.searchLanes[index]?.id
-    const removedKeywordCount = thesisDraft.keywordCombinations.filter(
-      (entry) => entry.lane === removedLaneId,
-    ).length
-    const searchLanes = thesisDraft.searchLanes.filter((_, laneIndex) => laneIndex !== index)
-    const keywordCombinations = thesisDraft.keywordCombinations.filter(
-      (entry) => entry.lane !== removedLaneId,
-    )
-    setThesisNotice(
-      removedKeywordCount > 0
-        ? 'Removed the lane and ' +
-            String(removedKeywordCount) +
-            ' linked keyword combination' +
-            (removedKeywordCount === 1 ? '' : 's') +
+    setThesisDraft((current) => {
+      if (!current) return current
+      const removedLaneId = current.searchLanes[index]?.id
+      if (!removedLaneId) return current
+      const removedKeywordCount = current.keywordCombinations.filter(
+        (entry) => entry.lane === removedLaneId,
+      ).length
+      const searchLanes = current.searchLanes.filter((_, laneIndex) => laneIndex !== index)
+      const keywordCombinations = current.keywordCombinations.filter(
+        (entry) => entry.lane !== removedLaneId,
+      )
+      setThesisNotice(
+        removedKeywordCount > 0
+          ? 'Removed the lane. Dropped ' +
+            formatCount(
+              removedKeywordCount,
+              'linked keyword combination',
+              'linked keyword combinations',
+            ) +
             '.'
-        : null,
-    )
-    setThesisDraft({
-      ...thesisDraft,
-      searchLanes,
-      keywordCombinations,
+          : 'Removed the lane.',
+      )
+      return {
+        ...current,
+        searchLanes,
+        keywordCombinations,
+      }
     })
     setThesisDraftIsDirty(true)
   }
@@ -1032,6 +1144,110 @@ export function ResearchPage() {
     setThesisDraftIsDirty(true)
   }
 
+  const handleRequestSkillDepthWriteback = (index: number) => {
+    if (!currentIdentity || !thesisDraft) {
+      setPageError('Load an Identity model and thesis draft before applying skill corrections.')
+      return
+    }
+
+    const entry = thesisDraft.skillDepthMap[index]
+    if (!entry) return
+
+    const target = resolveThesisSkillCorrectionTarget(currentIdentity, entry.skill)
+    if (!target) {
+      setPageError('Could not find "' + entry.skill + '" in the Identity skill model.')
+      return
+    }
+
+    if (!isProfessionalSkillDepth(entry.depth)) {
+      setPageError(
+        'Choose a supported identity depth before writing "' + entry.skill + '" back to Identity.',
+      )
+      return
+    }
+
+    setPageError(null)
+    setThesisNotice(null)
+    setPendingSkillWriteback({
+      skillIndex: index,
+      skillName: entry.skill,
+      identityRevision: currentIdentity.model_revision,
+      target,
+    })
+  }
+
+  const handleCancelSkillDepthWriteback = () => {
+    setPendingSkillWriteback(null)
+    setThesisNotice('Identity writeback canceled.')
+  }
+
+  const handleConfirmSkillDepthWriteback = () => {
+    if (!pendingSkillWriteback || !currentIdentity || !thesisDraft) return
+
+    if (currentIdentity.model_revision !== pendingSkillWriteback.identityRevision) {
+      setPendingSkillWriteback(null)
+      setPageError(
+        'Identity changed after confirmation opened. Review the current skill model and start writeback again.',
+      )
+      return
+    }
+
+    const entry = thesisDraft.skillDepthMap[pendingSkillWriteback.skillIndex]
+    if (!entry) {
+      setPendingSkillWriteback(null)
+      setPageError('The selected thesis skill correction no longer exists.')
+      return
+    }
+
+    if (!skillNamesMatch(entry.skill, pendingSkillWriteback.skillName)) {
+      setPendingSkillWriteback(null)
+      setPageError(
+        'The selected thesis skill changed after confirmation opened. Review it and start Identity writeback again.',
+      )
+      return
+    }
+
+    if (!isProfessionalSkillDepth(entry.depth)) {
+      setPageError(
+        'Choose a supported identity depth before writing "' + entry.skill + '" back to Identity.',
+      )
+      return
+    }
+
+    const positioning = [entry.searchSignal, entry.calibration]
+      .map((value) => value?.trim())
+      .filter(Boolean)
+      .join('\n\n')
+    if (!positioning) {
+      setPageError(
+        'Add a search signal or calibration note before writing positioning back to Identity.',
+      )
+      return
+    }
+    const target = pendingSkillWriteback.target
+
+    saveSkillEnrichment(
+      target.groupId,
+      target.skillName,
+      {
+        depth: entry.depth,
+        context: entry.context,
+        positioning,
+        contextStale: false,
+        positioningStale: false,
+      },
+      'user',
+    )
+
+    setPendingSkillWriteback(null)
+    setPageError(null)
+    setThesisNotice(
+      'Updated Identity skill "' +
+        target.skillName +
+        '" from thesis calibration.',
+    )
+  }
+
   const updateThesisKeywordCombination = (
     index: number,
     patch: Partial<SearchThesis['keywordCombinations'][number]>,
@@ -1095,24 +1311,32 @@ export function ResearchPage() {
   ) => {
     setThesisDraft((current) => {
       if (!current) return current
+      const priorTimeline = current.timeline ?? preservedTimelineRef.current
       const urgency = patch.urgency ?? current.timeline?.urgency ?? ''
       if (!urgency) {
+        if (current.timeline) {
+          preservedTimelineRef.current = current.timeline
+        }
         return { ...current, timeline: undefined }
       }
       const finalUrgency: ThesisUrgency = urgency
       const deadline =
         patch.deadline !== undefined
-          ? patch.deadline
-          : current.timeline?.deadline
+          ? patch.deadline.trim()
+            ? patch.deadline.trim()
+            : undefined
+          : priorTimeline?.deadline
       const strategyImpact =
         patch.strategyImpact !== undefined
           ? patch.strategyImpact
-          : current.timeline?.strategyImpact ?? ''
+          : priorTimeline?.strategyImpact ?? ''
       const timeline: NonNullable<SearchThesis['timeline']> = {
         urgency: finalUrgency,
         strategyImpact,
       }
       if (deadline !== undefined) timeline.deadline = deadline
+      // Preserve timeline details only while the user is toggling urgency off and back on.
+      preservedTimelineRef.current = null
       return { ...current, timeline }
     })
     setThesisDraftIsDirty(true)
@@ -1126,6 +1350,8 @@ export function ResearchPage() {
     setThesisLookForBaselineText(lookForText)
     setThesisDraftIsDirty(false)
     setThesisContractViolations(validateSearchThesis(activeThesis, currentIdentity))
+    setPendingSkillWriteback(null)
+    preservedTimelineRef.current = null
     setPageError(null)
     setThesisNotice(null)
   }
@@ -1138,15 +1364,21 @@ export function ResearchPage() {
     }
 
     const laneIds = new Set(thesisDraft.searchLanes.map((lane) => lane.id))
-    const invalidKeyword = thesisDraft.keywordCombinations.find(
+    const invalidKeywords = thesisDraft.keywordCombinations.filter(
       (entry) => !entry.lane || !laneIds.has(entry.lane),
     )
-    if (invalidKeyword) {
-      setPageError('Every keyword combination must be linked to an existing search lane.')
+    if (invalidKeywords.length > 0) {
+      setPageError(
+        formatCount(
+          invalidKeywords.length,
+          'keyword combination is',
+          'keyword combinations are',
+        ) + ' linked to a removed lane. Choose a current search lane before saving.',
+      )
       return
     }
     if (thesisDraft.timeline?.urgency && !thesisDraft.timeline.strategyImpact.trim()) {
-      setPageError('Timeline strategy impact is required when timeline urgency is set.')
+      setPageError('Timeline strategy impact is required before saving thesis edits.')
       return
     }
 
@@ -1173,6 +1405,8 @@ export function ResearchPage() {
     setThesisLookForBaselineText(saved.lookFor.join(', '))
     setThesisDraftIsDirty(false)
     setThesisContractViolations(validateSearchThesis(saved, currentIdentity))
+    setPendingSkillWriteback(null)
+    preservedTimelineRef.current = null
     setPageError(null)
     setThesisNotice(null)
   }
@@ -1901,6 +2135,46 @@ export function ResearchPage() {
                 </div>
               ) : null}
 
+              {pendingSkillWriteback ? (
+                <div
+                  className="research-confirm"
+                  role="region"
+                  aria-labelledby="identity-writeback-title"
+                >
+                  <strong id="identity-writeback-title">Confirm Identity writeback</strong>
+                  <p>
+                    This will update your identity model. Your workspace currently has{' '}
+                    {formatThesisWritebackImpact(thesisWritebackImpact)}; review any of
+                    them that reference{' '}
+                    {pendingSkillWriteback.target.skillName}.
+                  </p>
+                  <ul className="research-list">
+                    <li>
+                      Skill: {pendingSkillWriteback.target.skillName} (
+                      {pendingSkillWriteback.target.groupLabel})
+                    </li>
+                    <li>Depth: {pendingSkillWritebackEntry?.depth ?? 'Unavailable'}</li>
+                    <li>Context and positioning will be copied from this thesis calibration.</li>
+                  </ul>
+                  <div className="research-thesis-actions">
+                    <button
+                      type="button"
+                      className="research-btn research-btn-primary"
+                      onClick={handleConfirmSkillDepthWriteback}
+                    >
+                      Apply to Identity
+                    </button>
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={handleCancelSkillDepthWriteback}
+                    >
+                      Cancel Identity writeback
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {thesisContractViolations.length > 0 ? (
                 <div className="research-warning" role="status">
                   <strong>Thesis quality warnings</strong>
@@ -1967,10 +2241,17 @@ export function ResearchPage() {
                         aria-label="Look-for signals"
                         value={thesisLookForText}
                         onChange={(event) => {
-                          setThesisLookForText(event.target.value)
+                          const lookForText = event.target.value
+                          setThesisLookForText(lookForText)
                           setThesisDraftIsDirty(true)
                         }}
                       />
+                      <span className="research-muted">
+                        {thesisLookForPreviewLabel}
+                        {thesisLookForPreview.length > 0
+                          ? thesisLookForPreview.join(', ')
+                          : 'No look-for signals'}
+                      </span>
                     </label>
 
                     <label className="research-field">
@@ -2008,15 +2289,33 @@ export function ResearchPage() {
                     <label className="research-field research-field-span">
                       <span>Timeline strategy impact</span>
                       <textarea
-                        className="research-textarea"
+                        className={
+                          thesisTimelineStrategyMissing
+                            ? 'research-textarea research-input-invalid'
+                            : 'research-textarea'
+                        }
                         rows={2}
                         aria-label="Timeline strategy impact"
+                        aria-invalid={thesisTimelineStrategyMissing ? 'true' : undefined}
+                        aria-describedby={
+                          thesisTimelineStrategyMissing
+                            ? 'thesis-timeline-strategy-impact-error'
+                            : undefined
+                        }
                         value={thesisDraft.timeline?.strategyImpact ?? ''}
                         onChange={(event) =>
                           updateThesisTimeline({ strategyImpact: event.target.value })
                         }
                         disabled={!thesisDraft.timeline?.urgency}
                       />
+                      {thesisTimelineStrategyMissing ? (
+                        <span
+                          id="thesis-timeline-strategy-impact-error"
+                          className="research-field-hint research-field-hint-error"
+                        >
+                          Add strategy impact before saving this timeline.
+                        </span>
+                      ) : null}
                     </label>
                   </div>
 
@@ -2189,8 +2488,16 @@ export function ResearchPage() {
                     {thesisDraft.keywordCombinations.length === 0 ? (
                       <p className="research-muted">No keyword combinations yet.</p>
                     ) : (
-                      thesisDraft.keywordCombinations.map((entry, index) => (
-                        <div key={entry.id} className="research-thesis-row research-thesis-keyword-row">
+                      thesisDraft.keywordCombinations.map((entry, index) => {
+                        const laneIsInvalid = !entry.lane || !thesisLaneIds.has(entry.lane)
+                        const laneErrorId = laneIsInvalid
+                          ? 'thesis-keyword-lane-error-' + entry.id
+                          : undefined
+                        return (
+                          <div
+                            key={entry.id}
+                            className="research-thesis-row research-thesis-keyword-row"
+                          >
                           <label className="research-field">
                             <span>Query</span>
                             <input
@@ -2205,8 +2512,14 @@ export function ResearchPage() {
                           <label className="research-field">
                             <span>Lane</span>
                             <select
-                              className="research-select"
+                              className={
+                                laneIsInvalid
+                                  ? 'research-select research-input-invalid'
+                                  : 'research-select'
+                              }
                               aria-label={`Keyword ${index + 1} lane`}
+                              aria-invalid={laneIsInvalid ? 'true' : undefined}
+                              aria-describedby={laneErrorId}
                               value={entry.lane}
                               onChange={(event) =>
                                 updateThesisKeywordCombination(index, { lane: event.target.value })
@@ -2223,6 +2536,14 @@ export function ResearchPage() {
                                 </option>
                               ))}
                             </select>
+                            {laneIsInvalid ? (
+                              <span
+                                id={laneErrorId}
+                                className="research-field-hint research-field-hint-error"
+                              >
+                                Choose a current search lane before saving.
+                              </span>
+                            ) : null}
                           </label>
                           <label className="research-field">
                             <span>Noise</span>
@@ -2252,8 +2573,9 @@ export function ResearchPage() {
                           >
                             Remove keyword
                           </button>
-                        </div>
-                      ))
+                          </div>
+                        )
+                      })
                     )}
                   </section>
 
@@ -2369,6 +2691,20 @@ export function ResearchPage() {
                                 }
                               />
                             </label>
+                          </div>
+                          <div className="research-thesis-actions">
+                            <button
+                              type="button"
+                              className="research-btn"
+                              onClick={() => handleRequestSkillDepthWriteback(index)}
+                              disabled={!currentIdentity}
+                              aria-label={`Write skill depth ${index + 1} back to Identity`}
+                            >
+                              Write back to Identity
+                            </button>
+                            <span className="research-muted">
+                              Updates this Identity skill as depthSource='corrected' and bumps model revision.
+                            </span>
                           </div>
                         </div>
                       ))
