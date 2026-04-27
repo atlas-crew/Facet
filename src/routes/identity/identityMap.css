@@ -1,0 +1,212 @@
+.identity-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  min-height: 100vh;
+  max-width: 1600px;
+  margin: 0 auto;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.identity-map-canvas {
+  padding: var(--space-8) calc(var(--space-8) + var(--space-2)) calc(var(--space-8) * 2);
+  border-right: 1px solid var(--border-subtle);
+  overflow-x: hidden;
+}
+
+.identity-map-topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+  padding-bottom: calc(var(--space-4) + var(--space-1));
+  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.identity-map-topbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.identity-map-crumb {
+  color: var(--text-tertiary);
+  letter-spacing: 0.15em;
+}
+
+.identity-map-crumb-sep {
+  color: var(--border-strong);
+}
+
+.identity-map-crumb-active {
+  color: var(--text-primary);
+}
+
+.identity-map-topbar-meta {
+  display: flex;
+  gap: var(--space-6);
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.identity-map-stat {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+}
+
+.identity-map-stat span {
+  color: var(--text-primary);
+}
+
+.identity-map-stat.warn span,
+.identity-map-stat.warn {
+  color: var(--warning);
+}
+
+.identity-map-identity {
+  margin-bottom: var(--space-8);
+}
+
+.identity-map-name {
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+
+.identity-map-contact {
+  margin-top: var(--space-1);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.identity-band {
+  position: relative;
+  margin-bottom: calc(var(--space-6) + var(--space-1));
+}
+
+.identity-band[data-layer="thesis"] { --band-color: var(--layer-thesis); }
+.identity-band[data-layer="self"] { --band-color: var(--layer-self); }
+.identity-band[data-layer="profiles"] { --band-color: var(--layer-profiles); }
+.identity-band[data-layer="roles"] { --band-color: var(--layer-roles); }
+.identity-band[data-layer="skills"] { --band-color: var(--layer-skills); }
+.identity-band[data-layer="prefs"] { --band-color: var(--layer-prefs); }
+
+.identity-band-rail {
+  position: absolute;
+  left: -22px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--band-color, var(--border-default));
+  opacity: 0.55;
+}
+
+.identity-band-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.identity-band-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.identity-band-name {
+  margin: 0;
+  font-size: 11px;
+  color: var(--band-color);
+  letter-spacing: 0.18em;
+}
+
+.identity-band-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.2px;
+}
+
+.identity-band-content {
+  position: relative;
+}
+
+.identity-band-stub {
+  padding: var(--space-4) var(--space-6);
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-default);
+  border-radius: 4px;
+  color: var(--text-tertiary);
+}
+
+.identity-map-footer {
+  margin-top: calc(var(--space-8) + var(--space-4));
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.15em;
+}
+
+.identity-map-footer span span {
+  color: var(--text-secondary);
+}
+
+.identity-inspector {
+  background: var(--bg-inset);
+  padding: var(--space-8) calc(var(--space-6) + var(--space-1));
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.identity-inspector-empty {
+  margin-top: 50%;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.identity-inspector-pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.identity-inspector-eyebrow {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.18em;
+}
+
+@media (max-width: 1100px) {
+  .identity-map {
+    grid-template-columns: 1fr;
+  }
+  .identity-inspector {
+    position: static;
+    height: auto;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+@media (max-width: 700px) {
+  .identity-map-canvas {
+    padding: var(--space-4) var(--space-4) var(--space-8);
+  }
+}

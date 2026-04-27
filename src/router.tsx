@@ -7,7 +7,9 @@ import { RecruiterPage } from './routes/recruiter/RecruiterPage'
 
 const LazyHomePage = lazy(() => import('./routes/home/HomePage').then((m) => ({ default: m.HomePage })))
 // AI-dependent routes — lazy-loaded so they code-split into separate chunks
-const LazyIdentityPage = lazy(() => import('./routes/identity/IdentityPage').then((m) => ({ default: m.IdentityPage })))
+const LazyIdentityMapPage = lazy(() =>
+  import('./routes/identity/IdentityMapPage').then((m) => ({ default: m.IdentityMapPage })),
+)
 const LazyIdentityEnrichmentPage = lazy(() =>
   import('./routes/identity/IdentityEnrichmentPage').then((m) => ({ default: m.IdentityEnrichmentPage })),
 )
@@ -47,7 +49,9 @@ const buildRoute = createRoute({
 const identityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/identity',
-  component: LazyIdentityPage,
+  component: LazyIdentityMapPage,
+  // validateSearch deferred to Phase D when the import overlay consumes ?import=1.
+  // Adding it now forces every <Link to="/identity"> callsite across the app to pass `search`.
 })
 
 const identityEnrichmentRoute = createRoute({
