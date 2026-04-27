@@ -52,10 +52,17 @@ describe('identityStore mapSelection', () => {
     expect(useIdentityStore.getState().mapSelection).toBeNull()
   })
 
-  it('accepts derived arc-stop ids without checking persisted arc[]', () => {
+  it('rejects arc-stop ids that are not persisted in self_model.arc[]', () => {
     const id = cloneIdentityFixture()
     id.self_model.arc = []
-    expect(isMapSelectionValid({ type: 'arc-stop', id: 'derived:Contoso:0' }, id)).toBe(true)
+    // Arc-stops require a real persisted entry. We deliberately removed the
+    // `derived:` synthetic-id support so the Self Model arc only renders
+    // narrative the user has authored.
+    expect(isMapSelectionValid({ type: 'arc-stop', id: 'Contoso:0' }, id)).toBe(false)
+    expect(isMapSelectionValid({ type: 'arc-stop', id: 'derived:Contoso:0' }, id)).toBe(false)
+
+    id.self_model.arc = [{ company: 'Contoso', chapter: 'Foundation Builder' }]
+    expect(isMapSelectionValid({ type: 'arc-stop', id: 'Contoso:0' }, id)).toBe(true)
   })
 
   it('accepts a real philosophy id from the fixture', () => {

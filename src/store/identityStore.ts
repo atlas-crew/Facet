@@ -531,7 +531,6 @@ export const isMapSelectionValid = (
     case 'philosophy':
       return identity.self_model?.philosophy?.some((p) => p.id === selection.id) ?? false
     case 'arc-stop':
-      if (selection.id.startsWith('derived:')) return true
       return identity.self_model?.arc?.some((a, i) => `${a.company}:${i}` === selection.id) ?? false
     case 'profile':
       return identity.profiles?.some((p) => p.id === selection.id) ?? false

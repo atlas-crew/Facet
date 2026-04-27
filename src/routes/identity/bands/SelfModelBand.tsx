@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { ProfessionalIdentityArcEntry, ProfessionalRole } from '../../../identity/schema'
+import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
 import { IdentityBand } from '../IdentityBand'
@@ -9,26 +9,14 @@ interface ArcStop extends ProfessionalIdentityArcEntry {
 }
 
 /**
- * Derive arc entries from `roles` when persisted `arc[]` is empty. Synthetic ids
- * use the `derived:` prefix so isMapSelectionValid recognizes them; persisted
- * arc entries (when added via inspector edit) override per company.
+ * Build arc stops from persisted `self_model.arc[]` only. We deliberately do
+ * NOT auto-derive chapters from `roles[]` — that would produce a degenerate
+ * copy of the Roles band (same company + same role title in both places).
+ * Roles is the evidence layer; arc is the narrative layer. They only show
+ * different content when the arc has actually been authored.
  */
-function deriveCareerArc(
-  arc: ProfessionalIdentityArcEntry[],
-  roles: ProfessionalRole[],
-): ArcStop[] {
-  if (arc.length > 0) {
-    return arc.map((entry, index) => ({ ...entry, id: `${entry.company}:${index}` }))
-  }
-  const byCompany = new Map<string, ProfessionalRole>()
-  for (const role of roles) {
-    if (!byCompany.has(role.company)) byCompany.set(role.company, role)
-  }
-  return Array.from(byCompany.entries()).map(([company, role], index) => ({
-    id: `derived:${company}:${index}`,
-    company,
-    chapter: role.subtitle?.trim() || role.title,
-  }))
+function buildArcStops(arc: ProfessionalIdentityArcEntry[]): ArcStop[] {
+  return arc.map((entry, index) => ({ ...entry, id: `${entry.company}:${index}` }))
 }
 
 export function SelfModelBand() {
@@ -38,10 +26,7 @@ export function SelfModelBand() {
   const fill = selfModelFillStrength(identity)
 
   const self = identity?.self_model
-  const arc = useMemo(
-    () => deriveCareerArc(self?.arc ?? [], identity?.roles ?? []),
-    [self?.arc, identity?.roles],
-  )
+  const arc = useMemo(() => buildArcStops(self?.arc ?? []), [self?.arc])
   const philosophy = self?.philosophy ?? []
   const interview = self?.interview_style
 
@@ -56,7 +41,20 @@ export function SelfModelBand() {
         <div className="self-arc">
           <div className="arc-label label-tracked">Career Arc</div>
           {arc.length === 0 ? (
-            <p className="chapter-copy self-empty">Arc derives from roles once they're loaded.</p>
+            <div className="self-arc-empty">
+              <p className="chapter-copy">
+                No narrative chapters yet. Roles tell what you did; arc tells what each chapter meant — the interpretive layer that powers interview prep.
+              </p>
+              <button
+                type="button"
+                className="inspector-btn primary self-arc-cta"
+                onClick={() => {
+                  // Phase D wires this to identityParametersGeneration utilities.
+                }}
+              >
+                Generate chapters from roles
+              </button>
+            </div>
           ) : (
             <div className="arc-flow">
               {arc.map((stop) => {

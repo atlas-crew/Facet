@@ -363,13 +363,6 @@ function lookupArcStop(
   identity: ProfessionalIdentityV3,
   id: string,
 ): { company: string; chapter: string } | null {
-  if (id.startsWith('derived:')) {
-    const [, company] = id.split(':')
-    const role = identity.roles.find((r) => r.company === company)
-    if (!role) return null
-    return { company, chapter: role.subtitle?.trim() || role.title }
-  }
-  const persisted = identity.self_model.arc.find((entry, index) => `${entry.company}:${index}` === id)
-  return persisted ?? null
+  return identity.self_model.arc.find((entry, index) => `${entry.company}:${index}` === id) ?? null
 }
 
