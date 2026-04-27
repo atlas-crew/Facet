@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:02'
-updated_date: '2026-04-27 08:04'
+updated_date: '2026-04-27 17:35'
 labels:
   - search-redesign
 milestone: m-23
@@ -69,20 +69,20 @@ This task is large — consider splitting into 151.1a (generator + read-only ren
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Thesis generator sends full identity context (self_model, profiles, PAIO bullets, calibration notes, preferences with conditions) — not a flat skill list
-- [ ] #2 AI call uses Opus model with extended thinking (10K budget)
-- [ ] #3 Generated thesis includes all SearchThesis fields: moat, unfair advantages, lanes, interview strategy, keywords, skill depth map, PLUS narrative field
-- [ ] #4 Prompt enforces reasoning output contract: narrative is 3-5 paragraphs, lane rationales are prose, skill depth context cites PAIO evidence
-- [ ] #5 Output validation flags contract violations and surfaces regenerate affordance
-- [ ] #6 Thesis editor renders all thesis sections as reviewable/editable content, narrative at top
+- [x] #1 Thesis generator sends full identity context (self_model, profiles, PAIO bullets, calibration notes, preferences with conditions) — not a flat skill list
+- [x] #2 AI call uses Opus model with extended thinking (10K budget)
+- [x] #3 Generated thesis includes all SearchThesis fields: moat, unfair advantages, lanes, interview strategy, keywords, skill depth map, PLUS narrative field
+- [x] #4 Prompt enforces reasoning output contract: narrative is 3-5 paragraphs, lane rationales are prose, skill depth context cites PAIO evidence
+- [x] #5 Output validation flags contract violations and surfaces regenerate affordance
+- [x] #6 Thesis editor renders all thesis sections as reviewable/editable content, narrative at top
 - [x] #7 Skill depth corrections update identity model with depthSource='corrected' flag; bumps identity.version
 - [x] #8 Confirmation dialog shows downstream impact before writeback
-- [ ] #9 Search lanes can be added, removed, and reordered
-- [ ] #10 Avoid-list entries can be added with qualifying condition
-- [ ] #11 Thesis collection persists in searchStore (append-on-edit, not mutate-in-place)
-- [ ] #12 Approved thesis takes immutable snapshot and triggers Phase 2 job creation
-- [ ] #13 Thesis can be reused with different search parameters (geo, company size, etc.)
-- [ ] #14 Staleness indicator shown when identity.version > thesis.identityVersion; regeneration preserves prior user edits
+- [x] #9 Search lanes can be added, removed, and reordered
+- [x] #10 Avoid-list entries can be added with qualifying condition
+- [x] #11 Thesis collection persists in searchStore (append-on-edit, not mutate-in-place)
+- [x] #12 Approved thesis takes immutable snapshot and triggers Phase 2 job creation
+- [x] #13 Thesis can be reused with different search parameters (geo, company size, etc.)
+- [x] #14 Staleness indicator shown when identity.version > thesis.identityVersion; regeneration preserves prior user edits
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -105,14 +105,20 @@ Verification receipts: npm run typecheck; npx vitest run src/test/ResearchPage.t
 Identity writeback loop completed: skill-depth rows now open an inline confirmation region with workspace impact context, write back to Identity through saveSkillEnrichment with depthSource='corrected', and guard against stale identity revisions, renamed/missing skills, unsupported depths, empty positioning, and cancel/apply flows. Added inline lane/timeline validation affordances and preserved unsaved thesis edits during writeback.
 
 Verification receipts: npm run typecheck; npm run build; npx vitest run src/test/ResearchPage.test.tsx (57 tests); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; tab scan on touched TS/TSX files. Independent review artifacts include .agents/reviews/review-20260427-033712.md (fallback after Claude invalid artifact and Gemini capacity timeout; final P1 remediated) and test audit .agents/reviews/test-audit-20260427-035003.md (P1 cancel gap remediated after audit).
+
+151.1 AC reconciliation completed: checked remaining functional ACs #1-6 and #9-14 based on implemented generator context/prompt validation, thesis editor coverage, lane/keyword/avoid controls, searchStore thesis persistence, immutable thesis snapshots for deep research jobs, reusable search parameters, and stale identity indicators/regeneration prior handling.
+
+Closeout verification: npm run typecheck PASS; focused 151.1 gate PASS with npx vitest run src/test/ResearchPage.test.tsx src/test/thesisGenerator.test.ts src/test/searchStore.test.ts src/test/researchJobs.test.ts src/test/workspaceBackup.test.ts src/test/persistence.test.ts (6 files, 143 tests); scoped ESLint PASS on research/thesis/searchStore/test files; npm run build PASS.
+
+Not marking DoD #3/#5/#4 yet: full npm run test currently fails in unrelated dirty prep tests (src/test/PrepLiveMode.test.tsx and src/test/PrepPage.behavior.test.tsx timeouts); full npm run lint is blocked by generated .vercel/output and dist-unmin-* lint errors plus unrelated identity/prep/hosted lint issues. No repo formatter script exists beyond lint/build/test.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
 - [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
