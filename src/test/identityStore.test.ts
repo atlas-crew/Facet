@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
+import type { ResumeScanBulkProgress, ResumeScanResult } from '../types/identity'
 import { parseDeepenIdentityBulletResponse } from '../utils/identityExtraction'
 
-const createScanResult = () => {
+const createScanResult = (): ResumeScanResult => {
   const identity = cloneIdentityFixture()
   identity.roles[0].bullets[0].problem = ''
   identity.roles[0].bullets[0].action = ''
@@ -58,6 +59,82 @@ const createScanResult = () => {
   }
 }
 
+const createMultiBulletScanResult = () => {
+  const scanResult = createScanResult()
+  const baseBullet = scanResult.identity.roles[0]!.bullets[0]!
+
+  scanResult.identity.roles = [
+    {
+      ...scanResult.identity.roles[0]!,
+      bullets: [
+        {
+          ...baseBullet,
+          id: 'platform-migration',
+          problem: '',
+          action: '',
+          outcome: '',
+          impact: [],
+          metrics: {},
+          technologies: [],
+          source_text: 'Ported the platform to Kubernetes-based installs.',
+        },
+        {
+          ...baseBullet,
+          id: 'observability-rollout',
+          problem: '',
+          action: '',
+          outcome: '',
+          impact: [],
+          metrics: {},
+          technologies: [],
+          source_text: 'Rolled out Grafana dashboards for platform teams.',
+        },
+      ],
+    },
+    {
+      id: 'northwind',
+      company: 'Northwind Labs',
+      title: 'Platform Engineer',
+      dates: '2023-2025',
+      bullets: [
+        {
+          ...baseBullet,
+          id: 'release-automation',
+          problem: '',
+          action: '',
+          outcome: '',
+          impact: [],
+          metrics: {},
+          technologies: [],
+          source_text: 'Built release automation for service teams.',
+        },
+      ],
+    },
+  ]
+
+  return scanResult
+}
+
+const createDeepenedBullet = (roleId = 'contoso', bulletId = 'platform-migration') => ({
+  summary: 'Deepened the migration bullet.',
+  roleId,
+  bulletId,
+  bullet: {
+    id: bulletId,
+    problem: 'Cloud-only delivery blocked on-prem installs.',
+    action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+    outcome: 'Made the product deployable in customer environments.',
+    impact: ['Unlocked customer-hosted deployments'],
+    metrics: { installs: 12 },
+    technologies: ['Kubernetes'],
+    source_text: 'ignored',
+    tags: ['platform', 'kubernetes'],
+  },
+  rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+  assumptions: [],
+  warnings: [],
+})
+
 beforeEach(() => {
   resolveStorage().removeItem('facet-identity-workspace')
   useIdentityStore.setState({
@@ -72,6 +149,11 @@ beforeEach(() => {
     changelog: [],
     lastError: null,
   })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('identityStore scan progress', () => {
@@ -89,6 +171,26 @@ describe('identityStore scan progress', () => {
       deepenedBullets: 0,
       editedBullets: 0,
       failedBullets: 0,
+    })
+  })
+
+  it('clamps stale persisted bulk completion counts to the current scan total', () => {
+    const scanResult = createScanResult()
+    scanResult.progress.bulk = {
+      status: 'running',
+      total: 99,
+      completed: 99,
+      currentBulletKey: 'contoso::platform-migration',
+      lastUpdatedAt: '2026-04-05T00:00:00.000Z',
+    } satisfies ResumeScanBulkProgress
+
+    useIdentityStore.getState().setScanResult(scanResult)
+
+    expect(useIdentityStore.getState().scanResult?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 1,
+      currentBulletKey: 'contoso::platform-migration',
     })
   })
 
@@ -146,27 +248,15 @@ describe('identityStore scan progress', () => {
 
   it('marks a scanned bullet as deepened and updates counts', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
+    const beforeBullets = useIdentityStore.getState().scanResult!.progress.bullets
     useIdentityStore.getState().completeScannedBulletDeepen({
-      summary: 'Deepened the migration bullet.',
-      roleId: 'contoso',
-      bulletId: 'platform-migration',
-      bullet: {
-        id: 'platform-migration',
-        problem: 'Cloud-only delivery blocked on-prem installs.',
-        action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        outcome: 'Made the product deployable in customer environments.',
-        impact: ['Unlocked customer-hosted deployments'],
-        metrics: { installs: 12 },
-        technologies: ['Kubernetes'],
-        source_text: 'ignored',
-        tags: ['platform', 'kubernetes'],
-      },
-      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-      assumptions: [],
+      ...createDeepenedBullet(),
       warnings: ['Normalized test warning.'],
     })
 
     const state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bullets).not.toBe(beforeBullets)
+    expect(beforeBullets['contoso::platform-migration']?.status).toBe('idle')
     expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
       status: 'completed',
       confidence: 'guessing',
@@ -197,25 +287,7 @@ describe('identityStore scan progress', () => {
       lastError: null,
     })
 
-    useIdentityStore.getState().completeScannedBulletDeepen({
-      summary: 'Deepened the migration bullet.',
-      roleId: 'contoso',
-      bulletId: 'platform-migration',
-      bullet: {
-        id: 'platform-migration',
-        problem: 'Cloud-only delivery blocked on-prem installs.',
-        action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        outcome: 'Made the product deployable in customer environments.',
-        impact: ['Unlocked customer-hosted deployments'],
-        metrics: { installs: 12 },
-        technologies: ['Kubernetes'],
-        source_text: 'ignored',
-        tags: ['platform', 'kubernetes'],
-      },
-      rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-      assumptions: [],
-      warnings: [],
-    })
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
 
     expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe(
       '3.1',
@@ -247,6 +319,272 @@ describe('identityStore scan progress', () => {
 
     const state = useIdentityStore.getState().scanResult
     expect(state?.identity.projects[0]?.url).toBeUndefined()
+  })
+
+  it('keeps scanned projects unchanged when updates target an out-of-bounds index', () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+
+    const before = structuredClone(useIdentityStore.getState().scanResult)
+    expect(() => {
+      useIdentityStore.getState().updateScannedProjectEntry(99, 'name', 'Corrupted Project')
+    }).not.toThrow()
+
+    const state = useIdentityStore.getState().scanResult
+    expect(state?.identity.projects).toEqual(before?.identity.projects)
+    expect(state?.counts.projects).toBe(1)
+  })
+
+  it('records scanned bullet failure state before any later overwrite', () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+
+    useIdentityStore.getState().failScannedBulletDeepen(
+      'contoso',
+      'platform-migration',
+      'Timed out while deepening.',
+    )
+
+    const state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
+      status: 'failed',
+      confidence: 'stated',
+      lastError: 'Timed out while deepening.',
+    })
+    expect(state?.counts).toMatchObject({
+      scannedBullets: 0,
+      deepenedBullets: 0,
+      editedBullets: 0,
+      failedBullets: 1,
+    })
+  })
+
+  it('leaves existing scan state unchanged when completing a missing role or bullet', () => {
+    const cases = [
+      createDeepenedBullet('missing-role', 'platform-migration'),
+      createDeepenedBullet('contoso', 'missing-bullet'),
+    ]
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    for (const deepenResult of cases) {
+      useIdentityStore.getState().setScanResult(createScanResult())
+      const before = structuredClone(useIdentityStore.getState().scanResult)
+      const beforeWarnings = [...useIdentityStore.getState().warnings]
+      const beforeDraftDocument = useIdentityStore.getState().draftDocument
+
+      expect(() => {
+        useIdentityStore.getState().completeScannedBulletDeepen({
+          ...deepenResult,
+          warnings: ['Stale warning.'],
+        })
+      }, `${deepenResult.roleId}::${deepenResult.bulletId}`).not.toThrow()
+
+      const state = useIdentityStore.getState().scanResult
+      expect(state?.identity).toEqual(before?.identity)
+      expect(state?.progress.bullets).toEqual(before?.progress.bullets)
+      expect(state?.counts).toEqual(before?.counts)
+      expect(Object.keys(state?.progress.bullets ?? [])).toEqual(['contoso::platform-migration'])
+      expect(useIdentityStore.getState().warnings).toEqual(beforeWarnings)
+      expect(useIdentityStore.getState().draftDocument).toBe(beforeDraftDocument)
+    }
+
+    expect(warnSpy).toHaveBeenCalledTimes(cases.length)
+  })
+
+  it('does not advance running bulk progress when completing a missing role or bullet', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-05T00:00:00.000Z'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().startScanBulkDeepen()
+    const beforeBulk = structuredClone(useIdentityStore.getState().scanResult?.progress.bulk)
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
+    useIdentityStore
+      .getState()
+      .completeScannedBulletDeepen(createDeepenedBullet('missing-role', 'platform-migration'))
+
+    const state = useIdentityStore.getState().scanResult
+    expect(beforeBulk).toMatchObject({
+      status: 'running',
+      completed: 0,
+      lastUpdatedAt: '2026-04-05T00:00:00.000Z',
+    })
+    expect(state?.progress.bulk).toEqual(beforeBulk)
+    expect(state?.counts).toMatchObject({
+      scannedBullets: 1,
+      deepenedBullets: 0,
+      failedBullets: 0,
+    })
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Dropped scanned bullet deepen completion for missing bullet.',
+      {
+        roleId: 'missing-role',
+        bulletId: 'platform-migration',
+      },
+    )
+  })
+
+  it('caps successful running bulk completion at the bulk total', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-05T00:00:00.000Z'))
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().startScanBulkDeepen()
+    const scanResult = useIdentityStore.getState().scanResult!
+    useIdentityStore.setState({
+      scanResult: {
+        ...scanResult,
+        progress: {
+          ...scanResult.progress,
+          bulk: {
+            ...scanResult.progress.bulk,
+            completed: scanResult.progress.bulk.total,
+          },
+        },
+      },
+    })
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
+
+    expect(useIdentityStore.getState().scanResult?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 1,
+      lastUpdatedAt: '2026-04-05T00:00:01.000Z',
+    })
+  })
+
+  it('preserves non-running bulk progress when completing a missing role or bullet', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const cases = [
+      {
+        label: 'idle bulk',
+        prepare: () => {
+          useIdentityStore.getState().setScanResult(createScanResult())
+        },
+      },
+      {
+        label: 'cancelling bulk',
+        prepare: () => {
+          useIdentityStore.getState().setScanResult(createScanResult())
+          useIdentityStore.getState().startScanBulkDeepen()
+          useIdentityStore.getState().requestCancelScanBulkDeepen()
+        },
+      },
+    ]
+
+    for (const testCase of cases) {
+      testCase.prepare()
+      const beforeBulk = structuredClone(useIdentityStore.getState().scanResult?.progress.bulk)
+
+      useIdentityStore
+        .getState()
+        .completeScannedBulletDeepen(createDeepenedBullet('missing-role', 'platform-migration'))
+
+      expect(useIdentityStore.getState().scanResult?.progress.bulk, testCase.label).toEqual(
+        beforeBulk,
+      )
+    }
+  })
+
+  it('advances running bulk progress when a scanned bullet completes successfully', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-05T00:00:00.000Z'))
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().startScanBulkDeepen()
+    const beforeBulk = useIdentityStore.getState().scanResult?.progress.bulk
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
+
+    const state = useIdentityStore.getState().scanResult
+    expect(beforeBulk).toMatchObject({
+      status: 'running',
+      completed: 0,
+      lastUpdatedAt: '2026-04-05T00:00:00.000Z',
+    })
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 1,
+      currentBulletKey: null,
+      lastUpdatedAt: '2026-04-05T00:00:01.000Z',
+    })
+  })
+
+  it('does not double-count duplicate successful completions for the same bullet', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-05T00:00:00.000Z'))
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().startScanBulkDeepen()
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
+
+    expect(useIdentityStore.getState().scanResult?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 1,
+      lastUpdatedAt: '2026-04-05T00:00:00.000Z',
+    })
+  })
+
+  it('tracks bulk deepen running progress and cancellation before finish', () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+
+    useIdentityStore.getState().startScanBulkDeepen()
+    let state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 0,
+      currentBulletKey: null,
+    })
+    expect(state?.progress.bulk.lastUpdatedAt).toEqual(expect.any(String))
+
+    useIdentityStore.getState().updateScanBulkProgress('contoso::platform-migration')
+    state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'running',
+      completed: 0,
+      currentBulletKey: 'contoso::platform-migration',
+    })
+
+    useIdentityStore.getState().requestCancelScanBulkDeepen()
+    state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'cancelling',
+      currentBulletKey: 'contoso::platform-migration',
+    })
+  })
+
+  it('keeps mixed multi-bullet scan counts consistent across deepen fail and edit states', () => {
+    useIdentityStore.getState().setScanResult(createMultiBulletScanResult())
+
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
+    useIdentityStore.getState().failScannedBulletDeepen(
+      'contoso',
+      'observability-rollout',
+      'Could not infer enough evidence.',
+    )
+    useIdentityStore.getState().markScannedBulletEdited('northwind', 'release-automation')
+
+    const state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bullets['contoso::platform-migration']?.status).toBe('completed')
+    expect(state?.progress.bullets['contoso::observability-rollout']).toMatchObject({
+      status: 'failed',
+      lastError: 'Could not infer enough evidence.',
+    })
+    expect(state?.progress.bullets['northwind::release-automation']?.status).toBe('edited')
+    expect(state?.counts).toMatchObject({
+      roles: 2,
+      bullets: 3,
+      extractedBullets: 3,
+      scannedBullets: 0,
+      deepenedBullets: 1,
+      editedBullets: 1,
+      failedBullets: 1,
+    })
   })
 
   it('tracks failure, edit, and bulk cancellation state without clearing completed work', () => {

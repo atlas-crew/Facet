@@ -208,6 +208,22 @@ const createScanProgress = (identity: ProfessionalIdentityV3): ResumeScanProgres
   }
 }
 
+const advanceRunningBulkProgress = (
+  bulk: ResumeScanProgress['bulk'],
+  bullets: ResumeScanProgress['bullets'],
+  lastUpdatedAt: string,
+): ResumeScanProgress['bulk'] =>
+  bulk.status === 'running'
+    ? {
+        ...bulk,
+        completed: Math.min(
+          bulk.total,
+          Object.values(bullets).filter(({ status }) => status === 'completed').length,
+        ),
+        lastUpdatedAt,
+      }
+    : bulk
+
 const normalizeScanProgress = (
   identity: ProfessionalIdentityV3,
   progress?: ResumeScanProgress | null,
@@ -241,7 +257,7 @@ const normalizeScanProgress = (
     bulk: {
       status: progress.bulk?.status ?? 'idle',
       total: fallback.bulk.total,
-      completed: progress.bulk?.completed ?? 0,
+      completed: Math.min(progress.bulk?.completed ?? 0, fallback.bulk.total),
       currentBulletKey: progress.bulk?.currentBulletKey ?? null,
       lastUpdatedAt: progress.bulk?.lastUpdatedAt ?? null,
     },
@@ -733,7 +749,28 @@ export const useIdentityStore = create<IdentityState>()(
             return {}
           }
 
-          const progress = normalizeScanProgress(state.scanResult.identity, state.scanResult.progress)
+          const normalizedProgress = normalizeScanProgress(
+            state.scanResult.identity,
+            state.scanResult.progress,
+          )
+          const key = getScanBulletKey(value.roleId, value.bulletId)
+          if (!normalizedProgress.bullets[key]) {
+            if (import.meta.env.DEV) {
+              console.warn('Dropped scanned bullet deepen completion for missing bullet.', {
+                roleId: value.roleId,
+                bulletId: value.bulletId,
+              })
+            }
+
+            return {
+              scanResult: {
+                ...state.scanResult,
+                progress: normalizedProgress,
+                counts: recalculateScanCounts(state.scanResult.identity, normalizedProgress),
+              },
+            }
+          }
+
           const identity = normalizeRuntimeProfessionalIdentity({
             ...state.scanResult.identity,
             roles: state.scanResult.identity.roles.map((role) =>
@@ -753,23 +790,31 @@ export const useIdentityStore = create<IdentityState>()(
                 : role,
             ),
           })
-
-          progress.bullets[getScanBulletKey(value.roleId, value.bulletId)] = createBulletProgress(
-            'completed',
-            'guessing',
-            null,
-            {
+          // Captured before overwriting the entry; duplicate completions should not move bulk.
+          const existingProgress = normalizedProgress.bullets[key]
+          const bullets = {
+            ...normalizedProgress.bullets,
+            [key]: createBulletProgress('completed', 'guessing', null, {
               explanation: {
                 summary: value.summary,
                 rewrite: value.rewrite,
                 assumptions: value.assumptions,
                 warnings: value.warnings,
               },
-            },
-          )
-          if (progress.bulk.status === 'running') {
-            progress.bulk.completed += 1
-            progress.bulk.lastUpdatedAt = new Date().toISOString()
+            }),
+          }
+
+          const progress: ResumeScanProgress = {
+            ...normalizedProgress,
+            bullets,
+            bulk:
+              existingProgress?.status === 'completed'
+                ? normalizedProgress.bulk
+                : advanceRunningBulkProgress(
+                    normalizedProgress.bulk,
+                    bullets,
+                    new Date().toISOString(),
+                  ),
           }
 
           return {
