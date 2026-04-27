@@ -19,6 +19,7 @@ import type {
   IdentityDeepenedBullet,
   IdentityIntakeMode,
   IdentityExtractionDraft,
+  MapSelection,
   ResumeScanBulletExplanation,
   ResumeScanBulletProgress,
   ResumeScanBulletStatus,
@@ -47,6 +48,8 @@ interface IdentityState {
   warnings: string[]
   changelog: IdentityChangeLogEntry[]
   lastError: string | null
+  mapSelection: MapSelection | null
+  setMapSelection: (selection: MapSelection | null) => void
   setIntakeMode: (mode: IdentityIntakeMode) => void
   setSourceMaterial: (value: string) => void
   setCorrectionNotes: (value: string) => void
@@ -512,6 +515,63 @@ const updateCurrentIdentity = (
   return syncIdentityDocument(state, updater(state.currentIdentity))
 }
 
+/**
+ * Check whether a `MapSelection` still references an existing entity in the current identity.
+ * Synthetic ids prefixed `derived:` (used for arc entries derived from roles) are always valid
+ * because they're recomputed from the current `roles` array on render.
+ */
+export const isMapSelectionValid = (
+  selection: MapSelection,
+  identity: ProfessionalIdentityV3 | null,
+): boolean => {
+  if (!identity) return false
+  switch (selection.type) {
+    case 'thesis':
+      return true
+    case 'philosophy':
+      return identity.self_model?.philosophy?.some((p) => p.id === selection.id) ?? false
+    case 'arc-stop':
+      if (selection.id.startsWith('derived:')) return true
+      return identity.self_model?.arc?.some((a, i) => `${a.company}:${i}` === selection.id) ?? false
+    case 'profile':
+      return identity.profiles?.some((p) => p.id === selection.id) ?? false
+    case 'role':
+      return identity.roles?.some((r) => r.id === selection.id) ?? false
+    case 'bullet':
+      return (
+        identity.roles
+          ?.find((r) => r.id === selection.roleId)
+          ?.bullets?.some((b) => b.id === selection.bulletId) ?? false
+      )
+    case 'project':
+      return identity.projects?.some((p) => p.id === selection.id) ?? false
+    case 'skill-group':
+      return identity.skills?.groups?.some((g) => g.id === selection.id) ?? false
+    case 'skill-item':
+      return (
+        identity.skills?.groups
+          ?.find((g) => g.id === selection.groupId)
+          ?.items?.some((i) => skillNamesMatch(i.name, selection.itemId)) ?? false
+      )
+    case 'pref-field':
+      return Boolean(identity.preferences)
+    case 'match-rule':
+      return (
+        (selection.kind === 'prioritize'
+          ? identity.preferences?.matching?.prioritize
+          : identity.preferences?.matching?.avoid)?.some((r) => r.id === selection.id) ?? false
+      )
+    case 'search-vector':
+      return identity.search_vectors?.some((v) => v.id === selection.id) ?? false
+    case 'awareness-question':
+      return identity.awareness?.open_questions?.some((q) => q.id === selection.id) ?? false
+    default: {
+      selection satisfies never
+      return false
+    }
+  }
+}
+
 export const useIdentityStore = create<IdentityState>()(
   persist(
     (set, get) => ({
@@ -525,6 +585,15 @@ export const useIdentityStore = create<IdentityState>()(
       warnings: [],
       changelog: [],
       lastError: null,
+      mapSelection: null,
+      setMapSelection: (selection) =>
+        set((state) => {
+          if (selection === null) return { mapSelection: null }
+          if (!isMapSelectionValid(selection, state.currentIdentity)) {
+            return { mapSelection: null }
+          }
+          return { mapSelection: selection }
+        }),
       setIntakeMode: (mode) => set({ intakeMode: mode }),
       setSourceMaterial: (value) => set({ sourceMaterial: value }),
       setCorrectionNotes: (value) => set({ correctionNotes: value }),
@@ -1321,6 +1390,7 @@ export const useIdentityStore = create<IdentityState>()(
       version: 4,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({
+        // mapSelection intentionally excluded — UI ephemera, would carry stale ids across imports.
         intakeMode: state.intakeMode,
         sourceMaterial: state.sourceMaterial,
         correctionNotes: state.correctionNotes,

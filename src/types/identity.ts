@@ -139,3 +139,44 @@ export interface IdentityChangeLogEntry {
   details: string[]
   mode?: IdentityApplyMode
 }
+
+/**
+ * Single field key inside ProfessionalPreferences. Used by the Identity Map's
+ * inspector to address one editable preference field. Format: `<section>.<field>`.
+ */
+export type PreferenceFieldKey =
+  | 'compensation.base_floor'
+  | 'compensation.base_target'
+  | 'compensation.notes'
+  | 'work_model.preference'
+  | 'work_model.flexibility'
+  | 'work_model.hard_no'
+  | 'constraints.clearance'
+  | 'constraints.education'
+  | 'constraints.title_flexibility'
+  | 'interview_process.accepted_formats'
+  | 'interview_process.strong_fit_signals'
+  | 'interview_process.red_flags'
+  | 'interview_process.max_rounds'
+  | 'interview_process.onsite_preferences'
+
+/**
+ * Discriminated union describing what is currently selected on the Identity Map.
+ * UI ephemera — never persisted across reloads. The Map page sets this via
+ * `useIdentityStore.setMapSelection`; the inspector reads it to render a slot.
+ */
+export type MapSelection =
+  | { type: 'thesis' }
+  | { type: 'philosophy'; id: string }
+  | { type: 'arc-stop'; id: string }
+  | { type: 'profile'; id: string }
+  | { type: 'role'; id: string }
+  | { type: 'bullet'; roleId: string; bulletId: string }
+  | { type: 'project'; id: string }
+  | { type: 'skill-group'; id: string }
+  | { type: 'skill-item'; groupId: string; itemId: string }
+  | { type: 'pref-field'; field: PreferenceFieldKey }
+  | { type: 'match-rule'; kind: 'prioritize' | 'avoid'; id: string }
+  | { type: 'search-vector'; id: string }
+  | { type: 'awareness-question'; id: string }
+

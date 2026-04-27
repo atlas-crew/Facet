@@ -1,0 +1,35 @@
+.fill-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+}
+
+.fill-bar-label {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.fill-bar-track {
+  width: 60px;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.fill-bar-inner {
+  height: 100%;
+  background: var(--band-color, var(--accent-primary));
+  border-radius: 1px;
+  transition: width var(--duration-slow) var(--easing);
+}
+
+.fill-bar[data-tone="warn"] .fill-bar-inner {
+  background: var(--warning);
+}
+
+.fill-bar[data-tone="warn"] .fill-bar-label {
+  color: var(--warning);
+}

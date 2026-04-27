@@ -107,6 +107,15 @@
   --priority-strong-text: #334155;
   --priority-optional-bg: color-mix(in srgb, #94a3b8 14%, transparent);
   --priority-optional-text: #64748b;
+
+  /* Identity Map layer colors — six bands, six accents.
+     Each band reads --band-color from one of these. */
+  --layer-thesis: #2d6a96;
+  --layer-self: #16a34a;
+  --layer-profiles: #7c3aed;
+  --layer-roles: #c2410c;
+  --layer-skills: #be185d;
+  --layer-prefs: #0891b2;
 }
 
 :root[data-theme="light"] {
@@ -154,6 +163,13 @@
   --priority-strong-text: #334155;
   --priority-optional-bg: color-mix(in srgb, #94a3b8 14%, transparent);
   --priority-optional-text: #64748b;
+
+  --layer-thesis: var(--accent-primary);
+  --layer-self: var(--success);
+  --layer-profiles: var(--accent-violet);
+  --layer-roles: var(--accent-orange);
+  --layer-skills: #be185d;
+  --layer-prefs: var(--accent-cyan);
 }
 
 :root[data-theme="dark"] {
@@ -201,6 +217,30 @@
   --priority-strong-text: #c0c8d4;
   --priority-optional-bg: color-mix(in srgb, #6b7a8d 14%, transparent);
   --priority-optional-text: #6b7a8d;
+
+  --layer-thesis: var(--accent-primary);
+  --layer-self: var(--success);
+  --layer-profiles: var(--accent-violet);
+  --layer-roles: var(--accent-orange);
+  --layer-skills: #d946ef;
+  --layer-prefs: var(--accent-cyan);
+}
+
+/* Identity Map shared typography classes */
+.label-tracked {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chapter-copy {
+  font-family: var(--font-wordmark);
+  font-style: italic;
+  font-size: 13.5px;
+  line-height: 1.55;
+  letter-spacing: -0.1px;
 }
 
 * {
