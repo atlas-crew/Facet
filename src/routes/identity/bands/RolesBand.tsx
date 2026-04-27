@@ -22,57 +22,63 @@ export function RolesBand() {
       ) : (
         <div className="roles-flow">
           {roles.length > 0 ? (
-            <div className="roles-grid">
-              {roles.map((role) => {
-                const isSelected = selection?.type === 'role' && selection.id === role.id
-                return (
-                  <button
-                    key={role.id}
-                    type="button"
-                    className={`role-card${isSelected ? ' selected' : ''}`}
-                    onClick={() => setSelection({ type: 'role', id: role.id })}
-                    aria-pressed={isSelected}
-                  >
-                    <div className="role-dates label-tracked">{role.dates}</div>
-                    <div className="role-company">{role.company}</div>
-                    <div className="role-title chapter-copy">{role.title}</div>
-                    <div className="role-bullets-strip" aria-hidden="true">
-                      {role.bullets.map((b) => (
-                        <span key={b.id} className="bullet-tick" />
-                      ))}
-                    </div>
-                    <div className="role-meta">
-                      <span className="role-meta-item label-tracked">
-                        <span>{role.bullets.length}</span> bullets
-                      </span>
-                      {role.subtitle ? (
-                        <span className="role-meta-item label-tracked role-meta-subtitle">{role.subtitle}</span>
-                      ) : null}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+            <section className="roles-section">
+              <div className="roles-sub-eyebrow label-tracked">Jobs</div>
+              <div className="roles-grid">
+                {roles.map((role) => {
+                  const isSelected = selection?.type === 'role' && selection.id === role.id
+                  return (
+                    <button
+                      key={role.id}
+                      type="button"
+                      className={`role-card${isSelected ? ' selected' : ''}`}
+                      onClick={() => setSelection({ type: 'role', id: role.id })}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="role-dates label-tracked">{role.dates}</div>
+                      <div className="role-company">{role.company}</div>
+                      <div className="role-title chapter-copy">{role.title}</div>
+                      <div className="role-bullets-strip" aria-hidden="true">
+                        {role.bullets.map((b) => (
+                          <span key={b.id} className="bullet-tick" />
+                        ))}
+                      </div>
+                      <div className="role-meta">
+                        <span className="role-meta-item label-tracked">
+                          <span>{role.bullets.length}</span> bullets
+                        </span>
+                        {role.subtitle ? (
+                          <span className="role-meta-item label-tracked role-meta-subtitle">{role.subtitle}</span>
+                        ) : null}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
           ) : null}
 
           {projects.length > 0 ? (
-            <div className="projects-grid">
-              {projects.map((project) => {
-                const isSelected = selection?.type === 'project' && selection.id === project.id
-                return (
-                  <button
-                    key={project.id}
-                    type="button"
-                    className={`project-card${isSelected ? ' selected' : ''}`}
-                    onClick={() => setSelection({ type: 'project', id: project.id })}
-                    aria-pressed={isSelected}
-                  >
-                    <div className="project-name">{project.name}</div>
-                    <p className="project-snippet">{project.description}</p>
-                  </button>
-                )
-              })}
-            </div>
+            <section className="roles-section">
+              <div className="roles-sub-eyebrow label-tracked">Projects</div>
+              <div className="projects-grid">
+                {projects.map((project) => {
+                  const isSelected = selection?.type === 'project' && selection.id === project.id
+                  return (
+                    <button
+                      key={project.id}
+                      type="button"
+                      className={`project-card${isSelected ? ' selected' : ''}`}
+                      onClick={() => setSelection({ type: 'project', id: project.id })}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="project-name">{project.name}</div>
+                      <p className="project-snippet">{project.description}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
           ) : null}
         </div>
       )}

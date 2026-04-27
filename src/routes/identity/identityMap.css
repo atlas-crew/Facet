@@ -406,7 +406,18 @@
 .roles-flow {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
+}
+.roles-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.roles-sub-eyebrow {
+  font-size: 9.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.16em;
+  opacity: 0.85;
 }
 .roles-grid {
   display: grid;
