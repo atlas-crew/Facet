@@ -1,41 +1,25 @@
-import { useMemo } from 'react'
 import { useIdentityStore } from '../../store/identityStore'
-import {
-  preferencesFillStrength,
-  profilesFillStrength,
-  rolesFillStrength,
-  selfModelFillStrength,
-  skillsFillStrength,
-  thesisFillStrength,
-} from '../../utils/identityFillStrength'
-import { IdentityBand } from './IdentityBand'
 import { IdentityInspector } from './IdentityInspector'
+import { ThesisBand } from './bands/ThesisBand'
+import { SelfModelBand } from './bands/SelfModelBand'
+import { ProfilesBand } from './bands/ProfilesBand'
+import { RolesBand } from './bands/RolesBand'
+import { SkillsBand } from './bands/SkillsBand'
+import { PreferencesBand } from './bands/PreferencesBand'
 import './identityMap.css'
 
 /**
  * Identity Map — single canvas + sticky inspector layout for the identity workspace.
  *
- * Replaces the old Model + Strategy tab shell. Bands are scaffolded here using
- * IdentityBand wrappers; band content (Thesis card, role timeline, etc.) is filled
- * in by per-band components in upcoming commits (Phase C).
+ * Replaces the old Model + Strategy tab shell. Each band reads its own slice of
+ * `currentIdentity` from the identity store and dispatches `setMapSelection`
+ * on click; the inspector reads that selection and renders the matching slot.
  *
- * Topbar actions (Import, Generator settings, Generate search vectors, Export brief)
- * are stubbed — they wire up in Phase D alongside the import overlay and drawers.
+ * Topbar action buttons (Import, Generator settings, Generate vectors, Export brief)
+ * wire up in Phase D alongside the import overlay and drawers.
  */
 export function IdentityMapPage() {
   const identity = useIdentityStore((state) => state.currentIdentity)
-
-  const fills = useMemo(
-    () => ({
-      thesis: thesisFillStrength(identity),
-      self: selfModelFillStrength(identity),
-      profiles: profilesFillStrength(identity),
-      roles: rolesFillStrength(identity),
-      skills: skillsFillStrength(identity),
-      prefs: preferencesFillStrength(identity),
-    }),
-    [identity],
-  )
 
   const openQuestions = identity?.awareness?.open_questions?.length ?? 0
   const roleCount = identity?.roles?.length ?? 0
@@ -82,59 +66,12 @@ export function IdentityMapPage() {
           ) : null}
         </div>
 
-        <IdentityBand
-          layer="thesis"
-          name="Thesis"
-          subtitle="what you claim about yourself"
-          fill={fills.thesis}
-        >
-          <BandStub layer="thesis" />
-        </IdentityBand>
-
-        <IdentityBand
-          layer="self"
-          name="Self Model"
-          subtitle="arc · philosophy · interview self-knowledge"
-          fill={fills.self}
-        >
-          <BandStub layer="self" />
-        </IdentityBand>
-
-        <IdentityBand
-          layer="profiles"
-          name="Profiles"
-          subtitle="positioning variants for different audiences"
-          fill={fills.profiles}
-        >
-          <BandStub layer="profiles" />
-        </IdentityBand>
-
-        <IdentityBand
-          layer="roles"
-          name="Roles & Projects"
-          subtitle="the evidence layer"
-          fill={fills.roles}
-        >
-          <BandStub layer="roles" />
-        </IdentityBand>
-
-        <IdentityBand
-          layer="skills"
-          name="Skills"
-          subtitle="taxonomy"
-          fill={fills.skills}
-        >
-          <BandStub layer="skills" />
-        </IdentityBand>
-
-        <IdentityBand
-          layer="prefs"
-          name="Preferences"
-          subtitle="matching criteria · constraints · compensation"
-          fill={fills.prefs}
-        >
-          <BandStub layer="prefs" />
-        </IdentityBand>
+        <ThesisBand />
+        <SelfModelBand />
+        <ProfilesBand />
+        <RolesBand />
+        <SkillsBand />
+        <PreferencesBand />
 
         <footer className="identity-map-footer">
           <span className="label-tracked">Workspace<span>: Identity Model</span></span>
@@ -143,14 +80,6 @@ export function IdentityMapPage() {
       </main>
 
       <IdentityInspector />
-    </div>
-  )
-}
-
-function BandStub({ layer }: { layer: string }) {
-  return (
-    <div className="identity-band-stub chapter-copy">
-      <em>Band content for "{layer}" lands in Phase C. The layout, color, and fill bar are wired in this commit.</em>
     </div>
   )
 }
