@@ -442,6 +442,7 @@ export function ScannedIdentityEditor({
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedBulletKey((current) =>
       current && bulletRefs.some((bulletRef) => bulletRef.key === current)
         ? current
@@ -454,6 +455,7 @@ export function ScannedIdentityEditor({
       return
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedBulletKey((current) =>
       current &&
       visibleBulletRefs.some((bulletRef) => bulletRef.key === current)
@@ -472,6 +474,7 @@ export function ScannedIdentityEditor({
       return
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedRoleIds((current) =>
       current.includes(selectedBulletRef.role.id)
         ? current
@@ -491,6 +494,9 @@ export function ScannedIdentityEditor({
     }
     return grouped
   }, [visibleBulletRefs])
+  const shouldShowRoleList =
+    visibleBulletRefs.length > 0 ||
+    identity.roles.some((role) => role.bullets.length === 0)
 
   const selectedVisibleIndex = selectedBulletRef
     ? visibleBulletRefs.findIndex(
@@ -671,19 +677,11 @@ export function ScannedIdentityEditor({
                 </div>
               </div>
 
-              {visibleBulletRefs.length === 0 ? (
-                <div className="identity-empty">
-                  <h3>No bullets match this view</h3>
-                  <p>
-                    Clear the search or switch focus to inspect the full scanned
-                    history.
-                  </p>
-                </div>
-              ) : (
+              {shouldShowRoleList ? (
                 <div className="identity-scan-role-list">
                   {identity.roles.map((role) => {
                     const roleBullets = visibleBulletsByRole.get(role.id) ?? []
-                    if (roleBullets.length === 0) {
+                    if (roleBullets.length === 0 && role.bullets.length > 0) {
                       return null
                     }
 
@@ -769,6 +767,14 @@ export function ScannedIdentityEditor({
                       </section>
                     )
                   })}
+                </div>
+              ) : (
+                <div className="identity-empty">
+                  <h3>No bullets match this view</h3>
+                  <p>
+                    Clear the search or switch focus to inspect the full scanned
+                    history.
+                  </p>
                 </div>
               )}
             </aside>

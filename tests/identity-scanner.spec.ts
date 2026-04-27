@@ -3,10 +3,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
+import type { Locator } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 const QPDF_BIN = process.env.QPDF_BIN ?? 'qpdf'
 const OVERSIZED_PDF_BYTES = 10 * 1024 * 1024 + 1
 const OVERLONG_PAGE_COUNT = 11
+const IDENTITY_SCANNER_ROUTE = '/identity/workbench'
 
 const escapePdfText = (value: string): string =>
   value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
@@ -146,6 +149,18 @@ const multiBulletResumePdf = () =>
     '- Stabilized the third service.',
   ])
 
+const mixedBulletAndZeroBulletRolesPdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Feb 2025 - Mar 2026',
+    '- Built the first platform.',
+    'Platform Engineer | ThreatX | Jan 2022 - Feb 2025',
+    'Projects',
+    'Facet: Vector-based job search platform.',
+  ])
+
 const multiSkillGroupsPdf = () =>
   buildPdf([
     'NICK FERGUSON',
@@ -157,6 +172,44 @@ const multiSkillGroupsPdf = () =>
     'Languages: TypeScript, Rust',
     'Platforms: AWS, Kubernetes',
   ])
+
+const dropPdfOnUploadZone = async (
+  page: Page,
+  file: { name: string; mimeType: string; buffer: Buffer },
+) => {
+  const dataTransfer = await page.evaluateHandle(
+    ({ name, mimeType, bytes }) => {
+      const transfer = new DataTransfer()
+      transfer.items.add(new File([new Uint8Array(bytes)], name, { type: mimeType }))
+      return transfer
+    },
+    {
+      name: file.name,
+      mimeType: file.mimeType,
+      bytes: Array.from(file.buffer),
+    },
+  )
+  const uploadZone = page.getByRole('button', {
+    name: /drag a resume pdf here or click to browse/i,
+  })
+
+  await uploadZone.dispatchEvent('dragenter', { dataTransfer })
+  await uploadZone.dispatchEvent('dragover', { dataTransfer })
+  await uploadZone.dispatchEvent('drop', { dataTransfer })
+  await dataTransfer.dispose()
+}
+
+const expandScannedSectionDetails = async (section: Locator) => {
+  await expect(section.locator('.identity-scan-role-toggle').first()).toBeVisible()
+
+  for (;;) {
+    const expandButton = section.locator('.identity-scan-role-toggle[aria-expanded="false"]').first()
+    if ((await expandButton.count()) === 0) {
+      return
+    }
+    await expandButton.click()
+  }
+}
 
 const multiProjectsAndEducationPdf = () =>
   buildPdf([
@@ -381,7 +434,7 @@ const multiPageRoleBulletsPdf = () =>
 test('uploads, parses, clears, and rescans a resume PDF with projects and education', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
   const contactSection = page
     .locator('section.identity-scan-section')
     .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
@@ -420,13 +473,13 @@ test('uploads, parses, clears, and rescans a resume PDF with projects and educat
   await expect(
     rolesSection.locator('textarea').filter({ hasText: 'Took the product from SaaS-only to deployable on customer-managed hardware.' }),
   ).toBeVisible()
-  await expect(skillsSection.locator('input[value="Languages"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="TypeScript"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="Rust"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Languages"]')).toHaveValue('Languages')
+  await expect(skillsSection.locator('input[value="TypeScript"]')).toHaveValue('TypeScript')
+  await expect(skillsSection.locator('input[value="Rust"]')).toHaveValue('Rust')
   await expect(page.getByLabel('Skill groups: 1')).toBeVisible()
   await expect(page.getByLabel('Projects: 1')).toBeVisible()
   await expect(page.getByLabel('Education: 1')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(projectsSection.locator('textarea')).toHaveValue('Vector-based job search platform.')
   await expect(educationSection.locator('input[value="St. Petersburg College"]')).toBeVisible()
   await expect(
@@ -444,12 +497,12 @@ test('uploads, parses, clears, and rescans a resume PDF with projects and educat
     buffer: sampleResumePdf(),
   })
 
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
 })
 
 test('rejects non-pdf uploads before scanning', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'not-a-resume.txt',
@@ -462,7 +515,7 @@ test('rejects non-pdf uploads before scanning', async ({ page }) => {
 })
 
 test('shows an error for malformed pdf uploads without rendering scanned sections', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'broken.pdf',
@@ -475,7 +528,7 @@ test('shows an error for malformed pdf uploads without rendering scanned section
 })
 
 test('recovers with a valid pdf after a rejected upload', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -508,6 +561,70 @@ test('recovers with a valid pdf after a rejected upload', async ({ page }) => {
   await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
 })
 
+test('recovers with a valid pdf after a browser file-read failure', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalArrayBuffer = File.prototype.arrayBuffer
+    File.prototype.arrayBuffer = function patchedArrayBuffer() {
+      if (this.name === 'network-failure.pdf') {
+        return Promise.reject(new Error('Temporary scanner transport failure.'))
+      }
+
+      return originalArrayBuffer.call(this)
+    }
+  })
+
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+  const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
+
+  await uploadInput.setInputFiles({
+    name: 'network-failure.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(page.getByRole('alert')).toContainText('Temporary scanner transport failure.')
+  await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
+
+  await uploadInput.setInputFiles({
+    name: 'scanner-acceptance.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(page.locator('.identity-alert')).toHaveText('')
+  await expect(page.locator('.identity-notice')).toContainText(
+    /scanned scanner-acceptance.pdf into a structured identity shell/i,
+  )
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
+})
+
+test('uploads and parses a valid resume PDF through drag and drop', async ({ page }) => {
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  const contactSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Contact' }) })
+  await dropPdfOnUploadZone(page, {
+    name: 'drag-drop-resume.pdf',
+    mimeType: 'application/pdf',
+    buffer: sampleResumePdf(),
+  })
+
+  await expect(page.locator('.identity-notice')).toContainText(
+    /scanned drag-drop-resume.pdf into a structured identity shell/i,
+  )
+  await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
+  await expect(page.getByLabel('Projects: 1')).toBeVisible()
+})
+
 test('renders uploaded filenames inertly in the success notice', async ({ page }) => {
   let dialogSeen = false
   page.on('dialog', async (dialog) => {
@@ -515,7 +632,7 @@ test('renders uploaded filenames inertly in the success notice', async ({ page }
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: '<img src=x onerror=alert(1)>.pdf',
@@ -530,7 +647,7 @@ test('renders uploaded filenames inertly in the success notice', async ({ page }
 })
 
 test('keeps representative scanned fields editable after parsing', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -555,11 +672,14 @@ test('keeps representative scanned fields editable after parsing', async ({ page
     buffer: sampleResumePdf(),
   })
 
-  const nameInput = contactSection.locator('input').nth(0)
-  const companyInput = rolesSection.locator('input').nth(0)
-  const skillGroupInput = skillsSection.locator('input').nth(0)
-  const projectDescriptionInput = projectsSection.locator('textarea').nth(0)
-  const educationLocationInput = educationSection.locator('input').nth(2)
+  await expandScannedSectionDetails(skillsSection)
+  await expandScannedSectionDetails(projectsSection)
+
+  const nameInput = contactSection.getByLabel('Name')
+  const companyInput = rolesSection.getByLabel('Company')
+  const skillGroupInput = skillsSection.getByLabel('Group Label')
+  const projectDescriptionInput = projectsSection.getByLabel('Description')
+  const educationLocationInput = educationSection.getByLabel('Location')
 
   await nameInput.fill('NICHOLAS FERGUSON')
   await companyInput.fill('A10 Networks and ThreatX')
@@ -589,7 +709,7 @@ test('keeps representative scanned fields editable after parsing', async ({ page
 })
 
 test('preserves scanned data across a page reload', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -618,13 +738,13 @@ test('preserves scanned data across a page reload', async ({ page }) => {
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="Languages"]')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Languages"]')).toHaveValue('Languages')
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
 })
 
 test('keeps the current scan when the file picker is cleared', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -644,7 +764,7 @@ test('keeps the current scan when the file picker is cleared', async ({ page }) 
 })
 
 test('shows an error for zero-byte pdf uploads without rendering scanned sections', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'empty.pdf',
@@ -659,7 +779,7 @@ test('shows an error for zero-byte pdf uploads without rendering scanned section
 test('shows an error for circular-reference pdf uploads without rendering scanned sections', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'circular-page-tree.pdf',
@@ -676,7 +796,7 @@ test('shows an error for circular-reference pdf uploads without rendering scanne
 test('shows an error for oversized pdf uploads before rendering scanned sections', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'oversized.pdf',
@@ -689,7 +809,7 @@ test('shows an error for oversized pdf uploads before rendering scanned sections
 })
 
 test('accepts pdf uploads exactly at the size limit', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -712,7 +832,7 @@ test('accepts pdf uploads exactly at the size limit', async ({ page }) => {
 test('shows an error for password-protected pdf uploads without rendering scanned sections', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'locked.pdf',
@@ -729,7 +849,7 @@ test('shows an error for password-protected pdf uploads without rendering scanne
 test('shows an error for pdfs that exceed the page-count limit without rendering scanned sections', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'too-many-pages.pdf',
@@ -742,7 +862,7 @@ test('shows an error for pdfs that exceed the page-count limit without rendering
 })
 
 test('accepts pdf uploads exactly at the page-count limit', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const projectsSection = page
     .locator('section.identity-scan-section')
@@ -758,14 +878,14 @@ test('accepts pdf uploads exactly at the page-count limit', async ({ page }) => 
   })
 
   await expect(page.locator('.identity-alert')).toHaveText('')
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
 })
 
 test('shows an error for textless pdf uploads without rendering scanned sections', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'textless.pdf',
@@ -786,7 +906,7 @@ test('drops malicious link schemes while preserving valid extracted links', asyn
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -804,7 +924,7 @@ test('drops malicious link schemes while preserving valid extracted links', asyn
 })
 
 test('preserves escaped parentheses and backslashes from pdf text', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const projectsSection = page
     .locator('section.identity-scan-section')
@@ -824,14 +944,14 @@ test('preserves escaped parentheses and backslashes from pdf text', async ({ pag
     ]),
   })
 
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(projectsSection.locator('textarea')).toHaveValue(
     'Windows path C:\\tools\\facet (preview build)',
   )
 })
 
 test('replacing the uploaded pdf without clearing swaps the scanned structure', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -857,7 +977,7 @@ test('replacing the uploaded pdf without clearing swaps the scanned structure', 
   })
 
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
 
   await uploadInput.setInputFiles({
     name: 'alternate-resume.pdf',
@@ -871,7 +991,7 @@ test('replacing the uploaded pdf without clearing swaps the scanned structure', 
   await expect(rolesSection.locator('input[value="Example Corp"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="Staff Platform Engineer"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="Jan 2020 - Present"]')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Orbit"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Orbit"]')).toHaveValue('Orbit')
   await expect(projectsSection.locator('textarea')).toHaveValue('Internal developer portal.')
   await expect(skillsSection).toContainText('No skill groups were parsed from this PDF.')
   await expect(educationSection).toContainText('No education entries were parsed from this PDF.')
@@ -889,7 +1009,7 @@ test('renders html-like pdf text as inert scanned content', async ({ page }) => 
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const projectsSection = page
     .locator('section.identity-scan-section')
@@ -909,7 +1029,7 @@ test('renders html-like pdf text as inert scanned content', async ({ page }) => 
     ]),
   })
 
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(projectsSection.locator('textarea')).toHaveValue(
     '<script>alert(1)</script> <img src=x onerror=alert(1)>',
   )
@@ -923,7 +1043,7 @@ test('preserves encoded payloads as inert scanned values', async ({ page }) => {
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -946,7 +1066,7 @@ test('preserves encoded payloads as inert scanned values', async ({ page }) => {
 })
 
 test('parses multiple skill groups from a single resume pdf', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const skillsSection = page
     .locator('section.identity-scan-section')
@@ -959,16 +1079,16 @@ test('parses multiple skill groups from a single resume pdf', async ({ page }) =
   })
 
   await expect(page.getByLabel('Skill groups: 2')).toBeVisible()
-  await expect(skillsSection.locator('input[value="Languages"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="Platforms"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="TypeScript"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="Rust"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="AWS"]')).toBeVisible()
-  await expect(skillsSection.locator('input[value="Kubernetes"]')).toBeVisible()
+  await expect(skillsSection.locator('input[value="Languages"]')).toHaveValue('Languages')
+  await expect(skillsSection.locator('input[value="Platforms"]')).toHaveValue('Platforms')
+  await expect(skillsSection.locator('input[value="TypeScript"]')).toHaveValue('TypeScript')
+  await expect(skillsSection.locator('input[value="Rust"]')).toHaveValue('Rust')
+  await expect(skillsSection.locator('input[value="AWS"]')).toHaveValue('AWS')
+  await expect(skillsSection.locator('input[value="Kubernetes"]')).toHaveValue('Kubernetes')
 })
 
 test('parses multiple projects and education entries from a single resume pdf', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const projectsSection = page
     .locator('section.identity-scan-section')
@@ -985,8 +1105,8 @@ test('parses multiple projects and education entries from a single resume pdf', 
 
   await expect(page.getByLabel('Projects: 2')).toBeVisible()
   await expect(page.getByLabel('Education: 2')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Orbit"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
+  await expect(projectsSection.locator('input[value="Orbit"]')).toHaveValue('Orbit')
   await expect(projectsSection.locator('textarea').nth(0)).toHaveValue('Vector-based job search platform.')
   await expect(projectsSection.locator('textarea').nth(1)).toHaveValue('Internal developer portal.')
   await expect(educationSection.locator('input[value="St. Petersburg College"]')).toBeVisible()
@@ -996,7 +1116,7 @@ test('parses multiple projects and education entries from a single resume pdf', 
 })
 
 test('parses multiple roles from a single resume pdf', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const rolesSection = page
     .locator('section.identity-scan-section')
@@ -1009,21 +1129,20 @@ test('parses multiple roles from a single resume pdf', async ({ page }) => {
   })
 
   await expect(page.getByLabel('Roles: 2')).toBeVisible()
-  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
-  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toBeVisible()
-  await expect(rolesSection.locator('input[value="Feb 2025 - Mar 2026"]')).toBeVisible()
-  await expect(rolesSection.locator('input[value="ThreatX"]')).toBeVisible()
-  await expect(rolesSection.locator('input[value="Platform Engineer"]')).toBeVisible()
-  await expect(rolesSection.locator('input[value="Jan 2022 - Feb 2025"]')).toBeVisible()
+  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
+  await expect(rolesSection.getByRole('button', { name: /ThreatX[\s\S]*Platform Engineer/i })).toBeVisible()
+  await expect(rolesSection.locator('input[value="A10 Networks"]')).toHaveValue('A10 Networks')
+  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toHaveValue('Senior Platform Engineer')
+  await expect(rolesSection.locator('input[value="Feb 2025 - Mar 2026"]')).toHaveValue('Feb 2025 - Mar 2026')
 })
 
 test('parses multiple bullets for a single role in source order', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const rolesSection = page
     .locator('section.identity-scan-section')
     .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
-  const bulletSources = rolesSection.getByLabel(/Bullet \d+ Source/)
+  const bulletRows = rolesSection.locator('.identity-scan-bullet-row')
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'multi-bullet.pdf',
@@ -1032,14 +1151,31 @@ test('parses multiple bullets for a single role in source order', async ({ page 
   })
 
   await expect(page.getByLabel('Bullets: 3')).toBeVisible()
-  await expect(bulletSources).toHaveCount(3)
-  await expect(bulletSources.nth(0)).toHaveValue('Built the first platform.')
-  await expect(bulletSources.nth(1)).toHaveValue('Automated the second workflow.')
-  await expect(bulletSources.nth(2)).toHaveValue('Stabilized the third service.')
+  await expect(bulletRows).toHaveCount(3)
+  await expect(bulletRows.nth(0)).toContainText('Built the first platform.')
+  await expect(bulletRows.nth(1)).toContainText('Automated the second workflow.')
+  await expect(bulletRows.nth(2)).toContainText('Stabilized the third service.')
+})
+
+test('shows the bullet empty state when search hides all bullet-backed roles', async ({
+  page,
+}) => {
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'multi-bullet.pdf',
+    mimeType: 'application/pdf',
+    buffer: multiBulletResumePdf(),
+  })
+
+  await page.getByRole('textbox', { name: 'Search bullets' }).fill('no matching bullet text')
+
+  await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toBeVisible()
+  await expect(page.locator('.identity-scan-role-list')).toHaveCount(0)
 })
 
 test('parses project and education content from the second page of a pdf', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const projectsSection = page
     .locator('section.identity-scan-section')
@@ -1056,14 +1192,14 @@ test('parses project and education content from the second page of a pdf', async
 
   await expect(page.getByLabel('Projects: 1')).toBeVisible()
   await expect(page.getByLabel('Education: 1')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(projectsSection.locator('textarea')).toHaveValue('Vector-based job search platform.')
   await expect(educationSection.locator('input[value="St. Petersburg College"]')).toBeVisible()
   await expect(educationSection.locator('input[value="Clearwater, FL"]')).toBeVisible()
 })
 
 test('falls back to paste mode for contact-only pdfs without role structure', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'contact-only.pdf',
@@ -1081,7 +1217,7 @@ test('falls back to paste mode for contact-only pdfs without role structure', as
 test('replaces paste fallback mode with a full scan when a valid pdf is uploaded next', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
   const sourceMaterial = page.getByRole('textbox', { name: 'Source Material' })
@@ -1118,7 +1254,7 @@ test('replaces paste fallback mode with a full scan when a valid pdf is uploaded
 test('falls back to paste mode for a valid pdf with no recognizable resume structure', async ({
   page,
 }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'meeting-notes.pdf',
@@ -1134,7 +1270,7 @@ test('falls back to paste mode for a valid pdf with no recognizable resume struc
 })
 
 test('renders a role header even when no bullets follow it', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const scanStatus = page.locator('.identity-scan-status')
   const rolesSection = page
@@ -1152,10 +1288,53 @@ test('renders a role header even when no bullets follow it', async ({ page }) =>
 
   await expect(page.getByLabel('Roles: 1')).toBeVisible()
   await expect(scanStatus.getByRole('group', { name: 'Bullets: 0', exact: true })).toBeVisible()
-  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
-  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toBeVisible()
+  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
   await expect(rolesSection.getByLabel(/Bullet \d+ Source/)).toHaveCount(0)
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toHaveCount(0)
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
+})
+
+test('keeps a zero-bullet role header visible when bullet search has no matches', async ({
+  page,
+}) => {
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'zero-bullet-role.pdf',
+    mimeType: 'application/pdf',
+    buffer: zeroBulletRolePdf(),
+  })
+
+  await page.getByRole('textbox', { name: 'Search bullets' }).fill('no matching bullet text')
+
+  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toHaveCount(0)
+})
+
+test('hides filtered bullet-backed roles while keeping mixed zero-bullet roles visible', async ({
+  page,
+}) => {
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'mixed-zero-bullet-role.pdf',
+    mimeType: 'application/pdf',
+    buffer: mixedBulletAndZeroBulletRolesPdf(),
+  })
+
+  await page.getByRole('textbox', { name: 'Search bullets' }).fill('no matching bullet text')
+
+  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toHaveCount(0)
+  await expect(rolesSection.getByRole('button', { name: /ThreatX[\s\S]*Platform Engineer/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toHaveCount(0)
 })
 
 test('renders html-like contact payloads as inert field values', async ({ page }) => {
@@ -1165,7 +1344,7 @@ test('renders html-like contact payloads as inert field values', async ({ page }
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -1190,7 +1369,7 @@ test('renders html-like role and bullet payloads as inert field values', async (
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const rolesSection = page
     .locator('section.identity-scan-section')
@@ -1214,7 +1393,7 @@ test('renders html-like skill and education payloads as inert field values', asy
     await dialog.dismiss()
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const skillsSection = page
     .locator('section.identity-scan-section')
@@ -1240,12 +1419,12 @@ test('renders html-like skill and education payloads as inert field values', asy
 })
 
 test('keeps role bullets attached when they continue onto the next page', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const rolesSection = page
     .locator('section.identity-scan-section')
     .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
-  const bulletSources = rolesSection.getByLabel(/Bullet \d+ Source/)
+  const bulletRows = rolesSection.locator('.identity-scan-bullet-row')
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: 'multi-page-role-bullets.pdf',
@@ -1255,11 +1434,11 @@ test('keeps role bullets attached when they continue onto the next page', async 
 
   await expect(page.getByLabel('Roles: 1')).toBeVisible()
   await expect(page.getByLabel('Bullets: 3')).toBeVisible()
-  await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
-  await expect(bulletSources).toHaveCount(3)
-  await expect(bulletSources.nth(0)).toHaveValue('Built the first platform.')
-  await expect(bulletSources.nth(1)).toHaveValue('Automated the second workflow.')
-  await expect(bulletSources.nth(2)).toHaveValue('Stabilized the third service.')
+  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
+  await expect(bulletRows).toHaveCount(3)
+  await expect(bulletRows.nth(0)).toContainText('Built the first platform.')
+  await expect(bulletRows.nth(1)).toContainText('Automated the second workflow.')
+  await expect(bulletRows.nth(2)).toContainText('Stabilized the third service.')
 })
 
 test('prefers the latest file when uploads overlap', async ({ page }) => {
@@ -1278,7 +1457,7 @@ test('prefers the latest file when uploads overlap', async ({ page }) => {
     }
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -1302,7 +1481,7 @@ test('prefers the latest file when uploads overlap', async ({ page }) => {
 
   await expect(contactSection.locator('input[value="JANE PLATFORM"]')).toBeVisible()
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toHaveCount(0)
-  await expect(projectsSection.locator('input[value="Orbit"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Orbit"]')).toHaveValue('Orbit')
   await expect(projectsSection.locator('input[value="Facet"]')).toHaveCount(0)
 })
 
@@ -1322,7 +1501,7 @@ test('does not restore a delayed rescan after Clear Scan is clicked', async ({ p
     }
   })
 
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const uploadInput = page.locator('input[type="file"][accept="application/pdf,.pdf"]')
 
@@ -1349,7 +1528,7 @@ test('does not restore a delayed rescan after Clear Scan is clicked', async ({ p
 })
 
 test('re-parses when the same file is uploaded again after clear', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -1376,11 +1555,11 @@ test('re-parses when the same file is uploaded again after clear', async ({ page
   })
 
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
-  await expect(projectsSection.locator('input[value="Facet"]')).toBeVisible()
+  await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
 })
 
 test('preserves scanned data across route navigation', async ({ page }) => {
-  await page.goto('/identity')
+  await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
     .locator('section.identity-scan-section')
@@ -1398,8 +1577,8 @@ test('preserves scanned data across route navigation', async ({ page }) => {
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
   await page.getByRole('link', { name: 'Build' }).click()
   await expect(page).toHaveURL(/\/build$/)
-  await page.getByRole('link', { name: 'Identity' }).click()
-  await expect(page).toHaveURL(/\/identity$/)
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+  await expect(page).toHaveURL(/\/identity\/workbench$/)
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
 })

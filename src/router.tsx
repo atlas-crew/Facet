@@ -10,6 +10,9 @@ const LazyHomePage = lazy(() => import('./routes/home/HomePage').then((m) => ({ 
 const LazyIdentityMapPage = lazy(() =>
   import('./routes/identity/IdentityMapPage').then((m) => ({ default: m.IdentityMapPage })),
 )
+const LazyIdentityPage = lazy(() =>
+  import('./routes/identity/IdentityPage').then((m) => ({ default: m.IdentityPage })),
+)
 const LazyIdentityEnrichmentPage = lazy(() =>
   import('./routes/identity/IdentityEnrichmentPage').then((m) => ({ default: m.IdentityEnrichmentPage })),
 )
@@ -52,6 +55,12 @@ const identityRoute = createRoute({
   component: LazyIdentityMapPage,
   // validateSearch deferred to Phase D when the import overlay consumes ?import=1.
   // Adding it now forces every <Link to="/identity"> callsite across the app to pass `search`.
+})
+
+const identityWorkbenchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/identity/workbench',
+  component: LazyIdentityPage,
 })
 
 const identityEnrichmentRoute = createRoute({
@@ -153,6 +162,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   buildRoute,
   identityRoute,
+  identityWorkbenchRoute,
   identityEnrichmentRoute,
   identityEnrichmentSkillRoute,
   matchRoute,
