@@ -126,7 +126,7 @@
   margin-top: var(--space-1);
   color: var(--text-tertiary);
   font-size: 11px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.2em;
 }
 
 .identity-band {
@@ -226,7 +226,7 @@
   border-color: var(--band-color);
 }
 .thesis-text {
-  font-size: 22px;
+  font-size: 16px;
   line-height: 1.45;
   color: var(--text-primary);
   margin: 0 0 var(--space-4);
@@ -277,7 +277,7 @@
   padding: var(--space-4) calc(var(--space-4) + var(--space-1));
 }
 .arc-label {
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--text-tertiary);
   letter-spacing: 0.18em;
   margin-bottom: var(--space-3);
@@ -287,12 +287,16 @@
 }
 .self-count {
   color: var(--text-tertiary);
-  font-size: 10px;
-  letter-spacing: 0;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  margin-left: 5px;
+  border-left: solid 1px;
+  padding-left: 10px;
 }
 .arc-flow {
   display: flex;
   align-items: stretch;
+  gap: 12px;
 }
 .self-arc-empty {
   display: flex;
@@ -367,9 +371,9 @@
 }
 .philosophy-item.selected { border-color: var(--band-color); }
 .philosophy-id {
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--band-color);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
 .philosophy-text {
   font-size: 13.5px;
@@ -379,7 +383,7 @@
 .interview-block { margin-bottom: var(--space-3); }
 .interview-block:last-child { margin-bottom: 0; }
 .interview-block-label {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-tertiary);
   letter-spacing: 0.1em;
   margin-bottom: var(--space-1);
@@ -431,7 +435,7 @@
 }
 .profile-card.selected { border-color: var(--band-color); }
 .profile-id {
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.1em;
   color: var(--band-color);
 }
@@ -441,13 +445,14 @@
   flex-wrap: wrap;
 }
 .profile-tag {
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
   color: var(--text-tertiary);
-  padding: 2px 8px;
+  padding: 4px 8px;
   background: var(--bg-inset);
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
+  font-weight: 500;
 }
 .profile-text {
   font-size: 13.5px;
@@ -618,7 +623,7 @@
 .skill-group-count {
   font-size: 10px;
   color: var(--text-tertiary);
-  letter-spacing: 0;
+  letter-spacing: 0.05em;
 }
 .skill-chips {
   display: flex;
@@ -697,7 +702,7 @@
 }
 .prefs-matching { margin-top: var(--space-3); }
 .pref-list-label {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--text-tertiary);
   letter-spacing: 0.14em;
   margin-bottom: var(--space-2);
@@ -732,9 +737,9 @@
   color: var(--text-primary);
 }
 .pref-item-weight {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-tertiary);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
 }
 
 /* ===== Inspector slot styles ===== */
@@ -751,12 +756,12 @@
   margin: 0 0 var(--space-1);
 }
 .inspector-title {
-  font-size: 22px;
+  font-size: 16px;
   line-height: 1.25;
   color: var(--text-primary);
   letter-spacing: -0.3px;
   margin: 0 0 var(--space-3);
-  font-weight: 700;
+  font-weight: 500;
 }
 .inspector-body { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
 .inspector-body-text { margin: 0 0 var(--space-3); }
