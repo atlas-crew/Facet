@@ -113,12 +113,12 @@
 }
 
 .identity-map-name {
-  font-size: 32px;
-  line-height: 1.1;
+  font-size: 30px;
+  line-height: 1.15;
   color: var(--text-primary);
-  letter-spacing: -0.4px;
+  letter-spacing: -0.5px;
   margin: 0;
-  font-style: italic;
+  font-weight: 700;
 }
 
 .identity-map-contact {
@@ -221,11 +221,12 @@
   border-color: var(--band-color);
 }
 .thesis-text {
-  font-size: 23px;
+  font-size: 22px;
   line-height: 1.45;
   color: var(--text-primary);
   margin: 0 0 var(--space-4);
-  letter-spacing: 1px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
 }
 .thesis-text.thesis-empty {
   color: var(--text-tertiary);
@@ -750,12 +751,12 @@
   margin: 0 0 var(--space-1);
 }
 .inspector-title {
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1.25;
   color: var(--text-primary);
   letter-spacing: -0.3px;
   margin: 0 0 var(--space-3);
-  font-style: italic;
+  font-weight: 700;
 }
 .inspector-body { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
 .inspector-body-text { margin: 0 0 var(--space-3); }
@@ -858,9 +859,8 @@
   margin-top: 50%;
   text-align: center;
   color: var(--text-tertiary);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.65;
-  font-style: italic;
 }
 
 .identity-inspector-pending {
