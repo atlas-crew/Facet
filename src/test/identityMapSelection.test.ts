@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { useIdentityStore, isMapSelectionValid } from '../store/identityStore'
+import type { ProfessionalIdentityV3 } from '../identity/schema'
+import type { MapSelection } from '../types/identity'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const resetStore = () => {
@@ -90,5 +92,109 @@ describe('identityStore mapSelection', () => {
     useIdentityStore.getState().setMapSelection({ type: 'thesis' })
     const persisted = JSON.stringify(useIdentityStore.persist.getOptions().partialize?.(useIdentityStore.getState()))
     expect(persisted).not.toContain('mapSelection')
+  })
+})
+
+/**
+ * Build an identity that has at least one entity of every kind addressable by
+ * MapSelection. Lets us drive a positive validator/round-trip case for every
+ * variant of the discriminated union — without this, the validator could
+ * silently reject most kinds and the existing rejection-biased tests would
+ * still pass (a real coverage hole flagged by review).
+ */
+function buildCompleteIdentity(): ProfessionalIdentityV3 {
+  const id = cloneIdentityFixture()
+  id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Foundation Builder' }]
+  id.profiles = [
+    ...id.profiles,
+    { id: 'leader-profile', tags: ['leadership'], text: 'Technical leader profile.' },
+  ]
+  id.projects = [
+    {
+      id: 'project-x',
+      name: 'Project X',
+      description: 'Cross-cutting platform tooling.',
+      tags: ['platform'],
+    },
+  ]
+  id.preferences.matching = {
+    prioritize: [
+      { id: 'prio-platform', label: 'Platform focus', description: 'd', weight: 'high' },
+    ],
+    avoid: [{ id: 'avoid-maintenance', label: 'Pure maintenance', description: 'd', severity: 'soft' }],
+  }
+  id.search_vectors = [
+    {
+      id: 'vec-platform',
+      title: 'Platform Engineer',
+      priority: 'high',
+      thesis: 'Platform thesis.',
+      target_roles: ['Senior Platform Engineer'],
+      keywords: { primary: ['platform'], secondary: [] },
+    },
+  ]
+  id.awareness = {
+    open_questions: [
+      {
+        id: 'q-tenure',
+        topic: 'Tenure',
+        description: 'Verify dates align across resume and LinkedIn.',
+        action: 'Confirm before next interview',
+      },
+    ],
+  }
+  return id
+}
+
+describe('isMapSelectionValid — positive coverage for every MapSelection variant', () => {
+  // 14 cases (13 type discriminants, with `match-rule` exercised on both `prioritize`
+  // and `avoid` kinds since they read from different lists).
+  const cases: Array<{ name: string; selection: MapSelection }> = [
+    { name: 'thesis', selection: { type: 'thesis' } },
+    { name: 'philosophy', selection: { type: 'philosophy', id: 'absorb-complexity' } },
+    { name: 'arc-stop', selection: { type: 'arc-stop', id: 'Contoso Networks:0' } },
+    { name: 'profile', selection: { type: 'profile', id: 'platform-profile' } },
+    { name: 'role', selection: { type: 'role', id: 'contoso' } },
+    {
+      name: 'bullet',
+      selection: { type: 'bullet', roleId: 'contoso', bulletId: 'platform-migration' },
+    },
+    { name: 'project', selection: { type: 'project', id: 'project-x' } },
+    { name: 'skill-group', selection: { type: 'skill-group', id: 'platform' } },
+    {
+      name: 'skill-item',
+      selection: { type: 'skill-item', groupId: 'platform', itemId: 'Kubernetes' },
+    },
+    { name: 'pref-field', selection: { type: 'pref-field', field: 'work_model.preference' } },
+    {
+      name: 'match-rule prioritize',
+      selection: { type: 'match-rule', kind: 'prioritize', id: 'prio-platform' },
+    },
+    {
+      name: 'match-rule avoid',
+      selection: { type: 'match-rule', kind: 'avoid', id: 'avoid-maintenance' },
+    },
+    { name: 'search-vector', selection: { type: 'search-vector', id: 'vec-platform' } },
+    {
+      name: 'awareness-question',
+      selection: { type: 'awareness-question', id: 'q-tenure' },
+    },
+  ]
+
+  afterEach(() => {
+    resetStore()
+  })
+
+  it.each(cases)('isMapSelectionValid accepts $name', ({ selection }) => {
+    expect(isMapSelectionValid(selection, buildCompleteIdentity())).toBe(true)
+  })
+
+  it.each(cases)('setMapSelection round-trips $name without rejection', ({ selection }) => {
+    useIdentityStore.setState({
+      currentIdentity: buildCompleteIdentity(),
+      mapSelection: null,
+    })
+    useIdentityStore.getState().setMapSelection(selection)
+    expect(useIdentityStore.getState().mapSelection).toEqual(selection)
   })
 })
