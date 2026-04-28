@@ -77,26 +77,10 @@ function InspectorBody({
     case 'thesis':
       return <ThesisInspector identity={identity} />
 
-    case 'philosophy': {
-      const position = identity.self_model.philosophy.find((p) => p.id === selection.id)
-      if (!position) return <NotFound label="philosophy" />
-      return (
-        <SlotShell eyebrow="Philosophy · Position" title={position.id}>
-          <p className="inspector-body-text chapter-copy">{position.text}</p>
-          <MetaRows
-            rows={[
-              ['Tags', position.tags.join(' · ') || '—'],
-              ['Cited in profiles', citedInProfiles(identity, position.tags)],
-            ]}
-          />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Edit position
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
+    case 'philosophy':
+      return <PhilosophyInspector identity={identity} positionId={selection.id} />
+
+
 
     case 'arc-stop': {
       const arcEntry = lookupArcStop(identity, selection.id)
@@ -133,24 +117,10 @@ function InspectorBody({
       )
     }
 
-    case 'profile': {
-      const profile = identity.profiles.find((p) => p.id === selection.id)
-      if (!profile) return <NotFound label="profile" />
-      return (
-        <SlotShell eyebrow="Profile · Variant" title={profile.id}>
-          <p className="inspector-body-text">{profile.text}</p>
-          <MetaRows rows={[['Tags', profile.tags.join(' · ') || '—']]} />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Edit profile
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Generate variant
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
+    case 'profile':
+      return <ProfileInspector identity={identity} profileId={selection.id} onGoToWorkbench={handlers.goToWorkbench} />
+
+
 
     case 'role': {
       const role = identity.roles.find((r) => r.id === selection.id)
@@ -464,6 +434,179 @@ function ThesisInspector({ identity }: { identity: ProfessionalIdentityV3 }) {
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={startEditing}>
           Edit thesis
+        </button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+/** Tag list serialized as comma-separated for inline edit. Splits on commas,
+ *  trims whitespace, drops empties. */
+const tagsToInput = (tags: string[]): string => tags.join(', ')
+const inputToTags = (value: string): string[] =>
+  value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+
+function ProfileInspector({
+  identity,
+  profileId,
+  onGoToWorkbench,
+}: {
+  identity: ProfessionalIdentityV3
+  profileId: string
+  onGoToWorkbench: () => void
+}) {
+  const updateProfiles = useIdentityStore((s) => s.updateCurrentProfiles)
+  const profile = identity.profiles.find((p) => p.id === profileId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ text: '', tags: '' })
+
+  if (!profile) return <NotFound label="profile" />
+
+  const startEditing = () => {
+    setDraft({ text: profile.text, tags: tagsToInput(profile.tags) })
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const next = identity.profiles.map((p) =>
+      p.id === profile.id
+        ? { ...p, text: draft.text.trim(), tags: inputToTags(draft.tags) }
+        : p,
+    )
+    updateProfiles(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Profile · ${profile.id}`} title="Refine the variant">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Text</span>
+          <textarea
+            className="inspector-textarea"
+            value={draft.text}
+            onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+            rows={5}
+            placeholder="What this profile says about you, framed for a specific audience."
+          />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Tags (comma-separated)</span>
+          <input
+            className="inspector-input"
+            type="text"
+            value={draft.tags}
+            onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+            placeholder="platform, infrastructure, automation"
+          />
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>
+            Save
+          </button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow="Profile · Variant" title={profile.id}>
+      <p className="inspector-body-text">{profile.text}</p>
+      <MetaRows rows={[['Tags', profile.tags.join(' · ') || '—']]} />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>
+          Edit profile
+        </button>
+        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>
+          Generate variant
+        </button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function PhilosophyInspector({
+  identity,
+  positionId,
+}: {
+  identity: ProfessionalIdentityV3
+  positionId: string
+}) {
+  const updatePhilosophy = useIdentityStore((s) => s.updateCurrentPhilosophy)
+  const position = identity.self_model.philosophy.find((p) => p.id === positionId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ text: '', tags: '' })
+
+  if (!position) return <NotFound label="philosophy" />
+
+  const startEditing = () => {
+    setDraft({ text: position.text, tags: tagsToInput(position.tags) })
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const next = identity.self_model.philosophy.map((p) =>
+      p.id === position.id
+        ? { ...p, text: draft.text.trim(), tags: inputToTags(draft.tags) }
+        : p,
+    )
+    updatePhilosophy(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Philosophy · ${position.id}`} title="Refine the position">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Text</span>
+          <textarea
+            className="inspector-textarea"
+            value={draft.text}
+            onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+            rows={4}
+            placeholder="The position you hold, in your own voice."
+          />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Tags (comma-separated)</span>
+          <input
+            className="inspector-input"
+            type="text"
+            value={draft.tags}
+            onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+            placeholder="platform, sustainability, knowledge-transfer"
+          />
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>
+            Save
+          </button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow="Philosophy · Position" title={position.id}>
+      <p className="inspector-body-text chapter-copy">{position.text}</p>
+      <MetaRows
+        rows={[
+          ['Tags', position.tags.join(' · ') || '—'],
+          ['Cited in profiles', citedInProfiles(identity, position.tags)],
+        ]}
+      />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>
+          Edit position
         </button>
       </Actions>
     </SlotShell>

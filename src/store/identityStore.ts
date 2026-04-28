@@ -8,7 +8,9 @@ import {
   type ProfessionalInterviewProcessPreferences,
   type ProfessionalMatchingPreferences,
   type ProfessionalOpenQuestion,
+  type ProfessionalPhilosophyEntry,
   type ProfessionalPreferenceConstraints,
+  type ProfessionalProfile,
   type ProfessionalSearchVector,
   type ProfessionalSkillDepth,
   type ProfessionalSkillEnrichedBy,
@@ -105,6 +107,8 @@ interface IdentityState {
     value: string,
   ) => void
   updateCurrentIdentityCore: (updates: Partial<ProfessionalIdentityCore>) => void
+  updateCurrentProfiles: (value: ProfessionalProfile[]) => void
+  updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
   updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
   updateCurrentWorkModel: (value: ProfessionalIdentityV3['preferences']['work_model']) => void
   updateCurrentConstraints: (value: ProfessionalPreferenceConstraints | undefined) => void
@@ -1108,6 +1112,23 @@ export const useIdentityStore = create<IdentityState>()(
             identity: {
               ...identity.identity,
               ...updates,
+            },
+          })),
+        ),
+      updateCurrentProfiles: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            profiles: value,
+          })),
+        ),
+      updateCurrentPhilosophy: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            self_model: {
+              ...identity.self_model,
+              philosophy: value,
             },
           })),
         ),
