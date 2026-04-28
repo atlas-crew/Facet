@@ -113,11 +113,12 @@
 }
 
 .identity-map-name {
-  font-size: 28px;
+  font-size: 32px;
   line-height: 1.1;
   color: var(--text-primary);
   letter-spacing: -0.4px;
   margin: 0;
+  font-style: italic;
 }
 
 .identity-map-contact {
@@ -219,10 +220,11 @@
   border-color: var(--band-color);
 }
 .thesis-text {
-  font-size: 19px;
-  line-height: 1.55;
+  font-size: 23px;
+  line-height: 1.45;
   color: var(--text-primary);
   margin: 0 0 var(--space-4);
+  font-style: italic;
 }
 .thesis-text.thesis-empty {
   color: var(--text-tertiary);
@@ -318,13 +320,14 @@
 .arc-stop:hover { border-left-color: var(--band-color); }
 .arc-stop.selected { border-left-color: var(--band-color); }
 .arc-stop-company {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 .arc-stop-chapter {
-  font-size: 13px;
-  color: var(--text-tertiary);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
 }
 .self-philosophy-list {
   display: flex;
@@ -360,8 +363,8 @@
   letter-spacing: 0.08em;
 }
 .philosophy-text {
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   color: var(--text-secondary);
 }
 .interview-block { margin-bottom: var(--space-3); }
@@ -378,8 +381,9 @@
   margin: 0;
 }
 .interview-block li {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
   padding-left: var(--space-3);
   position: relative;
   margin-bottom: var(--space-1);
@@ -438,8 +442,8 @@
   border-radius: 1px;
 }
 .profile-text {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   color: var(--text-secondary);
   margin: 0;
 }
@@ -499,14 +503,14 @@
   letter-spacing: 0.04em;
 }
 .role-company {
-  font-size: 14px;
+  font-size: 15.5px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
 }
 .role-title {
-  font-size: 13px;
-  color: var(--text-tertiary);
+  font-size: 14.5px;
+  color: var(--text-secondary);
   margin-bottom: var(--space-3);
 }
 .role-bullets-strip {
@@ -557,14 +561,14 @@
 .project-card:hover { background: var(--bg-surface-hover); }
 .project-card.selected { border-color: var(--band-color); }
 .project-name {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
 .project-snippet {
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text-tertiary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -618,12 +622,12 @@
   gap: var(--space-1);
 }
 .skill-chip {
-  padding: 4px 10px;
+  padding: 5px 11px;
   background: var(--bg-inset);
   border: 1px solid var(--border-subtle);
   border-radius: 1px;
-  font-size: 11.5px;
-  color: var(--text-tertiary);
+  font-size: 12.5px;
+  color: var(--text-secondary);
   cursor: pointer;
   letter-spacing: 0;
   text-transform: none;
@@ -678,12 +682,12 @@
 }
 .pref-cell.empty .pref-label { color: var(--warning); }
 .pref-value {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-primary);
   font-family: var(--font-mono);
 }
 .pref-empty-text {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--warning);
 }
 .prefs-matching { margin-top: var(--space-3); }
@@ -718,7 +722,7 @@
 .pref-item.avoid { border-left-color: var(--warning); }
 .pref-item.selected { background: var(--bg-surface-hover); }
 .pref-item-label {
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--text-primary);
 }
 .pref-item-weight {
@@ -741,13 +745,14 @@
   margin: 0 0 var(--space-1);
 }
 .inspector-title {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.25;
   color: var(--text-primary);
   letter-spacing: -0.3px;
   margin: 0 0 var(--space-3);
+  font-style: italic;
 }
-.inspector-body { font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+.inspector-body { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
 .inspector-body-text { margin: 0 0 var(--space-3); }
 .inspector-prompt {
   margin-top: var(--space-3);
@@ -804,7 +809,7 @@
   gap: var(--space-3);
   padding: var(--space-1) 0;
   border-bottom: 1px dashed var(--border-subtle);
-  font-size: 11.5px;
+  font-size: 13px;
 }
 .inspector-meta-row:last-child { border-bottom: none; }
 .inspector-meta-key {
@@ -848,8 +853,9 @@
   margin-top: 50%;
   text-align: center;
   color: var(--text-tertiary);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.65;
+  font-style: italic;
 }
 
 .identity-inspector-pending {

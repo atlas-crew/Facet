@@ -235,12 +235,20 @@
   text-transform: uppercase;
 }
 
+/* Default chapter copy: upright Instrument Serif at body-readable size.
+   Add `.chapter-copy-italic` (or set `font-style: italic` on the specific
+   selector) only for flagship single-line moments — thesis pull quote,
+   inspector slot titles, the identity name. Italic + Instrument Serif at
+   body sizes is too hard to read across multiple lines. */
 .chapter-copy {
   font-family: var(--font-wordmark);
-  font-style: italic;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.6;
   letter-spacing: -0.1px;
+}
+
+.chapter-copy-italic {
+  font-style: italic;
 }
 
 * {
