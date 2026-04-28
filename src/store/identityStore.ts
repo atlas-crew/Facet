@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   importProfessionalIdentity,
   normalizeRuntimeProfessionalIdentity,
+  type ProfessionalIdentityArcEntry,
   type ProfessionalIdentityCore,
   type ProfessionalIdentityV3,
   type ProfessionalInterviewProcessPreferences,
@@ -109,6 +110,7 @@ interface IdentityState {
   updateCurrentIdentityCore: (updates: Partial<ProfessionalIdentityCore>) => void
   updateCurrentProfiles: (value: ProfessionalProfile[]) => void
   updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
+  updateCurrentSelfModelArc: (value: ProfessionalIdentityArcEntry[]) => void
   updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
   updateCurrentWorkModel: (value: ProfessionalIdentityV3['preferences']['work_model']) => void
   updateCurrentConstraints: (value: ProfessionalPreferenceConstraints | undefined) => void
@@ -1129,6 +1131,16 @@ export const useIdentityStore = create<IdentityState>()(
             self_model: {
               ...identity.self_model,
               philosophy: value,
+            },
+          })),
+        ),
+      updateCurrentSelfModelArc: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            self_model: {
+              ...identity.self_model,
+              arc: value,
             },
           })),
         ),

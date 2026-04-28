@@ -82,40 +82,16 @@ function InspectorBody({
 
 
 
-    case 'arc-stop': {
-      const arcEntry = lookupArcStop(identity, selection.id)
-      if (!arcEntry) return <NotFound label="arc entry" />
-      const role = identity.roles.find((r) => r.company === arcEntry.company)
-      const arcCompany = arcEntry.company
+    case 'arc-stop':
       return (
-        <SlotShell eyebrow="Career Arc · Chapter" title={`${arcCompany} — ${arcEntry.chapter}`}>
-          {role ? (
-            <MetaRows
-              rows={[
-                ['Years', role.dates],
-                ['Role', role.title],
-                ['Bullets', String(role.bullets.length)],
-                ['Headline metric', role.subtitle ?? '—'],
-              ]}
-            />
-          ) : null}
-          <Actions>
-            <button
-              type="button"
-              className="inspector-btn primary"
-              onClick={() => handlers.selectRoleByCompany(arcCompany)}
-              disabled={!role}
-              title={role ? undefined : 'No matching role for this arc entry'}
-            >
-              View bullets
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Edit chapter title
-            </button>
-          </Actions>
-        </SlotShell>
+        <ArcStopInspector
+          identity={identity}
+          selectionId={selection.id}
+          onSelectRole={handlers.selectRoleByCompany}
+        />
       )
-    }
+
+
 
     case 'profile':
       return <ProfileInspector identity={identity} profileId={selection.id} onGoToWorkbench={handlers.goToWorkbench} />
@@ -254,69 +230,20 @@ function InspectorBody({
         </SlotShell>
       )
 
-    case 'match-rule': {
-      const rules = selection.kind === 'prioritize'
-        ? identity.preferences.matching.prioritize
-        : identity.preferences.matching.avoid
-      const rule = rules.find((r) => r.id === selection.id)
-      if (!rule) return <NotFound label="matching rule" />
-      const weightOrSeverity = 'weight' in rule ? rule.weight : rule.severity
-      return (
-        <SlotShell eyebrow={`Matching · ${selection.kind}`} title={rule.label}>
-          <p className="inspector-body-text">{rule.description}</p>
-          <MetaRows rows={[[selection.kind === 'prioritize' ? 'Weight' : 'Severity', weightOrSeverity]]} />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Edit rule
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
+    case 'match-rule':
+      return <MatchRuleInspector identity={identity} kind={selection.kind} ruleId={selection.id} />
 
-    case 'search-vector': {
-      const vector = identity.search_vectors?.find((v) => v.id === selection.id)
-      if (!vector) return <NotFound label="search vector" />
-      return (
-        <SlotShell eyebrow={`Vector · ${vector.priority}`} title={vector.title}>
-          <p className="inspector-body-text chapter-copy">{vector.thesis}</p>
-          <MetaRows
-            rows={[
-              ['Target roles', vector.target_roles.join(' · ') || '—'],
-              ['Primary keywords', vector.keywords.primary.join(' · ') || '—'],
-              ['Needs review', vector.needs_review ? 'Yes' : 'No'],
-            ]}
-          />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Mark reviewed
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Regenerate
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
 
-    case 'awareness-question': {
-      const question = identity.awareness?.open_questions.find((q) => q.id === selection.id)
-      if (!question) return <NotFound label="open question" />
-      return (
-        <SlotShell eyebrow={`Awareness · ${question.severity ?? 'open'}`} title={question.topic}>
-          <p className="inspector-body-text">{question.description}</p>
-          <MetaRows rows={[['Action', question.action], ['Needs review', question.needs_review ? 'Yes' : 'No']]} />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Mark reviewed
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Add evidence
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
+
+    case 'search-vector':
+      return <SearchVectorInspector identity={identity} vectorId={selection.id} onGoToWorkbench={handlers.goToWorkbench} />
+
+
+
+    case 'awareness-question':
+      return <AwarenessQuestionInspector identity={identity} questionId={selection.id} onGoToWorkbench={handlers.goToWorkbench} />
+
+
 
     default: {
       selection satisfies never
@@ -613,6 +540,262 @@ function PhilosophyInspector({
   )
 }
 
+function ArcStopInspector({
+  identity,
+  selectionId,
+  onSelectRole,
+}: {
+  identity: ProfessionalIdentityV3
+  selectionId: string
+  onSelectRole: (company: string) => void
+}) {
+  const updateArc = useIdentityStore((s) => s.updateCurrentSelfModelArc)
+  const arc = identity.self_model.arc
+  const arcIndex = arc.findIndex((entry, i) => `${entry.company}:${i}` === selectionId)
+  const arcEntry = arcIndex >= 0 ? arc[arcIndex] : null
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  if (!arcEntry) return <NotFound label="arc entry" />
+
+  const role = identity.roles.find((r) => r.company === arcEntry.company)
+  const arcCompany = arcEntry.company
+
+  const startEditing = () => {
+    setDraft(arcEntry.chapter)
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const next = arc.map((entry, i) => (i === arcIndex ? { ...entry, chapter: draft.trim() } : entry))
+    updateArc(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Career Arc · ${arcCompany}`} title="Refine the chapter">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Chapter</span>
+          <textarea
+            className="inspector-textarea"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            placeholder="What this chapter of your career meant — the narrative interpretation, not the role title."
+          />
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow="Career Arc · Chapter" title={`${arcCompany} — ${arcEntry.chapter}`}>
+      {role ? (
+        <MetaRows
+          rows={[
+            ['Years', role.dates],
+            ['Role', role.title],
+            ['Bullets', String(role.bullets.length)],
+            ['Headline metric', role.subtitle ?? '—'],
+          ]}
+        />
+      ) : null}
+      <Actions>
+        <button
+          type="button"
+          className="inspector-btn primary"
+          onClick={() => onSelectRole(arcCompany)}
+          disabled={!role}
+          title={role ? undefined : 'No matching role for this arc entry'}
+        >
+          View bullets
+        </button>
+        <button type="button" className="inspector-btn" onClick={startEditing}>
+          Edit chapter
+        </button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function MatchRuleInspector({
+  identity,
+  kind,
+  ruleId,
+}: {
+  identity: ProfessionalIdentityV3
+  kind: 'prioritize' | 'avoid'
+  ruleId: string
+}) {
+  const updateMatching = useIdentityStore((s) => s.updateCurrentMatching)
+  const rules = kind === 'prioritize' ? identity.preferences.matching.prioritize : identity.preferences.matching.avoid
+  const rule = rules.find((r) => r.id === ruleId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ label: '', description: '', weightOrSeverity: 'high' as string })
+
+  if (!rule) return <NotFound label="matching rule" />
+
+  const weightOrSeverity = 'weight' in rule ? rule.weight : rule.severity
+
+  const startEditing = () => {
+    setDraft({ label: rule.label, description: rule.description, weightOrSeverity })
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const matching = identity.preferences.matching
+    if (kind === 'prioritize') {
+      const next = matching.prioritize.map((r) =>
+        r.id === ruleId
+          ? { ...r, label: draft.label.trim(), description: draft.description.trim(), weight: draft.weightOrSeverity as 'high' | 'medium' | 'low' }
+          : r,
+      )
+      updateMatching({ ...matching, prioritize: next })
+    } else {
+      const next = matching.avoid.map((r) =>
+        r.id === ruleId
+          ? { ...r, label: draft.label.trim(), description: draft.description.trim(), severity: draft.weightOrSeverity as 'hard' | 'soft' | 'conditional' }
+          : r,
+      )
+      updateMatching({ ...matching, avoid: next })
+    }
+    setEditing(false)
+  }
+
+  if (editing) {
+    const options = kind === 'prioritize' ? ['high', 'medium', 'low'] : ['hard', 'soft', 'conditional']
+    return (
+      <SlotShell eyebrow={`Matching · ${kind}`} title="Refine the rule">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Label</span>
+          <input
+            className="inspector-input"
+            type="text"
+            value={draft.label}
+            onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+          />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Description</span>
+          <textarea
+            className="inspector-textarea"
+            value={draft.description}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+            rows={3}
+          />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">{kind === 'prioritize' ? 'Weight' : 'Severity'}</span>
+          <select
+            className="inspector-input"
+            value={draft.weightOrSeverity}
+            onChange={(e) => setDraft({ ...draft, weightOrSeverity: e.target.value })}
+          >
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow={`Matching · ${kind}`} title={rule.label}>
+      <p className="inspector-body-text">{rule.description}</p>
+      <MetaRows rows={[[kind === 'prioritize' ? 'Weight' : 'Severity', weightOrSeverity]]} />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit rule</button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function SearchVectorInspector({
+  identity,
+  vectorId,
+  onGoToWorkbench,
+}: {
+  identity: ProfessionalIdentityV3
+  vectorId: string
+  onGoToWorkbench: () => void
+}) {
+  const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
+  const vector = identity.search_vectors?.find((v) => v.id === vectorId)
+  if (!vector) return <NotFound label="search vector" />
+
+  const toggleReviewed = () => {
+    const vectors = identity.search_vectors ?? []
+    const next = vectors.map((v) => (v.id === vectorId ? { ...v, needs_review: !v.needs_review } : v))
+    updateVectors(next)
+  }
+
+  return (
+    <SlotShell eyebrow={`Vector · ${vector.priority}`} title={vector.title}>
+      <p className="inspector-body-text chapter-copy">{vector.thesis}</p>
+      <MetaRows
+        rows={[
+          ['Target roles', vector.target_roles.join(' · ') || '—'],
+          ['Primary keywords', vector.keywords.primary.join(' · ') || '—'],
+          ['Needs review', vector.needs_review ? 'Yes' : 'No'],
+        ]}
+      />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={toggleReviewed}>
+          {vector.needs_review ? 'Mark reviewed' : 'Reopen for review'}
+        </button>
+        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>
+          Edit / Regenerate
+        </button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function AwarenessQuestionInspector({
+  identity,
+  questionId,
+  onGoToWorkbench,
+}: {
+  identity: ProfessionalIdentityV3
+  questionId: string
+  onGoToWorkbench: () => void
+}) {
+  const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
+  const question = identity.awareness?.open_questions.find((q) => q.id === questionId)
+  if (!question) return <NotFound label="open question" />
+
+  const toggleReviewed = () => {
+    const questions = identity.awareness?.open_questions ?? []
+    const next = questions.map((q) => (q.id === questionId ? { ...q, needs_review: !q.needs_review } : q))
+    updateQuestions(next)
+  }
+
+  return (
+    <SlotShell eyebrow={`Awareness · ${question.severity ?? 'open'}`} title={question.topic}>
+      <p className="inspector-body-text">{question.description}</p>
+      <MetaRows rows={[['Action', question.action], ['Needs review', question.needs_review ? 'Yes' : 'No']]} />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={toggleReviewed}>
+          {question.needs_review ? 'Mark reviewed' : 'Reopen for review'}
+        </button>
+        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>
+          Edit / Add evidence
+        </button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
 function SlotShell({
   eyebrow,
   title,
@@ -687,9 +870,3 @@ function citedInProfiles(identity: ProfessionalIdentityV3, tags: string[]): stri
   return matches.length > 0 ? matches.join(' · ') : '—'
 }
 
-function lookupArcStop(
-  identity: ProfessionalIdentityV3,
-  id: string,
-): { company: string; chapter: string } | null {
-  return identity.self_model.arc.find((entry, index) => `${entry.company}:${index}` === id) ?? null
-}
