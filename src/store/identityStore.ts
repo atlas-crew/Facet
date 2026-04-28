@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   importProfessionalIdentity,
   normalizeRuntimeProfessionalIdentity,
+  type ProfessionalIdentityCore,
   type ProfessionalIdentityV3,
   type ProfessionalInterviewProcessPreferences,
   type ProfessionalMatchingPreferences,
@@ -103,6 +104,7 @@ interface IdentityState {
     field: keyof ProfessionalIdentityV3['education'][number],
     value: string,
   ) => void
+  updateCurrentIdentityCore: (updates: Partial<ProfessionalIdentityCore>) => void
   updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
   updateCurrentWorkModel: (value: ProfessionalIdentityV3['preferences']['work_model']) => void
   updateCurrentConstraints: (value: ProfessionalPreferenceConstraints | undefined) => void
@@ -1097,6 +1099,16 @@ export const useIdentityStore = create<IdentityState>()(
                   }
                 : entry,
             ),
+          })),
+        ),
+      updateCurrentIdentityCore: (updates) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            identity: {
+              ...identity.identity,
+              ...updates,
+            },
           })),
         ),
       updateCurrentCompensation: (value) =>
