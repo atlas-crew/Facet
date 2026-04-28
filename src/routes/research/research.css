@@ -645,6 +645,104 @@
   margin: 0;
 }
 
+.research-result-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: var(--space-2);
+}
+
+.research-result-feedback-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.research-result-feedback-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-right: var(--space-1);
+}
+
+.research-feedback-btn {
+  padding-block: 4px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.research-feedback-btn-active-up {
+  border-color: color-mix(in srgb, var(--accent-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-surface));
+}
+
+.research-feedback-btn-active-down {
+  border-color: color-mix(in srgb, var(--accent-danger, #c0392b) 50%, transparent);
+  background: color-mix(in srgb, var(--accent-danger, #c0392b) 10%, var(--bg-surface));
+}
+
+.research-feedback-applied {
+  background: color-mix(in srgb, var(--accent-primary) 16%, var(--bg-inset));
+  color: var(--text-primary);
+}
+
+.research-result-feedback-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-inset);
+}
+
+.research-result-feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.research-result-feedback-field textarea,
+.research-result-feedback-field input[type='text'] {
+  width: 100%;
+  resize: vertical;
+}
+
+.research-result-feedback-avoid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.research-result-feedback-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.research-result-feedback-avoid-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-2);
+}
+
+.research-result-feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 720px) {
+  .research-result-feedback-avoid-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 960px) {
   .research-readiness-grid,
   .research-job-stats,

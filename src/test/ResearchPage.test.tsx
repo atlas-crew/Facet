@@ -279,6 +279,7 @@ describe('ResearchPage', () => {
       ],
       theses: [],
       activeThesisId: null,
+      feedbackEvents: [],
       activeResearchJob: null,
     })
 
@@ -2596,6 +2597,126 @@ describe('ResearchPage', () => {
 
     expect(screen.getByText(/staff platform remote/i)).toBeTruthy()
     expect(screen.getByText(/Tokens: 50/i)).toBeTruthy()
+  })
+
+  it('records a thumbs-up feedback event without writing back to identity', async () => {
+    const identity = cloneIdentityFixture()
+    const previousRevision = identity.model_revision ?? 0
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: '',
+      scanResult: null,
+      lastError: null,
+      warnings: [],
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.click(screen.getByRole('button', { name: /Mark Acme Corp match as good/i }))
+    fireEvent.change(
+      screen.getByPlaceholderText(/interview process matches my preference/i),
+      { target: { value: 'Liked the builder-friendly process.' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().feedbackEvents).toHaveLength(1)
+    })
+
+    const event = useSearchStore.getState().feedbackEvents[0]!
+    expect(event.rating).toBe('up')
+    expect(event.reason).toBe('Liked the builder-friendly process.')
+    expect(event.appliedToIdentity).toBe(false)
+    expect(event.runId).toBe('srun-1')
+    expect(event.resultId).toBe('sres-1')
+    // No avoid checkbox was toggled, so the identity model is unchanged.
+    const updatedIdentity = useIdentityStore.getState().currentIdentity
+    expect(updatedIdentity?.preferences.matching.avoid).toEqual([])
+    expect(updatedIdentity?.model_revision ?? 0).toBe(previousRevision)
+  })
+
+  it('writes a thumbs-down avoid entry back to Identity and marks the event applied', async () => {
+    const identity = cloneIdentityFixture()
+    const previousRevision = identity.model_revision ?? 0
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: '',
+      scanResult: null,
+      lastError: null,
+      warnings: [],
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.click(screen.getByRole('button', { name: /Mark Acme Corp match as wrong/i }))
+    fireEvent.change(screen.getByPlaceholderText(/deep K8s admin experience/i), {
+      target: { value: 'Pure cluster-admin work — not my fit.' },
+    })
+    fireEvent.click(
+      screen.getByLabelText(/Add to Identity avoid list/i),
+    )
+    fireEvent.change(screen.getByPlaceholderText(/K8s admin role/i), {
+      target: { value: 'Cluster admin role' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/building around K8s is fine/i), {
+      target: { value: 'Building platforms around Kubernetes is fine.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().feedbackEvents).toHaveLength(1)
+    })
+
+    const event = useSearchStore.getState().feedbackEvents[0]!
+    expect(event.rating).toBe('down')
+    expect(event.reason).toBe('Pure cluster-admin work — not my fit.')
+    expect(event.dimensions?.preference).toEqual({
+      category: 'avoid',
+      label: 'Cluster admin role',
+      condition: 'Building platforms around Kubernetes is fine.',
+    })
+    expect(event.appliedToIdentity).toBe(true)
+    expect(event.appliedAtVersion).toBeDefined()
+
+    const updatedIdentity = useIdentityStore.getState().currentIdentity
+    expect(updatedIdentity?.preferences.matching.avoid).toHaveLength(1)
+    const newAvoid = updatedIdentity?.preferences.matching.avoid[0]
+    expect(newAvoid?.label).toBe('Cluster admin role')
+    expect(newAvoid?.condition).toBe('Building platforms around Kubernetes is fine.')
+    expect(newAvoid?.severity).toBe('conditional')
+    expect(updatedIdentity?.model_revision).toBeGreaterThan(previousRevision)
+    expect(event.appliedAtVersion).toBe(updatedIdentity?.model_revision)
+  })
+
+  it('blocks avoid writeback when the avoid label is empty', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: '',
+      scanResult: null,
+      lastError: null,
+      warnings: [],
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.click(screen.getByRole('button', { name: /Mark Acme Corp match as wrong/i }))
+    fireEvent.click(screen.getByLabelText(/Add to Identity avoid list/i))
+    // Clear the label that was pre-filled with the company name.
+    fireEvent.change(screen.getByPlaceholderText(/K8s admin role/i), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }))
+
+    expect(screen.getByRole('alert').textContent).toMatch(/Add an avoid label/i)
+    expect(useSearchStore.getState().feedbackEvents).toHaveLength(0)
+    expect(useIdentityStore.getState().currentIdentity?.preferences.matching.avoid).toEqual([])
   })
 
   it('lets the user choose a different vector before pushing a result to the pipeline', async () => {

@@ -128,14 +128,47 @@ export function createSeededPipelineResearchSnapshot(
   options: { searchQueries?: string[] } = {},
 ): PipelineResearchSnapshot {
   const sourceUrl = sanitizeUrl(entry.url) ?? ''
-  const riskSummary =
-    entry.risks.length > 0 ? ` Risks: ${entry.risks.join('; ')}` : ''
+  const summaryParts: string[] = []
+  const matchReason = entry.matchReason.trim()
+  if (matchReason) {
+    summaryParts.push(matchReason)
+  }
+  if (entry.companyIntel) {
+    const intel = [
+      entry.companyIntel.stage && `Stage: ${entry.companyIntel.stage}`,
+      entry.companyIntel.aiCulture && `AI culture: ${entry.companyIntel.aiCulture}`,
+      entry.companyIntel.remotePolicy && `Remote policy: ${entry.companyIntel.remotePolicy}`,
+    ].filter((value): value is string => Boolean(value))
+    if (intel.length > 0) {
+      summaryParts.push(intel.join(' · '))
+    }
+  }
+  if (entry.risks.length > 0) {
+    summaryParts.push(`Risks: ${entry.risks.join('; ')}`)
+  }
+
+  const interviewSignals: string[] = []
+  if (entry.interviewProcess?.format.trim()) {
+    interviewSignals.push(`Format: ${entry.interviewProcess.format.trim()}`)
+  }
+  if (entry.interviewProcess?.estimatedTimeline?.trim()) {
+    interviewSignals.push(`Timeline: ${entry.interviewProcess.estimatedTimeline.trim()}`)
+  }
+  if (entry.interviewProcess?.builderFriendly) {
+    interviewSignals.push('Builder-friendly process')
+  }
+  if (entry.interviewProcess?.aiToolsAllowed) {
+    interviewSignals.push('AI tools allowed during interviews')
+  }
+  if (entry.signalGroup?.trim()) {
+    interviewSignals.push(`Signal group: ${entry.signalGroup.trim()}`)
+  }
 
   return {
     status: 'seeded',
-    summary: `${entry.matchReason}${riskSummary}`.trim(),
+    summary: summaryParts.join(' · '),
     jobDescriptionSummary: '',
-    interviewSignals: [],
+    interviewSignals,
     people: [],
     sources: [
       {

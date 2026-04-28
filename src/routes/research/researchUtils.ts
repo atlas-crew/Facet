@@ -1,9 +1,11 @@
-import type { PipelineEntry } from '../../types/pipeline'
+import type { InterviewFormat, PipelineEntry } from '../../types/pipeline'
+import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
 import type {
   SearchProfile,
   SearchRequest,
   SearchRequestMaxResults,
   SearchResultEntry,
+  SearchResultInterviewProcess,
   VectorSearchConfig,
 } from '../../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../../types/search'
@@ -113,6 +115,60 @@ export function toPipelineTier(tier: SearchResultEntry['tier'] | number): '1' | 
   return null
 }
 
+const FORMAT_PHRASE_TO_ENUM: ReadonlyArray<readonly [RegExp, InterviewFormat]> = [
+  [/\bhr[\s-]?screen\b/i, 'hr-screen'],
+  [/\b(hiring[\s-]?manager|hm)[\s-]?(screen|chat)?\b/i, 'hm-screen'],
+  [/\bsystem[\s-]?design\b/i, 'system-design'],
+  [/\btake[\s-]?home\b/i, 'take-home'],
+  [/\b(live|onsite)[\s-]?coding\b/i, 'live-coding'],
+  [/\bleet[\s-]?code\b/i, 'leetcode'],
+  [/\bpair[\s-]?(programm?ing)?\b/i, 'pair-programming'],
+  [/\bbehavior[a-z]*\b/i, 'behavioral'],
+  [/\b(peer|panel)\b/i, 'peer-panel'],
+  [/\bcross[\s-]?team\b/i, 'cross-team'],
+  [/\b(exec(utive)?|founder)\b/i, 'exec'],
+  [/\bpresentation\b/i, 'presentation'],
+  [/\b(tech(nical)?[\s-]?(discussion|deep[\s-]?dive|chat)|architecture[\s-]?review)\b/i, 'tech-discussion'],
+]
+
+/**
+ * Parse a free-form interviewProcess.format string ("take-home + system design + behavioral panel")
+ * into the strict InterviewFormat[] used by PipelineEntry.format. Phrases the parser doesn't
+ * recognise are silently dropped — they survive elsewhere in the pipeline entry (notes/research)
+ * so nothing is lost; we just don't smuggle invalid enum values into a strict union.
+ */
+export function parseInterviewFormatPhrases(value: string): InterviewFormat[] {
+  if (!value) return []
+  const seen = new Set<InterviewFormat>()
+  for (const [pattern, format] of FORMAT_PHRASE_TO_ENUM) {
+    if (pattern.test(value)) {
+      seen.add(format)
+    }
+  }
+  return INTERVIEW_FORMAT_VALUES.filter((format) => seen.has(format))
+}
+
+export function buildInterviewProcessSignals(
+  process: SearchResultInterviewProcess | undefined,
+): string[] {
+  if (!process) return []
+  const signals: string[] = []
+  const formatPhrase = process.format.trim()
+  if (formatPhrase) {
+    signals.push('Format: ' + formatPhrase)
+  }
+  if (process.estimatedTimeline?.trim()) {
+    signals.push('Timeline: ' + process.estimatedTimeline.trim())
+  }
+  if (process.builderFriendly) {
+    signals.push('Builder-friendly process')
+  }
+  if (process.aiToolsAllowed) {
+    signals.push('AI tools allowed during interviews')
+  }
+  return signals
+}
+
 export function createPipelineEntryDraft(
   entry: SearchResultEntry,
   vectorId: string,
@@ -121,6 +177,35 @@ export function createPipelineEntryDraft(
   const pipelineTier = toPipelineTier(entry.tier)
   if (!pipelineTier) {
     return null
+  }
+
+  const positioning = entry.candidateEdge?.trim() || entry.vectorAlignment
+  const skillMatch = [entry.matchReason, entry.advantageMatch?.trim()]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join('\n\n')
+  const format = entry.interviewProcess
+    ? parseInterviewFormatPhrases(entry.interviewProcess.format)
+    : []
+  const notesParts: string[] = []
+  if (entry.signalGroup?.trim()) {
+    notesParts.push('Signal group: ' + entry.signalGroup.trim())
+  }
+  if (entry.companyIntel) {
+    const intelLines = [
+      entry.companyIntel.stage && 'Stage: ' + entry.companyIntel.stage,
+      entry.companyIntel.aiCulture && 'AI culture: ' + entry.companyIntel.aiCulture,
+      entry.companyIntel.remotePolicy && 'Remote policy: ' + entry.companyIntel.remotePolicy,
+      typeof entry.companyIntel.openRoleCount === 'number' &&
+        entry.companyIntel.openRoleCount > 0 &&
+        'Open roles: ' + String(entry.companyIntel.openRoleCount),
+    ].filter((value): value is string => Boolean(value))
+    if (intelLines.length > 0) {
+      notesParts.push(intelLines.join('\n'))
+    }
+  }
+  if (entry.risks.length > 0) {
+    notesParts.push('Risks:\n' + entry.risks.map((risk) => '- ' + risk).join('\n'))
   }
 
   return {
@@ -136,15 +221,15 @@ export function createPipelineEntryDraft(
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,
-    positioning: entry.vectorAlignment,
-    skillMatch: entry.matchReason,
+    positioning,
+    skillMatch,
     nextStep: 'Review opportunity and tailor resume',
-    notes: entry.risks.join('\n'),
+    notes: notesParts.join('\n\n'),
     appMethod: 'unknown',
     response: 'none',
     daysToResponse: null,
     rounds: null,
-    format: [],
+    format,
     rejectionStage: '',
     rejectionReason: '',
     offerAmount: '',

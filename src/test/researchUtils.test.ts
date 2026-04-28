@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { SearchProfile, SearchRequestMaxResults, SearchResultEntry } from '../types/search'
 import {
+  buildInterviewProcessSignals,
   buildRequestDraft,
   createPipelineEntryDraft,
   emptyProfile,
   groupByTier,
   joinTags,
   normalizeMaxResults,
+  parseInterviewFormatPhrases,
   splitTags,
   toPipelineTier,
   upsertVectorConfig,
@@ -202,7 +204,7 @@ describe('researchUtils', () => {
       positioning: 'backend',
       skillMatch: 'Strong platform fit',
       nextStep: 'Review opportunity and tailor resume',
-      notes: 'Smaller team',
+      notes: 'Risks:\n- Smaller team',
       appMethod: 'unknown',
       response: 'none',
       daysToResponse: null,
@@ -215,7 +217,7 @@ describe('researchUtils', () => {
       dateClosed: '',
       research: {
         status: 'seeded',
-        summary: 'Strong platform fit Risks: Smaller team',
+        summary: 'Strong platform fit · Risks: Smaller team',
         jobDescriptionSummary: '',
         interviewSignals: [],
         people: [],
@@ -257,5 +259,123 @@ describe('researchUtils', () => {
         searchQueries: ['Acme staff engineer remote'],
       },
     })
+  })
+
+  it('parses interviewProcess.format phrases into the strict InterviewFormat enum', () => {
+    expect(parseInterviewFormatPhrases('take-home + system design + behavioral panel')).toEqual([
+      'system-design',
+      'take-home',
+      'behavioral',
+      'peer-panel',
+    ])
+    expect(parseInterviewFormatPhrases('hr screen, hm chat, technical deep-dive')).toEqual([
+      'hr-screen',
+      'hm-screen',
+      'tech-discussion',
+    ])
+    expect(parseInterviewFormatPhrases('leetcode + onsite coding')).toEqual([
+      'live-coding',
+      'leetcode',
+    ])
+    expect(parseInterviewFormatPhrases('founder chat, presentation')).toEqual([
+      'exec',
+      'presentation',
+    ])
+    expect(parseInterviewFormatPhrases('mystery process')).toEqual([])
+    expect(parseInterviewFormatPhrases('')).toEqual([])
+  })
+
+  it('builds interview process signals from enriched fields', () => {
+    expect(buildInterviewProcessSignals(undefined)).toEqual([])
+    expect(
+      buildInterviewProcessSignals({
+        format: 'system design',
+        builderFriendly: true,
+        aiToolsAllowed: false,
+        estimatedTimeline: '3 weeks',
+      }),
+    ).toEqual(['Format: system design', 'Timeline: 3 weeks', 'Builder-friendly process'])
+    expect(
+      buildInterviewProcessSignals({
+        format: '',
+        builderFriendly: false,
+        aiToolsAllowed: true,
+      }),
+    ).toEqual(['AI tools allowed during interviews'])
+  })
+
+  it('maps enriched search result fields onto the pipeline draft', () => {
+    const enriched: SearchResultEntry = {
+      ...searchResult,
+      tier: 1,
+      candidateEdge:
+        'Built fleet-managed eBPF agents at A10 — direct prior-art for Acme platform team.',
+      advantageMatch: 'platform + security + fleet management',
+      signalGroup: 'every signal aligns',
+      interviewProcess: {
+        format: 'take-home + system design + behavioral panel',
+        builderFriendly: true,
+        aiToolsAllowed: true,
+        estimatedTimeline: '3 weeks',
+      },
+      companyIntel: {
+        stage: 'series B',
+        aiCulture: 'AI-augmented dev workflow',
+        remotePolicy: 'fully remote',
+        openRoleCount: 4,
+      },
+      risks: ['Heavy on-call rotation'],
+    }
+
+    const draft = createPipelineEntryDraft(enriched, 'platform')
+
+    expect(draft).toMatchObject({
+      tier: '1',
+      vectorId: 'platform',
+      positioning:
+        'Built fleet-managed eBPF agents at A10 — direct prior-art for Acme platform team.',
+      skillMatch: 'Strong platform fit\n\nplatform + security + fleet management',
+      format: ['system-design', 'take-home', 'behavioral', 'peer-panel'],
+    })
+    expect(draft?.notes).toContain('Signal group: every signal aligns')
+    expect(draft?.notes).toContain('Stage: series B')
+    expect(draft?.notes).toContain('AI culture: AI-augmented dev workflow')
+    expect(draft?.notes).toContain('Remote policy: fully remote')
+    expect(draft?.notes).toContain('Open roles: 4')
+    expect(draft?.notes).toContain('Risks:\n- Heavy on-call rotation')
+    expect(draft?.research?.summary).toContain('Stage: series B')
+    expect(draft?.research?.summary).toContain('AI culture: AI-augmented dev workflow')
+    expect(draft?.research?.interviewSignals).toEqual([
+      'Format: take-home + system design + behavioral panel',
+      'Timeline: 3 weeks',
+      'Builder-friendly process',
+      'AI tools allowed during interviews',
+      'Signal group: every signal aligns',
+    ])
+  })
+
+  it('falls back to vectorAlignment when candidateEdge is missing or whitespace', () => {
+    const draft = createPipelineEntryDraft(
+      { ...searchResult, candidateEdge: '   ' },
+      'backend',
+    )
+    expect(draft?.positioning).toBe('backend')
+  })
+
+  it('drops unrecognised format phrases without leaking invalid enum values', () => {
+    const draft = createPipelineEntryDraft(
+      {
+        ...searchResult,
+        interviewProcess: {
+          format: 'mystery custom assessment',
+          builderFriendly: false,
+          aiToolsAllowed: false,
+        },
+      },
+      'backend',
+    )
+    expect(draft?.format).toEqual([])
+    // Phrase still surfaces via research.interviewSignals so context isn't lost.
+    expect(draft?.research?.interviewSignals).toContain('Format: mystery custom assessment')
   })
 })

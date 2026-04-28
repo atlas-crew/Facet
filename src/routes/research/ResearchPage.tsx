@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'lucide-react'
+import {
+  ArrowRight,
+  BriefcaseBusiness,
+  RefreshCcw,
+  Search,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  X,
+} from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { FacetAiProxyError } from '../../utils/aiProxyErrors'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
@@ -85,6 +94,28 @@ type PendingThesisSkillWriteback = {
   impactArtifacts: ImpactArtifactInput[]
 }
 type StalenessReviewDecision = 'accepted' | 'rejected'
+
+/**
+ * State for the per-result feedback panel. Only one panel is open at a time so the user
+ * isn't editing two reactions in parallel; submission either creates a feedback event or
+ * additionally writes back to the identity model (avoid list) and marks the event applied.
+ */
+type ResultFeedbackPanelState = {
+  resultId: string
+  rating: 'up' | 'down'
+  reason: string
+  /** When true, append a MatchingAvoid entry to identity.preferences.matching.avoid on submit. */
+  addToAvoid: boolean
+  avoidLabel: string
+  avoidCondition: string
+  submitting: boolean
+}
+
+/** Lightweight summary of the latest feedback event per result, used for the badge on the card. */
+type ResultFeedbackBadge = {
+  rating: 'up' | 'down'
+  applied: boolean
+}
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
   { value: '', label: 'No preference' },
@@ -416,6 +447,7 @@ export function ResearchPage() {
   const resumeData = useResumeStore((state) => state.data)
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const saveSkillEnrichment = useIdentityStore((state) => state.saveSkillEnrichment)
+  const updateCurrentMatching = useIdentityStore((state) => state.updateCurrentMatching)
   const coverLetterTemplates = useCoverLetterStore((state) => state.templates)
   const updateCoverLetterTemplate = useCoverLetterStore((state) => state.updateTemplate)
   const prepDecks = usePrepStore((state) => state.decks)
@@ -448,6 +480,9 @@ export function ResearchPage() {
     clearActiveResearchJob,
     getUnreflectedFeedback,
     markFeedbackReflectedInThesis,
+    feedbackEvents,
+    addFeedbackEvent,
+    markFeedbackApplied,
   } = useSearchStore()
 
   const [activeTab, setActiveTab] = useState<ResearchTab>('profile')
@@ -477,6 +512,8 @@ export function ResearchPage() {
   const [researchJobTransport, setResearchJobTransport] = useState<'polling' | 'sse'>('polling')
   const [researchUsage, setResearchUsage] = useState<ResearchUsageSnapshot | null>(null)
   const [researchBudgetNotice, setResearchBudgetNotice] = useState<string | null>(null)
+  const [feedbackPanel, setFeedbackPanel] = useState<ResultFeedbackPanelState | null>(null)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const identityProfileRef = useRef({
     id: createId('sprof'),
     inferredAt: new Date().toISOString(),
@@ -1188,6 +1225,13 @@ export function ResearchPage() {
           generated.thesis.identityFields ??
           collectThesisIdentityFieldDependencies(generated.thesis),
       })
+      // Stamp incorporated feedback events as reflected in the new thesis so subsequent
+      // regenerations don't re-pull them via getUnreflectedFeedback. Previously this only
+      // happened on save-edit / launch-search, leaving a window where a regenerate→discard
+      // cycle would feed the same events back twice.
+      if (saved.feedbackIncorporated.length > 0) {
+        markFeedbackReflectedInThesis(saved.feedbackIncorporated, saved.id)
+      }
       const lookForText = saved.lookFor.join(', ')
       setActiveThesis(saved.id)
       setThesisDraft(structuredClone(saved))
@@ -1918,6 +1962,91 @@ export function ResearchPage() {
     }
   }
 
+  const openFeedbackPanel = (
+    entry: SearchResultEntry,
+    rating: 'up' | 'down',
+  ) => {
+    setFeedbackError(null)
+    setFeedbackPanel({
+      resultId: entry.id,
+      rating,
+      reason: '',
+      addToAvoid: false,
+      avoidLabel: rating === 'down' ? entry.company : '',
+      avoidCondition: '',
+      submitting: false,
+    })
+  }
+
+  const closeFeedbackPanel = () => {
+    setFeedbackPanel(null)
+    setFeedbackError(null)
+  }
+
+  const updateFeedbackPanel = (patch: Partial<ResultFeedbackPanelState>) => {
+    setFeedbackPanel((current) => (current ? { ...current, ...patch } : current))
+  }
+
+  const submitFeedback = () => {
+    if (!feedbackPanel || !activeRun) return
+    const trimmedReason = feedbackPanel.reason.trim()
+    const wantsAvoidWriteback = feedbackPanel.rating === 'down' && feedbackPanel.addToAvoid
+
+    if (wantsAvoidWriteback) {
+      if (!currentIdentity) {
+        setFeedbackError('Identity model is not loaded — open Identity to enable writeback.')
+        return
+      }
+      if (!feedbackPanel.avoidLabel.trim()) {
+        setFeedbackError('Add an avoid label (company, signal, or attribute) before applying writeback.')
+        return
+      }
+    }
+
+    const dimensions = wantsAvoidWriteback
+      ? {
+          preference: {
+            category: 'avoid' as const,
+            label: feedbackPanel.avoidLabel.trim(),
+            ...(feedbackPanel.avoidCondition.trim()
+              ? { condition: feedbackPanel.avoidCondition.trim() }
+              : {}),
+          },
+        }
+      : undefined
+
+    const event = addFeedbackEvent({
+      runId: activeRun.id,
+      resultId: feedbackPanel.resultId,
+      rating: feedbackPanel.rating,
+      ...(trimmedReason ? { reason: trimmedReason } : {}),
+      ...(dimensions ? { dimensions } : {}),
+      appliedToIdentity: false,
+    })
+
+    if (wantsAvoidWriteback && currentIdentity) {
+      const matching = currentIdentity.preferences.matching
+      const nextAvoid = [
+        ...matching.avoid,
+        {
+          id: createId('match-avoid'),
+          label: feedbackPanel.avoidLabel.trim(),
+          description: trimmedReason || 'Added from search result feedback.',
+          severity: feedbackPanel.avoidCondition.trim() ? 'conditional' as const : 'soft' as const,
+          ...(feedbackPanel.avoidCondition.trim()
+            ? { condition: feedbackPanel.avoidCondition.trim() }
+            : {}),
+        },
+      ]
+      updateCurrentMatching({ ...matching, avoid: nextAvoid })
+      const updatedIdentity = useIdentityStore.getState().currentIdentity
+      const newRevision = updatedIdentity?.model_revision ?? currentIdentity.model_revision ?? 0
+      markFeedbackApplied(event.id, newRevision)
+    }
+
+    closeFeedbackPanel()
+  }
+
   const handlePushToPipeline = (entry: SearchResultEntry, vectorId: string) => {
     const pipelineEntry = createPipelineEntryDraft(entry, vectorId, {
       searchQueries: activeRun?.searchLog,
@@ -1960,6 +2089,19 @@ export function ResearchPage() {
   }
 
   const groupedResults = groupByTier(activeRun?.results ?? [])
+  const feedbackByResultId = useMemo(() => {
+    const map = new Map<string, ResultFeedbackBadge>()
+    if (!activeRun) return map
+    for (const event of feedbackEvents) {
+      if (event.runId !== activeRun.id) continue
+      // Latest event wins so the badge reflects the user's most recent reaction.
+      map.set(event.resultId, {
+        rating: event.rating,
+        applied: event.appliedToIdentity,
+      })
+    }
+    return map
+  }, [activeRun, feedbackEvents])
   const visibleResearchJob =
     activeResearchJob && activeRun?.id === activeResearchJob.runId ? observedResearchJob : null
   const visibleJobProgress = visibleResearchJob?.progress
@@ -3722,6 +3864,9 @@ export function ResearchPage() {
                               activeRequest?.focusVectors[0] ??
                               vectorOptions[0]?.id ??
                               ''
+                            const feedbackBadge = feedbackByResultId.get(result.id) ?? null
+                            const isFeedbackOpen =
+                              feedbackPanel?.resultId === result.id
 
                             return (
                               <article key={result.id} className="research-result-card">
@@ -3799,6 +3944,148 @@ export function ResearchPage() {
                                       ))}
                                     </ul>
                                   )}
+                                </div>
+
+                                <div
+                                  className="research-result-feedback"
+                                  data-testid={`result-feedback-${result.id}`}
+                                >
+                                  <div className="research-result-feedback-bar">
+                                    <span className="research-result-feedback-label">
+                                      How did this match feel?
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className={`research-btn research-feedback-btn${
+                                        feedbackBadge?.rating === 'up'
+                                          ? ' research-feedback-btn-active-up'
+                                          : ''
+                                      }`}
+                                      aria-label={`Mark ${result.company} match as good`}
+                                      aria-pressed={feedbackBadge?.rating === 'up'}
+                                      onClick={() => openFeedbackPanel(result, 'up')}
+                                    >
+                                      <ThumbsUp size={14} />
+                                      <span>Good fit</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`research-btn research-feedback-btn${
+                                        feedbackBadge?.rating === 'down'
+                                          ? ' research-feedback-btn-active-down'
+                                          : ''
+                                      }`}
+                                      aria-label={`Mark ${result.company} match as wrong`}
+                                      aria-pressed={feedbackBadge?.rating === 'down'}
+                                      onClick={() => openFeedbackPanel(result, 'down')}
+                                    >
+                                      <ThumbsDown size={14} />
+                                      <span>Wrong fit</span>
+                                    </button>
+                                    {feedbackBadge?.applied ? (
+                                      <span
+                                        className="research-pill research-feedback-applied"
+                                        title="This feedback has been written back to your Identity model."
+                                      >
+                                        Applied
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  {isFeedbackOpen && feedbackPanel ? (
+                                    <div className="research-result-feedback-panel">
+                                      <label className="research-result-feedback-field">
+                                        <span>
+                                          {feedbackPanel.rating === 'up'
+                                            ? 'What worked? (optional)'
+                                            : 'What was wrong? (optional)'}
+                                        </span>
+                                        <textarea
+                                          rows={2}
+                                          value={feedbackPanel.reason}
+                                          onChange={(event) =>
+                                            updateFeedbackPanel({ reason: event.target.value })
+                                          }
+                                          placeholder={
+                                            feedbackPanel.rating === 'up'
+                                              ? 'e.g., interview process matches my preference'
+                                              : 'e.g., they require deep K8s admin experience'
+                                          }
+                                        />
+                                      </label>
+                                      {feedbackPanel.rating === 'down' ? (
+                                        <div className="research-result-feedback-avoid">
+                                          <label className="research-result-feedback-checkbox">
+                                            <input
+                                              type="checkbox"
+                                              checked={feedbackPanel.addToAvoid}
+                                              onChange={(event) =>
+                                                updateFeedbackPanel({
+                                                  addToAvoid: event.target.checked,
+                                                })
+                                              }
+                                            />
+                                            <span>
+                                              Add to Identity avoid list (writes back to your
+                                              Identity model)
+                                            </span>
+                                          </label>
+                                          {feedbackPanel.addToAvoid ? (
+                                            <div className="research-result-feedback-avoid-fields">
+                                              <label className="research-result-feedback-field">
+                                                <span>Avoid label</span>
+                                                <input
+                                                  type="text"
+                                                  value={feedbackPanel.avoidLabel}
+                                                  onChange={(event) =>
+                                                    updateFeedbackPanel({
+                                                      avoidLabel: event.target.value,
+                                                    })
+                                                  }
+                                                  placeholder="e.g., K8s admin role"
+                                                />
+                                              </label>
+                                              <label className="research-result-feedback-field">
+                                                <span>Qualifying condition (optional)</span>
+                                                <input
+                                                  type="text"
+                                                  value={feedbackPanel.avoidCondition}
+                                                  onChange={(event) =>
+                                                    updateFeedbackPanel({
+                                                      avoidCondition: event.target.value,
+                                                    })
+                                                  }
+                                                  placeholder='e.g., "building around K8s is fine"'
+                                                />
+                                              </label>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
+                                      {feedbackError ? (
+                                        <p className="research-error" role="alert">
+                                          {feedbackError}
+                                        </p>
+                                      ) : null}
+                                      <div className="research-result-feedback-actions">
+                                        <button
+                                          type="button"
+                                          className="research-btn"
+                                          onClick={closeFeedbackPanel}
+                                        >
+                                          <X size={14} />
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="research-btn research-btn-primary"
+                                          onClick={submitFeedback}
+                                        >
+                                          Save feedback
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : null}
                                 </div>
 
                                 <div className="research-result-actions">
