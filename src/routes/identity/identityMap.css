@@ -146,8 +146,9 @@
   left: -22px;
   top: 24px;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background: var(--band-color, var(--border-default));
+  border-radius: 99px;
   opacity: 0.55;
 }
 
@@ -288,7 +289,6 @@
 }
 .arc-flow {
   display: flex;
-  gap: 0;
   align-items: stretch;
 }
 .self-arc-empty {
@@ -313,6 +313,7 @@
   gap: var(--space-1);
   padding: var(--space-3) var(--space-4);
   border-left: 2px solid var(--border-subtle);
+  border-radius: 8px;
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -323,16 +324,16 @@
 .arc-stop:hover { border-left-color: var(--band-color); }
 .arc-stop.selected { border-left-color: var(--band-color); }
 .arc-stop-company {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--band-color);
 }
 .arc-stop-chapter {
   font-size: 14.5px;
   line-height: 1.55;
   color: var(--text-secondary);
-  letter-spacing: 1px;
-  font-weight: 600;
+  letter-spacing: 0.5px;
+  font-weight: 400;
 }
 .self-philosophy-list {
   display: flex;
@@ -472,7 +473,6 @@
 .roles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0;
 }
 .role-card {
   background: var(--bg-surface);
@@ -524,7 +524,7 @@
   height: 4px;
   background: var(--band-color);
   opacity: 0.4;
-  border-radius: 1px;
+  border-radius: 99px;
 }
 .role-meta {
   display: flex;
@@ -548,7 +548,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-left: 2px solid var(--band-color);
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
   padding: var(--space-3) calc(var(--space-3) + var(--space-1));
   cursor: pointer;
   text-align: left;
