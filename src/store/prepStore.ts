@@ -14,6 +14,7 @@ import type {
   PrepCategory,
   PrepDeepDive,
   PrepFollowUp,
+  PrepInterviewer,
   PrepMetric,
   PrepNumbersToKnow,
   PrepQuestionToAsk,
@@ -66,6 +67,7 @@ interface CreateDeckInput {
   roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
+  interviewers?: PrepInterviewer[]
   jobDescription?: string
   rules?: string[]
   donts?: string[]
@@ -142,6 +144,9 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     role: partial.role?.trim() || undefined,
     vectorId: partial.vectorId,
     pipelineEntryId: partial.pipelineEntryId ?? null,
+    interviewerIds: Array.isArray(partial.interviewerIds)
+      ? partial.interviewerIds.filter((id) => typeof id === 'string' && id.trim().length > 0)
+      : undefined,
     updatedAt: now(),
     script: partial.script?.trim() || undefined,
     scriptLabel: partial.scriptLabel?.trim() || undefined,
@@ -816,6 +821,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           roundType: input.roundType,
           notes: input.notes,
           companyResearch: input.companyResearch,
+          interviewers: input.interviewers,
           jobDescription: input.jobDescription,
           rules: input.rules,
           donts: input.donts,

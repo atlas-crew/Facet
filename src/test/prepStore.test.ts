@@ -103,6 +103,38 @@ describe('prepStore', () => {
     expect(state.decks[0].durableMeta?.revision).toBe(0)
   })
 
+  it('threads interviewers through createDeck and links them to cards by id', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Acme Onsite',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      interviewers: [
+        {
+          id: 'interviewer-1',
+          name: 'Sample Panelist',
+          title: 'Engineering Manager',
+          intel: { caresAbout: 'Does the platform make engineers faster?' },
+          lineThatLands: 'My first month is listening, not shipping.',
+        },
+      ],
+      cards: [
+        {
+          id: 'card-intel-1',
+          category: 'situational',
+          title: 'Sample Panelist',
+          tags: ['intel'],
+          interviewerIds: ['interviewer-1'],
+        },
+      ],
+    })
+
+    const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
+    expect(deck?.interviewers).toHaveLength(1)
+    expect(deck?.interviewers?.[0]?.id).toBe('interviewer-1')
+    expect(deck?.cards[0]?.interviewerIds).toEqual(['interviewer-1'])
+  })
+
   it('adds, updates, duplicates, and removes cards', () => {
     const deckId = usePrepStore.getState().createDeck({
       title: 'Prep',
