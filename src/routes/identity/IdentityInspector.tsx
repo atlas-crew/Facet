@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import type {
   ProfessionalIdentityV3,
   ProfessionalRole,
@@ -8,15 +9,46 @@ import { useIdentityStore } from '../../store/identityStore'
 import { skillNamesMatch } from '../../utils/identityEnrichment'
 import type { MapSelection } from '../../types/identity'
 
+interface InspectorHandlers {
+  /** Navigate to the legacy workbench at /identity/workbench. */
+  goToWorkbench: () => void
+  /** Route to the dedicated skill enrichment page for a specific group + item. */
+  goToSkillWizard: (groupId: string, skillName: string) => void
+  /** Update mapSelection — used by 'View bullets' and similar cross-band navigation. */
+  selectRoleByCompany: (company: string) => void
+}
+
 /**
  * Sticky right-aside on the Identity Map. Renders a different body per
- * `mapSelection` discriminant. Read-mostly per the redesign plan: action
- * buttons here are stubs for now and wire to existing editors / nested
- * routes in Phase D.
+ * `mapSelection` discriminant. Action buttons are wired to either:
+ *   - selection-set (View bullets → select the role)
+ *   - dedicated routes (Open Skill Wizard → /identity/enrich/$groupId/$skillName)
+ *   - the workbench fallback (everything that needs an inline editor we haven't built yet)
+ *
+ * Inline editing inside the inspector itself is a future refactor — would
+ * require extracting form components from the workbench cards.
  */
 export function IdentityInspector() {
   const selection = useIdentityStore((s) => s.mapSelection)
   const identity = useIdentityStore((s) => s.currentIdentity)
+  const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const navigate = useNavigate()
+
+  const handlers: InspectorHandlers = {
+    goToWorkbench: () => {
+      void navigate({ to: '/identity/workbench' })
+    },
+    goToSkillWizard: (groupId, skillName) => {
+      void navigate({
+        to: '/identity/enrich/$groupId/$skillName',
+        params: { groupId, skillName },
+      })
+    },
+    selectRoleByCompany: (company) => {
+      const role = identity?.roles.find((r) => r.company === company)
+      if (role) setSelection({ type: 'role', id: role.id })
+    },
+  }
 
   return (
     <aside className="identity-inspector" aria-label="Identity inspector">
@@ -25,13 +57,21 @@ export function IdentityInspector() {
           Click any element on the map to inspect it. Gaps and assumptions surface here, with prompts to refine the model.
         </p>
       ) : (
-        <InspectorBody selection={selection} identity={identity} />
+        <InspectorBody selection={selection} identity={identity} handlers={handlers} />
       )}
     </aside>
   )
 }
 
-function InspectorBody({ selection, identity }: { selection: MapSelection; identity: ProfessionalIdentityV3 }) {
+function InspectorBody({
+  selection,
+  identity,
+  handlers,
+}: {
+  selection: MapSelection
+  identity: ProfessionalIdentityV3
+  handlers: InspectorHandlers
+}) {
   switch (selection.type) {
     case 'thesis':
       return (
@@ -53,7 +93,9 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
             />
           ) : null}
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit thesis</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit thesis
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -71,7 +113,9 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
             ]}
           />
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit position</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit position
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -81,8 +125,9 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
       const arcEntry = lookupArcStop(identity, selection.id)
       if (!arcEntry) return <NotFound label="arc entry" />
       const role = identity.roles.find((r) => r.company === arcEntry.company)
+      const arcCompany = arcEntry.company
       return (
-        <SlotShell eyebrow="Career Arc · Chapter" title={`${arcEntry.company} — ${arcEntry.chapter}`}>
+        <SlotShell eyebrow="Career Arc · Chapter" title={`${arcCompany} — ${arcEntry.chapter}`}>
           {role ? (
             <MetaRows
               rows={[
@@ -94,8 +139,18 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
             />
           ) : null}
           <Actions>
-            <button type="button" className="inspector-btn">View bullets</button>
-            <button type="button" className="inspector-btn">Edit chapter title</button>
+            <button
+              type="button"
+              className="inspector-btn primary"
+              onClick={() => handlers.selectRoleByCompany(arcCompany)}
+              disabled={!role}
+              title={role ? undefined : 'No matching role for this arc entry'}
+            >
+              View bullets
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Edit chapter title
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -109,8 +164,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
           <p className="inspector-body-text">{profile.text}</p>
           <MetaRows rows={[['Tags', profile.tags.join(' · ') || '—']]} />
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit profile</button>
-            <button type="button" className="inspector-btn">Generate variant</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit profile
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Generate variant
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -129,8 +188,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
             ]}
           />
           <Actions>
-            <button type="button" className="inspector-btn primary">Open scan editor</button>
-            <button type="button" className="inspector-btn">Generate variant</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Open scan editor
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Generate variant
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -147,8 +210,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
           <BulletPair label="Outcome" value={bullet.outcome} />
           {bullet.impact?.length ? <MetaRows rows={[['Impact', bullet.impact.join(' · ')]]} /> : null}
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit bullet</button>
-            <button type="button" className="inspector-btn">Open in scan editor</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit bullet
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Open in scan editor
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -162,7 +229,9 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
           <p className="inspector-body-text">{project.description}</p>
           <MetaRows rows={[['Tags', project.tags.join(' · ') || '—'], ['URL', project.url ?? '—']]} />
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit project</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit project
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -182,8 +251,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
             ]}
           />
           <Actions>
-            <button type="button" className="inspector-btn primary">Rename group</button>
-            <button type="button" className="inspector-btn">Mark differentiator</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Rename group
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Mark differentiator
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -205,8 +278,16 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
           />
           {!item.depth ? <Prompt label="Cleanup" text="Open the skill wizard to capture depth, context, and positioning." /> : null}
           <Actions>
-            <button type="button" className="inspector-btn primary">Open Skill Wizard</button>
-            <button type="button" className="inspector-btn">Mark broken</button>
+            <button
+              type="button"
+              className="inspector-btn primary"
+              onClick={() => handlers.goToSkillWizard(group.id, item.name)}
+            >
+              Open Skill Wizard
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Mark broken
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -216,10 +297,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
       return (
         <SlotShell eyebrow="Preferences · Field" title={selection.field}>
           <p className="inspector-body-text chapter-copy">
-            Field-level editor lands with the topbar Generator settings drawer in Phase D.
+            Field-level editor lives in the workbench until inline editing lands here.
           </p>
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit field</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit field
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -236,7 +319,9 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
           <p className="inspector-body-text">{rule.description}</p>
           <MetaRows rows={[[selection.kind === 'prioritize' ? 'Weight' : 'Severity', weightOrSeverity]]} />
           <Actions>
-            <button type="button" className="inspector-btn primary">Edit rule</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Edit rule
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -256,8 +341,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
             ]}
           />
           <Actions>
-            <button type="button" className="inspector-btn primary">Mark reviewed</button>
-            <button type="button" className="inspector-btn">Regenerate</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Mark reviewed
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Regenerate
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -271,8 +360,12 @@ function InspectorBody({ selection, identity }: { selection: MapSelection; ident
           <p className="inspector-body-text">{question.description}</p>
           <MetaRows rows={[['Action', question.action], ['Needs review', question.needs_review ? 'Yes' : 'No']]} />
           <Actions>
-            <button type="button" className="inspector-btn primary">Mark reviewed</button>
-            <button type="button" className="inspector-btn">Add evidence</button>
+            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
+              Mark reviewed
+            </button>
+            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
+              Add evidence
+            </button>
           </Actions>
         </SlotShell>
       )
@@ -365,4 +458,3 @@ function lookupArcStop(
 ): { company: string; chapter: string } | null {
   return identity.self_model.arc.find((entry, index) => `${entry.company}:${index}` === id) ?? null
 }
-
