@@ -6,12 +6,14 @@ type FacetAiProxyErrorCode =
   | 'ai_rate_limited'
   | 'auth_required'
   | 'auth_internal_error'
+  | 'research_budget_exceeded'
 
 type FacetAiProxyErrorReason =
   | FacetAiAccessDenialReason
   | 'auth_required'
   | 'temporary_capacity'
   | 'rate_limited'
+  | 'budget_ceiling'
 
 interface FacetAiProxyErrorPayload {
   error?: unknown
@@ -127,7 +129,8 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     payload?.code === 'ai_overloaded' ||
     payload?.code === 'ai_rate_limited' ||
     payload?.code === 'auth_required' ||
-    payload?.code === 'auth_internal_error'
+    payload?.code === 'auth_internal_error' ||
+    payload?.code === 'research_budget_exceeded'
       ? payload.code
       : null
   const reason =
@@ -137,6 +140,7 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     payload?.reason === 'self_hosted_proxy_unavailable' ||
     payload?.reason === 'temporary_capacity' ||
     payload?.reason === 'rate_limited' ||
+    payload?.reason === 'budget_ceiling' ||
     payload?.reason === 'auth_required'
       ? payload.reason
       : code === 'auth_required'

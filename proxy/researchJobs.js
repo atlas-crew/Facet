@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { estimateCostCents } from './pricing.js'
 
 const TERMINAL = new Set(['completed', 'canceled', 'failed'])
 const IN_FLIGHT = new Set(['queued', 'running'])
@@ -9,6 +10,12 @@ const DEFAULT_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1_000
 const DEFAULT_PROGRESS_INTERVAL_MS = 15_000
 const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_RETRY_BASE_DELAY_MS = 1_000
+const DEFAULT_USAGE_WINDOW_MS = 24 * 60 * 60 * 1_000
+const DEFAULT_USAGE_WARNING_RATIO = 0.8
+// Conservative prompt/context estimate for the approved thesis + identity evidence payload.
+const DEFAULT_ESTIMATED_INPUT_TOKENS = 12_000
+// Expected output/thinking use, not the hard Anthropic Task Budget ceiling.
+const DEFAULT_ESTIMATED_OUTPUT_TOKENS = 30_000
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -48,6 +55,78 @@ function ttlAt(nowMs, ttlMs) {
 function elapsedMs(job, nowMs) {
   const startedAt = Date.parse(job.startedAt ?? job.createdAt)
   return Number.isFinite(startedAt) ? Math.max(0, nowMs - startedAt) : 0
+}
+
+function clampRatio(value, fallback) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return fallback
+  return parsed
+}
+
+function normalizeNonNegativeNumber(value, fallback = 0) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+function normalizeOptionalNonNegativeNumber(value) {
+  if (value === undefined || value === null || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+
+function usageWindowStart(nowMs, windowMs) {
+  return new Date(nowMs - windowMs).toISOString()
+}
+
+function jobTimestampMs(job) {
+  const timestamp = Date.parse(job.completedAt ?? job.createdAt)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function buildBudgetStatus({ budgetCents, warningRatio, spendCents, estimatedRunCostCents }) {
+  if (budgetCents === null) {
+    return {
+      enforced: false,
+      limitCents: null,
+      remainingCents: null,
+      warningThresholdCents: null,
+      status: 'unlimited',
+      wouldExceedNextRun: false,
+    }
+  }
+
+  const projectedCents = spendCents + estimatedRunCostCents
+  const warningThresholdCents = Math.ceil(budgetCents * warningRatio)
+  const wouldExceedNextRun = projectedCents > budgetCents
+  return {
+    enforced: true,
+    limitCents: budgetCents,
+    remainingCents: Math.max(0, budgetCents - spendCents),
+    warningThresholdCents,
+    status: wouldExceedNextRun
+      ? 'over'
+      : warningRatio > 0 && projectedCents >= warningThresholdCents ? 'warning' : 'ok',
+    wouldExceedNextRun,
+  }
+}
+
+function buildBudgetWarning(budget) {
+  if (budget.status !== 'warning') return null
+  return {
+    code: 'research_budget_near_limit',
+    message: 'This run is projected to put deep research near the configured budget ceiling.',
+    projectedRemainingCents: budget.remainingCents,
+    limitCents: budget.limitCents,
+  }
+}
+
+function inFlightHeartbeatMs(job) {
+  const timestamp = Date.parse(job.heartbeatAt ?? job.startedAt ?? job.createdAt)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function isFreshInFlightJob(job, nowMs, heartbeatTimeoutMs) {
+  return IN_FLIGHT.has(job.status) && nowMs - inFlightHeartbeatMs(job) <= heartbeatTimeoutMs
 }
 
 function normalizeJob(value) {
@@ -118,6 +197,13 @@ export function createInMemoryResearchJobStore(records = []) {
         .filter((job) => actorMatches(job, actor))
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
         .slice(offset, offset + limit)
+        .map(clone)
+    },
+    async listJobsForActorSince(actor, { sinceMs = 0, nowMs = Date.now() } = {}) {
+      await cleanup(nowMs)
+      return [...jobs.values()]
+        .filter((job) => actorMatches(job, actor) && jobTimestampMs(job) >= sinceMs)
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
         .map(clone)
     },
     async updateJob(id, updater, nowMs = Date.now()) {
@@ -213,6 +299,7 @@ export function createFileResearchJobStore(filePath) {
     createJob: (request) => withStore((store) => store.createJob(request), true),
     getJobForActor: (id, actor, nowMs) => withStore((store) => store.getJobForActor(id, actor, nowMs)),
     listJobsForActor: (actor, options) => withStore((store) => store.listJobsForActor(actor, options)),
+    listJobsForActorSince: (actor, options) => withStore((store) => store.listJobsForActorSince(actor, options)),
     updateJob: (id, updater, nowMs) => withStore((store) => store.updateJob(id, updater, nowMs), true),
     cancelJobForActor: (id, actor, nowMs, ttlMs) =>
       withStore((store) => store.cancelJobForActor(id, actor, nowMs, ttlMs), true),
@@ -479,6 +566,7 @@ export function createResearchJobService(options) {
   const onEvent = options.onEvent ?? (() => {})
   const logger = options.logger ?? console
   const activeRunners = new Map()
+  const actorCreateQueues = new Map()
   const config = {
     model: options.model ?? 'claude-opus-4-7',
     maxTokens: options.maxTokens ?? 128_000,
@@ -489,6 +577,18 @@ export function createResearchJobService(options) {
     webSearchMaxUses: options.webSearchMaxUses ?? 20,
     beta: options.beta ?? 'task-budgets-2026-03-13',
   }
+  const estimatedInputTokens = normalizeNonNegativeNumber(
+    options.estimatedInputTokens,
+    DEFAULT_ESTIMATED_INPUT_TOKENS,
+  )
+  const estimatedOutputTokens = normalizeNonNegativeNumber(
+    options.estimatedOutputTokens,
+    DEFAULT_ESTIMATED_OUTPUT_TOKENS,
+  )
+  const estimatedRunCostCents = estimateCostCents(config.model, estimatedInputTokens, estimatedOutputTokens)
+  const usageWindowMs = normalizeNonNegativeNumber(options.usageWindowMs, DEFAULT_USAGE_WINDOW_MS)
+  const budgetCents = normalizeOptionalNonNegativeNumber(options.budgetCents)
+  const warningRatio = clampRatio(options.warningRatio, DEFAULT_USAGE_WARNING_RATIO)
 
   const record = (result, details) => onEvent('research_job', result, details)
   const resolveActor = async (req) => {
@@ -505,6 +605,99 @@ export function createResearchJobService(options) {
     const failed = await store.failOrphanedJobs(nowMs, heartbeatTimeoutMs, ttlMs)
     for (const job of failed) record('failed', { jobId: job.id, userId: job.userId, code: job.error?.code })
     await store.cleanup(nowMs)
+  }
+  const actorQueueKey = (actor) => [
+    actor.tenantId ?? 'tenant:none',
+    actor.accountId ?? 'account:none',
+    actor.userId,
+  ].join(':')
+  const withActorCreateQueue = (actor, operation) => {
+    const key = actorQueueKey(actor)
+    const previous = actorCreateQueues.get(key) ?? Promise.resolve()
+    const queued = previous.catch(() => {}).then(operation)
+    const cleanup = queued.finally(() => {
+      if (actorCreateQueues.get(key) === cleanup) {
+        actorCreateQueues.delete(key)
+      }
+    })
+    actorCreateQueues.set(key, cleanup)
+    return queued
+  }
+  const loadActorJobsSince = async (actor, sinceMs, nowMs) => {
+    if (typeof store.listJobsForActorSince === 'function') {
+      return store.listJobsForActorSince(actor, { sinceMs, nowMs })
+    }
+    if (typeof store.listJobsForActor === 'function') {
+      const jobs = await store.listJobsForActor(actor, { limit: 10_000, offset: 0, nowMs })
+      return jobs.filter((job) => jobTimestampMs(job) >= sinceMs)
+    }
+    throw new Error('Research job store must implement listJobsForActorSince or listJobsForActor.')
+  }
+  const findDuplicateJob = async (actor, thesisId, hash, nowMs) => {
+    const jobs = await loadActorJobsSince(actor, 0, nowMs)
+    return jobs.find((job) => (
+      job.thesisId === thesisId &&
+      job.paramsHash === hash &&
+      isFreshInFlightJob(job, nowMs, heartbeatTimeoutMs)
+    )) ?? null
+  }
+  const getUsageSnapshot = async (actor) => {
+    const nowMs = now()
+    const sinceMs = nowMs - usageWindowMs
+    const scopedJobs = await loadActorJobsSince(actor, 0, nowMs)
+    const completedJobs = scopedJobs.filter((job) => (
+      job.status === 'completed' &&
+      job.result?.tokenUsage &&
+      jobTimestampMs(job) >= sinceMs
+    ))
+    const inFlightJobs = scopedJobs.filter((job) => isFreshInFlightJob(job, nowMs, heartbeatTimeoutMs))
+    const tokens = completedJobs.reduce((totals, job) => {
+      const usage = job.result.tokenUsage
+      return {
+        inputTokens: totals.inputTokens + normalizeNonNegativeNumber(usage.inputTokens),
+        outputTokens: totals.outputTokens + normalizeNonNegativeNumber(usage.outputTokens),
+        totalTokens: totals.totalTokens + normalizeNonNegativeNumber(usage.totalTokens),
+      }
+    }, { inputTokens: 0, outputTokens: 0, totalTokens: 0 })
+    const completedSpendCents = completedJobs.reduce((total, job) => (
+      total + estimateCostCents(
+        config.model,
+        normalizeNonNegativeNumber(job.result.tokenUsage.inputTokens),
+        normalizeNonNegativeNumber(job.result.tokenUsage.outputTokens),
+      )
+    ), 0)
+    const reservedCents = inFlightJobs.length * estimatedRunCostCents
+    const spendCents = completedSpendCents + reservedCents
+    const budget = buildBudgetStatus({
+      budgetCents,
+      warningRatio,
+      spendCents,
+      estimatedRunCostCents,
+    })
+
+    return {
+      window: {
+        since: usageWindowStart(nowMs, usageWindowMs),
+        until: new Date(nowMs).toISOString(),
+        windowMs: usageWindowMs,
+      },
+      usage: {
+        completedJobCount: completedJobs.length,
+        inFlightJobCount: inFlightJobs.length,
+        tokens,
+        spendCents,
+        completedSpendCents,
+        reservedCents,
+      },
+      estimate: {
+        model: config.model,
+        inputTokens: estimatedInputTokens,
+        outputTokens: estimatedOutputTokens,
+        runCostCents: estimatedRunCostCents,
+      },
+      budget,
+      warning: buildBudgetWarning(budget),
+    }
   }
   const updateProgress = async (jobId, phase, extra = {}) => {
     const nowMs = now()
@@ -640,30 +833,70 @@ export function createResearchJobService(options) {
       options.sendJson(res, 400, { error: validation.error, code: 'invalid_research_job_request' })
       return
     }
+    const result = await withActorCreateQueue(actor, async () => {
+      await runMaintenance()
+      const nowMs = now()
+      const hash = paramsHash(validation.thesisId, validation.params, actor.userId)
+      const duplicateJob = await findDuplicateJob(actor, validation.thesisId, hash, nowMs)
+      if (duplicateJob) {
+        return {
+          statusCode: 200,
+          payload: {
+            jobId: duplicateJob.id,
+            status: duplicateJob.status,
+            duplicate: true,
+          },
+        }
+      }
+
+      const usage = await getUsageSnapshot(actor)
+      if (usage.budget.wouldExceedNextRun) {
+        return {
+          statusCode: 402,
+          payload: {
+            error: 'Deep research budget ceiling would be exceeded by this run.',
+            code: 'research_budget_exceeded',
+            reason: 'budget_ceiling',
+            usage,
+          },
+        }
+      }
+
+      const { job, duplicate } = await store.createJob({
+        actor,
+        thesisId: validation.thesisId,
+        thesisSnapshot: validation.thesisSnapshot,
+        identityEvidence: validation.identityEvidence,
+        promptContract: validation.promptContract,
+        identityVersion: validation.identityVersion,
+        params: validation.params,
+        hash,
+        nowMs,
+        ttlMs,
+      })
+      if (!duplicate) {
+        record('queued', { jobId: job.id, userId: job.userId, status: job.status })
+        setTimeout(() => startRunner(job.id), 0)
+      }
+
+      return {
+        statusCode: duplicate ? 200 : 202,
+        payload: {
+          jobId: job.id,
+          status: job.status,
+          usage,
+          ...(duplicate ? { duplicate: true } : {}),
+          ...(usage.warning ? { warning: usage.warning } : {}),
+        },
+      }
+    })
+    options.sendJson(res, result.statusCode, result.payload)
+  }
+  const getUsage = async (req, res) => {
+    const actor = await resolveActor(req)
     await runMaintenance()
-    const nowMs = now()
-    const hash = paramsHash(validation.thesisId, validation.params, actor.userId)
-    const { job, duplicate } = await store.createJob({
-      actor,
-      thesisId: validation.thesisId,
-      thesisSnapshot: validation.thesisSnapshot,
-      identityEvidence: validation.identityEvidence,
-      promptContract: validation.promptContract,
-      identityVersion: validation.identityVersion,
-      params: validation.params,
-      hash,
-      nowMs,
-      ttlMs,
-    })
-    if (!duplicate) {
-      record('queued', { jobId: job.id, userId: job.userId, status: job.status })
-      setTimeout(() => startRunner(job.id), 0)
-    }
-    options.sendJson(res, duplicate ? 200 : 202, {
-      jobId: job.id,
-      status: job.status,
-      ...(duplicate ? { duplicate: true } : {}),
-    })
+    res.setHeader('Cache-Control', 'no-store')
+    options.sendJson(res, 200, await getUsageSnapshot(actor))
   }
   const getJob = async (req, res, id) => {
     const actor = await resolveActor(req)
@@ -704,12 +937,15 @@ export function createResearchJobService(options) {
   return {
     store,
     canHandle(pathname) {
-      return pathname === '/research/jobs' || /^\/research\/jobs\/[^/]+(?:\/cancel)?$/.test(pathname)
+      return pathname === '/research/jobs' ||
+        pathname === '/research/usage' ||
+        /^\/research\/jobs\/[^/]+(?:\/cancel)?$/.test(pathname)
     },
     async handle(req, res, url) {
       const match = url.pathname.match(/^\/research\/jobs\/([^/]+)(?:\/(cancel))?$/)
       if (url.pathname === '/research/jobs' && req.method === 'POST') return createJob(req, res)
       if (url.pathname === '/research/jobs' && req.method === 'GET') return listJobs(req, res, url)
+      if (url.pathname === '/research/usage' && req.method === 'GET') return getUsage(req, res)
       if (match?.[1] && match[2] === 'cancel' && req.method === 'POST') return cancelJob(req, res, match[1])
       if (match?.[1] && !match[2] && req.method === 'GET') return getJob(req, res, match[1])
       options.sendJson(res, 405, { error: 'Method not allowed' })

@@ -22,6 +22,7 @@ const {
   mockInferSearchProfile,
   mockCreateDeepResearchJob,
   mockFetchDeepResearchJob,
+  mockFetchResearchUsage,
   mockCancelDeepResearchJob,
   mockStreamDeepResearchJob,
   mockGenerateSearchThesisFromIdentity,
@@ -29,6 +30,7 @@ const {
   mockInferSearchProfile: vi.fn(),
   mockCreateDeepResearchJob: vi.fn(),
   mockFetchDeepResearchJob: vi.fn(),
+  mockFetchResearchUsage: vi.fn(),
   mockCancelDeepResearchJob: vi.fn(),
   mockStreamDeepResearchJob: vi.fn(),
   mockGenerateSearchThesisFromIdentity: vi.fn(),
@@ -59,6 +61,8 @@ vi.mock('../utils/deepSearchClient', async () => {
       mockCreateDeepResearchJob(...args),
     fetchDeepResearchJob: (...args: Parameters<typeof actual.fetchDeepResearchJob>) =>
       mockFetchDeepResearchJob(...args),
+    fetchResearchUsage: (...args: Parameters<typeof actual.fetchResearchUsage>) =>
+      mockFetchResearchUsage(...args),
     cancelDeepResearchJob: (...args: Parameters<typeof actual.cancelDeepResearchJob>) =>
       mockCancelDeepResearchJob(...args),
     streamDeepResearchJob: (...args: Parameters<typeof actual.streamDeepResearchJob>) =>
@@ -113,6 +117,42 @@ const buildResearchJob = (overrides: Partial<ResearchJob> = {}): ResearchJob => 
   }
 }
 
+const buildResearchUsage = () => ({
+  window: {
+    since: '2026-03-10T00:00:00.000Z',
+    until: '2026-03-11T00:00:00.000Z',
+    windowMs: 86400000,
+  },
+  usage: {
+    completedJobCount: 0,
+    inFlightJobCount: 0,
+    tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    spendCents: 0,
+    completedSpendCents: 0,
+    reservedCents: 0,
+  },
+  estimate: {
+    model: 'claude-opus-4-7',
+    inputTokens: 12000,
+    outputTokens: 80000,
+    runCostCents: 618,
+  },
+  budget: {
+    enforced: true,
+    limitCents: 1000,
+    remainingCents: 382,
+    warningThresholdCents: 800,
+    status: 'warning' as const,
+    wouldExceedNextRun: false,
+  },
+  warning: {
+    code: 'research_budget_near_limit' as const,
+    message: 'This run is projected to put deep research near the configured budget ceiling.',
+    projectedRemainingCents: 382,
+    limitCents: 1000,
+  },
+})
+
 describe('ResearchPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
@@ -120,6 +160,7 @@ describe('ResearchPage', () => {
     mockInferSearchProfile.mockReset()
     mockCreateDeepResearchJob.mockReset()
     mockFetchDeepResearchJob.mockReset()
+    mockFetchResearchUsage.mockReset()
     mockCancelDeepResearchJob.mockReset()
     mockStreamDeepResearchJob.mockReset()
     mockGenerateSearchThesisFromIdentity.mockReset()
@@ -255,6 +296,7 @@ describe('ResearchPage', () => {
       status: 'queued',
     })
     mockFetchDeepResearchJob.mockResolvedValue(buildResearchJob())
+    mockFetchResearchUsage.mockResolvedValue(buildResearchUsage())
     mockGenerateSearchThesisFromIdentity.mockResolvedValue({
       thesis: buildTestThesis({
         id: 'thesis-generated',
@@ -1898,6 +1940,16 @@ describe('ResearchPage', () => {
     await waitFor(() => {
       expect(useSearchStore.getState().activeResearchJob?.jobId).toBe('job-pending')
     })
+  })
+
+  it('shows deep research budget status and the estimated run cost near launch', async () => {
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    await screen.findByText('Budget near limit')
+    expect(screen.getByText('$3.82 left')).toBeTruthy()
+    expect(screen.getByText(/Est\. run: \$6\.18 · \$3\.82 left/)).toBeTruthy()
+    expect(mockFetchResearchUsage).toHaveBeenCalledWith('https://ai.example/proxy')
   })
 
   it('renders stream events and hydrates completed jobs from the complete event', async () => {

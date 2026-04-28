@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
+import { FacetAiProxyError } from '../../utils/aiProxyErrors'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { usePrepStore } from '../../store/prepStore'
@@ -12,6 +13,7 @@ import type { ProfessionalIdentityV3, ProfessionalSkillDepth } from '../../ident
 import type {
   DeepResearchIdentityEvidence,
   ResearchJob,
+  ResearchUsageSnapshot,
   SearchCompanySize,
   SearchProfile,
   SearchRequest,
@@ -27,6 +29,7 @@ import {
   cancelDeepResearchJob,
   createDeepResearchJob,
   fetchDeepResearchJob,
+  fetchResearchUsage,
   getResearchJobPollDelay,
   hydrateSearchRunFromResearchJob,
   streamDeepResearchJob,
@@ -137,6 +140,45 @@ const normalizeEditableTimeline = (
 
 const formatCount = (count: number, singular: string, plural: string): string =>
   `${count} ${count === 1 ? singular : plural}`
+
+const formatCostCents = (cents: number | null | undefined): string => {
+  if (cents === null || cents === undefined) return 'Not configured'
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100)
+}
+
+const getBudgetBadgeCopy = (usage: ResearchUsageSnapshot | null): {
+  label: string
+  detail: string
+} => {
+  if (!usage) {
+    return {
+      label: 'Budget loading',
+      detail: 'Fetching usage',
+    }
+  }
+
+  if (!usage.budget.enforced) {
+    return {
+      label: 'Budget unlimited',
+      detail: 'Est. run ' + formatCostCents(usage.estimate.runCostCents),
+    }
+  }
+
+  return {
+    label:
+      usage.budget.status === 'over'
+        ? 'Budget blocked'
+        : usage.budget.status === 'warning'
+          ? 'Budget near limit'
+          : 'Budget ok',
+    detail: formatCostCents(usage.budget.remainingCents) + ' left',
+  }
+}
 
 const formatThesisWritebackImpact = (impact: ThesisWritebackImpact): string =>
   formatCount(impact.totalArtifacts, 'workspace artifact', 'workspace artifacts') +
@@ -338,6 +380,8 @@ export function ResearchPage() {
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
   const [researchJobTransport, setResearchJobTransport] = useState<'polling' | 'sse'>('polling')
+  const [researchUsage, setResearchUsage] = useState<ResearchUsageSnapshot | null>(null)
+  const [researchBudgetNotice, setResearchBudgetNotice] = useState<string | null>(null)
   const identityProfileRef = useRef({
     id: createId('sprof'),
     inferredAt: new Date().toISOString(),
@@ -463,6 +507,7 @@ export function ResearchPage() {
     isSearching,
   })
   const primaryActionBusy = !effectiveProfile ? isInferring : isSearching
+  const budgetBadgeCopy = useMemo(() => getBudgetBadgeCopy(researchUsage), [researchUsage])
 
   const vectorOptions = useMemo(() => {
     if (isIdentitySource) {
@@ -596,6 +641,23 @@ export function ResearchPage() {
     }
   }
 
+  const refreshResearchUsage = useCallback(async () => {
+    if (!aiEndpoint) return
+    try {
+      const usage = await fetchResearchUsage(aiEndpoint)
+      setResearchUsage(usage)
+      if (!usage.budget.wouldExceedNextRun) {
+        setResearchBudgetNotice(null)
+      }
+    } catch (error) {
+      console.warn('[research] failed to refresh usage budget', error)
+    }
+  }, [aiEndpoint])
+
+  useEffect(() => {
+    void refreshResearchUsage()
+  }, [refreshResearchUsage])
+
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current !== null) {
       window.clearTimeout(pollTimerRef.current)
@@ -657,6 +719,7 @@ export function ResearchPage() {
       closeResearchEventSource()
       clearActiveResearchJob(job.id)
       setIsSearching(false)
+      void refreshResearchUsage()
     } else {
       setIsSearching(true)
     }
@@ -666,6 +729,7 @@ export function ResearchPage() {
     clearPollTimer,
     closeResearchEventSource,
     notifyResearchComplete,
+    refreshResearchUsage,
     updateActiveResearchJob,
     updateRun,
   ])
@@ -754,6 +818,10 @@ export function ResearchPage() {
       })
       throw error
     }
+    if (created.usage) {
+      setResearchUsage(created.usage)
+    }
+    setResearchBudgetNotice(created.warning?.message ?? null)
     updateRun(run.id, { jobId: created.jobId })
     setActiveResearchJob({
       jobId: created.jobId,
@@ -1411,6 +1479,17 @@ export function ResearchPage() {
     setThesisNotice(null)
   }
 
+  const handleResearchBudgetError = (error: unknown, message: string): boolean => {
+    if (!(error instanceof FacetAiProxyError) || error.code !== 'research_budget_exceeded') {
+      setResearchBudgetNotice(null)
+      return false
+    }
+
+    setResearchBudgetNotice(message)
+    void refreshResearchUsage()
+    return true
+  }
+
   const handleLaunchSearch = async () => {
     if (!effectiveProfile || !executableProfile) {
       setPageError('Build or restore a search profile before launching search.')
@@ -1421,6 +1500,7 @@ export function ResearchPage() {
     try {
       ensureEndpoint()
       setPageError(null)
+      setResearchBudgetNotice(null)
       prepareResearchNotifications()
 
       const request = addRequest({
@@ -1446,7 +1526,9 @@ export function ResearchPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search execution failed.'
-      setPageError(message)
+      if (!handleResearchBudgetError(error, message)) {
+        setPageError(message)
+      }
       setIsSearching(false)
     }
   }
@@ -1460,6 +1542,7 @@ export function ResearchPage() {
     try {
       ensureEndpoint()
       setPageError(null)
+      setResearchBudgetNotice(null)
       prepareResearchNotifications()
       await startDeepResearchRun({
         request: activeRequest,
@@ -1470,7 +1553,10 @@ export function ResearchPage() {
         identityEvidence: buildDeepResearchIdentityEvidence(currentIdentity, executableProfile),
       })
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : 'Retry failed.')
+      const message = error instanceof Error ? error.message : 'Retry failed.'
+      if (!handleResearchBudgetError(error, message)) {
+        setPageError(message)
+      }
       setIsSearching(false)
     }
   }
@@ -1559,6 +1645,12 @@ export function ResearchPage() {
           </p>
         </div>
         <div className="research-header-actions">
+          <div
+            className={`research-budget-badge research-budget-${researchUsage?.budget.status ?? 'loading'}`}
+          >
+            <span>{budgetBadgeCopy.label}</span>
+            <strong>{budgetBadgeCopy.detail}</strong>
+          </div>
           <button
             type="button"
             className="research-btn research-btn-primary"
@@ -2720,21 +2812,36 @@ export function ResearchPage() {
                   <h2>Search Launcher</h2>
                   <p>Choose vectors, overrides, and result quotas for the next run.</p>
                 </div>
-                <button
-                  type="button"
-                  className="research-btn ai-working-button"
-                  onClick={() => void handleLaunchSearch()}
-                  disabled={isSearching}
-                  aria-busy={isSearching}
-                >
-                  <Search size={16} />
-                  {isSearching ? 'Searching…' : 'Launch Search'}
-                </button>
+                <div className="research-launch-actions">
+                  <button
+                    type="button"
+                    className="research-btn ai-working-button"
+                    onClick={() => void handleLaunchSearch()}
+                    disabled={isSearching}
+                    aria-busy={isSearching}
+                  >
+                    <Search size={16} />
+                    {isSearching ? 'Searching…' : 'Launch Search'}
+                  </button>
+                  <p className="research-cost-preview">
+                    Est. run: {formatCostCents(researchUsage?.estimate.runCostCents)}
+                    {researchUsage?.budget.enforced
+                      ? ' · ' + formatCostCents(researchUsage.budget.remainingCents) + ' left'
+                      : ' · no ceiling set'}
+                  </p>
+                </div>
                 <AiActivityIndicator
                   active={isSearching}
                   label="AI is searching the web and ranking results."
                 />
               </div>
+
+              {researchBudgetNotice ? (
+                <div className="research-warning" role="status">
+                  <strong>Deep research budget</strong>
+                  <p>{researchBudgetNotice}</p>
+                </div>
+              ) : null}
 
               {!effectiveProfile ? (
                 <p className="research-muted">Create a profile before launching search.</p>

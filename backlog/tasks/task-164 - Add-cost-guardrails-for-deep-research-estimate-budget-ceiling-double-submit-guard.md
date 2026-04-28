@@ -1,9 +1,13 @@
 ---
 id: TASK-164
-title: Add cost guardrails for deep research (estimate, budget ceiling, double-submit guard)
-status: To Do
-assignee: []
+title: >-
+  Add cost guardrails for deep research (estimate, budget ceiling, double-submit
+  guard)
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 09:00'
+updated_date: '2026-04-28 01:15'
 labels:
   - search-redesign
   - infrastructure
@@ -73,23 +77,23 @@ At $5-15 per deep search and a $149/90-day pass, a user could burn through their
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Estimated cost preview displayed near Run Search button on thesis editor
-- [ ] #2 Per-user rolling-window token usage tracked and queryable via GET /research/usage
-- [ ] #3 Configurable budget ceiling enforced at POST /research/jobs
-- [ ] #4 Over-ceiling requests rejected with 402 and structured reason; client shows clear message
-- [ ] #5 Approaching-ceiling requests succeed but include a warning payload; client surfaces warning
-- [ ] #6 Double-submit guard returns existing jobId when thesis+params+userId hash matches an in-flight job
-- [ ] #7 Budget-status badge visible in research workspace header; updates after each completed run
-- [ ] #8 Integration test: attempt to submit two identical requests within 1s; verify only one job is created
-- [ ] #9 Integration test: simulate hitting ceiling; verify rejection and unambiguous error surface
+- [x] #1 Estimated cost preview displayed near Run Search button on thesis editor
+- [x] #2 Per-user rolling-window token usage tracked and queryable via GET /research/usage
+- [x] #3 Configurable budget ceiling enforced at POST /research/jobs
+- [x] #4 Over-ceiling requests rejected with 402 and structured reason; client shows clear message
+- [x] #5 Approaching-ceiling requests succeed but include a warning payload; client surfaces warning
+- [x] #6 Double-submit guard returns existing jobId when thesis+params+userId hash matches an in-flight job
+- [x] #7 Budget-status badge visible in research workspace header; updates after each completed run
+- [x] #8 Integration test: attempt to submit two identical requests within 1s; verify only one job is created
+- [x] #9 Integration test: simulate hitting ceiling; verify rejection and unambiguous error surface
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

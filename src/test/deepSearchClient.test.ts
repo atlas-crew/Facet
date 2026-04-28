@@ -9,10 +9,12 @@ import {
   cancelDeepResearchJob,
   createDeepResearchJob,
   fetchDeepResearchJob,
+  fetchResearchUsage,
   getResearchJobPollDelay,
   hydrateSearchRunFromResearchJob,
   researchJobHeaders,
   resolveResearchJobsUrl,
+  resolveResearchUsageUrl,
   streamDeepResearchJob,
 } from '../utils/deepSearchClient'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
@@ -101,6 +103,7 @@ describe('deepSearchClient', () => {
     expect(resolveResearchJobsUrl('http://127.0.0.1:9001', '/job-1')).toBe(
       'http://127.0.0.1:9001/research/jobs/job-1',
     )
+    expect(resolveResearchUsageUrl('https://ai.example/proxy')).toBe('https://ai.example/proxy/research/usage')
   })
 
   it('caps polling delay at 30 seconds', () => {
@@ -284,9 +287,40 @@ describe('deepSearchClient', () => {
   it('fetches and cancels deep research jobs with authenticated lifecycle requests', async () => {
     const runningJob = buildJob({ status: 'running' })
     const canceledJob = buildJob({ status: 'canceled' })
+    const usage = {
+      window: {
+        since: '2026-03-10T00:00:00.000Z',
+        until: '2026-03-11T00:00:00.000Z',
+        windowMs: 86400000,
+      },
+      usage: {
+        completedJobCount: 0,
+        inFlightJobCount: 0,
+        tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        spendCents: 0,
+        completedSpendCents: 0,
+        reservedCents: 0,
+      },
+      estimate: {
+        model: 'claude-opus-4-7',
+        inputTokens: 12000,
+        outputTokens: 80000,
+        runCostCents: 618,
+      },
+      budget: {
+        enforced: true,
+        limitCents: 1000,
+        remainingCents: 1000,
+        warningThresholdCents: 800,
+        status: 'ok',
+        wouldExceedNextRun: false,
+      },
+      warning: null,
+    }
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify({ job: runningJob }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ job: canceledJob }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(usage), { status: 200 }))
 
     await expect(fetchDeepResearchJob('https://ai.example/proxy', 'job-1')).resolves.toMatchObject({
       id: 'job-1',
@@ -295,6 +329,10 @@ describe('deepSearchClient', () => {
     await expect(cancelDeepResearchJob('https://ai.example/proxy', 'job-1')).resolves.toMatchObject({
       id: 'job-1',
       status: 'canceled',
+    })
+    await expect(fetchResearchUsage('https://ai.example/proxy')).resolves.toMatchObject({
+      estimate: { runCostCents: 618 },
+      budget: { status: 'ok' },
     })
 
     expect(fetch).toHaveBeenNthCalledWith(
@@ -310,6 +348,14 @@ describe('deepSearchClient', () => {
       'https://ai.example/proxy/research/jobs/job-1/cancel',
       expect.objectContaining({
         method: 'POST',
+        headers: expect.objectContaining({ 'X-Proxy-API-Key': 'facet-local-proxy' }),
+      }),
+    )
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      'https://ai.example/proxy/research/usage',
+      expect.objectContaining({
+        method: 'GET',
         headers: expect.objectContaining({ 'X-Proxy-API-Key': 'facet-local-proxy' }),
       }),
     )

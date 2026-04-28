@@ -496,6 +496,44 @@ export interface ResearchJobError {
   retriable: boolean
 }
 
+export interface ResearchUsageBudgetWarning {
+  code: 'research_budget_near_limit'
+  message: string
+  projectedRemainingCents: number | null
+  limitCents: number | null
+}
+
+export interface ResearchUsageSnapshot {
+  window: {
+    since: string
+    until: string
+    windowMs: number
+  }
+  usage: {
+    completedJobCount: number
+    inFlightJobCount: number
+    tokens: SearchTokenUsage
+    spendCents: number
+    completedSpendCents: number
+    reservedCents: number
+  }
+  estimate: {
+    model: string
+    inputTokens: number
+    outputTokens: number
+    runCostCents: number
+  }
+  budget: {
+    enforced: boolean
+    limitCents: number | null
+    remainingCents: number | null
+    warningThresholdCents: number | null
+    status: 'unlimited' | 'ok' | 'warning' | 'over'
+    wouldExceedNextRun: boolean
+  }
+  warning: ResearchUsageBudgetWarning | null
+}
+
 export interface DeepResearchIdentityEvidence {
   archetype: string
   arc: string[]

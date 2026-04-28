@@ -3,6 +3,8 @@ import type {
   DeepResearchIdentityEvidence,
   ResearchJob,
   ResearchJobStatus,
+  ResearchUsageBudgetWarning,
+  ResearchUsageSnapshot,
   SearchProfile,
   SearchRequest,
   SearchRun,
@@ -38,6 +40,8 @@ export interface DeepResearchCreateResponse {
   jobId: string
   status: Extract<ResearchJobStatus, 'queued' | 'running'>
   duplicate?: boolean
+  warning?: ResearchUsageBudgetWarning
+  usage?: ResearchUsageSnapshot
 }
 
 export function getResearchJobPollDelay(attempt: number): number {
@@ -50,6 +54,13 @@ export function resolveResearchJobsUrl(endpoint: string, path = ''): string {
   const base = new URL(endpoint, origin)
   const basePath = base.pathname === '/' ? '' : base.pathname.replace(/\/+$/, '')
   return new URL(basePath + '/research/jobs' + path, base.origin).toString()
+}
+
+export function resolveResearchUsageUrl(endpoint: string): string {
+  const origin = globalThis.location?.origin ?? 'http://localhost'
+  const base = new URL(endpoint, origin)
+  const basePath = base.pathname === '/' ? '' : base.pathname.replace(/\/+$/, '')
+  return new URL(basePath + '/research/usage', base.origin).toString()
 }
 
 export async function researchJobHeaders(): Promise<Record<string, string>> {
@@ -198,6 +209,14 @@ export async function cancelDeepResearchJob(endpoint: string, jobId: string): Pr
   })
   const payload = await readJsonResponse<{ job: ResearchJob }>(response)
   return payload.job
+}
+
+export async function fetchResearchUsage(endpoint: string): Promise<ResearchUsageSnapshot> {
+  const response = await fetch(resolveResearchUsageUrl(endpoint), {
+    method: 'GET',
+    headers: await researchJobHeaders(),
+  })
+  return readJsonResponse<ResearchUsageSnapshot>(response)
 }
 
 export function buildDeepResearchIdentityEvidence(

@@ -182,6 +182,16 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
+function parseNonNegativeInteger(value, fallback) {
+  const parsed = parseInt(value ?? '', 10)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+function parseRatio(value, fallback) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : fallback
+}
+
 function normalizeRateLimitConfig(config, fallback) {
   return {
     max: parsePositiveInteger(config?.max, fallback.max),
@@ -1102,6 +1112,11 @@ export function createFacetServer(options = {}) {
     progressIntervalMs: options.researchJobProgressIntervalMs,
     maxAttempts: options.researchJobMaxAttempts,
     retryBaseDelayMs: options.researchJobRetryBaseDelayMs,
+    usageWindowMs: options.researchUsageWindowMs,
+    budgetCents: options.researchBudgetCents,
+    warningRatio: options.researchBudgetWarningRatio,
+    estimatedInputTokens: options.researchEstimatedInputTokens,
+    estimatedOutputTokens: options.researchEstimatedOutputTokens,
     model: CURRENT_OPUS_MODEL,
     logger: options.logger ?? console,
     onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
@@ -1717,6 +1732,11 @@ export function createEnvFacetServer(env = process.env) {
     researchJobStore: env.RESEARCH_JOBS_FILE
       ? createFileResearchJobStore(env.RESEARCH_JOBS_FILE)
       : undefined,
+    researchUsageWindowMs: parsePositiveInteger(env.RESEARCH_USAGE_WINDOW_MS, undefined),
+    researchBudgetCents: parseNonNegativeInteger(env.RESEARCH_BUDGET_CENTS, undefined),
+    researchBudgetWarningRatio: parseRatio(env.RESEARCH_BUDGET_WARNING_RATIO, undefined),
+    researchEstimatedInputTokens: parsePositiveInteger(env.RESEARCH_ESTIMATED_INPUT_TOKENS, undefined),
+    researchEstimatedOutputTokens: parsePositiveInteger(env.RESEARCH_ESTIMATED_OUTPUT_TOKENS, undefined),
     hostedAiUsagePolicy: parseHostedAiUsagePolicy(env),
     stripeSecretKey: env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,

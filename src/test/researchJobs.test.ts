@@ -207,6 +207,11 @@ async function startResearchServer(options: {
   progressIntervalMs?: number
   heartbeatTimeoutMs?: number
   ttlMs?: number
+  researchBudgetCents?: number
+  researchUsageWindowMs?: number
+  researchBudgetWarningRatio?: number
+  researchEstimatedInputTokens?: number
+  researchEstimatedOutputTokens?: number
 } = {}) {
   const { createFacetServer } = await loadProxyModules()
   let nowMs = Date.parse('2026-03-15T12:00:00.000Z')
@@ -238,6 +243,11 @@ async function startResearchServer(options: {
     researchJobTtlMs: options.ttlMs,
     researchJobMaxAttempts: options.maxAttempts ?? 2,
     researchJobRetryBaseDelayMs: 0,
+    researchBudgetCents: options.researchBudgetCents,
+    researchUsageWindowMs: options.researchUsageWindowMs,
+    researchBudgetWarningRatio: options.researchBudgetWarningRatio,
+    researchEstimatedInputTokens: options.researchEstimatedInputTokens,
+    researchEstimatedOutputTokens: options.researchEstimatedOutputTokens,
     logger: {
       error: vi.fn(),
       info: vi.fn(),
@@ -322,6 +332,200 @@ describe('research job API', () => {
       })
     }
     expect(anthropicCreate).not.toHaveBeenCalled()
+  })
+
+  it('reports rolling research usage, warns near the ceiling, and rejects over budget', async () => {
+    const { baseUrl } = await startResearchServer({
+      researchBudgetCents: 650,
+      researchEstimatedInputTokens: 12_000,
+      researchEstimatedOutputTokens: 80_000,
+    })
+
+    const initialUsage = await fetch(baseUrl + '/research/usage', {
+      headers: jsonHeaders(),
+    })
+    expect(initialUsage.status).toBe(200)
+    await expect(initialUsage.json()).resolves.toMatchObject({
+      estimate: {
+        model: 'claude-opus-4-7',
+        inputTokens: 12000,
+        outputTokens: 80000,
+        runCostCents: 618,
+      },
+      budget: {
+        enforced: true,
+        limitCents: 650,
+        remainingCents: 650,
+        status: 'warning',
+        wouldExceedNextRun: false,
+      },
+      warning: {
+        code: 'research_budget_near_limit',
+      },
+    })
+
+    const createResponse = await createResearchJob(baseUrl)
+    expect(createResponse.status).toBe(202)
+    await expect(createResponse.json()).resolves.toMatchObject({
+      jobId: expect.any(String),
+      status: 'queued',
+      warning: { code: 'research_budget_near_limit' },
+      usage: { budget: { status: 'warning' } },
+    })
+
+    const completedUsage = await waitUntil(async () => {
+      const response = await fetch(baseUrl + '/research/usage', {
+        headers: jsonHeaders(),
+      })
+      return response.json()
+    }, (usage) => usage.usage.completedJobCount === 1)
+    expect(completedUsage).toMatchObject({
+      usage: {
+        completedJobCount: 1,
+        inFlightJobCount: 0,
+        tokens: { inputTokens: 11, outputTokens: 22, totalTokens: 33 },
+      },
+    })
+
+    const otherUsageResponse = await fetch(baseUrl + '/research/usage', {
+      headers: jsonHeaders('other-token'),
+    })
+    await expect(otherUsageResponse.json()).resolves.toMatchObject({
+      usage: {
+        completedJobCount: 0,
+        inFlightJobCount: 0,
+        tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        spendCents: 0,
+      },
+    })
+
+    const { baseUrl: blockedBaseUrl } = await startResearchServer({
+      researchBudgetCents: 600,
+      researchEstimatedInputTokens: 12_000,
+      researchEstimatedOutputTokens: 80_000,
+    })
+    const overBudget = await createResearchJob(blockedBaseUrl)
+    expect(overBudget.status).toBe(402)
+    await expect(overBudget.json()).resolves.toMatchObject({
+      code: 'research_budget_exceeded',
+      reason: 'budget_ceiling',
+      usage: {
+        budget: {
+          status: 'over',
+          wouldExceedNextRun: true,
+        },
+      },
+    })
+
+    const { baseUrl: zeroBudgetBaseUrl } = await startResearchServer({
+      researchBudgetCents: 0,
+      researchEstimatedInputTokens: 12_000,
+      researchEstimatedOutputTokens: 80_000,
+    })
+    const zeroBudget = await createResearchJob(zeroBudgetBaseUrl)
+    expect(zeroBudget.status).toBe(402)
+    await expect(zeroBudget.json()).resolves.toMatchObject({
+      code: 'research_budget_exceeded',
+      usage: {
+        budget: {
+          enforced: true,
+          limitCents: 0,
+          remainingCents: 0,
+        },
+      },
+    })
+  })
+
+  it('serializes per-actor budget checks across concurrent distinct submissions', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise(() => {}))
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate,
+      researchBudgetCents: 650,
+      researchEstimatedInputTokens: 12_000,
+      researchEstimatedOutputTokens: 80_000,
+    })
+    const firstPayload = researchPayload()
+    const secondPayload = {
+      ...researchPayload(),
+      params: {
+        ...researchPayload().params,
+        id: 'request-2',
+        customKeywords: 'different search parameters',
+      },
+    }
+
+    const responses = await Promise.all([
+      fetch(baseUrl + '/research/jobs', {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify(firstPayload),
+      }),
+      fetch(baseUrl + '/research/jobs', {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify(secondPayload),
+      }),
+    ])
+
+    expect(responses.map((response) => response.status).sort()).toEqual([202, 402])
+    const bodies = await Promise.all(responses.map((response) => response.json()))
+    expect(bodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ jobId: expect.any(String), usage: expect.any(Object) }),
+        expect.objectContaining({ code: 'research_budget_exceeded' }),
+      ]),
+    )
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls === 1)
+  })
+
+  it('keeps older in-flight jobs reserved outside the rolling usage window', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise(() => {}))
+    const { advance, baseUrl } = await startResearchServer({
+      anthropicCreate,
+      researchBudgetCents: 650,
+      researchUsageWindowMs: 1,
+      researchEstimatedInputTokens: 12_000,
+      researchEstimatedOutputTokens: 80_000,
+    })
+
+    const firstResponse = await createResearchJob(baseUrl)
+    expect(firstResponse.status).toBe(202)
+    const first = await firstResponse.json()
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls === 1)
+
+    advance(1000)
+
+    const duplicateResponse = await createResearchJob(baseUrl)
+    expect(duplicateResponse.status).toBe(200)
+    await expect(duplicateResponse.json()).resolves.toMatchObject({
+      jobId: first.jobId,
+      duplicate: true,
+    })
+
+    const distinctPayload = {
+      ...researchPayload(),
+      params: {
+        ...researchPayload().params,
+        id: 'request-outside-window',
+        customKeywords: 'different parameters outside window',
+      },
+    }
+    const blocked = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(distinctPayload),
+    })
+    expect(blocked.status).toBe(402)
+    await expect(blocked.json()).resolves.toMatchObject({
+      code: 'research_budget_exceeded',
+      usage: {
+        usage: {
+          completedJobCount: 0,
+          inFlightJobCount: 1,
+          reservedCents: 618,
+        },
+      },
+    })
   })
 
   it('normalizes oversized identity evidence and ignores blank prompt contracts', async () => {
@@ -436,9 +640,12 @@ describe('research job API', () => {
     const createResponse = await createResearchJob(baseUrl)
     expect(createResponse.status).toBe(202)
     const created = await createResponse.json()
-    expect(created).toEqual({
+    expect(created).toMatchObject({
       jobId: expect.any(String),
       status: 'queued',
+      usage: {
+        budget: { status: 'unlimited' },
+      },
     })
 
     const completed = await waitUntil(
