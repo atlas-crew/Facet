@@ -1,3 +1,5 @@
+import { useNavigate } from '@tanstack/react-router'
+import { Upload } from 'lucide-react'
 import { useIdentityStore } from '../../store/identityStore'
 import { IdentityInspector } from './IdentityInspector'
 import { ThesisBand } from './bands/ThesisBand'
@@ -20,12 +22,17 @@ import './identityMap.css'
  */
 export function IdentityMapPage() {
   const identity = useIdentityStore((state) => state.currentIdentity)
+  const navigate = useNavigate()
 
   const openQuestions = identity?.awareness?.open_questions?.length ?? 0
   const roleCount = identity?.roles?.length ?? 0
   const bulletCount = identity?.roles?.reduce((sum, r) => sum + (r.bullets?.length ?? 0), 0) ?? 0
   const projectCount = identity?.projects?.length ?? 0
   const schemaRevision = identity?.schema_revision ?? '—'
+
+  const goToImport = () => {
+    void navigate({ to: '/identity/workbench' })
+  }
 
   return (
     <div className="identity-map">
@@ -52,6 +59,13 @@ export function IdentityMapPage() {
                 <span>{openQuestions}</span> open questions
               </span>
             ) : null}
+            <button
+              type="button"
+              className="identity-map-topbar-action label-tracked"
+              onClick={goToImport}
+            >
+              <Upload size={12} aria-hidden="true" /> Import from resume
+            </button>
           </div>
         </div>
 
@@ -63,7 +77,20 @@ export function IdentityMapPage() {
             <p className="label-tracked identity-map-contact">
               {identity.identity.location} · {identity.identity.remote ? 'Remote' : 'On-site'} · {identity.identity.email}
             </p>
-          ) : null}
+          ) : (
+            <div className="identity-map-empty-cta">
+              <p className="chapter-copy">
+                The Map renders your authored identity. Pull one in from a resume to populate every band — thesis, roles, skills, preferences — in a single pass.
+              </p>
+              <button
+                type="button"
+                className="inspector-btn primary identity-map-empty-cta-btn"
+                onClick={goToImport}
+              >
+                Start from a resume
+              </button>
+            </div>
+          )}
         </div>
 
         <ThesisBand />

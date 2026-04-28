@@ -66,6 +66,48 @@
   color: var(--warning);
 }
 
+.identity-map-topbar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent-primary);
+  border-radius: 1px;
+  color: var(--accent-primary);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  transition: background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+}
+.identity-map-topbar-action:hover {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.identity-map-empty-cta {
+  margin-top: var(--space-3);
+  padding: var(--space-4) calc(var(--space-4) + var(--space-1));
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-default);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  max-width: 600px;
+}
+.identity-map-empty-cta p {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  margin: 0;
+}
+.identity-map-empty-cta-btn {
+  align-self: flex-start;
+}
+
 .identity-map-identity {
   margin-bottom: var(--space-8);
 }
