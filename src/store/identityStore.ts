@@ -12,6 +12,7 @@ import {
   type ProfessionalPhilosophyEntry,
   type ProfessionalPreferenceConstraints,
   type ProfessionalProfile,
+  type ProfessionalProject,
   type ProfessionalSearchVector,
   type ProfessionalSkillDepth,
   type ProfessionalSkillEnrichedBy,
@@ -111,6 +112,7 @@ interface IdentityState {
   updateCurrentProfiles: (value: ProfessionalProfile[]) => void
   updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
   updateCurrentSelfModelArc: (value: ProfessionalIdentityArcEntry[]) => void
+  updateCurrentProjects: (value: ProfessionalProject[]) => void
   updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
   updateCurrentWorkModel: (value: ProfessionalIdentityV3['preferences']['work_model']) => void
   updateCurrentConstraints: (value: ProfessionalPreferenceConstraints | undefined) => void
@@ -1142,6 +1144,13 @@ export const useIdentityStore = create<IdentityState>()(
               ...identity.self_model,
               arc: value,
             },
+          })),
+        ),
+      updateCurrentProjects: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            projects: value,
           })),
         ),
       updateCurrentCompensation: (value) =>
