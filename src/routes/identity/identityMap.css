@@ -69,22 +69,23 @@
 .identity-map-topbar-action {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-surface);
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent-primary);
   border: 1px solid var(--accent-primary);
-  border-radius: 1px;
-  color: var(--accent-primary);
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  font-family: var(--font-mono);
+  border-radius: 6px;
+  color: var(--text-inverse);
+  font-size: 12px;
   font-weight: 500;
-  transition: background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  transition: background var(--duration-fast) var(--easing), border-color var(--duration-fast) var(--easing);
 }
 .identity-map-topbar-action:hover {
-  background: var(--accent-primary);
-  color: var(--text-inverse);
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
 }
 
 .identity-map-empty-cta {
@@ -92,7 +93,7 @@
   padding: var(--space-4) calc(var(--space-4) + var(--space-1));
   background: var(--bg-surface);
   border: 1px dashed var(--border-default);
-  border-radius: 4px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -189,7 +190,7 @@
   padding: var(--space-4) var(--space-6);
   background: var(--bg-surface);
   border: 1px dashed var(--border-default);
-  border-radius: 4px;
+  border-radius: 8px;
   color: var(--text-tertiary);
 }
 
@@ -205,9 +206,9 @@
   display: block;
   width: 100%;
   text-align: left;
-  background: color-mix(in srgb, var(--band-color) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--band-color) 25%, transparent);
-  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
   padding: calc(var(--space-6) + var(--space-1)) var(--space-8);
   cursor: pointer;
   transition: border-color var(--duration-normal) var(--easing), background var(--duration-normal) var(--easing);
@@ -215,7 +216,7 @@
   font: inherit;
 }
 .thesis-card:hover {
-  border-color: color-mix(in srgb, var(--band-color) 45%, transparent);
+  background: var(--bg-surface-hover);
 }
 .thesis-card.selected {
   border-color: var(--band-color);
@@ -236,7 +237,7 @@
   flex-wrap: wrap;
   gap: var(--space-6);
   padding-top: var(--space-4);
-  border-top: 1px solid color-mix(in srgb, var(--band-color) 12%, transparent);
+  border-top: 1px solid var(--border-subtle);
 }
 .thesis-meta-item {
   font-size: 10px;
@@ -268,7 +269,7 @@
 .self-arc, .self-philosophy, .self-interview {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: 8px;
   padding: var(--space-4) calc(var(--space-4) + var(--space-1));
 }
 .arc-label {
@@ -345,10 +346,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3);
   border: 1px solid var(--border-subtle);
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--band-color) 4%, transparent);
+  border-radius: 6px;
+  background: var(--bg-inset);
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -357,8 +358,8 @@
   transition: border-color var(--duration-normal) var(--easing), background var(--duration-normal) var(--easing);
 }
 .philosophy-item:hover {
-  border-color: var(--band-color);
-  background: color-mix(in srgb, var(--band-color) 8%, transparent);
+  border-color: var(--border-default);
+  background: var(--bg-surface-hover);
 }
 .philosophy-item.selected { border-color: var(--band-color); }
 .philosophy-id {
@@ -409,7 +410,7 @@
 .profile-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: 8px;
   padding: var(--space-4) calc(var(--space-4) + var(--space-1));
   cursor: pointer;
   text-align: left;
@@ -422,8 +423,7 @@
   transition: border-color var(--duration-normal) var(--easing), background var(--duration-normal) var(--easing);
 }
 .profile-card:hover {
-  border-color: var(--band-color);
-  background: color-mix(in srgb, var(--band-color) 4%, transparent);
+  background: var(--bg-surface-hover);
 }
 .profile-card.selected { border-color: var(--band-color); }
 .profile-id {
@@ -437,13 +437,13 @@
   flex-wrap: wrap;
 }
 .profile-tag {
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--text-tertiary);
-  padding: 2px 7px;
+  padding: 2px 8px;
   background: var(--bg-inset);
   border: 1px solid var(--border-subtle);
-  border-radius: 1px;
+  border-radius: 999px;
 }
 .profile-text {
   font-size: 13.5px;
@@ -476,7 +476,9 @@
 }
 .role-card {
   background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-top: 2px solid var(--band-color);
+  border-radius: 0 0 8px 8px;
   padding: var(--space-4) var(--space-4) var(--space-3);
   cursor: pointer;
   position: relative;
@@ -486,20 +488,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  transition: background var(--duration-normal) var(--easing);
+  transition: background var(--duration-normal) var(--easing), border-color var(--duration-normal) var(--easing);
 }
-.role-card + .role-card { border-left: 1px solid var(--border-subtle); }
-.role-card:hover { background: color-mix(in srgb, var(--band-color) 4%, transparent); }
-.role-card.selected { background: color-mix(in srgb, var(--band-color) 7%, transparent); }
-.role-card.selected::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--band-color);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--band-color) 50%, transparent);
+.role-card:hover { background: var(--bg-surface-hover); }
+.role-card.selected {
+  background: var(--bg-surface-hover);
+  border-color: var(--band-color);
+  border-top-color: var(--band-color);
 }
 .role-dates {
   font-size: 10px;
@@ -553,7 +548,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-left: 2px solid var(--band-color);
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 8px 8px 0;
   padding: var(--space-3) calc(var(--space-3) + var(--space-1));
   cursor: pointer;
   text-align: left;
@@ -562,7 +557,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  transition: background var(--duration-normal) var(--easing);
+  transition: background var(--duration-normal) var(--easing), border-color var(--duration-normal) var(--easing);
 }
 .project-card:hover { background: var(--bg-surface-hover); }
 .project-card.selected { border-color: var(--band-color); }
@@ -586,7 +581,7 @@
 .skills-shell {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: 8px;
   padding: var(--space-4) calc(var(--space-4) + var(--space-1));
   display: flex;
   flex-direction: column;
@@ -631,7 +626,7 @@
   padding: 5px 11px;
   background: var(--bg-inset);
   border: 1px solid var(--border-subtle);
-  border-radius: 1px;
+  border-radius: 6px;
   font-size: 12.5px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -639,8 +634,9 @@
   text-transform: none;
   font-weight: 500;
   font-family: var(--font-sans);
-  transition: border-color var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+  transition: border-color var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing), background var(--duration-fast) var(--easing);
 }
+.skill-chip:hover { background: var(--bg-surface-hover); }
 .skill-chip:hover { border-color: var(--band-color); color: var(--text-primary); }
 .skill-chip.selected { border-color: var(--band-color); color: var(--text-primary); }
 .skill-chip.untagged {
@@ -663,7 +659,7 @@
 .pref-cell {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: 8px;
   padding: calc(var(--space-3) + 2px) var(--space-4);
   cursor: pointer;
   text-align: left;
@@ -672,9 +668,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  transition: border-color var(--duration-normal) var(--easing);
+  transition: border-color var(--duration-normal) var(--easing), background var(--duration-normal) var(--easing);
 }
-.pref-cell:hover { border-color: var(--band-color); }
+.pref-cell:hover { background: var(--bg-surface-hover); }
 .pref-cell.selected { border-color: var(--band-color); }
 .pref-cell.empty {
   border-style: dashed;
@@ -715,6 +711,7 @@
   padding: var(--space-2) var(--space-3);
   background: var(--bg-inset);
   border-left: 2px solid var(--band-color);
+  border-radius: 0 6px 6px 0;
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -780,26 +777,36 @@
   flex-wrap: wrap;
 }
 .inspector-btn {
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-  border-radius: 1px;
-  font-family: var(--font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--font-sans);
   font-weight: 500;
-  transition: border-color var(--duration-fast) var(--easing);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: border-color var(--duration-fast) var(--easing), background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
 }
-.inspector-btn:hover { border-color: var(--text-primary); }
+.inspector-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.inspector-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .inspector-btn.primary {
+  background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: var(--accent-primary);
+  color: var(--text-inverse);
 }
 .inspector-btn.primary:hover {
-  background: var(--accent-primary);
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
   color: var(--text-inverse);
 }
 .inspector-meta {
