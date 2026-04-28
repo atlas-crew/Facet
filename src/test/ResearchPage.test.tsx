@@ -546,7 +546,9 @@ describe('ResearchPage', () => {
     })
   })
 
-  const openBatchReviewFromSkillWriteback = async () => {
+  const openBatchReviewFromSkillWriteback = async ({
+    includeSavedThesis = false,
+  }: { includeSavedThesis?: boolean } = {}) => {
     const identity = cloneIdentityFixture()
     identity.model_revision = 2
     useIdentityStore.setState({
@@ -585,9 +587,24 @@ describe('ResearchPage', () => {
         },
       ],
     })
+    const savedThesis = includeSavedThesis
+      ? buildTestThesis({
+          id: 'thesis-saved-stale',
+          identityVersion: 2,
+          narrative: 'Saved thesis generated before the current Identity correction.',
+          skillDepthMap: [
+            {
+              skill: 'Kubernetes',
+              depth: 'working',
+              context: 'Older Kubernetes context should be regenerated.',
+              searchSignal: 'Older platform search signal.',
+            },
+          ],
+        })
+      : null
     useSearchStore.setState((state) => ({
       ...state,
-      theses: [thesis],
+      theses: savedThesis ? [thesis, savedThesis] : [thesis],
       activeThesisId: thesis.id,
       runs: [{
         ...state.runs[0]!,
@@ -613,7 +630,9 @@ describe('ResearchPage', () => {
       .closest('[role="region"]') as HTMLElement
     expect(confirmPanel.textContent).toContain('move it from v2 to v3')
     expect(confirmPanel.textContent).toContain(
-      '3 downstream artifacts may need review: 1 search run, 1 prep deck, and 1 cover letter.',
+      includeSavedThesis
+        ? '4 downstream artifacts may need review: 1 search thesis, 1 search run, 1 prep deck, and 1 cover letter.'
+        : '3 downstream artifacts may need review: 1 search run, 1 prep deck, and 1 cover letter.',
     )
     expect(confirmPanel.textContent).toContain('Search run')
     expect(confirmPanel.textContent).toContain('Acme prep deck')
@@ -650,12 +669,18 @@ describe('ResearchPage', () => {
     )
     expect(screen.getByText(/Updated Identity skill "Kubernetes"/)).toBeTruthy()
     expect(screen.getByText('Downstream impact queued')).toBeTruthy()
-    expect(screen.getAllByText(/3 downstream artifacts may need review/).length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(
+        includeSavedThesis
+          ? /4 downstream artifacts may need review/
+          : /3 downstream artifacts may need review/,
+      ).length,
+    ).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: 'Review impacted artifacts' }))
     const stalenessReview = screen
       .getByText('Batch staleness review')
       .closest('[role="region"]') as HTMLElement
-    return { identity, stalenessReview }
+    return { identity, savedThesisId: savedThesis?.id ?? null, stalenessReview }
   }
 
   it('writes thesis skill-depth corrections back to Identity after confirmation', async () => {
@@ -680,7 +705,7 @@ describe('ResearchPage', () => {
         name: 'Save not stale decision for Acme cover letter',
       }),
     )
-    expect(stalenessReview.textContent).toContain('refresh requests stay disabled')
+    expect(stalenessReview.textContent).toContain('thesis refresh is available')
     expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
       decision: 'accepted-current',
       reviewedIdentityVersion: 3,
@@ -710,6 +735,225 @@ describe('ResearchPage', () => {
     )
     expect(screen.queryByText('Batch staleness review')).toBeNull()
     expect(screen.getByText(/Decisions were saved on reviewed artifacts/)).toBeTruthy()
+  })
+
+  it('refreshes stale saved search theses from the batch review', async () => {
+    const { savedThesisId, stalenessReview } = await openBatchReviewFromSkillWriteback({
+      includeSavedThesis: true,
+    })
+    expect(savedThesisId).toBe('thesis-saved-stale')
+    expect(stalenessReview.textContent).toContain('Saved search thesis')
+    expect(stalenessReview.textContent).toContain(
+      '4 downstream artifacts may need review: 1 search thesis, 1 search run, 1 prep deck, and 1 cover letter.',
+    )
+
+    mockGenerateSearchThesisFromIdentity.mockResolvedValueOnce({
+      thesis: buildTestThesis({
+        id: 'thesis-refresh-generated',
+        identityVersion: 3,
+        narrative: 'Refreshed thesis with current Kubernetes depth correction.',
+        lookFor: ['latest platform signal'],
+        skillDepthMap: [
+          {
+            skill: 'Kubernetes',
+            depth: 'expert',
+            context: 'Current Identity correction is now reflected in the thesis.',
+            searchSignal: 'Prioritize architecture-heavy platform roles.',
+          },
+        ],
+      }),
+      contractViolations: [],
+    })
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Saved search thesis with latest Identity',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(1)
+    })
+    expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[0]).toMatchObject({
+      model_revision: 3,
+    })
+    expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[1]).toBe(
+      'https://ai.example/proxy',
+    )
+    expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[2]).toEqual([])
+
+    await waitFor(() => {
+      expect(stalenessReview.textContent).toContain('Status: Refreshed with latest Identity.')
+    })
+    expect(
+      within(stalenessReview).getByRole('button', {
+        name: 'Save accept current artifact for Saved search thesis',
+      }),
+    ).toHaveProperty('disabled', true)
+    expect(
+      within(stalenessReview).getByRole('button', {
+        name: 'Save not stale decision for Saved search thesis',
+      }),
+    ).toHaveProperty('disabled', true)
+    const refreshedThesis = useSearchStore
+      .getState()
+      .theses.find((thesisItem) => thesisItem.id === savedThesisId)
+    expect(refreshedThesis).toMatchObject({
+      id: savedThesisId,
+      identityVersion: 3,
+      narrative: 'Refreshed thesis with current Kubernetes depth correction.',
+      lookFor: ['latest platform signal'],
+    })
+    expect(refreshedThesis?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 3,
+      artifactIdentityVersionAtReview: 3,
+      mutationLabel: 'Kubernetes depth correction',
+      mutationFromRevision: 2,
+      mutationToRevision: 3,
+    })
+    expect(useSearchStore.getState().activeThesisId).toBe('thesis-writeback')
+    expect(screen.getByText(/Saved search thesis refreshed with the latest Identity context/)).toBeTruthy()
+  })
+
+  it('discards a thesis refresh result when Identity changes mid-refresh', async () => {
+    const { identity, savedThesisId, stalenessReview } = await openBatchReviewFromSkillWriteback({
+      includeSavedThesis: true,
+    })
+    let resolveRefresh:
+      | ((value: { thesis: SearchThesis; contractViolations: string[] }) => void)
+      | undefined
+    const refreshPromise = new Promise<{ thesis: SearchThesis; contractViolations: string[] }>(
+      (resolve) => {
+        resolveRefresh = resolve
+      },
+    )
+    mockGenerateSearchThesisFromIdentity.mockReturnValueOnce(refreshPromise)
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Saved search thesis with latest Identity',
+      }),
+    )
+    await waitFor(() => {
+      expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(1)
+    })
+
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: {
+          ...identity,
+          model_revision: 4,
+        },
+      })
+    })
+    await act(async () => {
+      resolveRefresh?.({
+        thesis: buildTestThesis({
+          id: 'thesis-refresh-generated',
+          identityVersion: 3,
+          narrative: 'This refresh result should be discarded.',
+        }),
+        contractViolations: [],
+      })
+      await refreshPromise
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/Identity or review context changed during thesis refresh/)).toBeTruthy()
+    })
+    const staleThesis = useSearchStore
+      .getState()
+      .theses.find((thesisItem) => thesisItem.id === savedThesisId)
+    expect(staleThesis).toMatchObject({
+      identityVersion: 2,
+      narrative: 'Saved thesis generated before the current Identity correction.',
+    })
+  })
+
+  it('blocks stale thesis refresh when the target thesis has unsaved edits', async () => {
+    const { savedThesisId, stalenessReview } = await openBatchReviewFromSkillWriteback({
+      includeSavedThesis: true,
+    })
+
+    act(() => {
+      useSearchStore.getState().setActiveThesis(savedThesisId)
+    })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Thesis narrative')).toHaveProperty(
+        'value',
+        'Saved thesis generated before the current Identity correction.',
+      )
+    })
+    fireEvent.change(screen.getByLabelText('Thesis narrative'), {
+      target: { value: 'Unsaved edits must not be overwritten.' },
+    })
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Saved search thesis with latest Identity',
+      }),
+    )
+
+    expect(mockGenerateSearchThesisFromIdentity).not.toHaveBeenCalled()
+    expect(screen.getByText(/Save or discard thesis edits before refreshing this stale thesis/)).toBeTruthy()
+    expect(useSearchStore.getState().theses.find((thesis) => thesis.id === savedThesisId)).toMatchObject({
+      narrative: 'Saved thesis generated before the current Identity correction.',
+      identityVersion: 2,
+    })
+  })
+
+  it('ignores a second thesis refresh while one is already running', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback({
+      includeSavedThesis: true,
+    })
+    let resolveRefresh:
+      | ((value: { thesis: SearchThesis; contractViolations: string[] }) => void)
+      | undefined
+    const refreshPromise = new Promise<{ thesis: SearchThesis; contractViolations: string[] }>(
+      (resolve) => {
+        resolveRefresh = resolve
+      },
+    )
+    mockGenerateSearchThesisFromIdentity.mockReturnValueOnce(refreshPromise)
+    const refreshButton = within(stalenessReview).getByRole('button', {
+      name: 'Refresh Saved search thesis with latest Identity',
+    })
+
+    fireEvent.click(refreshButton)
+    fireEvent.click(refreshButton)
+
+    expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(1)
+    expect(refreshButton).toHaveProperty('disabled', true)
+    await act(async () => {
+      resolveRefresh?.({
+        thesis: buildTestThesis({
+          id: 'thesis-refresh-generated',
+          identityVersion: 3,
+          narrative: 'Refreshed after duplicate click guard.',
+        }),
+        contractViolations: [],
+      })
+      await refreshPromise
+    })
+  })
+
+  it('surfaces thesis refresh generator failures and clears the refreshing state', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback({
+      includeSavedThesis: true,
+    })
+    mockGenerateSearchThesisFromIdentity.mockRejectedValueOnce(new Error('proxy down'))
+    const refreshButton = within(stalenessReview).getByRole('button', {
+      name: 'Refresh Saved search thesis with latest Identity',
+    })
+
+    fireEvent.click(refreshButton)
+
+    await waitFor(() => {
+      expect(screen.getByText('proxy down')).toBeTruthy()
+    })
+    expect(refreshButton).toHaveProperty('disabled', false)
+    expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(1)
   })
 
   it('closes batch review while preserving saved decisions when Identity is cleared', async () => {

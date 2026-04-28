@@ -255,13 +255,26 @@ const getStalenessDecisionLabel = (decision?: StalenessReviewDecision): string =
   return 'Needs review'
 }
 
+const getStalenessArtifactKey = (
+  artifact: Pick<DownstreamImpact['artifactsAffected'][number], 'artifactType' | 'artifactId'>,
+  mutation?: IdentityMutation,
+): string => {
+  return JSON.stringify([
+    mutation?.fromRevision ?? null,
+    mutation?.toRevision ?? null,
+    mutation?.label ?? null,
+    [...(mutation?.fields ?? [])].sort(),
+    artifact.artifactType || 'artifact',
+    artifact.artifactId || 'unknown',
+  ])
+}
+
 const getStalenessReviewKey = (
   artifact: Pick<DownstreamImpact['artifactsAffected'][number], 'artifactType' | 'artifactId'>,
   index: number,
+  mutation?: IdentityMutation,
 ): string => {
-  const artifactType = artifact.artifactType || 'artifact'
-  const artifactId = artifact.artifactId || 'row-' + index
-  return artifactType + '::' + artifactId + '::' + index
+  return JSON.stringify([getStalenessArtifactKey(artifact, mutation), index])
 }
 
 const cloneDownstreamImpact = (impact: DownstreamImpact): DownstreamImpact =>
@@ -506,6 +519,10 @@ export function ResearchPage() {
     useState<DownstreamImpact | null>(null)
   const [stalenessReviewIdentityRevision, setStalenessReviewIdentityRevision] =
     useState<number | null>(null)
+  const [refreshingStalenessArtifactKey, setRefreshingStalenessArtifactKey] =
+    useState<string | null>(null)
+  const [refreshedStalenessArtifactKeys, setRefreshedStalenessArtifactKeys] =
+    useState<Record<string, boolean>>({})
   const [thesisContractViolations, setThesisContractViolations] = useState<string[]>([])
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
@@ -525,6 +542,10 @@ export function ResearchPage() {
   const hiddenDuringJobRef = useRef(false)
   const notifiedJobsRef = useRef(new Set<string>())
   const researchJobEventIdRef = useRef(0)
+  const stalenessReviewIdentityRevisionRef = useRef<number | null>(null)
+  const stalenessReviewImpactRef = useRef<DownstreamImpact | null>(null)
+  const thesisDraftIsDirtyRef = useRef(false)
+  const refreshingStalenessArtifactKeyRef = useRef<string | null>(null)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
   const currentIdentityRevision = currentIdentity
@@ -533,6 +554,8 @@ export function ResearchPage() {
   const resetStalenessReview = useCallback(() => {
     setStalenessReviewImpact(null)
     setStalenessReviewIdentityRevision(null)
+    setRefreshingStalenessArtifactKey(null)
+    setRefreshedStalenessArtifactKeys({})
   }, [])
   const activeThesis = useMemo(
     () => theses.find((thesis) => thesis.id === activeThesisId) ?? null,
@@ -605,6 +628,18 @@ export function ResearchPage() {
       'Identity changed after confirmation opened. Review the current skill model and start writeback again.',
     )
   }, [currentIdentityRevision, pendingSkillWriteback, resetStalenessReview])
+  useEffect(() => {
+    refreshingStalenessArtifactKeyRef.current = refreshingStalenessArtifactKey
+  }, [refreshingStalenessArtifactKey])
+  useEffect(() => {
+    thesisDraftIsDirtyRef.current = thesisDraftIsDirty
+  }, [thesisDraftIsDirty])
+  useEffect(() => {
+    stalenessReviewImpactRef.current = stalenessReviewImpact
+  }, [stalenessReviewImpact])
+  useEffect(() => {
+    stalenessReviewIdentityRevisionRef.current = stalenessReviewIdentityRevision
+  }, [stalenessReviewIdentityRevision])
   useEffect(() => {
     if (stalenessReviewIdentityRevision === null) return
     if (currentIdentityRevision === null) {
@@ -1452,6 +1487,7 @@ export function ResearchPage() {
     // Snapshot the impact that triggered review so row decisions stay stable while stores mutate.
     setStalenessReviewImpact(cloneDownstreamImpact(impact))
     setStalenessReviewIdentityRevision(currentIdentityRevision)
+    setRefreshedStalenessArtifactKeys({})
     setLatestIdentityImpact(null)
   }
 
@@ -1526,6 +1562,13 @@ export function ResearchPage() {
       )
       return
     }
+    const artifactKey = getStalenessArtifactKey(artifact, stalenessReviewImpact.mutation)
+    if (refreshedStalenessArtifactKeys[artifactKey]) {
+      setThesisNotice(
+        `${artifact.label} was already refreshed with the latest Identity context; no stale-artifact decision was saved.`,
+      )
+      return
+    }
 
     if (!isStalenessArtifactPresent(artifact)) {
       setThesisNotice(
@@ -1574,6 +1617,142 @@ export function ResearchPage() {
       setThesisNotice(
         `${artifact.label} could not be updated, so the staleness review decision was not saved.`,
       )
+      return
+    }
+    setThesisNotice(`${artifact.label} staleness decision saved.`)
+  }
+
+  const handleRefreshStalenessArtifact = async (
+    artifact: DownstreamImpact['artifactsAffected'][number],
+    artifactKey: string,
+  ) => {
+    if (refreshingStalenessArtifactKeyRef.current !== null) {
+      setThesisNotice('A thesis refresh is already running. Wait for it to finish before starting another.')
+      return
+    }
+
+    if (artifact.artifactType !== 'thesis') {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed yet. Thesis refresh is available first; run, prep, and cover-letter refresh generators are still pending.`,
+      )
+      return
+    }
+
+    if (
+      !currentIdentity ||
+      !stalenessReviewImpact ||
+      currentIdentityRevision === null ||
+      stalenessReviewIdentityRevision !== currentIdentityRevision
+    ) {
+      setThesisNotice(
+        'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
+      )
+      return
+    }
+
+    const targetThesis = theses.find((thesis) => thesis.id === artifact.artifactId)
+    if (!targetThesis) {
+      setThesisNotice(`${artifact.label} is no longer available, so it was not refreshed.`)
+      return
+    }
+
+    if (activeThesis?.id === targetThesis.id && thesisDraftIsDirty) {
+      setThesisNotice(null)
+      setPageError('Save or discard thesis edits before refreshing this stale thesis.')
+      return
+    }
+
+    try {
+      ensureEndpoint()
+      setPageError(null)
+      setThesisNotice(null)
+      refreshingStalenessArtifactKeyRef.current = artifactKey
+      setRefreshingStalenessArtifactKey(artifactKey)
+      const refreshStartedIdentityRevision = currentIdentityRevision
+      const refreshStartedImpact = stalenessReviewImpact
+      const refreshStartedMutation = refreshStartedImpact.mutation
+      const generated = await generateSearchThesisFromIdentity(
+        currentIdentity,
+        aiEndpoint,
+        getUnreflectedFeedback(targetThesis.id),
+      )
+      const latestIdentityRevision =
+        useIdentityStore.getState().currentIdentity?.model_revision ?? null
+      const reviewSnapshotStillOpen = stalenessReviewImpactRef.current === refreshStartedImpact
+      if (
+        latestIdentityRevision !== refreshStartedIdentityRevision ||
+        stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
+        !reviewSnapshotStillOpen
+      ) {
+        // Nothing has been written yet; keep the user's current active thesis untouched.
+        setThesisNotice(
+          'Identity or review context changed during thesis refresh. The generated thesis was discarded; reopen the review after loading the latest impact notice.',
+        )
+        return
+      }
+      const activeThesisIdBeforeSave = useSearchStore.getState().activeThesisId
+      if (activeThesisIdBeforeSave === targetThesis.id && thesisDraftIsDirtyRef.current) {
+        setThesisNotice(
+          'Thesis edits changed during refresh. The generated thesis was discarded; save or discard your edits before refreshing again.',
+        )
+        return
+      }
+      if (!isStalenessArtifactPresent(artifact)) {
+        setThesisNotice(`${artifact.label} is no longer available, so it was not refreshed.`)
+        return
+      }
+
+      const saved = saveThesisRevision(targetThesis.id, {
+        ...generated.thesis,
+        identityFields:
+          generated.thesis.identityFields ??
+          collectThesisIdentityFieldDependencies(generated.thesis),
+        stalenessReview: undefined,
+      })
+      if (!saved) {
+        setPageError(`${artifact.label} could not be refreshed. Reopen the batch review and try again.`)
+        return
+      }
+
+      if (saved.feedbackIncorporated.length > 0) {
+        markFeedbackReflectedInThesis(saved.feedbackIncorporated, saved.id)
+      }
+      const refreshReview = sanitizeArtifactStalenessReview({
+        decision: 'accepted-current',
+        reviewedAt: new Date().toISOString(),
+        reviewedIdentityVersion: refreshStartedIdentityRevision,
+        artifactIdentityVersionAtReview: saved.identityVersion,
+        mutationLabel: refreshStartedMutation.label,
+        mutationFields: [...refreshStartedMutation.fields],
+        mutationFromRevision: refreshStartedMutation.fromRevision,
+        mutationToRevision: refreshStartedMutation.toRevision,
+        reason: artifact.reason || 'Refreshed with latest Identity context.',
+      } satisfies ArtifactStalenessReview)
+      if (refreshReview) {
+        markThesisStalenessReview(saved.id, refreshReview)
+      }
+
+      if (activeThesisIdBeforeSave === targetThesis.id) {
+        const lookForText = saved.lookFor.join(', ')
+        setThesisDraft(structuredClone(saved))
+        setThesisLookForText(lookForText)
+        setThesisLookForBaselineText(lookForText)
+        setThesisDraftIsDirty(false)
+        setThesisContractViolations(generated.contractViolations)
+      } else {
+        setActiveThesis(activeThesisIdBeforeSave)
+      }
+
+      setRefreshedStalenessArtifactKeys((current) => ({
+        ...current,
+        [artifactKey]: true,
+      }))
+      setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Thesis refresh failed.')
+    } finally {
+      refreshingStalenessArtifactKeyRef.current = null
+      setRefreshingStalenessArtifactKey(null)
     }
   }
 
@@ -2761,23 +2940,45 @@ export function ResearchPage() {
                 >
                   <strong id="staleness-review-title">Batch staleness review</strong>
                   <p>
-                    {/* TODO(task-158): replace this once artifact-specific refresh generators are wired. */}
                     {stalenessReviewImpact.summary} Review each artifact now. Artifact-specific
-                    refresh generators are not wired yet, so refresh requests stay disabled.
+                    thesis refresh is available; run, prep, and cover-letter refresh generators
+                    are still pending.
                   </p>
                   <p>
-                    Choices are saved on each reviewed artifact. Refresh requests stay disabled
-                    until artifact-specific refresh generators are wired.
+                    Choices are saved on each reviewed artifact. Refreshing a thesis regenerates
+                    it against the latest Identity context and records it as reviewed.
                   </p>
                   <ul className="research-list">
                     {stalenessReviewImpact.artifactsAffected.map((artifact, index) => {
-                      const key = getStalenessReviewKey(artifact, index)
+                      const artifactKey = getStalenessArtifactKey(
+                        artifact,
+                        stalenessReviewImpact.mutation,
+                      )
+                      const key = getStalenessReviewKey(
+                        artifact,
+                        index,
+                        stalenessReviewImpact.mutation,
+                      )
                       const decision = getPersistedStalenessDecision(artifact)
+                      const wasRefreshed = Boolean(refreshedStalenessArtifactKeys[artifactKey])
+                      const isRefreshSupported = artifact.artifactType === 'thesis'
+                      const isRefreshing = refreshingStalenessArtifactKey === artifactKey
+                      const isRefreshDisabled =
+                        !isRefreshSupported || refreshingStalenessArtifactKey !== null
+                      const refreshButtonLabel = !isRefreshSupported
+                        ? 'Refresh pending'
+                        : isRefreshing
+                          ? 'Refreshing thesis...'
+                          : 'Refresh thesis'
                       return (
                         <li key={key}>
                           <strong>{artifact.label}</strong>: {artifact.reason}{' '}
                           <span className="research-muted" role="status" aria-live="polite">
-                            Status: {getStalenessDecisionLabel(decision)}.
+                            Status:{' '}
+                            {wasRefreshed
+                              ? 'Refreshed with latest Identity'
+                              : getStalenessDecisionLabel(decision)}
+                            .
                           </span>
                           <div
                             className="research-thesis-actions"
@@ -2787,7 +2988,19 @@ export function ResearchPage() {
                             <button
                               type="button"
                               className="research-btn"
+                              aria-label={'Refresh ' + artifact.label + ' with latest Identity'}
+                              disabled={isRefreshDisabled}
+                              onClick={() =>
+                                void handleRefreshStalenessArtifact(artifact, artifactKey)
+                              }
+                            >
+                              {refreshButtonLabel}
+                            </button>
+                            <button
+                              type="button"
+                              className="research-btn"
                               aria-label={'Save accept current artifact for ' + artifact.label}
+                              disabled={wasRefreshed}
                               onClick={() =>
                                 handleStalenessReviewDecision(artifact, 'accepted')
                               }
@@ -2798,6 +3011,7 @@ export function ResearchPage() {
                               type="button"
                               className="research-btn"
                               aria-label={'Save not stale decision for ' + artifact.label}
+                              disabled={wasRefreshed}
                               onClick={() =>
                                 handleStalenessReviewDecision(artifact, 'rejected')
                               }

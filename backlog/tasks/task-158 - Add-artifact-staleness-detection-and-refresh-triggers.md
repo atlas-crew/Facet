@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:04'
-updated_date: '2026-04-28 15:49'
+updated_date: '2026-04-28 18:41'
 labels:
   - shepherding
   - staleness
@@ -78,13 +78,15 @@ This is the mechanism that makes corrections feel like progress — the user see
 Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMeta.test.ts (78 passed); npm run typecheck (passed); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx src/types/artifactMeta.ts src/test/artifactMeta.test.ts (passed). npm run build is currently blocked by unrelated dirty src/routes/identity/IdentityInspector.tsx errors: unused ProfessionalSkillItem, unused skillNamesMatch, missing SkillGroupInspector, missing SkillItemInspector.
 
 2026-04-28: Added persisted artifact staleness review decisions for TASK-158 batch review. Run, search thesis, prep deck, and cover-letter artifacts now preserve sanitized stalenessReview metadata with decision, reviewed identity revision, artifact identity revision at review, mutation label/fields/revisions, and reason. Batch review decisions save to the owning artifact stores; row status is derived from persisted artifact metadata, guarded by matching mutation fingerprint, and stale/missing artifacts show failure notices instead of optimistic local-only success. Identity-version updates clear stale review metadata only when the artifact advances past the saved review, while explicit fresh review patches are preserved. Refresh generators remain disabled/pending for AC #6. Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMeta.test.ts src/test/searchStore.test.ts (105 passed); npm run typecheck (passed); touched-file npx eslint for staleness files/tests (passed); npm run build (passed). Independent review: .agents/reviews/review-20260428-113339.md PASS WITH ISSUES, P0/P1=0 with remaining P2/P3 refactor/perf notes. Test audit: .agents/reviews/test-audit-20260428-114245.md identified one ArtifactMeta P1 branch, fixed by not-stale coverage; .agents/reviews/test-audit-20260428-114636.md identified one SearchStore P1 unknown-id branch, fixed by explicit false/no-mutation test. Broad src/test audit was intentionally size-guarded at 2238 KB > 488 KB; stderr /tmp/task158-audit2-err.HnqEKW.
+
+2026-04-28: Added the first artifact-specific refresh path for TASK-158 batch staleness review: stale saved search theses can now be regenerated from the latest Identity context directly from the batch review. Refresh persists an accepted-current staleness review marker on the regenerated thesis, keeps the previous/current active thesis selection stable, serializes refreshes, and discards generated results if Identity, review context, target artifact presence, or active thesis dirty state changes mid-flight. Non-thesis run/prep/cover-letter refresh remains visibly pending. Coverage added for successful saved-thesis refresh, durable reviewed marker, active dirty-draft blocking, duplicate-refresh serialization, generator failure recovery, and mid-refresh Identity drift discard. Verification: npx vitest run src/test/ResearchPage.test.tsx (69 passed); npm run typecheck (passed); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx (passed); npm run build (passed); npm run test (134 files/1677 tests passed). Review receipts: code review cycles in .agents/reviews/review-20260428-142908.md and .agents/reviews/review-20260428-143207.md drove async guard fixes; test audit .agents/reviews/test-audit-20260428-143639.md identified refresh-guard coverage gaps, with P1 reachable gaps remediated in ResearchPage tests.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
+- [x] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
 - [x] #5 Linters report no WARNINGS or ERRORS
 - [x] #6 The project builds successfully
