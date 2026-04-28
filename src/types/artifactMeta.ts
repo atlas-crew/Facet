@@ -18,6 +18,48 @@ export interface ArtifactMetadata {
   identityFingerprint?: string
 }
 
+export type ArtifactImpactType = 'thesis' | 'run' | 'prep-deck' | 'cover-letter'
+
+export interface ArtifactFieldDependency {
+  artifactType: ArtifactImpactType
+  artifactId: string
+  fields: string[]
+}
+
+export interface IdentityMutation {
+  label: string
+  fields: string[]
+  fromRevision: number
+  toRevision: number
+}
+
+export interface ImpactArtifactInput {
+  artifactType: ArtifactImpactType
+  artifactId: string
+  label: string
+  identityVersion?: number
+  identityFields?: string[]
+  detail?: string
+}
+
+export interface DownstreamImpactItem {
+  artifactType: ArtifactImpactType
+  artifactId: string
+  label: string
+  reason: string
+  identityVersion?: number
+  matchedFields: string[]
+  fallback: 'field' | 'version'
+}
+
+export interface DownstreamImpact {
+  mutation: IdentityMutation
+  artifactsAffected: DownstreamImpactItem[]
+  totalCount: number
+  counts: Record<ArtifactImpactType, number>
+  summary: string
+}
+
 /**
  * Whether the current identity has mutated since the artifact was generated.
  *
@@ -61,3 +103,157 @@ export const recordIdentityMetadata = (
   createdAt,
   identityVersion: identity.model_revision,
 })
+
+export const sanitizeIdentityVersion = (value: unknown): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return Math.max(0, Math.trunc(value))
+}
+
+export const sanitizeIdentityFields = (values?: string[]): string[] | undefined => {
+  if (!Array.isArray(values)) return undefined
+  const filtered = values.flatMap((value) => {
+    if (typeof value !== 'string') return []
+    const trimmed = value.trim()
+    return trimmed ? [trimmed] : []
+  })
+  return filtered.length > 0 ? filtered : undefined
+}
+
+const ARTIFACT_LABELS: Record<ArtifactImpactType, { singular: string; plural: string }> = {
+  thesis: { singular: 'search thesis', plural: 'search theses' },
+  run: { singular: 'search run', plural: 'search runs' },
+  'prep-deck': { singular: 'prep deck', plural: 'prep decks' },
+  'cover-letter': { singular: 'cover letter', plural: 'cover letters' },
+}
+
+const IMPACT_TYPE_ORDER: ArtifactImpactType[] = ['thesis', 'run', 'prep-deck', 'cover-letter']
+
+const createEmptyImpactCounts = (): Record<ArtifactImpactType, number> =>
+  Object.fromEntries(IMPACT_TYPE_ORDER.map((artifactType) => [artifactType, 0])) as Record<
+    ArtifactImpactType,
+    number
+  >
+
+const normalizeField = (field: string): string => field.trim().toLowerCase()
+
+const formatCount = (count: number, singular: string, plural: string): string =>
+  count + ' ' + (count === 1 ? singular : plural)
+
+const joinSummaryParts = (parts: string[]): string => {
+  if (parts.length === 0) return ''
+  if (parts.length === 1) return parts[0]
+  if (parts.length === 2) return parts[0] + ' and ' + parts[1]
+  return parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1]
+}
+
+const summarizeImpact = (
+  totalCount: number,
+  counts: Record<ArtifactImpactType, number>,
+): string => {
+  if (totalCount === 0) {
+    return 'No downstream artifacts are expected to need review.'
+  }
+
+  const parts = IMPACT_TYPE_ORDER.flatMap((artifactType) => {
+    const count = counts[artifactType]
+    if (count === 0) return []
+    const labels = ARTIFACT_LABELS[artifactType]
+    return [formatCount(count, labels.singular, labels.plural)]
+  })
+
+  return (
+    formatCount(totalCount, 'downstream artifact', 'downstream artifacts') +
+    ' may need review: ' +
+    joinSummaryParts(parts) +
+    '.'
+  )
+}
+
+/**
+ * Computes the downstream artifacts affected by an identity mutation.
+ *
+ * Prefer field-level dependency matches when artifacts record identityFields.
+ * Older artifacts that only recorded identityVersion fall back to coarse
+ * revision comparison so the UX can still show useful impact instead of silence.
+ */
+export const describeImpact = (
+  mutation: IdentityMutation,
+  artifacts: ImpactArtifactInput[],
+): DownstreamImpact => {
+  const mutationFields = new Set(
+    mutation.fields
+      .map(normalizeField)
+      .filter(Boolean),
+  )
+  const artifactsAffected = artifacts.flatMap((artifact): DownstreamImpactItem[] => {
+    const identityFields = artifact.identityFields
+      ?.map((field) => field.trim())
+      .filter(Boolean)
+    const matchedFields = identityFields?.filter((field) =>
+      mutationFields.has(normalizeField(field)),
+    ) ?? []
+
+    if (matchedFields.length > 0) {
+      return [{
+        artifactType: artifact.artifactType,
+        artifactId: artifact.artifactId,
+        label: artifact.label,
+        reason:
+          'References ' +
+          joinSummaryParts(matchedFields) +
+          (artifact.detail ? '; ' + artifact.detail : '') +
+          '.',
+        identityVersion: artifact.identityVersion,
+        matchedFields,
+        fallback: 'field',
+      }]
+    }
+
+    if (identityFields && identityFields.length > 0) {
+      return []
+    }
+
+    if (
+      typeof artifact.identityVersion === 'number' &&
+      Number.isFinite(artifact.identityVersion) &&
+      artifact.identityVersion < mutation.toRevision
+    ) {
+      return [{
+        artifactType: artifact.artifactType,
+        artifactId: artifact.artifactId,
+        label: artifact.label,
+        reason:
+          'Generated from identity v' +
+          artifact.identityVersion +
+          ' before this correction moves identity to v' +
+          mutation.toRevision +
+          (artifact.detail ? '; ' + artifact.detail : '') +
+          '.',
+        identityVersion: artifact.identityVersion,
+        matchedFields: [],
+        fallback: 'version',
+      }]
+    }
+
+    return []
+  })
+
+  const counts = artifactsAffected.reduce<Record<ArtifactImpactType, number>>(
+    (nextCounts, artifact) =>
+      artifact.artifactType in nextCounts
+        ? {
+            ...nextCounts,
+            [artifact.artifactType]: nextCounts[artifact.artifactType] + 1,
+          }
+        : nextCounts,
+    createEmptyImpactCounts(),
+  )
+
+  return {
+    mutation,
+    artifactsAffected,
+    totalCount: artifactsAffected.length,
+    counts,
+    summary: summarizeImpact(artifactsAffected.length, counts),
+  }
+}

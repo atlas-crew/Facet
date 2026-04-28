@@ -4,11 +4,18 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, BriefcaseBusiness, RefreshCcw, Search, Sparkles } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { FacetAiProxyError } from '../../utils/aiProxyErrors'
+import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { usePrepStore } from '../../store/prepStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useSearchStore } from '../../store/searchStore'
+import {
+  describeImpact,
+  type DownstreamImpact,
+  type IdentityMutation,
+  type ImpactArtifactInput,
+} from '../../types/artifactMeta'
 import type { ProfessionalIdentityV3, ProfessionalSkillDepth } from '../../identity/schema'
 import type {
   DeepResearchIdentityEvidence,
@@ -67,18 +74,12 @@ type ThesisSkillCorrectionTarget = {
   skillName: string
   groupLabel: string
 }
-type ThesisWritebackImpact = {
-  savedTheses: number
-  searchRuns: number
-  searchResults: number
-  prepCards: number
-  totalArtifacts: number
-}
 type PendingThesisSkillWriteback = {
   skillIndex: number
   skillName: string
   identityRevision: number
   target: ThesisSkillCorrectionTarget
+  impactArtifacts: ImpactArtifactInput[]
 }
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
@@ -180,16 +181,38 @@ const getBudgetBadgeCopy = (usage: ResearchUsageSnapshot | null): {
   }
 }
 
-const formatThesisWritebackImpact = (impact: ThesisWritebackImpact): string =>
-  formatCount(impact.totalArtifacts, 'workspace artifact', 'workspace artifacts') +
-  ': ' +
-  formatCount(impact.searchResults, 'search result', 'search results') +
-  ', ' +
-  formatCount(impact.prepCards, 'prep card', 'prep cards') +
-  ', ' +
-  formatCount(impact.savedTheses, 'saved thesis', 'saved theses') +
-  ', and ' +
-  formatCount(impact.searchRuns, 'search run', 'search runs')
+const buildSkillIdentityFields = (skillName: string): string[] => {
+  const normalized = skillName.trim()
+  if (!normalized) return []
+  return [
+    'skills.' + normalized + '.depth',
+    'skills.' + normalized + '.context',
+    'skills.' + normalized + '.positioning',
+  ]
+}
+
+const collectThesisIdentityFieldDependencies = (
+  thesis: Pick<SearchThesis, 'skillDepthMap'>,
+): string[] | undefined => {
+  const fields = new Set<string>()
+  thesis.skillDepthMap.forEach((entry) => {
+    buildSkillIdentityFields(entry.skill).forEach((field) => fields.add(field))
+  })
+  return fields.size > 0 ? Array.from(fields) : undefined
+}
+
+const buildSkillDepthMutation = (
+  skillName: string,
+  fromRevision: number,
+): IdentityMutation => ({
+  label: skillName + ' depth correction',
+  fields: buildSkillIdentityFields(skillName),
+  fromRevision,
+  toRevision: fromRevision + 1,
+})
+
+const formatOptionalCount = (count: number, singular: string, plural: string): string | undefined =>
+  count > 0 ? formatCount(count, singular, plural) : undefined
 
 const resolveThesisSkillCorrectionTarget = (
   identity: ProfessionalIdentityV3,
@@ -331,6 +354,7 @@ export function ResearchPage() {
   const resumeData = useResumeStore((state) => state.data)
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const saveSkillEnrichment = useIdentityStore((state) => state.saveSkillEnrichment)
+  const coverLetterTemplates = useCoverLetterStore((state) => state.templates)
   const prepDecks = usePrepStore((state) => state.decks)
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const addPipelineEntry = usePipelineStore((state) => state.addEntry)
@@ -376,6 +400,8 @@ export function ResearchPage() {
   const [thesisLookForBaselineText, setThesisLookForBaselineText] = useState('')
   const [pendingSkillWriteback, setPendingSkillWriteback] =
     useState<PendingThesisSkillWriteback | null>(null)
+  const [latestIdentityImpact, setLatestIdentityImpact] =
+    useState<DownstreamImpact | null>(null)
   const [thesisContractViolations, setThesisContractViolations] = useState<string[]>([])
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
@@ -395,22 +421,78 @@ export function ResearchPage() {
   const researchJobEventIdRef = useRef(0)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
+  const currentIdentityRevision = currentIdentity
+    ? currentIdentity.model_revision ?? 0
+    : null
   const activeThesis = useMemo(
     () => theses.find((thesis) => thesis.id === activeThesisId) ?? null,
     [activeThesisId, theses],
   )
-  const thesisWritebackImpact = useMemo<ThesisWritebackImpact>(() => {
-    const prepCards = prepDecks.reduce((total, deck) => total + deck.cards.length, 0)
-    const savedTheses = Math.max(0, theses.length - (activeThesis ? 1 : 0))
-    const searchResults = runs.reduce((total, run) => total + run.results.length, 0)
-    return {
-      savedTheses,
-      searchRuns: runs.length,
-      searchResults,
-      prepCards,
-      totalArtifacts: savedTheses + runs.length + searchResults + prepCards,
+  const downstreamImpactArtifacts = useMemo<ImpactArtifactInput[]>(() => [
+    ...theses.map((thesis) => ({
+      artifactType: 'thesis' as const,
+      artifactId: thesis.id,
+      label: thesis.id === activeThesis?.id ? 'Active search thesis' : 'Saved search thesis',
+      identityVersion: thesis.identityVersion,
+      identityFields: thesis.identityFields,
+      detail: formatOptionalCount(
+        thesis.skillDepthMap.length,
+        'skill depth signal',
+        'skill depth signals',
+      ),
+    })).filter((artifact) => artifact.artifactId !== activeThesis?.id),
+    ...runs.map((run) => ({
+      artifactType: 'run' as const,
+      artifactId: run.id,
+      label: 'Search run',
+      identityVersion: run.identityVersion,
+      identityFields: run.identityFields,
+      detail: formatOptionalCount(run.results.length, 'search result', 'search results'),
+    })),
+    ...prepDecks.map((deck) => ({
+      artifactType: 'prep-deck' as const,
+      artifactId: deck.id,
+      label: (deck.company || deck.title || 'Untitled') + ' prep deck',
+      identityVersion: deck.identityVersion,
+      identityFields: deck.identityFields,
+      detail: formatOptionalCount(deck.cards.length, 'prep card', 'prep cards'),
+    })),
+    ...coverLetterTemplates.map((template) => ({
+      artifactType: 'cover-letter' as const,
+      artifactId: template.id,
+      label: (template.name.trim() || 'Untitled') + ' cover letter',
+      identityVersion: template.identityVersion,
+      identityFields: template.identityFields,
+      detail: formatOptionalCount(template.paragraphs.length, 'paragraph', 'paragraphs'),
+    })),
+  ], [activeThesis?.id, coverLetterTemplates, prepDecks, runs, theses])
+  const pendingIdentityImpact = useMemo<DownstreamImpact | null>(() => {
+    if (!pendingSkillWriteback) return null
+    return describeImpact(
+      buildSkillDepthMutation(
+        pendingSkillWriteback.target.skillName,
+        pendingSkillWriteback.identityRevision,
+      ),
+      pendingSkillWriteback.impactArtifacts,
+    )
+  }, [pendingSkillWriteback])
+  useEffect(() => {
+    if (!pendingSkillWriteback) return
+    if (currentIdentityRevision === null) {
+      setPendingSkillWriteback(null)
+      setLatestIdentityImpact(null)
+      setThesisNotice(
+        'Identity changed after confirmation opened. Review the current skill model and start writeback again.',
+      )
+      return
     }
-  }, [activeThesis, prepDecks, runs, theses])
+    if (currentIdentityRevision === pendingSkillWriteback.identityRevision) return
+    setPendingSkillWriteback(null)
+    setLatestIdentityImpact(null)
+    setThesisNotice(
+      'Identity changed after confirmation opened. Review the current skill model and start writeback again.',
+    )
+  }, [currentIdentityRevision, pendingSkillWriteback])
   const thesisLookForPreview = useMemo(
     () =>
       thesisLookForText === thesisLookForBaselineText
@@ -787,6 +869,9 @@ export function ResearchPage() {
     thesisSnapshot: SearchThesis
     identityEvidence: DeepResearchIdentityEvidence
   }) => {
+    const runIdentityVersion = currentIdentity?.model_revision ?? thesisSnapshot.identityVersion
+    const runIdentityFields =
+      thesisSnapshot.identityFields ?? collectThesisIdentityFieldDependencies(thesisSnapshot)
     const run = addRun({
       requestId: request.id,
       status: 'running',
@@ -794,7 +879,8 @@ export function ResearchPage() {
       searchLog: [],
       thesisId: thesisSnapshot.id,
       thesisSnapshot,
-      identityVersion: thesisSnapshot.identityVersion,
+      identityVersion: runIdentityVersion,
+      identityFields: runIdentityFields,
     })
 
     setActiveRunId(run.id)
@@ -837,7 +923,7 @@ export function ResearchPage() {
       thesisId: thesisSnapshot.id,
       thesisSnapshot,
       identityEvidence,
-      identityVersion: thesisSnapshot.identityVersion,
+      identityVersion: runIdentityVersion,
       params: request,
       paramsHash: '',
       status: created.status,
@@ -993,6 +1079,7 @@ export function ResearchPage() {
       }
       ensureEndpoint()
       setPageError(null)
+      setLatestIdentityImpact(null)
       setIsGeneratingThesis(true)
       const feedbackEvents = getUnreflectedFeedback(activeThesis?.id)
       const generated = await generateSearchThesisFromIdentity(
@@ -1000,7 +1087,12 @@ export function ResearchPage() {
         aiEndpoint,
         feedbackEvents,
       )
-      const saved = addThesis(generated.thesis)
+      const saved = addThesis({
+        ...generated.thesis,
+        identityFields:
+          generated.thesis.identityFields ??
+          collectThesisIdentityFieldDependencies(generated.thesis),
+      })
       const lookForText = saved.lookFor.join(', ')
       setActiveThesis(saved.id)
       setThesisDraft(structuredClone(saved))
@@ -1236,11 +1328,13 @@ export function ResearchPage() {
 
     setPageError(null)
     setThesisNotice(null)
+    setLatestIdentityImpact(null)
     setPendingSkillWriteback({
       skillIndex: index,
       skillName: entry.skill,
-      identityRevision: currentIdentity.model_revision,
+      identityRevision: currentIdentityRevision ?? 0,
       target,
+      impactArtifacts: downstreamImpactArtifacts,
     })
   }
 
@@ -1293,6 +1387,10 @@ export function ResearchPage() {
       return
     }
     const target = pendingSkillWriteback.target
+    const impact = describeImpact(
+      buildSkillDepthMutation(target.skillName, pendingSkillWriteback.identityRevision),
+      pendingSkillWriteback.impactArtifacts,
+    )
 
     saveSkillEnrichment(
       target.groupId,
@@ -1309,10 +1407,16 @@ export function ResearchPage() {
 
     setPendingSkillWriteback(null)
     setPageError(null)
+    setLatestIdentityImpact(impact)
+    const impactNotice =
+      impact.totalCount > 0
+        ? ' ' + impact.summary
+        : ' No downstream artifacts referenced this skill.'
     setThesisNotice(
       'Updated Identity skill "' +
         target.skillName +
-        '" from thesis calibration.',
+        '" from thesis calibration.' +
+        impactNotice,
     )
   }
 
@@ -1457,6 +1561,7 @@ export function ResearchPage() {
           ? thesisDraft.lookFor
           : splitTags(thesisLookForText),
       timeline: normalizeEditableTimeline(thesisDraft.timeline),
+      identityFields: collectThesisIdentityFieldDependencies(thesisDraft),
     }
     const saved = saveThesisRevision(activeThesis.id, nextDraft)
     if (!saved) {
@@ -1477,6 +1582,7 @@ export function ResearchPage() {
     preservedTimelineRef.current = null
     setPageError(null)
     setThesisNotice(null)
+    setLatestIdentityImpact(null)
   }
 
   const handleResearchBudgetError = (error: unknown, message: string): boolean => {
@@ -1516,9 +1622,16 @@ export function ResearchPage() {
           request,
           identity: currentIdentity,
         })
+      const thesisSnapshotWithDependencies =
+        thesisSnapshot.identityFields
+          ? thesisSnapshot
+          : {
+              ...thesisSnapshot,
+              identityFields: collectThesisIdentityFieldDependencies(thesisSnapshot),
+            }
       await startDeepResearchRun({
         request,
-        thesisSnapshot,
+        thesisSnapshot: thesisSnapshotWithDependencies,
         identityEvidence: buildDeepResearchIdentityEvidence(currentIdentity, executableProfile),
       })
       if (activeThesis?.feedbackIncorporated.length) {
@@ -2227,6 +2340,46 @@ export function ResearchPage() {
                 </div>
               ) : null}
 
+              {latestIdentityImpact && latestIdentityImpact.totalCount > 0 ? (
+                <div className="research-confirm" role="status">
+                  <strong>Downstream impact queued</strong>
+                  <p>{latestIdentityImpact.summary}</p>
+                  <ul className="research-list">
+                    {latestIdentityImpact.artifactsAffected.slice(0, 4).map((artifact) => (
+                      <li key={artifact.artifactType + '-' + artifact.artifactId}>
+                        {artifact.label}: {artifact.reason}
+                      </li>
+                    ))}
+                    {latestIdentityImpact.artifactsAffected.length > 4 ? (
+                      <li>
+                        +{' '}
+                        {formatCount(
+                          latestIdentityImpact.artifactsAffected.length - 4,
+                          'more impacted artifact',
+                          'more impacted artifacts',
+                        )}
+                      </li>
+                    ) : null}
+                  </ul>
+                  <div className="research-thesis-actions">
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={() => void navigate({ to: '/identity' })}
+                    >
+                      Review impacted artifacts
+                    </button>
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={() => setLatestIdentityImpact(null)}
+                    >
+                      Dismiss impact notice
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {pendingSkillWriteback ? (
                 <div
                   className="research-confirm"
@@ -2235,10 +2388,11 @@ export function ResearchPage() {
                 >
                   <strong id="identity-writeback-title">Confirm Identity writeback</strong>
                   <p>
-                    This will update your identity model. Your workspace currently has{' '}
-                    {formatThesisWritebackImpact(thesisWritebackImpact)}; review any of
-                    them that reference{' '}
-                    {pendingSkillWriteback.target.skillName}.
+                    This will update your identity model and move it from v
+                    {pendingSkillWriteback.identityRevision} to v
+                    {pendingSkillWriteback.identityRevision + 1}.{' '}
+                    {pendingIdentityImpact?.summary ??
+                      'No downstream artifacts are expected to need review.'}
                   </p>
                   <ul className="research-list">
                     <li>
@@ -2247,6 +2401,21 @@ export function ResearchPage() {
                     </li>
                     <li>Depth: {pendingSkillWritebackEntry?.depth ?? 'Unavailable'}</li>
                     <li>Context and positioning will be copied from this thesis calibration.</li>
+                    {pendingIdentityImpact?.artifactsAffected.slice(0, 4).map((artifact) => (
+                      <li key={artifact.artifactType + '-' + artifact.artifactId}>
+                        {artifact.label}: {artifact.reason}
+                      </li>
+                    ))}
+                    {pendingIdentityImpact && pendingIdentityImpact.artifactsAffected.length > 4 ? (
+                      <li>
+                        +{' '}
+                        {formatCount(
+                          pendingIdentityImpact.artifactsAffected.length - 4,
+                          'more impacted artifact',
+                          'more impacted artifacts',
+                        )}
+                      </li>
+                    ) : null}
                   </ul>
                   <div className="research-thesis-actions">
                     <button

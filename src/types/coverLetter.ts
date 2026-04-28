@@ -16,4 +16,8 @@ export interface CoverLetterTemplate {
   greeting: string
   paragraphs: CoverLetterParagraph[]
   signOff: string
+  generatedAt?: string
+  identityVersion?: number
+  /** Field-level dependencies are preserved when supplied; letter generation can populate this for precision beyond version fallback. */
+  identityFields?: string[]
 }

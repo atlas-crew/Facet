@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { CoverLetterTemplate } from '../types/coverLetter'
+import { sanitizeIdentityFields, sanitizeIdentityVersion } from '../types/artifactMeta'
 import {
   ensureDurableMetadata,
   stripDurableMetadataPatch,
@@ -25,6 +26,8 @@ const normalizeTemplate = (
 
   return {
     ...template,
+    identityVersion: sanitizeIdentityVersion(template.identityVersion),
+    identityFields: sanitizeIdentityFields(template.identityFields),
     durableMeta: options.touch
       ? touchDurableMetadata(template.durableMeta, timestamp)
       : ensureDurableMetadata(template.durableMeta, timestamp),

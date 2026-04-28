@@ -185,6 +185,8 @@ export interface SearchRun {
   thesisSnapshot?: SearchThesis
   /** `identity.model_revision` at generation time (TASK-159) for staleness detection. */
   identityVersion?: number
+  /** Identity fields this run used, when generation can provide field-level dependencies. */
+  identityFields?: string[]
   /**
    * Output-contract violations flagged during normalization. Consumers surface these as
    * quality warnings and offer a "regenerate" affordance. An empty or omitted array means
@@ -402,6 +404,8 @@ export interface SearchThesis {
   source: SearchThesisSource
   /** Which identity model version this was derived from. */
   identityVersion: number
+  /** Identity fields this thesis used, when generation can provide field-level dependencies. */
+  identityFields?: string[]
   /** IDs of feedback events that informed this thesis. */
   feedbackIncorporated: string[]
 }

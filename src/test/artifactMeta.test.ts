@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  describeImpact,
   describeIdentityDiff,
   isArtifactStale,
   recordIdentityMetadata,
+  sanitizeIdentityFields,
+  sanitizeIdentityVersion,
 } from '../types/artifactMeta'
 
 describe('artifactMeta helpers', () => {
@@ -72,6 +75,159 @@ describe('artifactMeta helpers', () => {
       expect(isArtifactStale(metadata, 4)).toBe(false)
       expect(isArtifactStale(metadata, 5)).toBe(true)
       expect(isArtifactStale(metadata, 100)).toBe(true)
+    })
+  })
+
+  describe('sanitizeIdentityVersion', () => {
+    it('normalizes persisted revision values', () => {
+      expect(sanitizeIdentityVersion(undefined)).toBeUndefined()
+      expect(sanitizeIdentityVersion(null)).toBeUndefined()
+      expect(sanitizeIdentityVersion('4')).toBeUndefined()
+      expect(sanitizeIdentityVersion(Number.NaN)).toBeUndefined()
+      expect(sanitizeIdentityVersion(Number.POSITIVE_INFINITY)).toBeUndefined()
+      expect(sanitizeIdentityVersion(4.7)).toBe(4)
+      expect(sanitizeIdentityVersion(-3)).toBe(0)
+      expect(sanitizeIdentityVersion(0)).toBe(0)
+    })
+  })
+
+  describe('sanitizeIdentityFields', () => {
+    it('trims string field paths and drops empty or invalid entries', () => {
+      expect(sanitizeIdentityFields()).toBeUndefined()
+      expect(sanitizeIdentityFields([])).toBeUndefined()
+      expect(sanitizeIdentityFields(['  skills.Kubernetes.depth ', '', 'skills.Rust.depth']))
+        .toEqual(['skills.Kubernetes.depth', 'skills.Rust.depth'])
+      expect(sanitizeIdentityFields(['  ', ''])).toBeUndefined()
+    })
+  })
+
+  describe('describeImpact', () => {
+    it('returns an empty impact summary when no artifacts are affected', () => {
+      const impact = describeImpact(
+        {
+          label: 'Kubernetes depth correction',
+          fields: ['skills.Kubernetes.depth'],
+          fromRevision: 2,
+          toRevision: 3,
+        },
+        [],
+      )
+
+      expect(impact.totalCount).toBe(0)
+      expect(impact.artifactsAffected).toEqual([])
+      expect(impact.counts).toEqual({
+        thesis: 0,
+        run: 0,
+        'prep-deck': 0,
+        'cover-letter': 0,
+      })
+      expect(impact.summary).toBe('No downstream artifacts are expected to need review.')
+    })
+
+    it('returns field-level affected artifacts with per-artifact reasoning', () => {
+      const impact = describeImpact(
+        {
+          label: 'Kubernetes depth correction',
+          fields: ['skills.Kubernetes.depth'],
+          fromRevision: 2,
+          toRevision: 3,
+        },
+        [
+          {
+            artifactType: 'run',
+            artifactId: 'run-1',
+            label: 'Search run',
+            identityVersion: 3,
+            identityFields: ['skills.Kubernetes.depth', 'skills.Rust.depth'],
+            detail: '4 search results',
+          },
+          {
+            artifactType: 'prep-deck',
+            artifactId: 'deck-1',
+            label: 'Acme prep deck',
+            identityVersion: 3,
+            identityFields: ['skills.Rust.depth'],
+          },
+        ],
+      )
+
+      expect(impact.totalCount).toBe(1)
+      expect(impact.counts.run).toBe(1)
+      expect(impact.artifactsAffected[0]).toMatchObject({
+        artifactType: 'run',
+        artifactId: 'run-1',
+        fallback: 'field',
+        matchedFields: ['skills.Kubernetes.depth'],
+      })
+      expect(impact.artifactsAffected[0]?.reason).toContain('References skills.Kubernetes.depth')
+    })
+
+    it('falls back to version-only impact when field dependencies are absent', () => {
+      const impact = describeImpact(
+        {
+          label: 'Kubernetes depth correction',
+          fields: ['skills.Kubernetes.depth'],
+          fromRevision: 2,
+          toRevision: 3,
+        },
+        [
+          {
+            artifactType: 'thesis',
+            artifactId: 'thesis-1',
+            label: 'Search thesis',
+            identityVersion: 2,
+          },
+          {
+            artifactType: 'cover-letter',
+            artifactId: 'letter-1',
+            label: 'Cover letter',
+            identityVersion: 3,
+          },
+          {
+            artifactType: 'prep-deck',
+            artifactId: 'deck-1',
+            label: 'Prep deck',
+          },
+        ],
+      )
+
+      expect(impact.totalCount).toBe(1)
+      expect(impact.counts.thesis).toBe(1)
+      expect(impact.artifactsAffected[0]).toMatchObject({
+        artifactType: 'thesis',
+        fallback: 'version',
+        matchedFields: [],
+      })
+      expect(impact.artifactsAffected[0]?.reason).toContain(
+        'Generated from identity v2 before this correction moves identity to v3',
+      )
+    })
+
+    it('summarizes affected artifact counts across supported domains', () => {
+      const impact = describeImpact(
+        {
+          label: 'Kubernetes depth correction',
+          fields: ['skills.Kubernetes.depth'],
+          fromRevision: 4,
+          toRevision: 5,
+        },
+        [
+          { artifactType: 'thesis', artifactId: 'thesis-1', label: 'Thesis', identityVersion: 4 },
+          { artifactType: 'run', artifactId: 'run-1', label: 'Run', identityVersion: 4 },
+          { artifactType: 'prep-deck', artifactId: 'deck-1', label: 'Deck', identityVersion: 4 },
+          { artifactType: 'cover-letter', artifactId: 'letter-1', label: 'Letter', identityVersion: 4 },
+        ],
+      )
+
+      expect(impact.counts).toEqual({
+        thesis: 1,
+        run: 1,
+        'prep-deck': 1,
+        'cover-letter': 1,
+      })
+      expect(impact.summary).toBe(
+        '4 downstream artifacts may need review: 1 search thesis, 1 search run, 1 prep deck, and 1 cover letter.',
+      )
     })
   })
 })

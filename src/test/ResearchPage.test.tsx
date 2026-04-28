@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import type { DeepResearchStreamHandlers } from '../utils/deepSearchClient'
 import type { ResearchJob, SearchThesis } from '../types/search'
 import { defaultResumeData } from '../store/defaultData'
+import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useIdentityStore } from '../store/identityStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -193,6 +194,10 @@ describe('ResearchPage', () => {
       decks: [],
       activeDeckId: null,
       activeMode: 'edit',
+    })
+
+    useCoverLetterStore.setState({
+      templates: [],
     })
 
     useIdentityStore.setState({
@@ -551,10 +556,20 @@ describe('ResearchPage', () => {
       title: 'Acme prep',
       company: 'Acme',
       role: 'Staff Platform Engineer',
+      identityVersion: 2,
     })
     usePrepStore.getState().addCard(deckId, {
       title: 'Platform story',
       category: 'technical',
+    })
+    useCoverLetterStore.getState().addTemplate({
+      id: 'letter-1',
+      name: 'Acme',
+      header: '',
+      greeting: '',
+      paragraphs: [],
+      signOff: '',
+      identityVersion: 2,
     })
     const thesis = buildTestThesis({
       id: 'thesis-writeback',
@@ -595,11 +610,13 @@ describe('ResearchPage', () => {
     const confirmPanel = screen
       .getByText('Confirm Identity writeback')
       .closest('[role="region"]') as HTMLElement
-    expect(confirmPanel.textContent).toContain('This will update your identity model. Your workspace currently has')
-    expect(confirmPanel.textContent).toContain('1 search result')
-    expect(confirmPanel.textContent).toContain('1 prep card')
-    expect(confirmPanel.textContent).toContain('0 saved theses')
-    expect(confirmPanel.textContent).toContain('1 search run')
+    expect(confirmPanel.textContent).toContain('move it from v2 to v3')
+    expect(confirmPanel.textContent).toContain(
+      '3 downstream artifacts may need review: 1 search run, 1 prep deck, and 1 cover letter.',
+    )
+    expect(confirmPanel.textContent).toContain('Search run')
+    expect(confirmPanel.textContent).toContain('Acme prep deck')
+    expect(confirmPanel.textContent).toContain('Acme cover letter')
     fireEvent.change(screen.getByLabelText('Skill depth 1 depth'), {
       target: { value: 'expert' },
     })
@@ -631,6 +648,57 @@ describe('ResearchPage', () => {
       'unsaved platform signal',
     )
     expect(screen.getByText(/Updated Identity skill "Kubernetes"/)).toBeTruthy()
+    expect(screen.getByText('Downstream impact queued')).toBeTruthy()
+    expect(screen.getAllByText(/3 downstream artifacts may need review/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Review impacted artifacts' }))
+    expect(mockNavigate).toHaveBeenCalledWith({ to: '/identity' })
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss impact notice' }))
+    expect(screen.queryByText('Downstream impact queued')).toBeNull()
+  })
+
+  it('cancels pending identity writeback when Identity is cleared mid-confirmation', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-writeback-cleared',
+      identityVersion: 2,
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'architectural',
+          context: 'Architected Kubernetes delivery paths for customer environments.',
+          searchSignal: 'Prioritize architecture-heavy platform roles.',
+          calibration: 'Avoid cluster-administration-only roles.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }))
+    expect(screen.getByText('Confirm Identity writeback')).toBeTruthy()
+
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: null,
+        draftDocument: '',
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Confirm Identity writeback')).toBeNull()
+    })
+    expect(screen.getByText(/Identity changed after confirmation opened/)).toBeTruthy()
   })
 
   it('cancels identity writeback when the selected skill changes after confirmation opens', async () => {
@@ -911,6 +979,7 @@ describe('ResearchPage', () => {
 
   it('uses the reviewed active thesis when launching deep research', async () => {
     const identity = cloneIdentityFixture()
+    identity.model_revision = 4
     useIdentityStore.setState({
       currentIdentity: identity,
       draftDocument: JSON.stringify(identity, null, 2),
@@ -933,6 +1002,9 @@ describe('ResearchPage', () => {
     })
 
     expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].thesisSnapshot.id).toBe('thesis-generated')
+    const launchedRun = useSearchStore.getState().runs.at(-1)
+    expect(launchedRun?.identityVersion).toBe(4)
+    expect(launchedRun?.identityFields).toContain('skills.Kubernetes.depth')
   })
 
   it('marks incorporated feedback reflected when saving a reviewed thesis', async () => {

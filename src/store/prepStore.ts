@@ -44,6 +44,7 @@ import {
 } from './durableMetadata'
 import { resolveStorage } from './storage'
 import { createId } from '../utils/idUtils'
+import { sanitizeIdentityFields, sanitizeIdentityVersion } from '../types/artifactMeta'
 
 const LEGACY_STORAGE_KEY = 'facet-prep-data'
 
@@ -74,6 +75,8 @@ interface CreateDeckInput {
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
+  identityVersion?: number
+  identityFields?: string[]
   cards?: PrepCard[]
 }
 
@@ -612,6 +615,8 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    identityVersion: sanitizeIdentityVersion(deck.identityVersion),
+    identityFields: sanitizeIdentityFields(deck.identityFields),
     rules: sanitizeStringList(deck.rules, options),
     donts: sanitizeStringList(deck.donts, options),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
@@ -819,6 +824,8 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           roundNumber: input.roundNumber,
           roundDebriefs: input.roundDebriefs,
           generatedAt: input.generatedAt,
+          identityVersion: input.identityVersion,
+          identityFields: input.identityFields,
           updatedAt: now(),
           cards: (input.cards ?? []).map((card) => sanitizeCard(deckId, card)),
         })

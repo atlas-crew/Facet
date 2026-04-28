@@ -371,6 +371,9 @@ export interface PrepDeck {
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
+  identityVersion?: number
+  /** Field-level dependencies are preserved when supplied; prep generators can populate this for precision beyond version fallback. */
+  identityFields?: string[]
   updatedAt: string
   cards: PrepCard[]
   studyProgress?: Record<string, PrepCardStudyState>
