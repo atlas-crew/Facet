@@ -28,9 +28,12 @@ describe('isGenericSkillGroupLabel', () => {
 })
 
 describe('displaySkillGroupLabel', () => {
-  it('rewrites Skills N to a non-colliding placeholder that preserves the index', () => {
-    expect(displaySkillGroupLabel('Skills 5')).toBe('Unnamed group · #5')
-    expect(displaySkillGroupLabel('skill 12')).toBe('Unnamed group · #12')
+  it('rewrites Skills N to a non-colliding placeholder without leaking the index', () => {
+    // The numeric suffix is an internal extractor artifact and reads as
+    // developer-leakage when surfaced. We drop it from the display.
+    expect(displaySkillGroupLabel('Skills 5')).toBe('Unnamed group')
+    expect(displaySkillGroupLabel('skill 12')).toBe('Unnamed group')
+    expect(displaySkillGroupLabel('Skills5')).toBe('Unnamed group')
   })
 
   it('rewrites Also to Uncategorized', () => {

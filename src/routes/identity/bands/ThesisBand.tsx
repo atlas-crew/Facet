@@ -15,6 +15,15 @@ export function ThesisBand() {
   const elaboration = core?.elaboration?.trim() ?? ''
   const title = core?.title?.trim() ?? ''
 
+  // Only show meta rows for fields that have values. Empty optionals don't
+  // render "— not set" — the strength meter already carries that signal at
+  // band level, and the inspector slot's prompt carries it at action level.
+  // Surfacing it a third time on the card itself is the guilt-meter anti-pattern.
+  const filledMeta: Array<{ label: string; value: string }> = []
+  if (origin) filledMeta.push({ label: 'Origin', value: origin })
+  if (elaboration) filledMeta.push({ label: 'Elaboration', value: elaboration })
+  if (title) filledMeta.push({ label: 'Title', value: title })
+
   return (
     <IdentityBand layer="thesis" name="Thesis" subtitle="what you claim about yourself" fill={fill}>
       <button
@@ -28,20 +37,16 @@ export function ThesisBand() {
         ) : (
           <p className="thesis-text chapter-copy thesis-empty">No thesis yet — open the import flow to draft one.</p>
         )}
-        <div className="thesis-meta">
-          <ThesisMetaItem label="Origin" value={origin} />
-          <ThesisMetaItem label="Elaboration" value={elaboration} />
-          <ThesisMetaItem label="Title" value={title} />
-        </div>
+        {filledMeta.length > 0 ? (
+          <div className="thesis-meta">
+            {filledMeta.map((item) => (
+              <span key={item.label} className="thesis-meta-item label-tracked">
+                {item.label} <span className="thesis-meta-set">— {item.value}</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
       </button>
     </IdentityBand>
-  )
-}
-
-function ThesisMetaItem({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="thesis-meta-item label-tracked">
-      {label} {value ? <span className="thesis-meta-set">— {value}</span> : <span className="thesis-meta-empty">— not set</span>}
-    </span>
   )
 }

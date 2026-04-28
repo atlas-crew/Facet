@@ -31,11 +31,14 @@ export const isGenericSkillGroupLabel = (label: string): boolean => {
  * with the band-level "Skills" eyebrow. Returns the original label unchanged
  * for user-authored names. The source data is never mutated — re-extraction
  * still finds the original label.
+ *
+ * The numeric suffix is intentionally dropped from the display ("Skills 5" →
+ * "Unnamed group", not "Unnamed group · #5") because the index is an internal
+ * extractor artifact that reads as developer-leakage when surfaced.
  */
 export const displaySkillGroupLabel = (label: string): string => {
   const trimmed = label.trim()
-  const match = /^skills?\s*(\d+)$/i.exec(trimmed)
-  if (match) return `Unnamed group · #${match[1]}`
+  if (/^skills?\s*\d+$/i.test(trimmed)) return 'Unnamed group'
   if (trimmed.toLowerCase() === 'also') return 'Uncategorized'
   return trimmed || '(no label)'
 }
