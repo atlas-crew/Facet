@@ -44,7 +44,11 @@ import {
 } from './durableMetadata'
 import { resolveStorage } from './storage'
 import { createId } from '../utils/idUtils'
-import { sanitizeIdentityFields, sanitizeIdentityVersion } from '../types/artifactMeta'
+import {
+  sanitizeArtifactStalenessReview,
+  sanitizeIdentityFields,
+  sanitizeIdentityVersion,
+} from '../types/artifactMeta'
 
 const LEGACY_STORAGE_KEY = 'facet-prep-data'
 
@@ -617,6 +621,7 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     jobDescription: deck.jobDescription?.trim() || undefined,
     identityVersion: sanitizeIdentityVersion(deck.identityVersion),
     identityFields: sanitizeIdentityFields(deck.identityFields),
+    stalenessReview: sanitizeArtifactStalenessReview(deck.stalenessReview),
     rules: sanitizeStringList(deck.rules, options),
     donts: sanitizeStringList(deck.donts, options),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk, options),
@@ -838,8 +843,26 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
 
       updateDeck: (deckId, patch) => {
         const restPatch = stripDurableMetadataPatch(patch)
+        const hasStalenessReviewPatch = 'stalenessReview' in restPatch
+        const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
         set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({ ...deck, ...restPatch }), { preserveDrafts: true }),
+          decks: updateDeckCollection(
+            state.decks,
+            deckId,
+            (deck) => {
+              const clearsReviewForNewIdentity =
+                !hasStalenessReviewPatch &&
+                nextIdentityVersion !== undefined &&
+                deck.identityVersion !== nextIdentityVersion &&
+                deck.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
+              return {
+                ...deck,
+                ...restPatch,
+                ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
+              }
+            },
+            { preserveDrafts: true },
+          ),
         }))
       },
 

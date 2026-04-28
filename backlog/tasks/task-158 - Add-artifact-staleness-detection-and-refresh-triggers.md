@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:04'
-updated_date: '2026-04-28 09:45'
+updated_date: '2026-04-28 15:49'
 labels:
   - shepherding
   - staleness
@@ -76,6 +76,8 @@ This is the mechanism that makes corrections feel like progress — the user see
 2026-04-28: Added Research batch staleness review opened from the downstream impact notice for skill-depth writeback. The panel snapshots affected search/prep/cover-letter artifacts, shows reasons, supports local accept/not-stale decisions, clears consumed impact notices, and invalidates local decisions with explicit discard counts when Identity is cleared or its revision changes. Refresh regeneration/status persistence remain intentionally disabled and called out in UI/TODO.
 
 Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMeta.test.ts (78 passed); npm run typecheck (passed); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx src/types/artifactMeta.ts src/test/artifactMeta.test.ts (passed). npm run build is currently blocked by unrelated dirty src/routes/identity/IdentityInspector.tsx errors: unused ProfessionalSkillItem, unused skillNamesMatch, missing SkillGroupInspector, missing SkillItemInspector.
+
+2026-04-28: Added persisted artifact staleness review decisions for TASK-158 batch review. Run, search thesis, prep deck, and cover-letter artifacts now preserve sanitized stalenessReview metadata with decision, reviewed identity revision, artifact identity revision at review, mutation label/fields/revisions, and reason. Batch review decisions save to the owning artifact stores; row status is derived from persisted artifact metadata, guarded by matching mutation fingerprint, and stale/missing artifacts show failure notices instead of optimistic local-only success. Identity-version updates clear stale review metadata only when the artifact advances past the saved review, while explicit fresh review patches are preserved. Refresh generators remain disabled/pending for AC #6. Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMeta.test.ts src/test/searchStore.test.ts (105 passed); npm run typecheck (passed); touched-file npx eslint for staleness files/tests (passed); npm run build (passed). Independent review: .agents/reviews/review-20260428-113339.md PASS WITH ISSUES, P0/P1=0 with remaining P2/P3 refactor/perf notes. Test audit: .agents/reviews/test-audit-20260428-114245.md identified one ArtifactMeta P1 branch, fixed by not-stale coverage; .agents/reviews/test-audit-20260428-114636.md identified one SearchStore P1 unknown-id branch, fixed by explicit false/no-mutation test. Broad src/test audit was intentionally size-guarded at 2238 KB > 488 KB; stderr /tmp/task158-audit2-err.HnqEKW.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
@@ -85,5 +87,5 @@ Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMet
 - [ ] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
 - [x] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

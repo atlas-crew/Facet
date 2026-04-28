@@ -20,6 +20,20 @@ export interface ArtifactMetadata {
 
 export type ArtifactImpactType = 'thesis' | 'run' | 'prep-deck' | 'cover-letter'
 
+export type ArtifactStalenessReviewDecision = 'accepted-current' | 'not-stale'
+
+export interface ArtifactStalenessReview {
+  decision: ArtifactStalenessReviewDecision
+  reviewedAt: string
+  reviewedIdentityVersion: number
+  artifactIdentityVersionAtReview: number
+  mutationLabel: string
+  mutationFields: string[]
+  mutationFromRevision: number
+  mutationToRevision: number
+  reason: string
+}
+
 export interface ArtifactFieldDependency {
   artifactType: ArtifactImpactType
   artifactId: string
@@ -117,6 +131,86 @@ export const sanitizeIdentityFields = (values?: string[]): string[] | undefined 
     return trimmed ? [trimmed] : []
   })
   return filtered.length > 0 ? filtered : undefined
+}
+
+export const sanitizeArtifactStalenessReview = (
+  value: unknown,
+): ArtifactStalenessReview | undefined => {
+  const reject = (reason: string): undefined => {
+    if (typeof console !== 'undefined') {
+      console.warn('Dropping invalid artifact staleness review:', reason)
+    }
+    return undefined
+  }
+
+  if (value == null) return undefined
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return reject('record must be an object')
+  }
+  const record = value as Partial<ArtifactStalenessReview>
+  if (record.decision !== 'accepted-current' && record.decision !== 'not-stale') {
+    return reject('decision must be accepted-current or not-stale')
+  }
+  if (typeof record.reviewedAt !== 'string' || !record.reviewedAt.trim()) {
+    return reject('reviewedAt must be a non-empty string')
+  }
+  if (
+    typeof record.reviewedIdentityVersion !== 'number' ||
+    !Number.isFinite(record.reviewedIdentityVersion)
+  ) {
+    return reject('reviewedIdentityVersion must be a finite number')
+  }
+  if (
+    typeof record.artifactIdentityVersionAtReview !== 'number' ||
+    !Number.isFinite(record.artifactIdentityVersionAtReview)
+  ) {
+    return reject('artifactIdentityVersionAtReview must be a finite number')
+  }
+  if (typeof record.mutationLabel !== 'string' || !record.mutationLabel.trim()) {
+    return reject('mutationLabel must be a non-empty string')
+  }
+  if (
+    typeof record.mutationFromRevision !== 'number' ||
+    !Number.isFinite(record.mutationFromRevision) ||
+    typeof record.mutationToRevision !== 'number' ||
+    !Number.isFinite(record.mutationToRevision)
+  ) {
+    return reject('mutation revision bounds must be finite numbers')
+  }
+  if (!Array.isArray(record.mutationFields)) return reject('mutationFields must be an array')
+  if (typeof record.reason !== 'string' || !record.reason.trim()) {
+    return reject('reason must be a non-empty string')
+  }
+  const mutationFields = sanitizeIdentityFields(record.mutationFields)
+  if (!mutationFields) return reject('mutationFields must include at least one field')
+  const reviewedIdentityVersion = Math.max(0, Math.trunc(record.reviewedIdentityVersion))
+  const artifactIdentityVersionAtReview = Math.max(
+    0,
+    Math.trunc(record.artifactIdentityVersionAtReview),
+  )
+  const mutationFromRevision = Math.max(0, Math.trunc(record.mutationFromRevision))
+  const mutationToRevision = Math.max(0, Math.trunc(record.mutationToRevision))
+  if (mutationFromRevision > mutationToRevision) {
+    return reject('mutationFromRevision cannot exceed mutationToRevision')
+  }
+  if (reviewedIdentityVersion < mutationToRevision) {
+    return reject('reviewedIdentityVersion cannot be earlier than mutationToRevision')
+  }
+  if (artifactIdentityVersionAtReview > reviewedIdentityVersion) {
+    return reject('artifactIdentityVersionAtReview cannot exceed reviewedIdentityVersion')
+  }
+
+  return {
+    decision: record.decision,
+    reviewedAt: record.reviewedAt,
+    reviewedIdentityVersion,
+    artifactIdentityVersionAtReview,
+    mutationLabel: record.mutationLabel.trim(),
+    mutationFields,
+    mutationFromRevision,
+    mutationToRevision,
+    reason: record.reason.trim(),
+  }
 }
 
 const ARTIFACT_LABELS: Record<ArtifactImpactType, { singular: string; plural: string }> = {

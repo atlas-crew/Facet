@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import type { CoverLetterTemplate } from '../types/coverLetter'
-import { sanitizeIdentityFields, sanitizeIdentityVersion } from '../types/artifactMeta'
+import {
+  sanitizeArtifactStalenessReview,
+  sanitizeIdentityFields,
+  sanitizeIdentityVersion,
+} from '../types/artifactMeta'
 import {
   ensureDurableMetadata,
   stripDurableMetadataPatch,
@@ -28,6 +32,7 @@ const normalizeTemplate = (
     ...template,
     identityVersion: sanitizeIdentityVersion(template.identityVersion),
     identityFields: sanitizeIdentityFields(template.identityFields),
+    stalenessReview: sanitizeArtifactStalenessReview(template.stalenessReview),
     durableMeta: options.touch
       ? touchDurableMetadata(template.durableMeta, timestamp)
       : ensureDurableMetadata(template.durableMeta, timestamp),
@@ -59,18 +64,25 @@ export const useCoverLetterStore = create<CoverLetterState>()((set) => ({
 
       updateTemplate: (id, patch) => {
         const restPatch = stripDurableMetadataPatch(patch)
+        const hasStalenessReviewPatch = 'stalenessReview' in restPatch
+        const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
         set((s) => ({
-          templates: s.templates.map((t) =>
-            t.id === id
-              ? normalizeTemplate(
-                  {
-                    ...t,
-                    ...restPatch,
-                  },
-                  { touch: true },
-                )
-              : t
-          ),
+          templates: s.templates.map((t) => {
+            if (t.id !== id) return t
+            const clearsReviewForNewIdentity =
+              !hasStalenessReviewPatch &&
+              nextIdentityVersion !== undefined &&
+              t.identityVersion !== nextIdentityVersion &&
+              t.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
+            return normalizeTemplate(
+              {
+                ...t,
+                ...restPatch,
+                ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
+              },
+              { touch: true },
+            )
+          }),
         }))
       },
 

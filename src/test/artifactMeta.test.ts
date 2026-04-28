@@ -4,6 +4,7 @@ import {
   describeIdentityDiff,
   isArtifactStale,
   recordIdentityMetadata,
+  sanitizeArtifactStalenessReview,
   sanitizeIdentityFields,
   sanitizeIdentityVersion,
 } from '../types/artifactMeta'
@@ -98,6 +99,69 @@ describe('artifactMeta helpers', () => {
       expect(sanitizeIdentityFields(['  skills.Kubernetes.depth ', '', 'skills.Rust.depth']))
         .toEqual(['skills.Kubernetes.depth', 'skills.Rust.depth'])
       expect(sanitizeIdentityFields(['  ', ''])).toBeUndefined()
+    })
+  })
+
+  describe('sanitizeArtifactStalenessReview', () => {
+    it('requires at least one concrete mutation field for persisted review records', () => {
+      const review = {
+        decision: 'accepted-current',
+        reviewedAt: '2026-04-28T00:00:00.000Z',
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 2,
+        mutationLabel: 'Kubernetes depth correction',
+        mutationFields: ['  skills.Kubernetes.depth  '],
+        mutationFromRevision: 2,
+        mutationToRevision: 3,
+        reason: 'Generated from an older identity revision.',
+      }
+
+      expect(sanitizeArtifactStalenessReview(review)).toMatchObject({
+        mutationLabel: 'Kubernetes depth correction',
+        mutationFields: ['skills.Kubernetes.depth'],
+        reason: 'Generated from an older identity revision.',
+      })
+      expect(sanitizeArtifactStalenessReview({ ...review, decision: 'not-stale' }))
+        .toMatchObject({ decision: 'not-stale' })
+      expect(sanitizeArtifactStalenessReview(null)).toBeUndefined()
+      expect(sanitizeArtifactStalenessReview('not a review')).toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, decision: 'deferred' }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, reviewedAt: '' })).toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, mutationLabel: '  ' }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, reason: '' })).toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, reviewedIdentityVersion: Number.NaN }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, mutationFields: [] })).toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, mutationFields: ['  '] }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, mutationFields: 'skills.Kubernetes.depth' }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, mutationFromRevision: 4 }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, reviewedIdentityVersion: 1 }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({ ...review, artifactIdentityVersionAtReview: 4 }))
+        .toBeUndefined()
+      expect(sanitizeArtifactStalenessReview({
+        ...review,
+        reviewedIdentityVersion: 3.9,
+        artifactIdentityVersionAtReview: -1,
+        mutationFromRevision: -2,
+        mutationToRevision: 3.2,
+        mutationLabel: '  Kubernetes depth correction  ',
+        mutationFields: ['  skills.Kubernetes.depth  ', ''],
+        reason: '  Reviewed from batch staleness panel.  ',
+      })).toMatchObject({
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 0,
+        mutationFromRevision: 0,
+        mutationToRevision: 3,
+        mutationLabel: 'Kubernetes depth correction',
+        mutationFields: ['skills.Kubernetes.depth'],
+        reason: 'Reviewed from batch staleness panel.',
+      })
     })
   })
 

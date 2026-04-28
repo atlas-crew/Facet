@@ -1,4 +1,5 @@
 import type { PriorityByVector } from '../types'
+import type { ArtifactStalenessReview } from './artifactMeta'
 import type { DurableMetadata } from './durable'
 
 export interface CoverLetterParagraph {
@@ -20,4 +21,6 @@ export interface CoverLetterTemplate {
   identityVersion?: number
   /** Field-level dependencies are preserved when supplied; letter generation can populate this for precision beyond version fallback. */
   identityFields?: string[]
+  /** Last batch staleness review decision recorded for this artifact. */
+  stalenessReview?: ArtifactStalenessReview
 }

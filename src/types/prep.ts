@@ -1,4 +1,5 @@
 import type { DurableMetadata } from './durable'
+import type { ArtifactStalenessReview } from './artifactMeta'
 import type { InterviewFormat } from './pipeline'
 
 export type PrepCategory =
@@ -374,6 +375,8 @@ export interface PrepDeck {
   identityVersion?: number
   /** Field-level dependencies are preserved when supplied; prep generators can populate this for precision beyond version fallback. */
   identityFields?: string[]
+  /** Last batch staleness review decision recorded for this artifact. */
+  stalenessReview?: ArtifactStalenessReview
   updatedAt: string
   cards: PrepCard[]
   studyProgress?: Record<string, PrepCardStudyState>

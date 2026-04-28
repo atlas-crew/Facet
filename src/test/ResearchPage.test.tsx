@@ -664,17 +664,42 @@ describe('ResearchPage', () => {
     expect(stalenessReview.textContent).toContain('Acme cover letter')
     fireEvent.click(
       within(stalenessReview).getByRole('button', {
-        name: 'Accept current artifact for Search run',
+        name: 'Save accept current artifact for Search run',
       }),
     )
     expect(stalenessReview.textContent).toContain('Status: Accepted current artifact.')
     fireEvent.click(
       within(stalenessReview).getByRole('button', {
-        name: 'Mark artifact not stale for Acme prep deck',
+        name: 'Save not stale decision for Acme prep deck',
       }),
     )
     expect(stalenessReview.textContent).toContain('Status: Marked not stale.')
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Save not stale decision for Acme cover letter',
+      }),
+    )
     expect(stalenessReview.textContent).toContain('refresh requests stay disabled')
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 3,
+      mutationLabel: 'Kubernetes depth correction',
+      artifactIdentityVersionAtReview: 2,
+      mutationFromRevision: 2,
+      mutationToRevision: 3,
+    })
+    expect(usePrepStore.getState().decks[0]?.stalenessReview).toMatchObject({
+      decision: 'not-stale',
+      reviewedIdentityVersion: 3,
+      mutationLabel: 'Kubernetes depth correction',
+      artifactIdentityVersionAtReview: 2,
+    })
+    expect(useCoverLetterStore.getState().templates[0]?.stalenessReview).toMatchObject({
+      decision: 'not-stale',
+      reviewedIdentityVersion: 3,
+      mutationLabel: 'Kubernetes depth correction',
+      artifactIdentityVersionAtReview: 2,
+    })
     expect(mockNavigate).not.toHaveBeenCalledWith({ to: '/identity' })
     expect(screen.queryByText('Downstream impact queued')).toBeNull()
     fireEvent.click(
@@ -683,14 +708,14 @@ describe('ResearchPage', () => {
       }),
     )
     expect(screen.queryByText('Batch staleness review')).toBeNull()
-    expect(screen.getByText(/Local decisions were discarded/)).toBeTruthy()
+    expect(screen.getByText(/Decisions were saved on reviewed artifacts/)).toBeTruthy()
   })
 
-  it('discards local batch review decisions when Identity is cleared', async () => {
+  it('closes batch review while preserving saved decisions when Identity is cleared', async () => {
     const { stalenessReview } = await openBatchReviewFromSkillWriteback()
     fireEvent.click(
       within(stalenessReview).getByRole('button', {
-        name: 'Accept current artifact for Search run',
+        name: 'Save accept current artifact for Search run',
       }),
     )
 
@@ -700,15 +725,15 @@ describe('ResearchPage', () => {
 
     expect(screen.queryByText('Batch staleness review')).toBeNull()
     expect(screen.getByText(/Identity cleared after batch review opened/)).toBeTruthy()
-    expect(screen.getByText(/1 local decisions were discarded/)).toBeTruthy()
-    expect(screen.getByText(/Reopen the review after loading Identity/)).toBeTruthy()
+    expect(screen.getByText(/Saved artifact decisions remain recorded/)).toBeTruthy()
+    expect(screen.getByText(/reopen the review after loading Identity/)).toBeTruthy()
   })
 
-  it('discards local batch review decisions when Identity revision changes', async () => {
+  it('closes batch review while preserving saved decisions when Identity revision changes', async () => {
     const { identity, stalenessReview } = await openBatchReviewFromSkillWriteback()
     fireEvent.click(
       within(stalenessReview).getByRole('button', {
-        name: 'Accept current artifact for Search run',
+        name: 'Save accept current artifact for Search run',
       }),
     )
 
@@ -723,8 +748,8 @@ describe('ResearchPage', () => {
 
     expect(screen.queryByText('Batch staleness review')).toBeNull()
     expect(screen.getByText(/Identity changed after batch review opened/)).toBeTruthy()
-    expect(screen.getByText(/1 local decisions were discarded/)).toBeTruthy()
-    expect(screen.getByText(/Generate a new impact notice/)).toBeTruthy()
+    expect(screen.getByText(/Saved artifact decisions remain recorded/)).toBeTruthy()
+    expect(screen.getByText(/generate a new impact notice/)).toBeTruthy()
   })
 
   it('cancels pending identity writeback when Identity is cleared mid-confirmation', async () => {

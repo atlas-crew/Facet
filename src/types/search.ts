@@ -1,4 +1,5 @@
 import type { DurableMetadata } from './durable'
+import type { ArtifactStalenessReview } from './artifactMeta'
 
 export type SearchSkillCategory =
   | 'backend'
@@ -187,6 +188,8 @@ export interface SearchRun {
   identityVersion?: number
   /** Identity fields this run used, when generation can provide field-level dependencies. */
   identityFields?: string[]
+  /** Last batch staleness review decision recorded for this artifact. */
+  stalenessReview?: ArtifactStalenessReview
   /**
    * Output-contract violations flagged during normalization. Consumers surface these as
    * quality warnings and offer a "regenerate" affordance. An empty or omitted array means
@@ -369,6 +372,7 @@ export interface SearchSkillDepthEntry {
  */
 export interface SearchThesis {
   id: string
+  durableMeta?: DurableMetadata
   createdAt: string
   updatedAt: string
 
@@ -406,6 +410,8 @@ export interface SearchThesis {
   identityVersion: number
   /** Identity fields this thesis used, when generation can provide field-level dependencies. */
   identityFields?: string[]
+  /** Last batch staleness review decision recorded for this artifact. */
+  stalenessReview?: ArtifactStalenessReview
   /** IDs of feedback events that informed this thesis. */
   feedbackIncorporated: string[]
 }

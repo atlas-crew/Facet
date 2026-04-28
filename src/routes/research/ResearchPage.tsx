@@ -11,7 +11,10 @@ import { usePrepStore } from '../../store/prepStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useSearchStore } from '../../store/searchStore'
 import {
+  type ArtifactStalenessReviewDecision,
+  type ArtifactStalenessReview,
   describeImpact,
+  sanitizeArtifactStalenessReview,
   type DownstreamImpact,
   type IdentityMutation,
   type ImpactArtifactInput,
@@ -233,6 +236,46 @@ const getStalenessReviewKey = (
 const cloneDownstreamImpact = (impact: DownstreamImpact): DownstreamImpact =>
   structuredClone(impact)
 
+const toPersistedStalenessDecision = (
+  decision: StalenessReviewDecision,
+): ArtifactStalenessReviewDecision => {
+  switch (decision) {
+    case 'accepted':
+      return 'accepted-current'
+    case 'rejected':
+      return 'not-stale'
+    default: {
+      const exhaustive: never = decision
+      throw new Error(`Unsupported staleness review decision: ${String(exhaustive)}`)
+    }
+  }
+}
+
+const fromPersistedStalenessDecision = (
+  decision: ArtifactStalenessReviewDecision,
+): StalenessReviewDecision => {
+  switch (decision) {
+    case 'accepted-current':
+      return 'accepted'
+    case 'not-stale':
+      return 'rejected'
+    default: {
+      const exhaustive: never = decision
+      throw new Error(`Unsupported persisted staleness review decision: ${String(exhaustive)}`)
+    }
+  }
+}
+
+const haveSameIdentityMutationFields = (
+  left: readonly string[],
+  right: readonly string[],
+): boolean => {
+  if (left.length !== right.length) return false
+  const sortedLeft = [...left].sort()
+  const sortedRight = [...right].sort()
+  return sortedLeft.every((field, index) => field === sortedRight[index])
+}
+
 const resolveThesisSkillCorrectionTarget = (
   identity: ProfessionalIdentityV3,
   skillName: string,
@@ -374,7 +417,9 @@ export function ResearchPage() {
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const saveSkillEnrichment = useIdentityStore((state) => state.saveSkillEnrichment)
   const coverLetterTemplates = useCoverLetterStore((state) => state.templates)
+  const updateCoverLetterTemplate = useCoverLetterStore((state) => state.updateTemplate)
   const prepDecks = usePrepStore((state) => state.decks)
+  const updatePrepDeck = usePrepStore((state) => state.updateDeck)
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const addPipelineEntry = usePipelineStore((state) => state.addEntry)
   const {
@@ -394,6 +439,7 @@ export function ResearchPage() {
     theses,
     activeThesisId,
     addThesis,
+    markThesisStalenessReview,
     saveThesisRevision,
     setActiveThesis,
     activeResearchJob,
@@ -425,8 +471,6 @@ export function ResearchPage() {
     useState<DownstreamImpact | null>(null)
   const [stalenessReviewIdentityRevision, setStalenessReviewIdentityRevision] =
     useState<number | null>(null)
-  const [stalenessReviewDecisions, setStalenessReviewDecisions] =
-    useState<Record<string, StalenessReviewDecision>>({})
   const [thesisContractViolations, setThesisContractViolations] = useState<string[]>([])
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
@@ -444,7 +488,6 @@ export function ResearchPage() {
   const hiddenDuringJobRef = useRef(false)
   const notifiedJobsRef = useRef(new Set<string>())
   const researchJobEventIdRef = useRef(0)
-  const stalenessReviewDecisionCountRef = useRef(0)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
   const currentIdentityRevision = currentIdentity
@@ -453,7 +496,6 @@ export function ResearchPage() {
   const resetStalenessReview = useCallback(() => {
     setStalenessReviewImpact(null)
     setStalenessReviewIdentityRevision(null)
-    setStalenessReviewDecisions({})
   }, [])
   const activeThesis = useMemo(
     () => theses.find((thesis) => thesis.id === activeThesisId) ?? null,
@@ -527,26 +569,18 @@ export function ResearchPage() {
     )
   }, [currentIdentityRevision, pendingSkillWriteback, resetStalenessReview])
   useEffect(() => {
-    stalenessReviewDecisionCountRef.current = Object.keys(stalenessReviewDecisions).length
-  }, [stalenessReviewDecisions])
-  useEffect(() => {
     if (stalenessReviewIdentityRevision === null) return
-    const decisionCount = stalenessReviewDecisionCountRef.current
     if (currentIdentityRevision === null) {
       resetStalenessReview()
       setThesisNotice(
-        'Identity cleared after batch review opened. ' +
-          (decisionCount > 0 ? decisionCount + ' local decisions were discarded. ' : '') +
-          'Reopen the review after loading Identity.',
+        'Identity cleared after batch review opened. Saved artifact decisions remain recorded; reopen the review after loading Identity.',
       )
       return
     }
     if (currentIdentityRevision === stalenessReviewIdentityRevision) return
     resetStalenessReview()
     setThesisNotice(
-      'Identity changed after batch review opened. ' +
-        (decisionCount > 0 ? decisionCount + ' local decisions were discarded. ' : '') +
-        'Generate a new impact notice to review the latest artifact state.',
+      'Identity changed after batch review opened. Saved artifact decisions remain recorded; generate a new impact notice to review the latest artifact state.',
     )
   }, [
     currentIdentityRevision,
@@ -1374,18 +1408,129 @@ export function ResearchPage() {
     // Snapshot the impact that triggered review so row decisions stay stable while stores mutate.
     setStalenessReviewImpact(cloneDownstreamImpact(impact))
     setStalenessReviewIdentityRevision(currentIdentityRevision)
-    setStalenessReviewDecisions({})
     setLatestIdentityImpact(null)
   }
 
+  const isStalenessArtifactPresent = (
+    artifact: DownstreamImpact['artifactsAffected'][number],
+  ): boolean => {
+    switch (artifact.artifactType) {
+      case 'run':
+        return runs.some((run) => run.id === artifact.artifactId)
+      case 'thesis':
+        return theses.some((thesis) => thesis.id === artifact.artifactId)
+      case 'prep-deck':
+        return prepDecks.some((deck) => deck.id === artifact.artifactId)
+      case 'cover-letter':
+        return coverLetterTemplates.some((template) => template.id === artifact.artifactId)
+      default: {
+        const exhaustive: never = artifact.artifactType
+        throw new Error(`Unsupported staleness review artifact type: ${String(exhaustive)}`)
+      }
+    }
+  }
+
+  const getPersistedStalenessReview = (
+    artifact: DownstreamImpact['artifactsAffected'][number],
+  ): ArtifactStalenessReview | undefined => {
+    switch (artifact.artifactType) {
+      case 'run':
+        return runs.find((run) => run.id === artifact.artifactId)?.stalenessReview
+      case 'thesis':
+        return theses.find((thesis) => thesis.id === artifact.artifactId)?.stalenessReview
+      case 'prep-deck':
+        return prepDecks.find((deck) => deck.id === artifact.artifactId)?.stalenessReview
+      case 'cover-letter':
+        return coverLetterTemplates.find((template) => template.id === artifact.artifactId)
+          ?.stalenessReview
+      default: {
+        const exhaustive: never = artifact.artifactType
+        throw new Error(`Unsupported staleness review artifact type: ${String(exhaustive)}`)
+      }
+    }
+  }
+
+  const getPersistedStalenessDecision = (
+    artifact: DownstreamImpact['artifactsAffected'][number],
+  ): StalenessReviewDecision | undefined => {
+    const review = getPersistedStalenessReview(artifact)
+    if (
+      !review ||
+      !stalenessReviewImpact ||
+      review.reviewedIdentityVersion !== stalenessReviewIdentityRevision ||
+      review.mutationFromRevision !== stalenessReviewImpact.mutation.fromRevision ||
+      review.mutationToRevision !== stalenessReviewImpact.mutation.toRevision ||
+      review.mutationLabel !== stalenessReviewImpact.mutation.label ||
+      !haveSameIdentityMutationFields(review.mutationFields, stalenessReviewImpact.mutation.fields)
+    ) {
+      return undefined
+    }
+    return fromPersistedStalenessDecision(review.decision)
+  }
+
   const handleStalenessReviewDecision = (
-    artifactKey: string,
+    artifact: DownstreamImpact['artifactsAffected'][number],
     decision: StalenessReviewDecision,
   ) => {
-    setStalenessReviewDecisions((current) => ({
-      ...current,
-      [artifactKey]: decision,
-    }))
+    if (
+      !stalenessReviewImpact ||
+      currentIdentityRevision === null ||
+      stalenessReviewIdentityRevision !== currentIdentityRevision
+    ) {
+      setThesisNotice(
+        'Identity changed before the decision could be saved. Generate a new impact notice to review the latest artifact state.',
+      )
+      return
+    }
+
+    if (!isStalenessArtifactPresent(artifact)) {
+      setThesisNotice(
+        `${artifact.label} is no longer available, so the staleness review decision was not saved.`,
+      )
+      return
+    }
+
+    const review = sanitizeArtifactStalenessReview({
+      decision: toPersistedStalenessDecision(decision),
+      reviewedAt: new Date().toISOString(),
+      reviewedIdentityVersion: currentIdentityRevision,
+      artifactIdentityVersionAtReview: artifact.identityVersion ?? currentIdentityRevision,
+      mutationLabel: stalenessReviewImpact.mutation.label,
+      mutationFields: [...stalenessReviewImpact.mutation.fields],
+      mutationFromRevision: stalenessReviewImpact.mutation.fromRevision,
+      mutationToRevision: stalenessReviewImpact.mutation.toRevision,
+      reason: artifact.reason || 'Reviewed from batch staleness panel.',
+    } satisfies ArtifactStalenessReview)
+    if (!review) {
+      setThesisNotice('Could not save the staleness review decision. Try reopening the batch review.')
+      return
+    }
+
+    let saved = true
+    switch (artifact.artifactType) {
+      case 'run':
+        updateRun(artifact.artifactId, { stalenessReview: review })
+        break
+      case 'thesis':
+        saved = markThesisStalenessReview(artifact.artifactId, review)
+        break
+      case 'prep-deck':
+        updatePrepDeck(artifact.artifactId, { stalenessReview: review })
+        break
+      case 'cover-letter':
+        updateCoverLetterTemplate(artifact.artifactId, { stalenessReview: review })
+        break
+      default: {
+        const exhaustive: never = artifact.artifactType
+        throw new Error(`Unsupported staleness review artifact type: ${String(exhaustive)}`)
+      }
+    }
+
+    if (!saved) {
+      setThesisNotice(
+        `${artifact.label} could not be updated, so the staleness review decision was not saved.`,
+      )
+    }
   }
 
   const handleRequestSkillDepthWriteback = (index: number) => {
@@ -2474,18 +2619,18 @@ export function ResearchPage() {
                 >
                   <strong id="staleness-review-title">Batch staleness review</strong>
                   <p>
-                    {/* TODO(task-158): replace this once artifact refresh and status persistence are wired. */}
+                    {/* TODO(task-158): replace this once artifact-specific refresh generators are wired. */}
                     {stalenessReviewImpact.summary} Review each artifact now. Artifact-specific
                     refresh generators are not wired yet, so refresh requests stay disabled.
                   </p>
                   <p>
-                    <strong>Decisions are not saved yet.</strong> Choices are local to this review
-                    panel until artifact status persistence is wired.
+                    Choices are saved on each reviewed artifact. Refresh requests stay disabled
+                    until artifact-specific refresh generators are wired.
                   </p>
                   <ul className="research-list">
                     {stalenessReviewImpact.artifactsAffected.map((artifact, index) => {
                       const key = getStalenessReviewKey(artifact, index)
-                      const decision = stalenessReviewDecisions[key]
+                      const decision = getPersistedStalenessDecision(artifact)
                       return (
                         <li key={key}>
                           <strong>{artifact.label}</strong>: {artifact.reason}{' '}
@@ -2500,18 +2645,22 @@ export function ResearchPage() {
                             <button
                               type="button"
                               className="research-btn"
-                              aria-label={'Accept current artifact for ' + artifact.label}
-                              onClick={() => handleStalenessReviewDecision(key, 'accepted')}
+                              aria-label={'Save accept current artifact for ' + artifact.label}
+                              onClick={() =>
+                                handleStalenessReviewDecision(artifact, 'accepted')
+                              }
                             >
-                              Accept current
+                              Save accept current
                             </button>
                             <button
                               type="button"
                               className="research-btn"
-                              aria-label={'Mark artifact not stale for ' + artifact.label}
-                              onClick={() => handleStalenessReviewDecision(key, 'rejected')}
+                              aria-label={'Save not stale decision for ' + artifact.label}
+                              onClick={() =>
+                                handleStalenessReviewDecision(artifact, 'rejected')
+                              }
                             >
-                              Not stale
+                              Save not stale
                             </button>
                           </div>
                         </li>
@@ -2523,11 +2672,13 @@ export function ResearchPage() {
                       type="button"
                       className="research-btn"
                       onClick={() => {
-                        const decisionCount = Object.keys(stalenessReviewDecisions).length
+                        const decisionCount = stalenessReviewImpact.artifactsAffected.filter(
+                          (artifact) => getPersistedStalenessDecision(artifact),
+                        ).length
                         resetStalenessReview()
                         if (decisionCount > 0) {
                           setThesisNotice(
-                            'Closed batch review. Local decisions were discarded because artifact status persistence is not wired yet.',
+                            'Closed batch review. Decisions were saved on reviewed artifacts.',
                           )
                         }
                       }}

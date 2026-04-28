@@ -221,6 +221,235 @@ describe('searchStore', () => {
     expect(useSearchStore.getState().runs[0]?.requestId).toBe(requestTwo.id)
   })
 
+  it('clears run staleness review metadata when identity version changes without a new review', () => {
+    const request = useSearchStore.getState().addRequest({
+      focusVectors: ['backend'],
+      companySizeOverride: '',
+      salaryAnchorOverride: '',
+      geoExpand: true,
+      customKeywords: '',
+      excludeCompanies: [],
+      maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+    })
+    const run = useSearchStore.getState().addRun({
+      requestId: request.id,
+      status: 'completed',
+      results: [],
+      searchLog: [],
+      identityVersion: 2,
+      stalenessReview: {
+        decision: 'accepted-current',
+        reviewedAt: '2026-04-28T00:00:00.000Z',
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 2,
+        mutationLabel: 'Kubernetes depth correction',
+        mutationFields: ['skills.Kubernetes.depth'],
+        mutationFromRevision: 2,
+        mutationToRevision: 3,
+        reason: 'Generated from an older identity revision.',
+      },
+    })
+
+    useSearchStore.getState().updateRun(run.id, { identityVersion: 2 })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 3,
+    })
+
+    useSearchStore.getState().updateRun(run.id, { identityVersion: 3 })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 3,
+    })
+
+    useSearchStore.getState().updateRun(run.id, { identityVersion: 4 })
+
+    expect(useSearchStore.getState().runs[0]?.identityVersion).toBe(4)
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
+  })
+
+  it('sanitizes explicit run staleness review patches while preserving fresh identity-version reviews', () => {
+    const request = useSearchStore.getState().addRequest({
+      focusVectors: ['backend'],
+      companySizeOverride: '',
+      salaryAnchorOverride: '',
+      geoExpand: true,
+      customKeywords: '',
+      excludeCompanies: [],
+      maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+    })
+    const run = useSearchStore.getState().addRun({
+      requestId: request.id,
+      status: 'completed',
+      results: [],
+      searchLog: [],
+      identityVersion: 2,
+    })
+    const validReview = {
+      decision: 'not-stale' as const,
+      reviewedAt: '2026-04-28T00:00:00.000Z',
+      reviewedIdentityVersion: 5,
+      artifactIdentityVersionAtReview: 2,
+      mutationLabel: 'Kubernetes depth correction',
+      mutationFields: ['skills.Kubernetes.depth'],
+      mutationFromRevision: 4,
+      mutationToRevision: 5,
+      reason: 'Reviewed from batch staleness panel.',
+    }
+
+    useSearchStore.getState().updateRun(run.id, {
+      stalenessReview: { ...validReview, reviewedAt: '' },
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
+
+    useSearchStore.getState().updateRun(run.id, {
+      identityVersion: 5,
+      stalenessReview: validReview,
+    })
+
+    expect(useSearchStore.getState().runs[0]?.identityVersion).toBe(5)
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
+      decision: 'not-stale',
+      reviewedIdentityVersion: 5,
+    })
+  })
+
+  it('returns whether thesis staleness review metadata was persisted', () => {
+    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
+      identityVersion: 5,
+      durableMeta: {
+        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+        tenantId: null,
+        userId: null,
+        schemaVersion: 1,
+        revision: 0,
+        createdAt: '2026-04-20T10:00:00.000Z',
+        updatedAt: '2026-04-20T10:00:00.000Z',
+      },
+    }))
+    const validReview = {
+      decision: 'accepted-current' as const,
+      reviewedAt: '2026-04-28T00:00:00.000Z',
+      reviewedIdentityVersion: 5,
+      artifactIdentityVersionAtReview: 5,
+      mutationLabel: 'Kubernetes depth correction',
+      mutationFields: ['skills.Kubernetes.depth'],
+      mutationFromRevision: 4,
+      mutationToRevision: 5,
+      reason: 'Generated from an older identity revision.',
+    }
+
+    expect(useSearchStore.getState().markThesisStalenessReview(thesis.id, {
+      ...validReview,
+      reviewedIdentityVersion: 4,
+      mutationToRevision: 4,
+    })).toBe(false)
+    expect(useSearchStore.getState().theses[0]?.stalenessReview).toBeUndefined()
+    expect(useSearchStore.getState().markThesisStalenessReview(thesis.id, {
+      ...validReview,
+      reviewedAt: '',
+    })).toBe(false)
+    expect(useSearchStore.getState().markThesisStalenessReview(thesis.id, validReview)).toBe(true)
+
+    const updated = useSearchStore.getState().theses[0]
+    expect(updated?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 5,
+    })
+    expect(updated?.updatedAt).not.toBe(thesis.updatedAt)
+    expect(updated?.durableMeta?.revision).toBe(1)
+  })
+
+  it('returns false without mutating when thesis staleness review id is unknown', () => {
+    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
+      identityVersion: 3,
+      durableMeta: {
+        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+        tenantId: null,
+        userId: null,
+        schemaVersion: 1,
+        revision: 4,
+        createdAt: '2026-04-20T10:00:00.000Z',
+        updatedAt: '2026-04-20T10:00:00.000Z',
+      },
+    }))
+    const review = {
+      decision: 'accepted-current' as const,
+      reviewedAt: '2026-04-28T00:00:00.000Z',
+      reviewedIdentityVersion: 3,
+      artifactIdentityVersionAtReview: 3,
+      mutationLabel: 'Kubernetes depth correction',
+      mutationFields: ['skills.Kubernetes.depth'],
+      mutationFromRevision: 2,
+      mutationToRevision: 3,
+      reason: 'Generated from an older identity revision.',
+    }
+
+    expect(useSearchStore.getState().markThesisStalenessReview('missing-thesis', review))
+      .toBe(false)
+
+    expect(useSearchStore.getState().theses).toHaveLength(1)
+    expect(useSearchStore.getState().theses[0]?.updatedAt).toBe(thesis.updatedAt)
+    expect(useSearchStore.getState().theses[0]?.durableMeta?.revision).toBe(4)
+    expect(useSearchStore.getState().theses[0]?.stalenessReview).toBeUndefined()
+  })
+
+  it('clears thesis staleness review metadata when identity version advances past the review', () => {
+    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
+      identityVersion: 2,
+      stalenessReview: {
+        decision: 'accepted-current',
+        reviewedAt: '2026-04-28T00:00:00.000Z',
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 2,
+        mutationLabel: 'Kubernetes depth correction',
+        mutationFields: ['skills.Kubernetes.depth'],
+        mutationFromRevision: 2,
+        mutationToRevision: 3,
+        reason: 'Generated from an older identity revision.',
+      },
+    }))
+
+    useSearchStore.getState().saveThesisRevision(thesis.id, { identityVersion: 3 })
+    expect(useSearchStore.getState().theses[0]?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 3,
+    })
+
+    useSearchStore.getState().saveThesisRevision(thesis.id, { identityVersion: 4 })
+    expect(useSearchStore.getState().theses[0]?.stalenessReview).toBeUndefined()
+  })
+
+  it('sanitizes explicit thesis staleness review patches on revision save', () => {
+    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
+      identityVersion: 2,
+    }))
+    const validReview = {
+      decision: 'accepted-current' as const,
+      reviewedAt: '2026-04-28T00:00:00.000Z',
+      reviewedIdentityVersion: 3,
+      artifactIdentityVersionAtReview: 2,
+      mutationLabel: 'Kubernetes depth correction',
+      mutationFields: ['skills.Kubernetes.depth'],
+      mutationFromRevision: 2,
+      mutationToRevision: 3,
+      reason: 'Generated from an older identity revision.',
+    }
+
+    useSearchStore.getState().saveThesisRevision(thesis.id, {
+      stalenessReview: { ...validReview, mutationFields: [] },
+    })
+    expect(useSearchStore.getState().theses[0]?.stalenessReview).toBeUndefined()
+
+    useSearchStore.getState().saveThesisRevision(thesis.id, {
+      stalenessReview: validReview,
+    })
+    expect(useSearchStore.getState().theses[0]?.stalenessReview).toMatchObject({
+      decision: 'accepted-current',
+      reviewedIdentityVersion: 3,
+    })
+  })
+
   it('treats profile updaters as no-ops when no profile exists and supports clear/delete run', () => {
     useSearchStore.getState().updateProfileSkills([{ id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' }])
     useSearchStore.getState().updateProfileVectors([{ vectorId: 'backend', priority: 1, description: '', targetRoleTitles: [], searchKeywords: [] }])
@@ -613,16 +842,40 @@ describe('searchStore', () => {
       expect(events.map((e) => e.id).sort()).toEqual([run1a.id, run1b.id].sort())
     })
 
-    it('migrates persisted state without feedbackEvents to an empty array', () => {
-      const migrated = migrateSearchState({
-        profile: null,
-        requests: [],
-        runs: [],
-      })
-      expect(migrated.feedbackEvents).toEqual([])
+  it('migrates persisted state without feedbackEvents to an empty array', () => {
+    const migrated = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+    })
+    expect(migrated.feedbackEvents).toEqual([])
+  })
+
+  it('preserves existing thesis durable metadata timestamps during migration', () => {
+    const migrated = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [
+        buildSearchThesis({
+          durableMeta: {
+            workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+            tenantId: null,
+            userId: null,
+            schemaVersion: 1,
+            revision: 7,
+            createdAt: '2026-04-20T10:00:00.000Z',
+            updatedAt: '2026-04-22T12:34:56.000Z',
+          },
+        }),
+      ],
     })
 
-    it('cascade-deletes feedback events when the referenced run is deleted', () => {
+    expect(migrated.theses[0]?.durableMeta?.revision).toBe(7)
+    expect(migrated.theses[0]?.durableMeta?.updatedAt).toBe('2026-04-22T12:34:56.000Z')
+  })
+
+  it('cascade-deletes feedback events when the referenced run is deleted', () => {
       const store = useSearchStore.getState()
       const keeper = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-keep' })
       const doomed = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-doomed' })

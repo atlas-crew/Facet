@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:00'
-updated_date: '2026-04-28 03:01'
+updated_date: '2026-04-28 14:55'
 labels:
   - shepherding
   - identity-model
@@ -77,7 +77,7 @@ This is the "show your work" UX that makes corrections feel like investment, not
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 After an identity correction, a non-blocking banner shows the number and type of affected downstream artifacts
-- [ ] #2 Banner click-through lands on the batch staleness review UI (TASK-158)
+- [x] #2 Banner click-through lands on the batch staleness review UI (TASK-158)
 - [x] #3 describeImpact() returns structured DownstreamImpact with per-artifact reasoning
 - [ ] #4 Artifacts record the identity fields they depend on (generation time) for field-level impact tracking
 - [x] #5 Fallback to version-only counting when field-level dependencies are absent
@@ -91,6 +91,8 @@ This is the "show your work" UX that makes corrections feel like investment, not
 TASK-168 slice implemented structured DownstreamImpact/describeImpact with per-artifact reasoning, version fallback, Research pre-confirmation preview, post-writeback dismissible impact banner, and /identity review action until TASK-158 batch review exists. Search theses and runs now stamp field dependencies from thesis skillDepthMap; prep decks and cover letters preserve identityFields when supplied and otherwise use version fallback.
 
 Verification: npx vitest run src/test/artifactMeta.test.ts src/test/ResearchPage.test.tsx (76 passed); npm run typecheck; touched-file eslint for TASK-168 files (0 warnings/errors); npm run build. Full npm run lint remains blocked by unrelated generated/dist and dirty prep/test baseline issues.
+
+2026-04-28: TASK-158 batch review slice landed in bee49f2. The downstream impact banner now opens the batch staleness review UI instead of navigating to /identity, satisfying AC #2. TASK-168 remains In Progress because artifact generation-time field dependency coverage is still incomplete and repo-wide gates are affected by unrelated dirty baseline work.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

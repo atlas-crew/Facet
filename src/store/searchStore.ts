@@ -14,6 +14,11 @@ import type {
 } from '../types/search'
 import { createId } from '../utils/idUtils'
 import {
+  type ArtifactStalenessReview,
+  sanitizeArtifactStalenessReview,
+  sanitizeIdentityVersion,
+} from '../types/artifactMeta'
+import {
   ensureDurableMetadata,
   stripDurableMetadataPatch,
   touchDurableMetadata,
@@ -58,6 +63,7 @@ interface SearchState {
   deleteRun: (id: string) => void
   getRunsForRequest: (requestId: string) => SearchRun[]
   addThesis: (thesis: SearchThesisInput) => SearchThesis
+  markThesisStalenessReview: (id: string, review: ArtifactStalenessReview) => boolean
   saveThesisRevision: (baseId: string, patch: Partial<SearchThesis>) => SearchThesis | null
   setActiveThesis: (id: string | null) => void
   setActiveResearchJob: (job: ActiveResearchJobState) => void
@@ -100,6 +106,7 @@ const hydrateRun = (run: SearchRunInput): SearchRun => ({
   ...run,
   id: run.id ?? createId('srun'),
   createdAt: run.createdAt ?? now(),
+  stalenessReview: sanitizeArtifactStalenessReview(run.stalenessReview),
   durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
 })
 
@@ -122,7 +129,9 @@ const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
       id: keyword.id ?? createId('skwd'),
     })),
     skillDepthMap: thesis.skillDepthMap ?? [],
+    stalenessReview: sanitizeArtifactStalenessReview(thesis.stalenessReview),
     id: thesis.id ?? createId('sthesis'),
+    durableMeta: ensureDurableMetadata(thesis.durableMeta, createdAt),
     createdAt,
     updatedAt: thesis.updatedAt ?? createdAt,
   }
@@ -164,6 +173,8 @@ export const migrateSearchState = (persistedState: unknown) => {
     runs: Array.isArray(state?.runs)
       ? state.runs.map((run) => hydrateRun(run))
       : [],
+    // Persisted theses pass through hydration so older records gain durable metadata,
+    // sanitized staleness reviews, and any future thesis defaults in one migration path.
     theses: Array.isArray(state?.theses)
       ? state.theses.map((thesis) => hydrateThesis(thesis))
       : [],
@@ -315,16 +326,33 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
       updateRun: (id, patch) => {
         const restPatch = stripDurableMetadataPatch(patch)
+        const hasStalenessReviewPatch = 'stalenessReview' in restPatch
+        const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
+        const runPatch: Partial<SearchRun> = {
+          ...restPatch,
+          ...(hasStalenessReviewPatch
+            ? {
+                stalenessReview: sanitizeArtifactStalenessReview(
+                  (restPatch as Partial<SearchRun>).stalenessReview,
+                ),
+              }
+            : {}),
+        }
         set((state) => ({
-          runs: state.runs.map((run) =>
-            run.id === id
-              ? {
-                  ...run,
-                  ...restPatch,
-                  durableMeta: touchDurableMetadata(run.durableMeta, now()),
-                }
-              : run,
-          ),
+          runs: state.runs.map((run) => {
+            if (run.id !== id) return run
+            const clearsReviewForNewIdentity =
+              !hasStalenessReviewPatch &&
+              nextIdentityVersion !== undefined &&
+              run.identityVersion !== nextIdentityVersion &&
+              run.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
+            return {
+              ...run,
+              ...runPatch,
+              ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
+              durableMeta: touchDurableMetadata(run.durableMeta, now()),
+            }
+          }),
         }))
       },
 
@@ -354,15 +382,51 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
         return hydrated
       },
 
+      markThesisStalenessReview: (id, review) => {
+        const stalenessReview = sanitizeArtifactStalenessReview(review)
+        if (!stalenessReview) return false
+        let didUpdate = false
+        set((state) => ({
+          theses: state.theses.map((thesis) => {
+            if (thesis.id !== id) return thesis
+            if (stalenessReview.reviewedIdentityVersion < (thesis.identityVersion ?? 0)) {
+              return thesis
+            }
+            didUpdate = true
+            const timestamp = now()
+            return {
+              ...thesis,
+              stalenessReview,
+              updatedAt: timestamp,
+              durableMeta: touchDurableMetadata(thesis.durableMeta, timestamp),
+            }
+          }),
+        }))
+        return didUpdate
+      },
+
       saveThesisRevision: (baseId, patch) => {
         const base = get().theses.find((thesis) => thesis.id === baseId)
         if (!base) return null
+        const timestamp = now()
+        const hasStalenessReviewPatch = 'stalenessReview' in patch
+        const nextIdentityVersion = sanitizeIdentityVersion(patch.identityVersion)
+        const clearsReviewForNewIdentity =
+          !hasStalenessReviewPatch &&
+          nextIdentityVersion !== undefined &&
+          base.identityVersion !== nextIdentityVersion &&
+          base.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
         const updated: SearchThesis = {
           ...base,
           ...patch,
+          ...(hasStalenessReviewPatch
+            ? { stalenessReview: sanitizeArtifactStalenessReview(patch.stalenessReview) }
+            : {}),
+          ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
           id: base.id,
+          durableMeta: touchDurableMetadata(base.durableMeta, timestamp),
           createdAt: base.createdAt,
-          updatedAt: now(),
+          updatedAt: timestamp,
           source: 'user-edited',
         }
         set((state) => ({
