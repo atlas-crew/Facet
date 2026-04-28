@@ -7,6 +7,7 @@ import type {
   ResumeScanResult,
 } from "../../types/identity";
 import { ScannedIdentityEditor } from "./ScannedIdentityEditor";
+import { SOURCE_MATERIAL_SAMPLES } from "./sampleSourceMaterial";
 
 interface ExtractionAgentCardProps {
   statusLabel?: string;
@@ -390,15 +391,48 @@ export function ExtractionAgentCard({
           )}
         </>
       ) : (
-        <label className="identity-field">
-          <span className="identity-label">Source Material</span>
-          <textarea
-            className="identity-textarea identity-textarea-lg"
-            value={sourceMaterial}
-            onChange={(event) => onSetSourceMaterial(event.target.value)}
-            placeholder="Paste resume bullets, LinkedIn text, portfolio notes, or a rough narrative here."
-          />
-        </label>
+        <>
+          {import.meta.env.DEV ? (
+            <label className="identity-field">
+              <span className="identity-label">Load dev sample</span>
+              <select
+                className="identity-input"
+                defaultValue=""
+                onChange={(event) => {
+                  const sample = SOURCE_MATERIAL_SAMPLES.find(
+                    (entry) => entry.id === event.target.value,
+                  );
+                  if (sample) {
+                    onSetSourceMaterial(sample.text);
+                  }
+                  event.target.value = "";
+                }}
+              >
+                <option value="" disabled>
+                  Pick a sample input…
+                </option>
+                {SOURCE_MATERIAL_SAMPLES.map((sample) => (
+                  <option
+                    key={sample.id}
+                    value={sample.id}
+                    title={sample.description}
+                  >
+                    {sample.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="identity-field">
+            <span className="identity-label">Source Material</span>
+            <textarea
+              className="identity-textarea identity-textarea-lg"
+              value={sourceMaterial}
+              onChange={(event) => onSetSourceMaterial(event.target.value)}
+              placeholder="Paste resume bullets, LinkedIn text, portfolio notes, or a rough narrative here."
+            />
+          </label>
+        </>
       )}
 
       <label className="identity-field">
