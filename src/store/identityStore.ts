@@ -16,6 +16,7 @@ import {
   type ProfessionalSearchVector,
   type ProfessionalSkillDepth,
   type ProfessionalSkillEnrichedBy,
+  type ProfessionalSkillGroup,
 } from '../identity/schema'
 import type {
   IdentityApplyMode,
@@ -112,7 +113,9 @@ interface IdentityState {
   updateCurrentProfiles: (value: ProfessionalProfile[]) => void
   updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
   updateCurrentSelfModelArc: (value: ProfessionalIdentityArcEntry[]) => void
+  updateCurrentRoles: (value: ProfessionalIdentityV3['roles']) => void
   updateCurrentProjects: (value: ProfessionalProject[]) => void
+  updateCurrentSkillGroups: (value: ProfessionalSkillGroup[]) => void
   updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
   updateCurrentWorkModel: (value: ProfessionalIdentityV3['preferences']['work_model']) => void
   updateCurrentConstraints: (value: ProfessionalPreferenceConstraints | undefined) => void
@@ -1146,11 +1149,25 @@ export const useIdentityStore = create<IdentityState>()(
             },
           })),
         ),
+      updateCurrentRoles: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            roles: value,
+          })),
+        ),
       updateCurrentProjects: (value) =>
         set((state) =>
           updateCurrentIdentity(state, (identity) => ({
             ...identity,
             projects: value,
+          })),
+        ),
+      updateCurrentSkillGroups: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            skills: { ...identity.skills, groups: value },
           })),
         ),
       updateCurrentCompensation: (value) =>

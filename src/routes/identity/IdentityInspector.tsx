@@ -99,112 +99,44 @@ function InspectorBody({
 
 
 
-    case 'role': {
-      const role = identity.roles.find((r) => r.id === selection.id)
-      if (!role) return <NotFound label="role" />
-      return (
-        <SlotShell eyebrow={`Role · ${role.dates}`} title={`${role.company} — ${role.title}`}>
-          <MetaRows
-            rows={[
-              ['Bullets', String(role.bullets.length)],
-              ['Subtitle', role.subtitle ?? '—'],
-              ['Source-text intact', allBulletsHaveSource(role) ? 'Yes' : 'Partial'],
-            ]}
-          />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Open scan editor
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Generate variant
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
+    case 'role':
+      return <RoleInspector identity={identity} roleId={selection.id} onGoToWorkbench={handlers.goToWorkbench} />
 
-    case 'bullet': {
-      const role = identity.roles.find((r) => r.id === selection.roleId)
-      const bullet = role?.bullets.find((b) => b.id === selection.bulletId)
-      if (!role || !bullet) return <NotFound label="bullet" />
+
+
+    case 'bullet':
       return (
-        <SlotShell eyebrow={`Bullet · ${role.company}`} title={bullet.problem || bullet.action || '(no summary)'}>
-          <BulletPair label="Problem" value={bullet.problem} />
-          <BulletPair label="Action" value={bullet.action} />
-          <BulletPair label="Outcome" value={bullet.outcome} />
-          {bullet.impact?.length ? <MetaRows rows={[['Impact', bullet.impact.join(' · ')]]} /> : null}
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Edit bullet
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Open in scan editor
-            </button>
-          </Actions>
-        </SlotShell>
+        <BulletInspector
+          identity={identity}
+          roleId={selection.roleId}
+          bulletId={selection.bulletId}
+          onGoToWorkbench={handlers.goToWorkbench}
+        />
       )
-    }
+
+
 
     case 'project':
       return <ProjectInspector identity={identity} projectId={selection.id} />
 
 
 
-    case 'skill-group': {
-      const group = identity.skills.groups.find((g) => g.id === selection.id)
-      if (!group) return <NotFound label="skill group" />
-      return (
-        <SlotShell eyebrow="Skill Group" title={group.label}>
-          <MetaRows
-            rows={[
-              ['Items', String(group.items.length)],
-              ['Positioning', group.positioning ?? '—'],
-              ['Calibration', group.calibration ?? '—'],
-              ['Differentiator', group.is_differentiator ? 'Yes' : 'No'],
-            ]}
-          />
-          <Actions>
-            <button type="button" className="inspector-btn primary" onClick={handlers.goToWorkbench}>
-              Rename group
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Mark differentiator
-            </button>
-          </Actions>
-        </SlotShell>
-      )
-    }
+    case 'skill-group':
+      return <SkillGroupInspector identity={identity} groupId={selection.id} />
 
-    case 'skill-item': {
-      const group = identity.skills.groups.find((g) => g.id === selection.groupId)
-      const item: ProfessionalSkillItem | undefined = group?.items.find((i) => skillNamesMatch(i.name, selection.itemId))
-      if (!group || !item) return <NotFound label="skill" />
+
+
+    case 'skill-item':
       return (
-        <SlotShell eyebrow={`Skill · ${group.label}`} title={item.name}>
-          <MetaRows
-            rows={[
-              ['Depth', item.depth ?? '—'],
-              ['Context', item.context?.trim() || '—'],
-              ['Positioning', item.positioning?.trim() || '—'],
-              ['Tags', item.tags?.join(' · ') || '—'],
-            ]}
-          />
-          {!item.depth ? <Prompt label="Cleanup" text="Open the skill wizard to capture depth, context, and positioning." /> : null}
-          <Actions>
-            <button
-              type="button"
-              className="inspector-btn primary"
-              onClick={() => handlers.goToSkillWizard(group.id, item.name)}
-            >
-              Open Skill Wizard
-            </button>
-            <button type="button" className="inspector-btn" onClick={handlers.goToWorkbench}>
-              Mark broken
-            </button>
-          </Actions>
-        </SlotShell>
+        <SkillItemInspector
+          identity={identity}
+          groupId={selection.groupId}
+          itemName={selection.itemId}
+          onGoToSkillWizard={() => handlers.goToSkillWizard(selection.groupId, selection.itemId)}
+        />
       )
-    }
+
+
 
     case 'pref-field':
       return <PrefFieldInspector identity={identity} field={selection.field} />
@@ -581,6 +513,371 @@ function readPrefField(prefs: ProfessionalPreferences, field: PreferenceFieldKey
       return ''
     }
   }
+}
+
+function SkillGroupInspector({
+  identity,
+  groupId,
+}: {
+  identity: ProfessionalIdentityV3
+  groupId: string
+}) {
+  const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
+  const group = identity.skills.groups.find((g) => g.id === groupId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ label: '', positioning: '', calibration: '', isDifferentiator: false })
+
+  if (!group) return <NotFound label="skill group" />
+
+  const startEditing = () => {
+    setDraft({
+      label: group.label,
+      positioning: group.positioning ?? '',
+      calibration: group.calibration ?? '',
+      isDifferentiator: Boolean(group.is_differentiator),
+    })
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const next = identity.skills.groups.map((g) =>
+      g.id === groupId
+        ? {
+            ...g,
+            label: draft.label.trim() || g.label,
+            positioning: draft.positioning.trim() || undefined,
+            calibration: draft.calibration.trim() || undefined,
+            is_differentiator: draft.isDifferentiator || undefined,
+          }
+        : g,
+    )
+    updateGroups(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Skill Group · ${group.id}`} title="Refine the group">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Label</span>
+          <input className="inspector-input" type="text" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Positioning</span>
+          <textarea className="inspector-textarea" value={draft.positioning} onChange={(e) => setDraft({ ...draft, positioning: e.target.value })} rows={2} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Calibration</span>
+          <textarea className="inspector-textarea" value={draft.calibration} onChange={(e) => setDraft({ ...draft, calibration: e.target.value })} rows={2} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">
+            <input type="checkbox" checked={draft.isDifferentiator} onChange={(e) => setDraft({ ...draft, isDifferentiator: e.target.checked })} style={{ marginRight: 8 }} />
+            Mark as differentiator
+          </span>
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow="Skill Group" title={group.label}>
+      <MetaRows
+        rows={[
+          ['Items', String(group.items.length)],
+          ['Positioning', group.positioning ?? '—'],
+          ['Calibration', group.calibration ?? '—'],
+          ['Differentiator', group.is_differentiator ? 'Yes' : 'No'],
+        ]}
+      />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit group</button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function SkillItemInspector({
+  identity,
+  groupId,
+  itemName,
+  onGoToSkillWizard,
+}: {
+  identity: ProfessionalIdentityV3
+  groupId: string
+  itemName: string
+  onGoToSkillWizard: () => void
+}) {
+  const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
+  const group = identity.skills.groups.find((g) => g.id === groupId)
+  const item: ProfessionalSkillItem | undefined = group?.items.find((i) => skillNamesMatch(i.name, itemName))
+  const [editing, setEditing] = useState(false)
+  const [draftTags, setDraftTags] = useState('')
+
+  if (!group || !item) return <NotFound label="skill" />
+
+  const startEditing = () => {
+    setDraftTags(tagsToInput(item.tags))
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const next = identity.skills.groups.map((g) =>
+      g.id !== groupId
+        ? g
+        : {
+            ...g,
+            items: g.items.map((i) =>
+              skillNamesMatch(i.name, itemName) ? { ...i, tags: inputToTags(draftTags) } : i,
+            ),
+          },
+    )
+    updateGroups(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Skill · ${group.label}`} title={item.name}>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Tags (comma-separated)</span>
+          <input className="inspector-input" type="text" value={draftTags} onChange={(e) => setDraftTags(e.target.value)} />
+        </label>
+        <p className="inspector-body-text" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+          Depth, context, and positioning live in the Skill Wizard — open it for the full editor.
+        </p>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save tags</button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow={`Skill · ${group.label}`} title={item.name}>
+      <MetaRows
+        rows={[
+          ['Depth', item.depth ?? '—'],
+          ['Context', item.context?.trim() || '—'],
+          ['Positioning', item.positioning?.trim() || '—'],
+          ['Tags', item.tags?.join(' · ') || '—'],
+        ]}
+      />
+      {!item.depth ? <Prompt label="Cleanup" text="Open the skill wizard to capture depth, context, and positioning." /> : null}
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={onGoToSkillWizard}>
+          Open Skill Wizard
+        </button>
+        <button type="button" className="inspector-btn" onClick={startEditing}>
+          Edit tags
+        </button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function RoleInspector({
+  identity,
+  roleId,
+  onGoToWorkbench,
+}: {
+  identity: ProfessionalIdentityV3
+  roleId: string
+  onGoToWorkbench: () => void
+}) {
+  const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
+  const role = identity.roles.find((r) => r.id === roleId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ company: '', title: '', dates: '', subtitle: '' })
+
+  if (!role) return <NotFound label="role" />
+
+  const startEditing = () => {
+    setDraft({
+      company: role.company,
+      title: role.title,
+      dates: role.dates,
+      subtitle: role.subtitle ?? '',
+    })
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const trimmedSub = draft.subtitle.trim()
+    const next = identity.roles.map((r) =>
+      r.id === roleId
+        ? {
+            ...r,
+            company: draft.company.trim(),
+            title: draft.title.trim(),
+            dates: draft.dates.trim(),
+            subtitle: trimmedSub ? trimmedSub : null,
+          }
+        : r,
+    )
+    updateRoles(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Role · ${role.id}`} title="Refine the role">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Company</span>
+          <input className="inspector-input" type="text" value={draft.company} onChange={(e) => setDraft({ ...draft, company: e.target.value })} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Title</span>
+          <input className="inspector-input" type="text" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Dates</span>
+          <input className="inspector-input" type="text" value={draft.dates} onChange={(e) => setDraft({ ...draft, dates: e.target.value })} placeholder="2022 — 2025" />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Subtitle / Headline metric</span>
+          <input className="inspector-input" type="text" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} placeholder="$60K/mo saved" />
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow={`Role · ${role.dates}`} title={`${role.company} — ${role.title}`}>
+      <MetaRows
+        rows={[
+          ['Bullets', String(role.bullets.length)],
+          ['Subtitle', role.subtitle ?? '—'],
+          ['Source-text intact', allBulletsHaveSource(role) ? 'Yes' : 'Partial'],
+        ]}
+      />
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit role</button>
+        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>Open scan editor</button>
+      </Actions>
+    </SlotShell>
+  )
+}
+
+function BulletInspector({
+  identity,
+  roleId,
+  bulletId,
+  onGoToWorkbench,
+}: {
+  identity: ProfessionalIdentityV3
+  roleId: string
+  bulletId: string
+  onGoToWorkbench: () => void
+}) {
+  const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
+  const role = identity.roles.find((r) => r.id === roleId)
+  const bullet = role?.bullets.find((b) => b.id === bulletId)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({
+    problem: '',
+    action: '',
+    outcome: '',
+    impact: '',
+    technologies: '',
+    tags: '',
+  })
+
+  if (!role || !bullet) return <NotFound label="bullet" />
+
+  const startEditing = () => {
+    setDraft({
+      problem: bullet.problem,
+      action: bullet.action,
+      outcome: bullet.outcome,
+      impact: tagsToInput(bullet.impact),
+      technologies: tagsToInput(bullet.technologies),
+      tags: tagsToInput(bullet.tags),
+    })
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    const next = identity.roles.map((r) =>
+      r.id !== roleId
+        ? r
+        : {
+            ...r,
+            bullets: r.bullets.map((b) =>
+              b.id !== bulletId
+                ? b
+                : {
+                    ...b,
+                    problem: draft.problem.trim(),
+                    action: draft.action.trim(),
+                    outcome: draft.outcome.trim(),
+                    impact: inputToTags(draft.impact),
+                    technologies: inputToTags(draft.technologies),
+                    tags: inputToTags(draft.tags),
+                  },
+            ),
+          },
+    )
+    updateRoles(next)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <SlotShell eyebrow={`Bullet · ${role.company}`} title="Refine the bullet">
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Problem</span>
+          <textarea className="inspector-textarea" value={draft.problem} onChange={(e) => setDraft({ ...draft, problem: e.target.value })} rows={2} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Action</span>
+          <textarea className="inspector-textarea" value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} rows={2} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Outcome</span>
+          <textarea className="inspector-textarea" value={draft.outcome} onChange={(e) => setDraft({ ...draft, outcome: e.target.value })} rows={2} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Impact (comma-sep)</span>
+          <input className="inspector-input" type="text" value={draft.impact} onChange={(e) => setDraft({ ...draft, impact: e.target.value })} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Technologies (comma-sep)</span>
+          <input className="inspector-input" type="text" value={draft.technologies} onChange={(e) => setDraft({ ...draft, technologies: e.target.value })} />
+        </label>
+        <label className="inspector-field">
+          <span className="inspector-field-label label-tracked">Tags (comma-sep)</span>
+          <input className="inspector-input" type="text" value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} />
+        </label>
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+        </Actions>
+      </SlotShell>
+    )
+  }
+
+  return (
+    <SlotShell eyebrow={`Bullet · ${role.company}`} title={bullet.problem || bullet.action || '(no summary)'}>
+      <BulletPair label="Problem" value={bullet.problem} />
+      <BulletPair label="Action" value={bullet.action} />
+      <BulletPair label="Outcome" value={bullet.outcome} />
+      {bullet.impact?.length ? <MetaRows rows={[['Impact', bullet.impact.join(' · ')]]} /> : null}
+      <Actions>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit bullet</button>
+        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>Open in scan editor</button>
+      </Actions>
+    </SlotShell>
+  )
 }
 
 function PrefFieldInspector({
