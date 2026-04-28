@@ -545,7 +545,7 @@ describe('ResearchPage', () => {
     })
   })
 
-  it('writes thesis skill-depth corrections back to Identity after confirmation', async () => {
+  const openBatchReviewFromSkillWriteback = async () => {
     const identity = cloneIdentityFixture()
     identity.model_revision = 2
     useIdentityStore.setState({
@@ -651,9 +651,80 @@ describe('ResearchPage', () => {
     expect(screen.getByText('Downstream impact queued')).toBeTruthy()
     expect(screen.getAllByText(/3 downstream artifacts may need review/).length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: 'Review impacted artifacts' }))
-    expect(mockNavigate).toHaveBeenCalledWith({ to: '/identity' })
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss impact notice' }))
+    const stalenessReview = screen
+      .getByText('Batch staleness review')
+      .closest('[role="region"]') as HTMLElement
+    return { identity, stalenessReview }
+  }
+
+  it('writes thesis skill-depth corrections back to Identity after confirmation', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    expect(stalenessReview.textContent).toContain('Search run')
+    expect(stalenessReview.textContent).toContain('Acme prep deck')
+    expect(stalenessReview.textContent).toContain('Acme cover letter')
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Accept current artifact for Search run',
+      }),
+    )
+    expect(stalenessReview.textContent).toContain('Status: Accepted current artifact.')
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Mark artifact not stale for Acme prep deck',
+      }),
+    )
+    expect(stalenessReview.textContent).toContain('Status: Marked not stale.')
+    expect(stalenessReview.textContent).toContain('refresh requests stay disabled')
+    expect(mockNavigate).not.toHaveBeenCalledWith({ to: '/identity' })
     expect(screen.queryByText('Downstream impact queued')).toBeNull()
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Close batch review',
+      }),
+    )
+    expect(screen.queryByText('Batch staleness review')).toBeNull()
+    expect(screen.getByText(/Local decisions were discarded/)).toBeTruthy()
+  })
+
+  it('discards local batch review decisions when Identity is cleared', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Accept current artifact for Search run',
+      }),
+    )
+
+    act(() => {
+      useIdentityStore.setState({ currentIdentity: null, draftDocument: '' })
+    })
+
+    expect(screen.queryByText('Batch staleness review')).toBeNull()
+    expect(screen.getByText(/Identity cleared after batch review opened/)).toBeTruthy()
+    expect(screen.getByText(/1 local decisions were discarded/)).toBeTruthy()
+    expect(screen.getByText(/Reopen the review after loading Identity/)).toBeTruthy()
+  })
+
+  it('discards local batch review decisions when Identity revision changes', async () => {
+    const { identity, stalenessReview } = await openBatchReviewFromSkillWriteback()
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Accept current artifact for Search run',
+      }),
+    )
+
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: {
+          ...identity,
+          model_revision: 4,
+        },
+      })
+    })
+
+    expect(screen.queryByText('Batch staleness review')).toBeNull()
+    expect(screen.getByText(/Identity changed after batch review opened/)).toBeTruthy()
+    expect(screen.getByText(/1 local decisions were discarded/)).toBeTruthy()
+    expect(screen.getByText(/Generate a new impact notice/)).toBeTruthy()
   })
 
   it('cancels pending identity writeback when Identity is cleared mid-confirmation', async () => {

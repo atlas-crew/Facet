@@ -1,9 +1,11 @@
 ---
 id: TASK-158
 title: Add artifact staleness detection and refresh triggers
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 06:04'
+updated_date: '2026-04-28 09:45'
 labels:
   - shepherding
   - staleness
@@ -60,20 +62,28 @@ This is the mechanism that makes corrections feel like progress — the user see
 <!-- AC:BEGIN -->
 - [ ] #1 Generated artifacts record the identity model version they were created from
 - [ ] #2 When identity model changes, stale artifacts are identified by version comparison
-- [ ] #3 Non-blocking notification surfaces stale artifact count
+- [x] #3 Non-blocking notification surfaces stale artifact count
 - [ ] #4 User can review stale artifacts with diff showing what changed and why
-- [ ] #5 One-click accept/reject per artifact in batch review
+- [x] #5 One-click accept/reject per artifact in batch review
 - [ ] #6 Refresh action regenerates artifact with latest identity context (fresh-context critique)
-- [ ] #7 Skill depth correction triggers staleness check on cover letters and prep cards referencing that skill
+- [x] #7 Skill depth correction triggers staleness check on cover letters and prep cards referencing that skill
 - [ ] #8 Search thesis flagged as stale when vectors or skill depths change
 <!-- AC:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-04-28: Added Research batch staleness review opened from the downstream impact notice for skill-depth writeback. The panel snapshots affected search/prep/cover-letter artifacts, shows reasons, supports local accept/not-stale decisions, clears consumed impact notices, and invalidates local decisions with explicit discard counts when Identity is cleared or its revision changes. Refresh regeneration/status persistence remain intentionally disabled and called out in UI/TODO.
+
+Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMeta.test.ts (78 passed); npm run typecheck (passed); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx src/types/artifactMeta.ts src/test/artifactMeta.test.ts (passed). npm run build is currently blocked by unrelated dirty src/routes/identity/IdentityInspector.tsx errors: unused ProfessionalSkillItem, unused skillNamesMatch, missing SkillGroupInspector, missing SkillItemInspector.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
+- [x] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
