@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Pencil, Plus, RotateCcw, Target, Trash2 } from 'lucide-react'
 import type { VectorDef, VectorSelection } from '../types'
 import { HelpHint } from './HelpHint'
@@ -11,7 +12,7 @@ interface VectorBarProps {
   selectedVector: VectorSelection
   onSelect: (vector: VectorSelection) => void
   onAddVector: () => void
-  onResetAuto: () => void
+  onResetOverrides: () => void
 }
 
 export function VectorBar({
@@ -19,15 +20,24 @@ export function VectorBar({
   selectedVector,
   onSelect,
   onAddVector,
-  onResetAuto,
+  onResetOverrides,
 }: VectorBarProps) {
   const updateData = useResumeStore((state) => state.updateData)
+  const currentVector = useMemo(
+    () =>
+      selectedVector === 'all'
+        ? null
+        : vectors.find((vector) => vector.id === selectedVector) ?? null,
+    [selectedVector, vectors],
+  )
+  const activeVectorLabel = currentVector?.label ?? 'Select a vector'
+  const hasSelectedVector = Boolean(currentVector)
+  const actionScopeLabel = hasSelectedVector
+    ? `Actions for ${activeVectorLabel}`
+    : 'Select vector to edit'
 
   const handleRenameVector = () => {
-    if (selectedVector === 'all') return
-
-    const currentVector = vectors.find((vector) => vector.id === selectedVector)
-    if (!currentVector) return
+    if (selectedVector === 'all' || !currentVector) return
 
     const nextLabel = window.prompt('Rename vector', currentVector.label)?.trim()
     if (!nextLabel || nextLabel === currentVector.label) return
@@ -130,10 +140,7 @@ export function VectorBar({
   }
 
   const handleRemoveVector = () => {
-    if (selectedVector === 'all') return
-
-    const currentVector = vectors.find((vector) => vector.id === selectedVector)
-    if (!currentVector) return
+    if (selectedVector === 'all' || !currentVector) return
 
     const confirmed = window.confirm(
       `Delete "${currentVector.label}"? This removes vector-specific priorities, variants, presets, and pipeline links.`,
@@ -235,6 +242,12 @@ export function VectorBar({
       </div>
       <div className="vector-actions">
         <HelpHint text="Vectors are positioning angles. Select one to assemble a resume tailored to that direction." placement="bottom" />
+        <span
+          className="vector-action-scope"
+          title={actionScopeLabel}
+        >
+          {actionScopeLabel}
+        </span>
         <button className="vector-pill add-pill" onClick={onAddVector} type="button">
           <Plus size={14} />
           New Vector
@@ -243,8 +256,9 @@ export function VectorBar({
           className="btn-ghost"
           type="button"
           onClick={handleRenameVector}
-          disabled={selectedVector === 'all'}
-          title={selectedVector === 'all' ? 'Select a vector to rename it' : 'Rename selected vector'}
+          disabled={!hasSelectedVector}
+          aria-label={hasSelectedVector ? `Rename ${activeVectorLabel}` : 'Rename vector'}
+          title={hasSelectedVector ? `Rename ${activeVectorLabel}` : 'Select a vector to rename it'}
         >
           <Pencil size={14} />
           Rename
@@ -253,15 +267,31 @@ export function VectorBar({
           className="btn-ghost btn-danger-soft"
           type="button"
           onClick={handleRemoveVector}
-          disabled={selectedVector === 'all'}
-          title={selectedVector === 'all' ? 'Select a vector to remove it' : 'Delete selected vector'}
+          disabled={!hasSelectedVector}
+          aria-label={hasSelectedVector ? `Delete ${activeVectorLabel}` : 'Delete vector'}
+          title={hasSelectedVector ? `Delete ${activeVectorLabel}` : 'Select a vector to remove it'}
         >
           <Trash2 size={14} />
           Delete
         </button>
-        <button className="btn-ghost" type="button" onClick={onResetAuto}>
+        <button
+          className="btn-ghost"
+          type="button"
+          onClick={onResetOverrides}
+          disabled={!hasSelectedVector}
+          aria-label={
+            hasSelectedVector
+              ? `Reset overrides for ${activeVectorLabel}`
+              : 'Reset overrides'
+          }
+          title={
+            hasSelectedVector
+              ? `Reset overrides for ${activeVectorLabel}`
+              : 'Select a vector to reset overrides'
+          }
+        >
           <RotateCcw size={14} />
-          Reset to Auto
+          Reset Overrides
         </button>
       </div>
     </div>

@@ -9,9 +9,16 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 
-const { analyzeJobDescriptionMock, reframeBulletForVectorMock, usePresetsMock, facetClientEnvMock } = vi.hoisted(() => ({
+const {
+  analyzeJobDescriptionMock,
+  reframeBulletForVectorMock,
+  usePresetsMock,
+  facetClientEnvMock,
+  pdfPreviewMock,
+} = vi.hoisted(() => ({
   analyzeJobDescriptionMock: vi.fn(),
   reframeBulletForVectorMock: vi.fn(),
+  pdfPreviewMock: vi.fn(),
   usePresetsMock: vi.fn(),
   facetClientEnvMock: {
     deploymentMode: 'self-hosted',
@@ -37,13 +44,7 @@ vi.mock('../utils/jdAnalyzer', async () => {
 })
 
 vi.mock('../hooks/usePdfPreview', () => ({
-  usePdfPreview: () => ({
-    previewBlobUrl: 'blob:preview',
-    cachedPdfBlob: new Blob(['pdf'], { type: 'application/pdf' }),
-    pageCount: 2,
-    pending: false,
-    error: null,
-  }),
+  usePdfPreview: () => pdfPreviewMock(),
 }))
 
 vi.mock('../hooks/useSuggestionActions', () => ({
@@ -137,6 +138,14 @@ describe('BuildPage', () => {
   beforeEach(() => {
     analyzeJobDescriptionMock.mockReset()
     reframeBulletForVectorMock.mockReset()
+    pdfPreviewMock.mockReset()
+    pdfPreviewMock.mockReturnValue({
+      previewBlobUrl: 'blob:preview',
+      cachedPdfBlob: new Blob(['pdf'], { type: 'application/pdf' }),
+      pageCount: 2,
+      pending: false,
+      error: null,
+    })
     facetClientEnvMock.anthropicProxyUrl = 'http://localhost:9001'
     usePresetsMock.mockReset()
     usePresetsMock.mockReturnValue({
@@ -209,7 +218,11 @@ describe('BuildPage', () => {
     expect(within(workingContext).queryByText('Suggestions')).toBeNull()
     expect(within(workingContext).queryByText('JD Analysis')).toBeNull()
     expect(within(workingContext).getByText('Backend Engineering')).toBeTruthy()
+    expect(within(workingContext).getByText(/bullets included/)).toBeTruthy()
     expect(within(workingContext).getByText('2 pages')).toBeTruthy()
+    expect(within(workingContext).getByText('Within target page count')).toBeTruthy()
+    expect(within(workingContext).getByText('Manual vector selection active')).toBeTruthy()
+    expect(within(workingContext).getByText('Workspace-local edits')).toBeTruthy()
 
     fireEvent.click(contextHelpButton)
     expect(contextHelpButton.getAttribute('aria-expanded')).toBe('true')
@@ -238,6 +251,72 @@ describe('BuildPage', () => {
     expect(screen.getByTestId('vector-bar')).toBeTruthy()
     expect(screen.getByTestId('pdf-preview')).toBeTruthy()
     expect(screen.getByTestId('status-bar')).toBeTruthy()
+  })
+
+  it('reports preview render progress in the working context', () => {
+    pdfPreviewMock.mockReturnValue({
+      previewBlobUrl: null,
+      cachedPdfBlob: null,
+      pageCount: null,
+      pending: true,
+      error: null,
+    })
+
+    render(<BuildPage />)
+
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('Rendering…')).toBeTruthy()
+    expect(within(workingContext).getByText('Preview render in progress')).toBeTruthy()
+  })
+
+  it('reports when the first preview page count has not landed yet', () => {
+    pdfPreviewMock.mockReturnValue({
+      previewBlobUrl: 'blob:preview',
+      cachedPdfBlob: new Blob(['pdf'], { type: 'application/pdf' }),
+      pageCount: null,
+      pending: false,
+      error: null,
+    })
+
+    render(<BuildPage />)
+
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('—')).toBeTruthy()
+    expect(within(workingContext).getByText('Awaiting first preview render')).toBeTruthy()
+  })
+
+  it('uses singular bullet copy in the working context', () => {
+    const data = JSON.parse(JSON.stringify(defaultResumeData))
+    data.roles = [
+      {
+        ...data.roles[0],
+        bullets: [data.roles[0].bullets[0]],
+      },
+    ]
+    useResumeStore.getState().setData(data)
+
+    render(<BuildPage />)
+
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('1 bullet included')).toBeTruthy()
+  })
+
+  it('reports pipeline source and AI vector plan state in the working context', () => {
+    useResumeStore.getState().updateGeneration({
+      source: 'pipeline',
+      mode: 'dynamic',
+      vectorMode: 'auto',
+      pipelineEntryId: 'pipe-77',
+      primaryVectorId: 'backend',
+      vectorIds: ['backend'],
+      suggestedVectorIds: ['backend'],
+    })
+
+    render(<BuildPage />)
+
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('Pipeline entry linked')).toBeTruthy()
+    expect(within(workingContext).getByText('AI vector plan active')).toBeTruthy()
   })
 
   it('promotes active preset state into the compact working context', () => {

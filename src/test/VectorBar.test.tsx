@@ -17,14 +17,14 @@ function renderBar(overrides: Partial<{
   selectedVector: VectorSelection
   onSelect: (v: VectorSelection) => void
   onAddVector: () => void
-  onResetAuto: () => void
+  onResetOverrides: () => void
 }> = {}) {
   const props = {
     vectors,
     selectedVector: 'all' as VectorSelection,
     onSelect: vi.fn(),
     onAddVector: vi.fn(),
-    onResetAuto: vi.fn(),
+    onResetOverrides: vi.fn(),
     ...overrides,
   }
   const result = render(<VectorBar {...props} />)
@@ -71,10 +71,42 @@ describe('VectorBar', () => {
     expect(onAddVector).toHaveBeenCalledOnce()
   })
 
-  it('calls onResetAuto when clicking Reset to Auto', () => {
-    const { onResetAuto } = renderBar()
-    fireEvent.click(screen.getByText('Reset to Auto'))
-    expect(onResetAuto).toHaveBeenCalledOnce()
+  it('scopes actions to the active vector', () => {
+    renderBar({ selectedVector: 'backend' })
+    const scope = screen.getByText('Actions for Backend Engineering')
+    const resetButton = screen.getByRole('button', { name: /Reset overrides for Backend Engineering/i })
+    expect(scope).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Rename Backend Engineering' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete Backend Engineering' })).toBeTruthy()
+    expect(resetButton.getAttribute('aria-label')).toBe('Reset overrides for Backend Engineering')
+  })
+
+  it('disables vector-specific actions when all vectors are selected', () => {
+    renderBar({ selectedVector: 'all' })
+    expect(screen.getByText('Select vector to edit')).toBeTruthy()
+    const renameButton = screen.getByRole('button', { name: 'Rename vector' }) as HTMLButtonElement
+    const deleteButton = screen.getByRole('button', { name: 'Delete vector' }) as HTMLButtonElement
+    const resetButton = screen.getByRole('button', { name: /Reset overrides/i }) as HTMLButtonElement
+    expect(renameButton.disabled).toBe(true)
+    expect(deleteButton.disabled).toBe(true)
+    expect(resetButton.disabled).toBe(true)
+  })
+
+  it('treats an unknown selected vector as no active vector', () => {
+    renderBar({ selectedVector: 'ghost' as VectorSelection })
+    expect(screen.getByText('Select vector to edit')).toBeTruthy()
+    const renameButton = screen.getByRole('button', { name: 'Rename vector' }) as HTMLButtonElement
+    const deleteButton = screen.getByRole('button', { name: 'Delete vector' }) as HTMLButtonElement
+    const resetButton = screen.getByRole('button', { name: /Reset overrides/i }) as HTMLButtonElement
+    expect(renameButton.disabled).toBe(true)
+    expect(deleteButton.disabled).toBe(true)
+    expect(resetButton.disabled).toBe(true)
+  })
+
+  it('calls onResetOverrides when clicking Reset Overrides', () => {
+    const { onResetOverrides } = renderBar({ selectedVector: 'backend' })
+    fireEvent.click(screen.getByText('Reset Overrides'))
+    expect(onResetOverrides).toHaveBeenCalledOnce()
   })
 
   it('renders with empty vectors array', () => {

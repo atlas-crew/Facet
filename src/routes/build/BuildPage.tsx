@@ -776,35 +776,45 @@ export function BuildPage() {
     const presetContextActive = hasActivePreset || presetDirty
     const suggestionContextActive = suggestionModeActive || suggestionCount > 0
     const jdContextActive = jdLoading || Boolean(jdAnalysisResult)
+    const bulletDetail = `${bulletCount} bullet${bulletCount === 1 ? '' : 's'} included`
+    const pageDetail = (() => {
+      if (pdfRenderPending) return 'Preview render in progress'
+      if (overPageLimit) return 'Over target; tighten content'
+      if (nearPageLimit) return 'Near target; review spacing'
+      if (pdfPageCount) return 'Within target page count'
+      return 'Awaiting first preview render'
+    })()
+    const generationDetail =
+      generationState.vectorMode === 'auto'
+        ? 'AI vector plan active'
+        : 'Manual vector selection active'
+    const sourceDetail =
+      generationState.source === 'pipeline'
+        ? 'Pipeline entry linked'
+        : generationState.source === 'identity'
+          ? 'Identity generation loaded'
+          : 'Workspace-local edits'
 
     return [
       {
         label: 'Vector',
         value: selectedVectorLabel,
-        detail: comparisonVectorLabel ? `Comparing against ${comparisonVectorLabel}` : 'Single-vector focus',
+        detail: comparisonVectorLabel ? `Comparing with ${comparisonVectorLabel}` : bulletDetail,
       },
       {
         label: 'Pages',
         value: pdfRenderPending ? 'Rendering…' : pdfPageCount ? `${pdfPageCount} page${pdfPageCount === 1 ? '' : 's'}` : '—',
-        detail: overPageLimit ? 'Over target page count' : nearPageLimit ? 'Near target page count' : 'Within page target',
+        detail: pageDetail,
       },
       {
         label: 'Generation',
         value: generationModeLabel,
-        detail:
-          generationState.vectorMode === 'auto'
-            ? 'AI-suggested vector plan'
-            : 'Manual vector selection',
+        detail: generationDetail,
       },
       {
         label: 'Source',
         value: generationSourceLabel,
-        detail:
-          generationState.source === 'pipeline'
-            ? 'Linked to a pipeline entry'
-            : generationState.source === 'identity'
-              ? 'Derived from identity generation'
-              : 'Workspace-local origin',
+        detail: sourceDetail,
       },
       ...(presetContextActive
         ? [
@@ -820,7 +830,10 @@ export function BuildPage() {
             {
               label: 'Suggestions',
               value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
-              detail: suggestionCount > 0 ? 'JD-guided changes' : 'No remaining suggestions',
+              detail:
+                suggestionCount > 0
+                  ? `${suggestionCount} JD-guided change${suggestionCount === 1 ? '' : 's'}`
+                  : 'No remaining suggestions',
             },
           ]
         : []),
@@ -840,6 +853,7 @@ export function BuildPage() {
     ]
   }, [
       activePresetName,
+      bulletCount,
       hasActivePreset,
       comparisonVectorLabel,
       generationModeLabel,
@@ -1652,7 +1666,7 @@ export function BuildPage() {
         selectedVector={selectedVector}
         onSelect={setSelectedVector}
         onAddVector={onAddVector}
-        onResetAuto={() => resetOverridesForVector(vectorKey)}
+        onResetOverrides={() => resetOverridesForVector(vectorKey)}
       />
 
       {isOptimizingDensity && (
