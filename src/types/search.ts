@@ -366,6 +366,20 @@ export interface SearchSkillDepthEntry {
 }
 
 /**
+ * Per-search instance parameters inferred by the LLM from identity context and the search angle,
+ * editable by the user without touching the base identity model. Each thesis carries its own copy
+ * so two parallel searches can diverge (e.g., one explores adjacent titles with a relaxed comp
+ * floor; another stays in the home lane with a strict location filter).
+ */
+export interface SearchInstanceOverrides {
+  constraints: SearchProfileConstraints
+  filters: SearchProfileFilters
+  interviewPrefs: SearchInterviewPrefs
+  /** Skill ids hidden from this search only — does not remove from identity. */
+  hiddenSkillIds: string[]
+}
+
+/**
  * Strategic hypothesis that drives deep research execution.
  * Generated in Phase 1 (thesis generation), reviewed and corrected
  * by the user, then used as input to Phase 2 (deep research).
@@ -403,6 +417,28 @@ export interface SearchThesis {
   keywordCombinations: SearchKeywordCombination[]
   /** Per-skill semantic depth with context and search guidance. */
   skillDepthMap: SearchSkillDepthEntry[]
+
+  /**
+   * Per-search constraints/filters/interview prefs/hidden skills. Inferred by the generator
+   * from identity context the first time, then user-editable. Distinct from identity defaults so
+   * a per-search edit (e.g., "for this lane I'll consider lower comp") does not pollute the
+   * identity model. Optional for backward compatibility with theses created before this layer.
+   */
+  searchOverrides?: SearchInstanceOverrides
+
+  /**
+   * User-supplied free-text correction notes. Submitted explicitly via "Regenerate with
+   * corrections" — the next generation pass receives this as guidance and the field clears
+   * once the new thesis is saved.
+   */
+  userCorrections?: string
+
+  /**
+   * Free-text directive that steers the generator toward a search angle the LLM could not
+   * have inferred ("I want to research adjacent job titles", "explore early-stage CTO roles").
+   * Unlike userCorrections, this is intent-shaping and persists across regenerations.
+   */
+  customDirective?: string
 
   /** Whether this thesis was AI-generated or user-edited. */
   source: SearchThesisSource
@@ -607,4 +643,22 @@ export const DEFAULT_SEARCH_MAX_RESULTS: SearchRequestMaxResults = {
   tier1: 5,
   tier2: 10,
   tier3: 10,
+}
+
+export const EMPTY_SEARCH_INSTANCE_OVERRIDES: SearchInstanceOverrides = {
+  constraints: {
+    compensation: '',
+    locations: [],
+    clearance: '',
+    companySize: '',
+  },
+  filters: {
+    prioritize: [],
+    avoid: [],
+  },
+  interviewPrefs: {
+    strongFit: [],
+    redFlags: [],
+  },
+  hiddenSkillIds: [],
 }
