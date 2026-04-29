@@ -132,7 +132,6 @@ function InspectorBody({
         <SearchVectorInspector
           identity={identity}
           vectorId={selection.id}
-          onGoToWorkbench={handlers.goToWorkbench}
         />
       )
     case 'awareness-question':
@@ -140,7 +139,6 @@ function InspectorBody({
         <AwarenessQuestionInspector
           identity={identity}
           questionId={selection.id}
-          onGoToWorkbench={handlers.goToWorkbench}
         />
       )
     default: {

@@ -5,11 +5,9 @@ import { Actions, MetaRows, NotFound, SlotShell } from './slotPrimitives'
 export function AwarenessQuestionInspector({
   identity,
   questionId,
-  onGoToWorkbench,
 }: {
   identity: ProfessionalIdentityV3
   questionId: string
-  onGoToWorkbench: () => void
 }) {
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const question = identity.awareness?.open_questions.find((q) => q.id === questionId)
@@ -28,9 +26,6 @@ export function AwarenessQuestionInspector({
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={toggleReviewed}>
           {question.needs_review ? 'Mark reviewed' : 'Reopen for review'}
-        </button>
-        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>
-          Edit / Add evidence
         </button>
       </Actions>
     </SlotShell>

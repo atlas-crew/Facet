@@ -5,11 +5,9 @@ import { Actions, MetaRows, NotFound, SlotShell } from './slotPrimitives'
 export function SearchVectorInspector({
   identity,
   vectorId,
-  onGoToWorkbench,
 }: {
   identity: ProfessionalIdentityV3
   vectorId: string
-  onGoToWorkbench: () => void
 }) {
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const vector = identity.search_vectors?.find((v) => v.id === vectorId)
@@ -34,9 +32,6 @@ export function SearchVectorInspector({
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={toggleReviewed}>
           {vector.needs_review ? 'Mark reviewed' : 'Reopen for review'}
-        </button>
-        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>
-          Edit / Regenerate
         </button>
       </Actions>
     </SlotShell>
