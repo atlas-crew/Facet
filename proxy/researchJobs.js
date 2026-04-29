@@ -535,7 +535,7 @@ function buildAnthropicParams(job, config) {
     max_tokens: config.maxTokens,
     system: 'You are Facet deep research. Produce only the requested JSON result.',
     messages: [{ role: 'user', content: buildPrompt(job) }],
-    thinking: { type: 'enabled', budget_tokens: config.thinkingBudgetTokens },
+    thinking: { type: 'adaptive' },
     output_config: {
       effort: config.effort,
       task_budget: { type: 'tokens', total: config.taskBudgetTokens },
@@ -570,7 +570,6 @@ export function createResearchJobService(options) {
   const config = {
     model: options.model ?? 'claude-opus-4-7',
     maxTokens: options.maxTokens ?? 128_000,
-    thinkingBudgetTokens: options.thinkingBudgetTokens ?? 15_000,
     taskBudgetTokens: options.taskBudgetTokens ?? 80_000,
     effort: options.effort ?? 'high',
     webSearchToolType: options.webSearchToolType ?? 'web_search_20260209',

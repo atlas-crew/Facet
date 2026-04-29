@@ -958,11 +958,15 @@ describe('facetServer persistence API', () => {
     })
 
     expect(response.status).toBe(200)
+    // On Sonnet 4.6, the proxy translates manual thinking → adaptive and derives an
+    // effort level from the (clamped) budget. budget=8000 clamps to 4095 (max_tokens-1)
+    // and 4095 maps to 'medium' per deriveEffortFromBudget.
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-sonnet-4-6',
         max_tokens: 4096,
-        thinking: { type: 'enabled', budget_tokens: 4095 },
+        thinking: { type: 'adaptive' },
+        output_config: expect.objectContaining({ effort: 'medium' }),
       }),
     )
   })
@@ -1282,7 +1286,7 @@ describe('facetServer persistence API', () => {
       throw new Error('Failed to bind feature-model test server.')
     }
 
-    for (const feature of ['prep.generate', 'letters.generate', 'research.profile-inference']) {
+    for (const feature of ['prep.generate', 'letters.generate', 'linkedin.generate']) {
       const response = await fetch(`http://127.0.0.1:${address.port}`, {
         method: 'POST',
         headers: {
@@ -1546,7 +1550,7 @@ describe('facetServer persistence API', () => {
     expect(overrideCall).not.toHaveProperty('temperature')
   })
 
-  it('keeps legacy alias resolution when no feature is provided', async () => {
+  it('resolves the sonnet alias to current Sonnet 4.6 when no feature is provided', async () => {
     const messagesCreate = vi.fn(async () => ({
       content: [{ type: 'text', text: '{"ok":true}' }],
       usage: { input_tokens: 0, output_tokens: 0 },
@@ -1590,13 +1594,15 @@ describe('facetServer persistence API', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-sonnet-4-20250514')
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-sonnet-4-6')
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-20250514',
-        temperature: 0.3,
+        model: 'claude-sonnet-4-6',
       }),
     )
+    // Sonnet 4.6 is in MODELS_OMIT_TEMPERATURE, so the proxy must not forward temperature.
+    const [aliasCall] = messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    expect(aliasCall).not.toHaveProperty('temperature')
   })
 
   it('preserves upstream overload messages for 529 provider failures', async () => {

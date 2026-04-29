@@ -658,7 +658,7 @@ describe('research job API', () => {
     expect(anthropicParams).toMatchObject({
       model: 'claude-opus-4-7',
       max_tokens: 128000,
-      thinking: { type: 'enabled', budget_tokens: 15000 },
+      thinking: { type: 'adaptive' },
       output_config: {
         effort: 'high',
         task_budget: { type: 'tokens', total: 80000 },

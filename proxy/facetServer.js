@@ -42,8 +42,6 @@ import {
 import { estimateCostCents } from './pricing.js'
 import pg from 'pg'
 
-const LEGACY_SONNET_MODEL = 'claude-sonnet-4-20250514'
-const LEGACY_OPUS_MODEL = 'claude-opus-4-20250514'
 const CURRENT_SONNET_MODEL = 'claude-sonnet-4-6'
 const CURRENT_OPUS_MODEL = 'claude-opus-4-7'
 const CURRENT_HAIKU_MODEL = 'claude-haiku-4-5-20251001'
@@ -51,7 +49,14 @@ const CURRENT_HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 // upstream model ids in non-thinking requests, so the proxy must omit temperature.
 // Re-check this set whenever a new Sonnet/Opus model id is added to proxy routing.
 const MODELS_OMIT_TEMPERATURE = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODEL])
-const DEFAULT_MODEL = LEGACY_SONNET_MODEL
+// Models that require adaptive thinking (`thinking: {type: 'adaptive'}`); manual
+// extended thinking with `budget_tokens` 400s on Opus 4.7 and is deprecated on
+// Sonnet 4.6. The proxy translates `thinking_budget` → adaptive for these models.
+const ADAPTIVE_THINKING_MODELS = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODEL])
+// Models that accept the `output_config.effort` parameter. Sonnet 4.5 and Haiku 4.5
+// 400 if effort is sent. Re-check this set when a new model is added to routing.
+const MODELS_ACCEPT_EFFORT = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODEL])
+const DEFAULT_MODEL = CURRENT_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 const TASK_BUDGET_FEATURE_MAX_TOKENS = 128_000
@@ -78,23 +83,32 @@ const STATIC_CONTENT_TYPES = {
 
 const MODEL_ALIASES = {
   haiku: CURRENT_HAIKU_MODEL,
-  sonnet: LEGACY_SONNET_MODEL,
-  opus: LEGACY_OPUS_MODEL,
+  sonnet: CURRENT_SONNET_MODEL,
+  opus: CURRENT_OPUS_MODEL,
 }
 
+// Per-feature model tiering (see backlog doc-24 for product context):
+//   Opus 4.7   — quality-critical user-facing output ("represents the product to the user")
+//   Sonnet 4.6 — structured transformation with a clear input/output shape
+//   Haiku 4.5  — mechanical field extraction
 const FEATURE_MODEL_DEFAULTS = {
-  'build.bullet-reframe': CURRENT_OPUS_MODEL,
-  'identity.extract': CURRENT_OPUS_MODEL,
+  // Opus 4.7 — quality-critical
   'identity.deepen': CURRENT_OPUS_MODEL,
-  'pipeline.t3.interviewer': CURRENT_OPUS_MODEL,
+  'pipeline.t3.interviewer': CURRENT_OPUS_MODEL, // unwired today; revisit when feature lands
   'research.deep-search': CURRENT_OPUS_MODEL,
-  'research.profile-inference': CURRENT_OPUS_MODEL,
-  'research.search': CURRENT_SONNET_MODEL,
   'research.thesis': CURRENT_OPUS_MODEL,
   'prep.generate': CURRENT_OPUS_MODEL,
   'letters.generate': CURRENT_OPUS_MODEL,
   'linkedin.generate': CURRENT_OPUS_MODEL,
-  'debrief.generate': CURRENT_OPUS_MODEL,
+  // Sonnet 4.6 — structured transformation
+  'identity.extract': CURRENT_SONNET_MODEL,
+  'debrief.generate': CURRENT_SONNET_MODEL,
+  'build.bullet-reframe': CURRENT_SONNET_MODEL,
+  'research.profile-inference': CURRENT_SONNET_MODEL,
+  'research.search': CURRENT_SONNET_MODEL,
+  // Haiku 4.5 — mechanical field extraction
+  'build.jd-analysis': CURRENT_HAIKU_MODEL,
+  'match.jd-analysis': CURRENT_HAIKU_MODEL,
 }
 
 const DEFAULT_AI_FEATURE_RATE_LIMITS = {
@@ -175,6 +189,15 @@ function createUnauthenticatedAnthropicCompatClient({ baseURL }) {
 
 function shouldOmitTemperature(model) {
   return MODELS_OMIT_TEMPERATURE.has(model)
+}
+
+// Map a thinking_budget magnitude to an `effort` level for adaptive-thinking models.
+// Adaptive thinking ignores numeric budgets — `effort` is the new control. Honor
+// the caller's intent by translating budget magnitude to the corresponding effort.
+function deriveEffortFromBudget(budget) {
+  if (budget < 4000) return 'low'
+  if (budget < 12000) return 'medium'
+  return 'high'
 }
 
 function parsePositiveInteger(value, fallback) {
@@ -1489,12 +1512,45 @@ export function createFacetServer(options = {}) {
       }
 
       if (useThinking) {
-        params.thinking = { type: 'enabled', budget_tokens: resolvedThinkingBudget }
+        // Translate manual extended thinking → adaptive on 4.6/4.7. Manual 400s on
+        // Opus 4.7 and is deprecated on Sonnet 4.6. Older models retain manual.
+        params.thinking = ADAPTIVE_THINKING_MODELS.has(resolvedModel)
+          ? { type: 'adaptive' }
+          : { type: 'enabled', budget_tokens: resolvedThinkingBudget }
       } else if (!shouldOmitTemperature(resolvedModel)) {
         params.temperature = resolvedTemp
       } else if (temperature !== undefined) {
         // Only warn on caller-supplied temperature. Omitting a server default is expected.
         console.warn('[proxy] omitting temperature because it is not accepted by model', resolvedModel)
+      }
+
+      // Map thinking_budget magnitude → effort on adaptive-thinking models when the
+      // caller didn't explicitly set effort. Adaptive thinking ignores numeric budgets,
+      // so derive an effort level so the caller's "depth intent" still influences output.
+      if (
+        useThinking &&
+        ADAPTIVE_THINKING_MODELS.has(resolvedModel) &&
+        resolvedThinkingBudget > 0
+      ) {
+        if (!params.output_config) params.output_config = {}
+        if (params.output_config.effort === undefined) {
+          params.output_config.effort = deriveEffortFromBudget(resolvedThinkingBudget)
+        }
+      }
+
+      // Strip output_config.effort if the resolved model rejects it (Haiku 4.5 / Sonnet 4.5).
+      // Without this guard, callers' effort flags silently 400 the request upstream.
+      if (
+        params.output_config?.effort !== undefined &&
+        !MODELS_ACCEPT_EFFORT.has(resolvedModel)
+      ) {
+        console.warn('[proxy] stripping output_config.effort; not accepted by model', resolvedModel)
+        const { effort: _stripped, ...rest } = params.output_config
+        if (Object.keys(rest).length > 0) {
+          params.output_config = rest
+        } else {
+          delete params.output_config
+        }
       }
 
       const start = Date.now()
