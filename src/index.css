@@ -17,7 +17,8 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* Stacked Build panels need usable editor/preview room while preserving page scroll. */
+  /* Build workspace height floors by breakpoint: desktop flex basis, stacked fixed panel height. */
+  --build-workspace-panel-height-lg: clamp(520px, 62vh, 760px);
   --build-workspace-panel-height-md: clamp(420px, 68vh, 720px);
   --build-workspace-panel-height-sm: clamp(360px, 70vh, 640px);
 
@@ -326,8 +327,8 @@ select {
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  /* Resolves against .app-main's definite flex height while still allowing overflow. */
+  min-height: 100%;
 }
 
 .top-bar {
@@ -1029,9 +1030,12 @@ select {
 }
 
 .workspace {
+  --build-workspace-panel-height: var(--build-workspace-panel-height-lg);
+
   display: flex;
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 var(--build-workspace-panel-height);
+  /* Keeps percentage-height children from expanding the desktop workspace to full content height. */
+  min-height: var(--build-workspace-panel-height);
 }
 
 .library-column {
@@ -2952,19 +2956,21 @@ select.component-input {
 
     flex-direction: column;
     /* Let stacked editor/preview panels define the scrollable page height. */
-    flex: 0 0 auto;
+    flex: none;
+    height: auto;
     min-height: auto;
   }
 
   .library-column,
   .preview-column {
-    flex: 0 0 auto;
+    flex: none;
     width: 100% !important;
     min-width: 0;
     height: var(--build-workspace-panel-height);
   }
 
   .splitter {
+    /* Stacked panels use fixed clamped heights, so the desktop resize affordance is suppressed. */
     display: none;
   }
 

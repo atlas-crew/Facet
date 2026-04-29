@@ -9,11 +9,15 @@ const openSampleBuildWorkspace = async (page: Page) => {
   }
 
   await expect(page.locator('.workspace')).toBeVisible()
+
+  await page.getByRole('tab', { name: 'Live' }).click()
+  await expect(page.locator('.preview-paper')).toBeVisible()
 }
 
 test.describe('Build workspace responsive layout', () => {
   for (const viewport of [
     { name: 'tablet', width: 900, height: 800, minPanelHeight: 420, maxPanelHeight: 720 },
+    { name: 'tablet short', width: 900, height: 500, minPanelHeight: 420, maxPanelHeight: 720 },
     { name: 'tablet tall', width: 900, height: 1400, minPanelHeight: 420, maxPanelHeight: 720 },
     { name: 'mobile', width: 390, height: 844, minPanelHeight: 360, maxPanelHeight: 640 },
     { name: 'mobile tall', width: 390, height: 1200, minPanelHeight: 360, maxPanelHeight: 640 },
@@ -69,11 +73,42 @@ test.describe('Build workspace responsive layout', () => {
     })
   }
 
-  test('keeps desktop columns side-by-side with the splitter visible', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 })
-    await openSampleBuildWorkspace(page)
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 800 },
+    { name: 'desktop short', width: 1280, height: 600 },
+  ]) {
+    test('keeps ' + viewport.name + ' columns side-by-side with the splitter visible', async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      await openSampleBuildWorkspace(page)
 
-    await expect(page.locator('.workspace')).toHaveCSS('flex-direction', 'row')
-    await expect(page.locator('.splitter')).not.toHaveCSS('display', 'none')
-  })
+      await expect(page.locator('.workspace')).toHaveCSS('flex-direction', 'row')
+      await expect(page.locator('.splitter')).not.toHaveCSS('display', 'none')
+
+      const layoutMetrics = await page.evaluate(() => {
+        const readBox = (selector: string) => {
+          const element = document.querySelector(selector)
+          if (!(element instanceof HTMLElement)) {
+            throw new Error('Missing ' + selector)
+          }
+
+          const rect = element.getBoundingClientRect()
+          return {
+            height: rect.height,
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight,
+          }
+        }
+
+        return {
+          appMain: readBox('.app-main'),
+          workspace: readBox('.workspace'),
+          leftPanelBody: readBox('#left-panel-content'),
+        }
+      })
+
+      expect(layoutMetrics.appMain.scrollHeight).toBeGreaterThan(layoutMetrics.appMain.clientHeight)
+      expect(layoutMetrics.workspace.height).toBeGreaterThanOrEqual(520)
+      expect(layoutMetrics.leftPanelBody.scrollHeight).toBeGreaterThan(layoutMetrics.leftPanelBody.clientHeight)
+    })
+  }
 })
