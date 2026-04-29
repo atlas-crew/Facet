@@ -1,6 +1,8 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type {
+  SearchCompanySize,
   SearchFeedbackEvent,
+  SearchInstanceOverrides,
   SearchKeywordCombination,
   SearchLane,
   SearchSkillDepthEntry,
@@ -12,6 +14,15 @@ import type {
 import { createId } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+
+const VALID_COMPANY_SIZES = new Set<SearchCompanySize>([
+  'startup',
+  'growth',
+  'mid-market',
+  'enterprise',
+  'public',
+  'any',
+])
 
 const THESIS_GENERATION_TIMEOUT_MS = 90_000
 const THESIS_GENERATION_THINKING_BUDGET = 10_000
@@ -63,11 +74,19 @@ const identitySkillEntries = (identity: ProfessionalIdentityV3): Array<{
       }),
   )
 
+export interface ThesisGenerationContext {
+  /** Free-text user correction notes from the previous thesis (cleared after regenerate). */
+  userCorrections?: string
+  /** Persistent custom-search directive that steers angle selection. */
+  customDirective?: string
+}
+
 export function buildThesisGenerationPrompt(
   identity: ProfessionalIdentityV3,
   feedbackEvents: SearchFeedbackEvent[] = [],
+  context: ThesisGenerationContext = {},
 ): string {
-  return [
+  const sections: string[] = [
     'Professional identity model:',
     JSON.stringify(
       {
@@ -88,9 +107,28 @@ export function buildThesisGenerationPrompt(
     '',
     'Previously applied feedback not yet reflected in the current thesis:',
     JSON.stringify(feedbackEvents),
-    '',
-    'Return JSON only, wrapped in <result></result>.',
-  ].join('\n')
+  ]
+
+  const correctionsTrimmed = context.userCorrections?.trim()
+  if (correctionsTrimmed) {
+    sections.push(
+      '',
+      'User corrections from the previous thesis (apply before regenerating; do not return verbatim):',
+      correctionsTrimmed,
+    )
+  }
+
+  const directiveTrimmed = context.customDirective?.trim()
+  if (directiveTrimmed) {
+    sections.push(
+      '',
+      'Custom search directive (steer the search angle even when identity context would not suggest it):',
+      directiveTrimmed,
+    )
+  }
+
+  sections.push('', 'Return JSON only, wrapped in <result></result>.')
+  return sections.join('\n')
 }
 
 const normalizeUnfairAdvantages = (value: unknown): SearchUnfairAdvantage[] =>
@@ -178,6 +216,34 @@ const normalizeKeywordCombinations = (value: unknown, fallbackLaneId: string): S
       })
     : []
 
+const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined => {
+  if (!isRecord(value)) return undefined
+  const constraintsRecord = isRecord(value.constraints) ? value.constraints : {}
+  const filtersRecord = isRecord(value.filters) ? value.filters : {}
+  const interviewRecord = isRecord(value.interviewPrefs) ? value.interviewPrefs : {}
+  const companySizeRaw = normalizeString(constraintsRecord.companySize)
+  const companySize = VALID_COMPANY_SIZES.has(companySizeRaw as SearchCompanySize)
+    ? (companySizeRaw as SearchCompanySize)
+    : ''
+  return {
+    constraints: {
+      compensation: normalizeString(constraintsRecord.compensation),
+      locations: normalizeStringArray(constraintsRecord.locations),
+      clearance: normalizeString(constraintsRecord.clearance),
+      companySize,
+    },
+    filters: {
+      prioritize: normalizeStringArray(filtersRecord.prioritize),
+      avoid: normalizeStringArray(filtersRecord.avoid),
+    },
+    interviewPrefs: {
+      strongFit: normalizeStringArray(interviewRecord.strongFit),
+      redFlags: normalizeStringArray(interviewRecord.redFlags),
+    },
+    hiddenSkillIds: normalizeStringArray(value.hiddenSkillIds),
+  }
+}
+
 const normalizeSkillDepthMap = (value: unknown): SearchSkillDepthEntry[] =>
   Array.isArray(value)
     ? value.flatMap((entry) => {
@@ -202,14 +268,17 @@ export function normalizeGeneratedSearchThesis(
   identity: ProfessionalIdentityV3,
   feedbackEvents: SearchFeedbackEvent[] = [],
   createdAt = new Date().toISOString(),
+  context: ThesisGenerationContext = {},
 ): SearchThesis {
   const record = isRecord(payload) ? payload : {}
   const lanes = normalizeSearchLanes(record.searchLanes)
   const fallbackLaneId = lanes[0]?.id ?? 'general-fit'
   const timeline = normalizeTimeline(record.timeline)
+  const overrides = normalizeOverrides(record.searchOverrides)
   const feedbackEventIds = new Set(feedbackEvents.map((event) => event.id))
   const feedbackIncorporated = normalizeStringArray(record.feedbackIncorporated)
     .filter((id) => feedbackEventIds.has(id))
+  const directiveTrimmed = context.customDirective?.trim()
   return {
     id: normalizeString(record.id) || createId('sthesis'),
     createdAt: normalizeString(record.createdAt) || createdAt,
@@ -224,6 +293,8 @@ export function normalizeGeneratedSearchThesis(
     ...(timeline ? { timeline } : {}),
     keywordCombinations: normalizeKeywordCombinations(record.keywordCombinations, fallbackLaneId),
     skillDepthMap: normalizeSkillDepthMap(record.skillDepthMap),
+    ...(overrides ? { searchOverrides: overrides } : {}),
+    ...(directiveTrimmed ? { customDirective: directiveTrimmed } : {}),
     source: 'generated',
     identityVersion: Math.max(0, Math.floor(identity.model_revision ?? 0)),
     feedbackIncorporated:
@@ -280,12 +351,18 @@ export async function generateSearchThesisFromIdentity(
   identity: ProfessionalIdentityV3,
   endpoint: string,
   feedbackEvents: SearchFeedbackEvent[] = [],
+  context: ThesisGenerationContext = {},
 ): Promise<{ thesis: SearchThesis; contractViolations: string[] }> {
   const systemPrompt = [
     "You are Facet's search thesis strategist. Return JSON only wrapped in <result></result>.",
     'Generate a SearchThesis from the supplied full identity model. Use archetype, arc, profiles, PAIO evidence, skills, calibration notes, matching preferences, conditions, search vectors, and open questions. Do not reduce the input to a flat skill list.',
     '',
     'Use Opus-level reasoning. The thesis is the user decision artifact before an expensive deep-research job.',
+    '',
+    'Per-search overrides (`searchOverrides`): infer plausible per-search values from identity context and the chosen lanes. These are starting points the user will correct, NOT static placeholders. Better to make a confident guess that teaches the user what the field means than to leave fields blank. Concrete > abstract: prefer "$240k base / $340k total" over "competitive comp"; prefer "Tampa Bay (Remote-friendly)" over "Remote".',
+    '',
+    'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction — it represents intent the identity model does not encode.',
+    'If user corrections are provided, weave them into the new thesis without quoting them verbatim, and update overrides to reflect them.',
     '',
     'Response schema:',
     '{',
@@ -299,6 +376,12 @@ export async function generateSearchThesisFromIdentity(
     '  "timeline": { "urgency": "critical|active|exploratory", "deadline": "optional ISO date", "strategyImpact": "string" },',
     '  "keywordCombinations": [{ "query": "string", "lane": "lane id", "noiseLevel": "low|medium|high" }],',
     '  "skillDepthMap": [{ "skill": "string", "depth": "semantic depth", "context": "specific PAIO evidence", "searchSignal": "string", "calibration": "optional honest framing" }],',
+    '  "searchOverrides": {',
+    '    "constraints": { "compensation": "string", "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|" },',
+    '    "filters": { "prioritize": ["string"], "avoid": ["string"] },',
+    '    "interviewPrefs": { "strongFit": ["string"], "redFlags": ["string"] },',
+    '    "hiddenSkillIds": []',
+    '  },',
     '  "feedbackIncorporated": ["feedback event ids"]',
     '}',
     '',
@@ -307,9 +390,10 @@ export async function generateSearchThesisFromIdentity(
     '- every lane rationale must be prose, not fragments.',
     '- skillDepthMap context must cite specific evidence from the identity model.',
     '- cover every user skill unless the identity explicitly marks it irrelevant or avoid.',
+    '- searchOverrides values must be concrete and tailored to the chosen lanes; leave hiddenSkillIds empty unless the lane choice clearly excludes a skill.',
   ].join('\n')
 
-  const userPrompt = buildThesisGenerationPrompt(identity, feedbackEvents)
+  const userPrompt = buildThesisGenerationPrompt(identity, feedbackEvents, context)
   if (userPrompt.length > THESIS_GENERATION_MAX_PROMPT_CHARS) {
     throw new Error(
       'Identity model is too large for thesis generation (' +
@@ -339,7 +423,13 @@ export async function generateSearchThesisFromIdentity(
       json,
       'Generated search thesis response',
     ).data
-    const thesis = normalizeGeneratedSearchThesis(parsed, identity, feedbackEvents)
+    const thesis = normalizeGeneratedSearchThesis(
+      parsed,
+      identity,
+      feedbackEvents,
+      undefined,
+      context,
+    )
     return {
       thesis,
       contractViolations: validateSearchThesis(thesis, identity),

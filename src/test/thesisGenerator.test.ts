@@ -52,6 +52,19 @@ describe('thesisGenerator', () => {
     expect(prompt).toContain('Too much Kubernetes admin framing')
   })
 
+  it('appends user corrections and a custom directive to the prompt when supplied', () => {
+    const identity = cloneIdentityFixture()
+    const prompt = buildThesisGenerationPrompt(identity, [], {
+      userCorrections: 'Steer away from Kubernetes admin framing — emphasize platform leverage.',
+      customDirective: 'Research adjacent CTO roles at platform-modernization startups.',
+    })
+
+    expect(prompt).toContain('User corrections from the previous thesis')
+    expect(prompt).toContain('Steer away from Kubernetes admin framing')
+    expect(prompt).toContain('Custom search directive')
+    expect(prompt).toContain('Research adjacent CTO roles')
+  })
+
   it('generates a normalized thesis with Opus thinking budget options', async () => {
     const identity = cloneIdentityFixture()
     identity.model_revision = 7
@@ -161,6 +174,82 @@ describe('thesisGenerator', () => {
     await expect(
       generateSearchThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
     ).rejects.toThrow(/malformed/i)
+  })
+
+  it('absorbs inferred per-search overrides and persists customDirective from generation context', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 9
+
+    mockCallLlmProxy.mockResolvedValueOnce(
+      '<result>' +
+        JSON.stringify({
+          narrative,
+          competitiveMoat:
+            'Kubernetes delivery depth combined with product-aware platform strategy.',
+          unfairAdvantages: [
+            {
+              combination: 'Kubernetes delivery plus product judgment',
+              depth: 'strong',
+              targetCompanyProfile: 'Platform modernization teams',
+            },
+          ],
+          searchLanes: [
+            {
+              id: 'lane-modernization',
+              title: 'Platform modernization',
+              rationale:
+                'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+              targetSignals: ['platform modernization'],
+            },
+          ],
+          interviewStrategy: 'Anchor on deployment architecture tradeoffs.',
+          lookFor: ['platform modernization'],
+          avoid: [],
+          keywordCombinations: [],
+          skillDepthMap: [
+            {
+              skill: 'Kubernetes',
+              depth: 'strong',
+              context: 'Customer deployment evidence from the identity model.',
+              searchSignal: 'Strong match signal.',
+            },
+          ],
+          searchOverrides: {
+            constraints: {
+              compensation: '$240k base / $340k total',
+              locations: ['Tampa Bay'],
+              clearance: 'None',
+              companySize: 'growth',
+            },
+            filters: {
+              prioritize: ['platform leverage'],
+              avoid: ['pure cluster admin'],
+            },
+            interviewPrefs: {
+              strongFit: ['take-home portfolio'],
+              redFlags: ['leetcode-only loops'],
+            },
+            hiddenSkillIds: [],
+          },
+          feedbackIncorporated: [],
+        }) +
+        '</result>',
+    )
+
+    const result = await generateSearchThesisFromIdentity(
+      identity,
+      'https://ai.example/proxy',
+      [],
+      { customDirective: 'Adjacent CTO roles at platform-modernization startups.' },
+    )
+
+    expect(result.thesis.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
+    expect(result.thesis.searchOverrides?.constraints.companySize).toBe('growth')
+    expect(result.thesis.searchOverrides?.filters.prioritize).toEqual(['platform leverage'])
+    expect(result.thesis.searchOverrides?.interviewPrefs.strongFit).toEqual(['take-home portfolio'])
+    expect(result.thesis.customDirective).toBe(
+      'Adjacent CTO roles at platform-modernization startups.',
+    )
   })
 
   it('validates narrative, lane rationale, and identity skill coverage', () => {
