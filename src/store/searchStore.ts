@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   SearchFeedbackEvent,
+  SearchInstanceOverrides,
   SearchInterviewPrefs,
   SearchProfile,
   SearchProfileConstraints,
@@ -12,6 +13,7 @@ import type {
   SkillCatalogEntry,
   VectorSearchConfig,
 } from '../types/search'
+import { EMPTY_SEARCH_INSTANCE_OVERRIDES } from '../types/search'
 import { createId } from '../utils/idUtils'
 import {
   type ArtifactStalenessReview,
@@ -65,6 +67,14 @@ interface SearchState {
   addThesis: (thesis: SearchThesisInput) => SearchThesis
   markThesisStalenessReview: (id: string, review: ArtifactStalenessReview) => boolean
   saveThesisRevision: (baseId: string, patch: Partial<SearchThesis>) => SearchThesis | null
+  /** Update one slice of a thesis's per-search override layer. */
+  updateThesisOverrides: (id: string, patch: Partial<SearchInstanceOverrides>) => SearchThesis | null
+  /** Toggle a skill id in the hidden-from-this-search set. */
+  toggleThesisHiddenSkill: (id: string, skillId: string) => SearchThesis | null
+  /** Persist user correction notes to be included on the next regenerate. */
+  setThesisUserCorrections: (id: string, notes: string) => SearchThesis | null
+  /** Persist a custom-search directive that steers regeneration. */
+  setThesisCustomDirective: (id: string, directive: string) => SearchThesis | null
   setActiveThesis: (id: string | null) => void
   setActiveResearchJob: (job: ActiveResearchJobState) => void
   updateActiveResearchJob: (patch: Partial<ActiveResearchJobState>) => void
@@ -110,8 +120,32 @@ const hydrateRun = (run: SearchRunInput): SearchRun => ({
   durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
 })
 
+const hydrateOverrides = (
+  overrides: SearchInstanceOverrides | undefined,
+): SearchInstanceOverrides | undefined => {
+  if (!overrides) return undefined
+  return {
+    constraints: {
+      compensation: overrides.constraints?.compensation ?? '',
+      locations: overrides.constraints?.locations ?? [],
+      clearance: overrides.constraints?.clearance ?? '',
+      companySize: overrides.constraints?.companySize ?? '',
+    },
+    filters: {
+      prioritize: overrides.filters?.prioritize ?? [],
+      avoid: overrides.filters?.avoid ?? [],
+    },
+    interviewPrefs: {
+      strongFit: overrides.interviewPrefs?.strongFit ?? [],
+      redFlags: overrides.interviewPrefs?.redFlags ?? [],
+    },
+    hiddenSkillIds: overrides.hiddenSkillIds ?? [],
+  }
+}
+
 const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
   const createdAt = thesis.createdAt ?? now()
+  const hydratedOverrides = hydrateOverrides(thesis.searchOverrides)
   return {
     ...thesis,
     narrative: thesis.narrative ?? '',
@@ -129,6 +163,7 @@ const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
       id: keyword.id ?? createId('skwd'),
     })),
     skillDepthMap: thesis.skillDepthMap ?? [],
+    ...(hydratedOverrides ? { searchOverrides: hydratedOverrides } : {}),
     stalenessReview: sanitizeArtifactStalenessReview(thesis.stalenessReview),
     id: thesis.id ?? createId('sthesis'),
     durableMeta: ensureDurableMetadata(thesis.durableMeta, createdAt),
@@ -434,6 +469,45 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
           activeThesisId: updated.id,
         }))
         return updated
+      },
+
+      updateThesisOverrides: (id, patch) => {
+        const base = get().theses.find((thesis) => thesis.id === id)
+        if (!base) return null
+        const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
+        const nextOverrides: SearchInstanceOverrides = {
+          constraints: { ...current.constraints, ...(patch.constraints ?? {}) },
+          filters: { ...current.filters, ...(patch.filters ?? {}) },
+          interviewPrefs: { ...current.interviewPrefs, ...(patch.interviewPrefs ?? {}) },
+          hiddenSkillIds: patch.hiddenSkillIds ?? current.hiddenSkillIds,
+        }
+        return get().saveThesisRevision(id, { searchOverrides: nextOverrides })
+      },
+
+      toggleThesisHiddenSkill: (id, skillId) => {
+        const base = get().theses.find((thesis) => thesis.id === id)
+        if (!base) return null
+        const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
+        const hidden = new Set(current.hiddenSkillIds)
+        if (hidden.has(skillId)) {
+          hidden.delete(skillId)
+        } else {
+          hidden.add(skillId)
+        }
+        return get().saveThesisRevision(id, {
+          searchOverrides: {
+            ...current,
+            hiddenSkillIds: Array.from(hidden),
+          },
+        })
+      },
+
+      setThesisUserCorrections: (id, notes) => {
+        return get().saveThesisRevision(id, { userCorrections: notes })
+      },
+
+      setThesisCustomDirective: (id, directive) => {
+        return get().saveThesisRevision(id, { customDirective: directive })
       },
 
       setActiveThesis: (id) => {

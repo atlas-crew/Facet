@@ -554,6 +554,49 @@ describe('searchStore', () => {
       .toThrow(/duplicate search thesis id/i)
   })
 
+  it('threads per-search overrides through saveThesisRevision and toggle/correction helpers', () => {
+    const thesis = useSearchStore.getState().addThesis(buildSearchThesis())
+
+    const updated = useSearchStore.getState().updateThesisOverrides(thesis.id, {
+      constraints: {
+        compensation: '$240k base / $340k total',
+        locations: ['Tampa Bay'],
+        clearance: '',
+        companySize: 'mid-market',
+      },
+      filters: { prioritize: ['platform leverage'], avoid: ['ad tech'] },
+    })
+
+    expect(updated?.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
+    expect(updated?.searchOverrides?.filters.prioritize).toEqual(['platform leverage'])
+    expect(updated?.searchOverrides?.interviewPrefs.strongFit).toEqual([])
+    expect(updated?.searchOverrides?.hiddenSkillIds).toEqual([])
+    expect(updated?.source).toBe('user-edited')
+
+    const afterToggleOn = useSearchStore.getState().toggleThesisHiddenSkill(thesis.id, 'skl-rust')
+    expect(afterToggleOn?.searchOverrides?.hiddenSkillIds).toEqual(['skl-rust'])
+    const afterToggleOff = useSearchStore.getState().toggleThesisHiddenSkill(thesis.id, 'skl-rust')
+    expect(afterToggleOff?.searchOverrides?.hiddenSkillIds).toEqual([])
+
+    const withCorrections = useSearchStore.getState().setThesisUserCorrections(
+      thesis.id,
+      'Drop Kubernetes admin framing — focus on platform leverage.',
+    )
+    expect(withCorrections?.userCorrections).toBe(
+      'Drop Kubernetes admin framing — focus on platform leverage.',
+    )
+
+    const withDirective = useSearchStore.getState().setThesisCustomDirective(
+      thesis.id,
+      'Research adjacent CTO roles at platform-modernization startups.',
+    )
+    expect(withDirective?.customDirective).toBe(
+      'Research adjacent CTO roles at platform-modernization startups.',
+    )
+
+    expect(useSearchStore.getState().updateThesisOverrides('missing-thesis', {})).toBeNull()
+  })
+
   it('migrates persisted profile, request, and run metadata and safely defaults invalid state', () => {
     const migrated = migrateSearchState({
       profile: {
