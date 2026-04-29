@@ -5,7 +5,6 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent,
-  type KeyboardEvent,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Download, FileJson, Upload } from "lucide-react";
@@ -35,7 +34,6 @@ import { BulletConfidenceCard } from "./BulletConfidenceCard";
 import { DraftSummaryCard } from "./DraftSummaryCard";
 import { ExtractionAgentCard } from "./ExtractionAgentCard";
 import { IdentityModelBuilderCard } from "./IdentityModelBuilderCard";
-import { IdentityStrategyWorkbench } from "./IdentityStrategyWorkbench";
 import "./identity.css";
 
 const downloadJson = (filename: string, content: string) => {
@@ -50,7 +48,6 @@ const downloadJson = (filename: string, content: string) => {
   globalThis.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 };
 
-type IdentityWorkspaceTab = "model" | "strategy";
 type IdentityPrimaryAction =
   | "upload"
   | "generate"
@@ -72,8 +69,6 @@ export function IdentityPage() {
   const scanAbortRef = useRef<AbortController | null>(null);
   // Single-bullet and bulk deepening are intentionally mutually exclusive in the UI.
   const deepenAbortRef = useRef<AbortController | null>(null);
-  const [activeWorkspace, setActiveWorkspace] =
-    useState<IdentityWorkspaceTab>("model");
   const [pendingModelScrollTarget, setPendingModelScrollTarget] = useState<
     "draft" | null
   >(null);
@@ -174,18 +169,7 @@ export function IdentityPage() {
   );
 
   useEffect(() => {
-    if (!currentIdentity && activeWorkspace === "strategy") {
-      setActiveWorkspace("model");
-      // Strategy unmounts when the current identity disappears, and the tab bar
-      // collapses away entirely in single-workspace mode. Fall back to the
-      // primary Model action so keyboard users stay within the active workspace
-      // controls.
-      primaryActionButtonRef.current?.focus();
-    }
-  }, [activeWorkspace, currentIdentity]);
-
-  useEffect(() => {
-    if (activeWorkspace !== "model" || pendingModelScrollTarget !== "draft") {
+    if (pendingModelScrollTarget !== "draft") {
       return;
     }
 
@@ -198,7 +182,7 @@ export function IdentityPage() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [activeWorkspace, pendingModelScrollTarget]);
+  }, [pendingModelScrollTarget]);
 
   const counts = useMemo(() => {
     const identity = draft?.identity ?? currentIdentity ?? null;
@@ -246,10 +230,6 @@ export function IdentityPage() {
     () => sourceMaterial.trim().length > 0 || Boolean(scanResult),
     [scanResult, sourceMaterial],
   );
-  const availableWorkspaces: IdentityWorkspaceTab[] = currentIdentity
-    ? ["model", "strategy"]
-    : ["model"];
-
   const ensureEndpoint = () => {
     if (!aiEndpoint) {
       throw new Error(
@@ -799,8 +779,6 @@ export function IdentityPage() {
 
   const scrollToDraftSection = () => {
     setPendingModelScrollTarget("draft");
-    // Ensure the model workspace is active before the deferred scroll runs.
-    setActiveWorkspace("model");
   };
 
   const primaryActionState = useMemo<{
@@ -938,46 +916,6 @@ export function IdentityPage() {
     }
   };
 
-  const handleWorkspaceTabKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    tab: IdentityWorkspaceTab,
-  ) => {
-    const currentIndex = availableWorkspaces.indexOf(tab);
-    if (currentIndex === -1) {
-      return;
-    }
-
-    let nextTab: IdentityWorkspaceTab | null = null;
-    if (event.key === "ArrowRight") {
-      nextTab =
-        availableWorkspaces[(currentIndex + 1) % availableWorkspaces.length] ??
-        null;
-    } else if (event.key === "ArrowLeft") {
-      nextTab =
-        availableWorkspaces[
-          (currentIndex - 1 + availableWorkspaces.length) %
-            availableWorkspaces.length
-        ] ?? null;
-    } else if (event.key === "Home") {
-      nextTab = availableWorkspaces[0] ?? null;
-    } else if (event.key === "End") {
-      nextTab = availableWorkspaces[availableWorkspaces.length - 1] ?? null;
-    }
-
-    if (!nextTab) {
-      return;
-    }
-
-    event.preventDefault();
-    setActiveWorkspace(nextTab);
-    const nextButton = document.getElementById(
-      `identity-workspace-${nextTab}-tab`,
-    );
-    if (nextButton instanceof HTMLButtonElement) {
-      nextButton.focus();
-    }
-  };
-
   return (
     <div className="identity-page">
       <header className="identity-header identity-header-sticky">
@@ -994,43 +932,6 @@ export function IdentityPage() {
         </div>
 
         <div className="identity-header-controls">
-          {availableWorkspaces.length > 1 ? (
-            <div
-              className="identity-tabs identity-workspace-tabs"
-              role="tablist"
-              aria-label="Identity workspaces"
-            >
-              <button
-                id="identity-workspace-model-tab"
-                type="button"
-                role="tab"
-                aria-selected={activeWorkspace === "model"}
-                aria-controls="identity-workspace-model"
-                tabIndex={activeWorkspace === "model" ? 0 : -1}
-                className={`identity-tab ${activeWorkspace === "model" ? "active" : ""}`}
-                onClick={() => setActiveWorkspace("model")}
-                onKeyDown={(event) => handleWorkspaceTabKeyDown(event, "model")}
-              >
-                Model
-              </button>
-              <button
-                id="identity-workspace-strategy-tab"
-                type="button"
-                role="tab"
-                aria-selected={activeWorkspace === "strategy"}
-                aria-controls="identity-workspace-strategy"
-                tabIndex={activeWorkspace === "strategy" ? 0 : -1}
-                className={`identity-tab ${activeWorkspace === "strategy" ? "active" : ""}`}
-                onClick={() => setActiveWorkspace("strategy")}
-                onKeyDown={(event) =>
-                  handleWorkspaceTabKeyDown(event, "strategy")
-                }
-              >
-                Strategy
-              </button>
-            </div>
-          ) : null}
-
           <div className="identity-header-actions identity-header-actions-shell">
             <button
               ref={primaryActionButtonRef}
@@ -1098,17 +999,7 @@ export function IdentityPage() {
           <strong>Warnings:</strong> {warnings.join(" ")}
         </div>
       ) : null}
-      <div
-        id="identity-workspace-model"
-        role={availableWorkspaces.length > 1 ? "tabpanel" : undefined}
-        aria-labelledby={
-          availableWorkspaces.length > 1
-            ? "identity-workspace-model-tab"
-            : undefined
-        }
-        className="identity-workspace-panel"
-        hidden={activeWorkspace !== "model" && Boolean(currentIdentity)}
-      >
+      <div className="identity-workspace-panel">
         <div className="identity-section-stack">
           {currentIdentity &&
           enrichmentProgress &&
@@ -1228,26 +1119,6 @@ export function IdentityPage() {
         </div>
       </div>
 
-      {/* Strategy workspace requires a current identity model, so unmounting is intentional here. */}
-      {currentIdentity ? (
-        <div
-          id="identity-workspace-strategy"
-          role={availableWorkspaces.length > 1 ? "tabpanel" : undefined}
-          aria-labelledby={
-            availableWorkspaces.length > 1
-              ? "identity-workspace-strategy-tab"
-              : undefined
-          }
-          className="identity-workspace-panel"
-          hidden={activeWorkspace !== "strategy"}
-        >
-          <IdentityStrategyWorkbench
-            aiEndpoint={aiEndpoint}
-            onError={setPageError}
-            onNotice={setPageNotice}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

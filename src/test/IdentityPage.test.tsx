@@ -1082,18 +1082,14 @@ describe("IdentityPage", () => {
     const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } =
       setupExportMocks("blob:identity-export", "identity.json");
     const currentIdentity = cloneIdentityFixture();
+    currentIdentity.preferences.work_model.flexibility =
+      "Remote-first; hybrid is fine when the team has a clear in-person cadence.";
 
     useIdentityStore.setState({
       currentIdentity,
     });
 
     render(<IdentityPage />);
-
-    await waitFor(() => {
-      expect(
-        useIdentityStore.getState().currentIdentity?.preferences.work_model.flexibility,
-      ).toContain("Remote-first");
-    });
 
     const expectedIdentityDocument = JSON.stringify(
       useIdentityStore.getState().currentIdentity,
@@ -1149,10 +1145,6 @@ describe("IdentityPage", () => {
     render(<IdentityPage />);
 
     expect(
-      screen.getByRole("tab", { name: "Model" }).getAttribute("aria-selected"),
-    ).toBe("true");
-    expect(screen.getByRole("tab", { name: "Strategy" })).toBeTruthy();
-    expect(
       screen.getAllByRole("button", { name: "Open Skill Depth Wizard" })
         .length,
     ).toBeGreaterThan(0);
@@ -1163,25 +1155,6 @@ describe("IdentityPage", () => {
     expect(
       screen.getByText(/Open the skill depth wizard to review depth, context, and search signals/i),
     ).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("tab", { name: "Strategy" }));
-
-    expect(
-      screen.getByRole("heading", { name: "Strategy", level: 2 }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Suggest Search Angles" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Find Open Questions" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Export Search Brief" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("tab", { name: "Search Preferences" }),
-    ).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Search Brief" })).toBeTruthy();
   });
 
   it("keeps the skill depth wizard entry visible when a draft exists alongside the current identity", () => {

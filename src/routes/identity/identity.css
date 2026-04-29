@@ -263,10 +263,6 @@
   gap: var(--space-3);
 }
 
-.identity-workspace-tabs {
-  justify-content: flex-end;
-}
-
 .identity-grid-single {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -407,32 +403,6 @@
   gap: var(--space-2);
 }
 
-.identity-tabs {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.identity-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  padding: var(--space-2) var(--space-3);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.identity-tab.active {
-  border-color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface));
-  color: var(--text-primary);
-}
-
 .identity-pill {
   display: inline-flex;
   align-items: center;
@@ -446,8 +416,7 @@
   margin-left: var(--space-2);
 }
 
-.identity-form-grid,
-.identity-strategy-grid {
+.identity-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
@@ -457,16 +426,6 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-2);
-}
-
-.identity-strategy-section {
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-inset) 86%, transparent);
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
 }
 
 .identity-list,
@@ -481,10 +440,6 @@
   color: var(--text-secondary);
 }
 
-.identity-strategy-workbench .identity-fieldset[disabled] {
-  opacity: 0.8;
-}
-
 @media (max-width: 960px) {
   .identity-header-sticky {
     padding: var(--space-3);
@@ -492,15 +447,13 @@
 
   .identity-header-controls,
   .identity-header-actions-shell,
-  .identity-header-secondary-actions,
-  .identity-workspace-tabs {
+  .identity-header-secondary-actions {
     width: 100%;
     align-items: stretch;
     justify-content: flex-start;
   }
 
   .identity-form-grid,
-  .identity-strategy-grid,
   .identity-inline-grid {
     grid-template-columns: minmax(0, 1fr);
   }
