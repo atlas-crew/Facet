@@ -9,9 +9,22 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 
-const { analyzeJobDescriptionMock, reframeBulletForVectorMock } = vi.hoisted(() => ({
+const { analyzeJobDescriptionMock, reframeBulletForVectorMock, usePresetsMock, facetClientEnvMock } = vi.hoisted(() => ({
   analyzeJobDescriptionMock: vi.fn(),
   reframeBulletForVectorMock: vi.fn(),
+  usePresetsMock: vi.fn(),
+  facetClientEnvMock: {
+    deploymentMode: 'self-hosted',
+    facetApiBaseUrl: '',
+    anthropicProxyUrl: 'http://localhost:9001',
+    anthropicProxyApiKey: '',
+    supabaseUrl: '',
+    supabasePublishableKey: '',
+  },
+}))
+
+vi.mock('../utils/facetEnv', () => ({
+  facetClientEnv: facetClientEnvMock,
 }))
 
 vi.mock('../utils/jdAnalyzer', async () => {
@@ -48,21 +61,25 @@ vi.mock('../hooks/useSuggestionActions', () => ({
 }))
 
 vi.mock('../hooks/usePresets', () => ({
-  usePresets: () => ({
-    activePresetId: null,
-    activePreset: null,
-    presets: [],
-    presetDirty: false,
-    setActivePresetId: vi.fn(),
-    onSavePreset: vi.fn(),
-    onDeleteActivePreset: vi.fn(),
-    applyPreset: vi.fn(),
-  }),
+  usePresets: usePresetsMock,
 }))
 
-vi.mock('../utils/useFocusTrap', () => ({
-  useFocusTrap: vi.fn(),
-}))
+vi.mock('../utils/useFocusTrap', async () => {
+  const React = await vi.importActual<typeof import('react')>('react')
+
+  return {
+    useFocusTrap: (active: boolean, _containerRef: unknown, onClose: () => void) => {
+      React.useEffect(() => {
+        if (!active) return undefined
+        const handleKeyDown = (event: KeyboardEvent) => {
+          if (event.key === 'Escape') onClose()
+        }
+        document.addEventListener('keydown', handleKeyDown)
+        return () => document.removeEventListener('keydown', handleKeyDown)
+      }, [active, onClose])
+    },
+  }
+})
 
 vi.mock('../components/VectorBar', () => ({
   VectorBar: () => <div data-testid="vector-bar" />,
@@ -120,6 +137,18 @@ describe('BuildPage', () => {
   beforeEach(() => {
     analyzeJobDescriptionMock.mockReset()
     reframeBulletForVectorMock.mockReset()
+    facetClientEnvMock.anthropicProxyUrl = 'http://localhost:9001'
+    usePresetsMock.mockReset()
+    usePresetsMock.mockReturnValue({
+      activePresetId: null,
+      activePreset: null,
+      presets: [],
+      presetDirty: false,
+      setActivePresetId: vi.fn(),
+      onSavePreset: vi.fn(),
+      onDeleteActivePreset: vi.fn(),
+      applyPreset: vi.fn(),
+    })
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
       past: [],
@@ -163,29 +192,86 @@ describe('BuildPage', () => {
     expect(topBar?.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(within(topBar as HTMLElement).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
 
-    const generationModel = screen.getByLabelText('Resume generation model')
+    expect(screen.queryByLabelText('Resume generation model')).toBeNull()
+
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(workingContext).toBeTruthy()
+    const contextHelpButton = within(workingContext).getByRole('button', { name: /Open Build context details/i })
+    expect(contextHelpButton).toBeTruthy()
+    expect(contextHelpButton.getAttribute('aria-expanded')).toBe('false')
+    expect(contextHelpButton.getAttribute('aria-controls')).toBe('build-context-modal')
+    expect(within(workingContext).getByText('Vector')).toBeTruthy()
+    expect(within(workingContext).getByText('Pages')).toBeTruthy()
+    expect(within(workingContext).getByText('Generation')).toBeTruthy()
+    expect(within(workingContext).getByText('Source')).toBeTruthy()
+    expect(within(workingContext).queryByText('Preset')).toBeNull()
+    expect(within(workingContext).queryByText('Suggestions')).toBeNull()
+    expect(within(workingContext).queryByText('JD Analysis')).toBeNull()
+    expect(within(workingContext).getByText('Backend Engineering')).toBeTruthy()
+    expect(within(workingContext).getByText('2 pages')).toBeTruthy()
+
+    fireEvent.click(contextHelpButton)
+    expect(contextHelpButton.getAttribute('aria-expanded')).toBe('true')
+    const generationModel = screen.getByRole('dialog', { name: 'Build Context' })
     expect(within(generationModel).getByText('Resume model')).toBeTruthy()
-    expect(within(generationModel).getByText('Single vector')).toBeTruthy()
+    expect(within(generationModel).getAllByText('Single vector').length).toBeGreaterThan(0)
     expect(within(generationModel).getByText('Workspace flow')).toBeTruthy()
     expect(within(generationModel).getByText('Identity-first workspace')).toBeTruthy()
     expect(within(generationModel).getByText('Generation source')).toBeTruthy()
-    expect(within(generationModel).getByText('Workspace edits')).toBeTruthy()
+    expect(within(generationModel).getAllByText('Workspace edits').length).toBeGreaterThan(0)
     expect(within(generationModel).getByText('Active vectors')).toBeTruthy()
     expect(within(generationModel).getByText('Current workspace baseline')).toBeTruthy()
+    expect(within(generationModel).getByText('No saved preset')).toBeTruthy()
+    expect(within(generationModel).getByText('Analyze a JD to tailor this draft')).toBeTruthy()
+    fireEvent.click(within(generationModel).getByRole('button', { name: /Close Build context details/i }))
+    expect(screen.queryByRole('dialog', { name: 'Build Context' })).toBeNull()
+    expect(contextHelpButton.getAttribute('aria-expanded')).toBe('false')
 
-    expect(screen.getByLabelText('Current working context')).toBeTruthy()
-    expect(screen.getByText('Vector')).toBeTruthy()
-    expect(screen.getByText('Preset')).toBeTruthy()
-    expect(screen.getByText('Pages')).toBeTruthy()
-    expect(screen.getByText('Source')).toBeTruthy()
-    expect(screen.getByText('Suggestions')).toBeTruthy()
-    expect(screen.getByText('JD Analysis')).toBeTruthy()
-    expect(screen.getAllByText('Backend Engineering').length).toBeGreaterThan(0)
-    expect(screen.getByText('No saved preset')).toBeTruthy()
-    expect(screen.getByText('2 pages')).toBeTruthy()
+    fireEvent.click(contextHelpButton)
+    expect(contextHelpButton.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('dialog', { name: 'Build Context' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Build Context' })).toBeNull()
+    expect(contextHelpButton.getAttribute('aria-expanded')).toBe('false')
+
     expect(screen.getByTestId('vector-bar')).toBeTruthy()
     expect(screen.getByTestId('pdf-preview')).toBeTruthy()
     expect(screen.getByTestId('status-bar')).toBeTruthy()
+  })
+
+  it('promotes active preset state into the compact working context', () => {
+    usePresetsMock.mockReturnValue({
+      activePresetId: 'preset-1',
+      activePreset: { id: 'preset-1', name: 'Saved Lane' },
+      presets: [],
+      presetDirty: false,
+      setActivePresetId: vi.fn(),
+      onSavePreset: vi.fn(),
+      onDeleteActivePreset: vi.fn(),
+      applyPreset: vi.fn(),
+    })
+
+    const { rerender } = render(<BuildPage />)
+    let workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('Preset')).toBeTruthy()
+    expect(within(workingContext).getByText('Saved Lane')).toBeTruthy()
+    expect(within(workingContext).getByText('Preset synced')).toBeTruthy()
+
+    usePresetsMock.mockReturnValue({
+      activePresetId: null,
+      activePreset: null,
+      presets: [],
+      presetDirty: true,
+      setActivePresetId: vi.fn(),
+      onSavePreset: vi.fn(),
+      onDeleteActivePreset: vi.fn(),
+      applyPreset: vi.fn(),
+    })
+
+    rerender(<BuildPage />)
+    workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('Unsaved preset')).toBeTruthy()
+    expect(within(workingContext).getByText('Unsaved changes')).toBeTruthy()
   })
 
   it('demotes file and preset controls into a single workspace menu', () => {
@@ -319,7 +405,7 @@ describe('BuildPage', () => {
       vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
     })
 
-    render(<BuildPage />)
+    const { rerender } = render(<BuildPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
     fireEvent.click(screen.getByText('Analyze JD'))
@@ -347,9 +433,22 @@ describe('BuildPage', () => {
       suggestedVectorIds: ['platform', 'backend'],
     })
 
-    const generationModel = screen.getByLabelText('Resume generation model')
-    expect(within(generationModel).getByText('Multi-vector')).toBeTruthy()
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('Suggestions')).toBeTruthy()
+    expect(within(workingContext).getByText('JD Analysis')).toBeTruthy()
+
+    facetClientEnvMock.anthropicProxyUrl = ''
+    rerender(<BuildPage />)
+    const unavailableContext = screen.getByLabelText('Current working context')
+    expect(within(unavailableContext).getByText('AI unavailable')).toBeTruthy()
+    expect(within(unavailableContext).getByText('Configure AI to analyze JDs')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Build context details/i }))
+    const generationModel = screen.getByRole('dialog', { name: 'Build Context' })
+    expect(within(generationModel).getAllByText('Multi-vector').length).toBeGreaterThan(0)
     expect(within(generationModel).getByText('AI-suggested multi-vector generation')).toBeTruthy()
+    expect(within(generationModel).queryByText('Turn on suggestion mode after JD analysis')).toBeNull()
+    expect(within(generationModel).queryByText('Analyze a JD to tailor this draft')).toBeNull()
   })
 
   it('persists structured dynamic variant metadata back to the originating pipeline entry', async () => {
@@ -453,7 +552,8 @@ describe('BuildPage', () => {
       vectorIds: ['platform', 'backend'],
     })
 
-    const generationModel = screen.getByLabelText('Resume generation model')
+    fireEvent.click(screen.getByRole('button', { name: /Open Build context details/i }))
+    const generationModel = screen.getByRole('dialog', { name: 'Build Context' })
     expect(within(generationModel).getByText('Dynamic per-job')).toBeTruthy()
     expect(within(generationModel).getByText('Pipeline-driven dynamic job flow')).toBeTruthy()
     expect(within(generationModel).getByText('Acme Corp · Staff Platform Engineer')).toBeTruthy()

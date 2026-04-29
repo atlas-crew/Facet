@@ -396,16 +396,36 @@ select {
   justify-content: flex-end;
 }
 
-.build-generation-strip {
+.build-context-modal {
+  width: min(960px, calc(100vw - var(--space-8)));
+  display: grid;
+  gap: var(--space-4);
+}
+
+.build-context-modal-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.build-context-modal-section h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.build-context-modal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 7%, var(--bg-surface) 93%), transparent 55%),
-    color-mix(in srgb, var(--bg-surface) 78%, var(--bg-canvas) 22%);
-  flex-shrink: 0;
+}
+
+.build-generation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
 }
 
 .build-generation-card {
@@ -440,30 +460,71 @@ select {
   line-height: 1.45;
 }
 
-.build-context-strip {
+.build-context-shell {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-2) var(--space-6);
   border-bottom: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-inset) 65%, var(--bg-surface) 35%);
   flex-shrink: 0;
 }
 
-.build-context-card {
-  min-width: 148px;
+.build-context-strip {
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
+  align-items: center;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.build-context-help-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-surface) 82%, var(--bg-canvas) 18%);
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.build-context-help-btn:hover,
+.build-context-help-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 48%, var(--border-subtle) 52%);
+  color: var(--text-primary);
   background: var(--bg-surface);
-  box-shadow: var(--shadow-xs);
+}
+
+.build-context-help-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.build-context-card {
+  min-width: 0;
+  max-width: 260px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-surface) 78%, var(--bg-canvas) 22%);
+}
+
+.build-context-modal .build-context-card {
+  max-width: none;
 }
 
 .build-context-label {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -471,15 +532,30 @@ select {
 }
 
 .build-context-value {
-  font-size: 13px;
+  min-width: 0;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .build-context-detail {
-  font-size: 12px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.build-context-modal .build-context-detail {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .top-bar-brand {
@@ -671,11 +747,11 @@ select {
   }
 
   .build-context-strip {
-    padding: var(--space-3);
+    padding: 0;
   }
 
-  .build-generation-strip {
-    padding: var(--space-3);
+  .build-context-shell {
+    padding: var(--space-2) var(--space-3);
   }
 
   .build-top-bar-actions {
@@ -2998,6 +3074,15 @@ select.component-input {
   .vector-bar {
     padding: 0 var(--space-3);
     overflow-x: auto;
+  }
+
+  .build-context-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .build-context-card {
+    flex: 0 0 auto;
   }
 
   .vector-bar .btn-ghost {

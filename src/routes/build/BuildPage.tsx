@@ -8,6 +8,7 @@ import {
   FileJson,
   FileText,
   FolderOpen,
+  Info,
   Package,
   Paintbrush,
   Save,
@@ -108,6 +109,12 @@ interface ReframeResult {
   original: string
   reframed: string
   reasoning: string
+}
+
+interface BuildContextItem {
+  label: string
+  value: string
+  detail: string
 }
 
 const formatGenerationModeLabel = (mode: ResumeGenerationMode) => {
@@ -267,6 +274,7 @@ export function BuildPage() {
   const [importExportMode, setImportExportMode] = useState<'import' | 'export' | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
   const [jdModalOpen, setJdModalOpen] = useState(false)
+  const [generationContextOpen, setGenerationContextOpen] = useState(false)
   const [jdInput, setJdInput] = useState('')
   const [jdAnalysisResult, setJdAnalysisResult] = useState<JdAnalysisResult | null>(null)
   const [jdWordCount, setJdWordCount] = useState(0)
@@ -305,6 +313,7 @@ export function BuildPage() {
   const noticeTimeoutRef = useRef<number | null>(null)
   const handoffEntryIdRef = useRef<string | null>(null)
   const jdModalRef = useRef<HTMLDivElement>(null)
+  const generationContextModalRef = useRef<HTMLDivElement>(null)
   const reframeModalRef = useRef<HTMLDivElement>(null)
   const variablesModalRef = useRef<HTMLDivElement>(null)
 
@@ -454,6 +463,8 @@ export function BuildPage() {
       }
     },
   })
+  const hasActivePreset = Boolean(activePreset)
+  const activePresetName = activePreset?.name
 
   const bulletSuggestions = useMemo(() => {
     if (!suggestionModeActive || !jdAnalysisResult) return undefined
@@ -520,6 +531,7 @@ export function BuildPage() {
 
   // Focus Traps
   useFocusTrap(jdModalOpen, jdModalRef, () => closeJdModal())
+  useFocusTrap(generationContextOpen, generationContextModalRef, () => setGenerationContextOpen(false))
   useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
   useFocusTrap(variablesOpen, variablesModalRef, () => setVariablesOpen(false))
 
@@ -760,17 +772,16 @@ export function BuildPage() {
     pdfRenderPending,
     selectedVectorLabel,
   ])
-  const workingContextItems = useMemo(
-    () => [
+  const workingContextItems = useMemo<BuildContextItem[]>(() => {
+    const presetContextActive = hasActivePreset || presetDirty
+    const suggestionContextActive = suggestionModeActive || suggestionCount > 0
+    const jdContextActive = jdLoading || Boolean(jdAnalysisResult)
+
+    return [
       {
         label: 'Vector',
         value: selectedVectorLabel,
         detail: comparisonVectorLabel ? `Comparing against ${comparisonVectorLabel}` : 'Single-vector focus',
-      },
-      {
-        label: 'Preset',
-        value: activePreset?.name ?? 'No saved preset',
-        detail: presetDirty ? 'Unsaved preset changes' : 'Preset state synced',
       },
       {
         label: 'Pages',
@@ -795,36 +806,44 @@ export function BuildPage() {
               ? 'Derived from identity generation'
               : 'Workspace-local origin',
       },
-      {
-        label: 'Suggestions',
-        value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
-        detail: suggestionModeActive
-          ? suggestionCount > 0
-            ? 'JD-guided suggestions ready to review'
-            : 'No remaining JD suggestions'
-          : 'Turn on suggestion mode after JD analysis',
-      },
-      {
-        label: 'JD Analysis',
-        value: jdLoading
-          ? 'Analyzing…'
-          : jdAnalysisResult
-            ? 'Insights ready'
-            : jdAnalysisEndpoint
-              ? 'Not analyzed'
-              : 'AI unavailable',
-        detail: jdAnalysisResult
-          ? 'Positioning note and gap analysis available'
-          : jdAnalysisEndpoint
-            ? 'Analyze a JD to tailor this draft'
-            : 'Configure AI to analyze JDs',
-      },
-    ],
-    [
-      activePreset?.name,
+      ...(presetContextActive
+        ? [
+            {
+              label: 'Preset',
+              value: activePresetName ?? 'Unsaved preset',
+              detail: presetDirty ? 'Unsaved changes' : 'Preset synced',
+            },
+          ]
+        : []),
+      ...(suggestionContextActive
+        ? [
+            {
+              label: 'Suggestions',
+              value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
+              detail: suggestionCount > 0 ? 'JD-guided changes' : 'No remaining suggestions',
+            },
+          ]
+        : []),
+      ...(jdContextActive
+        ? [
+            {
+              label: 'JD Analysis',
+              value: !jdAnalysisEndpoint ? 'AI unavailable' : jdLoading ? 'Analyzing…' : 'Insights ready',
+              detail: !jdAnalysisEndpoint
+                ? 'Configure AI to analyze JDs'
+                : jdAnalysisResult
+                  ? 'Positioning and gaps ready'
+                  : 'Analysis running',
+            },
+          ]
+        : []),
+    ]
+  }, [
+      activePresetName,
+      hasActivePreset,
       comparisonVectorLabel,
-      jdAnalysisEndpoint,
       generationModeLabel,
+      jdAnalysisEndpoint,
       jdAnalysisResult,
       jdLoading,
       nearPageLimit,
@@ -838,8 +857,44 @@ export function BuildPage() {
       generationSourceLabel,
       generationState.source,
       generationState.vectorMode,
-    ],
-  )
+    ])
+  const dormantContextItems = useMemo<BuildContextItem[]>(() => {
+    const items: BuildContextItem[] = []
+
+    if (!hasActivePreset && !presetDirty) {
+      items.push({
+        label: 'Preset',
+        value: 'No saved preset',
+        detail: 'Preset state synced',
+      })
+    }
+
+    if (!suggestionModeActive && suggestionCount === 0) {
+      items.push({
+        label: 'Suggestions',
+        value: 'Inactive',
+        detail: 'Turn on suggestion mode after JD analysis',
+      })
+    }
+
+    if (!jdLoading && !jdAnalysisResult) {
+      items.push({
+        label: 'JD Analysis',
+        value: jdAnalysisEndpoint ? 'Not analyzed' : 'AI unavailable',
+        detail: jdAnalysisEndpoint ? 'Analyze a JD to tailor this draft' : 'Configure AI to analyze JDs',
+      })
+    }
+
+    return items
+  }, [
+    hasActivePreset,
+    jdAnalysisEndpoint,
+    jdAnalysisResult,
+    jdLoading,
+    presetDirty,
+    suggestionCount,
+    suggestionModeActive,
+  ])
 
   // Pipeline → Build handoff
   useEffect(() => {
@@ -1566,24 +1621,28 @@ export function BuildPage() {
         </div>
       </header>
 
-      <section className="build-generation-strip" aria-label="Resume generation model">
-        {generationOverviewItems.map((item) => (
-          <article key={item.label} className="build-generation-card">
-            <span className="build-generation-label">{item.label}</span>
-            <strong className="build-generation-value">{item.value}</strong>
-            <span className="build-generation-detail">{item.detail}</span>
-          </article>
-        ))}
-      </section>
-
-      <section className="build-context-strip" aria-label="Current working context">
-        {workingContextItems.map((item) => (
-          <div key={item.label} className="build-context-card">
-            <span className="build-context-label">{item.label}</span>
-            <strong className="build-context-value">{item.value}</strong>
-            <span className="build-context-detail">{item.detail}</span>
-          </div>
-        ))}
+      <section className="build-context-shell" aria-label="Current working context">
+        <button
+          className="build-context-help-btn"
+          type="button"
+          onClick={() => setGenerationContextOpen(true)}
+          aria-label="Open Build context details"
+          aria-haspopup="dialog"
+          aria-expanded={generationContextOpen}
+          aria-controls="build-context-modal"
+          title="Build context details"
+        >
+          <Info size={16} />
+        </button>
+        <div className="build-context-strip">
+          {workingContextItems.map((item) => (
+            <div key={item.label} className="build-context-card">
+              <span className="build-context-label">{item.label}</span>
+              <strong className="build-context-value">{item.value}</strong>
+              <span className="build-context-detail">{item.detail}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
       <VectorBar
@@ -1804,6 +1863,57 @@ export function BuildPage() {
           onDismissRemaining={onDismissRemainingSuggestions}
           onExit={() => setSuggestionModeActive(false)}
         />
+      )}
+
+      {generationContextOpen && (
+        <div
+          id="build-context-modal"
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="build-context-title"
+        >
+          <div className="modal-card build-context-modal" ref={generationContextModalRef} tabIndex={-1}>
+            <header className="modal-header">
+              <div>
+                <h3 id="build-context-title">Build Context</h3>
+                <p className="modal-subtitle">Resume generation state and handoff metadata</p>
+              </div>
+              <button
+                className="btn-ghost btn-icon-only"
+                type="button"
+                onClick={() => setGenerationContextOpen(false)}
+                aria-label="Close Build context details"
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <section className="build-context-modal-section" aria-label="Current status">
+              <h4>Current Status</h4>
+              <div className="build-context-modal-grid">
+                {[...workingContextItems, ...dormantContextItems].map((item) => (
+                  <article key={item.label + '-' + item.value} className="build-context-card">
+                    <span className="build-context-label">{item.label}</span>
+                    <strong className="build-context-value">{item.value}</strong>
+                    <span className="build-context-detail">{item.detail}</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <section className="build-context-modal-section" aria-label="Generation details">
+              <h4>Generation Details</h4>
+              <div className="build-generation-grid">
+                {generationOverviewItems.map((item) => (
+                  <article key={item.label} className="build-generation-card">
+                    <span className="build-generation-label">{item.label}</span>
+                    <strong className="build-generation-value">{item.value}</strong>
+                    <span className="build-generation-detail">{item.detail}</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
       )}
 
       {jdModalOpen && (
