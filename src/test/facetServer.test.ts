@@ -1286,7 +1286,7 @@ describe('facetServer persistence API', () => {
       throw new Error('Failed to bind feature-model test server.')
     }
 
-    for (const feature of ['prep.generate', 'letters.generate', 'linkedin.generate']) {
+    for (const feature of ['prep.generate', 'letters.generate', 'research.profile-inference']) {
       const response = await fetch(`http://127.0.0.1:${address.port}`, {
         method: 'POST',
         headers: {
@@ -2630,5 +2630,21 @@ describe('facetServer persistence API', () => {
         HOSTED_BILLING_FILE: './hosted-billing.example.json',
       }),
     ).toThrow(/non-file-backed workspace and billing store/i)
+  })
+})
+
+describe('deriveEffortFromBudget', () => {
+  it('maps budget magnitude to effort levels at the boundaries', async () => {
+    // @ts-expect-error runtime-tested local proxy module
+    const { deriveEffortFromBudget } = await import('../../proxy/facetServer.js')
+    // Below the low/medium boundary
+    expect(deriveEffortFromBudget(0)).toBe('low')
+    expect(deriveEffortFromBudget(3999)).toBe('low')
+    // Low/medium boundary at 4000
+    expect(deriveEffortFromBudget(4000)).toBe('medium')
+    expect(deriveEffortFromBudget(11999)).toBe('medium')
+    // Medium/high boundary at 12000
+    expect(deriveEffortFromBudget(12000)).toBe('high')
+    expect(deriveEffortFromBudget(50000)).toBe('high')
   })
 })

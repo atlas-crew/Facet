@@ -96,6 +96,7 @@ const FEATURE_MODEL_DEFAULTS = {
   'identity.deepen': CURRENT_OPUS_MODEL,
   'pipeline.t3.interviewer': CURRENT_OPUS_MODEL, // unwired today; revisit when feature lands
   'research.deep-search': CURRENT_OPUS_MODEL,
+  'research.profile-inference': CURRENT_OPUS_MODEL,
   'research.thesis': CURRENT_OPUS_MODEL,
   'prep.generate': CURRENT_OPUS_MODEL,
   'letters.generate': CURRENT_OPUS_MODEL,
@@ -104,7 +105,6 @@ const FEATURE_MODEL_DEFAULTS = {
   'identity.extract': CURRENT_SONNET_MODEL,
   'debrief.generate': CURRENT_SONNET_MODEL,
   'build.bullet-reframe': CURRENT_SONNET_MODEL,
-  'research.profile-inference': CURRENT_SONNET_MODEL,
   'research.search': CURRENT_SONNET_MODEL,
   // Haiku 4.5 — mechanical field extraction
   'build.jd-analysis': CURRENT_HAIKU_MODEL,
@@ -194,7 +194,7 @@ function shouldOmitTemperature(model) {
 // Map a thinking_budget magnitude to an `effort` level for adaptive-thinking models.
 // Adaptive thinking ignores numeric budgets — `effort` is the new control. Honor
 // the caller's intent by translating budget magnitude to the corresponding effort.
-function deriveEffortFromBudget(budget) {
+export function deriveEffortFromBudget(budget) {
   if (budget < 4000) return 'low'
   if (budget < 12000) return 'medium'
   return 'high'
@@ -1562,8 +1562,10 @@ export function createFacetServer(options = {}) {
         : await anthropicClient.messages.create(params)
       const elapsed = Date.now() - start
 
+      const thinkingSuffix = params.thinking?.type ? ` thinking=${params.thinking.type}` : ''
+      const effortSuffix = params.output_config?.effort ? ` effort=${params.output_config.effort}` : ''
       console.log(
-        `[proxy] ${resolvedModel} ${result.usage?.input_tokens ?? '?'}in/${result.usage?.output_tokens ?? '?'}out ${elapsed}ms`,
+        `[proxy] ${resolvedModel} ${result.usage?.input_tokens ?? '?'}in/${result.usage?.output_tokens ?? '?'}out ${elapsed}ms${thinkingSuffix}${effortSuffix}`,
       )
       if (authMode === 'hosted') {
         operationsMonitor.record('ai', 'success', {
