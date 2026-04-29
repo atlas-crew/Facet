@@ -17,6 +17,10 @@
   --space-6: 24px;
   --space-8: 32px;
 
+  /* Stacked Build panels need usable editor/preview room while preserving page scroll. */
+  --build-workspace-panel-height-md: clamp(420px, 68vh, 720px);
+  --build-workspace-panel-height-sm: clamp(360px, 70vh, 640px);
+
   --preview-font-body: 'Charter', 'Georgia', serif;
   --preview-font-heading: var(--font-sans);
   --preview-size-body: 13px;
@@ -2944,24 +2948,24 @@ select.component-input {
 
 @media (max-width: 1024px) {
   .workspace {
+    --build-workspace-panel-height: var(--build-workspace-panel-height-md);
+
     flex-direction: column;
+    /* Let stacked editor/preview panels define the scrollable page height. */
+    flex: 0 0 auto;
+    min-height: auto;
   }
 
   .library-column,
   .preview-column {
+    flex: 0 0 auto;
     width: 100% !important;
     min-width: 0;
+    height: var(--build-workspace-panel-height);
   }
 
   .splitter {
-    width: 100%;
-    height: 6px;
-    cursor: row-resize;
-  }
-
-  .splitter::after {
-    width: 32px;
-    height: 2px;
+    display: none;
   }
 
   .preview-paper {
@@ -2970,6 +2974,10 @@ select.component-input {
 }
 
 @media (max-width: 768px) {
+  .workspace {
+    --build-workspace-panel-height: var(--build-workspace-panel-height-sm);
+  }
+
   .theme-gallery-header {
     align-items: flex-start;
     flex-direction: column;
