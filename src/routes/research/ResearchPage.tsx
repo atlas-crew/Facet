@@ -498,7 +498,10 @@ export function ResearchPage() {
   } = useSearchStore()
 
   const [activeTab, setActiveTab] = useState<ResearchTab>('profile')
-  const [requestDraft, setRequestDraft] = useState(() => buildRequestDraft(profile))
+  const [requestDraft, setRequestDraft] = useState(() => {
+    const initialThesis = theses.find((thesis) => thesis.id === activeThesisId) ?? null
+    return buildRequestDraft(profile, initialThesis?.searchOverrides ?? null)
+  })
   const [activeRunId, setActiveRunId] = useState<string | null>(runs.at(-1)?.id ?? null)
   const [resultVectorSelections, setResultVectorSelections] = useState<Record<string, string>>({})
   const [isInferring, setIsInferring] = useState(false)
@@ -799,8 +802,11 @@ export function ResearchPage() {
   }, [activeRunId, runs, sortedRuns])
 
   useEffect(() => {
-    setRequestDraft(buildRequestDraft(effectiveProfile))
-  }, [effectiveProfile])
+    // Refresh request defaults when either the source profile or the active thesis (and thus its
+    // override layer) changes. Switching theses is a context switch — request knobs should track
+    // the new search rather than carry over the previous one's edits.
+    setRequestDraft(buildRequestDraft(effectiveProfile, activeThesis?.searchOverrides ?? null))
+  }, [effectiveProfile, activeThesis])
 
   useEffect(() => {
     const lookForText = activeThesis ? activeThesis.lookFor.join(', ') : ''

@@ -163,6 +163,35 @@ describe('researchUtils', () => {
     expect(baseProfile.vectors.map((vector) => vector.vectorId)).toEqual(originalOrder)
   })
 
+  it('prefers thesis searchOverrides over profile constraints when building a request draft', () => {
+    const draftFromThesis = buildRequestDraft(baseProfile, {
+      constraints: {
+        compensation: '$340k total',
+        locations: ['Tampa Bay'],
+        clearance: '',
+        companySize: 'growth',
+      },
+    })
+
+    expect(draftFromThesis.salaryAnchorOverride).toBe('$340k total')
+    expect(draftFromThesis.companySizeOverride).toBe('growth')
+
+    // When the override compensation is empty/whitespace, fall back to profile.
+    const draftWithEmptyOverride = buildRequestDraft(baseProfile, {
+      constraints: {
+        compensation: '   ',
+        locations: [],
+        clearance: '',
+        companySize: '',
+      },
+    })
+    expect(draftWithEmptyOverride.salaryAnchorOverride).toBe('$250k')
+    expect(draftWithEmptyOverride.companySizeOverride).toBe('')
+
+    // When no thesis override layer exists, behavior matches the profile-only path.
+    expect(buildRequestDraft(baseProfile, null)).toEqual(buildRequestDraft(baseProfile))
+  })
+
   it('groups tiered results and clamps max results inputs', () => {
     const grouped = groupByTier([
       { ...searchResult, id: 'tier-1', tier: 1 },

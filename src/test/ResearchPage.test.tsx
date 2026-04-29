@@ -1349,6 +1349,77 @@ describe('ResearchPage', () => {
     expect(launchedRun?.identityFields).toContain('skills.Kubernetes.depth')
   })
 
+  it('propagates per-search overrides from the active thesis into both request params and snapshot', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    // Active thesis carries an override layer with concrete per-search values. After launch,
+    // these should be visible to the deep-research backend on BOTH channels:
+    //   - params.companySizeOverride / salaryAnchorOverride (used by the runner's filter logic)
+    //   - thesisSnapshot.searchOverrides (used by the LLM as per-search context)
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [
+        buildTestThesis({
+          id: 'thesis-with-overrides',
+          searchOverrides: {
+            constraints: {
+              compensation: '$340k total',
+              locations: ['Tampa Bay'],
+              clearance: 'None',
+              companySize: 'growth',
+            },
+            filters: {
+              prioritize: ['platform leverage'],
+              avoid: ['ad tech'],
+            },
+            interviewPrefs: {
+              strongFit: ['take-home portfolio'],
+              redFlags: ['leetcode-only loops'],
+            },
+            hiddenSkillIds: [],
+          },
+        }),
+      ],
+      activeThesisId: 'thesis-with-overrides',
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+
+    const submitted = mockCreateDeepResearchJob.mock.calls[0]?.[0]
+    // P1.1 — request params reflect the per-search overrides, not the identity defaults.
+    expect(submitted?.params.companySizeOverride).toBe('growth')
+    expect(submitted?.params.salaryAnchorOverride).toBe('$340k total')
+    // P1.2 — thesisSnapshot preserves the full override layer for downstream LLM context.
+    expect(submitted?.thesisSnapshot.searchOverrides).toEqual({
+      constraints: {
+        compensation: '$340k total',
+        locations: ['Tampa Bay'],
+        clearance: 'None',
+        companySize: 'growth',
+      },
+      filters: {
+        prioritize: ['platform leverage'],
+        avoid: ['ad tech'],
+      },
+      interviewPrefs: {
+        strongFit: ['take-home portfolio'],
+        redFlags: ['leetcode-only loops'],
+      },
+      hiddenSkillIds: [],
+    })
+  })
+
   it('marks incorporated feedback reflected when saving a reviewed thesis', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-feedback',

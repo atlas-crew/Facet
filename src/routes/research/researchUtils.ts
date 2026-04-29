@@ -1,6 +1,7 @@
 import type { InterviewFormat, PipelineEntry } from '../../types/pipeline'
 import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
 import type {
+  SearchInstanceOverrides,
   SearchProfile,
   SearchRequest,
   SearchRequestMaxResults,
@@ -71,6 +72,7 @@ export function upsertVectorConfig(
 
 export function buildRequestDraft(
   profile: Pick<SearchProfile, 'vectors' | 'constraints'> | null,
+  thesisOverrides?: Pick<SearchInstanceOverrides, 'constraints'> | null,
 ): Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'> {
   const focusVectors = profile?.vectors
     .slice()
@@ -78,10 +80,18 @@ export function buildRequestDraft(
     .map((vector) => vector.vectorId)
     .slice(0, 2) ?? []
 
+  // Per-search overrides take precedence over identity-derived profile defaults: the user
+  // edited these on the active thesis to apply specifically to this search. Profile is the
+  // fallback when no thesis (or no override value) exists.
+  const overrideConstraints = thesisOverrides?.constraints
+  const compensation =
+    overrideConstraints?.compensation?.trim() || profile?.constraints.compensation || ''
+  const companySize = overrideConstraints?.companySize ?? ''
+
   return {
     focusVectors,
-    companySizeOverride: '',
-    salaryAnchorOverride: profile?.constraints.compensation ?? '',
+    companySizeOverride: companySize,
+    salaryAnchorOverride: compensation,
     geoExpand: true,
     customKeywords: '',
     maxResults: { ...DEFAULT_SEARCH_MAX_RESULTS },
