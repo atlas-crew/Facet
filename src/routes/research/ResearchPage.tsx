@@ -38,7 +38,6 @@ import type {
   SearchRequest,
   SearchResultEntry,
   SearchThesis,
-  SkillCatalogEntry,
 } from '../../types/search'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -68,11 +67,14 @@ import {
   createPipelineEntryDraft,
   emptyProfile,
   groupByTier,
-  joinTags,
   normalizeMaxResults,
   splitTags,
-  upsertVectorConfig,
 } from './researchUtils'
+import {
+  SearchInstancePreferences,
+  SearchSkillsTable,
+  SearchThesisWorkspace,
+} from './searchWorkspaceComponents'
 import './research.css'
 
 type ResearchTab = 'profile' | 'search' | 'results'
@@ -472,11 +474,6 @@ export function ResearchPage() {
     requests,
     runs,
     setProfile,
-    updateProfileSkills,
-    updateProfileVectors,
-    updateProfileConstraints,
-    updateProfileFilters,
-    updateProfileInterviewPrefs,
     clearProfile,
     addRequest,
     addRun,
@@ -486,6 +483,8 @@ export function ResearchPage() {
     addThesis,
     markThesisStalenessReview,
     saveThesisRevision,
+    updateThesisOverrides,
+    toggleThesisHiddenSkill,
     setActiveThesis,
     activeResearchJob,
     setActiveResearchJob,
@@ -511,6 +510,8 @@ export function ResearchPage() {
   const [thesisDraftIsDirty, setThesisDraftIsDirty] = useState(false)
   const [thesisLookForText, setThesisLookForText] = useState('')
   const [thesisLookForBaselineText, setThesisLookForBaselineText] = useState('')
+  const [correctionsDraft, setCorrectionsDraft] = useState('')
+  const [directiveDraft, setDirectiveDraft] = useState('')
   const [pendingSkillWriteback, setPendingSkillWriteback] =
     useState<PendingThesisSkillWriteback | null>(null)
   const [latestIdentityImpact, setLatestIdentityImpact] =
@@ -771,26 +772,6 @@ export function ResearchPage() {
     }))
   }, [effectiveProfile?.vectors, isIdentitySource, resumeData.vectors])
 
-  const displayVectorConfigs = useMemo(() => {
-    const current = effectiveProfile?.vectors ?? []
-    return vectorOptions.map((vector, index) => {
-      const match = current.find((config) => config.vectorId === vector.id)
-      return (
-        match ?? {
-          vectorId: vector.id,
-          priority: index + 1,
-          description: '',
-          targetRoleTitles: [],
-          searchKeywords: [],
-        }
-      )
-    })
-  }, [effectiveProfile?.vectors, vectorOptions])
-  const vectorLabelById = useMemo(
-    () => new Map(vectorOptions.map((vector) => [vector.id, vector.label])),
-    [vectorOptions],
-  )
-
   const closedPipelineCompanies = useMemo(
     () =>
       [...new Set(
@@ -828,6 +809,8 @@ export function ResearchPage() {
     setThesisLookForBaselineText(lookForText)
     setThesisDraftIsDirty(false)
     setPendingSkillWriteback(null)
+    setDirectiveDraft(activeThesis?.customDirective ?? '')
+    setCorrectionsDraft('')
     preservedTimelineRef.current = null
   }, [activeThesis])
 
@@ -1231,7 +1214,9 @@ export function ResearchPage() {
     }
   }
 
-  const handleGenerateThesis = async () => {
+  const handleGenerateThesis = async (
+    options: { userCorrections?: string; customDirective?: string; switchToSearchTab?: boolean } = {},
+  ) => {
     if (!currentIdentity) {
       setPageError('Generate a thesis from the Identity model before running thesis-driven search.')
       setActiveTab('profile')
@@ -1249,10 +1234,17 @@ export function ResearchPage() {
       resetStalenessReview()
       setIsGeneratingThesis(true)
       const feedbackEvents = getUnreflectedFeedback(activeThesis?.id)
+      const corrections = options.userCorrections?.trim()
+      const directive =
+        options.customDirective?.trim() ?? activeThesis?.customDirective?.trim() ?? ''
       const generated = await generateSearchThesisFromIdentity(
         currentIdentity,
         aiEndpoint,
         feedbackEvents,
+        {
+          ...(corrections ? { userCorrections: corrections } : {}),
+          ...(directive ? { customDirective: directive } : {}),
+        },
       )
       const saved = addThesis({
         ...generated.thesis,
@@ -1275,7 +1267,11 @@ export function ResearchPage() {
       setThesisDraftIsDirty(false)
       setPendingSkillWriteback(null)
       setThesisContractViolations(generated.contractViolations)
-      setActiveTab('search')
+      setCorrectionsDraft('')
+      setDirectiveDraft(saved.customDirective ?? '')
+      if (options.switchToSearchTab) {
+        setActiveTab('search')
+      }
     } catch (error) {
       setPageError(error instanceof Error ? error.message : 'Thesis generation failed.')
     } finally {
@@ -2240,33 +2236,6 @@ export function ResearchPage() {
     void navigate({ to: '/pipeline' })
   }
 
-  const updateSkill = (skillId: string, patch: Partial<SkillCatalogEntry>) => {
-    if (!effectiveProfile) return
-    updateProfileSkills(
-      effectiveProfile.skills.map((skill) =>
-        skill.id === skillId ? { ...skill, ...patch } : skill,
-      ),
-    )
-  }
-
-  const removeSkill = (skillId: string) => {
-    if (!effectiveProfile) return
-    updateProfileSkills(effectiveProfile.skills.filter((skill) => skill.id !== skillId))
-  }
-
-  const addSkill = () => {
-    const nextSkills = [
-      ...(effectiveProfile?.skills ?? []),
-      {
-        id: createId('skl'),
-        name: '',
-        category: 'other',
-        depth: 'working',
-      } satisfies SkillCatalogEntry,
-    ]
-    updateProfileSkills(nextSkills)
-  }
-
   const groupedResults = groupByTier(activeRun?.results ?? [])
   const feedbackByResultId = useMemo(() => {
     const map = new Map<string, ResultFeedbackBadge>()
@@ -2443,370 +2412,43 @@ export function ResearchPage() {
             </div>
           ) : (
             <>
-              <div className="research-grid research-grid-two">
-                <section className="research-card">
-                  <div className="research-card-header">
-                    <div>
-                      <h2>Skills</h2>
-                      <p>
-                        {isIdentitySource
-                          ? 'Identity-derived skills flow into Research automatically.'
-                          : 'Review and refine the search-facing skills catalog.'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="research-btn"
-                      onClick={addSkill}
-                      disabled={isIdentitySource}
-                    >
-                      Add Skill
-                    </button>
-                  </div>
-                  <fieldset className="research-fieldset" disabled={isIdentitySource}>
-                    <div className="research-skill-table">
-                    {effectiveProfile.skills.length === 0 ? (
-                      <p className="research-muted">No inferred skills yet.</p>
-                    ) : (
-                      effectiveProfile.skills.map((skill) => (
-                        <div key={skill.id} className="research-skill-row">
-                          <input
-                            className="research-input"
-                            aria-label="Skill name"
-                            value={skill.name}
-                            onChange={(event) => updateSkill(skill.id, { name: event.target.value })}
-                            placeholder="Skill name"
-                          />
-                          <select
-                            className="research-select"
-                            aria-label="Skill depth"
-                            value={skill.depth}
-                            onChange={(event) =>
-                              updateSkill(skill.id, {
-                                depth: event.target.value as SkillCatalogEntry['depth'],
-                              })
-                            }
-                          >
-                            <option value="expert">Expert</option>
-                            <option value="strong">Strong</option>
-                            <option value="working">Working</option>
-                            <option value="basic">Basic</option>
-                            <option value="avoid">Avoid</option>
-                          </select>
-                          <input
-                            className="research-input"
-                            aria-label="Skill context"
-                            value={skill.context ?? ''}
-                            onChange={(event) => updateSkill(skill.id, { context: event.target.value })}
-                            placeholder="Context"
-                          />
-                          <button
-                            type="button"
-                            className="research-btn research-btn-danger"
-                            aria-label={`Remove skill ${skill.name || 'unnamed'}`}
-                            onClick={() => removeSkill(skill.id)}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))
-                    )}
-                    </div>
-                  </fieldset>
-                </section>
-
-                <section className="research-card">
-                  <div className="research-card-header">
-                    <div>
-                      <h2>Constraints & Preferences</h2>
-                      <p>
-                        {isIdentitySource
-                          ? 'Identity owns these strategic fields. Review them here and update them from Identity.'
-                          : 'Use these to steer search quality before launching runs.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <fieldset className="research-fieldset" disabled={isIdentitySource}>
-                    <div className="research-form-grid">
-                    <label className="research-field">
-                      <span>Compensation anchor</span>
-                      <input
-                        className="research-input"
-                        value={effectiveProfile.constraints.compensation}
-                        onChange={(event) =>
-                          updateProfileConstraints({
-                            ...effectiveProfile.constraints,
-                            compensation: event.target.value,
-                          })
-                        }
-                        placeholder="$220k base / $300k total"
-                      />
-                    </label>
-
-                    <label className="research-field">
-                      <span>Preferred locations</span>
-                      <input
-                        className="research-input"
-                        value={joinTags(effectiveProfile.constraints.locations)}
-                        onChange={(event) =>
-                          updateProfileConstraints({
-                            ...effectiveProfile.constraints,
-                            locations: splitTags(event.target.value),
-                          })
-                        }
-                        placeholder="Remote, New York, Bay Area"
-                      />
-                    </label>
-
-                    <label className="research-field">
-                      <span>Clearance or background constraints</span>
-                      <input
-                        className="research-input"
-                        value={effectiveProfile.constraints.clearance}
-                        onChange={(event) =>
-                          updateProfileConstraints({
-                            ...effectiveProfile.constraints,
-                            clearance: event.target.value,
-                          })
-                        }
-                        placeholder="None, Public Trust, TS/SCI"
-                      />
-                    </label>
-
-                    <label className="research-field">
-                      <span>Preferred company size</span>
-                      <select
-                        className="research-select"
-                        value={effectiveProfile.constraints.companySize}
-                        onChange={(event) =>
-                          updateProfileConstraints({
-                            ...effectiveProfile.constraints,
-                            companySize: event.target.value as SearchCompanySize | '',
-                          })
-                        }
-                      >
-                        {COMPANY_SIZE_OPTIONS.map((option) => (
-                          <option key={option.value || 'none'} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="research-field">
-                      <span>Prioritize</span>
-                      <input
-                        className="research-input"
-                        value={joinTags(effectiveProfile.filters.prioritize)}
-                        onChange={(event) =>
-                          updateProfileFilters({
-                            ...effectiveProfile.filters,
-                            prioritize: splitTags(event.target.value),
-                          })
-                        }
-                        placeholder="Platform ownership, staff scope"
-                      />
-                    </label>
-
-                    <label className="research-field">
-                      <span>Avoid</span>
-                      <input
-                        className="research-input"
-                        value={joinTags(effectiveProfile.filters.avoid)}
-                        onChange={(event) =>
-                          updateProfileFilters({
-                            ...effectiveProfile.filters,
-                            avoid: splitTags(event.target.value),
-                          })
-                        }
-                        placeholder="Ad tech, crypto volatility"
-                      />
-                    </label>
-
-                    <label className="research-field">
-                      <span>Strong fit signals</span>
-                      <input
-                        className="research-input"
-                        value={joinTags(effectiveProfile.interviewPrefs.strongFit)}
-                        onChange={(event) =>
-                          updateProfileInterviewPrefs({
-                            ...effectiveProfile.interviewPrefs,
-                            strongFit: splitTags(event.target.value),
-                          })
-                        }
-                        placeholder="Distributed systems, internal platforms"
-                      />
-                    </label>
-
-                    <label className="research-field">
-                      <span>Red flags</span>
-                      <input
-                        className="research-input"
-                        value={joinTags(effectiveProfile.interviewPrefs.redFlags)}
-                        onChange={(event) =>
-                          updateProfileInterviewPrefs({
-                            ...effectiveProfile.interviewPrefs,
-                            redFlags: splitTags(event.target.value),
-                          })
-                        }
-                        placeholder="Noisy on-call, unclear scope"
-                      />
-                    </label>
-                    </div>
-                  </fieldset>
-                </section>
-              </div>
+              <SearchThesisWorkspace
+                activeThesis={activeThesis}
+                isGeneratingThesis={isGeneratingThesis}
+                isSearching={isSearching}
+                hasIdentity={Boolean(currentIdentity)}
+                correctionsDraft={correctionsDraft}
+                onCorrectionsChange={setCorrectionsDraft}
+                directiveDraft={directiveDraft}
+                onDirectiveChange={setDirectiveDraft}
+                onRegenerate={() =>
+                  void handleGenerateThesis({
+                    userCorrections: correctionsDraft,
+                    customDirective: directiveDraft,
+                  })
+                }
+              />
 
               <div className="research-grid research-grid-two">
-                <section className="research-card">
-                  <div className="research-card-header">
-                    <div>
-                      <h2>Vector Search Config</h2>
-                      <p>
-                        {isIdentitySource
-                          ? 'Identity-managed search vectors flow into Research automatically.'
-                          : 'Guide role-title targeting and search keyword emphasis per vector.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <fieldset className="research-fieldset" disabled={isIdentitySource}>
-                    <div className="research-stack">
-                    {displayVectorConfigs.map((config) => {
-                      return (
-                        <div key={config.vectorId} className="research-vector-card">
-                          <div className="research-vector-card-header">
-                            <h3>{vectorLabelById.get(config.vectorId) ?? config.vectorId}</h3>
-                            <span className="research-pill">Priority {config.priority}</span>
-                          </div>
-
-                          <div className="research-form-grid">
-                            <label className="research-field">
-                              <span>Priority</span>
-                              <input
-                                className="research-input"
-                                type="number"
-                                min="1"
-                                value={config.priority}
-                                onChange={(event) =>
-                                  updateProfileVectors(
-                                    upsertVectorConfig(
-                                      effectiveProfile.vectors,
-                                      config.vectorId,
-                                      {
-                                        priority: Math.max(1, Number.parseInt(event.target.value, 10) || 1),
-                                      },
-                                    ),
-                                  )
-                                }
-                              />
-                            </label>
-
-                            <label className="research-field research-field-span">
-                              <span>Description</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={3}
-                                value={config.description}
-                                onChange={(event) =>
-                                  updateProfileVectors(
-                                    upsertVectorConfig(effectiveProfile.vectors, config.vectorId, {
-                                      description: event.target.value,
-                                    }),
-                                  )
-                                }
-                              />
-                            </label>
-
-                            <label className="research-field">
-                              <span>Target role titles</span>
-                              <input
-                                className="research-input"
-                                value={joinTags(config.targetRoleTitles)}
-                                onChange={(event) =>
-                                  updateProfileVectors(
-                                    upsertVectorConfig(effectiveProfile.vectors, config.vectorId, {
-                                      targetRoleTitles: splitTags(event.target.value),
-                                    }),
-                                  )
-                                }
-                                placeholder="Staff Engineer, Principal Engineer"
-                              />
-                            </label>
-
-                            <label className="research-field">
-                              <span>Search keywords</span>
-                              <input
-                                className="research-input"
-                                value={joinTags(config.searchKeywords)}
-                                onChange={(event) =>
-                                  updateProfileVectors(
-                                    upsertVectorConfig(effectiveProfile.vectors, config.vectorId, {
-                                      searchKeywords: splitTags(event.target.value),
-                                    }),
-                                  )
-                                }
-                                placeholder="platform engineering, reliability"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      )
-                    })}
-                    </div>
-                  </fieldset>
-                </section>
-
-                <section className="research-card">
-                  <div className="research-card-header">
-                    <div>
-                      <h2>Inference Notes</h2>
-                      <p>
-                        {isIdentitySource
-                          ? 'Narrative summaries can be refreshed from the identity model without creating a second source of truth.'
-                          : 'Summaries and open questions generated from resume data.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="research-stack">
-                    <div>
-                      <h3 className="research-subtitle">Work Summary</h3>
-                      {effectiveProfile.workSummary.length === 0 ? (
-                        <p className="research-muted">No summary entries yet.</p>
-                      ) : (
-                        <ul className="research-list">
-                          {effectiveProfile.workSummary.map((item, index) => (
-                            <li key={`work-summary-${index}`}>
-                              <strong>{item.title}:</strong> {item.summary}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    <div>
-                      <h3 className="research-subtitle">Open Questions</h3>
-                      {effectiveProfile.openQuestions.length === 0 ? (
-                        <p className="research-muted">No open questions surfaced.</p>
-                      ) : (
-                        <ul className="research-list">
-                          {effectiveProfile.openQuestions.map((question, index) => (
-                            <li key={`question-${index}`}>{question}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-                </section>
+                <SearchSkillsTable
+                  skills={effectiveProfile.skills}
+                  hiddenSkillIds={activeThesis?.searchOverrides?.hiddenSkillIds ?? []}
+                  hasActiveThesis={Boolean(activeThesis)}
+                  onToggleHidden={(skillId) => {
+                    if (!activeThesis) return
+                    toggleThesisHiddenSkill(activeThesis.id, skillId)
+                  }}
+                />
+                <SearchInstancePreferences
+                  identityBase={effectiveProfile}
+                  activeThesis={activeThesis}
+                  onUpdateOverrides={(patch) => {
+                    if (!activeThesis) return
+                    updateThesisOverrides(activeThesis.id, patch)
+                  }}
+                  onNavigateToIdentity={() => void navigate({ to: '/identity' })}
+                />
               </div>
-
-              {isIdentitySource ? (
-                <p className="research-muted">
-                  Need to change vectors, filters, or awareness items? Use the Identity page.
-                </p>
-              ) : null}
             </>
           )}
       </section>
@@ -2833,7 +2475,7 @@ export function ResearchPage() {
                   <button
                     type="button"
                     className="research-btn"
-                    onClick={() => void handleGenerateThesis()}
+                    onClick={() => void handleGenerateThesis({ switchToSearchTab: true })}
                     disabled={!currentIdentity || isGeneratingThesis || isSearching || thesisDraftIsDirty}
                     aria-busy={isGeneratingThesis}
                   >

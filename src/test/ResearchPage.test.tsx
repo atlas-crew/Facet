@@ -462,6 +462,7 @@ describe('ResearchPage', () => {
         identity,
         'https://ai.example/proxy',
         [],
+        {},
       )
       expect(useSearchStore.getState().activeThesisId).toBe('thesis-generated')
     })
@@ -2754,27 +2755,79 @@ describe('ResearchPage', () => {
     expect(screen.getByText('No runs yet')).toBeTruthy()
   })
 
-  it('lets the user add, edit, remove, and clear skills', async () => {
+  it('removes legacy skill add/edit affordances and still supports clearing the profile', async () => {
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Add Skill/i }))
-    fireEvent.change(screen.getByLabelText('Skill name'), { target: { value: 'React' } })
-    fireEvent.change(screen.getByLabelText('Skill context'), { target: { value: 'UI systems' } })
-
-    await waitFor(() => {
-      expect(useSearchStore.getState().profile?.skills[0]?.name).toBe('React')
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove skill React' }))
-
-    await waitFor(() => {
-      expect(useSearchStore.getState().profile?.skills).toHaveLength(0)
-    })
+    // Skills are now identity-owned and read-only in the search workspace. The pre-redesign
+    // affordances ("Add Skill" button, free-text name/context inputs, "Remove skill X" buttons)
+    // should no longer be present.
+    expect(screen.queryByRole('button', { name: /Add Skill/i })).toBeNull()
+    expect(screen.queryByLabelText('Skill name')).toBeNull()
+    expect(screen.queryByLabelText('Skill context')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Clear Profile/i }))
     expect(useSearchStore.getState().profile).toBeNull()
     expect(screen.getByText('No search profile yet')).toBeTruthy()
+  })
+
+  it('hides a skill from the active search via the per-search override layer', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const seededThesis = useSearchStore.getState().addThesis({
+      id: 'sthesis-fixture',
+      narrative: 'Fixture narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+      competitiveMoat: 'Fixture moat with enough length to satisfy the validator.',
+      unfairAdvantages: [],
+      searchLanes: [
+        {
+          id: 'lane-1',
+          title: 'Lane',
+          rationale:
+            'This lane targets fixture work. The rationale is intentionally two sentences long.',
+          targetSignals: [],
+        },
+      ],
+      interviewStrategy: 'Anchor on tradeoffs.',
+      lookFor: [],
+      avoid: [],
+      keywordCombinations: [],
+      skillDepthMap: [],
+      source: 'generated',
+      identityVersion: identity.model_revision ?? 0,
+      feedbackIncorporated: [],
+    })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    const targetSkill = useSearchStore.getState().profile?.skills[0]
+    expect(targetSkill).toBeTruthy()
+    if (!targetSkill) return
+
+    const hideButton = screen.getByRole('button', {
+      name: new RegExp(`Hide ${targetSkill.name} from this search`, 'i'),
+    })
+    fireEvent.click(hideButton)
+
+    await waitFor(() => {
+      const thesis = useSearchStore.getState().theses.find((t) => t.id === seededThesis.id)
+      expect(thesis?.searchOverrides?.hiddenSkillIds).toContain(targetSkill.id)
+      expect(thesis?.source).toBe('user-edited')
+    })
+
+    const restoreButton = screen.getByRole('button', {
+      name: new RegExp(`Restore ${targetSkill.name} to this search`, 'i'),
+    })
+    fireEvent.click(restoreButton)
+
+    await waitFor(() => {
+      const thesis = useSearchStore.getState().theses.find((t) => t.id === seededThesis.id)
+      expect(thesis?.searchOverrides?.hiddenSkillIds ?? []).not.toContain(targetSkill.id)
+    })
   })
 
   it('lets the user change focus vectors before launching search', async () => {
