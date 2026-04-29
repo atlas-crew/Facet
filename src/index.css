@@ -361,7 +361,16 @@ select {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  max-width: 720px;
+  min-width: 0;
+  max-width: 760px;
+}
+
+.build-top-bar-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
 }
 
 .build-top-bar-copy h1 {
@@ -395,8 +404,9 @@ select {
 }
 
 .build-top-bar-actions {
+  width: 100%;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .build-context-modal {
@@ -467,8 +477,9 @@ select {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
   background: color-mix(in srgb, var(--bg-inset) 65%, var(--bg-surface) 35%);
   flex-shrink: 0;
 }
