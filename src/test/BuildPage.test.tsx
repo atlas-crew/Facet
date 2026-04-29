@@ -196,6 +196,7 @@ describe('BuildPage', () => {
 
     const workingContext = screen.getByLabelText('Current working context')
     expect(workingContext).toBeTruthy()
+    expect(within(topBar as HTMLElement).getByLabelText('Current working context')).toBe(workingContext)
     const contextHelpButton = within(workingContext).getByRole('button', { name: /Open Build context details/i })
     expect(contextHelpButton).toBeTruthy()
     expect(contextHelpButton.getAttribute('aria-expanded')).toBe('false')
