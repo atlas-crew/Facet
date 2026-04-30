@@ -8,6 +8,7 @@ import { ProfilesBand } from './bands/ProfilesBand'
 import { RolesBand } from './bands/RolesBand'
 import { SkillsBand } from './bands/SkillsBand'
 import { PreferencesBand } from './bands/PreferencesBand'
+import { SearchStrategyBand } from './bands/SearchStrategyBand'
 import './identityMap.css'
 
 /**
@@ -99,6 +100,7 @@ export function IdentityMapPage() {
         <RolesBand />
         <SkillsBand />
         <PreferencesBand />
+        <SearchStrategyBand />
 
         <footer className="identity-map-footer">
           <span className="label-tracked">Workspace<span>: Identity Model</span></span>

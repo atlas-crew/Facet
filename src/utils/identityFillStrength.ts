@@ -121,6 +121,22 @@ export function skillsFillStrength(identity: ProfessionalIdentityV3 | null): Fil
   }
 }
 
+export function searchStrategyFillStrength(identity: ProfessionalIdentityV3 | null): FillStrength {
+  if (!identity) return { label: 'Empty', percent: 0, tone: 'warn' }
+  const vectors = identity.search_vectors ?? []
+  const questions = identity.awareness?.open_questions ?? []
+  const usableVectors = vectors.filter((v) => v.title.trim() && v.thesis.trim()).length
+  const usableQuestions = questions.filter((q) => q.topic.trim() && q.action.trim()).length
+  const vectorScore = Math.min(usableVectors / 3, 1) * 60
+  const questionScore = Math.min(usableQuestions / 3, 1) * 40
+  const percent = clamp(vectorScore + questionScore)
+  return {
+    label: labelForPercent(percent, [[80, 'Strong'], [40, 'Solid'], [15, 'Sparse']], 'Empty'),
+    percent,
+    tone: percent < 40 ? 'warn' : 'ok',
+  }
+}
+
 export function preferencesFillStrength(identity: ProfessionalIdentityV3 | null): FillStrength {
   if (!identity) return { label: 'Empty', percent: 0, tone: 'warn' }
   const prefs = identity.preferences

@@ -140,6 +140,7 @@
 .identity-band[data-layer="roles"] { --band-color: var(--layer-roles); }
 .identity-band[data-layer="skills"] { --band-color: var(--layer-skills); }
 .identity-band[data-layer="prefs"] { --band-color: var(--layer-prefs); }
+.identity-band[data-layer="search"] { --band-color: var(--layer-search); }
 
 .identity-band-rail {
   position: absolute;
@@ -718,29 +719,77 @@
   align-items: center;
   padding: var(--space-2) var(--space-3);
   background: var(--bg-inset);
-  border-left: 2px solid var(--band-color);
-  border-radius: 0 6px 6px 0;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--band-color);
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
   font: inherit;
   color: inherit;
-  border-top: 0;
-  border-right: 0;
-  border-bottom: 0;
-  transition: background var(--duration-fast) var(--easing);
+  transition: background var(--duration-fast) var(--easing), border-color var(--duration-fast) var(--easing);
 }
 .pref-item:hover { background: var(--bg-surface-hover); }
-.pref-item.avoid { border-left-color: var(--warning); }
-.pref-item.selected { background: var(--bg-surface-hover); }
+.pref-item.selected { background: var(--bg-surface-hover); border-color: var(--band-color); }
+/* Prioritize is the "approach" lane — encode green; avoid encodes red. These
+   override the band rail color so the items read semantically regardless of
+   which band hosts them. */
+.pref-item.prioritize {
+  border-left-color: var(--success);
+}
+.pref-item.avoid {
+  border-left-color: var(--error);
+}
 .pref-item-label {
   font-size: 13px;
   color: var(--text-primary);
 }
 .pref-item-weight {
   font-size: 10.5px;
-  color: var(--text-tertiary);
   letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-tertiary) 14%, transparent);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
+/* Semantic tones for weight (high/medium/low) and severity (hard/soft/conditional). */
+.pref-item-weight.tone-strong {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+.pref-item-weight.tone-warn {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+.pref-item-weight.tone-error {
+  background: color-mix(in srgb, var(--error) 22%, transparent);
+  color: var(--error);
+}
+.pref-item-weight.tone-muted {
+  background: color-mix(in srgb, var(--text-tertiary) 12%, transparent);
+  color: var(--text-tertiary);
+}
+.pref-list-add {
+  margin-top: var(--space-2);
+  align-self: flex-start;
+}
+
+.search-section { margin-top: var(--space-3); }
+.search-section:first-child { margin-top: 0; }
+
+.inspector-evidence {
+  margin-top: var(--space-3);
+}
+.inspector-evidence ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.inspector-evidence li { margin-bottom: 2px; }
 
 /* ===== Inspector slot styles ===== */
 .inspector-section {

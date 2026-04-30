@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { FillBar, type FillBarProps } from '../../components/FillBar'
 
-export type BandLayer = 'thesis' | 'self' | 'profiles' | 'roles' | 'skills' | 'prefs'
+export type BandLayer = 'thesis' | 'self' | 'profiles' | 'roles' | 'skills' | 'prefs' | 'search'
 
 export interface IdentityBandProps {
   layer: BandLayer
