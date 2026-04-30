@@ -988,13 +988,6 @@ select {
   border-top: 1px solid color-mix(in srgb, var(--active-vector-color, var(--border-subtle)) 42%, var(--border-subtle));
 }
 
-.vector-action-context {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
 .vector-action-group {
   display: inline-flex;
   align-items: center;
@@ -1022,18 +1015,6 @@ select {
   background: color-mix(in srgb, var(--accent-primary) 14%, var(--bg-surface));
   border-color: color-mix(in srgb, var(--accent-primary) 42%, var(--border-default));
   color: var(--text-primary);
-}
-
-.vector-action-scope {
-  max-width: 22ch;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .vector-pill {

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 
 /* ── Types ─────────────────────────────────────────────── */
@@ -46,21 +55,114 @@ function Divider() {
 
 function DropdownMenuRoot({ label, icon: Icon, children }: DropdownMenuProps) {
   const [open, setOpen] = useState(false)
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerButtonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerId = useId()
+  const panelId = useId()
 
   const close = useCallback(() => setOpen(false), [])
+  const getPanelPosition = useCallback((): CSSProperties | null => {
+    const trigger = containerRef.current
+    if (!trigger) return null
+    const rect = trigger.getBoundingClientRect()
+    return {
+      position: 'fixed',
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+      maxHeight: Math.max(160, window.innerHeight - rect.bottom - 12),
+    }
+  }, [])
+
+  const toggle = useCallback(() => {
+    if (open) {
+      close()
+      return
+    }
+    setPanelStyle(getPanelPosition())
+    setOpen(true)
+  }, [close, getPanelPosition, open])
+
+  const focusMenuItem = useCallback((offset: number | 'first' | 'last') => {
+    // Includes menuitemcheckbox/menuitemradio; custom children need a menuitem* role to join roving focus.
+    const items = Array.from(
+      panelRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not(:disabled)') ?? [],
+    )
+    if (items.length === 0) return
+
+    if (offset === 'first') {
+      items[0]?.focus()
+      return
+    }
+
+    if (offset === 'last') {
+      items[items.length - 1]?.focus()
+      return
+    }
+
+    const currentIndex = items.findIndex((item) => item === document.activeElement)
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + offset + items.length) % items.length
+    items[nextIndex]?.focus()
+  }, [])
+
+  const onPanelKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      focusMenuItem(1)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      focusMenuItem(-1)
+      return
+    }
+    if (event.key === 'Home') {
+      event.preventDefault()
+      focusMenuItem('first')
+      return
+    }
+    if (event.key === 'End') {
+      event.preventDefault()
+      focusMenuItem('last')
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+      triggerButtonRef.current?.focus()
+    }
+  }, [close, focusMenuItem])
 
   // Close on click-outside
   useEffect(() => {
     if (!open) return
     const onMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (containerRef.current && !containerRef.current.contains(target)) {
         close()
       }
     }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [open, close])
+
+  useEffect(() => {
+    if (!open) return
+    const onViewportMove = () => close()
+    window.addEventListener('resize', onViewportMove)
+    window.addEventListener('scroll', onViewportMove)
+    return () => {
+      window.removeEventListener('resize', onViewportMove)
+      window.removeEventListener('scroll', onViewportMove)
+    }
+  }, [open, close])
+
+  useEffect(() => {
+    if (!open) return
+    focusMenuItem('first')
+  }, [open, focusMenuItem])
 
   // Close on Escape
   useEffect(() => {
@@ -75,24 +177,36 @@ function DropdownMenuRoot({ label, icon: Icon, children }: DropdownMenuProps) {
   return (
     <div className="dropdown-menu" ref={containerRef}>
       <button
+        id={triggerId}
+        ref={triggerButtonRef}
         type="button"
         className="btn-ghost dropdown-trigger"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={toggle}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-controls={open ? panelId : undefined}
       >
         <Icon size={16} />
         <span className="btn-label">{label}</span>
         <ChevronDown size={12} className={`dropdown-chevron ${open ? 'open' : ''}`} />
       </button>
-      {open && (
-        <div className="dropdown-panel" role="menu" onClick={(e) => {
+      {open && panelStyle && (
+        <div
+          id={panelId}
+          ref={panelRef}
+          className="dropdown-panel"
+          role="menu"
+          aria-labelledby={triggerId}
+          style={panelStyle}
+          onKeyDown={onPanelKeyDown}
+          onClick={(e) => {
           // Don't auto-close if user interacted with a non-button element (e.g. select)
           const target = e.target as HTMLElement
           if (target.closest('.dropdown-item') || target.closest('.dropdown-divider')) {
             close()
           }
-        }}>
+          }}
+        >
           {children}
         </div>
       )}

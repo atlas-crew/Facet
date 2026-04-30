@@ -389,6 +389,11 @@ describe('BuildPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^More$/i }))
 
+    const moreMenu = screen.getByRole('menu')
+    expect((moreMenu as HTMLElement).style.position).toBe('fixed')
+    expect(document.activeElement).toBe(screen.getByText('Import').closest('button'))
+    fireEvent.keyDown(moreMenu, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByText('Export').closest('button'))
     expect(screen.getByText('Import')).toBeTruthy()
     expect(screen.getByText('Export')).toBeTruthy()
     expect(screen.getByText('Variables')).toBeTruthy()

@@ -35,9 +35,6 @@ export function VectorBar({
   )
   const activeVectorLabel = currentVector?.label ?? 'Select a vector'
   const hasSelectedVector = Boolean(currentVector)
-  const actionScopeLabel = hasSelectedVector
-    ? `Actions for ${activeVectorLabel}`
-    : 'Select a vector for actions'
   const activeVectorStyle = currentVector
     ? ({ '--active-vector-color': currentVector.color } as CSSProperties)
     : undefined
@@ -223,6 +220,15 @@ export function VectorBar({
     <div className="vector-bar" data-tour="vector-bar">
       <div id="vector-pills-list" className="vector-pills-scroll" role="group" aria-label="Resume vector choices">
         <div className="vector-pills">
+          <button
+            className="vector-pill add-pill vector-add-pill"
+            onClick={onAddVector}
+            type="button"
+            aria-label="New Vector"
+            title="New Vector"
+          >
+            <Plus size={14} />
+          </button>
           {vectors.map((vector, index) => (
             <button
               className={`vector-pill ${selectedVector === vector.id ? 'active' : ''}`}
@@ -237,27 +243,19 @@ export function VectorBar({
               {vector.label}
             </button>
           ))}
-          <button
-            className="vector-pill add-pill vector-add-pill"
-            onClick={onAddVector}
-            type="button"
-            aria-label="New Vector"
-            title="New Vector"
-          >
-            <Plus size={14} />
-          </button>
         </div>
       </div>
-      <div className="vector-actions" style={activeVectorStyle}>
-        <div className="vector-action-context">
-          <HelpHint text="Vectors are positioning angles. Select one to assemble a resume tailored to that direction." placement="bottom" />
-          <span
-            className="vector-action-scope"
-            title={actionScopeLabel}
-          >
-            {actionScopeLabel}
-          </span>
-        </div>
+      <div
+        className="vector-actions"
+        style={activeVectorStyle}
+        role="group"
+        aria-label={
+          hasSelectedVector
+            ? `Actions for ${activeVectorLabel}`
+            : 'Vector actions unavailable until a vector is selected'
+        }
+      >
+        <HelpHint text="Vectors are positioning angles. Select one to assemble a resume tailored to that direction." placement="bottom" />
         <div className="vector-action-group vector-view-actions" role="group" aria-label="Vector view actions">
           <button
             className="btn-ghost vector-view-all-btn"

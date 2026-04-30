@@ -36,6 +36,7 @@ describe('VectorBar', () => {
     renderBar()
     const vectorChoices = screen.getByRole('group', { name: 'Resume vector choices' })
     expect(screen.queryByText('All')).toBeNull()
+    expect(within(vectorChoices).getAllByRole('button')[0]?.getAttribute('aria-label')).toBe('New Vector')
     expect(within(vectorChoices).getByText('Backend Engineering')).toBeTruthy()
     expect(within(vectorChoices).getByText('Security Platform')).toBeTruthy()
     expect(within(vectorChoices).queryByText('View All')).toBeNull()
@@ -66,32 +67,34 @@ describe('VectorBar', () => {
     expect(onAddVector).toHaveBeenCalledOnce()
   })
 
-  it('scopes actions to the active vector', () => {
+  it('color-scopes actions to the active vector without repeating the label', () => {
     const { container } = renderBar({ selectedVector: 'backend' })
-    const scope = screen.getByText('Actions for Backend Engineering')
     const resetButton = screen.getByRole('button', { name: /Reset overrides for Backend Engineering/i })
-    expect(scope).toBeTruthy()
+    expect(screen.queryByText('Actions for Backend Engineering')).toBeNull()
     expect(screen.getByRole('button', { name: 'Rename Backend Engineering' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Delete Backend Engineering' })).toBeTruthy()
     expect(resetButton.getAttribute('aria-label')).toBe('Reset overrides for Backend Engineering')
+    expect(screen.getByRole('group', { name: 'Actions for Backend Engineering' })).toBeTruthy()
+    expect(container.querySelector('.vector-actions')?.getAttribute('aria-label')).toBe('Actions for Backend Engineering')
     expect(container.querySelector('.vector-actions')?.getAttribute('style')).toContain('--active-vector-color: #3b82f6')
   })
 
   it('disables vector-specific actions when all vectors are selected', () => {
     const { container } = renderBar({ selectedVector: 'all' })
-    expect(screen.getByText('Select a vector for actions')).toBeTruthy()
+    expect(screen.queryByText('Select a vector for actions')).toBeNull()
     const renameButton = screen.getByRole('button', { name: 'Rename vector' }) as HTMLButtonElement
     const deleteButton = screen.getByRole('button', { name: 'Delete vector' }) as HTMLButtonElement
     const resetButton = screen.getByRole('button', { name: /Reset overrides/i }) as HTMLButtonElement
     expect(renameButton.disabled).toBe(true)
     expect(deleteButton.disabled).toBe(true)
     expect(resetButton.disabled).toBe(true)
+    expect(container.querySelector('.vector-actions')?.getAttribute('aria-label')).toBe('Vector actions unavailable until a vector is selected')
     expect(container.querySelector('.vector-actions')?.getAttribute('style')).toBeNull()
   })
 
   it('treats an unknown selected vector as no active vector', () => {
     renderBar({ selectedVector: 'ghost' as VectorSelection })
-    expect(screen.getByText('Select a vector for actions')).toBeTruthy()
+    expect(screen.queryByText('Select a vector for actions')).toBeNull()
     const renameButton = screen.getByRole('button', { name: 'Rename vector' }) as HTMLButtonElement
     const deleteButton = screen.getByRole('button', { name: 'Delete vector' }) as HTMLButtonElement
     const resetButton = screen.getByRole('button', { name: /Reset overrides/i }) as HTMLButtonElement
