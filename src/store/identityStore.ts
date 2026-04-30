@@ -55,6 +55,10 @@ interface IdentityState {
   changelog: IdentityChangeLogEntry[]
   lastError: string | null
   mapSelection: MapSelection | null
+  currentBulletDeepen: Record<string, CurrentBulletDeepenEntry>
+  startCurrentBulletDeepen: (roleId: string, bulletId: string) => void
+  completeCurrentBulletDeepen: (value: IdentityDeepenedBullet) => void
+  failCurrentBulletDeepen: (roleId: string, bulletId: string, message: string) => void
   setMapSelection: (selection: MapSelection | null) => void
   setIntakeMode: (mode: IdentityIntakeMode) => void
   setSourceMaterial: (value: string) => void
@@ -171,6 +175,14 @@ const advanceModelRevision = (
 }
 
 const getScanBulletKey = (roleId: string, bulletId: string): string => `${roleId}::${bulletId}`
+
+export const getCurrentBulletDeepenKey = (roleId: string, bulletId: string): string =>
+  `${roleId}::${bulletId}`
+
+export interface CurrentBulletDeepenEntry {
+  status: 'running' | 'failed'
+  lastError?: string
+}
 
 const enumerateScanBullets = (identity: ProfessionalIdentityV3) =>
   identity.roles.flatMap((role) =>
@@ -598,6 +610,70 @@ export const useIdentityStore = create<IdentityState>()(
       changelog: [],
       lastError: null,
       mapSelection: null,
+      currentBulletDeepen: {},
+      startCurrentBulletDeepen: (roleId, bulletId) =>
+        set((state) => {
+          const key = getCurrentBulletDeepenKey(roleId, bulletId)
+          return {
+            currentBulletDeepen: {
+              ...state.currentBulletDeepen,
+              [key]: { status: 'running' },
+            },
+          }
+        }),
+      completeCurrentBulletDeepen: (value) =>
+        set((state) => {
+          if (!state.currentIdentity) {
+            return {}
+          }
+          const targetRole = state.currentIdentity.roles.find((role) => role.id === value.roleId)
+          const targetBullet = targetRole?.bullets.find((bullet) => bullet.id === value.bulletId)
+          if (!targetBullet) {
+            if (import.meta.env.DEV) {
+              console.warn('Dropped current bullet deepen completion for missing bullet.', {
+                roleId: value.roleId,
+                bulletId: value.bulletId,
+              })
+            }
+            return {}
+          }
+          const identity = normalizeRuntimeProfessionalIdentity({
+            ...state.currentIdentity,
+            roles: state.currentIdentity.roles.map((role) =>
+              role.id === value.roleId
+                ? {
+                    ...role,
+                    bullets: role.bullets.map((bullet) =>
+                      bullet.id === value.bulletId
+                        ? {
+                            ...bullet,
+                            ...value.bullet,
+                            source_text: bullet.source_text,
+                          }
+                        : bullet,
+                    ),
+                  }
+                : role,
+            ),
+          })
+          const key = getCurrentBulletDeepenKey(value.roleId, value.bulletId)
+          const { [key]: _removed, ...rest } = state.currentBulletDeepen
+          return {
+            currentIdentity: identity,
+            currentBulletDeepen: rest,
+            warnings: Array.from(new Set([...state.warnings, ...value.warnings])),
+          }
+        }),
+      failCurrentBulletDeepen: (roleId, bulletId, message) =>
+        set((state) => {
+          const key = getCurrentBulletDeepenKey(roleId, bulletId)
+          return {
+            currentBulletDeepen: {
+              ...state.currentBulletDeepen,
+              [key]: { status: 'failed', lastError: message },
+            },
+          }
+        }),
       setMapSelection: (selection) =>
         set((state) => {
           if (selection === null) return { mapSelection: null }
