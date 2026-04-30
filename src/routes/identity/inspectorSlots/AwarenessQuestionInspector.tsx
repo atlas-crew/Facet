@@ -27,9 +27,6 @@ const draftFromQuestion = (question: ProfessionalOpenQuestion): QuestionDraft =>
   evidence: (question.evidence ?? []).join('\n'),
 })
 
-const isStubQuestion = (question: ProfessionalOpenQuestion): boolean =>
-  !question.topic.trim() && !question.action.trim()
-
 const linesToList = (value: string): string[] =>
   value
     .split('\n')
@@ -39,14 +36,16 @@ const linesToList = (value: string): string[] =>
 export function AwarenessQuestionInspector({
   identity,
   questionId,
+  justAdded,
 }: {
   identity: ProfessionalIdentityV3
   questionId: string
+  justAdded?: boolean
 }) {
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const question = identity.awareness?.open_questions.find((q) => q.id === questionId)
-  const [editing, setEditing] = useState<boolean>(() => Boolean(question && isStubQuestion(question)))
+  const [editing, setEditing] = useState<boolean>(() => justAdded ?? false)
   const [draft, setDraft] = useState<QuestionDraft>(() =>
     question
       ? draftFromQuestion(question)
@@ -83,12 +82,23 @@ export function AwarenessQuestionInspector({
           : q,
       ),
     )
+    if (justAdded) {
+      setSelection({ type: 'awareness-question', id: questionId })
+    }
     setEditing(false)
   }
 
   const handleRemove = () => {
     replaceQuestions((current) => current.filter((q) => q.id !== questionId))
     setSelection(null)
+  }
+
+  const handleCancel = () => {
+    if (justAdded) {
+      handleRemove()
+    } else {
+      setEditing(false)
+    }
   }
 
   const toggleReviewed = () => {
@@ -158,12 +168,14 @@ export function AwarenessQuestionInspector({
           <button type="button" className="inspector-btn primary" onClick={handleSave}>
             Save
           </button>
-          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>
-            Cancel
+          <button type="button" className="inspector-btn" onClick={handleCancel}>
+            {justAdded ? 'Discard' : 'Cancel'}
           </button>
-          <button type="button" className="inspector-btn" onClick={handleRemove}>
-            Remove question
-          </button>
+          {!justAdded && (
+            <button type="button" className="inspector-btn" onClick={handleRemove}>
+              Remove question
+            </button>
+          )}
         </Actions>
       </SlotShell>
     )

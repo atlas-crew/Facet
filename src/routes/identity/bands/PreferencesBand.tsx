@@ -44,7 +44,7 @@ export function PreferencesBand() {
         { id, label: '', description: '', weight: 'medium' },
       ],
     })
-    setSelection({ type: 'match-rule', kind: 'prioritize', id })
+    setSelection({ type: 'match-rule', kind: 'prioritize', id, justAdded: true })
   }
 
   const handleAddAvoid = () => {
@@ -57,7 +57,7 @@ export function PreferencesBand() {
         { id, label: '', description: '', severity: 'soft' },
       ],
     })
-    setSelection({ type: 'match-rule', kind: 'avoid', id })
+    setSelection({ type: 'match-rule', kind: 'avoid', id, justAdded: true })
   }
 
   const renderCell = (label: string, field: PreferenceFieldKey, value: string | undefined, emptyHint = 'Not set') => {

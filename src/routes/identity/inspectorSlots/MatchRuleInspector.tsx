@@ -3,25 +3,27 @@ import type { ProfessionalIdentityV3 } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { Actions, MetaRows, NotFound, SlotShell } from './slotPrimitives'
 
-const isBlankRule = (rule: { label: string; description: string }): boolean =>
-  !rule.label.trim() && !rule.description.trim()
-
 // The dispatcher remounts this slot on rule selection change via `key`, so the
 // useState initializer reads the correct starting state for the active rule.
+// `justAdded` is set on the selection by the parent band when it created this
+// rule via "+ Add"; it lets Cancel act as Discard for fresh stubs and is cleared
+// from the selection on first Save so subsequent Cancels behave normally.
 export function MatchRuleInspector({
   identity,
   kind,
   ruleId,
+  justAdded,
 }: {
   identity: ProfessionalIdentityV3
   kind: 'prioritize' | 'avoid'
   ruleId: string
+  justAdded?: boolean
 }) {
   const updateMatching = useIdentityStore((s) => s.updateCurrentMatching)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const rules = kind === 'prioritize' ? identity.preferences.matching.prioritize : identity.preferences.matching.avoid
   const rule = rules.find((r) => r.id === ruleId)
-  const [editing, setEditing] = useState<boolean>(() => Boolean(rule && isBlankRule(rule)))
+  const [editing, setEditing] = useState<boolean>(() => justAdded ?? false)
   const [draft, setDraft] = useState(() =>
     rule
       ? {
@@ -58,6 +60,9 @@ export function MatchRuleInspector({
       )
       updateMatching({ ...matching, avoid: next })
     }
+    if (justAdded) {
+      setSelection({ type: 'match-rule', kind, id: ruleId })
+    }
     setEditing(false)
   }
 
@@ -75,6 +80,14 @@ export function MatchRuleInspector({
       })
     }
     setSelection(null)
+  }
+
+  const handleCancel = () => {
+    if (justAdded) {
+      handleRemove()
+    } else {
+      setEditing(false)
+    }
   }
 
   if (editing) {
@@ -99,8 +112,8 @@ export function MatchRuleInspector({
         </label>
         <Actions>
           <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
-          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
-          <button type="button" className="inspector-btn" onClick={handleRemove}>Remove rule</button>
+          <button type="button" className="inspector-btn" onClick={handleCancel}>{justAdded ? 'Discard' : 'Cancel'}</button>
+          {!justAdded && <button type="button" className="inspector-btn" onClick={handleRemove}>Remove rule</button>}
         </Actions>
       </SlotShell>
     )

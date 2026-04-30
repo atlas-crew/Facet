@@ -57,7 +57,7 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(matching.prioritize[0].weight).toBe('high')
   })
 
-  it('adds an avoid rule, removes it via the inspector, clears selection', () => {
+  it('adds an avoid rule, discards it via the inspector, clears selection', () => {
     seed()
     render(<IdentityMapPage />)
 
@@ -65,8 +65,8 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(useIdentityStore.getState().currentIdentity!.preferences.matching.avoid).toHaveLength(1)
     expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
 
-    // The blank rule auto-opens in edit mode; remove from there.
-    fireEvent.click(screen.getByRole('button', { name: /remove rule/i }))
+    // The just-added rule auto-opens in edit mode with Discard (no Remove rule button until first save).
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
 
     expect(useIdentityStore.getState().currentIdentity!.preferences.matching.avoid).toHaveLength(0)
     expect(useIdentityStore.getState().mapSelection).toBeNull()
@@ -223,6 +223,19 @@ describe('Identity Map — awareness-question full-edit + add/remove', () => {
     expect(q.evidence).toEqual(['Reorg in Q4', 'Manager change'])
   })
 
+  it('discards a just-added question via the inspector and clears selection', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /add open question/i }))
+    expect(useIdentityStore.getState().currentIdentity!.awareness!.open_questions).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.awareness!.open_questions).toEqual([])
+    expect(useIdentityStore.getState().mapSelection).toBeNull()
+  })
+
   it('removes an open question and clears selection', () => {
     seed((id) => {
       id.awareness = {
@@ -244,5 +257,35 @@ describe('Identity Map — awareness-question full-edit + add/remove', () => {
 
     expect(useIdentityStore.getState().currentIdentity!.awareness!.open_questions).toEqual([])
     expect(useIdentityStore.getState().mapSelection).toBeNull()
+  })
+})
+
+describe('Identity Map — justAdded clears on Save so Cancel reverts to non-destructive', () => {
+  beforeEach(() => navigateMock.mockReset())
+  afterEach(() => cleanup())
+
+  it('saving a just-added vector clears justAdded on selection so re-edit + Cancel does not discard', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /add search vector/i }))
+    expect(useIdentityStore.getState().mapSelection).toMatchObject({ type: 'search-vector', justAdded: true })
+
+    // Fill required fields and save.
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Backend Platform' } })
+    fireEvent.change(screen.getByLabelText('Thesis'), { target: { value: 'Lead platform.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    // After save, justAdded is cleared from selection.
+    const selection = useIdentityStore.getState().mapSelection
+    expect(selection?.type).toBe('search-vector')
+    expect((selection as { justAdded?: boolean } | null)?.justAdded).toBeUndefined()
+
+    // Re-enter edit mode and Cancel — vector should remain (no discard).
+    fireEvent.click(screen.getByRole('button', { name: 'Edit vector' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.search_vectors).toHaveLength(1)
+    expect(useIdentityStore.getState().currentIdentity!.search_vectors![0].title).toBe('Backend Platform')
   })
 })

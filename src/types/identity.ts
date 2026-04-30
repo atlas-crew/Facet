@@ -176,7 +176,7 @@ export type MapSelection =
   | { type: 'skill-group'; id: string }
   | { type: 'skill-item'; groupId: string; itemId: string }
   | { type: 'pref-field'; field: PreferenceFieldKey }
-  | { type: 'match-rule'; kind: 'prioritize' | 'avoid'; id: string }
-  | { type: 'search-vector'; id: string }
-  | { type: 'awareness-question'; id: string }
+  | { type: 'match-rule'; kind: 'prioritize' | 'avoid'; id: string; justAdded?: boolean }
+  | { type: 'search-vector'; id: string; justAdded?: boolean }
+  | { type: 'awareness-question'; id: string; justAdded?: boolean }
 

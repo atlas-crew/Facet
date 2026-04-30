@@ -132,6 +132,7 @@ function InspectorBody({
           identity={identity}
           kind={selection.kind}
           ruleId={selection.id}
+          justAdded={selection.justAdded}
         />
       )
     case 'search-vector':
@@ -140,6 +141,7 @@ function InspectorBody({
           key={`search-vector:${selection.id}`}
           identity={identity}
           vectorId={selection.id}
+          justAdded={selection.justAdded}
         />
       )
     case 'awareness-question':
@@ -148,6 +150,7 @@ function InspectorBody({
           key={`awareness-question:${selection.id}`}
           identity={identity}
           questionId={selection.id}
+          justAdded={selection.justAdded}
         />
       )
     default: {

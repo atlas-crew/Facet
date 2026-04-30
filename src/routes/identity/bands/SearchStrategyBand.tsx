@@ -51,7 +51,7 @@ export function SearchStrategyBand() {
         keywords: { primary: [], secondary: [] },
       },
     ])
-    setSelection({ type: 'search-vector', id })
+    setSelection({ type: 'search-vector', id, justAdded: true })
   }
 
   const handleAddQuestion = () => {
@@ -65,7 +65,7 @@ export function SearchStrategyBand() {
         action: '',
       },
     ])
-    setSelection({ type: 'awareness-question', id })
+    setSelection({ type: 'awareness-question', id, justAdded: true })
   }
 
   return (

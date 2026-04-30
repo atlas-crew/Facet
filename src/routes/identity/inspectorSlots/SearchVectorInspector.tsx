@@ -40,9 +40,6 @@ const draftFromVector = (vector: ProfessionalSearchVector): SearchVectorDraft =>
   evidence: (vector.evidence ?? []).join('\n'),
 })
 
-const isStubVector = (vector: ProfessionalSearchVector): boolean =>
-  !vector.title.trim() && !vector.thesis.trim()
-
 const linesToList = (value: string): string[] =>
   value
     .split('\n')
@@ -52,14 +49,16 @@ const linesToList = (value: string): string[] =>
 export function SearchVectorInspector({
   identity,
   vectorId,
+  justAdded,
 }: {
   identity: ProfessionalIdentityV3
   vectorId: string
+  justAdded?: boolean
 }) {
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const vector = identity.search_vectors?.find((v) => v.id === vectorId)
-  const [editing, setEditing] = useState<boolean>(() => Boolean(vector && isStubVector(vector)))
+  const [editing, setEditing] = useState<boolean>(() => justAdded ?? false)
   const [draft, setDraft] = useState<SearchVectorDraft>(() =>
     vector
       ? draftFromVector(vector)
@@ -110,12 +109,23 @@ export function SearchVectorInspector({
           : v,
       ),
     )
+    if (justAdded) {
+      setSelection({ type: 'search-vector', id: vectorId })
+    }
     setEditing(false)
   }
 
   const handleRemove = () => {
     replaceVector((current) => current.filter((v) => v.id !== vectorId))
     setSelection(null)
+  }
+
+  const handleCancel = () => {
+    if (justAdded) {
+      handleRemove()
+    } else {
+      setEditing(false)
+    }
   }
 
   const toggleReviewed = () => {
@@ -224,12 +234,14 @@ export function SearchVectorInspector({
           <button type="button" className="inspector-btn primary" onClick={handleSave}>
             Save
           </button>
-          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>
-            Cancel
+          <button type="button" className="inspector-btn" onClick={handleCancel}>
+            {justAdded ? 'Discard' : 'Cancel'}
           </button>
-          <button type="button" className="inspector-btn" onClick={handleRemove}>
-            Remove vector
-          </button>
+          {!justAdded && (
+            <button type="button" className="inspector-btn" onClick={handleRemove}>
+              Remove vector
+            </button>
+          )}
         </Actions>
       </SlotShell>
     )
