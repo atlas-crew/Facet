@@ -26,32 +26,51 @@ export function RolesBand() {
               <div className="roles-sub-eyebrow label-tracked">Jobs</div>
               <div className="roles-grid">
                 {roles.map((role) => {
-                  const isSelected = selection?.type === 'role' && selection.id === role.id
+                  const isRoleSelected = selection?.type === 'role' && selection.id === role.id
                   return (
-                    <button
-                      key={role.id}
-                      type="button"
-                      className={`role-card${isSelected ? ' selected' : ''}`}
-                      onClick={() => setSelection({ type: 'role', id: role.id })}
-                      aria-pressed={isSelected}
-                    >
-                      <div className="role-dates label-tracked">{role.dates}</div>
-                      <div className="role-company">{role.company}</div>
-                      <div className="role-title chapter-copy">{role.title}</div>
-                      <div className="role-bullets-strip" aria-hidden="true">
-                        {role.bullets.map((b) => (
-                          <span key={b.id} className="bullet-tick" />
-                        ))}
-                      </div>
-                      <div className="role-meta">
-                        <span className="role-meta-item label-tracked">
-                          <span>{role.bullets.length}</span> bullets
-                        </span>
-                        {role.subtitle ? (
+                    <article key={role.id} className="role-card">
+                      <button
+                        type="button"
+                        className="role-header"
+                        onClick={() => setSelection({ type: 'role', id: role.id })}
+                        aria-pressed={isRoleSelected}
+                      >
+                        <div className="role-dates label-tracked">{role.dates}</div>
+                        <div className="role-company">{role.company}</div>
+                        <div className="role-title chapter-copy">{role.title}</div>
+                      </button>
+                      {role.bullets.length > 0 ? (
+                        <ul className="role-bullets-list">
+                          {role.bullets.map((b) => {
+                            const isBulletSelected =
+                              selection?.type === 'bullet' &&
+                              selection.roleId === role.id &&
+                              selection.bulletId === b.id
+                            return (
+                              <li key={b.id}>
+                                <button
+                                  type="button"
+                                  className="role-bullet-row"
+                                  onClick={() =>
+                                    setSelection({ type: 'bullet', roleId: role.id, bulletId: b.id })
+                                  }
+                                  aria-pressed={isBulletSelected}
+                                >
+                                  <span className="role-bullet-summary">
+                                    {b.problem || b.action || '(no summary)'}
+                                  </span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : null}
+                      {role.subtitle ? (
+                        <div className="role-meta">
                           <span className="role-meta-item label-tracked role-meta-subtitle">{role.subtitle}</span>
-                        ) : null}
-                      </div>
-                    </button>
+                        </div>
+                      ) : null}
+                    </article>
                   )
                 })}
               </div>
