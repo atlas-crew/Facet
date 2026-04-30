@@ -747,31 +747,6 @@ export function BuildPage() {
     },
     [],
   )
-  const buildStatusLine = useMemo(() => {
-    const vectorSummary = comparisonVectorLabel
-      ? `${selectedVectorLabel} active with ${comparisonVectorLabel} in comparison`
-      : `${selectedVectorLabel} active`
-
-    const pageSummary = pdfRenderPending
-      ? 'Preview is rendering.'
-      : overPageLimit
-        ? 'Resume is over the current page target.'
-        : nearPageLimit
-          ? 'Resume is near the current page target.'
-          : pdfPageCount
-            ? `${pdfPageCount} page${pdfPageCount === 1 ? '' : 's'} ready for export.`
-            : 'Preview is ready.'
-
-    return `${vectorSummary}. ${bulletCount} bullets included. ${pageSummary}`
-  }, [
-    bulletCount,
-    comparisonVectorLabel,
-    nearPageLimit,
-    overPageLimit,
-    pdfPageCount,
-    pdfRenderPending,
-    selectedVectorLabel,
-  ])
   const workingContextItems = useMemo<BuildContextItem[]>(() => {
     const presetContextActive = hasActivePreset || presetDirty
     const suggestionContextActive = suggestionModeActive || suggestionCount > 0
@@ -1509,15 +1484,7 @@ export function BuildPage() {
   return (
     <div className={`app-shell ${draggingSplit ? 'is-dragging' : ''}`}>
       <header className="top-bar build-top-bar">
-        <div className="build-top-bar-copy">
-          <p className="build-top-bar-eyebrow">Core Workspace</p>
-          <h1>Build</h1>
-          <p className="build-top-bar-purpose">
-            Generate and refine resumes from your identity model, AI vector planning, and job-specific pipeline context.
-          </p>
-          <p className="build-top-bar-status">{buildStatusLine}</p>
-        </div>
-
+        <h1 className="sr-only">Build</h1>
         <div className="build-top-bar-panel">
           <div className="top-bar-actions build-top-bar-actions" role="toolbar" aria-label="Build actions">
             <UndoRedoControls />

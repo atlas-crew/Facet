@@ -15,10 +15,12 @@ const {
   usePresetsMock,
   facetClientEnvMock,
   pdfPreviewMock,
+  vectorBarPropsMock,
 } = vi.hoisted(() => ({
   analyzeJobDescriptionMock: vi.fn(),
   reframeBulletForVectorMock: vi.fn(),
   pdfPreviewMock: vi.fn(),
+  vectorBarPropsMock: vi.fn(),
   usePresetsMock: vi.fn(),
   facetClientEnvMock: {
     deploymentMode: 'self-hosted',
@@ -83,7 +85,10 @@ vi.mock('../utils/useFocusTrap', async () => {
 })
 
 vi.mock('../components/VectorBar', () => ({
-  VectorBar: () => <div data-testid="vector-bar" />,
+  VectorBar: (props: Record<string, unknown>) => {
+    vectorBarPropsMock(props)
+    return <div data-testid="vector-bar" />
+  },
 }))
 
 vi.mock('../components/UndoRedoControls', () => ({
@@ -138,6 +143,7 @@ describe('BuildPage', () => {
   beforeEach(() => {
     analyzeJobDescriptionMock.mockReset()
     reframeBulletForVectorMock.mockReset()
+    vectorBarPropsMock.mockReset()
     pdfPreviewMock.mockReset()
     pdfPreviewMock.mockReturnValue({
       previewBlobUrl: 'blob:preview',
@@ -191,10 +197,10 @@ describe('BuildPage', () => {
   it('shows a build-focused header with one dominant download action and working context', () => {
     const { container } = render(<BuildPage />)
 
-    expect(screen.getByText('Core Workspace')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Build' })).toBeTruthy()
-    expect(screen.getByText(/Generate and refine resumes from your identity model/)).toBeTruthy()
-    expect(screen.getByText(/Backend Engineering active/)).toBeTruthy()
+    expect(screen.queryByText('Core Workspace')).toBeNull()
+    expect(screen.queryByText(/Generate and refine resumes from your identity model/)).toBeNull()
+    expect(screen.queryByText(/Backend Engineering active/)).toBeNull()
 
     const topBar = container.querySelector('.build-top-bar')
     expect(topBar).toBeTruthy()
@@ -249,6 +255,11 @@ describe('BuildPage', () => {
     expect(contextHelpButton.getAttribute('aria-expanded')).toBe('false')
 
     expect(screen.getByTestId('vector-bar')).toBeTruthy()
+    expect(vectorBarPropsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onResetOverrides: expect.any(Function),
+      }),
+    )
     expect(screen.getByTestId('pdf-preview')).toBeTruthy()
     expect(screen.getByTestId('status-bar')).toBeTruthy()
   })
