@@ -126,10 +126,18 @@ function InspectorBody({
     case 'pref-field':
       return <PrefFieldInspector identity={identity} field={selection.field} />
     case 'match-rule':
-      return <MatchRuleInspector identity={identity} kind={selection.kind} ruleId={selection.id} />
+      return (
+        <MatchRuleInspector
+          key={`match-rule:${selection.kind}:${selection.id}`}
+          identity={identity}
+          kind={selection.kind}
+          ruleId={selection.id}
+        />
+      )
     case 'search-vector':
       return (
         <SearchVectorInspector
+          key={`search-vector:${selection.id}`}
           identity={identity}
           vectorId={selection.id}
         />
@@ -137,6 +145,7 @@ function InspectorBody({
     case 'awareness-question':
       return (
         <AwarenessQuestionInspector
+          key={`awareness-question:${selection.id}`}
           identity={identity}
           questionId={selection.id}
         />
