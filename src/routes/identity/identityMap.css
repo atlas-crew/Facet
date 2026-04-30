@@ -546,33 +546,58 @@
   color: var(--text-secondary);
   background: transparent;
   border: none;
+  border-left: 2px solid transparent;
   padding: var(--space-1) var(--space-2);
   width: 100%;
   border-radius: 4px;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  transition: background var(--duration-normal) var(--easing), color var(--duration-normal) var(--easing);
+  transition:
+    background var(--duration-normal) var(--easing),
+    color var(--duration-normal) var(--easing),
+    border-left-color var(--duration-normal) var(--easing);
 }
 .role-bullet-row::before {
   content: '';
-  flex: 0 0 4px;
-  height: 4px;
+  flex: 0 0 6px;
+  height: 6px;
   border-radius: 99px;
   background: var(--band-color);
-  opacity: 0.4;
+  opacity: 0.7;
   transition: opacity var(--duration-normal) var(--easing);
 }
-.role-bullet-row:hover {
+.role-bullet-row::after {
+  content: '›';
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--easing);
+}
+.role-bullet-row:hover,
+.role-bullet-row:focus-visible {
   background: var(--bg-surface-hover);
   color: var(--text-primary);
+  border-left-color: var(--band-color);
+}
+.role-bullet-row:hover::after,
+.role-bullet-row:focus-visible::after {
+  opacity: 1;
+  color: var(--band-color);
 }
 .role-bullet-row[aria-pressed="true"] {
   background: var(--bg-surface-hover);
   color: var(--text-primary);
+  border-left-color: var(--band-color);
 }
 .role-bullet-row[aria-pressed="true"]::before {
   opacity: 1;
+}
+.role-bullet-row[aria-pressed="true"]::after {
+  opacity: 1;
+  color: var(--band-color);
 }
 .role-bullet-summary {
   flex: 1 1 auto;
