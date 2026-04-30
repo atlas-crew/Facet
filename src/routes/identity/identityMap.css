@@ -906,6 +906,16 @@
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+.identity-inspector .inspector-action,
+.inspector-sheet-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-inset);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  z-index: 1;
+}
 .inspector-btn {
   display: inline-flex;
   align-items: center;
