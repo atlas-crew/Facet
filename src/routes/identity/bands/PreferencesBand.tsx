@@ -1,14 +1,64 @@
 import { useIdentityStore } from '../../../store/identityStore'
 import { preferencesFillStrength } from '../../../utils/identityFillStrength'
 import type { PreferenceFieldKey } from '../../../types/identity'
+import { createId } from '../../../utils/idUtils'
 import { IdentityBand } from '../IdentityBand'
+
+const weightTone = (weight: 'high' | 'medium' | 'low'): string => {
+  switch (weight) {
+    case 'high':
+      return 'tone-strong'
+    case 'medium':
+      return 'tone-muted'
+    case 'low':
+      return 'tone-muted'
+  }
+}
+
+const severityTone = (severity: 'hard' | 'soft' | 'conditional'): string => {
+  switch (severity) {
+    case 'hard':
+      return 'tone-error'
+    case 'soft':
+      return 'tone-warn'
+    case 'conditional':
+      return 'tone-muted'
+  }
+}
 
 export function PreferencesBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const updateMatching = useIdentityStore((s) => s.updateCurrentMatching)
   const fill = preferencesFillStrength(identity)
   const prefs = identity?.preferences
+
+  const handleAddPrioritize = () => {
+    const matching = prefs?.matching ?? { prioritize: [], avoid: [] }
+    const id = createId('match-priority')
+    updateMatching({
+      ...matching,
+      prioritize: [
+        ...matching.prioritize,
+        { id, label: '', description: '', weight: 'medium' },
+      ],
+    })
+    setSelection({ type: 'match-rule', kind: 'prioritize', id })
+  }
+
+  const handleAddAvoid = () => {
+    const matching = prefs?.matching ?? { prioritize: [], avoid: [] }
+    const id = createId('match-avoid')
+    updateMatching({
+      ...matching,
+      avoid: [
+        ...matching.avoid,
+        { id, label: '', description: '', severity: 'soft' },
+      ],
+    })
+    setSelection({ type: 'match-rule', kind: 'avoid', id })
+  }
 
   const renderCell = (label: string, field: PreferenceFieldKey, value: string | undefined, emptyHint = 'Not set') => {
     const isSelected = selection?.type === 'pref-field' && selection.field === field
@@ -33,7 +83,7 @@ export function PreferencesBand() {
   return (
     <IdentityBand
       layer="prefs"
-      name="Preferences"
+      name="Search Preferences"
       subtitle="matching criteria · constraints · compensation"
       fill={fill}
     >
@@ -66,21 +116,30 @@ export function PreferencesBand() {
             {prefs!.matching.prioritize.map((rule) => {
               const isSelected =
                 selection?.type === 'match-rule' && selection.kind === 'prioritize' && selection.id === rule.id
+              const ruleLabel = rule.label.trim() || 'Untitled rule'
               return (
                 <button
                   key={rule.id}
                   type="button"
-                  className={`pref-item${isSelected ? ' selected' : ''}`}
+                  className={`pref-item prioritize${isSelected ? ' selected' : ''}`}
                   onClick={() => setSelection({ type: 'match-rule', kind: 'prioritize', id: rule.id })}
                   aria-pressed={isSelected}
                 >
-                  <span className="pref-item-label">{rule.label}</span>
-                  <span className="pref-item-weight label-tracked">{rule.weight}</span>
+                  <span className="pref-item-label">{ruleLabel}</span>
+                  <span className={`pref-item-weight ${weightTone(rule.weight)}`}>{rule.weight}</span>
                 </button>
               )
             })}
           </div>
         )}
+        <button
+          type="button"
+          className="inspector-btn pref-list-add"
+          onClick={handleAddPrioritize}
+          disabled={!identity}
+        >
+          + Add prioritize rule
+        </button>
       </div>
 
       <div className="prefs-matching">
@@ -92,6 +151,7 @@ export function PreferencesBand() {
             {prefs!.matching.avoid.map((rule) => {
               const isSelected =
                 selection?.type === 'match-rule' && selection.kind === 'avoid' && selection.id === rule.id
+              const ruleLabel = rule.label.trim() || 'Untitled rule'
               return (
                 <button
                   key={rule.id}
@@ -100,13 +160,21 @@ export function PreferencesBand() {
                   onClick={() => setSelection({ type: 'match-rule', kind: 'avoid', id: rule.id })}
                   aria-pressed={isSelected}
                 >
-                  <span className="pref-item-label">{rule.label}</span>
-                  <span className="pref-item-weight label-tracked">{rule.severity}</span>
+                  <span className="pref-item-label">{ruleLabel}</span>
+                  <span className={`pref-item-weight ${severityTone(rule.severity)}`}>{rule.severity}</span>
                 </button>
               )
             })}
           </div>
         )}
+        <button
+          type="button"
+          className="inspector-btn pref-list-add"
+          onClick={handleAddAvoid}
+          disabled={!identity}
+        >
+          + Add avoid rule
+        </button>
       </div>
     </IdentityBand>
   )
