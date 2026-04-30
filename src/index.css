@@ -360,7 +360,7 @@ select {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-2);
+  gap: 0;
 }
 
 .build-top-bar-actions {
@@ -669,6 +669,11 @@ select {
 .dropdown-item:hover:not(:disabled) {
   background: var(--bg-surface-hover);
   color: var(--text-primary);
+}
+
+.dropdown-item.selected {
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
 }
 
 .dropdown-item:disabled {
@@ -1058,12 +1063,12 @@ select {
 .vector-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--space-2);
   flex-wrap: wrap;
   min-width: 0;
   padding-top: var(--space-1);
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid color-mix(in srgb, var(--active-vector-color, var(--border-subtle)) 42%, var(--border-subtle));
 }
 
 .vector-action-context {
@@ -1071,7 +1076,6 @@ select {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  margin-right: auto;
 }
 
 .vector-action-group {
@@ -1079,6 +1083,28 @@ select {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.vector-edit-actions {
+  padding: 2px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--active-vector-color, var(--border-default)) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--active-vector-color, var(--border-default)) 32%, transparent);
+}
+
+.vector-edit-actions .btn-ghost:not(:disabled) {
+  color: color-mix(in srgb, var(--active-vector-color, var(--text-secondary)) 78%, var(--text-primary));
+}
+
+.vector-view-actions .vector-view-all-btn {
+  border-color: color-mix(in srgb, var(--active-vector-color, var(--accent-primary)) 24%, var(--border-default));
+  color: color-mix(in srgb, var(--active-vector-color, var(--text-secondary)) 72%, var(--text-secondary));
+}
+
+.vector-view-actions .vector-view-all-btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent-primary) 14%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--accent-primary) 42%, var(--border-default));
+  color: var(--text-primary);
 }
 
 .vector-action-scope {
@@ -1091,11 +1117,6 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.vector-view-all-btn.active {
-  color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface));
 }
 
 .vector-pill {
@@ -1115,6 +1136,35 @@ select {
   gap: var(--space-1);
   white-space: nowrap;
   transition: all var(--duration-normal) var(--easing);
+}
+
+.vector-add-pill {
+  min-width: 58px;
+  justify-content: center;
+  padding-inline: var(--space-3);
+  border-style: dashed;
+  border-color: var(--border-default);
+  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
+}
+
+.vector-add-label {
+  font-size: 11px;
+}
+
+.preview-action-bar {
+  flex: 0 0 auto;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--bg-surface) 88%, var(--bg-inset));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-primary) 5%, transparent);
+  z-index: 2;
+}
+
+.preview-action-bar-controls {
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-height: 34px;
 }
 
 .vector-pill:hover {
@@ -1169,6 +1219,13 @@ select {
   min-width: 0;
   height: 100%;
   background: var(--bg-inset);
+}
+
+.preview-panel-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .splitter {

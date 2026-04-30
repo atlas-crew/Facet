@@ -7,8 +7,8 @@ import {
   FileDown,
   FileJson,
   FileText,
-  FolderOpen,
   Info,
+  MoreHorizontal,
   Package,
   Paintbrush,
   Save,
@@ -1490,148 +1490,147 @@ export function BuildPage() {
     )
   }
 
+  const previewToolbar = (
+    <div className="preview-action-bar">
+      <div className="top-bar-actions preview-action-bar-controls" role="toolbar" aria-label="Build actions">
+        <UndoRedoControls />
+
+        {!comparisonResult && (
+          <div className="view-switcher" role="tablist" aria-label="Preview mode">
+            <button
+              id="tab-pdf"
+              type="button"
+              className={`view-switcher-btn ${viewMode === 'pdf' ? 'active' : ''}`}
+              onClick={() => setViewMode('pdf')}
+              onKeyDown={onViewSwitcherKeyDown}
+              role="tab"
+              aria-selected={viewMode === 'pdf'}
+              aria-controls="preview-panel"
+              tabIndex={viewMode === 'pdf' ? 0 : -1}
+              title="PDF View"
+            >
+              <FileText size={14} />
+              <span className="btn-label">PDF</span>
+            </button>
+            <button
+              id="tab-live"
+              type="button"
+              className={`view-switcher-btn ${viewMode === 'live' ? 'active' : ''}`}
+              onClick={() => setViewMode('live')}
+              onKeyDown={onViewSwitcherKeyDown}
+              role="tab"
+              aria-selected={viewMode === 'live'}
+              aria-controls="preview-panel"
+              tabIndex={viewMode === 'live' ? 0 : -1}
+              title="Live View"
+            >
+              <Eye size={14} />
+              <span className="btn-label">Live</span>
+            </button>
+          </div>
+        )}
+
+        {data.vectors.length >= 2 && (
+          <div className="comparison-toggle">
+            <DropdownMenu label="Compare" icon={Columns}>
+              <DropdownMenu.Item
+                icon={X}
+                label="Exit Comparison"
+                onClick={() => setComparisonVector(null)}
+                disabled={!comparisonVector}
+              />
+              <DropdownMenu.Divider />
+              {data.vectors
+                .filter((v) => v.id !== selectedVector)
+                .map((v) => (
+                  <DropdownMenu.Item
+                    key={v.id}
+                    icon={Columns}
+                    label={v.label}
+                    onClick={() => setComparisonVector(v.id)}
+                  />
+                ))}
+            </DropdownMenu>
+          </div>
+        )}
+
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={onOpenJobGeneration}
+          disabled={!jdAnalysisEndpoint}
+          aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
+          title={
+            jdAnalysisEndpoint
+              ? 'Generate a job-specific resume from a pasted job description'
+              : 'Generate for Job requires AI proxy configuration'
+          }
+        >
+          <ScanSearch size={14} />
+          <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
+        </button>
+
+        <DropdownMenu label="More" icon={MoreHorizontal}>
+          <DropdownMenu.Item icon={Upload} label="Import" shortcut="⌘I" onClick={() => setImportExportMode('import')} />
+          <DropdownMenu.Item icon={FileJson} label="Export" shortcut="⌘E" onClick={() => setImportExportMode('export')} />
+          <DropdownMenu.Divider />
+          <DropdownMenu.Item icon={Copy} label="Copy as Text" onClick={onCopyText} />
+          <DropdownMenu.Item icon={FileDown} label="Copy as Markdown" onClick={onCopyMarkdown} />
+          <DropdownMenu.Item icon={Package} label="Download Bundle" onClick={onDownloadBundle} />
+          <DropdownMenu.Divider />
+          <DropdownMenu.Item icon={Paintbrush} label="Variables" onClick={() => setVariablesOpen(true)} />
+          <DropdownMenu.Divider />
+          {presets.length > 0 ? (
+            <>
+              <DropdownMenu.Item
+                label="No preset"
+                onClick={() => setActivePresetId(null)}
+                checkable
+                selected={!activePresetId}
+              />
+              {presets.map((preset) => (
+                <DropdownMenu.Item
+                  key={preset.id}
+                  label={`${preset.name} (${preset.baseVector})`}
+                  onClick={() => applyPreset(preset)}
+                  checkable
+                  selected={activePresetId === preset.id}
+                />
+              ))}
+              <DropdownMenu.Divider />
+            </>
+          ) : (
+            <DropdownMenu.Item icon={Save} label="No saved presets" disabled />
+          )}
+          <DropdownMenu.Item icon={Save} label="Save Preset" onClick={onSavePreset} />
+          <DropdownMenu.Item
+            icon={Trash2}
+            label="Delete Preset"
+            onClick={onDeleteActivePreset}
+            disabled={!activePreset}
+          />
+        </DropdownMenu>
+
+        <button
+          className="btn-primary"
+          type="button"
+          onClick={onDownloadPdf}
+          disabled={pdfRenderPending || Boolean(pdfRenderError)}
+          title="Download PDF (⌘P)"
+          data-tour="download-btn"
+        >
+          <Download size={16} />
+          <span>Download PDF</span>
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className={`app-shell ${draggingSplit ? 'is-dragging' : ''}`}>
       <header className="top-bar build-top-bar">
         <h1 className="sr-only">Build</h1>
         <div className="build-top-bar-panel">
-          <div className="top-bar-actions build-top-bar-actions" role="toolbar" aria-label="Build actions">
-            <UndoRedoControls />
-
-            <div className="view-switcher" role="tablist" aria-label="Preview mode">
-              <button
-                id="tab-pdf"
-                type="button"
-                className={`view-switcher-btn ${viewMode === 'pdf' ? 'active' : ''}`}
-                onClick={() => setViewMode('pdf')}
-                onKeyDown={onViewSwitcherKeyDown}
-                role="tab"
-                aria-selected={viewMode === 'pdf'}
-                aria-controls="preview-panel"
-                tabIndex={viewMode === 'pdf' ? 0 : -1}
-                title="PDF View"
-              >
-                <FileText size={14} />
-                <span className="btn-label">PDF</span>
-              </button>
-              <button
-                id="tab-live"
-                type="button"
-                className={`view-switcher-btn ${viewMode === 'live' ? 'active' : ''}`}
-                onClick={() => setViewMode('live')}
-                onKeyDown={onViewSwitcherKeyDown}
-                role="tab"
-                aria-selected={viewMode === 'live'}
-                aria-controls="preview-panel"
-                tabIndex={viewMode === 'live' ? 0 : -1}
-                title="Live View"
-              >
-                <Eye size={14} />
-                <span className="btn-label">Live</span>
-              </button>
-            </div>
-
-            {data.vectors.length >= 2 && (
-              <div className="comparison-toggle">
-                <DropdownMenu label="Compare" icon={Columns}>
-                  <DropdownMenu.Item
-                    icon={X}
-                    label="Exit Comparison"
-                    onClick={() => setComparisonVector(null)}
-                    disabled={!comparisonVector}
-                  />
-                  <DropdownMenu.Divider />
-                  {data.vectors
-                    .filter((v) => v.id !== selectedVector)
-                    .map((v) => (
-                      <DropdownMenu.Item
-                        key={v.id}
-                        icon={Columns}
-                        label={v.label}
-                        onClick={() => setComparisonVector(v.id)}
-                      />
-                    ))}
-                </DropdownMenu>
-              </div>
-            )}
-
-            <button
-              className="btn-secondary"
-              type="button"
-              onClick={onOpenJobGeneration}
-              disabled={!jdAnalysisEndpoint}
-              aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
-              title={
-                jdAnalysisEndpoint
-                  ? 'Generate a job-specific resume from a pasted job description'
-                  : 'Generate for Job requires AI proxy configuration'
-              }
-            >
-              <ScanSearch size={14} />
-              <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
-            </button>
-
-            <DropdownMenu label="Workspace" icon={FolderOpen}>
-              <DropdownMenu.Item icon={Upload} label="Import" shortcut="⌘I" onClick={() => setImportExportMode('import')} />
-              <DropdownMenu.Item icon={FileJson} label="Export" shortcut="⌘E" onClick={() => setImportExportMode('export')} />
-              <DropdownMenu.Divider />
-              <DropdownMenu.Item icon={Copy} label="Copy as Text" onClick={onCopyText} />
-              <DropdownMenu.Item icon={FileDown} label="Copy as Markdown" onClick={onCopyMarkdown} />
-              <DropdownMenu.Item icon={Package} label="Download Bundle" onClick={onDownloadBundle} />
-              <DropdownMenu.Divider />
-              <DropdownMenu.Item
-                icon={ScanSearch}
-                label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}
-                onClick={onOpenJobGeneration}
-                disabled={!jdAnalysisEndpoint}
-              />
-              <DropdownMenu.Item icon={Paintbrush} label="Variables" onClick={() => setVariablesOpen(true)} />
-              <DropdownMenu.Divider />
-              <div className="dropdown-preset-section">
-                <select
-                  className="component-input compact"
-                  aria-label="Load preset"
-                  value={activePresetId ?? ''}
-                  onChange={(event) => {
-                    const nextId = event.target.value
-                    if (!nextId) {
-                      setActivePresetId(null)
-                      return
-                    }
-                    const preset = presets.find((item) => item.id === nextId)
-                    if (preset) applyPreset(preset)
-                  }}
-                >
-                  <option value="">Presets</option>
-                  {presets.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name} ({preset.baseVector})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <DropdownMenu.Item icon={Save} label="Save Preset" onClick={onSavePreset} />
-              <DropdownMenu.Item
-                icon={Trash2}
-                label="Delete Preset"
-                onClick={onDeleteActivePreset}
-                disabled={!activePreset}
-              />
-            </DropdownMenu>
-
-            <button
-              className="btn-primary"
-              type="button"
-              onClick={onDownloadPdf}
-              disabled={pdfRenderPending || Boolean(pdfRenderError)}
-              title="Download PDF (⌘P)"
-              data-tour="download-btn"
-            >
-              <Download size={16} />
-              <span>Download PDF</span>
-            </button>
-          </div>
-
           <section className="build-context-shell" aria-label="Current working context">
             <button
               className="build-context-help-btn"
@@ -1807,13 +1806,18 @@ export function BuildPage() {
 
           <section
             className={`preview-column ${comparisonResult ? 'comparison-active' : ''}`}
-            id="preview-panel"
-            role="tabpanel"
-            aria-labelledby={viewMode === 'pdf' ? 'tab-pdf' : 'tab-live'}
             data-tour="preview-panel"
+            aria-label="Resume preview"
           >
-            {comparisonResult ? (
-              <>
+            {previewToolbar}
+            <section
+              className="preview-panel-body"
+              id="preview-panel"
+              role={comparisonResult ? undefined : 'tabpanel'}
+              aria-labelledby={comparisonResult ? undefined : viewMode === 'pdf' ? 'tab-pdf' : 'tab-live'}
+              aria-label={comparisonResult ? 'Comparison view' : undefined}
+            >
+              {comparisonResult ? (
                 <div className="comparison-layout">
                   <div className="comparison-panel">
                     <div className="comparison-panel-header">
@@ -1852,18 +1856,18 @@ export function BuildPage() {
                     />
                   </div>
                 </div>
-              </>
-            ) : viewMode === 'pdf' ? (
-              <PdfPreview blobUrl={previewBlobUrl} loading={pdfRenderPending} error={pdfRenderError} />
-            ) : (
-              <LivePreview
-                assembled={assembledResult.resume}
-                theme={resolvedTheme}
-                showHeatmap={showHeatmap}
-                matchedKeywords={jdAnalysisResult?.matched_keywords}
-                suggestedChanges={suggestedChanges}
-              />
-            )}
+              ) : viewMode === 'pdf' ? (
+                <PdfPreview blobUrl={previewBlobUrl} loading={pdfRenderPending} error={pdfRenderError} />
+              ) : (
+                <LivePreview
+                  assembled={assembledResult.resume}
+                  theme={resolvedTheme}
+                  showHeatmap={showHeatmap}
+                  matchedKeywords={jdAnalysisResult?.matched_keywords}
+                  suggestedChanges={suggestedChanges}
+                />
+              )}
+            </section>
           </section>
         </main>
       )}

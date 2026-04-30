@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { List, Pencil, Plus, RotateCcw, Target, Trash2 } from 'lucide-react'
 import type { VectorDef, VectorSelection } from '../types'
 import { HelpHint } from './HelpHint'
@@ -14,6 +14,9 @@ interface VectorBarProps {
   onAddVector: () => void
   onResetOverrides: () => void
 }
+
+const vectorColorStyle = (color: string): CSSProperties =>
+  ({ '--vector-color': color } as CSSProperties)
 
 export function VectorBar({
   vectors,
@@ -35,6 +38,9 @@ export function VectorBar({
   const actionScopeLabel = hasSelectedVector
     ? `Actions for ${activeVectorLabel}`
     : 'Select a vector for actions'
+  const activeVectorStyle = currentVector
+    ? ({ '--active-vector-color': currentVector.color } as CSSProperties)
+    : undefined
 
   const handleRenameVector = () => {
     if (selectedVector === 'all' || !currentVector) return
@@ -220,7 +226,7 @@ export function VectorBar({
           {vectors.map((vector, index) => (
             <button
               className={`vector-pill ${selectedVector === vector.id ? 'active' : ''}`}
-              style={{ ['--vector-color' as string]: vector.color }}
+              style={vectorColorStyle(vector.color)}
               key={vector.id}
               onClick={() => onSelect(vector.id)}
               type="button"
@@ -231,9 +237,19 @@ export function VectorBar({
               {vector.label}
             </button>
           ))}
+          <button
+            className="vector-pill add-pill vector-add-pill"
+            onClick={onAddVector}
+            type="button"
+            aria-label="New Vector"
+            title="New Vector"
+          >
+            <Plus size={14} />
+            <span className="vector-add-label">New</span>
+          </button>
         </div>
       </div>
-      <div className="vector-actions">
+      <div className="vector-actions" style={activeVectorStyle}>
         <div className="vector-action-context">
           <HelpHint text="Vectors are positioning angles. Select one to assemble a resume tailored to that direction." placement="bottom" />
           <span
@@ -243,21 +259,17 @@ export function VectorBar({
             {actionScopeLabel}
           </span>
         </div>
-        <div className="vector-action-group" role="group" aria-label="Global vector actions">
+        <div className="vector-action-group vector-view-actions" role="group" aria-label="Vector view actions">
           <button
-            className={`btn-ghost vector-view-all-btn ${selectedVector === 'all' ? 'active' : ''}`}
+            className="btn-ghost vector-view-all-btn"
             onClick={() => onSelect('all')}
             type="button"
             aria-pressed={selectedVector === 'all'}
-            aria-label="View All Bullets: show all vector bullets"
-            title="Show bullets across every vector (0)"
+            aria-label="View All Bullets"
+            title="Show bullets across every vector"
           >
             <List size={14} />
-            View All Bullets
-          </button>
-          <button className="vector-pill add-pill" onClick={onAddVector} type="button">
-            <Plus size={14} />
-            New Vector
+            <span className="vector-action-label" aria-hidden="true">View All</span>
           </button>
         </div>
         <div className="vector-action-group vector-edit-actions" role="group" aria-label="Vector edit actions">

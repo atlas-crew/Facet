@@ -15,18 +15,21 @@ interface ItemProps {
   shortcut?: string
   onClick?: () => void
   disabled?: boolean
+  checkable?: boolean
+  selected?: boolean
 }
 
 /* ── Sub-components ────────────────────────────────────── */
 
-function Item({ icon: Icon, label, shortcut, onClick, disabled }: ItemProps) {
+function Item({ icon: Icon, label, shortcut, onClick, disabled, checkable = false, selected = false }: ItemProps) {
   return (
     <button
       type="button"
-      className="dropdown-item"
+      className={`dropdown-item${checkable && selected ? ' selected' : ''}`}
       onClick={onClick}
       disabled={disabled}
-      role="menuitem"
+      role={checkable ? 'menuitemcheckbox' : 'menuitem'}
+      aria-checked={checkable ? selected : undefined}
     >
       {Icon && <Icon size={14} className="dropdown-item-icon" />}
       <span className="dropdown-item-label">{label}</span>

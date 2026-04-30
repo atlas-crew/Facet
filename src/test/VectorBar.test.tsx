@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, fireEvent } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent, within } from '@testing-library/react'
 
 afterEach(cleanup)
 import { VectorBar } from '../components/VectorBar'
@@ -34,31 +34,18 @@ function renderBar(overrides: Partial<{
 describe('VectorBar', () => {
   it('renders vector pills without mixing in the all-bullets affordance', () => {
     renderBar()
+    const vectorChoices = screen.getByRole('group', { name: 'Resume vector choices' })
     expect(screen.queryByText('All')).toBeNull()
-    expect(screen.getByText('Backend Engineering')).toBeTruthy()
-    expect(screen.getByText('Security Platform')).toBeTruthy()
-    expect(screen.getByText('View All Bullets')).toBeTruthy()
-  })
-
-  it('marks View All Bullets as active when selectedVector is "all"', () => {
-    renderBar({ selectedVector: 'all' })
-    const viewAllBtn = screen.getByRole('button', { name: /View All Bullets/i })
-    expect(viewAllBtn.getAttribute('aria-pressed')).toBe('true')
-    expect(viewAllBtn.classList.contains('active')).toBe(true)
+    expect(within(vectorChoices).getByText('Backend Engineering')).toBeTruthy()
+    expect(within(vectorChoices).getByText('Security Platform')).toBeTruthy()
+    expect(within(vectorChoices).queryByText('View All')).toBeNull()
+    expect(screen.getByRole('button', { name: 'View All Bullets' })).toBeTruthy()
   })
 
   it('marks the correct vector pill as active', () => {
     renderBar({ selectedVector: 'backend' })
-    const viewAllBtn = screen.getByRole('button', { name: /View All Bullets/i })
     const backendBtn = screen.getByText('Backend Engineering')
-    expect(viewAllBtn.getAttribute('aria-pressed')).toBe('false')
     expect(backendBtn.getAttribute('aria-pressed')).toBe('true')
-  })
-
-  it('calls onSelect("all") when clicking View All Bullets', () => {
-    const { onSelect } = renderBar()
-    fireEvent.click(screen.getByText('View All Bullets'))
-    expect(onSelect).toHaveBeenCalledWith('all')
   })
 
   it('calls onSelect with vector id when clicking a vector pill', () => {
@@ -67,24 +54,31 @@ describe('VectorBar', () => {
     expect(onSelect).toHaveBeenCalledWith('security')
   })
 
+  it('calls onSelect with all when clicking View All Bullets', () => {
+    const { onSelect } = renderBar({ selectedVector: 'backend' })
+    fireEvent.click(screen.getByRole('button', { name: 'View All Bullets' }))
+    expect(onSelect).toHaveBeenCalledWith('all')
+  })
+
   it('calls onAddVector when clicking New Vector', () => {
     const { onAddVector } = renderBar()
-    fireEvent.click(screen.getByText('New Vector'))
+    fireEvent.click(screen.getByRole('button', { name: 'New Vector' }))
     expect(onAddVector).toHaveBeenCalledOnce()
   })
 
   it('scopes actions to the active vector', () => {
-    renderBar({ selectedVector: 'backend' })
+    const { container } = renderBar({ selectedVector: 'backend' })
     const scope = screen.getByText('Actions for Backend Engineering')
     const resetButton = screen.getByRole('button', { name: /Reset overrides for Backend Engineering/i })
     expect(scope).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Rename Backend Engineering' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Delete Backend Engineering' })).toBeTruthy()
     expect(resetButton.getAttribute('aria-label')).toBe('Reset overrides for Backend Engineering')
+    expect(container.querySelector('.vector-actions')?.getAttribute('style')).toContain('--active-vector-color: #3b82f6')
   })
 
   it('disables vector-specific actions when all vectors are selected', () => {
-    renderBar({ selectedVector: 'all' })
+    const { container } = renderBar({ selectedVector: 'all' })
     expect(screen.getByText('Select a vector for actions')).toBeTruthy()
     const renameButton = screen.getByRole('button', { name: 'Rename vector' }) as HTMLButtonElement
     const deleteButton = screen.getByRole('button', { name: 'Delete vector' }) as HTMLButtonElement
@@ -92,6 +86,7 @@ describe('VectorBar', () => {
     expect(renameButton.disabled).toBe(true)
     expect(deleteButton.disabled).toBe(true)
     expect(resetButton.disabled).toBe(true)
+    expect(container.querySelector('.vector-actions')?.getAttribute('style')).toBeNull()
   })
 
   it('treats an unknown selected vector as no active vector', () => {
@@ -113,8 +108,8 @@ describe('VectorBar', () => {
 
   it('renders with empty vectors array', () => {
     renderBar({ vectors: [] })
-    expect(screen.getByText('View All Bullets')).toBeTruthy()
-    expect(screen.getByText('New Vector')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'View All Bullets' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'New Vector' })).toBeTruthy()
   })
 
   it('shows rename and delete controls', () => {

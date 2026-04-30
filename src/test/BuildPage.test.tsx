@@ -194,7 +194,7 @@ describe('BuildPage', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows a build-focused header with one dominant download action and working context', () => {
+  it('shows a build-focused header, preview actions, and working context', () => {
     const { container } = render(<BuildPage />)
 
     expect(screen.getByRole('heading', { name: 'Build' })).toBeTruthy()
@@ -204,9 +204,13 @@ describe('BuildPage', () => {
 
     const topBar = container.querySelector('.build-top-bar')
     expect(topBar).toBeTruthy()
-    expect(topBar?.querySelectorAll('.btn-primary')).toHaveLength(1)
-    expect(within(topBar as HTMLElement).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
-    expect(within(topBar as HTMLElement).getByRole('button', { name: /Generate for Job/i })).toBeTruthy()
+    expect(topBar?.querySelectorAll('.btn-primary')).toHaveLength(0)
+
+    const previewToolbar = screen.getByRole('toolbar', { name: /Build actions/i })
+    expect(previewToolbar.querySelectorAll('.btn-primary')).toHaveLength(1)
+    expect(within(previewToolbar).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
+    expect(within(previewToolbar).getByRole('button', { name: /Generate for Job/i })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /Generate for Job/i })).toHaveLength(1)
 
     expect(screen.queryByLabelText('Resume generation model')).toBeNull()
 
@@ -394,20 +398,33 @@ describe('BuildPage', () => {
     expect(within(workingContext).getByText('Unsaved changes')).toBeTruthy()
   })
 
-  it('demotes file and preset controls into a single workspace menu', () => {
+  it('demotes file and preset controls into a compact preview menu', () => {
     render(<BuildPage />)
 
     expect(screen.queryByRole('button', { name: /^File$/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Actions$/i })).toBeNull()
     expect(screen.getByRole('button', { name: /^Compare$/i })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^More$/i }))
 
     expect(screen.getByText('Import')).toBeTruthy()
     expect(screen.getByText('Export')).toBeTruthy()
     expect(screen.getByText('Variables')).toBeTruthy()
-    expect(within(screen.getByRole('menu')).getByText('Generate for Job')).toBeTruthy()
+    expect(within(screen.getByRole('menu')).queryByText('Generate for Job')).toBeNull()
+    expect(within(screen.getByRole('menu')).queryByText('View All Bullets')).toBeNull()
     expect(screen.getByText('Save Preset')).toBeTruthy()
+  })
+
+  it('keeps all-bullets mode available beside vector actions', () => {
+    render(<BuildPage />)
+
+    expect(useUiStore.getState().selectedVector).toBe('backend')
+    const vectorBarProps = vectorBarPropsMock.mock.calls.at(-1)?.[0] as {
+      onSelect: (vector: 'all') => void
+    }
+    vectorBarProps.onSelect('all')
+
+    expect(useUiStore.getState().selectedVector).toBe('all')
   })
 
   it('keeps the primary download action wired to PDF export', () => {
@@ -465,8 +482,7 @@ describe('BuildPage', () => {
 
     render(<BuildPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
-    fireEvent.click(within(screen.getByRole('menu')).getByText('Generate for Job'))
+    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
     fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
       target: { value: 'We need a platform-minded engineer.' },
     })
@@ -527,8 +543,7 @@ describe('BuildPage', () => {
 
     const { rerender } = render(<BuildPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
-    fireEvent.click(within(screen.getByRole('menu')).getByText('Generate for Job'))
+    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
     fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
       target: { value: 'We need a platform-minded engineer.' },
     })
@@ -694,8 +709,7 @@ describe('BuildPage', () => {
 
     render(<BuildPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
-    fireEvent.click(within(screen.getByRole('menu')).getByText('Generate for Job'))
+    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
     fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
       target: { value: 'We need a platform-minded engineer.' },
     })
