@@ -6,11 +6,9 @@ import { Actions, MetaRows, NotFound, SlotShell, allBulletsHaveSource } from './
 export function RoleInspector({
   identity,
   roleId,
-  onGoToWorkbench,
 }: {
   identity: ProfessionalIdentityV3
   roleId: string
-  onGoToWorkbench: () => void
 }) {
   const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
   const role = identity.roles.find((r) => r.id === roleId)
@@ -84,7 +82,6 @@ export function RoleInspector({
       />
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit role</button>
-        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>Open scan editor</button>
       </Actions>
     </SlotShell>
   )

@@ -17,7 +17,6 @@ import { SkillItemInspector } from './inspectorSlots/SkillItemInspector'
 import { ThesisInspector } from './inspectorSlots/ThesisInspector'
 
 interface InspectorHandlers {
-  goToWorkbench: () => void
   goToSkillWizard: (groupId: string, skillName: string) => void
   selectRoleByCompany: (company: string) => void
 }
@@ -35,9 +34,6 @@ export function IdentityInspector() {
   const navigate = useNavigate()
 
   const handlers: InspectorHandlers = {
-    goToWorkbench: () => {
-      void navigate({ to: '/identity/workbench' })
-    },
     goToSkillWizard: (groupId, skillName) => {
       void navigate({
         to: '/identity/enrich/$groupId/$skillName',
@@ -86,28 +82,15 @@ function InspectorBody({
         />
       )
     case 'profile':
-      return (
-        <ProfileInspector
-          identity={identity}
-          profileId={selection.id}
-          onGoToWorkbench={handlers.goToWorkbench}
-        />
-      )
+      return <ProfileInspector identity={identity} profileId={selection.id} />
     case 'role':
-      return (
-        <RoleInspector
-          identity={identity}
-          roleId={selection.id}
-          onGoToWorkbench={handlers.goToWorkbench}
-        />
-      )
+      return <RoleInspector identity={identity} roleId={selection.id} />
     case 'bullet':
       return (
         <BulletInspector
           identity={identity}
           roleId={selection.roleId}
           bulletId={selection.bulletId}
-          onGoToWorkbench={handlers.goToWorkbench}
         />
       )
     case 'project':

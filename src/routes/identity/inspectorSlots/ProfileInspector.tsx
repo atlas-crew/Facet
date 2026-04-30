@@ -13,11 +13,9 @@ import {
 export function ProfileInspector({
   identity,
   profileId,
-  onGoToWorkbench,
 }: {
   identity: ProfessionalIdentityV3
   profileId: string
-  onGoToWorkbench: () => void
 }) {
   const updateProfiles = useIdentityStore((s) => s.updateCurrentProfiles)
   const profile = identity.profiles.find((p) => p.id === profileId)
@@ -66,7 +64,6 @@ export function ProfileInspector({
       <MetaRows rows={[['Tags', profile.tags.join(' · ') || '—']]} />
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit profile</button>
-        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>Generate variant</button>
       </Actions>
     </SlotShell>
   )

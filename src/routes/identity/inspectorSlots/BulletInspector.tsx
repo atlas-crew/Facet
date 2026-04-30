@@ -15,12 +15,10 @@ export function BulletInspector({
   identity,
   roleId,
   bulletId,
-  onGoToWorkbench,
 }: {
   identity: ProfessionalIdentityV3
   roleId: string
   bulletId: string
-  onGoToWorkbench: () => void
 }) {
   const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
   const role = identity.roles.find((r) => r.id === roleId)
@@ -117,7 +115,6 @@ export function BulletInspector({
       {bullet.impact?.length ? <MetaRows rows={[['Impact', bullet.impact.join(' · ')]]} /> : null}
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit bullet</button>
-        <button type="button" className="inspector-btn" onClick={onGoToWorkbench}>Open in scan editor</button>
       </Actions>
     </SlotShell>
   )
