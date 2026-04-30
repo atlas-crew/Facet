@@ -245,7 +245,6 @@ export function VectorBar({
             title="New Vector"
           >
             <Plus size={14} />
-            <span className="vector-add-label">New</span>
           </button>
         </div>
       </div>

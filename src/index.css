@@ -1139,16 +1139,13 @@ select {
 }
 
 .vector-add-pill {
-  min-width: 58px;
+  width: 34px;
+  min-width: 34px;
   justify-content: center;
-  padding-inline: var(--space-3);
+  padding-inline: 0;
   border-style: dashed;
   border-color: var(--border-default);
   background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
-}
-
-.vector-add-label {
-  font-size: 11px;
 }
 
 .preview-action-bar {
