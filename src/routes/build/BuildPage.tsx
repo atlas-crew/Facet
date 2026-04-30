@@ -7,7 +7,6 @@ import {
   FileDown,
   FileJson,
   FileText,
-  Info,
   MoreHorizontal,
   Package,
   Paintbrush,
@@ -49,6 +48,7 @@ import { VariableEditor } from '../../components/VariableEditor'
 import { ImportExport } from '../../components/ImportExport'
 import { Tour } from '../../components/Tour'
 import { FacetWordmark } from '../../components/FacetWordmark'
+import { HelpHint } from '../../components/HelpHint'
 import { mergeResumeData } from '../../engine/importMerge'
 import type { ResumeConfigSourceKind } from '../../engine/serializer'
 import { resolveEffectiveBulletOrders } from '../../utils/bulletOrder'
@@ -115,6 +115,7 @@ interface BuildContextItem {
   label: string
   value: string
   detail: string
+  help: string
 }
 
 const formatGenerationModeLabel = (mode: ResumeGenerationMode) => {
@@ -274,7 +275,6 @@ export function BuildPage() {
   const [importExportMode, setImportExportMode] = useState<'import' | 'export' | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
   const [jdModalOpen, setJdModalOpen] = useState(false)
-  const [generationContextOpen, setGenerationContextOpen] = useState(false)
   const [jdInput, setJdInput] = useState('')
   const [jdAnalysisResult, setJdAnalysisResult] = useState<JdAnalysisResult | null>(null)
   const [jdWordCount, setJdWordCount] = useState(0)
@@ -313,7 +313,6 @@ export function BuildPage() {
   const noticeTimeoutRef = useRef<number | null>(null)
   const handoffEntryIdRef = useRef<string | null>(null)
   const jdModalRef = useRef<HTMLDivElement>(null)
-  const generationContextModalRef = useRef<HTMLDivElement>(null)
   const reframeModalRef = useRef<HTMLDivElement>(null)
   const variablesModalRef = useRef<HTMLDivElement>(null)
 
@@ -531,7 +530,6 @@ export function BuildPage() {
 
   // Focus Traps
   useFocusTrap(jdModalOpen, jdModalRef, () => closeJdModal())
-  useFocusTrap(generationContextOpen, generationContextModalRef, () => setGenerationContextOpen(false))
   useFocusTrap(!!reframeResult, reframeModalRef, () => setReframeResult(null))
   useFocusTrap(variablesOpen, variablesModalRef, () => setVariablesOpen(false))
 
@@ -636,43 +634,29 @@ export function BuildPage() {
       ? 'Job-linked variant'
       : 'Current workspace baseline'
   }, [generationState.mode, generationState.variantLabel])
-  const generationOverviewItems = useMemo(
-    () => [
-      {
-        label: 'Resume model',
-        value: generationModelSummary.label,
-        detail: generationModelSummary.detail,
-      },
-      {
-        label: 'Workspace flow',
-        value: generationFlowSummary.label,
-        detail: generationFlowSummary.detail,
-      },
-      {
-        label: 'Generation source',
-        value: generationSourceLabel,
-        detail:
-          generationState.source === 'pipeline'
-            ? 'Pipeline metadata stays attached while you generate per-job variants.'
-            : 'Source tracks how this workspace entered Build before your current edits.',
-      },
-      {
-        label: 'Active vectors',
-        value: generationVectorSummary,
-        detail:
-          generationState.vectorMode === 'auto'
-            ? 'AI can suggest the vector mix first; switch to Manual in JD analysis to override it.'
-            : 'Manual vector selection stays in your control unless you rerun JD analysis.',
-      },
-      {
-        label: 'Current variant',
-        value: generationVariantSummary,
-        detail:
+  const contextHelpByLabel = useMemo<Record<string, string>>(
+    () => ({
+      Vector:
+        generationState.vectorMode === 'auto'
+          ? `Active vectors: ${generationVectorSummary}. AI can suggest the vector mix first; switch to Manual in JD analysis to override it.`
+          : `Active vectors: ${generationVectorSummary}. Manual vector selection stays in your control unless you rerun JD analysis.`,
+      Pages: 'Page count comes from the rendered PDF preview and updates as content, layout, and density change.',
+      Generation:
+        `${generationModelSummary.label}: ${generationModelSummary.detail}. ` +
+        `${generationFlowSummary.label}: ${generationFlowSummary.detail}. ` +
+        `${generationVariantSummary}: ${
           generationState.mode === 'dynamic'
             ? 'Dynamic variants stay tied to the originating job flow.'
-            : 'Single and multi-vector workspaces can be saved as reusable presets.',
-      },
-    ],
+            : 'Single and multi-vector workspaces can be saved as reusable presets.'
+        }`,
+      Source:
+        generationState.source === 'pipeline'
+          ? `${generationSourceLabel}: Pipeline metadata stays attached while you generate per-job variants.`
+          : `${generationSourceLabel}: Source tracks how this workspace entered Build before your current edits.`,
+      Preset: 'Preset state appears only when a saved preset is active or the current draft has unsaved preset changes.',
+      Suggestions: 'Suggestions appear after JD analysis when there are JD-guided changes ready to review.',
+      'JD Analysis': 'Analyze a job description to tailor the draft, update vector planning, and surface gaps.',
+    }),
     [
       generationFlowSummary.detail,
       generationFlowSummary.label,
@@ -757,9 +741,6 @@ export function BuildPage() {
   }, [jdAnalysisEndpoint])
 
   const workingContextItems = useMemo<BuildContextItem[]>(() => {
-    const presetContextActive = hasActivePreset || presetDirty
-    const suggestionContextActive = suggestionModeActive || suggestionCount > 0
-    const jdContextActive = jdLoading || Boolean(jdAnalysisResult)
     const bulletDetail = `${bulletCount} bullet${bulletCount === 1 ? '' : 's'} included`
     const pageDetail = (() => {
       if (pdfRenderPending) return 'Preview render in progress'
@@ -784,62 +765,62 @@ export function BuildPage() {
         label: 'Vector',
         value: selectedVectorLabel,
         detail: comparisonVectorLabel ? `Comparing with ${comparisonVectorLabel}` : bulletDetail,
+        help: contextHelpByLabel.Vector,
       },
       {
         label: 'Pages',
         value: pdfRenderPending ? 'Rendering…' : pdfPageCount ? `${pdfPageCount} page${pdfPageCount === 1 ? '' : 's'}` : '—',
         detail: pageDetail,
+        help: contextHelpByLabel.Pages,
       },
       {
         label: 'Generation',
         value: generationModeLabel,
         detail: generationDetail,
+        help: contextHelpByLabel.Generation,
       },
       {
         label: 'Source',
         value: generationSourceLabel,
         detail: sourceDetail,
+        help: contextHelpByLabel.Source,
       },
-      ...(presetContextActive
-        ? [
-            {
-              label: 'Preset',
-              value: activePresetName ?? 'Unsaved preset',
-              detail: presetDirty ? 'Unsaved changes' : 'Preset synced',
-            },
-          ]
-        : []),
-      ...(suggestionContextActive
-        ? [
-            {
-              label: 'Suggestions',
-              value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
-              detail:
-                suggestionCount > 0
-                  ? `${suggestionCount} JD-guided change${suggestionCount === 1 ? '' : 's'}`
-                  : 'No remaining suggestions',
-            },
-          ]
-        : []),
-      ...(jdContextActive
-        ? [
-            {
-              label: 'JD Analysis',
-              value: !jdAnalysisEndpoint ? 'AI unavailable' : jdLoading ? 'Analyzing…' : 'Insights ready',
-              detail: !jdAnalysisEndpoint
-                ? 'Configure AI to analyze JDs'
-                : jdAnalysisResult
-                  ? 'Positioning and gaps ready'
-                  : 'Analysis running',
-            },
-          ]
-        : []),
+      {
+        label: 'Preset',
+        value: activePresetName ?? (presetDirty ? 'Unsaved preset' : 'No saved preset'),
+        detail: presetDirty ? 'Unsaved changes' : hasActivePreset ? 'Preset synced' : 'Preset state synced',
+        help: contextHelpByLabel.Preset,
+      },
+      {
+        label: 'Suggestions',
+        value: suggestionModeActive ? `${suggestionCount} ready` : 'Inactive',
+        detail:
+          suggestionCount > 0
+            ? `${suggestionCount} JD-guided change${suggestionCount === 1 ? '' : 's'}`
+            : suggestionModeActive
+              ? 'No remaining suggestions'
+              : 'Turn on suggestion mode after JD analysis',
+        help: contextHelpByLabel.Suggestions,
+      },
+      {
+        label: 'JD Analysis',
+        value: !jdAnalysisEndpoint ? 'AI unavailable' : jdLoading ? 'Analyzing…' : jdAnalysisResult ? 'Insights ready' : 'Not analyzed',
+        detail: !jdAnalysisEndpoint
+          ? 'Configure AI to analyze JDs'
+          : jdLoading
+            ? 'Analysis running'
+          : jdAnalysisResult
+            ? 'Positioning and gaps ready'
+            : 'Analyze a JD to tailor this draft',
+        help: contextHelpByLabel['JD Analysis'],
+      },
     ]
   }, [
       activePresetName,
       bulletCount,
       hasActivePreset,
       comparisonVectorLabel,
+      contextHelpByLabel,
       generationModeLabel,
       jdAnalysisEndpoint,
       jdAnalysisResult,
@@ -856,43 +837,6 @@ export function BuildPage() {
       generationState.source,
       generationState.vectorMode,
     ])
-  const dormantContextItems = useMemo<BuildContextItem[]>(() => {
-    const items: BuildContextItem[] = []
-
-    if (!hasActivePreset && !presetDirty) {
-      items.push({
-        label: 'Preset',
-        value: 'No saved preset',
-        detail: 'Preset state synced',
-      })
-    }
-
-    if (!suggestionModeActive && suggestionCount === 0) {
-      items.push({
-        label: 'Suggestions',
-        value: 'Inactive',
-        detail: 'Turn on suggestion mode after JD analysis',
-      })
-    }
-
-    if (!jdLoading && !jdAnalysisResult) {
-      items.push({
-        label: 'JD Analysis',
-        value: jdAnalysisEndpoint ? 'Not analyzed' : 'AI unavailable',
-        detail: jdAnalysisEndpoint ? 'Analyze a JD to tailor this draft' : 'Configure AI to analyze JDs',
-      })
-    }
-
-    return items
-  }, [
-    hasActivePreset,
-    jdAnalysisEndpoint,
-    jdAnalysisResult,
-    jdLoading,
-    presetDirty,
-    suggestionCount,
-    suggestionModeActive,
-  ])
 
   // Pipeline → Build handoff
   useEffect(() => {
@@ -1632,22 +1576,13 @@ export function BuildPage() {
         <h1 className="sr-only">Build</h1>
         <div className="build-top-bar-panel">
           <section className="build-context-shell" aria-label="Current working context">
-            <button
-              className="build-context-help-btn"
-              type="button"
-              onClick={() => setGenerationContextOpen(true)}
-              aria-label="Open Build context details"
-              aria-haspopup="dialog"
-              aria-expanded={generationContextOpen}
-              aria-controls="build-context-modal"
-              title="Build context details"
-            >
-              <Info size={16} />
-            </button>
             <div className="build-context-strip">
               {workingContextItems.map((item) => (
                 <div key={item.label} className="build-context-card">
-                  <span className="build-context-label">{item.label}</span>
+                  <span className="build-context-heading">
+                    <span className="build-context-label">{item.label}</span>
+                    <HelpHint text={item.help} ariaLabel={`${item.label} help`} placement="bottom" />
+                  </span>
                   <strong className="build-context-value">{item.value}</strong>
                   <span className="build-context-detail">{item.detail}</span>
                 </div>
@@ -1880,57 +1815,6 @@ export function BuildPage() {
           onDismissRemaining={onDismissRemainingSuggestions}
           onExit={() => setSuggestionModeActive(false)}
         />
-      )}
-
-      {generationContextOpen && (
-        <div
-          id="build-context-modal"
-          className="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="build-context-title"
-        >
-          <div className="modal-card build-context-modal" ref={generationContextModalRef} tabIndex={-1}>
-            <header className="modal-header">
-              <div>
-                <h3 id="build-context-title">Build Context</h3>
-                <p className="modal-subtitle">Resume generation state and handoff metadata</p>
-              </div>
-              <button
-                className="btn-ghost btn-icon-only"
-                type="button"
-                onClick={() => setGenerationContextOpen(false)}
-                aria-label="Close Build context details"
-              >
-                <X size={18} />
-              </button>
-            </header>
-            <section className="build-context-modal-section" aria-label="Current status">
-              <h4>Current Status</h4>
-              <div className="build-context-modal-grid">
-                {[...workingContextItems, ...dormantContextItems].map((item) => (
-                  <article key={item.label + '-' + item.value} className="build-context-card">
-                    <span className="build-context-label">{item.label}</span>
-                    <strong className="build-context-value">{item.value}</strong>
-                    <span className="build-context-detail">{item.detail}</span>
-                  </article>
-                ))}
-              </div>
-            </section>
-            <section className="build-context-modal-section" aria-label="Generation details">
-              <h4>Generation Details</h4>
-              <div className="build-generation-grid">
-                {generationOverviewItems.map((item) => (
-                  <article key={item.label} className="build-generation-card">
-                    <span className="build-generation-label">{item.label}</span>
-                    <strong className="build-generation-value">{item.value}</strong>
-                    <span className="build-generation-detail">{item.detail}</span>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </div>
-        </div>
       )}
 
       {jdModalOpen && (

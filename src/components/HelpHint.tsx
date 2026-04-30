@@ -4,12 +4,13 @@ import { HelpCircle } from 'lucide-react'
 
 interface HelpHintProps {
   text: string
+  ariaLabel?: string
   placement?: 'top' | 'bottom' | 'left' | 'right'
 }
 
 const POPOVER_GAP = 8
 
-export function HelpHint({ text, placement = 'top' }: HelpHintProps) {
+export function HelpHint({ text, ariaLabel = 'Help', placement = 'top' }: HelpHintProps) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -98,7 +99,7 @@ export function HelpHint({ text, placement = 'top' }: HelpHintProps) {
             setIsOpen(false)
           }
         }}
-        aria-label="Help"
+        aria-label={ariaLabel}
         aria-describedby={hintId}
       >
         <HelpCircle size={14} />

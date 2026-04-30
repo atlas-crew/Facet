@@ -369,74 +369,9 @@ select {
   justify-content: flex-end;
 }
 
-.build-context-modal {
-  width: min(960px, calc(100vw - var(--space-8)));
-  display: grid;
-  gap: var(--space-4);
-}
-
-.build-context-modal-section {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.build-context-modal-section h4 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.build-context-modal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-2);
-}
-
-.build-generation-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-2);
-}
-
-.build-generation-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--brand-primary) 18%, var(--border-subtle) 82%);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-surface) 90%, white 10%);
-  box-shadow: var(--shadow-xs);
-}
-
-.build-generation-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.build-generation-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1.35;
-}
-
-.build-generation-detail {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.45;
-}
-
 .build-context-shell {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -453,37 +388,11 @@ select {
   gap: var(--space-2);
 }
 
-.build-context-help-btn {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-surface) 82%, var(--bg-canvas) 18%);
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-
-.build-context-help-btn:hover,
-.build-context-help-btn:focus-visible {
-  border-color: color-mix(in srgb, var(--brand-primary) 48%, var(--border-subtle) 52%);
-  color: var(--text-primary);
-  background: var(--bg-surface);
-}
-
-.build-context-help-btn:focus-visible {
-  outline: 2px solid var(--brand-primary);
-  outline-offset: 2px;
-}
-
 .build-context-card {
   min-width: 0;
   max-width: 260px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   align-items: baseline;
   column-gap: var(--space-2);
   row-gap: var(--space-1);
@@ -493,8 +402,11 @@ select {
   background: color-mix(in srgb, var(--bg-surface) 78%, var(--bg-canvas) 22%);
 }
 
-.build-context-modal .build-context-card {
-  max-width: none;
+.build-context-heading {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .build-context-label {
@@ -503,6 +415,17 @@ select {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
+}
+
+.build-context-heading .help-hint-trigger {
+  width: 16px;
+  height: 16px;
+  color: color-mix(in srgb, var(--text-tertiary) 75%, transparent);
+}
+
+.build-context-heading .help-hint-trigger svg {
+  width: 12px;
+  height: 12px;
 }
 
 .build-context-value {
@@ -524,12 +447,6 @@ select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.build-context-modal .build-context-detail {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
 }
 
 .top-bar-brand {
