@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Pencil, Plus, RotateCcw, Target, Trash2 } from 'lucide-react'
+import { List, Pencil, Plus, RotateCcw, Target, Trash2 } from 'lucide-react'
 import type { VectorDef, VectorSelection } from '../types'
 import { HelpHint } from './HelpHint'
 import { useResumeStore } from '../store/resumeStore'
@@ -34,7 +34,7 @@ export function VectorBar({
   const hasSelectedVector = Boolean(currentVector)
   const actionScopeLabel = hasSelectedVector
     ? `Actions for ${activeVectorLabel}`
-    : 'Select vector to edit'
+    : 'Select a vector for actions'
 
   const handleRenameVector = () => {
     if (selectedVector === 'all' || !currentVector) return
@@ -215,84 +215,94 @@ export function VectorBar({
 
   return (
     <div className="vector-bar" data-tour="vector-bar">
-      <div className="vector-pills">
-        <button
-          className={`vector-pill ${selectedVector === 'all' ? 'active' : ''}`}
-          onClick={() => onSelect('all')}
-          type="button"
-          aria-pressed={selectedVector === 'all'}
-          title="All vectors (0)"
-        >
-          All
-        </button>
-        {vectors.map((vector, index) => (
-          <button
-            className={`vector-pill ${selectedVector === vector.id ? 'active' : ''}`}
-            style={{ ['--vector-color' as string]: vector.color }}
-            key={vector.id}
-            onClick={() => onSelect(vector.id)}
-            type="button"
-            aria-pressed={selectedVector === vector.id}
-            title={index < 9 ? `${vector.label} (${index + 1})` : vector.label}
-          >
-            <Target size={14} />
-            {vector.label}
-          </button>
-        ))}
+      <div id="vector-pills-list" className="vector-pills-scroll" role="group" aria-label="Resume vector choices">
+        <div className="vector-pills">
+          {vectors.map((vector, index) => (
+            <button
+              className={`vector-pill ${selectedVector === vector.id ? 'active' : ''}`}
+              style={{ ['--vector-color' as string]: vector.color }}
+              key={vector.id}
+              onClick={() => onSelect(vector.id)}
+              type="button"
+              aria-pressed={selectedVector === vector.id}
+              title={index < 9 ? `${vector.label} (${index + 1})` : vector.label}
+            >
+              <Target size={14} />
+              {vector.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="vector-actions">
-        <HelpHint text="Vectors are positioning angles. Select one to assemble a resume tailored to that direction." placement="bottom" />
-        <span
-          className="vector-action-scope"
-          title={actionScopeLabel}
-        >
-          {actionScopeLabel}
-        </span>
-        <button className="vector-pill add-pill" onClick={onAddVector} type="button">
-          <Plus size={14} />
-          New Vector
-        </button>
-        <button
-          className="btn-ghost"
-          type="button"
-          onClick={handleRenameVector}
-          disabled={!hasSelectedVector}
-          aria-label={hasSelectedVector ? `Rename ${activeVectorLabel}` : 'Rename vector'}
-          title={hasSelectedVector ? `Rename ${activeVectorLabel}` : 'Select a vector to rename it'}
-        >
-          <Pencil size={14} />
-          Rename
-        </button>
-        <button
-          className="btn-ghost btn-danger-soft"
-          type="button"
-          onClick={handleRemoveVector}
-          disabled={!hasSelectedVector}
-          aria-label={hasSelectedVector ? `Delete ${activeVectorLabel}` : 'Delete vector'}
-          title={hasSelectedVector ? `Delete ${activeVectorLabel}` : 'Select a vector to remove it'}
-        >
-          <Trash2 size={14} />
-          Delete
-        </button>
-        <button
-          className="btn-ghost"
-          type="button"
-          onClick={onResetOverrides}
-          disabled={!hasSelectedVector}
-          aria-label={
-            hasSelectedVector
-              ? `Reset overrides for ${activeVectorLabel}`
-              : 'Reset overrides'
-          }
-          title={
-            hasSelectedVector
-              ? `Reset overrides for ${activeVectorLabel}`
-              : 'Select a vector to reset overrides'
-          }
-        >
-          <RotateCcw size={14} />
-          Reset Overrides
-        </button>
+        <div className="vector-action-context">
+          <HelpHint text="Vectors are positioning angles. Select one to assemble a resume tailored to that direction." placement="bottom" />
+          <span
+            className="vector-action-scope"
+            title={actionScopeLabel}
+          >
+            {actionScopeLabel}
+          </span>
+        </div>
+        <div className="vector-action-group" role="group" aria-label="Global vector actions">
+          <button
+            className={`btn-ghost vector-view-all-btn ${selectedVector === 'all' ? 'active' : ''}`}
+            onClick={() => onSelect('all')}
+            type="button"
+            aria-pressed={selectedVector === 'all'}
+            aria-label="View All Bullets: show all vector bullets"
+            title="Show bullets across every vector (0)"
+          >
+            <List size={14} />
+            View All Bullets
+          </button>
+          <button className="vector-pill add-pill" onClick={onAddVector} type="button">
+            <Plus size={14} />
+            New Vector
+          </button>
+        </div>
+        <div className="vector-action-group vector-edit-actions" role="group" aria-label="Vector edit actions">
+          <button
+            className="btn-ghost"
+            type="button"
+            onClick={handleRenameVector}
+            disabled={!hasSelectedVector}
+            aria-label={hasSelectedVector ? `Rename ${activeVectorLabel}` : 'Rename vector'}
+            title={hasSelectedVector ? `Rename ${activeVectorLabel}` : 'Select a vector to rename it'}
+          >
+            <Pencil size={14} />
+            <span className="vector-action-label" aria-hidden="true">Rename</span>
+          </button>
+          <button
+            className="btn-ghost btn-danger-soft"
+            type="button"
+            onClick={handleRemoveVector}
+            disabled={!hasSelectedVector}
+            aria-label={hasSelectedVector ? `Delete ${activeVectorLabel}` : 'Delete vector'}
+            title={hasSelectedVector ? `Delete ${activeVectorLabel}` : 'Select a vector to remove it'}
+          >
+            <Trash2 size={14} />
+            <span className="vector-action-label" aria-hidden="true">Delete</span>
+          </button>
+          <button
+            className="btn-ghost"
+            type="button"
+            onClick={onResetOverrides}
+            disabled={!hasSelectedVector}
+            aria-label={
+              hasSelectedVector
+                ? `Reset overrides for ${activeVectorLabel}`
+                : 'Reset overrides'
+            }
+            title={
+              hasSelectedVector
+                ? `Reset overrides for ${activeVectorLabel}`
+                : 'Select a vector to reset overrides'
+            }
+          >
+            <RotateCcw size={14} />
+            <span className="vector-action-label" aria-hidden="true">Reset Overrides</span>
+          </button>
+        </div>
       </div>
     </div>
   )

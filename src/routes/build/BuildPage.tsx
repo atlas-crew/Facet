@@ -747,6 +747,15 @@ export function BuildPage() {
     },
     [],
   )
+
+  const onOpenJobGeneration = useCallback(() => {
+    if (!jdAnalysisEndpoint) {
+      return
+    }
+
+    setJdModalOpen(true)
+  }, [jdAnalysisEndpoint])
+
   const workingContextItems = useMemo<BuildContextItem[]>(() => {
     const presetContextActive = hasActivePreset || presetDirty
     const suggestionContextActive = suggestionModeActive || suggestionCount > 0
@@ -1546,6 +1555,22 @@ export function BuildPage() {
               </div>
             )}
 
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={onOpenJobGeneration}
+              disabled={!jdAnalysisEndpoint}
+              aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
+              title={
+                jdAnalysisEndpoint
+                  ? 'Generate a job-specific resume from a pasted job description'
+                  : 'Generate for Job requires AI proxy configuration'
+              }
+            >
+              <ScanSearch size={14} />
+              <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
+            </button>
+
             <DropdownMenu label="Workspace" icon={FolderOpen}>
               <DropdownMenu.Item icon={Upload} label="Import" shortcut="⌘I" onClick={() => setImportExportMode('import')} />
               <DropdownMenu.Item icon={FileJson} label="Export" shortcut="⌘E" onClick={() => setImportExportMode('export')} />
@@ -1554,7 +1579,12 @@ export function BuildPage() {
               <DropdownMenu.Item icon={FileDown} label="Copy as Markdown" onClick={onCopyMarkdown} />
               <DropdownMenu.Item icon={Package} label="Download Bundle" onClick={onDownloadBundle} />
               <DropdownMenu.Divider />
-              <DropdownMenu.Item icon={ScanSearch} label={jdAnalysisEndpoint ? 'Analyze JD' : 'Analyze JD (AI not configured)'} onClick={() => setJdModalOpen(true)} />
+              <DropdownMenu.Item
+                icon={ScanSearch}
+                label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}
+                onClick={onOpenJobGeneration}
+                disabled={!jdAnalysisEndpoint}
+              />
               <DropdownMenu.Item icon={Paintbrush} label="Variables" onClick={() => setVariablesOpen(true)} />
               <DropdownMenu.Divider />
               <div className="dropdown-preset-section">

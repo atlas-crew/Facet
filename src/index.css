@@ -1012,9 +1012,9 @@ select {
 
 .vector-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-6);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--text-primary) 6%, transparent);
   background: var(--bg-surface);
@@ -1023,13 +1023,58 @@ select {
   z-index: 5;
 }
 
+.vector-pills-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scroll-padding-inline: var(--space-3);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.vector-pills-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.vector-pills-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.vector-pills-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
 .vector-pills {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: var(--space-3);
+  min-width: max-content;
 }
 
 .vector-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.vector-action-context {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-right: auto;
+}
+
+.vector-action-group {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -1048,7 +1093,14 @@ select {
   white-space: nowrap;
 }
 
+.vector-view-all-btn.active {
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface));
+}
+
 .vector-pill {
+  flex: 0 0 auto;
+  scroll-margin-inline: var(--space-2);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
@@ -1061,6 +1113,7 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  white-space: nowrap;
   transition: all var(--duration-normal) var(--easing);
 }
 
@@ -3062,8 +3115,7 @@ select.component-input {
   }
 
   .vector-bar {
-    padding: 0 var(--space-3);
-    overflow-x: auto;
+    padding: var(--space-2) var(--space-3);
   }
 
   .build-context-strip {
@@ -3075,8 +3127,9 @@ select.component-input {
     flex: 0 0 auto;
   }
 
-  .vector-bar .btn-ghost {
-    display: none;
+  .vector-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .library-panel,

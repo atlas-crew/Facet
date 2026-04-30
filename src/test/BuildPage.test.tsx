@@ -206,6 +206,7 @@ describe('BuildPage', () => {
     expect(topBar).toBeTruthy()
     expect(topBar?.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(within(topBar as HTMLElement).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
+    expect(within(topBar as HTMLElement).getByRole('button', { name: /Generate for Job/i })).toBeTruthy()
 
     expect(screen.queryByLabelText('Resume generation model')).toBeNull()
 
@@ -262,6 +263,34 @@ describe('BuildPage', () => {
     )
     expect(screen.getByTestId('pdf-preview')).toBeTruthy()
     expect(screen.getByTestId('status-bar')).toBeTruthy()
+  })
+
+  it('opens job-specific generation from the top-level toolbar action', () => {
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
+
+    expect(screen.getByRole('dialog', { name: 'Analyze Job Description' })).toBeTruthy()
+    expect(screen.getByPlaceholderText('Paste JD text here...')).toBeTruthy()
+  })
+
+  it('keeps numeric vector shortcuts aligned after moving View All Bullets', () => {
+    render(<BuildPage />)
+
+    fireEvent.keyDown(document, { key: '0' })
+    expect(useUiStore.getState().selectedVector).toBe('all')
+
+    fireEvent.keyDown(document, { key: '1' })
+    expect(useUiStore.getState().selectedVector).toBe('backend')
+  })
+
+  it('keeps job-specific generation visible but disabled without AI configuration', () => {
+    facetClientEnvMock.anthropicProxyUrl = ''
+
+    render(<BuildPage />)
+
+    const generateButton = screen.getByRole('button', { name: /Generate for Job/i }) as HTMLButtonElement
+    expect(generateButton.disabled).toBe(true)
   })
 
   it('reports preview render progress in the working context', () => {
@@ -377,7 +406,7 @@ describe('BuildPage', () => {
     expect(screen.getByText('Import')).toBeTruthy()
     expect(screen.getByText('Export')).toBeTruthy()
     expect(screen.getByText('Variables')).toBeTruthy()
-    expect(screen.getByText('Analyze JD')).toBeTruthy()
+    expect(within(screen.getByRole('menu')).getByText('Generate for Job')).toBeTruthy()
     expect(screen.getByText('Save Preset')).toBeTruthy()
   })
 
@@ -437,7 +466,7 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
-    fireEvent.click(screen.getByText('Analyze JD'))
+    fireEvent.click(within(screen.getByRole('menu')).getByText('Generate for Job'))
     fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
       target: { value: 'We need a platform-minded engineer.' },
     })
@@ -499,7 +528,7 @@ describe('BuildPage', () => {
     const { rerender } = render(<BuildPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
-    fireEvent.click(screen.getByText('Analyze JD'))
+    fireEvent.click(within(screen.getByRole('menu')).getByText('Generate for Job'))
     fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
       target: { value: 'We need a platform-minded engineer.' },
     })
@@ -666,7 +695,7 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /^Workspace$/i }))
-    fireEvent.click(screen.getByText('Analyze JD'))
+    fireEvent.click(within(screen.getByRole('menu')).getByText('Generate for Job'))
     fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
       target: { value: 'We need a platform-minded engineer.' },
     })
