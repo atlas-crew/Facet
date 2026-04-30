@@ -3,6 +3,7 @@ import {
   preferencesFillStrength,
   profilesFillStrength,
   rolesFillStrength,
+  searchStrategyFillStrength,
   selfModelFillStrength,
   skillsFillStrength,
   thesisFillStrength,
@@ -144,6 +145,45 @@ describe('identityFillStrength', () => {
       if (r.percent < 40) {
         expect(r.tone).toBe('warn')
       }
+    })
+  })
+
+  describe('searchStrategyFillStrength', () => {
+    it('returns Empty for null identity', () => {
+      expect(searchStrategyFillStrength(null).label).toBe('Empty')
+    })
+
+    it('reaches Strong when 3+ vectors and 3+ questions are populated', () => {
+      const id = empty()
+      id.search_vectors = Array.from({ length: 3 }, (_, i) => ({
+        id: `v${i}`,
+        title: `Vector ${i}`,
+        priority: 'medium' as const,
+        thesis: 'A thesis with content.',
+        target_roles: [],
+        keywords: { primary: [], secondary: [] },
+      }))
+      id.awareness = {
+        open_questions: Array.from({ length: 3 }, (_, i) => ({
+          id: `q${i}`,
+          topic: `Topic ${i}`,
+          description: 'desc',
+          action: 'action',
+        })),
+      }
+      const r = searchStrategyFillStrength(id)
+      expect(r.percent).toBe(100)
+      expect(r.label).toBe('Strong')
+      expect(r.tone).toBe('ok')
+    })
+
+    it('flags warn when neither vectors nor questions are populated', () => {
+      const id = empty()
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+      const r = searchStrategyFillStrength(id)
+      expect(r.percent).toBe(0)
+      expect(r.tone).toBe('warn')
     })
   })
 })
