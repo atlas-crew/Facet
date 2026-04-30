@@ -336,6 +336,64 @@ export const normalizeRuntimeIdentitySchemaRevision = <T>(value: T): T => {
   } as T
 }
 
+// Strip leftover template prefixes the retired strategyEditorAutofill module
+// stamped into interview_process.strong_fit_signals / red_flags. The autofill
+// wrapped raw strengths/weaknesses with these patterns; both have been removed,
+// but persisted data carries the wrappings until normalized.
+const STRONG_FIT_PREFIX = 'The process leaves room to demonstrate '
+const RED_FLAG_PREFIX = 'The process over-indexes on '
+const RED_FLAG_SUFFIX = ' instead of job-relevant work.'
+
+const stripStrongFitPrefix = (value: string): string => {
+  if (!value.startsWith(STRONG_FIT_PREFIX)) return value
+  const inner = value.slice(STRONG_FIT_PREFIX.length).trimEnd()
+  return inner.endsWith('.') ? inner.slice(0, -1).trim() : inner.trim()
+}
+
+const stripRedFlagWrapping = (value: string): string => {
+  if (!value.startsWith(RED_FLAG_PREFIX)) return value
+  let inner = value.slice(RED_FLAG_PREFIX.length)
+  if (inner.endsWith(RED_FLAG_SUFFIX)) {
+    inner = inner.slice(0, -RED_FLAG_SUFFIX.length)
+  }
+  return inner.trim()
+}
+
+// Apply `strip` to each entry, but return the original array reference when
+// nothing changed. Lets the caller short-circuit by referential equality.
+const stripIfAnyChanged = (
+  values: string[],
+  strip: (value: string) => string,
+): string[] => {
+  let changed = false
+  const next = values.map((value) => {
+    const out = strip(value)
+    if (out !== value) changed = true
+    return out
+  })
+  return changed ? next : values
+}
+
+const normalizeAutofilledInterviewProcess = (
+  prefs: ProfessionalPreferences,
+): ProfessionalPreferences => {
+  const interview = prefs.interview_process
+  if (!interview) return prefs
+  const strongFit = stripIfAnyChanged(interview.strong_fit_signals, stripStrongFitPrefix)
+  const redFlags = stripIfAnyChanged(interview.red_flags, stripRedFlagWrapping)
+  if (strongFit === interview.strong_fit_signals && redFlags === interview.red_flags) {
+    return prefs
+  }
+  return {
+    ...prefs,
+    interview_process: {
+      ...interview,
+      strong_fit_signals: strongFit,
+      red_flags: redFlags,
+    },
+  }
+}
+
 export const normalizeRuntimeProfessionalIdentity = (
   identity: ProfessionalIdentityV3,
 ): ProfessionalIdentityV3 => {
@@ -345,17 +403,20 @@ export const normalizeRuntimeProfessionalIdentity = (
     typeof (normalizedIdentity as ProfessionalIdentityV3).model_revision === 'number'
       ? normalizedIdentity
       : { ...normalizedIdentity, model_revision: 0 }
-  const groups = (withRevision.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined)
+  const withCleanInterview: ProfessionalIdentityV3 = withRevision.preferences
+    ? { ...withRevision, preferences: normalizeAutofilledInterviewProcess(withRevision.preferences) }
+    : withRevision
+  const groups = (withCleanInterview.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined)
     ?.groups
 
   if (!Array.isArray(groups)) {
-    return withRevision
+    return withCleanInterview
   }
 
   return {
-    ...withRevision,
+    ...withCleanInterview,
     skills: {
-      ...withRevision.skills,
+      ...withCleanInterview.skills,
       groups: groups.map((group) => ({
         ...group,
         items: group.items.map((item) => {
