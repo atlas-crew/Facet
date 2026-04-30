@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ProfessionalIdentityV3 } from '../../../identity/schema'
-import { useIdentityStore } from '../../../store/identityStore'
+import {
+  getCurrentBulletDeepenKey,
+  useIdentityStore,
+} from '../../../store/identityStore'
+import { facetClientEnv } from '../../../utils/facetEnv'
+import { sanitizeEndpointUrl } from '../../../utils/idUtils'
+import { deepenIdentityBullet } from '../../../utils/identityExtraction'
 import { InspectorSheet } from './InspectorSheet'
 import {
   Actions,
@@ -27,6 +33,13 @@ export function BulletInspector({
   bulletId: string
 }) {
   const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
+  const startCurrentBulletDeepen = useIdentityStore((s) => s.startCurrentBulletDeepen)
+  const completeCurrentBulletDeepen = useIdentityStore(
+    (s) => s.completeCurrentBulletDeepen,
+  )
+  const failCurrentBulletDeepen = useIdentityStore((s) => s.failCurrentBulletDeepen)
+  const currentBulletDeepen = useIdentityStore((s) => s.currentBulletDeepen)
+  const correctionNotes = useIdentityStore((s) => s.correctionNotes)
   const role = identity.roles.find((r) => r.id === roleId)
   const bullet = role?.bullets.find((b) => b.id === bulletId)
   const [editing, setEditing] = useState(false)
@@ -40,6 +53,15 @@ export function BulletInspector({
   })
   const [sheetState, setSheetState] = useState<SourceTextSheetState | null>(null)
   const sheetOpen = sheetState !== null && sheetState.bulletId === bulletId
+  const deepenAbortRef = useRef<AbortController | null>(null)
+  const aiEndpoint = sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl)
+
+  useEffect(
+    () => () => {
+      deepenAbortRef.current?.abort()
+    },
+    [],
+  )
 
   if (!role || !bullet) return <NotFound label="bullet" />
 
@@ -81,6 +103,58 @@ export function BulletInspector({
   }
 
   const sourceTextButtonLabel = bullet.source_text?.trim() ? 'Edit source text' : 'Add source text'
+
+  const deepenKey = getCurrentBulletDeepenKey(roleId, bulletId)
+  const deepenEntry = currentBulletDeepen[deepenKey]
+  const deepenStatus = deepenEntry?.status
+  const anyOtherDeepenRunning = Object.entries(currentBulletDeepen).some(
+    ([key, entry]) => key !== deepenKey && entry.status === 'running',
+  )
+  const hasSourceText = Boolean(bullet.source_text?.trim())
+  const deepenDisabled =
+    !aiEndpoint ||
+    !hasSourceText ||
+    deepenStatus === 'running' ||
+    anyOtherDeepenRunning
+  const deepenLabel = (() => {
+    if (deepenStatus === 'running') return 'Deepening…'
+    if (!aiEndpoint) return 'AI not configured'
+    if (!hasSourceText) return 'Add source text first'
+    if (deepenStatus === 'failed') return 'Retry deepen'
+    return 'Deepen'
+  })()
+
+  const handleDeepen = async () => {
+    if (deepenDisabled) return
+    let controller: AbortController | null = null
+    try {
+      deepenAbortRef.current?.abort()
+      controller = new AbortController()
+      deepenAbortRef.current = controller
+      startCurrentBulletDeepen(roleId, bulletId)
+      const liveIdentity = useIdentityStore.getState().currentIdentity
+      if (!liveIdentity) return
+      const result = await deepenIdentityBullet({
+        endpoint: aiEndpoint,
+        identity: liveIdentity,
+        roleId,
+        bulletId,
+        correctionNotes: correctionNotes || undefined,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+      completeCurrentBulletDeepen(result)
+    } catch (error) {
+      if (controller?.signal.aborted && error instanceof DOMException) return
+      const message =
+        error instanceof Error ? error.message : 'Deepening this bullet failed.'
+      failCurrentBulletDeepen(roleId, bulletId, message)
+    } finally {
+      if (controller && deepenAbortRef.current === controller) {
+        deepenAbortRef.current = null
+      }
+    }
+  }
 
   const handleSave = () => {
     const next = identity.roles.map((r) =>
@@ -162,6 +236,14 @@ export function BulletInspector({
             <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
             <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
             <button type="button" className="inspector-btn" onClick={openSourceTextSheet}>{sourceTextButtonLabel}</button>
+            <button
+              type="button"
+              className="inspector-btn"
+              onClick={() => void handleDeepen()}
+              disabled={deepenDisabled}
+            >
+              {deepenLabel}
+            </button>
           </Actions>
         </SlotShell>
         {sourceTextSheet}
@@ -176,9 +258,22 @@ export function BulletInspector({
         <BulletPair label="Action" value={bullet.action} />
         <BulletPair label="Outcome" value={bullet.outcome} />
         {bullet.impact?.length ? <MetaRows rows={[['Impact', bullet.impact.join(' · ')]]} /> : null}
+        {deepenStatus === 'failed' && deepenEntry?.lastError ? (
+          <p className="inspector-warning" role="alert">
+            {deepenEntry.lastError}
+          </p>
+        ) : null}
         <Actions>
           <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit bullet</button>
           <button type="button" className="inspector-btn" onClick={openSourceTextSheet}>{sourceTextButtonLabel}</button>
+          <button
+            type="button"
+            className="inspector-btn"
+            onClick={() => void handleDeepen()}
+            disabled={deepenDisabled}
+          >
+            {deepenLabel}
+          </button>
         </Actions>
       </SlotShell>
       {sourceTextSheet}
