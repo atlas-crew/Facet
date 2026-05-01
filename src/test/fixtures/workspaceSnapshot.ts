@@ -81,6 +81,7 @@ export function buildWorkspaceSnapshot(
         presets: [],
       }),
       pipeline: buildArtifact('pipeline', { entries: [] }),
+      jdAnalysis: buildArtifact('jdAnalysis', { analyses: [] }),
       prep: buildArtifact('prep', { decks: [] }),
       coverLetters: buildArtifact('coverLetters', { templates: [] }),
       linkedin: buildArtifact('linkedin', { drafts: [] }),
@@ -132,6 +133,13 @@ export function buildForgedWorkspaceSnapshot(): ForgedWorkspaceSnapshot {
       pipeline: {
         ...base.artifacts.pipeline,
         artifactId: `${FORGED_SCOPE}:pipeline`,
+        workspaceId: FORGED_SCOPE,
+        revision: FORGED_ARTIFACT_REVISION,
+        updatedAt: FORGED_TIMESTAMP,
+      },
+      jdAnalysis: {
+        ...base.artifacts.jdAnalysis,
+        artifactId: `${FORGED_SCOPE}:jdAnalysis`,
         workspaceId: FORGED_SCOPE,
         revision: FORGED_ARTIFACT_REVISION,
         updatedAt: FORGED_TIMESTAMP,

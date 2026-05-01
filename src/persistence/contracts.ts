@@ -1,6 +1,7 @@
 export { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 import type { CoverLetterTemplate } from '../types/coverLetter'
 import type { DebriefSession } from '../types/debrief'
+import type { JDAnalysis } from '../types/jdAnalysis'
 import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck, PrepWorkspaceMode } from '../types/prep'
@@ -22,6 +23,7 @@ export const DEFAULT_LOCAL_WORKSPACE_NAME = 'Facet Local Workspace'
 export const FACET_ARTIFACT_TYPES = [
   'resume',
   'pipeline',
+  'jdAnalysis',
   'prep',
   'coverLetters',
   'linkedin',
@@ -34,6 +36,10 @@ export type FacetArtifactType = (typeof FACET_ARTIFACT_TYPES)[number]
 
 export interface PipelineWorkspaceData {
   entries: PipelineEntry[]
+}
+
+export interface JDAnalysisWorkspaceData {
+  analyses: JDAnalysis[]
 }
 
 export interface PrepWorkspaceData {
@@ -91,6 +97,7 @@ export interface FacetArtifactSnapshot<TType extends FacetArtifactType, TPayload
 
 export type ResumeArtifactSnapshot = FacetArtifactSnapshot<'resume', ResumeData>
 export type PipelineArtifactSnapshot = FacetArtifactSnapshot<'pipeline', PipelineWorkspaceData>
+export type JDAnalysisArtifactSnapshot = FacetArtifactSnapshot<'jdAnalysis', JDAnalysisWorkspaceData>
 export type PrepArtifactSnapshot = FacetArtifactSnapshot<'prep', PrepWorkspaceData>
 export type CoverLettersArtifactSnapshot = FacetArtifactSnapshot<'coverLetters', CoverLettersWorkspaceData>
 export type LinkedInArtifactSnapshot = FacetArtifactSnapshot<'linkedin', LinkedInWorkspaceData>
@@ -101,6 +108,7 @@ export type ResearchArtifactSnapshot = FacetArtifactSnapshot<'research', Researc
 export interface FacetWorkspaceArtifacts {
   resume: ResumeArtifactSnapshot
   pipeline: PipelineArtifactSnapshot
+  jdAnalysis: JDAnalysisArtifactSnapshot
   prep: PrepArtifactSnapshot
   coverLetters: CoverLettersArtifactSnapshot
   linkedin: LinkedInArtifactSnapshot

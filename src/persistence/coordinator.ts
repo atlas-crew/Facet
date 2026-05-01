@@ -1,6 +1,7 @@
 import type {
   CoverLettersArtifactSnapshot,
   DebriefArtifactSnapshot,
+  JDAnalysisArtifactSnapshot,
   PipelineArtifactSnapshot,
   PrepArtifactSnapshot,
   RecruiterArtifactSnapshot,
@@ -66,6 +67,7 @@ export interface PersistenceWorkspacePatch {
   artifacts?: {
     resume?: Partial<Pick<ResumeArtifactSnapshot, 'payload' | 'revision'>>
     pipeline?: Partial<Pick<PipelineArtifactSnapshot, 'payload' | 'revision'>>
+    jdAnalysis?: Partial<Pick<JDAnalysisArtifactSnapshot, 'payload' | 'revision'>>
     prep?: Partial<Pick<PrepArtifactSnapshot, 'payload' | 'revision'>>
     coverLetters?: Partial<Pick<CoverLettersArtifactSnapshot, 'payload' | 'revision'>>
     linkedin?: Partial<Pick<LinkedInArtifactSnapshot, 'payload' | 'revision'>>
@@ -203,6 +205,12 @@ export const applyWorkspacePatch = (
           next.artifacts.pipeline = applyArtifactPatch(
             next.artifacts.pipeline,
             artifactPatch as Partial<PipelineArtifactSnapshot>,
+          )
+          break
+        case 'jdAnalysis':
+          next.artifacts.jdAnalysis = applyArtifactPatch(
+            next.artifacts.jdAnalysis,
+            artifactPatch as Partial<JDAnalysisArtifactSnapshot>,
           )
           break
         case 'prep':

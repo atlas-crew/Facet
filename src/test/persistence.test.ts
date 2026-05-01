@@ -243,12 +243,12 @@ describe('persistence foundation', () => {
           companySize: '',
         },
         filters: {
-          prioritize: ['platform'],
-          avoid: ['ad-tech'],
+          prioritize: [{ label: 'platform' }],
+          avoid: [{ label: 'ad-tech' }],
         },
         interviewPrefs: {
-          strongFit: ['ownership'],
-          redFlags: ['low scope'],
+          strongFit: [{ label: 'ownership' }],
+          redFlags: [{ label: 'low scope' }],
         },
         inferredAt: '2026-03-11T00:00:00.000Z',
         inferredFromResumeVersion: defaultResumeData.version,
@@ -748,6 +748,7 @@ describe('persistence foundation', () => {
     expect(DURABLE_PERSISTENCE_BOUNDARIES.map((entry) => entry.source)).toEqual([
       'resumeStore.data',
       'pipelineStore.entries',
+      'jdAnalysisStore.analyses',
       'prepStore.decks',
       'coverLetterStore.templates',
       'linkedinStore.drafts',

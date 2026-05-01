@@ -1,6 +1,7 @@
 import { mergeResumeData } from '../engine/importMerge'
 import type { CoverLetterTemplate } from '../types/coverLetter'
 import type { DebriefSession } from '../types/debrief'
+import type { JDAnalysis } from '../types/jdAnalysis'
 import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepCard, PrepDeck } from '../types/prep'
@@ -16,6 +17,7 @@ import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
 import {
   createEmptyDebriefArtifactSnapshot,
+  createEmptyJDAnalysisArtifactSnapshot,
   createEmptyLinkedInArtifactSnapshot,
   createEmptyRecruiterArtifactSnapshot,
 } from './normalization'
@@ -98,6 +100,83 @@ const mergeDebriefSessions = (existing: DebriefSession[], incoming: DebriefSessi
 
 const mergePipelineEntries = (existing: PipelineEntry[], incoming: PipelineEntry[]) =>
   mergeById(existing, incoming)
+
+const normalizeComparableText = (value: string | undefined | null) => value?.trim() ?? ''
+
+const isSamePipelineEntry = (current: PipelineEntry, imported: PipelineEntry): boolean =>
+  normalizeComparableText(current.company) === normalizeComparableText(imported.company) &&
+  normalizeComparableText(current.role) === normalizeComparableText(imported.role) &&
+  normalizeComparableText(current.jobDescription) === normalizeComparableText(imported.jobDescription)
+
+const isImportedAnalysisNewer = (imported: JDAnalysis, current: JDAnalysis): boolean => {
+  const importedTime = Date.parse(imported.updatedAt)
+  const currentTime = Date.parse(current.updatedAt)
+
+  if (Number.isFinite(importedTime) && Number.isFinite(currentTime)) {
+    return importedTime > currentTime
+  }
+
+  return Number.isFinite(importedTime) && !Number.isFinite(currentTime)
+}
+
+const mergeJDAnalyses = ({
+  existing,
+  incoming,
+  existingPipelineEntries,
+  incomingPipelineEntries,
+}: {
+  existing: JDAnalysis[]
+  incoming: JDAnalysis[]
+  existingPipelineEntries: PipelineEntry[]
+  incomingPipelineEntries: PipelineEntry[]
+}) => {
+  const next = existing.map((analysis) => cloneValue(analysis))
+  const indexByPipelineEntryId = new Map(
+    next.map((analysis, index) => [analysis.pipelineEntryId, index]),
+  )
+  const existingPipelineEntryById = new Map(existingPipelineEntries.map((entry) => [entry.id, entry]))
+  const incomingPipelineEntryById = new Map(incomingPipelineEntries.map((entry) => [entry.id, entry]))
+
+  for (const imported of incoming) {
+    const currentPipelineEntry = existingPipelineEntryById.get(imported.pipelineEntryId)
+    const importedPipelineEntry = incomingPipelineEntryById.get(imported.pipelineEntryId)
+    if (
+      currentPipelineEntry &&
+      importedPipelineEntry &&
+      !isSamePipelineEntry(currentPipelineEntry, importedPipelineEntry)
+    ) {
+      continue
+    }
+
+    const targetIndex = indexByPipelineEntryId.get(imported.pipelineEntryId)
+    if (targetIndex === undefined) {
+      indexByPipelineEntryId.set(imported.pipelineEntryId, next.length)
+      next.push(cloneValue(imported))
+      continue
+    }
+
+    const current = next[targetIndex]
+    if (isImportedAnalysisNewer(imported, current)) {
+      next[targetIndex] = cloneValue(imported)
+    }
+  }
+
+  return next
+}
+
+const alignPipelineEntriesToJDAnalyses = (
+  entries: PipelineEntry[],
+  analyses: JDAnalysis[],
+): PipelineEntry[] => {
+  const analysisIdByPipelineEntryId = new Map(
+    analyses.map((analysis) => [analysis.pipelineEntryId, analysis.id]),
+  )
+
+  return entries.map((entry) => {
+    const jdAnalysisId = analysisIdByPipelineEntryId.get(entry.id) ?? null
+    return entry.jdAnalysisId === jdAnalysisId ? entry : { ...cloneValue(entry), jdAnalysisId }
+  })
+}
 
 const mergeSearchRequests = (existing: SearchRequest[], incoming: SearchRequest[]) =>
   mergeById(existing, incoming)
@@ -191,6 +270,15 @@ export const mergeWorkspaceSnapshots = (
     current.artifacts.debrief ??
     imported.artifacts.debrief ??
     createEmptyDebriefArtifactSnapshot(current.workspace.id, imported.exportedAt)
+  const jdAnalysisArtifactSource =
+    current.artifacts.jdAnalysis ??
+    imported.artifacts.jdAnalysis ??
+    createEmptyJDAnalysisArtifactSnapshot(current.workspace.id, imported.exportedAt)
+  const jdAnalysisArtifact = {
+    ...cloneValue(jdAnalysisArtifactSource),
+    artifactId: `${current.workspace.id}:jdAnalysis`,
+    workspaceId: current.workspace.id,
+  }
   const mergedSearchTheses = mergeSearchTheses(
     current.artifacts.research.payload.theses ?? [],
     imported.artifacts.research.payload.theses ?? [],
@@ -205,6 +293,24 @@ export const mergeWorkspaceSnapshots = (
       (id): id is string =>
         typeof id === 'string' && mergedSearchTheses.some((thesis) => thesis.id === id),
     ) ?? null
+  const rawMergedJDAnalyses = mergeJDAnalyses({
+    existing: current.artifacts.jdAnalysis?.payload?.analyses ?? [],
+    incoming: imported.artifacts.jdAnalysis?.payload?.analyses ?? [],
+    existingPipelineEntries: current.artifacts.pipeline.payload.entries,
+    incomingPipelineEntries: imported.artifacts.pipeline.payload.entries,
+  })
+  const rawMergedPipelineEntries = mergePipelineEntries(
+    current.artifacts.pipeline.payload.entries,
+    imported.artifacts.pipeline.payload.entries,
+  )
+  const mergedPipelineEntryIds = new Set(rawMergedPipelineEntries.map((entry) => entry.id))
+  const mergedJDAnalyses = rawMergedJDAnalyses.filter((analysis) =>
+    mergedPipelineEntryIds.has(analysis.pipelineEntryId),
+  )
+  const mergedPipelineEntries = alignPipelineEntriesToJDAnalyses(
+    rawMergedPipelineEntries,
+    mergedJDAnalyses,
+  )
 
   return {
     ...cloneValue(current),
@@ -225,10 +331,13 @@ export const mergeWorkspaceSnapshots = (
       pipeline: {
         ...cloneValue(current.artifacts.pipeline),
         payload: {
-          entries: mergePipelineEntries(
-            current.artifacts.pipeline.payload.entries,
-            imported.artifacts.pipeline.payload.entries,
-          ),
+          entries: mergedPipelineEntries,
+        },
+      },
+      jdAnalysis: {
+        ...cloneValue(jdAnalysisArtifact),
+        payload: {
+          analyses: mergedJDAnalyses,
         },
       },
       prep: {
@@ -331,6 +440,7 @@ export const scopeWorkspaceSnapshotToWorkspace = (
   artifacts: {
     resume: scopedArtifact(snapshot.artifacts.resume, workspaceId, 'resume'),
     pipeline: scopedArtifact(snapshot.artifacts.pipeline, workspaceId, 'pipeline'),
+    jdAnalysis: scopedArtifact(snapshot.artifacts.jdAnalysis, workspaceId, 'jdAnalysis'),
     prep: scopedArtifact(snapshot.artifacts.prep, workspaceId, 'prep'),
     coverLetters: scopedArtifact(snapshot.artifacts.coverLetters, workspaceId, 'coverLetters'),
     linkedin: scopedArtifact(snapshot.artifacts.linkedin, workspaceId, 'linkedin'),

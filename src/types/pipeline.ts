@@ -198,6 +198,7 @@ export interface PipelineEntry {
   // Facet integration
   vectorId: string | null
   jobDescription: string
+  jdAnalysisId?: string | null
   presetId: string | null
   resumeVariant: string
   resumeGeneration: PipelineResumeGenerationState | null

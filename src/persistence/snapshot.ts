@@ -1,5 +1,6 @@
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -55,6 +56,12 @@ export const DURABLE_PERSISTENCE_BOUNDARIES: PersistenceBoundaryDefinition[] = [
     target: 'workspace.artifacts.pipeline.payload.entries',
     durability: 'durable',
     notes: 'Job-search records should be portable across devices and future backends.',
+  },
+  {
+    source: 'jdAnalysisStore.analyses',
+    target: 'workspace.artifacts.jdAnalysis.payload.analyses',
+    durability: 'durable',
+    notes: 'Canonical JD analyses are pipeline-anchored workspace artifacts shared by consumers.',
   },
   {
     source: 'prepStore.decks',
@@ -229,6 +236,7 @@ export const createWorkspaceSnapshotFromStores = (
   const workspaceName = request.workspaceName ?? DEFAULT_LOCAL_WORKSPACE_NAME
 
   const pipelineState = usePipelineStore.getState()
+  const jdAnalysisState = useJDAnalysisStore.getState()
   const prepState = usePrepStore.getState()
   const linkedInState = useLinkedInStore.getState()
   const recruiterState = useRecruiterStore.getState()
@@ -257,6 +265,14 @@ export const createWorkspaceSnapshotFromStores = (
         workspaceId,
         {
           entries: cloneValue(pipelineState.entries),
+        },
+        exportedAt,
+      ),
+      jdAnalysis: buildArtifactSnapshot(
+        'jdAnalysis',
+        workspaceId,
+        {
+          analyses: cloneValue(jdAnalysisState.analyses),
         },
         exportedAt,
       ),

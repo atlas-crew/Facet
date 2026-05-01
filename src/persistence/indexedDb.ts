@@ -111,6 +111,11 @@ const createAuthoritativeWorkspaceSnapshot = (
       revision: (current?.artifacts.pipeline.revision ?? 0) + 1,
       updatedAt: savedAt,
     },
+    jdAnalysis: {
+      ...cloneValue(snapshot.artifacts.jdAnalysis),
+      revision: (current?.artifacts.jdAnalysis?.revision ?? 0) + 1,
+      updatedAt: savedAt,
+    },
     prep: {
       ...cloneValue(snapshot.artifacts.prep),
       revision: (current?.artifacts.prep.revision ?? 0) + 1,

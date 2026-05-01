@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -207,6 +208,7 @@ export const createPersistenceRuntime = (
     subscriptions = [
       useResumeStore.subscribe(() => schedulePersist()),
       usePipelineStore.subscribe(() => schedulePersist()),
+      useJDAnalysisStore.subscribe(() => schedulePersist()),
       usePrepStore.subscribe(() => schedulePersist()),
       useCoverLetterStore.subscribe(() => schedulePersist()),
       useLinkedInStore.subscribe(() => schedulePersist()),

@@ -16,6 +16,10 @@ import {
   usePipelineStore,
 } from '../store/pipelineStore'
 import {
+  migrateJDAnalysisState,
+  useJDAnalysisStore,
+} from '../store/jdAnalysisStore'
+import {
   migratePrepState,
   usePrepStore,
 } from '../store/prepStore'
@@ -91,6 +95,10 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     ...state,
     entries: cloneValue(snapshot.artifacts.pipeline.payload.entries),
   }))
+
+  useJDAnalysisStore.setState({
+    analyses: cloneValue(snapshot.artifacts.jdAnalysis.payload.analyses),
+  })
 
   const prepDecks = cloneValue(snapshot.artifacts.prep.payload.decks)
   usePrepStore.setState((state) => ({
@@ -240,6 +248,7 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
   const migratedPipeline = pipelineEnvelope
     ? migratePipelineState(pipelineEnvelope.state)
     : { entries: [], sortField: 'tier', sortDir: 'asc' as const }
+  const migratedJDAnalysis = migrateJDAnalysisState(undefined)
 
   const migratedPrep = migratePrepState(prepEnvelope?.state)
   const migratedCoverLetters = migrateCoverLetterState(coverLetterEnvelope?.state)
@@ -261,6 +270,10 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
     sortField: migratedPipeline.sortField ?? 'tier',
     sortDir: migratedPipeline.sortDir ?? 'asc',
   }))
+
+  useJDAnalysisStore.setState({
+    analyses: cloneValue(migratedJDAnalysis.analyses),
+  })
 
   usePrepStore.setState((state) => ({
     ...state,

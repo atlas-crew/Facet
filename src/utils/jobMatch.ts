@@ -114,6 +114,7 @@ interface NormalizedFilterAwarenessPass {
 interface MatchArtifacts {
   analysis: VectorAwareMatchResult
   report: MatchReport
+  extraction: JdMatchExtraction
 }
 
 const JD_MATCH_SYSTEM_PROMPT = [
@@ -1003,7 +1004,11 @@ export const parseJdMatchExtractionResponse = (rawResponse: string): JdMatchExtr
   }
 
   const root = assertRecord(parsed, 'jd match response')
-  const requirementsValue = Array.isArray(root.requirements) ? root.requirements : []
+  if (!Array.isArray(root.requirements)) {
+    throw new Error('JD match response field "requirements" must be an array.')
+  }
+
+  const requirementsValue = root.requirements
   const hypothesesValue = Array.isArray(root.advantage_hypotheses) ? root.advantage_hypotheses : []
 
   return {
@@ -2054,7 +2059,7 @@ export const analyzeIdentityJobMatch = async ({
   })
   const report = adaptVectorAwareMatchToReport({ identity, prepared, extraction, analysis })
 
-  return { analysis, report }
+  return { analysis, report, extraction }
 }
 
 export const createMatchHistoryEntry = (report: MatchReport): MatchHistoryEntry => ({

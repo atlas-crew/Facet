@@ -22,6 +22,7 @@ import {
   getPipelineResumePrimaryVectorId,
   normalizePipelineResumeGeneration,
 } from '../utils/resumeGeneration'
+import { useJDAnalysisStore } from './jdAnalysisStore'
 
 interface PipelineFilters {
   tier: PipelineTier | 'all'
@@ -53,6 +54,7 @@ interface PipelineState {
   updateEntry: (id: string, patch: Partial<PipelineEntry>) => void
   deleteEntry: (id: string) => void
   addHistoryNote: (id: string, note: string) => void
+  setJDAnalysisReference: (id: string, jdAnalysisId: string | null) => void
   setStatus: (id: string, status: PipelineStatus) => void
   setSort: (field: string, dir?: 'asc' | 'desc') => void
   setFilter: (key: keyof PipelineFilters, value: string) => void
@@ -128,6 +130,7 @@ const normalizeEntry = (
       resumeGeneration: normalizedResumeGeneration,
       vectorId: entry.vectorId,
     }),
+    jdAnalysisId: entry.jdAnalysisId ?? null,
     presetId: getPipelineResumePresetId({
       resumeGeneration: normalizedResumeGeneration,
       presetId: entry.presetId,
@@ -197,6 +200,7 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
 
       deleteEntry: (id) => {
         set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }))
+        useJDAnalysisStore.getState().removeAnalysisForPipelineEntry(id)
       },
 
       addHistoryNote: (id, note) => {
@@ -206,6 +210,19 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
             e.id === id
               ? normalizeEntry(
                   { ...e, lastAction: date, history: [...e.history, { date, note }] },
+                  { touch: true },
+                )
+              : e
+          ),
+        }))
+      },
+
+      setJDAnalysisReference: (id, jdAnalysisId) => {
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            e.id === id
+              ? normalizeEntry(
+                  { ...e, jdAnalysisId },
                   { touch: true },
                 )
               : e

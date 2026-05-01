@@ -3,6 +3,7 @@ import type {
   DebriefArtifactSnapshot,
   FacetLocalPreferencesSnapshot,
   FacetWorkspaceSnapshot,
+  JDAnalysisArtifactSnapshot,
   LinkedInArtifactSnapshot,
   RecruiterArtifactSnapshot,
 } from './contracts'
@@ -20,6 +21,22 @@ const buildEmptyLinkedInArtifact = (
   updatedAt,
   payload: {
     drafts: [],
+  },
+})
+
+const buildEmptyJDAnalysisArtifact = (
+  workspaceId: string,
+  updatedAt: string,
+  revision = 0,
+): JDAnalysisArtifactSnapshot => ({
+  artifactId: `${workspaceId}:jdAnalysis`,
+  artifactType: 'jdAnalysis',
+  workspaceId,
+  schemaVersion: 1,
+  revision,
+  updatedAt,
+  payload: {
+    analyses: [],
   },
 })
 
@@ -61,9 +78,17 @@ export const normalizeWorkspaceSnapshot = (
   const normalized = cloneValue(snapshot) as FacetWorkspaceSnapshot & {
     artifacts: FacetWorkspaceSnapshot['artifacts'] & {
       linkedin?: LinkedInArtifactSnapshot
+      jdAnalysis?: JDAnalysisArtifactSnapshot
       recruiter?: RecruiterArtifactSnapshot
       debrief?: DebriefArtifactSnapshot
     }
+  }
+
+  if (!normalized.artifacts.jdAnalysis) {
+    normalized.artifacts.jdAnalysis = buildEmptyJDAnalysisArtifact(
+      normalized.workspace.id,
+      normalized.workspace.updatedAt || normalized.exportedAt,
+    )
   }
 
   if (!normalized.artifacts.linkedin) {
@@ -121,5 +146,6 @@ export const normalizeLocalPreferencesSnapshot = (
 }
 
 export const createEmptyLinkedInArtifactSnapshot = buildEmptyLinkedInArtifact
+export const createEmptyJDAnalysisArtifactSnapshot = buildEmptyJDAnalysisArtifact
 export const createEmptyRecruiterArtifactSnapshot = buildEmptyRecruiterArtifact
 export const createEmptyDebriefArtifactSnapshot = buildEmptyDebriefArtifact

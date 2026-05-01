@@ -7,6 +7,77 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string')
+
+const isParseableDateString = (value: unknown): value is string =>
+  typeof value === 'string' && Number.isFinite(Date.parse(value))
+
+const assertValidJDAnalysis = (analysis: unknown, index: number) => {
+  if (!isRecord(analysis)) {
+    throw new Error(`Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses[${index}].`)
+  }
+
+  if (
+    typeof analysis.id !== 'string' ||
+    typeof analysis.pipelineEntryId !== 'string' ||
+    typeof analysis.jdTextHash !== 'string' ||
+    !isFiniteNumber(analysis.identityVersion) ||
+    typeof analysis.modelVersion !== 'string' ||
+    !isParseableDateString(analysis.generatedAt) ||
+    !isParseableDateString(analysis.updatedAt)
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses[${index}] metadata.`,
+    )
+  }
+
+  if (
+    typeof analysis.company !== 'string' ||
+    typeof analysis.role !== 'string' ||
+    typeof analysis.summary !== 'string' ||
+    typeof analysis.analyzedJobDescription !== 'string' ||
+    !isFiniteNumber(analysis.jobDescriptionWordCount) ||
+    typeof analysis.jobDescriptionTruncated !== 'boolean' ||
+    typeof analysis.overallFit !== 'string' ||
+    !isFiniteNumber(analysis.fitScore) ||
+    typeof analysis.confidence !== 'string' ||
+    typeof analysis.recommendation !== 'string' ||
+    typeof analysis.oneLineSummary !== 'string' ||
+    typeof analysis.rationale !== 'string' ||
+    (analysis.primaryVectorId !== null && typeof analysis.primaryVectorId !== 'string')
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses[${index}] scalars.`,
+    )
+  }
+
+  if (
+    !isStringArray(analysis.warnings) ||
+    !Array.isArray(analysis.requirements) ||
+    !Array.isArray(analysis.matchedVectors) ||
+    !Array.isArray(analysis.skillMatches) ||
+    !isRecord(analysis.evidenceMapping) ||
+    !Array.isArray(analysis.strengthsToLead) ||
+    !Array.isArray(analysis.advantages) ||
+    !Array.isArray(analysis.advantageHypotheses) ||
+    !Array.isArray(analysis.gaps) ||
+    !Array.isArray(analysis.gapFocus) ||
+    !Array.isArray(analysis.watchOuts) ||
+    !Array.isArray(analysis.triggeredPrioritize) ||
+    !Array.isArray(analysis.triggeredAvoid) ||
+    !Array.isArray(analysis.relevantAwareness) ||
+    !Array.isArray(analysis.positioningRecommendations) ||
+    !Array.isArray(analysis.matchedRequirementIds) ||
+    !Array.isArray(analysis.matchedKeywords) ||
+    !isFiniteNumber(analysis.requirementCoverageScore)
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses[${index}] shape.`,
+    )
+  }
+}
+
 const assertValidArtifactPayload = (
   artifactType: keyof FacetWorkspaceSnapshot['artifacts'],
   payload: unknown,
@@ -25,6 +96,12 @@ const assertValidArtifactPayload = (
       if (!Array.isArray(payload.entries)) {
         throw new Error('Workspace snapshot has invalid artifacts.pipeline.payload.entries.')
       }
+      break
+    case 'jdAnalysis':
+      if (!Array.isArray(payload.analyses)) {
+        throw new Error('Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses.')
+      }
+      payload.analyses.forEach((analysis, index) => assertValidJDAnalysis(analysis, index))
       break
     case 'prep':
       if (!Array.isArray(payload.decks)) {
@@ -151,7 +228,7 @@ export function assertValidWorkspaceSnapshot(
     throw new Error('Workspace snapshot must include artifacts.')
   }
 
-  for (const key of ['resume', 'pipeline', 'prep', 'coverLetters', 'linkedin', 'recruiter', 'debrief', 'research'] as const) {
+  for (const key of ['resume', 'pipeline', 'jdAnalysis', 'prep', 'coverLetters', 'linkedin', 'recruiter', 'debrief', 'research'] as const) {
     const artifact = snapshot.artifacts[key]
 
     if (!isRecord(artifact)) {

@@ -64,6 +64,7 @@ function blankDraft(): EntryDraft {
     contact: '',
     vectorId: null,
     jobDescription: '',
+    jdAnalysisId: null,
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,

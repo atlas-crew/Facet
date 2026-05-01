@@ -317,6 +317,19 @@ describe('jobMatch', () => {
     expect(() =>
       parseJdMatchExtractionResponse(
         JSON.stringify({
+          summary: 'Missing requirements.',
+          company: 'Atlas',
+          role: 'Platform Engineer',
+          advantage_hypotheses: [],
+          positioning_recommendations: [],
+          gap_focus: [],
+          warnings: [],
+        }),
+      ),
+    ).toThrow()
+    expect(() =>
+      parseJdMatchExtractionResponse(
+        JSON.stringify({
           summary: 'Broken payload.',
           company: 'Atlas',
           role: 'Platform Engineer',
@@ -813,6 +826,7 @@ describe('jobMatch', () => {
 
     expect(result.analysis.matchedVectors[0]?.vectorId).toBe('platform-lead')
     expect(result.analysis.relevantAwareness[0]?.awarenessId).toBe('ai-depth')
+    expect(result.extraction.summary).toBe('Strong platform fit with some AI caveats.')
     expect(result.report.matchScore).toBe(result.analysis.fitScore)
     expect(result.report.topBullets.length).toBeGreaterThan(0)
   })
