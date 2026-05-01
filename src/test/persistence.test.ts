@@ -243,12 +243,12 @@ describe('persistence foundation', () => {
           companySize: '',
         },
         filters: {
-          prioritize: [{ label: 'platform' }],
-          avoid: [{ label: 'ad-tech' }],
+          prioritize: ['platform'],
+          avoid: ['ad-tech'],
         },
         interviewPrefs: {
-          strongFit: [{ label: 'ownership' }],
-          redFlags: [{ label: 'low scope' }],
+          strongFit: ['ownership'],
+          redFlags: ['low scope'],
         },
         inferredAt: '2026-03-11T00:00:00.000Z',
         inferredFromResumeVersion: defaultResumeData.version,
