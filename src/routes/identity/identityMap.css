@@ -1,7 +1,7 @@
 .identity-map {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--app-topbar-height));
   max-width: 1600px;
   margin: 0 auto;
   background: var(--bg-primary);
@@ -1087,7 +1087,7 @@
   padding: var(--space-8) calc(var(--space-6) + var(--space-1));
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: calc(100vh - var(--app-topbar-height));
   overflow-y: auto;
 }
 
@@ -1113,10 +1113,10 @@
 
 .inspector-sheet {
   position: fixed;
-  top: 0;
+  top: var(--app-topbar-height);
   right: 380px;
   width: 480px;
-  height: 100vh;
+  height: calc(100vh - var(--app-topbar-height));
   z-index: 5;
   background: var(--bg-inset);
   border-left: 1px solid var(--border-subtle);
