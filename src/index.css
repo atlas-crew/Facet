@@ -17,8 +17,12 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* Height of the AppShell top-bar; subtract from 100vh for full-height layout regions. */
-  --app-topbar-height: 44px;
+  /* Height of the AppShell .app-topbar — overridden at runtime by AppShell's
+     ResizeObserver to match the actual rendered height. The value below is a
+     close-enough fallback for the initial paint (and for tests that render
+     pages outside AppShell). Layout regions like the Identity Map's inspector
+     aside subtract this from 100vh for full-height sticky sizing. */
+  --app-topbar-height: 96px;
 
   /* Build workspace height floors by breakpoint: desktop flex basis, stacked fixed panel height. */
   --build-workspace-panel-height-lg: clamp(520px, 62vh, 760px);
