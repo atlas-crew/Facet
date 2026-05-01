@@ -215,6 +215,7 @@ describe('BuildPage', () => {
 
     const previewToolbar = screen.getByRole('toolbar', { name: /Build actions/i })
     expect(previewToolbar.querySelectorAll('.btn-primary')).toHaveLength(1)
+    expect(previewToolbar.firstElementChild).toBe(screen.getByTestId('undo-redo-controls'))
     expect(within(previewToolbar).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
     expect(within(previewToolbar).getByRole('button', { name: /Generate for Job/i })).toBeTruthy()
     expect(screen.getAllByRole('button', { name: /Generate for Job/i })).toHaveLength(1)
