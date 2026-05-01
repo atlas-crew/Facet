@@ -258,6 +258,7 @@ export function AppShell() {
     workspaceId: string
     snapshot: FacetWorkspaceSnapshot
   } | null>(null)
+  const appTopbarRef = useRef<HTMLElement | null>(null)
 
   // ── Global appearance management ──────────────────────────
   useEffect(() => {
@@ -273,6 +274,27 @@ export function AppShell() {
     }
     root.setAttribute('data-theme', appearance)
   }, [appearance])
+
+  // ── Publish topbar height as a CSS variable ───────────────
+  // Layout regions like the Identity Map's inspector aside size themselves
+  // against `100vh - var(--app-topbar-height)`. The topbar's height is
+  // content-driven (brand lockup + nav cluster), so we measure it and
+  // update the var on resize rather than hardcoding a value.
+  useEffect(() => {
+    const node = appTopbarRef.current
+    if (!node) return
+    const root = document.documentElement
+    const publish = () => {
+      root.style.setProperty('--app-topbar-height', `${node.offsetHeight}px`)
+    }
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(node)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--app-topbar-height')
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -771,7 +793,7 @@ export function AppShell() {
       </nav>
 
       <div className="app-content-column">
-        <header className="app-topbar">
+        <header className="app-topbar" ref={appTopbarRef}>
           <div className="app-topbar-start">
             <Link to={HOME_ROUTE} className="app-topbar-brand" aria-label="Facet home">
               <FacetWordmark />
