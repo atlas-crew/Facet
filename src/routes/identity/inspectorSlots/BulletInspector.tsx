@@ -11,7 +11,6 @@ import { InspectorSheet } from './InspectorSheet'
 import {
   Actions,
   BulletPair,
-  MetaRows,
   NotFound,
   SlotShell,
   inputToTags,
@@ -254,10 +253,12 @@ export function BulletInspector({
   return (
     <>
       <SlotShell eyebrow={`Bullet · ${role.company}`} title={bullet.problem || bullet.action || '(no summary)'}>
-        <BulletPair label="Problem" value={bullet.problem} />
-        <BulletPair label="Action" value={bullet.action} />
-        <BulletPair label="Outcome" value={bullet.outcome} />
-        {bullet.impact?.length ? <MetaRows rows={[['Impact', bullet.impact.join(' · ')]]} /> : null}
+        <BulletPair label="Problem" value={bullet.problem} tone="problem" />
+        <BulletPair label="Action" value={bullet.action} tone="action" />
+        <BulletPair label="Outcome" value={bullet.outcome} tone="outcome" />
+        {bullet.impact?.length ? (
+          <BulletPair label="Impact" value={bullet.impact.join(' · ')} tone="impact" />
+        ) : null}
         {deepenStatus === 'failed' && deepenEntry?.lastError ? (
           <p className="inspector-warning" role="alert">
             {deepenEntry.lastError}

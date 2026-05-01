@@ -66,11 +66,24 @@ export function NotFound({ label }: { label: string }) {
   )
 }
 
-export function BulletPair({ label, value }: { label: string; value: string }) {
+export type BulletPairTone = 'problem' | 'action' | 'outcome' | 'impact'
+
+export function BulletPair({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone?: BulletPairTone
+}) {
+  const className = tone
+    ? `inspector-bullet-pair tone-${tone}`
+    : 'inspector-bullet-pair'
   return (
-    <div className="inspector-meta-row">
-      <span className="inspector-meta-key label-tracked">{label}</span>
-      <span className="inspector-meta-val">{value || '—'}</span>
+    <div className={className}>
+      <p className="inspector-bullet-pair-label label-tracked">{label}</p>
+      <p className="inspector-bullet-pair-value">{value || '—'}</p>
     </div>
   )
 }
