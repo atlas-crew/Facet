@@ -1481,23 +1481,7 @@ export function BuildPage() {
           </div>
         )}
 
-        <button
-          className="btn-secondary"
-          type="button"
-          onClick={onOpenJobGeneration}
-          disabled={!jdAnalysisEndpoint}
-          aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
-          title={
-            jdAnalysisEndpoint
-              ? 'Generate a job-specific resume from a pasted job description'
-              : 'Generate for Job requires AI proxy configuration'
-          }
-        >
-          <ScanSearch size={14} />
-          <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
-        </button>
-
-        <DropdownMenu label="More" icon={MoreHorizontal}>
+        <DropdownMenu label="More tools" icon={MoreHorizontal} iconOnly>
           <DropdownMenu.Item icon={Upload} label="Import" shortcut="⌘I" onClick={() => setImportExportMode('import')} />
           <DropdownMenu.Item icon={FileJson} label="Export" shortcut="⌘E" onClick={() => setImportExportMode('export')} />
           <DropdownMenu.Divider />
@@ -1537,6 +1521,22 @@ export function BuildPage() {
             disabled={!activePreset}
           />
         </DropdownMenu>
+
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={onOpenJobGeneration}
+          disabled={!jdAnalysisEndpoint}
+          aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
+          title={
+            jdAnalysisEndpoint
+              ? 'Generate a job-specific resume from a pasted job description'
+              : 'Generate for Job requires AI proxy configuration'
+          }
+        >
+          <ScanSearch size={14} />
+          <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
+        </button>
 
         <button
           className="btn-primary"

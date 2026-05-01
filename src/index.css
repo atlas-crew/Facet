@@ -572,6 +572,12 @@ select {
   gap: var(--space-1);
 }
 
+.dropdown-trigger.icon-only {
+  width: 34px;
+  justify-content: center;
+  padding-inline: 0;
+}
+
 .dropdown-chevron {
   opacity: 0.5;
   transition: transform var(--duration-fast) var(--easing);

@@ -15,6 +15,7 @@ import { ChevronDown, type LucideIcon } from 'lucide-react'
 interface DropdownMenuProps {
   label: string
   icon: LucideIcon
+  iconOnly?: boolean
   children: ReactNode
 }
 
@@ -53,7 +54,7 @@ function Divider() {
 
 /* ── Root component ────────────────────────────────────── */
 
-function DropdownMenuRoot({ label, icon: Icon, children }: DropdownMenuProps) {
+function DropdownMenuRoot({ label, icon: Icon, iconOnly = false, children }: DropdownMenuProps) {
   const [open, setOpen] = useState(false)
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -180,15 +181,17 @@ function DropdownMenuRoot({ label, icon: Icon, children }: DropdownMenuProps) {
         id={triggerId}
         ref={triggerButtonRef}
         type="button"
-        className="btn-ghost dropdown-trigger"
+        className={`btn-ghost dropdown-trigger${iconOnly ? ' icon-only' : ''}`}
         onClick={toggle}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={open ? panelId : undefined}
+        aria-label={iconOnly ? label : undefined}
+        title={iconOnly ? label : undefined}
       >
         <Icon size={16} />
-        <span className="btn-label">{label}</span>
-        <ChevronDown size={12} className={`dropdown-chevron ${open ? 'open' : ''}`} />
+        <span className={iconOnly ? 'sr-only' : 'btn-label'}>{label}</span>
+        {!iconOnly && <ChevronDown size={12} className={`dropdown-chevron ${open ? 'open' : ''}`} />}
       </button>
       {open && panelStyle && (
         <div

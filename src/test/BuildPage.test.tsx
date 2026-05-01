@@ -216,8 +216,8 @@ describe('BuildPage', () => {
     const previewToolbar = screen.getByRole('toolbar', { name: /Build actions/i })
     expect(previewToolbar.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(previewToolbar.firstElementChild).toBe(screen.getByTestId('undo-redo-controls'))
-    expect(within(previewToolbar).getByRole('button', { name: /Download PDF/i })).toBeTruthy()
-    expect(within(previewToolbar).getByRole('button', { name: /Generate for Job/i })).toBeTruthy()
+    const toolbarButtons = within(previewToolbar).getAllByRole('button').map((button) => button.getAttribute('aria-label') ?? button.textContent)
+    expect(toolbarButtons.slice(-3)).toEqual(['More tools', 'Generate for Job', 'Download PDF'])
     expect(screen.getAllByRole('button', { name: /Generate for Job/i })).toHaveLength(1)
 
     expect(screen.queryByLabelText('Resume generation model')).toBeNull()
@@ -439,7 +439,7 @@ describe('BuildPage', () => {
     expect(screen.queryByRole('button', { name: /^Actions$/i })).toBeNull()
     expect(screen.getByRole('button', { name: /^Compare$/i })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /^More$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^More tools$/i }))
 
     const moreMenu = screen.getByRole('menu')
     expect((moreMenu as HTMLElement).style.position).toBe('fixed')
