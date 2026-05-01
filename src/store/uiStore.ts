@@ -22,6 +22,7 @@ export interface UiState {
   backupReminderIntervalDays: number
   backupReminderSnoozedUntil: string | null
   lastBackupAt: string | null
+  mapBulletDensity: 'compact' | 'expanded'
   setSelectedVector: (vector: VectorSelection) => void
   setPanelRatio: (ratio: number) => void
   setAppearance: (appearance: 'light' | 'dark' | 'system') => void
@@ -34,6 +35,7 @@ export interface UiState {
   setBackupReminderIntervalDays: (days: number) => void
   setBackupReminderSnoozedUntil: (value: string | null) => void
   markBackupCreated: (at?: string) => void
+  setMapBulletDensity: (density: 'compact' | 'expanded') => void
   tourCompleted: boolean
   setTourCompleted: (completed: boolean) => void
 }
@@ -55,6 +57,7 @@ export const useUiStore = create<UiState>()(
       backupReminderIntervalDays: DEFAULT_BACKUP_REMINDER_INTERVAL_DAYS,
       backupReminderSnoozedUntil: null,
       lastBackupAt: null,
+      mapBulletDensity: 'expanded',
       setSelectedVector: (vector) => set({ selectedVector: vector }),
       setPanelRatio: (ratio) => set({ panelRatio: Math.min(0.7, Math.max(0.3, ratio)) }),
       setAppearance: (appearance) => set({ appearance }),
@@ -80,6 +83,7 @@ export const useUiStore = create<UiState>()(
         }),
       tourCompleted: false,
       setTourCompleted: (completed) => set({ tourCompleted: completed }),
+      setMapBulletDensity: (density) => set({ mapBulletDensity: density }),
     }),
     {
       // ⚠️ Keep in sync with index.html inline theme script

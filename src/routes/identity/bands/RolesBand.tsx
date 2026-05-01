@@ -1,4 +1,5 @@
 import { useIdentityStore } from '../../../store/identityStore'
+import { useUiStore } from '../../../store/uiStore'
 import { rolesFillStrength } from '../../../utils/identityFillStrength'
 import { IdentityBand } from '../IdentityBand'
 
@@ -6,9 +7,13 @@ export function RolesBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const bulletDensity = useUiStore((s) => s.mapBulletDensity)
+  const setBulletDensity = useUiStore((s) => s.setMapBulletDensity)
   const fill = rolesFillStrength(identity)
   const roles = identity?.roles ?? []
   const projects = identity?.projects ?? []
+  const toggleBulletDensity = () =>
+    setBulletDensity(bulletDensity === 'expanded' ? 'compact' : 'expanded')
 
   return (
     <IdentityBand
@@ -23,8 +28,23 @@ export function RolesBand() {
         <div className="roles-flow">
           {roles.length > 0 ? (
             <section className="roles-section">
-              <div className="roles-sub-eyebrow label-tracked">Jobs</div>
-              <div className="roles-grid">
+              <div className="roles-section-header">
+                <div className="roles-sub-eyebrow label-tracked">Jobs</div>
+                <button
+                  type="button"
+                  className="roles-density-toggle label-tracked"
+                  onClick={toggleBulletDensity}
+                  aria-pressed={bulletDensity === 'compact'}
+                  aria-label={
+                    bulletDensity === 'expanded'
+                      ? 'Switch to compact bullet view'
+                      : 'Switch to expanded bullet view'
+                  }
+                >
+                  {bulletDensity === 'expanded' ? 'Compact' : 'Expand'}
+                </button>
+              </div>
+              <div className="roles-grid" data-bullet-density={bulletDensity}>
                 {roles.map((role) => {
                   const isRoleSelected = selection?.type === 'role' && selection.id === role.id
                   return (
