@@ -449,6 +449,26 @@ select {
   text-overflow: ellipsis;
 }
 
+.build-context-detail-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.build-context-detail-link:hover,
+.build-context-detail-link:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.build-context-detail-link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .top-bar-brand {
   display: flex;
   align-items: center;

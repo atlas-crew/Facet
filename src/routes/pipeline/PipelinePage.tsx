@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, Download, Upload, BarChart3 } from 'lucide-react'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useHandoffStore } from '../../store/handoffStore'
@@ -55,12 +55,24 @@ export function PipelinePage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [investigatingId, setInvestigatingId] = useState<string | null>(null)
   const [investigationErrors, setInvestigationErrors] = useState<Record<string, string>>({})
+  const honoredLinkedEntryRef = useRef<string | null>(null)
 
   const importRef = useRef<HTMLInputElement>(null)
   const aiEndpoint = useMemo(
     () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
     [],
   )
+  const search = useSearch({ strict: false }) as { entry?: string }
+  const requestedEntryId = typeof search.entry === 'string' ? search.entry : ''
+
+  useEffect(() => {
+    if (!requestedEntryId) return
+    if (honoredLinkedEntryRef.current === requestedEntryId) return
+    if (usePipelineStore.getState().entries.some((entry) => entry.id === requestedEntryId)) {
+      setExpandedId(requestedEntryId)
+      honoredLinkedEntryRef.current = requestedEntryId
+    }
+  }, [requestedEntryId])
 
   const handleSort = useCallback(
     (field: SortField) => {

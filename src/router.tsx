@@ -85,6 +85,10 @@ const pipelineRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/pipeline',
   component: PipelinePage,
+  validateSearch: (search: Record<string, unknown>): { entry?: string } => {
+    const entry = typeof search.entry === 'string' && search.entry.trim() ? search.entry : undefined
+    return entry ? { entry } : {}
+  },
 })
 
 const researchRoute = createRoute({

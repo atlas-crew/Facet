@@ -7,10 +7,12 @@ import { useHandoffStore } from '../store/handoffStore'
 import { usePipelineStore } from '../store/pipelineStore'
 
 const mockNavigate = vi.fn()
+const mockUseSearch = vi.fn()
 const mockInvestigatePipelineEntry = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
+  useSearch: () => mockUseSearch(),
 }))
 
 vi.mock('../utils/pipelineInvestigation', () => ({
@@ -54,6 +56,8 @@ describe('PipelinePage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     mockNavigate.mockReset()
+    mockUseSearch.mockReset()
+    mockUseSearch.mockReturnValue({})
     mockInvestigatePipelineEntry.mockReset()
     useHandoffStore.setState({ pendingGeneration: null })
     usePipelineStore.setState({
@@ -62,6 +66,14 @@ describe('PipelinePage', () => {
       sortDir: 'asc',
       filters: { tier: 'all', status: 'all', search: '' },
     })
+  })
+
+  it('expands a linked pipeline entry from the search param', () => {
+    mockUseSearch.mockReturnValue({ entry: 'pipe-1' })
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('Positioning')).toBeTruthy()
   })
 
   afterEach(() => {

@@ -16,11 +16,13 @@ const {
   facetClientEnvMock,
   pdfPreviewMock,
   vectorBarPropsMock,
+  navigateMock,
 } = vi.hoisted(() => ({
   analyzeJobDescriptionMock: vi.fn(),
   reframeBulletForVectorMock: vi.fn(),
   pdfPreviewMock: vi.fn(),
   vectorBarPropsMock: vi.fn(),
+  navigateMock: vi.fn(),
   usePresetsMock: vi.fn(),
   facetClientEnvMock: {
     deploymentMode: 'self-hosted',
@@ -30,6 +32,10 @@ const {
     supabaseUrl: '',
     supabasePublishableKey: '',
   },
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock,
 }))
 
 vi.mock('../utils/facetEnv', () => ({
@@ -144,6 +150,7 @@ describe('BuildPage', () => {
     analyzeJobDescriptionMock.mockReset()
     reframeBulletForVectorMock.mockReset()
     vectorBarPropsMock.mockReset()
+    navigateMock.mockReset()
     pdfPreviewMock.mockReset()
     pdfPreviewMock.mockReturnValue({
       previewBlobUrl: 'blob:preview',
@@ -218,8 +225,8 @@ describe('BuildPage', () => {
     expect(workingContext).toBeTruthy()
     expect(within(topBar as HTMLElement).getByLabelText('Current working context')).toBe(workingContext)
     expect(within(workingContext).queryByRole('button', { name: /Open Build context details/i })).toBeNull()
-    expect(within(workingContext).getByText('Vector')).toBeTruthy()
-    expect(within(workingContext).getByText('Pages')).toBeTruthy()
+    expect(within(workingContext).queryByText('Vector')).toBeNull()
+    expect(within(workingContext).queryByText('Pages')).toBeNull()
     expect(within(workingContext).getByText('Generation')).toBeTruthy()
     expect(within(workingContext).getByText('Source')).toBeTruthy()
     expect(within(workingContext).getByText('Preset')).toBeTruthy()
@@ -228,17 +235,17 @@ describe('BuildPage', () => {
     expect(within(workingContext).getByText('Inactive')).toBeTruthy()
     expect(within(workingContext).getByText('JD Analysis')).toBeTruthy()
     expect(within(workingContext).getByText('Not analyzed')).toBeTruthy()
-    expect(within(workingContext).getByText('Backend Engineering')).toBeTruthy()
-    expect(within(workingContext).getByText(/bullets included/)).toBeTruthy()
-    expect(within(workingContext).getByText('2 pages')).toBeTruthy()
-    expect(within(workingContext).getByText('Within target page count')).toBeTruthy()
+    expect(within(workingContext).queryByText('Backend Engineering')).toBeNull()
+    expect(within(workingContext).queryByText(/bullets included/)).toBeNull()
+    expect(within(workingContext).queryByText('2 pages')).toBeNull()
+    expect(within(workingContext).queryByText('Within target page count')).toBeNull()
     expect(within(workingContext).getByText('Manual vector selection active')).toBeTruthy()
     expect(within(workingContext).getByText('Workspace-local edits')).toBeTruthy()
 
-    expect(within(workingContext).getAllByRole('button', { name: /help/i })).toHaveLength(7)
-    expect(within(workingContext).getByRole('button', { name: 'Vector help' })).toBeTruthy()
+    expect(within(workingContext).getAllByRole('button', { name: /help/i })).toHaveLength(5)
+    expect(within(workingContext).queryByRole('button', { name: 'Vector help' })).toBeNull()
     expect(within(workingContext).getByRole('button', { name: 'Generation help' })).toBeTruthy()
-    expect(screen.getByText(/Active vectors: Backend Engineering/)).toBeTruthy()
+    expect(screen.queryByText(/Active vectors: Backend Engineering/)).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Build Context' })).toBeNull()
 
     expect(screen.getByTestId('vector-bar')).toBeTruthy()
@@ -279,7 +286,7 @@ describe('BuildPage', () => {
     expect(generateButton.disabled).toBe(true)
   })
 
-  it('reports preview render progress in the working context', () => {
+  it('does not duplicate preview render progress in the working context', () => {
     pdfPreviewMock.mockReturnValue({
       previewBlobUrl: null,
       cachedPdfBlob: null,
@@ -291,11 +298,11 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     const workingContext = screen.getByLabelText('Current working context')
-    expect(within(workingContext).getByText('Rendering…')).toBeTruthy()
-    expect(within(workingContext).getByText('Preview render in progress')).toBeTruthy()
+    expect(within(workingContext).queryByText('Rendering…')).toBeNull()
+    expect(within(workingContext).queryByText('Preview render in progress')).toBeNull()
   })
 
-  it('reports when the first preview page count has not landed yet', () => {
+  it('does not duplicate pending preview page counts in the working context', () => {
     pdfPreviewMock.mockReturnValue({
       previewBlobUrl: 'blob:preview',
       cachedPdfBlob: new Blob(['pdf'], { type: 'application/pdf' }),
@@ -307,11 +314,11 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     const workingContext = screen.getByLabelText('Current working context')
-    expect(within(workingContext).getByText('—')).toBeTruthy()
-    expect(within(workingContext).getByText('Awaiting first preview render')).toBeTruthy()
+    expect(within(workingContext).queryByText('—')).toBeNull()
+    expect(within(workingContext).queryByText('Awaiting first preview render')).toBeNull()
   })
 
-  it('uses singular bullet copy in the working context', () => {
+  it('does not duplicate footer bullet counts in the working context', () => {
     const data = JSON.parse(JSON.stringify(defaultResumeData))
     data.roles = [
       {
@@ -324,10 +331,49 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     const workingContext = screen.getByLabelText('Current working context')
-    expect(within(workingContext).getByText('1 bullet included')).toBeTruthy()
+    expect(within(workingContext).queryByText('1 bullet included')).toBeNull()
   })
 
   it('reports pipeline source and AI vector plan state in the working context', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          id: 'pipe-77',
+          company: 'Acme Corp',
+          role: 'Staff Platform Engineer',
+          tier: '1',
+          status: 'researching',
+          comp: '',
+          url: '',
+          contact: '',
+          vectorId: null,
+          jobDescription: 'We need a platform-minded engineer.',
+          presetId: null,
+          resumeVariant: '',
+          resumeGeneration: null,
+          positioning: '',
+          skillMatch: '',
+          nextStep: '',
+          notes: '',
+          appMethod: 'unknown',
+          response: 'none',
+          daysToResponse: null,
+          rounds: null,
+          format: [],
+          rejectionStage: '',
+          rejectionReason: '',
+          offerAmount: '',
+          dateApplied: '',
+          dateClosed: '',
+          lastAction: '2026-04-18',
+          createdAt: '2026-04-18',
+          history: [],
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
     useResumeStore.getState().updateGeneration({
       source: 'pipeline',
       mode: 'dynamic',
@@ -341,7 +387,12 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     const workingContext = screen.getByLabelText('Current working context')
-    expect(within(workingContext).getByText('Pipeline entry linked')).toBeTruthy()
+    const pipelineEntryLink = within(workingContext).getByRole('button', {
+      name: 'Open pipeline entry for Acme Corp · Staff Platform Engineer',
+    })
+    expect(pipelineEntryLink).toBeTruthy()
+    fireEvent.click(pipelineEntryLink)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/pipeline', search: { entry: 'pipe-77' } })
     expect(within(workingContext).getByText('AI vector plan active')).toBeTruthy()
   })
 
@@ -676,7 +727,9 @@ describe('BuildPage', () => {
     const workingContext = screen.getByLabelText('Current working context')
     expect(within(workingContext).getByText('Dynamic')).toBeTruthy()
     expect(within(workingContext).getByText('Pipeline handoff')).toBeTruthy()
-    expect(screen.getByText(/Acme Corp · Staff Platform Engineer/)).toBeTruthy()
+    expect(within(workingContext).getByRole('button', {
+      name: 'Open pipeline entry for Acme Corp · Staff Platform Engineer',
+    })).toBeTruthy()
   })
 
   it('prevents deselecting every vector in manual multi-vector mode', async () => {

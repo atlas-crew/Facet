@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Columns,
   Copy,
@@ -116,6 +117,10 @@ interface BuildContextItem {
   value: string
   detail: string
   help: string
+  detailAction?: {
+    label: string
+    onClick: () => void
+  }
 }
 
 const formatGenerationModeLabel = (mode: ResumeGenerationMode) => {
@@ -212,6 +217,7 @@ const ID_MAP: Record<AddComponentType, string> = {
 }
 
 export function BuildPage() {
+  const navigate = useNavigate()
   const {
     data,
     setData,
@@ -589,14 +595,6 @@ export function BuildPage() {
     assembledResult.resume.roles.reduce((acc, role) => acc + role.bullets.length, 0),
     [assembledResult.resume.roles]
   )
-  const selectedVectorLabel = useMemo(
-    () => data.vectors.find((vector) => vector.id === selectedVector)?.label ?? 'All Vectors',
-    [data.vectors, selectedVector],
-  )
-  const comparisonVectorLabel = useMemo(
-    () => data.vectors.find((vector) => vector.id === comparisonVector)?.label ?? null,
-    [comparisonVector, data.vectors],
-  )
   const generationState = useMemo(
     () => normalizeResumeWorkspaceGeneration(data.generation),
     [data.generation],
@@ -617,14 +615,18 @@ export function BuildPage() {
     () => describeGenerationFlow(generationState),
     [generationState],
   )
-  const generationVectorSummary = useMemo(() => {
-    const vectors = generationState.vectorIds.length > 0 ? generationState.vectorIds : [selectedVector]
-    const labels = vectors
-      .map((vectorId) => data.vectors.find((vector) => vector.id === vectorId)?.label ?? vectorId)
-      .filter(Boolean)
-
-    return labels.length > 0 ? labels.join(', ') : 'No vectors selected'
-  }, [data.vectors, generationState.vectorIds, selectedVector])
+  const pipelineEntry = useMemo(
+    () =>
+      generationState.pipelineEntryId
+        ? usePipelineStore.getState().entries.find((entry) => entry.id === generationState.pipelineEntryId) ?? null
+        : null,
+    [generationState.pipelineEntryId],
+  )
+  const pipelineEntryLabel = pipelineEntry ? `${pipelineEntry.company} · ${pipelineEntry.role}` : null
+  const onOpenPipelineEntry = useCallback(() => {
+    if (!generationState.pipelineEntryId) return
+    void navigate({ to: '/pipeline', search: { entry: generationState.pipelineEntryId } })
+  }, [generationState.pipelineEntryId, navigate])
   const generationVariantSummary = useMemo(() => {
     if (generationState.variantLabel) {
       return generationState.variantLabel
@@ -636,11 +638,6 @@ export function BuildPage() {
   }, [generationState.mode, generationState.variantLabel])
   const contextHelpByLabel = useMemo<Record<string, string>>(
     () => ({
-      Vector:
-        generationState.vectorMode === 'auto'
-          ? `Active vectors: ${generationVectorSummary}. AI can suggest the vector mix first; switch to Manual in JD analysis to override it.`
-          : `Active vectors: ${generationVectorSummary}. Manual vector selection stays in your control unless you rerun JD analysis.`,
-      Pages: 'Page count comes from the rendered PDF preview and updates as content, layout, and density change.',
       Generation:
         `${generationModelSummary.label}: ${generationModelSummary.detail}. ` +
         `${generationFlowSummary.label}: ${generationFlowSummary.detail}. ` +
@@ -651,7 +648,9 @@ export function BuildPage() {
         }`,
       Source:
         generationState.source === 'pipeline'
-          ? `${generationSourceLabel}: Pipeline metadata stays attached while you generate per-job variants.`
+          ? pipelineEntryLabel
+            ? `${generationSourceLabel}: Linked to ${pipelineEntryLabel}. Click the entry name below to open the originating job flow in Pipeline.`
+            : `${generationSourceLabel}: No matching pipeline entry is available in this workspace.`
           : `${generationSourceLabel}: Source tracks how this workspace entered Build before your current edits.`,
       Preset: 'Preset state appears only when a saved preset is active or the current draft has unsaved preset changes.',
       Suggestions: 'Suggestions appear after JD analysis when there are JD-guided changes ready to review.',
@@ -665,9 +664,8 @@ export function BuildPage() {
       generationSourceLabel,
       generationState.mode,
       generationState.source,
-      generationState.vectorMode,
       generationVariantSummary,
-      generationVectorSummary,
+      pipelineEntryLabel,
     ],
   )
   const plannedVectorIds = useMemo(
@@ -741,38 +739,21 @@ export function BuildPage() {
   }, [jdAnalysisEndpoint])
 
   const workingContextItems = useMemo<BuildContextItem[]>(() => {
-    const bulletDetail = `${bulletCount} bullet${bulletCount === 1 ? '' : 's'} included`
-    const pageDetail = (() => {
-      if (pdfRenderPending) return 'Preview render in progress'
-      if (overPageLimit) return 'Over target; tighten content'
-      if (nearPageLimit) return 'Near target; review spacing'
-      if (pdfPageCount) return 'Within target page count'
-      return 'Awaiting first preview render'
-    })()
     const generationDetail =
       generationState.vectorMode === 'auto'
         ? 'AI vector plan active'
         : 'Manual vector selection active'
-    const sourceDetail =
-      generationState.source === 'pipeline'
-        ? 'Pipeline entry linked'
-        : generationState.source === 'identity'
-          ? 'Identity generation loaded'
-          : 'Workspace-local edits'
+    const sourceDetail = (() => {
+      if (generationState.source === 'pipeline') {
+        if (pipelineEntryLabel) return pipelineEntryLabel
+        return generationState.pipelineEntryId ? 'Pipeline entry unavailable' : 'No pipeline entry linked'
+      }
+      return generationState.source === 'identity'
+        ? 'Identity generation loaded'
+        : 'Workspace-local edits'
+    })()
 
     return [
-      {
-        label: 'Vector',
-        value: selectedVectorLabel,
-        detail: comparisonVectorLabel ? `Comparing with ${comparisonVectorLabel}` : bulletDetail,
-        help: contextHelpByLabel.Vector,
-      },
-      {
-        label: 'Pages',
-        value: pdfRenderPending ? 'Rendering…' : pdfPageCount ? `${pdfPageCount} page${pdfPageCount === 1 ? '' : 's'}` : '—',
-        detail: pageDetail,
-        help: contextHelpByLabel.Pages,
-      },
       {
         label: 'Generation',
         value: generationModeLabel,
@@ -784,6 +765,12 @@ export function BuildPage() {
         value: generationSourceLabel,
         detail: sourceDetail,
         help: contextHelpByLabel.Source,
+        detailAction: pipelineEntryLabel
+          ? {
+              label: `Open pipeline entry for ${pipelineEntryLabel}`,
+              onClick: onOpenPipelineEntry,
+            }
+          : undefined,
       },
       {
         label: 'Preset',
@@ -817,25 +804,21 @@ export function BuildPage() {
     ]
   }, [
       activePresetName,
-      bulletCount,
       hasActivePreset,
-      comparisonVectorLabel,
       contextHelpByLabel,
       generationModeLabel,
       jdAnalysisEndpoint,
       jdAnalysisResult,
       jdLoading,
-      nearPageLimit,
-      overPageLimit,
-      pdfPageCount,
-      pdfRenderPending,
       presetDirty,
-      selectedVectorLabel,
       suggestionCount,
       suggestionModeActive,
       generationSourceLabel,
+      generationState.pipelineEntryId,
       generationState.source,
       generationState.vectorMode,
+      onOpenPipelineEntry,
+      pipelineEntryLabel,
     ])
 
   // Pipeline → Build handoff
@@ -1584,7 +1567,19 @@ export function BuildPage() {
                     <HelpHint text={item.help} ariaLabel={`${item.label} help`} placement="bottom" />
                   </span>
                   <strong className="build-context-value">{item.value}</strong>
-                  <span className="build-context-detail">{item.detail}</span>
+                  {item.detailAction ? (
+                    <button
+                      className="build-context-detail build-context-detail-link"
+                      type="button"
+                      onClick={item.detailAction.onClick}
+                      aria-label={item.detailAction.label}
+                      title={item.detailAction.label}
+                    >
+                      {item.detail}
+                    </button>
+                  ) : (
+                    <span className="build-context-detail">{item.detail}</span>
+                  )}
                 </div>
               ))}
             </div>
