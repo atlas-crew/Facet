@@ -37,6 +37,7 @@ describe('matchStore migration', () => {
 
     expect(migrated.jobDescription).toBe(legacyReport.jobDescription)
     expect(migrated.currentReport).toEqual(legacyReport)
+    expect(migrated.currentJDAnalysis).toBeNull()
     expect(migrated.currentAnalysis).toBeNull()
     expect(migrated.warnings).toEqual(['legacy warning'])
   })

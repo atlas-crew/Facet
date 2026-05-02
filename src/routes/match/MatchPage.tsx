@@ -4,11 +4,13 @@ import { AlertTriangle, ArrowRight, Download, Fingerprint, Search, Sparkles } fr
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
+import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { useHandoffStore } from '../../store/handoffStore'
 import type { SkillMatch, VectorAwareMatchResult, WatchOut } from '../../types/match'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from '../../utils/jobMatch'
+import { createJdAnalysisFromMatchArtifacts, hashJobDescriptionText, savePipelineJDAnalysis } from '../../utils/jdAnalysis'
 import { applyMatchReportToResumeData } from '../../utils/matchAssembler'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -25,6 +27,7 @@ const downloadJson = (filename: string, content: string) => {
 }
 
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`
+const MATCH_WORKSPACE_ANALYSIS_ANCHOR = 'match-workspace-transient'
 
 export function MatchPage() {
   const navigate = useNavigate()
@@ -34,7 +37,9 @@ export function MatchPage() {
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const resumeData = useResumeStore((state) => state.data)
   const setResumeData = useResumeStore((state) => state.setData)
+  const addPipelineEntry = usePipelineStore((state) => state.addEntry)
   const jobDescription = useMatchStore((state) => state.jobDescription)
+  const currentJDAnalysis = useMatchStore((state) => state.currentJDAnalysis)
   const currentAnalysis = useMatchStore((state) => state.currentAnalysis)
   const currentReport = useMatchStore((state) => state.currentReport)
   const warnings = useMatchStore((state) => state.warnings)
@@ -87,12 +92,17 @@ export function MatchPage() {
       setIsGenerating(true)
       setPageError(null)
       setPageNotice(null)
-      const { analysis, report } = await analyzeIdentityJobMatch({
+      const { analysis, report, extraction } = await analyzeIdentityJobMatch({
         endpoint: aiEndpoint,
         identity: currentIdentity,
         jobDescription,
       })
-      setResults(analysis, report)
+      const jdAnalysis = createJdAnalysisFromMatchArtifacts({
+        pipelineEntryId: MATCH_WORKSPACE_ANALYSIS_ANCHOR,
+        jobDescription,
+        artifacts: { analysis, report, extraction },
+      })
+      setResults(analysis, report, jdAnalysis)
       setPageNotice('Generated a vector-aware JD match report from the current identity model.')
     } catch (error) {
       setPageNotice(null)
@@ -113,6 +123,7 @@ export function MatchPage() {
       'match-report.json',
       JSON.stringify(
         {
+          jdAnalysis: currentJDAnalysis,
           analysis: currentAnalysis,
           report: currentReport,
         },
@@ -122,6 +133,73 @@ export function MatchPage() {
     )
     setPageError(null)
     setPageNotice('Exported the current match report.')
+  }
+
+  const handleSaveToPipeline = () => {
+    if (!currentReport || !currentJDAnalysis) {
+      setPageNotice(null)
+      setPageError('Run JD matching before saving this analysis to Pipeline.')
+      return
+    }
+
+    const company = currentReport.company || currentJDAnalysis.company || 'Unknown company'
+    const role = currentReport.role || currentJDAnalysis.role || 'Unspecified role'
+    const jdText = jobDescription || currentJDAnalysis.analyzedJobDescription || currentReport.jobDescription
+    if (hashJobDescriptionText(jdText) !== currentJDAnalysis.jdTextHash) {
+      setPageNotice(null)
+      setPageError('The job description changed after this analysis. Re-run JD matching before saving to Pipeline.')
+      return
+    }
+    const existingIds = new Set(usePipelineStore.getState().entries.map((entry) => entry.id))
+
+    addPipelineEntry({
+      company,
+      role,
+      tier: '2',
+      status: 'researching',
+      comp: '',
+      url: '',
+      contact: '',
+      vectorId: currentJDAnalysis.primaryVectorId,
+      jobDescription: jdText,
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: currentReport.positioningRecommendations[0] ?? currentJDAnalysis.oneLineSummary ?? '',
+      skillMatch: currentJDAnalysis.matchedKeywords.slice(0, 8).join(', '),
+      nextStep: 'Review JD analysis and decide whether to apply.',
+      notes: currentReport.summary,
+      appMethod: 'unknown',
+      response: 'none',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '',
+      dateClosed: '',
+    })
+
+    const createdEntry = usePipelineStore.getState().entries.find((entry) => !existingIds.has(entry.id))
+    if (!createdEntry) {
+      setPageNotice(null)
+      setPageError('Could not create a pipeline entry for this analysis.')
+      return
+    }
+
+    savePipelineJDAnalysis({
+      ...currentJDAnalysis,
+      pipelineEntryId: createdEntry.id,
+      company,
+      role,
+      analyzedJobDescription: jdText,
+      jdTextHash: currentJDAnalysis.jdTextHash,
+    })
+    usePipelineStore.getState().addHistoryNote(createdEntry.id, 'Saved JD Match analysis')
+    setPageError(null)
+    setPageNotice(`Saved ${company} · ${role} to Pipeline with the current JD analysis attached.`)
   }
 
   const handleAssembleInBuild = () => {
@@ -170,6 +248,15 @@ export function MatchPage() {
           >
             <ArrowRight size={16} />
             Assemble in Build
+          </button>
+          <button
+            className="match-btn"
+            type="button"
+            onClick={handleSaveToPipeline}
+            disabled={!currentReport || !currentJDAnalysis}
+          >
+            <Sparkles size={16} />
+            Save to Pipeline
           </button>
           <button className="match-btn" type="button" onClick={handleExport} disabled={!currentReport}>
             <Download size={16} />

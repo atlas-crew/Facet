@@ -1,17 +1,19 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchHistoryEntry, MatchReport, VectorAwareMatchResult } from '../types/match'
 import { createMatchHistoryEntry } from '../utils/jobMatch'
 import { resolveStorage } from './storage'
 
 interface MatchState {
   jobDescription: string
+  currentJDAnalysis: JDAnalysis | null
   currentAnalysis: VectorAwareMatchResult | null
   currentReport: MatchReport | null
   warnings: string[]
   history: MatchHistoryEntry[]
   setJobDescription: (value: string) => void
-  setResults: (analysis: VectorAwareMatchResult, report: MatchReport) => void
+  setResults: (analysis: VectorAwareMatchResult, report: MatchReport, jdAnalysis?: JDAnalysis | null) => void
   clearReport: () => void
 }
 
@@ -29,6 +31,10 @@ export const migrateMatchWorkspaceState = (
     : {}
 
   const jobDescription = typeof state.jobDescription === 'string' ? state.jobDescription : ''
+  const currentJDAnalysis =
+    version >= 3
+      ? ((state.currentJDAnalysis as JDAnalysis | null | undefined) ?? null)
+      : null
   const currentReport = (state.currentReport as MatchReport | null | undefined) ?? null
   const currentAnalysis =
     version >= 2
@@ -43,6 +49,7 @@ export const migrateMatchWorkspaceState = (
 
   return {
     jobDescription,
+    currentJDAnalysis,
     currentAnalysis,
     currentReport,
     warnings,
@@ -54,27 +61,30 @@ export const useMatchStore = create<MatchState>()(
   persist(
     (set) => ({
       jobDescription: '',
+      currentJDAnalysis: null,
       currentAnalysis: null,
       currentReport: null,
       warnings: [],
       history: [],
       setJobDescription: (value) => set({ jobDescription: value }),
-      setResults: (analysis, report) =>
+      setResults: (analysis, report, jdAnalysis = null) =>
         set((state) => ({
+          currentJDAnalysis: jdAnalysis,
           currentAnalysis: analysis,
           currentReport: report,
           warnings: report.warnings,
           history: appendHistory(state.history, createMatchHistoryEntry(report)),
         })),
-      clearReport: () => set({ currentAnalysis: null, currentReport: null, warnings: [] }),
+      clearReport: () => set({ currentJDAnalysis: null, currentAnalysis: null, currentReport: null, warnings: [] }),
     }),
     {
       name: 'facet-match-workspace',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(resolveStorage),
       migrate: migrateMatchWorkspaceState,
       partialize: (state) => ({
         jobDescription: state.jobDescription,
+        currentJDAnalysis: state.currentJDAnalysis,
         currentAnalysis: state.currentAnalysis,
         currentReport: state.currentReport,
         warnings: state.warnings,
