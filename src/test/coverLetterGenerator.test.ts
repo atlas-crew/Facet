@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateCoverLetter } from '../utils/coverLetterGenerator'
 import { defaultResumeData } from '../store/defaultData'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 describe('coverLetterGenerator', () => {
   beforeEach(() => {
@@ -132,5 +133,626 @@ describe('coverLetterGenerator', () => {
         feature: 'letters.generate',
       }),
     )
+  })
+
+  it('adds direct connector and GitLab evidence instructions to the prompt', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'GitLab',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      companyResearch: 'GitLab is investing in enterprise platform reliability.',
+      jobDescription: 'GitLab needs someone to improve developer platform reliability.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          roles: [
+            {
+              company: 'Acme Corp',
+              bullets: ['Built Kubernetes delivery automation.'],
+            },
+          ],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.system).toContain('Avoid hedges and vague-positive connectors')
+    expect(body.system).toContain('For every audited term')
+    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
+    expect(body.messages[0].content).toContain('Do not imply the candidate has worked at or directly used GitLab')
+  })
+
+  it('surfaces direct GitLab experience when it exists in candidate evidence', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['GitLab'],
+      companyResearch: 'The team uses GitLab for source control and CI.',
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          skillGroups: [{ label: 'Tools', content: 'GitLab CI, Kubernetes, Terraform' }],
+          roles: [{ company: 'Contoso', bullets: ['Administered GitLab CI runners.'] }],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (GitLab): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Administered GitLab CI runners.')
+    expect(body.messages[0].content).toContain('Safe to claim direct experience only with this evidence')
+  })
+
+  it('finds audited experience nested inside the identity model', async () => {
+    const identity = cloneIdentityFixture()
+    identity.roles[0].bullets[0].technologies = ['Buildkite']
+    identity.roles[0].bullets[0].action = 'Migrated delivery pipelines from Jenkins to Buildkite.'
+
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['Buildkite'],
+      jobDescription: 'Own developer tooling for Buildkite-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+        identity,
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (Buildkite): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Migrated delivery pipelines from Jenkins to Buildkite.')
+  })
+
+  it('handles circular resume context objects while collecting audit evidence', async () => {
+    const assembled: Record<string, unknown> = {
+      roles: [{ bullets: ['Administered GitLab CI runners.'] }],
+    }
+    assembled.self = assembled
+
+    await expect(
+      generateCoverLetter('https://ai.example/proxy', {
+        company: 'Acme Corp',
+        role: 'Staff Platform Engineer',
+        vectorId: 'backend',
+        vectorLabel: 'Backend Engineering',
+        experienceAuditTerms: ['GitLab'],
+        jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+        resumeContext: {
+          candidate: defaultResumeData.meta,
+          vector: defaultResumeData.vectors[0],
+          assembled,
+        },
+      }),
+    ).resolves.toEqual(expect.objectContaining({ name: 'Acme Staff Engineer Cover Letter' }))
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Administered GitLab CI runners.')
+    expect(body.messages[0].content).toContain('"self": "[Circular]"')
+  })
+
+  it('serializes duplicate acyclic references without marking them circular', async () => {
+    const shared = { note: 'Shared GitLab delivery note.' }
+
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['GitLab'],
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          first: shared,
+          second: shared,
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const prompt = body.messages[0].content as string
+    expect(prompt.match(/Shared GitLab delivery note\./g)).toHaveLength(3)
+    expect(prompt).not.toContain('"second": "[Circular]"')
+  })
+
+  it('matches audited evidence case-insensitively', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['gitlab'],
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          roles: [{ company: 'Contoso', bullets: ['Administered GitLab CI runners.'] }],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (gitlab): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Administered GitLab CI runners.')
+  })
+
+  it('does not treat audited terms as substrings inside larger words', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Meta',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Own developer tooling and infrastructure workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          roles: [{ company: 'Contoso', bullets: ['Built metadata indexing services.'] }],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (Meta): not found in candidate evidence.')
+    expect(body.messages[0].content).toContain('Do not imply the candidate has worked at or directly used Meta')
+  })
+
+  it('matches audited terms with regex special characters as literal evidence', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['C++', 'Vue.js'],
+      jobDescription: 'Own platform UI and systems workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          roles: [
+            {
+              company: 'Contoso',
+              bullets: ['Wrote C++ services for ingestion.', 'Built Vue.js operations dashboards.'],
+            },
+          ],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (C++): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Wrote C++ services for ingestion.')
+    expect(body.messages[0].content).toContain('Experience audit (Vue.js): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Built Vue.js operations dashboards.')
+  })
+
+  it('keeps standalone dotted technical skills as candidate evidence', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['Vue.js', 'Node.js'],
+      jobDescription: 'Own platform UI and Node services.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          skills: ['Vue.js', 'Node.js'],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (Vue.js): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Experience audit (Node.js): candidate evidence found.')
+  })
+
+  it('matches multi-word audited terms across flexible whitespace', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['React Native'],
+      jobDescription: 'Own mobile platform workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          roles: [{ company: 'Contoso', bullets: ['Delivered React   Native release automation.'] }],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (React Native): candidate evidence found.')
+    expect(body.messages[0].content).toContain('Delivered React   Native release automation.')
+  })
+
+  it('renders independent audit sections for each audited term', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['GitLab', 'Kubernetes'],
+      jobDescription: 'Own developer tooling for GitLab and Kubernetes-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {
+          roles: [{ company: 'Contoso', bullets: ['Administered GitLab CI and Kubernetes clusters.'] }],
+        },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const auditSection = (body.messages[0].content as string)
+      .split('Candidate Experience Audit:\n')[1]
+      .split('\n\nJob Description:')[0]
+    expect(auditSection).toContain('Experience audit (Acme Corp):')
+    expect(auditSection).toContain('Experience audit (GitLab):')
+    expect(auditSection).toContain('Experience audit (Kubernetes):')
+  })
+
+  it('omits empty audit terms and uses the empty-audit fallback', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: ' ',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: [' ', ''],
+      jobDescription: 'Own developer tooling workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const auditSection = (body.messages[0].content as string)
+      .split('Candidate Experience Audit:\n')[1]
+      .split('\n\nJob Description:')[0]
+    expect(auditSection).toBe('No audited candidate evidence found.')
+    expect(auditSection).not.toContain('Experience audit ():')
+  })
+
+  it('deduplicates target company and explicit audit terms', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'GitLab',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['GitLab'],
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const auditSection = (body.messages[0].content as string)
+      .split('Candidate Experience Audit:\n')[1]
+      .split('\n\nJob Description:')[0]
+    expect(auditSection.match(/Experience audit \(GitLab\):/g)).toHaveLength(1)
+  })
+
+  it('deduplicates audit terms case-insensitively', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'GitLab',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['gitlab'],
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const auditSection = (body.messages[0].content as string)
+      .split('Candidate Experience Audit:\n')[1]
+      .split('\n\nJob Description:')[0]
+    expect(auditSection.match(/Experience audit \(/g)).toHaveLength(1)
+    expect(auditSection).toContain('Experience audit (GitLab):')
+  })
+
+  it('limits matched evidence lines for an audited term', async () => {
+    const roles = Array.from({ length: 10 }, (_, index) => ({
+      company: `Company ${index + 1}`,
+      bullets: [`GitLab evidence line ${index + 1}`],
+    }))
+
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['GitLab'],
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: { roles },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const prompt = body.messages[0].content as string
+    const auditSection = prompt.split('Candidate Experience Audit:\n')[1].split('\n\nJob Description:')[0]
+    expect(auditSection).toContain('GitLab evidence line 8')
+    expect(auditSection).not.toContain('GitLab evidence line 9')
+    expect(auditSection).not.toContain('GitLab evidence line 10')
+  })
+
+  it('does not treat URL substrings as direct audited experience', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      experienceAuditTerms: ['GitLab'],
+      companyResearch: 'The team uses GitLab for source control and CI.',
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: {
+          ...defaultResumeData.meta,
+          links: [{ label: 'Portfolio', url: 'https://gitlab.example.dev/work' }],
+        },
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
+  })
+
+  it('does not treat contact emails or link URLs as direct audited experience', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'GitLab',
+      role: 'Staff Platform Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Own developer tooling for GitLab-heavy workflows.',
+      resumeContext: {
+        candidate: {
+          ...defaultResumeData.meta,
+          email: 'jane@gitlab.com',
+          links: [{ label: 'GitLab', url: 'gitlab.com' }],
+        },
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
+  })
+
+  it('rewrites generated paragraphs with vague connector phrases', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Acme Staff Engineer Cover Letter',
+                greeting: 'Dear Hiring Manager,',
+                signOff: 'Sincerely,\nJane Smith',
+                paragraphs: [
+                  {
+                    text: 'My background lines up well with the role.',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    const result = await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    expect(result.paragraphs[0]?.text).toBe('My background matches the role.')
+  })
+
+  it('normalizes whitespace in generated paragraphs', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Acme Staff Engineer Cover Letter',
+                greeting: 'Dear Hiring Manager,',
+                signOff: 'Sincerely\nJane Smith',
+                paragraphs: [{ text: 'This   is\n a\t test.' }],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    const result = await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    expect(result.paragraphs[0]?.text).toBe('This is a test.')
+  })
+
+  it.each([
+    ['My background lines up with the role.', 'My background matches the role.'],
+    [
+      'I build systems that scale with the org.',
+      "I build reliable systems tied to the role's concrete operating needs.",
+    ],
+  ])('rewrites vague connector phrase: %s', async (source, expected) => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Acme Staff Engineer Cover Letter',
+                greeting: 'Dear Hiring Manager,',
+                signOff: 'Sincerely\nJane Smith',
+                paragraphs: [{ text: source }],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    const result = await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    expect(result.paragraphs[0]?.text).toBe(expected)
+  })
+
+  it('does not rewrite connector words embedded inside larger words', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Acme Staff Engineer Cover Letter',
+                greeting: 'Dear Hiring Manager,',
+                signOff: 'Sincerely\nJane Smith',
+                paragraphs: [{ text: 'The team pipelines up with our data source.' }],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    const result = await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    expect(result.paragraphs[0]?.text).toBe('The team pipelines up with our data source.')
+  })
+
+  it('preserves sentence capitalization when rewriting vague connector phrases', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Acme Staff Engineer Cover Letter',
+                greeting: 'Dear Hiring Manager,',
+                signOff: 'Sincerely\nJane Smith',
+                paragraphs: [
+                  {
+                    text: 'Lines up well with the role because of my platform background.',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    const result = await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend Engineering',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: defaultResumeData.vectors[0],
+        assembled: {},
+      },
+    })
+
+    expect(result.paragraphs[0]?.text).toBe('Matches the role because of my platform background.')
   })
 })

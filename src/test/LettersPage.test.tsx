@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LettersPage } from '../routes/letters/LettersPage'
 import { useCoverLetterStore } from '../store/coverLetterStore'
+import { useIdentityStore } from '../store/identityStore'
 import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 import type { MatchReport } from '../types/match'
 
 describe('LettersPage', () => {
@@ -17,6 +19,7 @@ describe('LettersPage', () => {
     resolveStorage().removeItem('facet-cover-letter-data')
     resolveStorage().removeItem('vector-resume-data')
     useCoverLetterStore.setState({ templates: [] })
+    useIdentityStore.setState({ currentIdentity: null })
     useMatchStore.setState({ jobDescription: '', currentReport: null, warnings: [], history: [] })
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
@@ -112,6 +115,46 @@ describe('LettersPage', () => {
     expect(screen.getByDisplayValue('I am excited to apply for the Staff Engineer role at Acme Corp.')).toBeTruthy()
   })
 
+  it('renders generated letter contact from the applied identity instead of seeded resume defaults', async () => {
+    const identity = cloneIdentityFixture()
+    identity.identity.name = 'Nicholas Ferguson'
+    identity.identity.display_name = 'Nicholas Ferguson'
+    identity.identity.email = 'nick@example.dev'
+    identity.identity.phone = '555-0101'
+    identity.identity.location = 'New York, NY'
+    identity.identity.links = [
+      { id: 'github', url: 'github.com/nferguson' },
+      { id: 'linkedin', url: 'linkedin.com/in/nferguson' },
+    ]
+    useIdentityStore.setState({ currentIdentity: identity })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().templates).toHaveLength(1)
+    })
+
+    const template = useCoverLetterStore.getState().templates[0]
+    expect(template?.header).toContain('Nicholas Ferguson')
+    expect(template?.header).toContain('nick@example.dev')
+    expect(template?.header).not.toContain('Jane Smith')
+    expect(template?.header).not.toContain('jane@example.com')
+
+    const headerTextarea = screen.getByLabelText('Header') as HTMLTextAreaElement
+    expect(headerTextarea.value).toContain('Nicholas Ferguson')
+    expect(headerTextarea.value).toContain('nick@example.dev')
+    expect(headerTextarea.value).not.toContain('jane@example.com')
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const userPrompt = body.messages?.[0]?.content ?? ''
+    expect(userPrompt).toContain('Nicholas Ferguson')
+    expect(userPrompt).toContain('nick@example.dev')
+    expect(userPrompt).not.toContain('jane@example.com')
+  })
+
   it('shows hosted upgrade messaging when AI generation is paywalled', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -137,6 +180,12 @@ describe('LettersPage', () => {
   })
 
   it('generates a template from the current match report without a pipeline entry', async () => {
+    const identity = cloneIdentityFixture()
+    identity.identity.name = 'Nicholas Ferguson'
+    identity.identity.display_name = 'Nicholas Ferguson'
+    identity.identity.email = 'nick@example.dev'
+    useIdentityStore.setState({ currentIdentity: identity })
+
     const matchReport: MatchReport = {
       generatedAt: '2026-04-02T00:00:00.000Z',
       identityVersion: 3,
@@ -215,6 +264,18 @@ describe('LettersPage', () => {
 
     expect(screen.getByDisplayValue('Acme Staff Engineer Cover Letter')).toBeTruthy()
     expect(screen.getByText(/Atlas - Staff Platform Engineer/)).toBeTruthy()
+
+    const template = useCoverLetterStore.getState().templates[0]
+    expect(template?.header).toContain('Nicholas Ferguson')
+    expect(template?.header).toContain('nick@example.dev')
+    expect(template?.header).not.toContain('jane@example.com')
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    const userPrompt = body.messages?.[0]?.content ?? ''
+    expect(userPrompt).toContain('Nicholas Ferguson')
+    expect(userPrompt).toContain('nick@example.dev')
+    expect(userPrompt).not.toContain('jane@example.com')
   })
 
   it('lets the user switch from match generation back to a pipeline opportunity', () => {

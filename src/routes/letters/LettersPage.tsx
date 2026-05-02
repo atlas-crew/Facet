@@ -3,10 +3,15 @@ import { Check, Copy, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
+import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import type { CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import {
+  applyCoverLetterCandidateMetaToAssembledResume,
+  resolveCoverLetterCandidateMeta,
+} from '../../utils/coverLetterCandidate'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { generateCoverLetter } from '../../utils/coverLetterGenerator'
@@ -207,6 +212,8 @@ export function LettersPage() {
 
     try {
       const freshResumeData = useResumeStore.getState().data
+      const freshIdentity = useIdentityStore.getState().currentIdentity
+      const candidateMeta = resolveCoverLetterCandidateMeta(freshResumeData.meta, freshIdentity)
       const activeMatchMaterial =
         generationSource === 'match' && currentReport
           ? createMatchMaterialContext(freshResumeData, currentReport)
@@ -229,9 +236,13 @@ export function LettersPage() {
           companyResearch: companyResearchDraft || undefined,
           jobDescription: activeMatchMaterial.jobDescription,
           resumeContext: {
-            candidate: freshResumeData.meta,
+            candidate: candidateMeta,
             vector: activeMatchMaterial.vector,
-            assembled: activeMatchMaterial.assembled,
+            assembled: applyCoverLetterCandidateMetaToAssembledResume(
+              activeMatchMaterial.assembled,
+              candidateMeta,
+            ),
+            identity: freshIdentity,
           },
         })
 
@@ -293,9 +304,10 @@ export function LettersPage() {
         companyResearch: companyResearchDraft || undefined,
         jobDescription: selectedEntry.jobDescription,
         resumeContext: {
-          candidate: freshResumeData.meta,
+          candidate: candidateMeta,
           vector,
-          assembled,
+          assembled: applyCoverLetterCandidateMetaToAssembledResume(assembled, candidateMeta),
+          identity: freshIdentity,
         },
       })
 
