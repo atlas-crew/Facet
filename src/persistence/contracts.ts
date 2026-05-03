@@ -1,5 +1,5 @@
 export { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
-import type { CoverLetterTemplate } from '../types/coverLetter'
+import type { CoverLetterWorkspaceData } from '../types/coverLetter'
 import type { DebriefSession } from '../types/debrief'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { LinkedInProfileDraft } from '../types/linkedin'
@@ -45,10 +45,6 @@ export interface JDAnalysisWorkspaceData {
 
 export interface PrepWorkspaceData {
   decks: PrepDeck[]
-}
-
-export interface CoverLettersWorkspaceData {
-  templates: CoverLetterTemplate[]
 }
 
 export interface LinkedInWorkspaceData {
@@ -100,7 +96,7 @@ export type ResumeArtifactSnapshot = FacetArtifactSnapshot<'resume', ResumeWorks
 export type PipelineArtifactSnapshot = FacetArtifactSnapshot<'pipeline', PipelineWorkspaceData>
 export type JDAnalysisArtifactSnapshot = FacetArtifactSnapshot<'jdAnalysis', JDAnalysisWorkspaceData>
 export type PrepArtifactSnapshot = FacetArtifactSnapshot<'prep', PrepWorkspaceData>
-export type CoverLettersArtifactSnapshot = FacetArtifactSnapshot<'coverLetters', CoverLettersWorkspaceData>
+export type CoverLettersArtifactSnapshot = FacetArtifactSnapshot<'coverLetters', CoverLetterWorkspaceData>
 export type LinkedInArtifactSnapshot = FacetArtifactSnapshot<'linkedin', LinkedInWorkspaceData>
 export type RecruiterArtifactSnapshot = FacetArtifactSnapshot<'recruiter', RecruiterWorkspaceData>
 export type DebriefArtifactSnapshot = FacetArtifactSnapshot<'debrief', DebriefWorkspaceData>

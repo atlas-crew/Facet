@@ -1,5 +1,6 @@
 import { FACET_WORKSPACE_SNAPSHOT_VERSION } from './contracts'
 import type { FacetWorkspaceSnapshot } from './contracts'
+import { COVER_LETTER_CONTENT_HASH_LENGTH } from '../utils/coverLetterEntities'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -52,6 +53,87 @@ const assertValidResumeSnapshot = (snapshot: unknown, index: number) => {
   ) {
     throw new Error(
       `Workspace snapshot has invalid artifacts.resume.payload.snapshots[${index}] shape.`,
+    )
+  }
+}
+
+const isValidCoverLetterParagraph = (paragraph: unknown) => {
+  if (!isRecord(paragraph)) return false
+  if (typeof paragraph.id !== 'string' || typeof paragraph.text !== 'string') return false
+  if ('label' in paragraph && paragraph.label !== undefined && typeof paragraph.label !== 'string') {
+    return false
+  }
+  if (
+    'refinement' in paragraph &&
+    paragraph.refinement !== undefined &&
+    typeof paragraph.refinement !== 'string'
+  ) {
+    return false
+  }
+  if (!isRecord(paragraph.vectors)) return false
+
+  return Object.entries(paragraph.vectors).every(
+    ([vectorId, priority]) =>
+      vectorId.length > 0 && (priority === 'include' || priority === 'exclude'),
+  )
+}
+
+const isValidCoverLetterContent = (content: unknown) => {
+  if (!isRecord(content)) return false
+  if (
+    typeof content.name !== 'string' ||
+    typeof content.header !== 'string' ||
+    typeof content.greeting !== 'string' ||
+    typeof content.signOff !== 'string' ||
+    !Array.isArray(content.paragraphs)
+  ) {
+    return false
+  }
+
+  return content.paragraphs.every(isValidCoverLetterParagraph)
+}
+
+const assertValidCoverLetterEntity = (letter: unknown, index: number) => {
+  if (!isRecord(letter)) {
+    throw new Error(`Workspace snapshot has invalid artifacts.coverLetters.payload.letters[${index}].`)
+  }
+
+  if (
+    typeof letter.id !== 'string' ||
+    typeof letter.pipelineEntryId !== 'string' ||
+    typeof letter.sourceResumeId !== 'string' ||
+    typeof letter.sourceResumeHash !== 'string' ||
+    typeof letter.contentHash !== 'string' ||
+    letter.contentHash.length !== COVER_LETTER_CONTENT_HASH_LENGTH ||
+    !isParseableDateString(letter.createdAt) ||
+    !isParseableDateString(letter.updatedAt) ||
+    !isValidCoverLetterContent(letter)
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.coverLetters.payload.letters[${index}] shape.`,
+    )
+  }
+}
+
+const assertValidCoverLetterSnapshot = (snapshot: unknown, index: number) => {
+  if (!isRecord(snapshot)) {
+    throw new Error(`Workspace snapshot has invalid artifacts.coverLetters.payload.snapshots[${index}].`)
+  }
+
+  if (
+    typeof snapshot.id !== 'string' ||
+    typeof snapshot.sourceLetterId !== 'string' ||
+    typeof snapshot.pipelineEntryId !== 'string' ||
+    typeof snapshot.sourceResumeId !== 'string' ||
+    typeof snapshot.sourceResumeHash !== 'string' ||
+    typeof snapshot.sourceResumeSnapshotId !== 'string' ||
+    !isValidCoverLetterContent(snapshot.content) ||
+    typeof snapshot.contentHash !== 'string' ||
+    snapshot.contentHash.length !== COVER_LETTER_CONTENT_HASH_LENGTH ||
+    !isParseableDateString(snapshot.createdAt)
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.coverLetters.payload.snapshots[${index}] shape.`,
     )
   }
 }
@@ -167,8 +249,23 @@ const assertValidArtifactPayload = (
       }
       break
     case 'coverLetters':
-      if (!Array.isArray(payload.templates)) {
-        throw new Error('Workspace snapshot has invalid artifacts.coverLetters.payload.templates.')
+      if (Array.isArray(payload.templates)) {
+        break
+      }
+      if (!Array.isArray(payload.letters) || !Array.isArray(payload.snapshots)) {
+        throw new Error('Workspace snapshot has invalid artifacts.coverLetters.payload shape.')
+      }
+      payload.letters.forEach((letter, index) => assertValidCoverLetterEntity(letter, index))
+      payload.snapshots.forEach((snapshot, index) => assertValidCoverLetterSnapshot(snapshot, index))
+      {
+        const letterIds = new Set(payload.letters.map((letter) => isRecord(letter) ? letter.id : undefined))
+        payload.snapshots.forEach((snapshot, index) => {
+          if (isRecord(snapshot) && !letterIds.has(snapshot.sourceLetterId)) {
+            throw new Error(
+              `Workspace snapshot has invalid artifacts.coverLetters.payload.snapshots[${index}] sourceLetterId.`,
+            )
+          }
+        })
       }
       break
     case 'linkedin':

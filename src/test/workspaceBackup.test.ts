@@ -16,6 +16,7 @@ import { defaultResumeData } from '../store/defaultData'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useSearchStore } from '../store/searchStore'
 import type { SearchFeedbackEvent, SearchThesis } from '../types/search'
+import { hashCoverLetterContent } from '../utils/coverLetterEntities'
 import { slugify } from '../utils/idUtils'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
@@ -338,6 +339,228 @@ describe('workspace backup merge helpers', () => {
     expect(merged.artifacts.pipeline.payload.entries.map((entry) => entry.id)).toEqual([
       'pipe-1',
       'pipe-2',
+    ])
+  })
+
+  it('normalizes legacy cover letter payloads before workspace merge', () => {
+    const current = backupSnapshot()
+    const imported = backupSnapshot()
+    imported.artifacts.coverLetters.payload = {
+      templates: [
+        {
+          id: 'legacy-template',
+          name: 'Legacy Letter',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [],
+          signOff: 'Thanks',
+        },
+      ],
+    } as never
+
+    const merged = mergeWorkspaceSnapshots(current, imported)
+
+    expect(merged.artifacts.coverLetters.payload).toEqual({
+      letters: [],
+      snapshots: [],
+    })
+  })
+
+  it('recomputes cover letter hashes when merging same-id drafts', () => {
+    const current = backupSnapshot()
+    const imported = backupSnapshot()
+    const baseLetter = {
+      id: 'letter-1',
+      name: 'Letter',
+      header: 'Header',
+      greeting: 'Hello',
+      paragraphs: [{ id: 'p-1', text: 'Original paragraph.', vectors: {} }],
+      signOff: 'Thanks',
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'resume-hash-1',
+      contentHash: '0123456789abcdef',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:00:00.000Z',
+      source: 'pipeline' as const,
+      identityVersion: null,
+    }
+    current.artifacts.coverLetters.payload.letters = [baseLetter]
+    imported.artifacts.coverLetters.payload.letters = [
+      {
+        ...baseLetter,
+        name: 'Imported Letter',
+        header: 'Imported Header',
+        greeting: 'Dear Imported Team,',
+        paragraphs: [
+          { id: 'p-1', text: 'Original paragraph.', vectors: {} },
+          { id: 'p-2', text: 'Imported paragraph.', vectors: {} },
+        ],
+        signOff: 'Regards',
+        sourceResumeId: 'resume-2',
+        sourceResumeHash: 'resume-hash-2',
+        identityVersion: 4,
+        identityFields: ['identity.summary'],
+        stalenessReview: {
+          decision: 'accepted-current' as const,
+          reviewedAt: '2026-03-11T13:00:00.000Z',
+          reviewedIdentityVersion: 4,
+          artifactIdentityVersionAtReview: 4,
+          mutationLabel: 'Identity update',
+          mutationFromRevision: 1,
+          mutationToRevision: 2,
+          mutationFields: ['identity.summary'],
+          reason: 'Still current.',
+        },
+        updatedAt: '2026-03-11T13:00:00.000Z',
+      },
+    ]
+
+    const merged = mergeWorkspaceSnapshots(current, imported)
+    const [mergedLetter] = merged.artifacts.coverLetters.payload.letters
+
+    expect(mergedLetter?.paragraphs.map((paragraph) => paragraph.text)).toEqual([
+      'Original paragraph.',
+      'Imported paragraph.',
+    ])
+    expect(mergedLetter).toMatchObject({
+      name: 'Imported Letter',
+      header: 'Imported Header',
+      greeting: 'Dear Imported Team,',
+      signOff: 'Regards',
+      sourceResumeId: 'resume-2',
+      sourceResumeHash: 'resume-hash-2',
+      identityVersion: 4,
+      identityFields: ['identity.summary'],
+      updatedAt: '2026-03-11T13:00:00.000Z',
+      stalenessReview: expect.objectContaining({ reviewedIdentityVersion: 4 }),
+    })
+    expect(mergedLetter?.contentHash).toBe(
+      hashCoverLetterContent({
+        name: mergedLetter?.name ?? '',
+        header: mergedLetter?.header ?? '',
+        greeting: mergedLetter?.greeting ?? '',
+        paragraphs: mergedLetter?.paragraphs ?? [],
+        signOff: mergedLetter?.signOff ?? '',
+      }),
+    )
+  })
+
+  it('keeps the current cover letter timestamp when importing an older same-id draft', () => {
+    const current = backupSnapshot()
+    const imported = backupSnapshot()
+    const baseLetter = {
+      id: 'letter-1',
+      name: 'Letter',
+      header: 'Header',
+      greeting: 'Hello',
+      paragraphs: [],
+      signOff: 'Thanks',
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'resume-hash-1',
+      contentHash: '0123456789abcdef',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T14:00:00.000Z',
+      source: 'pipeline' as const,
+      identityVersion: null,
+    }
+    current.artifacts.coverLetters.payload.letters = [baseLetter]
+    imported.artifacts.coverLetters.payload.letters = [
+      {
+        ...baseLetter,
+        updatedAt: '2026-03-11T13:00:00.000Z',
+      },
+    ]
+
+    const merged = mergeWorkspaceSnapshots(current, imported)
+
+    expect(merged.artifacts.coverLetters.payload.letters[0]?.updatedAt).toBe(
+      '2026-03-11T14:00:00.000Z',
+    )
+  })
+
+  it('keeps local cover letter drafts on pipeline conflicts and filters dangling snapshots', () => {
+    const current = backupSnapshot()
+    const imported = backupSnapshot()
+    const localLetter = {
+      id: 'letter-local',
+      name: 'Local Letter',
+      header: 'Header',
+      greeting: 'Hello',
+      paragraphs: [],
+      signOff: 'Thanks',
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'resume-hash-1',
+      contentHash: '0123456789abcdef',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:00:00.000Z',
+      source: 'pipeline' as const,
+      identityVersion: null,
+    }
+    const importedConflict = {
+      ...localLetter,
+      id: 'letter-imported-conflict',
+      name: 'Imported Conflict',
+    }
+    const importedNew = {
+      ...localLetter,
+      id: 'letter-imported-new',
+      name: 'Imported New',
+      pipelineEntryId: 'pipe-2',
+    }
+    current.artifacts.coverLetters.payload.letters = [localLetter]
+    imported.artifacts.coverLetters.payload.letters = [importedConflict, importedNew]
+    imported.artifacts.coverLetters.payload.snapshots = [
+      {
+        id: 'snapshot-conflict',
+        sourceLetterId: 'letter-imported-conflict',
+        pipelineEntryId: 'pipe-1',
+        sourceResumeId: 'resume-1',
+        sourceResumeHash: 'resume-hash-1',
+        sourceResumeSnapshotId: 'resume-snapshot-1',
+        content: {
+          name: 'Imported Conflict',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [],
+          signOff: 'Thanks',
+        },
+        contentHash: '0123456789abcdef',
+        identityVersionAtGeneration: null,
+        identityVersionAtApply: null,
+        createdAt: '2026-03-11T13:00:00.000Z',
+      },
+      {
+        id: 'snapshot-new',
+        sourceLetterId: 'letter-imported-new',
+        pipelineEntryId: 'pipe-2',
+        sourceResumeId: 'resume-1',
+        sourceResumeHash: 'resume-hash-1',
+        sourceResumeSnapshotId: 'resume-snapshot-2',
+        content: {
+          name: 'Imported New',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [],
+          signOff: 'Thanks',
+        },
+        contentHash: '0123456789abcdef',
+        identityVersionAtGeneration: null,
+        identityVersionAtApply: null,
+        createdAt: '2026-03-11T13:00:00.000Z',
+      },
+    ]
+
+    const merged = mergeWorkspaceSnapshots(current, imported)
+
+    expect(merged.artifacts.coverLetters.payload.letters.map((letter) => letter.id)).toEqual([
+      'letter-local',
+      'letter-imported-new',
+    ])
+    expect(merged.artifacts.coverLetters.payload.snapshots.map((snapshot) => snapshot.id)).toEqual([
+      'snapshot-new',
     ])
   })
 

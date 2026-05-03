@@ -72,9 +72,9 @@ export const DURABLE_PERSISTENCE_BOUNDARIES: PersistenceBoundaryDefinition[] = [
   },
   {
     source: 'coverLetterStore.templates',
-    target: 'workspace.artifacts.coverLetters.payload.templates',
+    target: 'workspace.artifacts.coverLetters.payload.letters',
     durability: 'durable',
-    notes: 'Cover letter templates should round-trip through export, import, and future sync.',
+    notes: 'Pipeline-anchored cover letters should round-trip through export, import, and future sync.',
   },
   {
     source: 'linkedinStore.drafts',
@@ -180,9 +180,9 @@ export const LEGACY_PERSISTENCE_MIGRATION_PLAN: LegacyPersistenceSource[] = [
   {
     storageKey: 'facet-cover-letter-data',
     source: 'coverLetterStore persist payload',
-    target: 'workspace.artifacts.coverLetters.payload.templates',
+    target: 'workspace.artifacts.coverLetters.payload.letters',
     durability: 'durable',
-    notes: 'Cover letter templates map directly into the workspace snapshot.',
+    notes: 'Legacy cover letter templates are discarded during migration.',
   },
   {
     storageKey: 'facet-linkedin-workspace',
@@ -298,7 +298,8 @@ export const createWorkspaceSnapshotFromStores = (
         'coverLetters',
         workspaceId,
         {
-          templates: cloneValue(useCoverLetterStore.getState().templates),
+          letters: cloneValue(useCoverLetterStore.getState().letters),
+          snapshots: cloneValue(useCoverLetterStore.getState().snapshots),
         },
         exportedAt,
       ),

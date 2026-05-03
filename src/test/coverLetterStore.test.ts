@@ -1,238 +1,525 @@
-import { describe, expect, it, beforeEach } from 'vitest'
-import {
-  migrateCoverLetterState,
-  useCoverLetterStore,
-} from '../store/coverLetterStore'
-import type { CoverLetterTemplate } from '../types/coverLetter'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { useCoverLetterStore } from '../store/coverLetterStore'
+import type { CoverLetterContent } from '../types/coverLetter'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+import {
+  createCoverLetterSnapshot,
+  hashCoverLetterContent,
+  normalizeCoverLetterWorkspacePayload,
+} from '../utils/coverLetterEntities'
 
-function buildTemplate(overrides: Partial<CoverLetterTemplate> = {}): CoverLetterTemplate {
-  return {
-    id: `t-${Math.random().toString(36).slice(2, 9)}`,
-    name: 'Standard Template',
-    header: 'Header',
-    greeting: 'Hi',
-    paragraphs: [],
-    signOff: 'Thanks',
-    ...overrides
-  }
-}
-
-function expectDurableMetadata(value: CoverLetterTemplate['durableMeta'], revision = 0) {
-  expect(value).toEqual(
-    expect.objectContaining({
-      workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
-      tenantId: null,
-      userId: null,
-      schemaVersion: 1,
-      revision,
-      createdAt: expect.any(String),
-      updatedAt: expect.any(String),
-    }),
-  )
-}
+const content = (name = 'Acme Cover Letter'): CoverLetterContent => ({
+  name,
+  header: 'Jane Smith\njane@example.com',
+  greeting: 'Dear Hiring Manager,',
+  paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+  signOff: 'Sincerely,\nJane Smith',
+})
 
 describe('coverLetterStore', () => {
   beforeEach(() => {
-    // Clear the store before each test
-    useCoverLetterStore.setState({ templates: [] })
+    useCoverLetterStore.setState({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
+      templates: [],
+    })
   })
 
-  it('starts with an empty template array', () => {
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toEqual([])
+  it('starts empty', () => {
+    expect(useCoverLetterStore.getState()).toMatchObject({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
+      templates: [],
+    })
   })
 
-  it('can add multiple templates and preserves existing ones', () => {
-    const t1 = buildTemplate({ id: 't1', name: 'T1' })
-    const t2 = buildTemplate({ id: 't2', name: 'T2' })
-
-    useCoverLetterStore.getState().addTemplate(t1)
-    useCoverLetterStore.getState().addTemplate(t2)
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toHaveLength(2)
-    expect(state.templates[0].id).toBe('t1')
-    expect(state.templates[1].id).toBe('t2')
-    expectDurableMetadata(state.templates[0].durableMeta)
-    expectDurableMetadata(state.templates[1].durableMeta)
-  })
-
-  it('updateTemplate patches matching template and preserves others', () => {
-    const t1 = buildTemplate({ id: 't1', name: 'T1', greeting: 'Hi' })
-    const t2 = buildTemplate({ id: 't2', name: 'T2' })
-
-    useCoverLetterStore.getState().addTemplate(t1)
-    useCoverLetterStore.getState().addTemplate(t2)
-    
-    useCoverLetterStore.getState().updateTemplate('t1', { greeting: 'Hello' })
-    
-    const state = useCoverLetterStore.getState()
-    const updated = state.templates.find(t => t.id === 't1')
-    const untouched = state.templates.find(t => t.id === 't2')
-    expect(updated?.greeting).toBe('Hello')
-    expect(updated?.name).toBe('T1')
-    expectDurableMetadata(updated?.durableMeta, 1)
-    expect(untouched).toEqual(expect.objectContaining(t2))
-    expectDurableMetadata(untouched?.durableMeta)
-  })
-
-  it('updateTemplate shallow-merges and replaces nested arrays (paragraphs)', () => {
-    const p1 = { id: 'p1', text: 'Text 1', vectors: {} }
-    const p2 = { id: 'p2', text: 'Text 2', vectors: {} }
-    const t1 = buildTemplate({ id: 't1', paragraphs: [p1] })
-
-    useCoverLetterStore.getState().addTemplate(t1)
-    
-    // Replace with p2
-    useCoverLetterStore.getState().updateTemplate('t1', { paragraphs: [p2] })
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates[0].paragraphs).toHaveLength(1)
-    expect(state.templates[0].paragraphs[0].id).toBe('p2')
-    expect(state.templates[0].paragraphs[0].text).toBe('Text 2')
-  })
-
-  it('updateTemplate with non-existent ID is a silent no-op', () => {
-    const t1 = buildTemplate({ id: 't1' })
-    useCoverLetterStore.getState().addTemplate(t1)
-    const before = useCoverLetterStore.getState().templates[0]
-    
-    useCoverLetterStore.getState().updateTemplate('nonexistent', { name: 'New' })
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates[0]).toEqual(before)
-  })
-
-  it('deleteTemplate removes only the matching template', () => {
-    const t1 = buildTemplate({ id: 't1' })
-    const t2 = buildTemplate({ id: 't2' })
-
-    useCoverLetterStore.getState().addTemplate(t1)
-    useCoverLetterStore.getState().addTemplate(t2)
-    
-    useCoverLetterStore.getState().deleteTemplate('t1')
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toHaveLength(1)
-    expect(state.templates[0].id).toBe('t2')
-  })
-
-  it('deleteTemplate with non-existent ID is a no-op', () => {
-    const t1 = buildTemplate({ id: 't1' })
-    useCoverLetterStore.getState().addTemplate(t1)
-    const before = useCoverLetterStore.getState().templates[0]
-    
-    useCoverLetterStore.getState().deleteTemplate('nonexistent')
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toHaveLength(1)
-    expect(state.templates[0]).toEqual(before)
-  })
-
-  it('importTemplates is a destructive replacement', () => {
-    const t1 = buildTemplate({ id: 't1' })
-    const t2 = buildTemplate({ id: 't2' })
-    const t3 = buildTemplate({ id: 't3' })
-
-    useCoverLetterStore.getState().addTemplate(t1)
-    
-    // Import t2, t3 - t1 should be gone
-    useCoverLetterStore.getState().importTemplates([t2, t3])
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toHaveLength(2)
-    expect(state.templates).not.toContainEqual(t1)
-    expect(state.templates).toContainEqual(expect.objectContaining(t2))
-    expect(state.templates).toContainEqual(expect.objectContaining(t3))
-    expectDurableMetadata(state.templates[0].durableMeta)
-    expectDurableMetadata(state.templates[1].durableMeta)
-  })
-
-  it('ignores incoming durable metadata patches and only bumps revision for matching updates', () => {
-    const template = buildTemplate({ id: 't1', greeting: 'Hi' })
-    useCoverLetterStore.getState().addTemplate(template)
-
-    const before = useCoverLetterStore.getState().templates[0]
-
-    useCoverLetterStore.getState().updateTemplate('t1', {
-      durableMeta: {
-        workspaceId: 'other-workspace',
-        tenantId: 'tenant-x',
-        userId: 'user-x',
-        schemaVersion: 99,
-        revision: 77,
-        createdAt: '2020-01-01T00:00:00.000Z',
-        updatedAt: '2020-01-01T00:00:00.000Z',
-      },
-      greeting: 'Hello',
+  it('creates pipeline-anchored first-class letters', () => {
+    const letter = useCoverLetterStore.getState().createLetter({
+      content: content(),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+      identityVersion: 3,
+      generatedAt: '2026-04-20T00:00:00.000Z',
     })
 
-    const updated = useCoverLetterStore.getState().templates[0]
-    expect(updated.greeting).toBe('Hello')
-    expect(updated.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
-    expect(updated.durableMeta?.tenantId).toBeNull()
-    expect(updated.durableMeta?.userId).toBeNull()
-    expect(updated.durableMeta?.schemaVersion).toBe(1)
-    expect(updated.durableMeta?.createdAt).toBe(before.durableMeta?.createdAt)
-    expect(updated.durableMeta?.revision).toBe((before.durableMeta?.revision ?? 0) + 1)
+    expect(letter).toMatchObject({
+      id: expect.any(String),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+      contentHash: expect.any(String),
+      identityVersion: 3,
+      source: 'pipeline',
+    })
+    expect(letter.durableMeta).toEqual(
+      expect.objectContaining({
+        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+        schemaVersion: 1,
+        revision: 0,
+      }),
+    )
+    expect(useCoverLetterStore.getState().activeLetterId).toBe(letter.id)
+    expect(useCoverLetterStore.getState().templates[0]).toMatchObject({
+      id: letter.id,
+      pipelineEntryId: 'pipe-1',
+      source: 'pipeline',
+    })
   })
 
-  it('importTemplates with empty array clears the store', () => {
-    const t1 = buildTemplate({ id: 't1' })
-    useCoverLetterStore.getState().addTemplate(t1)
-    
-    useCoverLetterStore.getState().importTemplates([])
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toEqual([])
+  it('rejects duplicate explicit letter ids without mutating state', () => {
+    useCoverLetterStore.getState().createLetter({
+      id: 'letter-1',
+      content: content(),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+    })
+
+    expect(() =>
+      useCoverLetterStore.getState().createLetter({
+        id: 'letter-1',
+        content: content('Duplicate'),
+        pipelineEntryId: 'pipe-2',
+        sourceResumeId: 'resume-2',
+        sourceResumeHash: 'hash-2',
+      }),
+    ).toThrow(/already exists/)
+    expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    expect(useCoverLetterStore.getState().letters[0]?.pipelineEntryId).toBe('pipe-1')
   })
 
-  it('verifies persistence configuration', () => {
-    // Access internal persist api if possible, or just check the options
-    // Since we can't easily check the internal middleware config from the public state,
-    // we just verify the state is cumulative across operations.
-    const t1 = buildTemplate({ id: 't1', name: 'Name 1' })
-    
-    useCoverLetterStore.getState().addTemplate(t1)
-    useCoverLetterStore.getState().updateTemplate('t1', { name: 'Updated' })
-    useCoverLetterStore.getState().deleteTemplate('t1')
-    
-    const state = useCoverLetterStore.getState()
-    expect(state.templates).toEqual([])
+  it('regeneration replaces the current draft slot for a pipeline entry', () => {
+    const first = useCoverLetterStore.getState().upsertLetterForPipelineEntry({
+      content: content('First Draft'),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+    })
+    const regenerated = useCoverLetterStore.getState().upsertLetterForPipelineEntry({
+      content: content('Regenerated Draft'),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-2',
+      sourceResumeHash: 'hash-2',
+    })
+
+    expect(regenerated.id).toBe(first.id)
+    expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    expect(useCoverLetterStore.getState().letters[0]).toMatchObject({
+      name: 'Regenerated Draft',
+      sourceResumeId: 'resume-2',
+      sourceResumeHash: 'hash-2',
+    })
   })
 
-  it('migrates persisted templates and safely defaults invalid persisted state', () => {
-    const migrated = migrateCoverLetterState({
-      templates: [
-        buildTemplate({
-          id: 'legacy-template',
-          durableMeta: {
-            workspaceId: '',
-            tenantId: 'tenant-a',
-            userId: 'user-a',
-            schemaVersion: 'bad' as unknown as number,
-            revision: 'bad' as unknown as number,
-            createdAt: '2025-01-01T00:00:00.000Z',
-            updatedAt: '',
+  it('updates and deletes letters while keeping the legacy template bridge synced', () => {
+    const letter = useCoverLetterStore.getState().createLetter({
+      content: content(),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+    })
+
+    useCoverLetterStore.getState().updateLetter(letter.id, {
+      greeting: 'Dear Jordan,',
+    })
+
+    expect(useCoverLetterStore.getState().letters[0]?.greeting).toBe('Dear Jordan,')
+    expect(useCoverLetterStore.getState().templates[0]?.greeting).toBe('Dear Jordan,')
+    expect(useCoverLetterStore.getState().letters[0]?.durableMeta?.revision).toBe(1)
+
+    useCoverLetterStore.getState().deleteLetter(letter.id)
+    expect(useCoverLetterStore.getState().letters).toEqual([])
+    expect(useCoverLetterStore.getState().templates).toEqual([])
+    expect(useCoverLetterStore.getState().activeLetterId).toBeNull()
+  })
+
+  it('imports normalized workspace data', () => {
+    useCoverLetterStore.getState().importWorkspaceData({
+      letters: [
+        {
+          id: 'letter-1',
+          ...content(),
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'hash-1',
+          contentHash: '0123456789abcdef',
+          createdAt: '2026-04-20T00:00:00.000Z',
+          updatedAt: '2026-04-20T00:00:00.000Z',
+          source: 'pipeline',
+          identityVersion: 3,
+        },
+      ],
+      snapshots: [],
+    })
+
+    expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    expect(useCoverLetterStore.getState().templates).toHaveLength(1)
+    expect(useCoverLetterStore.getState().activeLetterId).toBe('letter-1')
+  })
+
+  it('normalizes paragraph vector priorities without preserving malformed entries', () => {
+    const normalized = normalizeCoverLetterWorkspacePayload({
+      letters: [
+        {
+          id: 'letter-1',
+          ...content(),
+          paragraphs: [
+            {
+              id: 'paragraph-1',
+              text: 'Vector-aware paragraph.',
+              vectors: {
+                backend: 'include',
+                platform: 'exclude',
+                '': 'include',
+                bogus: 'strong',
+              },
+            },
+          ],
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'hash-1',
+          contentHash: '0123456789abcdef',
+          createdAt: '2026-04-20T00:00:00.000Z',
+          updatedAt: '2026-04-20T00:00:00.000Z',
+          source: 'pipeline',
+          identityVersion: 3,
+        },
+      ],
+      snapshots: [],
+    })
+
+    expect(normalized.letters[0]?.paragraphs[0]?.vectors).toEqual({
+      backend: 'include',
+      platform: 'exclude',
+    })
+  })
+
+  it('hashes cover letter content deterministically', () => {
+    const knownContent = {
+      name: 'Known',
+      header: 'Header',
+      greeting: 'Hello',
+      paragraphs: [
+        {
+          id: 'p-1',
+          text: 'Body',
+          vectors: { platform: 'exclude' as const, backend: 'include' as const },
+        },
+      ],
+      signOff: 'Thanks',
+    }
+    const reorderedVectorsContent = {
+      ...knownContent,
+      paragraphs: [
+        {
+          ...knownContent.paragraphs[0]!,
+          vectors: { backend: 'include' as const, platform: 'exclude' as const },
+        },
+      ],
+    }
+
+    expect(hashCoverLetterContent(knownContent)).toBe('373d2c2dc03fd993')
+    expect(hashCoverLetterContent(reorderedVectorsContent)).toBe('373d2c2dc03fd993')
+    expect(hashCoverLetterContent({ ...knownContent, signOff: 'Regards' })).not.toBe(
+      '373d2c2dc03fd993',
+    )
+  })
+
+  it('normalizes malformed workspace payload edges defensively', () => {
+    expect(normalizeCoverLetterWorkspacePayload('bad-payload')).toEqual({
+      letters: [],
+      snapshots: [],
+    })
+
+    const normalized = normalizeCoverLetterWorkspacePayload({
+      letters: [
+        { id: 'missing-anchors' },
+        {
+          id: 'letter-1',
+          name: 42,
+          header: false,
+          greeting: null,
+          paragraphs: [{ id: 'paragraph-1', text: 'Valid paragraph.', vectors: {} }, 'bad'],
+          signOff: undefined,
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'hash-1',
+          contentHash: 'stale-but-valid',
+          createdAt: 'bad-date',
+          updatedAt: 'bad-date',
+          source: 'pipeline',
+          identityVersion: 0,
+          identityFields: ['identity.summary', 42],
+        },
+      ],
+      snapshots: [
+        { id: 'missing-content' },
+        {
+          id: 'snapshot-1',
+          sourceLetterId: 'letter-1',
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'hash-1',
+          sourceResumeSnapshotId: 'resume-snapshot-1',
+          content: {
+            name: 42,
+            header: false,
+            greeting: null,
+            paragraphs: [{ id: 'paragraph-1', text: 'Snapshot paragraph.', vectors: {} }],
+            signOff: undefined,
           },
-        }),
+          contentHash: 'stale-but-valid',
+          identityVersionAtGeneration: 0,
+          identityVersionAtApply: 0,
+          createdAt: 'bad-date',
+        },
+        {
+          id: 'dangling-snapshot',
+          sourceLetterId: 'missing-letter',
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'hash-1',
+          sourceResumeSnapshotId: 'resume-snapshot-2',
+          content: content(),
+          contentHash: '0123456789abcdef',
+          identityVersionAtGeneration: null,
+          identityVersionAtApply: null,
+          createdAt: '2026-04-22T00:00:00.000Z',
+        },
       ],
     })
 
-    expect(migrated.templates).toHaveLength(1)
-    expect(migrated.templates[0].durableMeta).toEqual(
-      expect.objectContaining({
-        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
-        tenantId: 'tenant-a',
-        userId: 'user-a',
-        schemaVersion: 1,
-        revision: 0,
-        createdAt: '2025-01-01T00:00:00.000Z',
-        updatedAt: '2025-01-01T00:00:00.000Z',
-      }),
-    )
+    expect(normalized.letters).toHaveLength(1)
+    expect(normalized.letters[0]).toMatchObject({
+      id: 'letter-1',
+      name: 'Cover Letter',
+      header: '',
+      greeting: '',
+      signOff: '',
+      identityVersion: null,
+      identityFields: ['identity.summary'],
+    })
+    expect(normalized.letters[0]?.paragraphs).toHaveLength(1)
+    expect(normalized.letters[0]?.contentHash).not.toBe('stale-but-valid')
+    expect(normalized.snapshots.map((snapshot) => snapshot.id)).toEqual(['snapshot-1'])
+    expect(normalized.snapshots[0]).toMatchObject({
+      identityVersionAtGeneration: null,
+      identityVersionAtApply: null,
+    })
+    expect(normalized.snapshots[0]?.contentHash).not.toBe('stale-but-valid')
+  })
 
-    expect(migrateCoverLetterState('bad-state').templates).toEqual([])
+  it('snapshots only immutable letter content and apply-time identity version', () => {
+    const letter = useCoverLetterStore.getState().createLetter({
+      content: content(),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+      identityVersion: 3,
+    })
+
+    const snapshot = createCoverLetterSnapshot({
+      letter,
+      sourceResumeSnapshotId: 'resume-snapshot-1',
+      identityVersionAtApply: 5,
+      timestamp: '2026-04-21T00:00:00.000Z',
+    })
+
+    expect(Object.keys(snapshot.content).sort()).toEqual([
+      'greeting',
+      'header',
+      'name',
+      'paragraphs',
+      'signOff',
+    ])
+    expect(snapshot).toMatchObject({
+      sourceLetterId: letter.id,
+      sourceResumeSnapshotId: 'resume-snapshot-1',
+      identityVersionAtGeneration: 3,
+      identityVersionAtApply: 5,
+    })
+    letter.paragraphs[0]!.text = 'Mutated after snapshot.'
+    expect(snapshot.content.paragraphs[0]?.text).toBe('I can help.')
+  })
+
+  it('adds, replaces, and sorts snapshots by creation time', () => {
+    const letter = useCoverLetterStore.getState().createLetter({
+      content: content(),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+    })
+    const later = createCoverLetterSnapshot({
+      letter,
+      sourceResumeSnapshotId: 'resume-snapshot-2',
+      identityVersionAtApply: 2,
+      timestamp: '2026-04-22T00:00:00.000Z',
+    })
+    const earlier = createCoverLetterSnapshot({
+      letter,
+      sourceResumeSnapshotId: 'resume-snapshot-1',
+      identityVersionAtApply: 1,
+      timestamp: '2026-04-21T00:00:00.000Z',
+    })
+
+    useCoverLetterStore.getState().addSnapshot(later)
+    useCoverLetterStore.getState().addSnapshot(earlier)
+    useCoverLetterStore.getState().addSnapshot({
+      ...later,
+      sourceResumeSnapshotId: 'resume-snapshot-2-replaced',
+    })
+
+    expect(useCoverLetterStore.getState().snapshots.map((snapshot) => snapshot.id)).toEqual([
+      earlier.id,
+      later.id,
+    ])
+    expect(useCoverLetterStore.getState().snapshots[1]?.sourceResumeSnapshotId).toBe(
+      'resume-snapshot-2-replaced',
+    )
+  })
+
+  it('clears stale reviews when identity version changes unless already reviewed for the target version', () => {
+    const letter = useCoverLetterStore.getState().createLetter({
+      content: content(),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+      identityVersion: 3,
+    })
+
+    useCoverLetterStore.getState().updateLetter(letter.id, {
+      stalenessReview: {
+        decision: 'accepted-current',
+        reviewedAt: '2026-04-21T00:00:00.000Z',
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 3,
+        mutationLabel: 'Identity update',
+        mutationFromRevision: 1,
+        mutationToRevision: 2,
+        mutationFields: ['identity.summary'],
+        reason: 'Still current.',
+      },
+    })
+    useCoverLetterStore.getState().updateLetter(letter.id, { identityVersion: 4 })
+    expect(useCoverLetterStore.getState().letters[0]?.stalenessReview).toBeUndefined()
+
+    useCoverLetterStore.getState().updateLetter(letter.id, {
+      stalenessReview: {
+        decision: 'accepted-current',
+        reviewedAt: '2026-04-22T00:00:00.000Z',
+        reviewedIdentityVersion: 5,
+        artifactIdentityVersionAtReview: 4,
+        mutationLabel: 'Identity update',
+        mutationFromRevision: 2,
+        mutationToRevision: 5,
+        mutationFields: ['identity.summary'],
+        reason: 'Version 5 was already reviewed.',
+      },
+    })
+    useCoverLetterStore.getState().updateLetter(letter.id, { identityVersion: 5 })
+    expect(useCoverLetterStore.getState().letters[0]?.stalenessReview?.reviewedIdentityVersion).toBe(5)
+  })
+
+  it('discards legacy workspace template payloads during normalization', () => {
+    expect(
+      normalizeCoverLetterWorkspacePayload({
+        templates: [
+          {
+            id: 'legacy-template',
+            name: 'Legacy',
+            header: 'Header',
+            greeting: 'Hello',
+            paragraphs: [],
+            signOff: 'Thanks',
+          },
+        ],
+      }),
+    ).toEqual({
+      letters: [],
+      snapshots: [],
+    })
+  })
+
+  it('bridges anchored legacy template APIs onto first-class letters', () => {
+    const legacyTemplate = {
+      id: 'legacy-template',
+      ...content('Legacy Letter'),
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+      generatedAt: '2026-04-20T00:00:00.000Z',
+      identityVersion: 3,
+    }
+
+    useCoverLetterStore.getState().addTemplate({
+      id: 'missing-anchors',
+      ...content('Missing Anchors'),
+    })
+    expect(useCoverLetterStore.getState().letters).toEqual([])
+
+    useCoverLetterStore.getState().addTemplate(legacyTemplate)
+    useCoverLetterStore.getState().addTemplate({
+      ...legacyTemplate,
+      id: 'duplicate-pipeline',
+      name: 'Duplicate Pipeline',
+    })
+
+    expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    expect(useCoverLetterStore.getState().letters[0]).toMatchObject({
+      id: 'legacy-template',
+      pipelineEntryId: 'pipe-1',
+      generatedAt: '2026-04-20T00:00:00.000Z',
+    })
+
+    useCoverLetterStore.getState().updateTemplate('legacy-template', {
+      greeting: 'Dear Legacy Team,',
+      stalenessReview: {
+        decision: 'accepted-current',
+        reviewedAt: '2026-04-21T00:00:00.000Z',
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 3,
+        mutationLabel: 'Identity update',
+        mutationFromRevision: 1,
+        mutationToRevision: 2,
+        mutationFields: ['identity.summary'],
+        reason: 'Still current.',
+      },
+    })
+    expect(useCoverLetterStore.getState().templates[0]).toMatchObject({
+      greeting: 'Dear Legacy Team,',
+      stalenessReview: expect.objectContaining({ reviewedIdentityVersion: 3 }),
+    })
+
+    useCoverLetterStore.getState().deleteTemplate('legacy-template')
+    expect(useCoverLetterStore.getState().letters).toEqual([])
+    expect(useCoverLetterStore.getState().templates).toEqual([])
+
+    useCoverLetterStore.getState().createLetter({
+      id: 'existing-letter',
+      content: content('Existing Letter'),
+      pipelineEntryId: 'pipe-existing',
+      sourceResumeId: 'resume-existing',
+      sourceResumeHash: 'hash-existing',
+    })
+    useCoverLetterStore.getState().importTemplates([
+      {
+        ...legacyTemplate,
+        id: 'legacy-1',
+        pipelineEntryId: 'pipe-1',
+      },
+      {
+        ...legacyTemplate,
+        id: 'legacy-2',
+        pipelineEntryId: 'pipe-2',
+      },
+    ])
+    expect(useCoverLetterStore.getState().letters.map((letter) => letter.id)).toEqual([
+      'existing-letter',
+      'legacy-1',
+      'legacy-2',
+    ])
   })
 })

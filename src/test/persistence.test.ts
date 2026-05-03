@@ -83,6 +83,9 @@ describe('persistence foundation', () => {
       activeDeckId: null,
     })
     useCoverLetterStore.setState({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
       templates: [],
     })
     useLinkedInStore.setState({
@@ -178,7 +181,7 @@ describe('persistence foundation', () => {
       activeDeckId: 'prep-deck-1',
     })
     useCoverLetterStore.setState({
-      templates: [
+      letters: [
         {
           id: 'letter-1',
           name: 'Default',
@@ -186,8 +189,39 @@ describe('persistence foundation', () => {
           greeting: 'Hello',
           paragraphs: [],
           signOff: 'Thanks',
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'resume-hash-1',
+          contentHash: '0123456789abcdef',
+          createdAt: '2026-03-11T00:00:00.000Z',
+          updatedAt: '2026-03-11T00:00:00.000Z',
+          source: 'pipeline',
+          identityVersion: null,
         },
       ],
+      snapshots: [
+        {
+          id: 'letter-snapshot-1',
+          sourceLetterId: 'letter-1',
+          pipelineEntryId: 'pipe-1',
+          sourceResumeId: 'resume-1',
+          sourceResumeHash: 'resume-hash-1',
+          sourceResumeSnapshotId: 'resume-snapshot-1',
+          content: {
+            name: 'Default',
+            header: 'Header',
+            greeting: 'Hello',
+            paragraphs: [],
+            signOff: 'Thanks',
+          },
+          contentHash: '0123456789abcdef',
+          identityVersionAtGeneration: null,
+          identityVersionAtApply: null,
+          createdAt: '2026-03-11T00:05:00.000Z',
+        },
+      ],
+      activeLetterId: 'letter-1',
+      templates: [],
     })
     useLinkedInStore.setState({
       drafts: [
@@ -327,7 +361,8 @@ describe('persistence foundation', () => {
     expect(snapshot.artifacts.resume.artifactId).toBe('ws-1:resume')
     expect(snapshot.artifacts.pipeline.payload.entries).toHaveLength(1)
     expect(snapshot.artifacts.prep.payload.decks).toHaveLength(1)
-    expect(snapshot.artifacts.coverLetters.payload.templates).toHaveLength(1)
+    expect(snapshot.artifacts.coverLetters.payload.letters).toHaveLength(1)
+    expect(snapshot.artifacts.coverLetters.payload.snapshots[0]?.id).toBe('letter-snapshot-1')
     expect(snapshot.artifacts.linkedin.payload.drafts).toHaveLength(1)
     expect(snapshot.artifacts.recruiter.payload.cards).toHaveLength(1)
     expect(snapshot.artifacts.debrief.payload.sessions).toEqual([])
@@ -338,7 +373,9 @@ describe('persistence foundation', () => {
     expect(snapshot.artifacts.prep.payload).not.toHaveProperty('activeDeckId')
 
     snapshot.artifacts.resume.payload.data.meta.name = 'Changed in snapshot'
+    snapshot.artifacts.coverLetters.payload.snapshots[0]!.content.name = 'Changed in snapshot'
     expect(useResumeStore.getState().data.meta.name).toBe(defaultResumeData.meta.name)
+    expect(useCoverLetterStore.getState().snapshots[0]?.content.name).toBe('Default')
   })
 
   it('uses local workspace defaults when snapshot helpers receive no explicit request', () => {
@@ -459,7 +496,7 @@ describe('persistence foundation', () => {
         cards: [],
       },
     ]
-    snapshot.artifacts.coverLetters.payload.templates = [
+    snapshot.artifacts.coverLetters.payload.letters = [
       {
         id: 'letter-1',
         name: 'Default',
@@ -467,6 +504,35 @@ describe('persistence foundation', () => {
         greeting: 'Hello',
         paragraphs: [],
         signOff: 'Thanks',
+        pipelineEntryId: 'pipe-1',
+        sourceResumeId: 'resume-1',
+        sourceResumeHash: 'resume-hash-1',
+        contentHash: '0123456789abcdef',
+        createdAt: '2026-03-11T12:00:00.000Z',
+        updatedAt: '2026-03-11T12:00:00.000Z',
+        source: 'pipeline',
+        identityVersion: null,
+      },
+    ]
+    snapshot.artifacts.coverLetters.payload.snapshots = [
+      {
+        id: 'letter-snapshot-1',
+        sourceLetterId: 'letter-1',
+        pipelineEntryId: 'pipe-1',
+        sourceResumeId: 'resume-1',
+        sourceResumeHash: 'resume-hash-1',
+        sourceResumeSnapshotId: 'resume-snapshot-1',
+        content: {
+          name: 'Default',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [],
+          signOff: 'Thanks',
+        },
+        contentHash: '0123456789abcdef',
+        identityVersionAtGeneration: null,
+        identityVersionAtApply: null,
+        createdAt: '2026-03-11T12:05:00.000Z',
       },
     ]
     snapshot.artifacts.linkedin.payload.drafts = [
@@ -605,11 +671,16 @@ describe('persistence foundation', () => {
     expect(usePipelineStore.getState().entries).toHaveLength(1)
     expect(usePrepStore.getState().activeDeckId).toBe('deck-1')
     expect(useCoverLetterStore.getState().templates).toHaveLength(1)
+    expect(useCoverLetterStore.getState().letters[0]?.id).toBe('letter-1')
+    expect(useCoverLetterStore.getState().snapshots[0]?.id).toBe('letter-snapshot-1')
+    expect(useCoverLetterStore.getState().activeLetterId).toBe('letter-1')
     expect(useLinkedInStore.getState().drafts).toHaveLength(1)
     expect(useRecruiterStore.getState().cards).toHaveLength(1)
     expect(useDebriefStore.getState().sessions).toHaveLength(1)
     expect(useSearchStore.getState().profile?.id).toBe('profile-1')
     expect(snapshot.artifacts.resume.payload.data.meta.name).toBe('Hydrated Name')
+    snapshot.artifacts.coverLetters.payload.letters[0]!.name = 'Mutated Snapshot Letter'
+    expect(useCoverLetterStore.getState().letters[0]?.name).toBe('Default')
   })
 
   it('round-trips active research jobs through workspace snapshots and legacy hydration', () => {
@@ -659,6 +730,32 @@ describe('persistence foundation', () => {
 
     expect(hydrateStoresFromLegacyStorage()).toBe(true)
     expect(useSearchStore.getState().activeResearchJob).toEqual(activeResearchJob)
+  })
+
+  it('documents that legacy cover letter templates are discarded during hydration', () => {
+    resolveStorage().setItem('facet-cover-letter-data', JSON.stringify({
+      state: {
+        templates: [
+          {
+            id: 'legacy-template',
+            name: 'Legacy Letter',
+            header: 'Header',
+            greeting: 'Hello',
+            paragraphs: [],
+            signOff: 'Thanks',
+          },
+        ],
+      },
+      version: 0,
+    }))
+
+    expect(hydrateStoresFromLegacyStorage()).toBe(true)
+    expect(useCoverLetterStore.getState()).toMatchObject({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
+      templates: [],
+    })
   })
 
   it('drops dangling active thesis ids during snapshot hydration', () => {
@@ -1223,12 +1320,204 @@ describe('persistence foundation', () => {
           coverLetters: {
             ...valid.artifacts.coverLetters,
             payload: {
-              templates: null,
+              letters: null,
+              snapshots: [],
             },
           },
         },
       }),
-    ).toThrow(/invalid artifacts.coverLetters.payload.templates/)
+    ).toThrow(/invalid artifacts.coverLetters.payload shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              templates: [],
+            },
+          },
+        },
+      }),
+    ).not.toThrow()
+
+    const validCoverLetter = {
+      id: 'letter-1',
+      name: 'Cover Letter',
+      header: 'Header',
+      greeting: 'Hello',
+      paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+      signOff: 'Thanks',
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'resume-hash-1',
+      contentHash: '0123456789abcdef',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:00:00.000Z',
+      source: 'pipeline',
+      identityVersion: null,
+    }
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              letters: [validCoverLetter],
+              snapshots: [
+                {
+                  id: 'snapshot-1',
+                  sourceLetterId: 'letter-1',
+                  pipelineEntryId: 'pipe-1',
+                  sourceResumeId: 'resume-1',
+                  sourceResumeHash: 'resume-hash-1',
+                  sourceResumeSnapshotId: 'resume-snapshot-1',
+                  content: {
+                    name: 'Cover Letter',
+                    header: 'Header',
+                    greeting: 'Hello',
+                    paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+                    signOff: 'Thanks',
+                  },
+                  contentHash: '0123456789abcdef',
+                  identityVersionAtGeneration: null,
+                  identityVersionAtApply: null,
+                  createdAt: '2026-03-12T12:00:00.000Z',
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              letters: [{ ...validCoverLetter, contentHash: 'bad' }],
+              snapshots: [],
+            },
+          },
+        },
+      }),
+    ).toThrow(/letters\[0\] shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              letters: [
+                {
+                  ...validCoverLetter,
+                  createdAt: 'bad-date',
+                },
+              ],
+              snapshots: [],
+            },
+          },
+        },
+      }),
+    ).toThrow(/letters\[0\] shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              letters: [
+                {
+                  ...validCoverLetter,
+                  paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: { backend: 'strong' } }],
+                },
+              ],
+              snapshots: [],
+            },
+          },
+        },
+      }),
+    ).toThrow(/letters\[0\] shape/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              letters: [validCoverLetter],
+              snapshots: [
+                {
+                  id: 'snapshot-1',
+                  sourceLetterId: 'missing-letter',
+                  pipelineEntryId: 'pipe-1',
+                  sourceResumeId: 'resume-1',
+                  sourceResumeHash: 'resume-hash-1',
+                  sourceResumeSnapshotId: 'resume-snapshot-1',
+                  content: {
+                    name: 'Cover Letter',
+                    header: 'Header',
+                    greeting: 'Hello',
+                    paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+                    signOff: 'Thanks',
+                  },
+                  contentHash: '0123456789abcdef',
+                  identityVersionAtGeneration: null,
+                  identityVersionAtApply: null,
+                  createdAt: '2026-03-12T12:00:00.000Z',
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ).toThrow(/sourceLetterId/)
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
+        artifacts: {
+          ...valid.artifacts,
+          coverLetters: {
+            ...valid.artifacts.coverLetters,
+            payload: {
+              letters: [validCoverLetter],
+              snapshots: [
+                {
+                  id: 'snapshot-1',
+                  sourceLetterId: 'letter-1',
+                  pipelineEntryId: 'pipe-1',
+                  sourceResumeId: 'resume-1',
+                  sourceResumeHash: 'resume-hash-1',
+                  sourceResumeSnapshotId: 'resume-snapshot-1',
+                  content: {
+                    name: 'Cover Letter',
+                    header: 'Header',
+                    greeting: 'Hello',
+                    paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+                    signOff: 'Thanks',
+                  },
+                  contentHash: 'bad',
+                  identityVersionAtGeneration: null,
+                  identityVersionAtApply: null,
+                  createdAt: '2026-03-12T12:00:00.000Z',
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ).toThrow(/snapshots\[0\] shape/)
     expect(() =>
       assertValidWorkspaceSnapshot({
         ...valid,

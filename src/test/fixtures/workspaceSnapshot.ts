@@ -103,7 +103,10 @@ export function buildWorkspaceSnapshot(
       pipeline: buildArtifact('pipeline', { entries: [] }),
       jdAnalysis: buildArtifact('jdAnalysis', { analyses: [] }),
       prep: buildArtifact('prep', { decks: [] }),
-      coverLetters: buildArtifact('coverLetters', { templates: [] }),
+      coverLetters: buildArtifact('coverLetters', {
+        letters: [],
+        snapshots: [],
+      }),
       linkedin: buildArtifact('linkedin', { drafts: [] }),
       recruiter: buildArtifact('recruiter', { cards: [] }),
       debrief: buildArtifact('debrief', { sessions: [] }),

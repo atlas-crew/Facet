@@ -1,6 +1,10 @@
 import { mergeResumeData } from '../engine/importMerge'
 import { defaultResumeData } from '../store/defaultData'
-import type { CoverLetterTemplate } from '../types/coverLetter'
+import type { CoverLetter } from '../types/coverLetter'
+import {
+  normalizeCoverLetterWorkspacePayload,
+  updateCoverLetterEntity,
+} from '../utils/coverLetterEntities'
 import type { DebriefSession } from '../types/debrief'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { LinkedInProfileDraft } from '../types/linkedin'
@@ -64,29 +68,57 @@ const mergePrepDecks = (existing: PrepDeck[], incoming: PrepDeck[]): PrepDeck[] 
   return next
 }
 
-const mergeCoverLetterTemplates = (
-  existing: CoverLetterTemplate[],
-  incoming: CoverLetterTemplate[],
-): CoverLetterTemplate[] => {
-  const existingById = new Map(existing.map((template) => [template.id, template]))
-  const next = existing.map((template) => cloneValue(template))
+const mergeCoverLetters = (
+  existing: CoverLetter[],
+  incoming: CoverLetter[],
+): CoverLetter[] => {
+  const existingById = new Map(existing.map((letter) => [letter.id, letter]))
+  const next = existing.map((letter) => cloneValue(letter))
+  const nextIndexById = new Map(next.map((letter, index) => [letter.id, index]))
 
-  for (const importedTemplate of incoming) {
-    const currentTemplate = existingById.get(importedTemplate.id)
-    if (!currentTemplate) {
-      next.push(cloneValue(importedTemplate))
+  for (const importedLetter of incoming) {
+    const currentLetter = existingById.get(importedLetter.id)
+    if (!currentLetter) {
+      const existingForPipelineEntry = next.find(
+        (letter) => letter.pipelineEntryId === importedLetter.pipelineEntryId,
+      )
+      if (existingForPipelineEntry) {
+        console.warn(
+          `Skipping imported cover letter "${importedLetter.id}" because pipeline entry "${importedLetter.pipelineEntryId}" already has a local draft.`,
+        )
+        continue
+      }
+      next.push(cloneValue(importedLetter))
+      nextIndexById.set(importedLetter.id, next.length - 1)
       continue
     }
 
-    const targetIndex = next.findIndex((template) => template.id === importedTemplate.id)
-    if (targetIndex === -1) {
+    const targetIndex = nextIndexById.get(importedLetter.id)
+    if (targetIndex === undefined) {
       continue
     }
 
-    next[targetIndex] = {
-      ...cloneValue(currentTemplate),
-      paragraphs: mergeById(currentTemplate.paragraphs, importedTemplate.paragraphs),
-    }
+    const mergedParagraphs = mergeById(currentLetter.paragraphs, importedLetter.paragraphs)
+    const mergedUpdatedAt =
+      importedLetter.updatedAt > currentLetter.updatedAt
+        ? importedLetter.updatedAt
+        : currentLetter.updatedAt
+    next[targetIndex] = updateCoverLetterEntity(
+      currentLetter,
+      {
+        name: importedLetter.name,
+        header: importedLetter.header,
+        greeting: importedLetter.greeting,
+        paragraphs: mergedParagraphs,
+        signOff: importedLetter.signOff,
+        sourceResumeId: importedLetter.sourceResumeId,
+        sourceResumeHash: importedLetter.sourceResumeHash,
+        identityVersion: importedLetter.identityVersion,
+        identityFields: importedLetter.identityFields,
+        stalenessReview: importedLetter.stalenessReview,
+      },
+      mergedUpdatedAt,
+    )
   }
 
   return next
@@ -384,12 +416,26 @@ export const mergeWorkspaceSnapshots = (
       },
       coverLetters: {
         ...cloneValue(current.artifacts.coverLetters),
-        payload: {
-          templates: mergeCoverLetterTemplates(
-            current.artifacts.coverLetters.payload.templates,
-            imported.artifacts.coverLetters.payload.templates,
-          ),
-        },
+        payload: (() => {
+          const currentCoverLetters = normalizeCoverLetterWorkspacePayload(
+            current.artifacts.coverLetters.payload,
+          )
+          const importedCoverLetters = normalizeCoverLetterWorkspacePayload(
+            imported.artifacts.coverLetters.payload,
+          )
+          const letters = mergeCoverLetters(
+            currentCoverLetters.letters,
+            importedCoverLetters.letters,
+          )
+          const letterIds = new Set(letters.map((letter) => letter.id))
+          return {
+            letters,
+            snapshots: mergeById(
+              currentCoverLetters.snapshots,
+              importedCoverLetters.snapshots,
+            ).filter((snapshot) => letterIds.has(snapshot.sourceLetterId)),
+          }
+        })(),
       },
       linkedin: {
         ...cloneValue(linkedInArtifact),

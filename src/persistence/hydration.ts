@@ -1,8 +1,8 @@
 import { defaultResumeData } from '../store/defaultData'
 import {
-  migrateCoverLetterState,
   useCoverLetterStore,
 } from '../store/coverLetterStore'
+import { normalizeCoverLetterWorkspacePayload } from '../utils/coverLetterEntities'
 import {
   migrateDebriefState,
   useDebriefStore,
@@ -119,9 +119,9 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       null,
   }))
 
-  useCoverLetterStore.setState({
-    templates: cloneValue(snapshot.artifacts.coverLetters.payload.templates),
-  })
+  useCoverLetterStore.getState().importWorkspaceData(
+    normalizeCoverLetterWorkspacePayload(snapshot.artifacts.coverLetters.payload),
+  )
 
   const linkedInDrafts =
     cloneValue(snapshot.artifacts.linkedin.payload.drafts) as LinkedInProfileDraft[]
@@ -260,7 +260,6 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
   const migratedJDAnalysis = migrateJDAnalysisState(undefined)
 
   const migratedPrep = migratePrepState(prepEnvelope?.state)
-  const migratedCoverLetters = migrateCoverLetterState(coverLetterEnvelope?.state)
   const migratedLinkedIn = migrateLinkedInState(linkedInEnvelope?.state)
   const migratedDebrief = migrateDebriefState(debriefEnvelope?.state)
   const migratedSearch = migrateSearchState(searchEnvelope?.state)
@@ -295,10 +294,6 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
       migratedPrep.decks?.[0]?.id ??
       null,
   }))
-
-  useCoverLetterStore.setState({
-    templates: cloneValue(migratedCoverLetters.templates ?? []),
-  })
 
   useLinkedInStore.setState((state) => ({
     ...state,

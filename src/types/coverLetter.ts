@@ -1,4 +1,4 @@
-import type { PriorityByVector } from '../types'
+import type { ComponentPriority, VectorId } from '../types'
 import type { ArtifactStalenessReview } from './artifactMeta'
 import type { DurableMetadata } from './durable'
 
@@ -7,17 +7,20 @@ export interface CoverLetterParagraph {
   label?: string
   text: string
   refinement?: string
-  vectors: PriorityByVector
+  vectors: Record<VectorId, ComponentPriority>
 }
 
-export interface CoverLetterTemplate {
-  id: string
-  durableMeta?: DurableMetadata
+export interface CoverLetterContent {
   name: string
   header: string
   greeting: string
   paragraphs: CoverLetterParagraph[]
   signOff: string
+}
+
+export interface CoverLetterTemplate extends CoverLetterContent {
+  id: string
+  durableMeta?: DurableMetadata
   source?: 'manual' | 'match' | 'pipeline'
   pipelineEntryId?: string
   generatedAt?: string
@@ -26,4 +29,39 @@ export interface CoverLetterTemplate {
   identityFields?: string[]
   /** Last batch staleness review decision recorded for this artifact. */
   stalenessReview?: ArtifactStalenessReview
+}
+
+export interface CoverLetter extends CoverLetterContent {
+  id: string
+  durableMeta?: DurableMetadata
+  pipelineEntryId: string
+  sourceResumeId: string
+  sourceResumeHash: string
+  contentHash: string
+  createdAt: string
+  updatedAt: string
+  source: 'pipeline'
+  generatedAt?: string
+  identityVersion: number | null
+  identityFields?: string[]
+  stalenessReview?: ArtifactStalenessReview
+}
+
+export interface CoverLetterSnapshot {
+  id: string
+  sourceLetterId: string
+  pipelineEntryId: string
+  sourceResumeId: string
+  sourceResumeHash: string
+  sourceResumeSnapshotId: string
+  content: CoverLetterContent
+  contentHash: string
+  identityVersionAtGeneration: number | null
+  identityVersionAtApply: number | null
+  createdAt: string
+}
+
+export interface CoverLetterWorkspaceData {
+  letters: CoverLetter[]
+  snapshots: CoverLetterSnapshot[]
 }
