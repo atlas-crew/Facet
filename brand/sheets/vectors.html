@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Vector Mapping Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode: when URL has a variant hash, isolate that variant for screenshot */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #vectors-dark  ·  1200×630  ·  Vector mapping radial diagram (dark)
+   ───────────────────────────────────────────────────────────── */
+#vectors-dark {
+  width: 1200px; height: 630px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#vectors-dark::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#vectors-dark::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 60% at 50% 60%,
+    rgba(108,184,232,0.10) 0%, rgba(45,106,150,0.04) 40%, transparent 70%);
+  pointer-events: none;
+}
+#vectors-dark .frame {
+  position: relative; height: 100%;
+  padding: 50px 72px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#vectors-dark .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+#vectors-dark .lockup { display: flex; align-items: center; gap: 12px; }
+#vectors-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#vectors-dark .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#vectors-dark .title-block { margin-bottom: 18px; }
+#vectors-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 8px; opacity: 0.65;
+}
+#vectors-dark .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 48px;
+  color: #e8ecf2; letter-spacing: -0.5px;
+  line-height: 1; margin-bottom: 10px;
+}
+#vectors-dark .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#vectors-dark .subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 13px;
+  color: #8b97a8; line-height: 1.5; max-width: 760px;
+}
+#vectors-dark .subtitle .accent { color: #c0c8d4; font-weight: 400; }
+
+#vectors-dark .diagram {
+  position: relative;
+  width: 100%; height: 290px;
+  flex-shrink: 0;
+}
+#vectors-dark .refractions {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+#vectors-dark .gem-center {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  filter: drop-shadow(0 0 25px rgba(108,184,232,0.18))
+          drop-shadow(0 0 60px rgba(108,184,232,0.06));
+}
+#vectors-dark .resume-card {
+  position: absolute;
+  width: 168px; height: 116px;
+  background: linear-gradient(180deg, #12151c 0%, #0e1117 100%);
+  border: 1px solid #1f242e;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+  overflow: hidden;
+}
+#vectors-dark .resume-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent-from), var(--accent-to));
+}
+#vectors-dark .resume-nw { left: 0; top: 0; --accent-from: #7ac4f0; --accent-to: #6cb8e8; }
+#vectors-dark .resume-ne { right: 0; top: 0; --accent-from: #6cb8e8; --accent-to: #5ba4d9; }
+#vectors-dark .resume-sw { left: 0; bottom: 0; --accent-from: #5ba4d9; --accent-to: #4a94c8; }
+#vectors-dark .resume-se { right: 0; bottom: 0; --accent-from: #4a94c8; --accent-to: #2d6a96; }
+#vectors-dark .vector-name {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+#vectors-dark .resume-nw .vector-name { color: #7ac4f0; }
+#vectors-dark .resume-ne .vector-name { color: #6cb8e8; }
+#vectors-dark .resume-sw .vector-name { color: #5ba4d9; }
+#vectors-dark .resume-se .vector-name { color: #4a94c8; }
+#vectors-dark .bullet-bars {
+  display: flex; flex-direction: column;
+  gap: 5px; flex: 1;
+  justify-content: center;
+}
+#vectors-dark .bar {
+  height: 4px;
+  border-radius: 1px;
+  background: #2a3140;
+}
+#vectors-dark .bar.hot { background: var(--bar-hot); }
+#vectors-dark .resume-nw { --bar-hot: #6cb8e8; }
+#vectors-dark .resume-ne { --bar-hot: #5ba4d9; }
+#vectors-dark .resume-sw { --bar-hot: #4a94c8; }
+#vectors-dark .resume-se { --bar-hot: #3d88b8; }
+
+#vectors-dark .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: auto; padding-top: 14px;
+  border-top: 1px solid #1a1e28;
+}
+#vectors-dark .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#vectors-dark .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #6b7a8d;
+  letter-spacing: 1.5px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #vectors-light  ·  1200×630  ·  Vector mapping radial diagram (light)
+   ───────────────────────────────────────────────────────────── */
+#vectors-light {
+  width: 1200px; height: 630px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#vectors-light::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#vectors-light::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 60% at 50% 60%,
+    rgba(45,106,150,0.08) 0%, rgba(45,106,150,0.03) 40%, transparent 70%);
+  pointer-events: none;
+}
+#vectors-light .frame {
+  position: relative; height: 100%;
+  padding: 50px 72px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#vectors-light .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+#vectors-light .lockup { display: flex; align-items: center; gap: 12px; }
+#vectors-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #0f172a;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#vectors-light .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#vectors-light .title-block { margin-bottom: 18px; }
+#vectors-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 8px; opacity: 0.6;
+}
+#vectors-light .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 48px;
+  color: #0f172a; letter-spacing: -0.5px;
+  line-height: 1; margin-bottom: 10px;
+}
+#vectors-light .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+#vectors-light .subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 13px;
+  color: #64748b; line-height: 1.5; max-width: 760px;
+}
+#vectors-light .subtitle .accent { color: #0f172a; font-weight: 400; }
+
+#vectors-light .diagram {
+  position: relative;
+  width: 100%; height: 290px;
+  flex-shrink: 0;
+}
+#vectors-light .refractions {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+#vectors-light .gem-center {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  filter: drop-shadow(0 4px 12px rgba(45,106,150,0.18))
+          drop-shadow(0 0 30px rgba(45,106,150,0.10));
+}
+#vectors-light .resume-card {
+  position: absolute;
+  width: 168px; height: 116px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.06);
+}
+#vectors-light .resume-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent-from), var(--accent-to));
+}
+#vectors-light .resume-nw { left: 0; top: 0; --accent-from: #5ba4d9; --accent-to: #4a94c8; }
+#vectors-light .resume-ne { right: 0; top: 0; --accent-from: #4a94c8; --accent-to: #3d88b8; }
+#vectors-light .resume-sw { left: 0; bottom: 0; --accent-from: #3d88b8; --accent-to: #2d6a96; }
+#vectors-light .resume-se { right: 0; bottom: 0; --accent-from: #2d6a96; --accent-to: #1e5a82; }
+#vectors-light .vector-name {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: #2d6a96;
+  margin-bottom: 8px;
+}
+#vectors-light .bullet-bars {
+  display: flex; flex-direction: column;
+  gap: 5px; flex: 1;
+  justify-content: center;
+}
+#vectors-light .bar {
+  height: 4px;
+  border-radius: 1px;
+  background: #e2e8f0;
+}
+#vectors-light .bar.hot { background: #2d6a96; }
+
+#vectors-light .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: auto; padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+#vectors-light .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#vectors-light .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 1.5px;
+}
+</style>
+</head>
+<body>
+
+<!--
+  Vectors sheet · "Vector Mapping". Radial-fan diagram: gem at center,
+  4 mini-resume cards at the corners, refraction lines (SVG) connecting
+  them. Each mini-resume shows a different bullet-emphasis pattern,
+  literalizing the existing tagline "same diamond · different face".
+
+  SVG positioning notes:
+    - .diagram is width:100% height:290px (the content area is exactly
+      1056px wide because .frame has 72px padding on each side of a
+      1200px parent, so 1200 - 144 = 1056).
+    - .refractions SVG fills the diagram absolutely. viewBox is
+      "0 0 1056 290" matching the actual pixel dimensions.
+    - With width:100% height:100% and matching viewBox, coords map
+      ~1:1. Slight floating-point variance acceptable since the lines
+      pass behind both the gem and the resume cards (the visible portion
+      is just gem-edge → resume-edge, an approximation works).
+    - Resume cards use absolute corner positioning (left/right + top/
+      bottom) so they don't reflow.
+-->
+
+<!-- ─── VECTORS · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#vectors-dark · 1200×630</div>
+  <div id="vectors-dark">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">one identity · n vectors</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">Same diamond, different face</div>
+        <h1 class="title">Vector <em>Mapping</em></h1>
+        <p class="subtitle">One identity model. Many positioning angles. Each vector reshapes which evidence leads and which bullets survive — <span class="accent">without rewriting who you are.</span></p>
+      </div>
+
+      <div class="diagram">
+        <!-- Refraction lines (drawn first, behind cards and gem) -->
+        <svg class="refractions" width="100%" height="100%" viewBox="0 0 1056 290" preserveAspectRatio="xMidYMid meet" fill="none">
+          <!-- center: (528, 145), corners-of-resume-centers: (84, 58), (972, 58), (84, 232), (972, 232) -->
+          <line x1="528" y1="145" x2="84" y2="58" stroke="#5ba4d9" stroke-width="1" opacity="0.3"/>
+          <line x1="528" y1="145" x2="972" y2="58" stroke="#5ba4d9" stroke-width="1" opacity="0.3"/>
+          <line x1="528" y1="145" x2="84" y2="232" stroke="#5ba4d9" stroke-width="1" opacity="0.3"/>
+          <line x1="528" y1="145" x2="972" y2="232" stroke="#5ba4d9" stroke-width="1" opacity="0.3"/>
+          <!-- subtle glow ring around gem -->
+          <circle cx="528" cy="145" r="80" stroke="#5ba4d9" stroke-width="0.5" opacity="0.18" stroke-dasharray="2 4"/>
+          <circle cx="528" cy="145" r="120" stroke="#5ba4d9" stroke-width="0.5" opacity="0.1" stroke-dasharray="2 6"/>
+        </svg>
+
+        <!-- Gem at center -->
+        <div class="gem-center">
+          <svg width="100" height="145" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#5ba4d9"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#6cb8e8" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#3d88b8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#6cb8e8" stroke-width="0.5" opacity="0.6"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#6cb8e8" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+
+        <!-- 4 mini-resumes (each card shows a different bullet-emphasis pattern) -->
+        <div class="resume-card resume-nw">
+          <div class="vector-name">Backend Platform</div>
+          <div class="bullet-bars">
+            <span class="bar hot" style="width: 92%;"></span>
+            <span class="bar hot" style="width: 78%;"></span>
+            <span class="bar" style="width: 60%;"></span>
+            <span class="bar" style="width: 70%;"></span>
+            <span class="bar hot" style="width: 85%;"></span>
+            <span class="bar" style="width: 55%;"></span>
+          </div>
+        </div>
+
+        <div class="resume-card resume-ne">
+          <div class="vector-name">Security</div>
+          <div class="bullet-bars">
+            <span class="bar" style="width: 65%;"></span>
+            <span class="bar hot" style="width: 88%;"></span>
+            <span class="bar hot" style="width: 75%;"></span>
+            <span class="bar hot" style="width: 92%;"></span>
+            <span class="bar" style="width: 58%;"></span>
+            <span class="bar" style="width: 62%;"></span>
+          </div>
+        </div>
+
+        <div class="resume-card resume-sw">
+          <div class="vector-name">Founding Eng</div>
+          <div class="bullet-bars">
+            <span class="bar hot" style="width: 88%;"></span>
+            <span class="bar" style="width: 72%;"></span>
+            <span class="bar hot" style="width: 80%;"></span>
+            <span class="bar hot" style="width: 68%;"></span>
+            <span class="bar" style="width: 55%;"></span>
+            <span class="bar hot" style="width: 90%;"></span>
+          </div>
+        </div>
+
+        <div class="resume-card resume-se">
+          <div class="vector-name">Staff IC</div>
+          <div class="bullet-bars">
+            <span class="bar hot" style="width: 90%;"></span>
+            <span class="bar" style="width: 60%;"></span>
+            <span class="bar" style="width: 65%;"></span>
+            <span class="bar hot" style="width: 82%;"></span>
+            <span class="bar" style="width: 70%;"></span>
+            <span class="bar hot" style="width: 75%;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── VECTORS · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#vectors-light · 1200×630</div>
+  <div id="vectors-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">one identity · n vectors</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">Same diamond, different face</div>
+        <h1 class="title">Vector <em>Mapping</em></h1>
+        <p class="subtitle">One identity model. Many positioning angles. Each vector reshapes which evidence leads and which bullets survive — <span class="accent">without rewriting who you are.</span></p>
+      </div>
+
+      <div class="diagram">
+        <svg class="refractions" width="100%" height="100%" viewBox="0 0 1056 290" preserveAspectRatio="xMidYMid meet" fill="none">
+          <line x1="528" y1="145" x2="84" y2="58" stroke="#2d6a96" stroke-width="1" opacity="0.3"/>
+          <line x1="528" y1="145" x2="972" y2="58" stroke="#2d6a96" stroke-width="1" opacity="0.3"/>
+          <line x1="528" y1="145" x2="84" y2="232" stroke="#2d6a96" stroke-width="1" opacity="0.3"/>
+          <line x1="528" y1="145" x2="972" y2="232" stroke="#2d6a96" stroke-width="1" opacity="0.3"/>
+          <circle cx="528" cy="145" r="80" stroke="#2d6a96" stroke-width="0.5" opacity="0.18" stroke-dasharray="2 4"/>
+          <circle cx="528" cy="145" r="120" stroke="#2d6a96" stroke-width="0.5" opacity="0.1" stroke-dasharray="2 6"/>
+        </svg>
+
+        <div class="gem-center">
+          <svg width="100" height="145" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.6"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+
+        <div class="resume-card resume-nw">
+          <div class="vector-name">Backend Platform</div>
+          <div class="bullet-bars">
+            <span class="bar hot" style="width: 92%;"></span>
+            <span class="bar hot" style="width: 78%;"></span>
+            <span class="bar" style="width: 60%;"></span>
+            <span class="bar" style="width: 70%;"></span>
+            <span class="bar hot" style="width: 85%;"></span>
+            <span class="bar" style="width: 55%;"></span>
+          </div>
+        </div>
+
+        <div class="resume-card resume-ne">
+          <div class="vector-name">Security</div>
+          <div class="bullet-bars">
+            <span class="bar" style="width: 65%;"></span>
+            <span class="bar hot" style="width: 88%;"></span>
+            <span class="bar hot" style="width: 75%;"></span>
+            <span class="bar hot" style="width: 92%;"></span>
+            <span class="bar" style="width: 58%;"></span>
+            <span class="bar" style="width: 62%;"></span>
+          </div>
+        </div>
+
+        <div class="resume-card resume-sw">
+          <div class="vector-name">Founding Eng</div>
+          <div class="bullet-bars">
+            <span class="bar hot" style="width: 88%;"></span>
+            <span class="bar" style="width: 72%;"></span>
+            <span class="bar hot" style="width: 80%;"></span>
+            <span class="bar hot" style="width: 68%;"></span>
+            <span class="bar" style="width: 55%;"></span>
+            <span class="bar hot" style="width: 90%;"></span>
+          </div>
+        </div>
+
+        <div class="resume-card resume-se">
+          <div class="vector-name">Staff IC</div>
+          <div class="bullet-bars">
+            <span class="bar hot" style="width: 90%;"></span>
+            <span class="bar" style="width: 60%;"></span>
+            <span class="bar" style="width: 65%;"></span>
+            <span class="bar hot" style="width: 82%;"></span>
+            <span class="bar" style="width: 70%;"></span>
+            <span class="bar hot" style="width: 75%;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #vectors-dark isolates that variant for Playwright screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

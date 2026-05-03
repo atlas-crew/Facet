@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Professional Identity Model Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #6cb8e8;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode: when URL has a variant hash, isolate that variant for screenshot */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #identity-dark  ·  1200×630  ·  Annotated identity model (dark)
+   ───────────────────────────────────────────────────────────── */
+#identity-dark {
+  width: 1200px; height: 630px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#identity-dark::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 60% at 22% 50%,
+    rgba(108,184,232,0.10) 0%, rgba(45,106,150,0.04) 40%, transparent 70%);
+  pointer-events: none;
+}
+#identity-dark::after {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#identity-dark .frame {
+  position: relative; height: 100%;
+  padding: 56px 72px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#identity-dark .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+#identity-dark .lockup { display: flex; align-items: center; gap: 12px; }
+#identity-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#identity-dark .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#identity-dark .body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 56px;
+  align-items: center;
+  position: relative;
+}
+#identity-dark .body::before {
+  /* vertical "axis" line in the gap between gem and callouts */
+  content: ''; position: absolute;
+  left: 322px; top: 18%; bottom: 18%;
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%, rgba(91,164,217,0.35) 15%,
+    rgba(91,164,217,0.35) 85%, transparent 100%);
+  z-index: 1;
+}
+#identity-dark .gem-wrap {
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+#identity-dark .gem-wrap svg.gem {
+  filter: drop-shadow(0 0 30px rgba(108,184,232,0.18))
+          drop-shadow(0 0 80px rgba(108,184,232,0.06));
+}
+#identity-dark .right-col {
+  display: flex; flex-direction: column;
+  height: 100%;
+  padding: 12px 0;
+}
+#identity-dark .title-block {
+  margin-bottom: 28px;
+}
+#identity-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 10px; opacity: 0.65;
+}
+#identity-dark .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 48px;
+  color: #e8ecf2; letter-spacing: -0.5px;
+  line-height: 1.05;
+}
+#identity-dark .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#identity-dark .callouts {
+  display: flex; flex-direction: column;
+  gap: 18px;
+  flex: 1;
+}
+#identity-dark .callout {
+  display: flex; gap: 18px;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, rgba(18,21,28,0.7) 0%, rgba(14,17,23,0.7) 100%);
+  border: 1px solid #1f242e;
+  border-left: 3px solid #5ba4d9;
+  border-radius: 6px;
+  position: relative;
+}
+#identity-dark .callout::before {
+  /* dashed connector stub from axis to callout edge */
+  content: ''; position: absolute;
+  right: 100%; top: 50%;
+  width: 30px; height: 1px;
+  margin-right: 3px;
+  border-top: 1px dashed #5ba4d9;
+  opacity: 0.55;
+}
+#identity-dark .callout::after {
+  /* dot on the axis */
+  content: ''; position: absolute;
+  right: calc(100% + 30px); top: 50%;
+  transform: translateY(-50%);
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #6cb8e8;
+  box-shadow: 0 0 0 2px #0a0c10, 0 0 0 3px rgba(91,164,217,0.4);
+}
+#identity-dark .callout-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 1.5px;
+  font-weight: 500;
+  padding-top: 1px;
+  min-width: 22px;
+}
+#identity-dark .callout-body {
+  display: flex; flex-direction: column;
+  gap: 4px; flex: 1;
+}
+#identity-dark .callout-name {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400; font-size: 18px;
+  color: #e8ecf2; letter-spacing: 0.2px;
+  line-height: 1.2;
+}
+#identity-dark .callout-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 14px;
+  color: #8b97a8; line-height: 1.5;
+}
+#identity-dark .callout-desc .accent {
+  color: #c0c8d4;
+}
+#identity-dark .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid #1a1e28;
+}
+#identity-dark .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#identity-dark .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #6b7a8d;
+  letter-spacing: 1.5px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #identity-light  ·  1200×630  ·  Annotated identity model (light)
+   ───────────────────────────────────────────────────────────── */
+#identity-light {
+  width: 1200px; height: 630px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#identity-light::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 60% at 22% 50%,
+    rgba(45,106,150,0.08) 0%, rgba(45,106,150,0.03) 40%, transparent 70%);
+  pointer-events: none;
+}
+#identity-light::after {
+  content: ''; position: absolute; inset: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#identity-light .frame {
+  position: relative; height: 100%;
+  padding: 56px 72px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#identity-light .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+#identity-light .lockup { display: flex; align-items: center; gap: 12px; }
+#identity-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #0f172a;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#identity-light .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#identity-light .body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 56px;
+  align-items: center;
+  position: relative;
+}
+#identity-light .body::before {
+  content: ''; position: absolute;
+  left: 322px; top: 18%; bottom: 18%;
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%, rgba(45,106,150,0.30) 15%,
+    rgba(45,106,150,0.30) 85%, transparent 100%);
+  z-index: 1;
+}
+#identity-light .gem-wrap {
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+#identity-light .gem-wrap svg.gem {
+  filter: drop-shadow(0 4px 12px rgba(45,106,150,0.15))
+          drop-shadow(0 0 30px rgba(45,106,150,0.08));
+}
+#identity-light .right-col {
+  display: flex; flex-direction: column;
+  height: 100%;
+  padding: 12px 0;
+}
+#identity-light .title-block {
+  margin-bottom: 28px;
+}
+#identity-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 10px; opacity: 0.6;
+}
+#identity-light .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 48px;
+  color: #0f172a; letter-spacing: -0.5px;
+  line-height: 1.05;
+}
+#identity-light .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+#identity-light .callouts {
+  display: flex; flex-direction: column;
+  gap: 18px;
+  flex: 1;
+}
+#identity-light .callout {
+  display: flex; gap: 18px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #2d6a96;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  position: relative;
+}
+#identity-light .callout::before {
+  content: ''; position: absolute;
+  right: 100%; top: 50%;
+  width: 30px; height: 1px;
+  margin-right: 3px;
+  border-top: 1px dashed #2d6a96;
+  opacity: 0.5;
+}
+#identity-light .callout::after {
+  content: ''; position: absolute;
+  right: calc(100% + 30px); top: 50%;
+  transform: translateY(-50%);
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #2d6a96;
+  box-shadow: 0 0 0 2px #f8fafc, 0 0 0 3px rgba(45,106,150,0.3);
+}
+#identity-light .callout-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 1.5px;
+  font-weight: 500;
+  padding-top: 1px;
+  min-width: 22px;
+}
+#identity-light .callout-body {
+  display: flex; flex-direction: column;
+  gap: 4px; flex: 1;
+}
+#identity-light .callout-name {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400; font-size: 18px;
+  color: #0f172a; letter-spacing: 0.2px;
+  line-height: 1.2;
+}
+#identity-light .callout-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 14px;
+  color: #64748b; line-height: 1.5;
+}
+#identity-light .callout-desc .accent {
+  color: #334155;
+}
+#identity-light .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+#identity-light .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#identity-light .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 1.5px;
+}
+</style>
+</head>
+<body>
+
+<!--
+  Identity sheet · "Professional Identity Model". Annotated gem diagram:
+  the brand mark on the left, three callouts on the right with each
+  callout sprouting a dashed connector stub onto a shared vertical axis
+  drawn between the gem and the callouts. Connectors are CSS pseudo-
+  elements anchored to the callouts (no fragile SVG positioning).
+
+  Callout taxonomy:
+    01 Public surface   — outputs (resumes, letters, LinkedIn, cards)
+    02 Active arc       — current direction (vectors, theses)
+    03 Lived evidence   — past + accumulated (roles, projects, beliefs)
+-->
+
+<!-- ─── IDENTITY · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#identity-dark · 1200×630</div>
+  <div id="identity-dark">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">schema · v3</div>
+      </div>
+
+      <div class="body">
+        <div class="gem-wrap">
+          <svg class="gem" width="240" height="349" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#5ba4d9"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#6cb8e8" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#3d88b8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#6cb8e8" stroke-width="0.5" opacity="0.6"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#6cb8e8" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+
+        <div class="right-col">
+          <div class="title-block">
+            <div class="eyebrow">Professional</div>
+            <h1 class="title"><em>Identity</em> Model</h1>
+          </div>
+
+          <div class="callouts">
+            <div class="callout">
+              <span class="callout-num">01</span>
+              <div class="callout-body">
+                <div class="callout-name">Public surface</div>
+                <div class="callout-desc"><span class="accent">What the world sees.</span> Resumes, letters, LinkedIn, recruiter cards — every output reshaped per audience.</div>
+              </div>
+            </div>
+            <div class="callout">
+              <span class="callout-num">02</span>
+              <div class="callout-body">
+                <div class="callout-name">Active arc</div>
+                <div class="callout-desc"><span class="accent">What you're aiming at.</span> Vectors, theses, strong-fit signals — the direction your search is pointed today.</div>
+              </div>
+            </div>
+            <div class="callout">
+              <span class="callout-num">03</span>
+              <div class="callout-body">
+                <div class="callout-name">Lived evidence</div>
+                <div class="callout-desc"><span class="accent">What's actually true.</span> Roles, projects, philosophy, beliefs — the durable record everything else is derived from.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── IDENTITY · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#identity-light · 1200×630</div>
+  <div id="identity-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">schema · v3</div>
+      </div>
+
+      <div class="body">
+        <div class="gem-wrap">
+          <svg class="gem" width="240" height="349" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.6"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+
+        <div class="right-col">
+          <div class="title-block">
+            <div class="eyebrow">Professional</div>
+            <h1 class="title"><em>Identity</em> Model</h1>
+          </div>
+
+          <div class="callouts">
+            <div class="callout">
+              <span class="callout-num">01</span>
+              <div class="callout-body">
+                <div class="callout-name">Public surface</div>
+                <div class="callout-desc"><span class="accent">What the world sees.</span> Resumes, letters, LinkedIn, recruiter cards — every output reshaped per audience.</div>
+              </div>
+            </div>
+            <div class="callout">
+              <span class="callout-num">02</span>
+              <div class="callout-body">
+                <div class="callout-name">Active arc</div>
+                <div class="callout-desc"><span class="accent">What you're aiming at.</span> Vectors, theses, strong-fit signals — the direction your search is pointed today.</div>
+              </div>
+            </div>
+            <div class="callout">
+              <span class="callout-num">03</span>
+              <div class="callout-body">
+                <div class="callout-name">Lived evidence</div>
+                <div class="callout-desc"><span class="accent">What's actually true.</span> Roles, projects, philosophy, beliefs — the durable record everything else is derived from.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #identity-dark isolates that variant for Playwright screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

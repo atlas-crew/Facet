@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Lockup Specimens Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode: when URL has a variant hash, isolate that variant for screenshot */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #lockups-dark  ·  1200×630  ·  Lockup specimens (dark)
+   ───────────────────────────────────────────────────────────── */
+#lockups-dark {
+  width: 1200px; height: 630px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#lockups-dark::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#lockups-dark .frame {
+  position: relative; height: 100%;
+  padding: 32px 64px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#lockups-dark .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+#lockups-dark .lockup { display: flex; align-items: center; gap: 12px; }
+#lockups-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 28px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#lockups-dark .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#lockups-dark .title-block { margin-bottom: 12px; }
+#lockups-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 6px; opacity: 0.65;
+}
+#lockups-dark .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 38px;
+  color: #e8ecf2; letter-spacing: -0.3px;
+  line-height: 1; margin-bottom: 8px;
+}
+#lockups-dark .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#lockups-dark .subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 13px;
+  color: #8b97a8; line-height: 1.5;
+}
+
+/* Specimens grid */
+#lockups-dark .specimens {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  flex: 1;
+}
+#lockups-dark .specimen-row {
+  display: flex; gap: 10px;
+}
+#lockups-dark .specimen {
+  background: linear-gradient(180deg, #12151c 0%, #0e1117 100%);
+  border: 1px solid #1f242e;
+  border-radius: 6px;
+  padding: 8px 18px;
+  display: flex; flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+#lockups-dark .specimen::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, #5ba4d9, #2d6a96);
+}
+#lockups-dark .specimen-row .specimen { flex: 1; }
+#lockups-dark .specimen.row-spec { width: 100%; }
+#lockups-dark .specimen-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: #5ba4d9;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  opacity: 0.85;
+}
+#lockups-dark .specimen-content {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 0;
+}
+#lockups-dark .specimen-spec {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: #6b7a8d;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Lockup composition styles */
+#lockups-dark .lc-row { display: flex; align-items: center; }
+#lockups-dark .lc-stack {
+  display: flex; flex-direction: column;
+  align-items: center;
+}
+#lockups-dark .lc-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400;
+  color: #e8ecf2;
+  line-height: 1;
+}
+
+/* Per-specimen sizes */
+#lockups-dark .sp-hero .lc-row { gap: 12px; }
+#lockups-dark .sp-hero .lc-text { font-size: 48px; letter-spacing: 2px; }
+
+#lockups-dark .sp-app .lc-row { gap: 10px; }
+#lockups-dark .sp-app .lc-text { font-size: 32px; letter-spacing: 1.5px; }
+
+#lockups-dark .sp-tagline .lc-stack { gap: 8px; }
+#lockups-dark .sp-tagline .lc-row { gap: 10px; }
+#lockups-dark .sp-tagline .lc-text { font-size: 28px; letter-spacing: 1.5px; }
+#lockups-dark .sp-tagline .lc-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: #5ba4d9;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+#lockups-dark .sp-stacked .lc-stack { gap: 5px; }
+#lockups-dark .sp-stacked .lc-text { font-size: 20px; letter-spacing: 1.2px; }
+
+#lockups-dark .sp-inline .lc-row { gap: 6px; }
+#lockups-dark .sp-inline .lc-text { font-size: 18px; letter-spacing: 1px; }
+
+#lockups-dark .sp-mark .lc-row { gap: 0; }
+
+#lockups-dark .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid #1a1e28;
+}
+#lockups-dark .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#lockups-dark .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #6b7a8d;
+  letter-spacing: 1.5px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #lockups-light  ·  1200×630  ·  Lockup specimens (light)
+   ───────────────────────────────────────────────────────────── */
+#lockups-light {
+  width: 1200px; height: 630px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#lockups-light::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#lockups-light .frame {
+  position: relative; height: 100%;
+  padding: 32px 64px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#lockups-light .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+#lockups-light .lockup { display: flex; align-items: center; gap: 12px; }
+#lockups-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 28px; color: #0f172a;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#lockups-light .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#lockups-light .title-block { margin-bottom: 12px; }
+#lockups-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 6px; opacity: 0.6;
+}
+#lockups-light .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 38px;
+  color: #0f172a; letter-spacing: -0.3px;
+  line-height: 1; margin-bottom: 8px;
+}
+#lockups-light .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+#lockups-light .subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 13px;
+  color: #64748b; line-height: 1.5;
+}
+
+#lockups-light .specimens {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  flex: 1;
+}
+#lockups-light .specimen-row {
+  display: flex; gap: 10px;
+}
+#lockups-light .specimen {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 18px;
+  display: flex; flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+}
+#lockups-light .specimen::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, #2d6a96, #1e5a82);
+}
+#lockups-light .specimen-row .specimen { flex: 1; }
+#lockups-light .specimen.row-spec { width: 100%; }
+#lockups-light .specimen-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: #2d6a96;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  opacity: 0.75;
+}
+#lockups-light .specimen-content {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 0;
+}
+#lockups-light .specimen-spec {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+#lockups-light .lc-row { display: flex; align-items: center; }
+#lockups-light .lc-stack {
+  display: flex; flex-direction: column;
+  align-items: center;
+}
+#lockups-light .lc-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400;
+  color: #0f172a;
+  line-height: 1;
+}
+
+#lockups-light .sp-hero .lc-row { gap: 12px; }
+#lockups-light .sp-hero .lc-text { font-size: 48px; letter-spacing: 2px; }
+
+#lockups-light .sp-app .lc-row { gap: 10px; }
+#lockups-light .sp-app .lc-text { font-size: 32px; letter-spacing: 1.5px; }
+
+#lockups-light .sp-tagline .lc-stack { gap: 8px; }
+#lockups-light .sp-tagline .lc-row { gap: 10px; }
+#lockups-light .sp-tagline .lc-text { font-size: 28px; letter-spacing: 1.5px; }
+#lockups-light .sp-tagline .lc-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: #2d6a96;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+#lockups-light .sp-stacked .lc-stack { gap: 8px; }
+#lockups-light .sp-stacked .lc-text { font-size: 20px; letter-spacing: 1.2px; }
+
+#lockups-light .sp-inline .lc-row { gap: 6px; }
+#lockups-light .sp-inline .lc-text { font-size: 18px; letter-spacing: 1px; }
+
+#lockups-light .sp-mark .lc-row { gap: 0; }
+
+#lockups-light .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+#lockups-light .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#lockups-light .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 1.5px;
+}
+</style>
+</head>
+<body>
+
+<!--
+  Lockups sheet · canonical assemblies of the gem mark + Facet wordmark.
+  Reference asset (not concept) — answers "how do I assemble the mark
+  in this context?" Specimens ordered by usage frequency, not size.
+
+  Specimens:
+    1. HORIZONTAL · HERO     — landing pages, banners (≥48px)
+    2. HORIZONTAL · APP      — app headers, nav (24-40px)
+    3. STACKED               — banner / vertical contexts
+    4. HORIZONTAL · INLINE   — small text contexts (≤24px)
+    5. GEM ONLY              — favicon, sidebar icon (below 32px)
+
+  Note on font weights: Instrument Serif ships only at weight 400. The
+  weight differentiation BRAND.md describes is achieved by letter-
+  spacing and size-context, not by font-weight.
+-->
+
+<!-- ─── LOCKUPS · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#lockups-dark · 1200×630</div>
+  <div id="lockups-dark">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">brand · lockups · v3</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">Marks · sizes · contexts</div>
+        <h1 class="title">Lockup <em>Specimens</em></h1>
+        <p class="subtitle">Standard horizontal layout, per context. Switch to gem-only below 32px.</p>
+      </div>
+
+      <div class="specimens">
+
+        <!-- 1. HORIZONTAL · HERO -->
+        <div class="specimen sp-hero">
+          <div class="specimen-label">Horizontal · Hero · ≥48px</div>
+          <div class="specimen-content">
+            <div class="lc-row">
+              <svg width="48" height="70" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+                <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+                <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+                <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+                <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+              </svg>
+              <span class="lc-text">Facet</span>
+            </div>
+          </div>
+          <div class="specimen-spec">Instrument Serif 400 · 48px · letter-spacing 2px · gap 12px · gem 48h</div>
+        </div>
+
+        <!-- 2. HORIZONTAL · APP HEADER -->
+        <div class="specimen sp-app">
+          <div class="specimen-label">Horizontal · App header · 24–40px</div>
+          <div class="specimen-content">
+            <div class="lc-row">
+              <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+                <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+                <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+                <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+                <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+              </svg>
+              <span class="lc-text">Facet</span>
+            </div>
+          </div>
+          <div class="specimen-spec">Instrument Serif 400 · 32px · letter-spacing 1.5px · gap 10px · gem 28h</div>
+        </div>
+
+        <!-- 3. HORIZONTAL · WITH TAGLINE -->
+        <div class="specimen sp-tagline">
+          <div class="specimen-label">Horizontal · with tagline · banner use</div>
+          <div class="specimen-content">
+            <div class="lc-stack">
+              <div class="lc-row">
+                <svg width="26" height="38" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+                  <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+                  <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+                  <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+                </svg>
+                <span class="lc-text">Facet</span>
+              </div>
+              <span class="lc-tag">Same diamond · Different face</span>
+            </div>
+          </div>
+          <div class="specimen-spec">IS 400 · 28px · gem 26h · tagline DM Mono 11px · letter-spacing 2.5px · stack gap 8px</div>
+        </div>
+
+        <!-- 4-6. STACKED · INLINE · MARK ONLY -->
+        <div class="specimen sp-stacked">
+            <div class="specimen-label">Stacked · banner</div>
+            <div class="specimen-content">
+              <div class="lc-stack">
+                <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+                  <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+                  <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+                </svg>
+                <span class="lc-text">Facet</span>
+              </div>
+            </div>
+            <div class="specimen-spec">IS 400 · 20px · gem 28h · gap 5px below</div>
+          </div>
+
+          <div class="specimen sp-inline">
+            <div class="specimen-label">Inline · ≤24px</div>
+            <div class="specimen-content">
+              <div class="lc-row">
+                <svg width="16" height="23" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+                </svg>
+                <span class="lc-text">Facet</span>
+              </div>
+            </div>
+            <div class="specimen-spec">IS 400 · 18px · gap 6px · gem 16h</div>
+          </div>
+
+          <div class="specimen sp-mark">
+            <div class="specimen-label">Gem only · below 32px</div>
+            <div class="specimen-content">
+              <div class="lc-row">
+                <svg width="38" height="55" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+                  <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+                  <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+                </svg>
+              </div>
+            </div>
+            <div class="specimen-spec">Favicon · sidebar · app icon</div>
+          </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── LOCKUPS · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#lockups-light · 1200×630</div>
+  <div id="lockups-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">brand · lockups · v3</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">Marks · sizes · contexts</div>
+        <h1 class="title">Lockup <em>Specimens</em></h1>
+        <p class="subtitle">Standard horizontal layout, per context. Switch to gem-only below 32px.</p>
+      </div>
+
+      <div class="specimens">
+
+        <div class="specimen sp-hero">
+          <div class="specimen-label">Horizontal · Hero · ≥48px</div>
+          <div class="specimen-content">
+            <div class="lc-row">
+              <svg width="48" height="70" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+                <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+                <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+                <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+                <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+              </svg>
+              <span class="lc-text">Facet</span>
+            </div>
+          </div>
+          <div class="specimen-spec">Instrument Serif 400 · 48px · letter-spacing 2px · gap 12px · gem 48h</div>
+        </div>
+
+        <div class="specimen sp-app">
+          <div class="specimen-label">Horizontal · App header · 24–40px</div>
+          <div class="specimen-content">
+            <div class="lc-row">
+              <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+                <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+                <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+                <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+                <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+              </svg>
+              <span class="lc-text">Facet</span>
+            </div>
+          </div>
+          <div class="specimen-spec">Instrument Serif 400 · 32px · letter-spacing 1.5px · gap 10px · gem 28h</div>
+        </div>
+
+        <div class="specimen sp-tagline">
+          <div class="specimen-label">Horizontal · with tagline · banner use</div>
+          <div class="specimen-content">
+            <div class="lc-stack">
+              <div class="lc-row">
+                <svg width="26" height="38" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+                  <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+                  <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+                </svg>
+                <span class="lc-text">Facet</span>
+              </div>
+              <span class="lc-tag">Same diamond · Different face</span>
+            </div>
+          </div>
+          <div class="specimen-spec">IS 400 · 28px · gem 26h · tagline DM Mono 11px · letter-spacing 2.5px · stack gap 8px</div>
+        </div>
+
+        <div class="specimen sp-stacked">
+            <div class="specimen-label">Stacked · banner</div>
+            <div class="specimen-content">
+              <div class="lc-stack">
+                <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+                  <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+                </svg>
+                <span class="lc-text">Facet</span>
+              </div>
+            </div>
+            <div class="specimen-spec">IS 400 · 20px · gem 28h · gap 5px below</div>
+          </div>
+
+          <div class="specimen sp-inline">
+            <div class="specimen-label">Inline · ≤24px</div>
+            <div class="specimen-content">
+              <div class="lc-row">
+                <svg width="16" height="23" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                </svg>
+                <span class="lc-text">Facet</span>
+              </div>
+            </div>
+            <div class="specimen-spec">IS 400 · 18px · gap 6px · gem 16h</div>
+          </div>
+
+          <div class="specimen sp-mark">
+            <div class="specimen-label">Gem only · below 32px</div>
+            <div class="specimen-content">
+              <div class="lc-row">
+                <svg width="38" height="55" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+                  <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+                  <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+                  <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+                  <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+                </svg>
+              </div>
+            </div>
+            <div class="specimen-spec">Favicon · sidebar · app icon</div>
+          </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #lockups-dark isolates that variant for Playwright screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

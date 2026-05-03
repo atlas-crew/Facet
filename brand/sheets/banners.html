@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Banner Sheet (Hero variants)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #6cb8e8;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Render mode: when URL has a variant hash, isolate that variant for screenshot */
+body.render { padding: 0; gap: 0; background: #050709; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #bold-dark  ·  1200×630  ·  Bold hero (dark)
+   ───────────────────────────────────────────────────────────── */
+#bold-dark {
+  width: 1200px; height: 630px; position: relative; overflow: hidden;
+  display: flex; align-items: center;
+}
+#bold-dark .bg-base {
+  position: absolute; top: 0; left: 0; width: 55%; height: 100%;
+  background: #0a0c10; z-index: 0;
+}
+#bold-dark .bg-accent {
+  position: absolute; top: 0; right: 0; width: 45%; height: 100%;
+  background: linear-gradient(160deg, #4a9ad0 0%, #2d6a96 100%); z-index: 0;
+}
+#bold-dark .diagonal-cut {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+}
+#bold-dark .diagonal-cut svg { width: 100%; height: 100%; }
+#bold-dark .grid-overlay {
+  position: absolute; top: 0; right: 0; width: 45%; height: 100%;
+  z-index: 2; opacity: 0.06;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px);
+  background-size: 40px 40px; pointer-events: none;
+}
+#bold-dark .watermark {
+  position: absolute; right: -20px; top: 50%;
+  transform: translateY(-50%); z-index: 1; opacity: 0.07;
+}
+#bold-dark .content {
+  position: relative; z-index: 3; display: flex; align-items: center;
+  width: 100%; height: 100%; padding: 0 80px;
+}
+#bold-dark .left-content {
+  flex: 1; display: flex; flex-direction: column; gap: 20px;
+}
+#bold-dark .lockup { display: flex; align-items: center; gap: 14px; }
+#bold-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 72px; color: #e8ecf2;
+  letter-spacing: 2px; line-height: 1;
+}
+#bold-dark .tagline {
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  color: #6cb8e8; letter-spacing: 2px; text-transform: uppercase;
+}
+#bold-dark .divider {
+  width: 60px; height: 2px;
+  background: linear-gradient(90deg, #6cb8e8, transparent);
+}
+#bold-dark .description {
+  font-family: 'DM Sans', sans-serif; font-weight: 300;
+  font-size: 17px; color: #8b97a8; line-height: 1.6; max-width: 420px;
+}
+#bold-dark .description strong { color: #c0c8d4; font-weight: 400; }
+
+/* ─────────────────────────────────────────────────────────────
+   #bold-light  ·  1200×630  ·  Bold hero (light)
+   ───────────────────────────────────────────────────────────── */
+#bold-light {
+  width: 1200px; height: 630px; position: relative; overflow: hidden;
+  display: flex; align-items: center;
+}
+#bold-light .bg-base {
+  position: absolute; top: 0; left: 0; width: 55%; height: 100%;
+  background: #f8fafc; z-index: 0;
+}
+#bold-light .bg-accent {
+  position: absolute; top: 0; right: 0; width: 45%; height: 100%;
+  background: linear-gradient(160deg, #3d8ab8 0%, #1e5a82 100%); z-index: 0;
+}
+#bold-light .diagonal-cut {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+}
+#bold-light .diagonal-cut svg { width: 100%; height: 100%; }
+#bold-light .grid-overlay {
+  position: absolute; top: 0; right: 0; width: 45%; height: 100%;
+  z-index: 2; opacity: 0.06;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px);
+  background-size: 40px 40px; pointer-events: none;
+}
+#bold-light .watermark {
+  position: absolute; right: -20px; top: 50%;
+  transform: translateY(-50%); z-index: 1; opacity: 0.07;
+}
+#bold-light .content {
+  position: relative; z-index: 3; display: flex; align-items: center;
+  width: 100%; height: 100%; padding: 0 80px;
+}
+#bold-light .left-content {
+  flex: 1; display: flex; flex-direction: column; gap: 20px;
+}
+#bold-light .lockup { display: flex; align-items: center; gap: 14px; }
+#bold-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 72px; color: #0f172a;
+  letter-spacing: 2px; line-height: 1;
+}
+#bold-light .tagline {
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  color: #2d6a96; letter-spacing: 2px; text-transform: uppercase;
+}
+#bold-light .divider {
+  width: 60px; height: 2px;
+  background: linear-gradient(90deg, #2d6a96, transparent);
+}
+#bold-light .description {
+  font-family: 'DM Sans', sans-serif; font-weight: 300;
+  font-size: 17px; color: #64748b; line-height: 1.6; max-width: 420px;
+}
+#bold-light .description strong { color: #0f172a; font-weight: 400; }
+
+/* ─────────────────────────────────────────────────────────────
+   #atm-dark  ·  1200×630  ·  Atmospheric hero (dark)
+   ───────────────────────────────────────────────────────────── */
+#atm-dark {
+  width: 1200px; height: 630px; background: #0a0c10;
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+}
+#atm-dark::before {
+  content: ''; position: absolute;
+  width: 600px; height: 600px; top: 50%; left: 50%;
+  transform: translate(-50%, -55%);
+  background: radial-gradient(ellipse at center,
+    rgba(108,184,232,0.12) 0%, rgba(45,106,150,0.06) 35%, transparent 70%);
+  pointer-events: none;
+}
+#atm-dark .facet-grid {
+  position: absolute; inset: 0; opacity: 0.035;
+  background-image:
+    linear-gradient(40deg, #6cb8e8 1px, transparent 1px),
+    linear-gradient(-40deg, #6cb8e8 1px, transparent 1px);
+  background-size: 80px 80px; pointer-events: none;
+}
+#atm-dark .scan-line {
+  position: absolute; width: 100%; height: 1px; top: 50%;
+  background: linear-gradient(90deg,
+    transparent 5%, rgba(108,184,232,0.06) 20%, rgba(108,184,232,0.12) 50%,
+    rgba(108,184,232,0.06) 80%, transparent 95%);
+  pointer-events: none;
+}
+#atm-dark .vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(5,7,9,0.6) 100%);
+  pointer-events: none;
+}
+#atm-dark .bottom-fade {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 200px;
+  background: linear-gradient(to top, rgba(10,12,16,0.8), transparent);
+  pointer-events: none;
+}
+#atm-dark .logo-group {
+  position: relative; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; gap: 24px; margin-top: -40px;
+}
+#atm-dark .icon-wrapper {
+  filter: drop-shadow(0 0 40px rgba(108,184,232,0.2))
+          drop-shadow(0 0 80px rgba(108,184,232,0.08));
+}
+#atm-dark .lockup { display: flex; align-items: center; gap: 16px; }
+#atm-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 64px; color: #e8ecf2;
+  letter-spacing: 2px; line-height: 1;
+}
+#atm-dark .tagline {
+  font-family: 'DM Mono', monospace; font-size: 13px;
+  color: #5ba4d9; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.7;
+}
+#atm-dark .description {
+  font-family: 'DM Sans', sans-serif; font-weight: 300; font-size: 17px;
+  color: #6b7a8d; line-height: 1.6; text-align: center; max-width: 520px;
+}
+#atm-dark .description strong { color: #c0c8d4; font-weight: 400; }
+#atm-dark .corner { position: absolute; z-index: 2; width: 40px; height: 40px; }
+#atm-dark .corner-tl { top: 32px; left: 32px;
+  border-top: 1px solid rgba(108,184,232,0.15);
+  border-left: 1px solid rgba(108,184,232,0.15); }
+#atm-dark .corner-tr { top: 32px; right: 32px;
+  border-top: 1px solid rgba(108,184,232,0.15);
+  border-right: 1px solid rgba(108,184,232,0.15); }
+#atm-dark .corner-bl { bottom: 32px; left: 32px;
+  border-bottom: 1px solid rgba(108,184,232,0.15);
+  border-left: 1px solid rgba(108,184,232,0.15); }
+#atm-dark .corner-br { bottom: 32px; right: 32px;
+  border-bottom: 1px solid rgba(108,184,232,0.15);
+  border-right: 1px solid rgba(108,184,232,0.15); }
+#atm-dark .particle {
+  position: absolute; width: 2px; height: 2px;
+  background: #6cb8e8; border-radius: 50%;
+  opacity: 0; animation: drift-dark 8s ease-in-out infinite;
+}
+#atm-dark .particle:nth-child(1) { top: 25%; left: 15%; animation-delay: 0s; animation-duration: 10s; }
+#atm-dark .particle:nth-child(2) { top: 60%; left: 80%; animation-delay: 2s; animation-duration: 12s; }
+#atm-dark .particle:nth-child(3) { top: 35%; left: 70%; animation-delay: 4s; animation-duration: 9s; }
+#atm-dark .particle:nth-child(4) { top: 70%; left: 25%; animation-delay: 1s; animation-duration: 11s; }
+#atm-dark .particle:nth-child(5) { top: 15%; left: 55%; animation-delay: 3s; animation-duration: 8s; }
+#atm-dark .particle:nth-child(6) { top: 80%; left: 60%; animation-delay: 5s; animation-duration: 13s; }
+@keyframes drift-dark {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  50% { opacity: 0.4; transform: translateY(-10px); }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #atm-light  ·  1200×630  ·  Atmospheric hero (light)
+   ───────────────────────────────────────────────────────────── */
+#atm-light {
+  width: 1200px; height: 630px; background: #f8fafc;
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+}
+#atm-light::before {
+  content: ''; position: absolute;
+  width: 600px; height: 600px; top: 50%; left: 50%;
+  transform: translate(-50%, -55%);
+  background: radial-gradient(ellipse at center,
+    rgba(45,106,150,0.08) 0%, rgba(45,106,150,0.03) 35%, transparent 70%);
+  pointer-events: none;
+}
+#atm-light .facet-grid {
+  position: absolute; inset: 0; opacity: 0.04;
+  background-image:
+    linear-gradient(40deg, #2d6a96 1px, transparent 1px),
+    linear-gradient(-40deg, #2d6a96 1px, transparent 1px);
+  background-size: 80px 80px; pointer-events: none;
+}
+#atm-light .scan-line {
+  position: absolute; width: 100%; height: 1px; top: 50%;
+  background: linear-gradient(90deg,
+    transparent 5%, rgba(45,106,150,0.06) 20%, rgba(45,106,150,0.1) 50%,
+    rgba(45,106,150,0.06) 80%, transparent 95%);
+  pointer-events: none;
+}
+#atm-light .vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(226,232,240,0.5) 100%);
+  pointer-events: none;
+}
+#atm-light .logo-group {
+  position: relative; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; gap: 24px; margin-top: -40px;
+}
+#atm-light .icon-wrapper {
+  filter: drop-shadow(0 0 40px rgba(45,106,150,0.12))
+          drop-shadow(0 0 80px rgba(45,106,150,0.05));
+}
+#atm-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 64px; color: #0f172a;
+  letter-spacing: 2px; line-height: 1;
+}
+#atm-light .tagline {
+  font-family: 'DM Mono', monospace; font-size: 13px;
+  color: #2d6a96; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.6;
+}
+#atm-light .description {
+  font-family: 'DM Sans', sans-serif; font-weight: 300; font-size: 17px;
+  color: #64748b; line-height: 1.6; text-align: center; max-width: 520px;
+}
+#atm-light .description strong { color: #0f172a; font-weight: 400; }
+#atm-light .corner { position: absolute; z-index: 2; width: 40px; height: 40px; }
+#atm-light .corner-tl { top: 32px; left: 32px;
+  border-top: 1px solid rgba(45,106,150,0.15);
+  border-left: 1px solid rgba(45,106,150,0.15); }
+#atm-light .corner-tr { top: 32px; right: 32px;
+  border-top: 1px solid rgba(45,106,150,0.15);
+  border-right: 1px solid rgba(45,106,150,0.15); }
+#atm-light .corner-bl { bottom: 32px; left: 32px;
+  border-bottom: 1px solid rgba(45,106,150,0.15);
+  border-left: 1px solid rgba(45,106,150,0.15); }
+#atm-light .corner-br { bottom: 32px; right: 32px;
+  border-bottom: 1px solid rgba(45,106,150,0.15);
+  border-right: 1px solid rgba(45,106,150,0.15); }
+#atm-light .particle {
+  position: absolute; width: 2px; height: 2px;
+  background: #2d6a96; border-radius: 50%;
+  opacity: 0; animation: drift-light 8s ease-in-out infinite;
+}
+#atm-light .particle:nth-child(1) { top: 25%; left: 15%; animation-delay: 0s; animation-duration: 10s; }
+#atm-light .particle:nth-child(2) { top: 60%; left: 80%; animation-delay: 2s; animation-duration: 12s; }
+#atm-light .particle:nth-child(3) { top: 35%; left: 70%; animation-delay: 4s; animation-duration: 9s; }
+#atm-light .particle:nth-child(4) { top: 70%; left: 25%; animation-delay: 1s; animation-duration: 11s; }
+#atm-light .particle:nth-child(5) { top: 15%; left: 55%; animation-delay: 3s; animation-duration: 8s; }
+#atm-light .particle:nth-child(6) { top: 80%; left: 60%; animation-delay: 5s; animation-duration: 13s; }
+@keyframes drift-light {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  50% { opacity: 0.3; transform: translateY(-10px); }
+}
+</style>
+</head>
+<body>
+
+<!--
+  Banner sheet · four 1200×630 hero variants. To export PNGs, screenshot
+  each #variant by selector at 2× DPR. Variants are stacked vertically
+  with their dimensions labelled.
+-->
+
+<!-- ─── BOLD · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#bold-dark · 1200×630</div>
+  <div id="bold-dark">
+    <div class="bg-base"></div>
+    <div class="bg-accent"></div>
+    <div class="diagonal-cut">
+      <svg viewBox="0 0 1200 630" preserveAspectRatio="none" fill="none">
+        <polygon points="0,0 660,0 780,630 0,630" fill="#0a0c10"/>
+        <line x1="660" y1="0" x2="780" y2="630" stroke="#7ac4f0" stroke-width="1" opacity="0.25"/>
+      </svg>
+    </div>
+    <div class="grid-overlay"></div>
+    <div class="watermark">
+      <svg width="320" height="464" viewBox="0 0 22 32" fill="none">
+        <path d="M6 2 H16 L20 9 H2 Z" fill="rgba(255,255,255,0.5)"/>
+        <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="rgba(255,255,255,0.15)"/>
+        <path d="M2 9 L11 31 L11 9 Z" fill="rgba(255,255,255,0.2)"/>
+        <path d="M20 9 L11 31 L11 9 Z" fill="rgba(255,255,255,0.35)"/>
+        <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+        <line x1="11" y1="2" x2="11" y2="31" stroke="rgba(255,255,255,0.1)" stroke-width="0.35"/>
+      </svg>
+    </div>
+    <div class="content">
+      <div class="left-content">
+        <div class="lockup">
+          <svg width="56" height="81" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="divider"></div>
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="description">
+          <strong>Build a deep model of who you are professionally.</strong>
+          Then let it find the right jobs, build materials, and prep for interviews.
+          Open source. Self-hostable.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── BOLD · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#bold-light · 1200×630</div>
+  <div id="bold-light">
+    <div class="bg-base"></div>
+    <div class="bg-accent"></div>
+    <div class="diagonal-cut">
+      <svg viewBox="0 0 1200 630" preserveAspectRatio="none" fill="none">
+        <polygon points="0,0 660,0 780,630 0,630" fill="#f8fafc"/>
+        <line x1="660" y1="0" x2="780" y2="630" stroke="#2d6a96" stroke-width="1" opacity="0.2"/>
+      </svg>
+    </div>
+    <div class="grid-overlay"></div>
+    <div class="watermark">
+      <svg width="320" height="464" viewBox="0 0 22 32" fill="none">
+        <path d="M6 2 H16 L20 9 H2 Z" fill="rgba(255,255,255,0.5)"/>
+        <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="rgba(255,255,255,0.15)"/>
+        <path d="M2 9 L11 31 L11 9 Z" fill="rgba(255,255,255,0.2)"/>
+        <path d="M20 9 L11 31 L11 9 Z" fill="rgba(255,255,255,0.35)"/>
+        <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+        <line x1="11" y1="2" x2="11" y2="31" stroke="rgba(255,255,255,0.1)" stroke-width="0.35"/>
+      </svg>
+    </div>
+    <div class="content">
+      <div class="left-content">
+        <div class="lockup">
+          <svg width="56" height="81" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="divider"></div>
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="description">
+          <strong>Build a deep model of who you are professionally.</strong>
+          Then let it find the right jobs, build materials, and prep for interviews.
+          Open source. Self-hostable.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ATMOSPHERIC · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#atm-dark · 1200×630</div>
+  <div id="atm-dark">
+    <div class="facet-grid"></div>
+    <div class="scan-line"></div>
+    <div class="vignette"></div>
+    <div class="bottom-fade"></div>
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="logo-group">
+      <div class="icon-wrapper">
+        <svg width="72" height="104" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+          <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+          <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+        </svg>
+      </div>
+      <div class="lockup">
+        <span class="lockup-text">Facet</span>
+      </div>
+      <div class="tagline">Same diamond · Different face</div>
+      <div class="description">
+        <strong>Build a deep model of who you are professionally.</strong>
+        Then let it find the right jobs, build materials, and prep for interviews.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ATMOSPHERIC · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#atm-light · 1200×630</div>
+  <div id="atm-light">
+    <div class="facet-grid"></div>
+    <div class="scan-line"></div>
+    <div class="vignette"></div>
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="logo-group">
+      <div class="icon-wrapper">
+        <svg width="72" height="104" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+          <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+        </svg>
+      </div>
+      <div class="lockup">
+        <span class="lockup-text">Facet</span>
+      </div>
+      <div class="tagline">Same diamond · Different face</div>
+      <div class="description">
+        <strong>Build a deep model of who you are professionally.</strong>
+        Then let it find the right jobs, build materials, and prep for interviews.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #bold-dark isolates that variant for Playwright screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

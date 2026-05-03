@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Career Operating System Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #6cb8e8;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode: when URL has a variant hash, isolate that variant for screenshot */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #system-dark  ·  1200×630  ·  Career OS stack diagram (dark)
+   ───────────────────────────────────────────────────────────── */
+#system-dark {
+  width: 1200px; height: 630px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#system-dark::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#system-dark::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 80% 50%,
+    rgba(45,106,150,0.10) 0%, transparent 60%);
+  pointer-events: none;
+}
+#system-dark .frame {
+  position: relative; height: 100%;
+  padding: 56px 72px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#system-dark .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 28px;
+}
+#system-dark .lockup {
+  display: flex; align-items: center; gap: 12px;
+}
+#system-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#system-dark .version {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.7;
+}
+#system-dark .title-block {
+  margin-bottom: 24px;
+}
+#system-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 10px; opacity: 0.65;
+}
+#system-dark .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 56px;
+  color: #e8ecf2; letter-spacing: -0.5px;
+  line-height: 1; margin-bottom: 14px;
+}
+#system-dark .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#system-dark .subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 15px;
+  color: #8b97a8; line-height: 1.55; max-width: 620px;
+}
+#system-dark .stack {
+  display: flex; flex-direction: column; gap: 6px; flex: 1;
+}
+#system-dark .layer {
+  display: flex; align-items: center; gap: 24px;
+  padding: 14px 22px 14px 28px;
+  background: linear-gradient(90deg, #12151c 0%, #0e1117 100%);
+  border: 1px solid #1f242e;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+#system-dark .layer::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+}
+#system-dark .layer-1::before { background: linear-gradient(180deg, #7ac4f0, #6cb8e8); }
+#system-dark .layer-2::before { background: linear-gradient(180deg, #6cb8e8, #5ba4d9); }
+#system-dark .layer-3::before { background: linear-gradient(180deg, #5ba4d9, #3d88b8); }
+#system-dark .layer-4::before { background: linear-gradient(180deg, #3d88b8, #2d6a96); }
+#system-dark .layer-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #4a5468;
+  letter-spacing: 1px; min-width: 22px;
+}
+#system-dark .layer-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; letter-spacing: 2.5px;
+  text-transform: uppercase; font-weight: 500;
+  min-width: 110px;
+}
+#system-dark .layer-1 .layer-label { color: #7ac4f0; }
+#system-dark .layer-2 .layer-label { color: #6cb8e8; }
+#system-dark .layer-3 .layer-label { color: #5ba4d9; }
+#system-dark .layer-4 .layer-label { color: #4a94c8; }
+#system-dark .layer-modules {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 16px;
+  color: #c0c8d4; letter-spacing: 0.2px;
+  flex: 1;
+}
+#system-dark .layer-modules .sep {
+  color: #3a4252; margin: 0 6px;
+}
+#system-dark .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 22px; padding-top: 18px;
+  border-top: 1px solid #1a1e28;
+}
+#system-dark .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#system-dark .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #6b7a8d;
+  letter-spacing: 1.5px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #system-light  ·  1200×630  ·  Career OS stack diagram (light)
+   ───────────────────────────────────────────────────────────── */
+#system-light {
+  width: 1200px; height: 630px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#system-light::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#system-light::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 80% 50%,
+    rgba(45,106,150,0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+#system-light .frame {
+  position: relative; height: 100%;
+  padding: 56px 72px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#system-light .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 28px;
+}
+#system-light .lockup {
+  display: flex; align-items: center; gap: 12px;
+}
+#system-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #0f172a;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#system-light .version {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#system-light .title-block {
+  margin-bottom: 24px;
+}
+#system-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 10px; opacity: 0.6;
+}
+#system-light .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 56px;
+  color: #0f172a; letter-spacing: -0.5px;
+  line-height: 1; margin-bottom: 14px;
+}
+#system-light .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+#system-light .subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 15px;
+  color: #64748b; line-height: 1.55; max-width: 620px;
+}
+#system-light .stack {
+  display: flex; flex-direction: column; gap: 6px; flex: 1;
+}
+#system-light .layer {
+  display: flex; align-items: center; gap: 24px;
+  padding: 14px 22px 14px 28px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+#system-light .layer::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+}
+#system-light .layer-1::before { background: linear-gradient(180deg, #5ba4d9, #4a94c8); }
+#system-light .layer-2::before { background: linear-gradient(180deg, #4a94c8, #3d88b8); }
+#system-light .layer-3::before { background: linear-gradient(180deg, #3d88b8, #2d6a96); }
+#system-light .layer-4::before { background: linear-gradient(180deg, #2d6a96, #1e5a82); }
+#system-light .layer-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 1px; min-width: 22px;
+}
+#system-light .layer-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; letter-spacing: 2.5px;
+  text-transform: uppercase; font-weight: 500;
+  min-width: 110px;
+}
+#system-light .layer-1 .layer-label { color: #2d6a96; }
+#system-light .layer-2 .layer-label { color: #2d6a96; }
+#system-light .layer-3 .layer-label { color: #1e5a82; }
+#system-light .layer-4 .layer-label { color: #1e5a82; }
+#system-light .layer-modules {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 16px;
+  color: #334155; letter-spacing: 0.2px;
+  flex: 1;
+}
+#system-light .layer-modules .sep {
+  color: #cbd5e1; margin: 0 6px;
+}
+#system-light .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 22px; padding-top: 18px;
+  border-top: 1px solid #e2e8f0;
+}
+#system-light .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.6;
+}
+#system-light .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 1.5px;
+}
+</style>
+</head>
+<body>
+
+<!--
+  System sheet · "Career Operating System". A 4-layer stack diagram that
+  re-groups the canonical Facet modules (Identity · Build · Match ·
+  Pipeline · Prep · Letters · LinkedIn · Recruiter · Debrief) into
+  presentation / workflow / inference / identity tiers. Screenshot each
+  variant by ID at 2× DPR.
+-->
+
+<!-- ─── SYSTEM · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#system-dark · 1200×630</div>
+  <div id="system-dark">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="version">v3 · open source · self-hosted</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">A career</div>
+        <h1 class="title">Operating <em>System</em></h1>
+        <p class="subtitle">Identity is the foundation. Search, prep, and every output Facet produces runs on a single model of who you are professionally — not job-by-job rewrites.</p>
+      </div>
+
+      <div class="stack">
+        <div class="layer layer-1">
+          <span class="layer-num">01</span>
+          <span class="layer-label">Outputs</span>
+          <span class="layer-modules">Resumes<span class="sep">·</span>Letters<span class="sep">·</span>LinkedIn<span class="sep">·</span>Recruiter cards</span>
+        </div>
+        <div class="layer layer-2">
+          <span class="layer-num">02</span>
+          <span class="layer-label">Workflow</span>
+          <span class="layer-modules">Pipeline<span class="sep">·</span>Prep<span class="sep">·</span>Debrief</span>
+        </div>
+        <div class="layer layer-3">
+          <span class="layer-num">03</span>
+          <span class="layer-label">Inference</span>
+          <span class="layer-modules">Match<span class="sep">·</span>Build<span class="sep">·</span>Vector mapping</span>
+        </div>
+        <div class="layer layer-4">
+          <span class="layer-num">04</span>
+          <span class="layer-label">Identity</span>
+          <span class="layer-modules">Roles<span class="sep">·</span>Projects<span class="sep">·</span>Theses<span class="sep">·</span>Philosophy</span>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SYSTEM · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#system-light · 1200×630</div>
+  <div id="system-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="version">v3 · open source · self-hosted</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">A career</div>
+        <h1 class="title">Operating <em>System</em></h1>
+        <p class="subtitle">Identity is the foundation. Search, prep, and every output Facet produces runs on a single model of who you are professionally — not job-by-job rewrites.</p>
+      </div>
+
+      <div class="stack">
+        <div class="layer layer-1">
+          <span class="layer-num">01</span>
+          <span class="layer-label">Outputs</span>
+          <span class="layer-modules">Resumes<span class="sep">·</span>Letters<span class="sep">·</span>LinkedIn<span class="sep">·</span>Recruiter cards</span>
+        </div>
+        <div class="layer layer-2">
+          <span class="layer-num">02</span>
+          <span class="layer-label">Workflow</span>
+          <span class="layer-modules">Pipeline<span class="sep">·</span>Prep<span class="sep">·</span>Debrief</span>
+        </div>
+        <div class="layer layer-3">
+          <span class="layer-num">03</span>
+          <span class="layer-label">Inference</span>
+          <span class="layer-modules">Match<span class="sep">·</span>Build<span class="sep">·</span>Vector mapping</span>
+        </div>
+        <div class="layer layer-4">
+          <span class="layer-num">04</span>
+          <span class="layer-label">Identity</span>
+          <span class="layer-modules">Roles<span class="sep">·</span>Projects<span class="sep">·</span>Theses<span class="sep">·</span>Philosophy</span>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #system-dark isolates that variant for Playwright screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>
