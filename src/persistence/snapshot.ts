@@ -23,6 +23,7 @@ import {
   FACET_WORKSPACE_SNAPSHOT_VERSION,
 } from './contracts'
 import type { PersistenceSnapshotRequest } from './coordinator'
+import { normalizeResumeWorkspacePayload } from '../utils/resumeEntities'
 
 const persistableResearchProfile = (profile: SearchProfile | null) =>
   profile?.source?.kind === 'identity' ? null : cloneValue(profile)
@@ -46,10 +47,10 @@ export interface LegacyPersistenceSource {
 // drift between the persistence contract and the migration plan.
 export const DURABLE_PERSISTENCE_BOUNDARIES: PersistenceBoundaryDefinition[] = [
   {
-    source: 'resumeStore.data',
+    source: 'resumeStore.data,resumes,snapshots',
     target: 'workspace.artifacts.resume.payload',
     durability: 'durable',
-    notes: 'Resume content and presets travel with the workspace snapshot.',
+    notes: 'Active resume content plus first-class resumes and snapshots travel with the workspace snapshot.',
   },
   {
     source: 'pipelineStore.entries',
@@ -236,6 +237,7 @@ export const createWorkspaceSnapshotFromStores = (
   const workspaceName = request.workspaceName ?? DEFAULT_LOCAL_WORKSPACE_NAME
 
   const pipelineState = usePipelineStore.getState()
+  const resumeState = useResumeStore.getState()
   const jdAnalysisState = useJDAnalysisStore.getState()
   const prepState = usePrepStore.getState()
   const linkedInState = useLinkedInStore.getState()
@@ -257,7 +259,15 @@ export const createWorkspaceSnapshotFromStores = (
       resume: buildArtifactSnapshot(
         'resume',
         workspaceId,
-        cloneValue(useResumeStore.getState().data),
+        normalizeResumeWorkspacePayload(
+          {
+            data: cloneValue(resumeState.data),
+            resumes: cloneValue(resumeState.resumes),
+            snapshots: cloneValue(resumeState.snapshots),
+            activeResumeId: resumeState.activeResumeId,
+          },
+          resumeState.data,
+        ),
         exportedAt,
       ),
       pipeline: buildArtifactSnapshot(

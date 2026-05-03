@@ -24,6 +24,38 @@ const FORGED_WORKSPACE_REVISION = 999
 const FORGED_ARTIFACT_REVISION = 77
 const FORGED_RESUME_SCHEMA_VERSION = 7
 
+const resumeFixtureData = {
+  version: 1,
+  meta: { name: 'Jane Smith', email: '', phone: '', location: '', links: [] },
+  target_lines: [],
+  profiles: [],
+  skill_groups: [],
+  roles: [],
+  projects: [],
+  education: [],
+  certifications: [],
+  vectors: [],
+  presets: [],
+}
+
+const resumeFixturePayload = {
+  data: resumeFixtureData,
+  resumes: [
+    {
+      id: 'resume-1',
+      content: resumeFixtureData,
+      contentHash: 'fixture',
+      origin: { type: 'vector' as const, vectorId: null, vectorIds: [] },
+      identityVersion: null,
+      pipelineEntryId: null,
+      createdAt: DEFAULT_TIMESTAMP,
+      updatedAt: DEFAULT_TIMESTAMP,
+    },
+  ],
+  snapshots: [],
+  activeResumeId: 'resume-1',
+}
+
 function buildArtifact<TType extends FacetWorkspaceSnapshot['artifacts'][keyof FacetWorkspaceSnapshot['artifacts']]['artifactType'], TPayload>(
   artifactType: TType,
   payload: TPayload,
@@ -67,19 +99,7 @@ export function buildWorkspaceSnapshot(
       updatedAt: DEFAULT_TIMESTAMP,
     },
     artifacts: {
-      resume: buildArtifact('resume', {
-        version: 1,
-        meta: { name: 'Jane Smith', email: '', phone: '', location: '', links: [] },
-        target_lines: [],
-        profiles: [],
-        skill_groups: [],
-        roles: [],
-        projects: [],
-        education: [],
-        certifications: [],
-        vectors: [],
-        presets: [],
-      }),
+      resume: buildArtifact('resume', resumeFixturePayload),
       pipeline: buildArtifact('pipeline', { entries: [] }),
       jdAnalysis: buildArtifact('jdAnalysis', { analyses: [] }),
       prep: buildArtifact('prep', { decks: [] }),

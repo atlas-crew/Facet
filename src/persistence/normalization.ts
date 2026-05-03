@@ -1,4 +1,5 @@
 import { cloneValue } from './clone'
+import { defaultResumeData } from '../store/defaultData'
 import type {
   DebriefArtifactSnapshot,
   FacetLocalPreferencesSnapshot,
@@ -7,6 +8,7 @@ import type {
   LinkedInArtifactSnapshot,
   RecruiterArtifactSnapshot,
 } from './contracts'
+import { normalizeResumeWorkspacePayload } from '../utils/resumeEntities'
 
 const buildEmptyLinkedInArtifact = (
   workspaceId: string,
@@ -111,6 +113,11 @@ export const normalizeWorkspaceSnapshot = (
       normalized.workspace.updatedAt || normalized.exportedAt,
     )
   }
+
+  normalized.artifacts.resume.payload = normalizeResumeWorkspacePayload(
+    normalized.artifacts.resume.payload,
+    defaultResumeData,
+  )
 
   return normalized
 }

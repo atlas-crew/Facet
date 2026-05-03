@@ -23,6 +23,7 @@ import {
   normalizePipelineResumeGeneration,
 } from '../utils/resumeGeneration'
 import { useJDAnalysisStore } from './jdAnalysisStore'
+import { useResumeStore } from './resumeStore'
 
 interface PipelineFilters {
   tier: PipelineTier | 'all'
@@ -137,6 +138,9 @@ const normalizeEntry = (
     }),
     resumeVariant: entry.resumeVariant,
     resumeGeneration: normalizedResumeGeneration,
+    resumeId: entry.resumeId ?? null,
+    resumeSnapshotId: entry.resumeSnapshotId ?? null,
+    deletedAt: entry.deletedAt ?? null,
     durableMeta: options.touch
       ? touchDurableMetadata(entry.durableMeta, timestamp())
       : ensureDurableMetadata(entry.durableMeta, fallbackTimestamp),
@@ -199,7 +203,23 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
       },
 
       deleteEntry: (id) => {
-        set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }))
+        const deletedAt = timestamp()
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            e.id === id
+              ? normalizeEntry(
+                  {
+                    ...e,
+                    deletedAt,
+                    jdAnalysisId: null,
+                    lastAction: now(),
+                    history: [...e.history, { date: now(), note: 'Soft-deleted' }],
+                  },
+                  { touch: true },
+                )
+              : e
+          ),
+        }))
         useJDAnalysisStore.getState().removeAnalysisForPipelineEntry(id)
       },
 
@@ -232,20 +252,46 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
 
       setStatus: (id, status) => {
         const date = now()
+        const currentEntry = get().entries.find((entry) => entry.id === id)
+        let resumeSnapshotId = currentEntry?.resumeSnapshotId ?? null
+        if (
+          currentEntry &&
+          status === 'applied' &&
+          currentEntry.status !== 'applied' &&
+          currentEntry.resumeId
+        ) {
+          const resumeStore = useResumeStore.getState()
+          let snapshotResumeId = currentEntry.resumeId
+          if (resumeStore.activeResumeId === currentEntry.resumeId) {
+            const savedResume = resumeStore.saveActiveResume({
+              content: resumeStore.data,
+              pipelineEntryId: currentEntry.id,
+            })
+            snapshotResumeId = savedResume.id
+          }
+          const snapshot = useResumeStore
+            .getState()
+            .createSnapshotForPipelineEntry(snapshotResumeId, currentEntry.id)
+          resumeSnapshotId = snapshot?.id ?? resumeSnapshotId
+        }
+
         set((s) => ({
-          entries: s.entries.map((e) =>
-            e.id === id
-              ? normalizeEntry(
-                  {
-                    ...e,
-                    status,
-                    lastAction: date,
-                    history: [...e.history, { date, note: `Status → ${status}` }],
-                  },
-                  { touch: true },
-                )
-              : e
-          ),
+          entries: s.entries.map((e) => {
+            if (e.id !== id) {
+              return e
+            }
+
+            return normalizeEntry(
+              {
+                ...e,
+                status,
+                resumeSnapshotId,
+                lastAction: date,
+                history: [...e.history, { date, note: `Status → ${status}` }],
+              },
+              { touch: true },
+            )
+          }),
         }))
       },
 

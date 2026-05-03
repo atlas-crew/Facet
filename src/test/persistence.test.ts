@@ -8,7 +8,7 @@ import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
-import { useResumeStore } from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
 import { useUiStore } from '../store/uiStore'
@@ -66,7 +66,7 @@ describe('persistence foundation', () => {
     clearLegacyStorage()
 
     useResumeStore.setState({
-      data: defaultResumeData,
+      ...normalizeResumeWorkspaceData(defaultResumeData),
       past: [],
       future: [],
       canUndo: false,
@@ -337,7 +337,7 @@ describe('persistence foundation', () => {
     expect(snapshot.artifacts.pipeline.payload).not.toHaveProperty('sortField')
     expect(snapshot.artifacts.prep.payload).not.toHaveProperty('activeDeckId')
 
-    snapshot.artifacts.resume.payload.meta.name = 'Changed in snapshot'
+    snapshot.artifacts.resume.payload.data.meta.name = 'Changed in snapshot'
     expect(useResumeStore.getState().data.meta.name).toBe(defaultResumeData.meta.name)
   })
 
@@ -412,7 +412,7 @@ describe('persistence foundation', () => {
       exportedAt: '2026-03-11T12:00:00.000Z',
     })
 
-    snapshot.artifacts.resume.payload.meta.name = 'Hydrated Name'
+    snapshot.artifacts.resume.payload.data.meta.name = 'Hydrated Name'
     snapshot.artifacts.pipeline.payload.entries = [
       {
         id: 'pipe-1',
@@ -609,7 +609,7 @@ describe('persistence foundation', () => {
     expect(useRecruiterStore.getState().cards).toHaveLength(1)
     expect(useDebriefStore.getState().sessions).toHaveLength(1)
     expect(useSearchStore.getState().profile?.id).toBe('profile-1')
-    expect(snapshot.artifacts.resume.payload.meta.name).toBe('Hydrated Name')
+    expect(snapshot.artifacts.resume.payload.data.meta.name).toBe('Hydrated Name')
   })
 
   it('round-trips active research jobs through workspace snapshots and legacy hydration', () => {
@@ -746,7 +746,7 @@ describe('persistence foundation', () => {
 
   it('documents the migration map from legacy storage keys', () => {
     expect(DURABLE_PERSISTENCE_BOUNDARIES.map((entry) => entry.source)).toEqual([
-      'resumeStore.data',
+      'resumeStore.data,resumes,snapshots',
       'pipelineStore.entries',
       'jdAnalysisStore.analyses',
       'prepStore.decks',
@@ -843,9 +843,12 @@ describe('persistence foundation', () => {
           revision: 9,
           payload: {
             ...snapshot.artifacts.resume.payload,
-            meta: {
-              ...snapshot.artifacts.resume.payload.meta,
-              name: 'Patched Name',
+            data: {
+              ...snapshot.artifacts.resume.payload.data,
+              meta: {
+                ...snapshot.artifacts.resume.payload.data.meta,
+                name: 'Patched Name',
+              },
             },
           },
           artifactId: 'forged-artifact-id',
@@ -863,7 +866,7 @@ describe('persistence foundation', () => {
     expect(patched.artifacts.resume.schemaVersion).toBe(snapshot.artifacts.resume.schemaVersion)
     expect(patched.artifacts.resume.updatedAt).not.toBe(snapshot.artifacts.resume.updatedAt)
     expect(patched.artifacts.resume.revision).toBe(9)
-    expect(patched.artifacts.resume.payload.meta.name).toBe('Patched Name')
+    expect(patched.artifacts.resume.payload.data.meta.name).toBe('Patched Name')
   })
 
   it('treats empty patches as immutable no-ops and rejects unknown artifact keys', () => {

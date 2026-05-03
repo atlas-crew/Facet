@@ -71,6 +71,7 @@ import { ThemeEditorPanel } from '../../components/ThemeEditorPanel'
 import { usePdfPreview } from '../../hooks/usePdfPreview'
 import { useHandoffStore } from '../../store/handoffStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
+import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useSuggestionActions } from '../../hooks/useSuggestionActions'
 import { usePresets } from '../../hooks/usePresets'
@@ -90,6 +91,7 @@ import { useMatchStore } from '../../store/matchStore'
 import { buildMatchVectorId } from '../../utils/matchAssembler'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import { buildProjectionFromJDAnalysis } from '../../utils/buildProjection'
+import { resumeOriginFromGeneration } from '../../utils/resumeEntities'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
 const CURRENT_YEAR = new Date().getFullYear()
@@ -400,16 +402,31 @@ export function BuildPage() {
         },
       )
 
-      usePipelineStore.getState().updateEntry(entryId, { resumeGeneration })
-
-      return {
+      const workspaceGeneration: ResumeWorkspaceGenerationState = {
         ...generation,
-        mode: 'dynamic',
+        mode: 'dynamic' as const,
         pipelineEntryId: entryId,
         presetId,
         variantId: resumeGeneration?.variantId ?? variantId,
         variantLabel: resumeGeneration?.variantLabel ?? variantLabel,
       }
+      const identityVersion = useIdentityStore.getState().currentIdentity?.model_revision ?? null
+      const resume = useResumeStore.getState().saveActiveResume({
+        content: {
+          ...useResumeStore.getState().data,
+          generation: workspaceGeneration,
+        },
+        origin: resumeOriginFromGeneration(workspaceGeneration),
+        identityVersion,
+        pipelineEntryId: entryId,
+      })
+
+      usePipelineStore.getState().updateEntry(entryId, {
+        resumeGeneration,
+        resumeId: resume.id,
+      })
+
+      return workspaceGeneration
     },
     [],
   )

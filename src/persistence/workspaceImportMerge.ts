@@ -1,4 +1,5 @@
 import { mergeResumeData } from '../engine/importMerge'
+import { defaultResumeData } from '../store/defaultData'
 import type { CoverLetterTemplate } from '../types/coverLetter'
 import type { DebriefSession } from '../types/debrief'
 import type { JDAnalysis } from '../types/jdAnalysis'
@@ -15,6 +16,10 @@ import type {
 } from '../types/search'
 import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
+import {
+  normalizeResumeWorkspacePayload,
+  updateResumeEntityContent,
+} from '../utils/resumeEntities'
 import {
   createEmptyDebriefArtifactSnapshot,
   createEmptyJDAnalysisArtifactSnapshot,
@@ -100,6 +105,34 @@ const mergeDebriefSessions = (existing: DebriefSession[], incoming: DebriefSessi
 
 const mergePipelineEntries = (existing: PipelineEntry[], incoming: PipelineEntry[]) =>
   mergeById(existing, incoming)
+
+const mergeResumeWorkspacePayloads = (
+  existingPayload: FacetWorkspaceSnapshot['artifacts']['resume']['payload'],
+  incomingPayload: FacetWorkspaceSnapshot['artifacts']['resume']['payload'],
+) => {
+  const existing = normalizeResumeWorkspacePayload(existingPayload, defaultResumeData)
+  const incoming = normalizeResumeWorkspacePayload(incomingPayload, defaultResumeData)
+  const mergedData = mergeResumeData(existing.data, incoming.data)
+  const mergedResumes = mergeById(existing.resumes, incoming.resumes)
+  const activeResumeId =
+    [existing.activeResumeId, incoming.activeResumeId].find(
+      (id): id is string =>
+        typeof id === 'string' && mergedResumes.some((resume) => resume.id === id),
+    ) ?? mergedResumes[0]?.id ?? null
+  const synchronizedResumes = mergedResumes.map((resume) =>
+    updateResumeEntityContent(resume, mergeResumeData(resume.content, mergedData)),
+  )
+
+  return normalizeResumeWorkspacePayload(
+    {
+      data: mergedData,
+      resumes: synchronizedResumes,
+      snapshots: mergeById(existing.snapshots, incoming.snapshots),
+      activeResumeId,
+    },
+    mergedData,
+  )
+}
 
 const normalizeComparableText = (value: string | undefined | null) => value?.trim() ?? ''
 
@@ -323,7 +356,7 @@ export const mergeWorkspaceSnapshots = (
     artifacts: {
       resume: {
         ...cloneValue(current.artifacts.resume),
-        payload: mergeResumeData(
+        payload: mergeResumeWorkspacePayloads(
           current.artifacts.resume.payload,
           imported.artifacts.resume.payload,
         ),

@@ -9,7 +9,7 @@ import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
-import { useResumeStore } from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
 import { useUiStore } from '../store/uiStore'
@@ -99,7 +99,7 @@ describe('persistence runtime', () => {
     clearLegacyStorage()
 
     useResumeStore.setState({
-      data: defaultResumeData,
+      ...normalizeResumeWorkspaceData(defaultResumeData),
       past: [],
       future: [],
       canUndo: false,
@@ -377,9 +377,12 @@ describe('persistence runtime', () => {
             artifactId: 'facet-local-workspace:resume',
             payload: {
               ...baseSnapshot.artifacts.resume.payload,
-              meta: {
-                ...baseSnapshot.artifacts.resume.payload.meta,
-                name: 'Hydrated Without Preferences',
+              data: {
+                ...baseSnapshot.artifacts.resume.payload.data,
+                meta: {
+                  ...baseSnapshot.artifacts.resume.payload.data.meta,
+                  name: 'Hydrated Without Preferences',
+                },
               },
             },
           },
@@ -445,6 +448,8 @@ describe('persistence runtime', () => {
     await runtime.start()
 
     expect(useResumeStore.getState().data).toEqual(defaultResumeData)
+    expect(useResumeStore.getState().resumes).toHaveLength(1)
+    expect(useResumeStore.getState().activeResumeId).toBeTruthy()
     expect(useUiStore.getState().appearance).toBe('system')
     expect(usePersistenceRuntimeStore.getState()).toMatchObject({
       hydrated: true,
@@ -497,7 +502,7 @@ describe('persistence runtime', () => {
     const savedPreferences =
       await preferencesBackend.loadLocalPreferencesSnapshot('facet-local-workspace')
 
-    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Legacy Person')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Legacy Person')
     expect(savedPreferences?.pipeline.sortField).toBe('company')
 
     runtime.dispose()
@@ -519,9 +524,12 @@ describe('persistence runtime', () => {
           ...baseSnapshot.artifacts.resume,
           payload: {
             ...baseSnapshot.artifacts.resume.payload,
-            meta: {
-              ...baseSnapshot.artifacts.resume.payload.meta,
-              name: 'Hydrated Before Flush',
+            data: {
+              ...baseSnapshot.artifacts.resume.payload.data,
+              meta: {
+                ...baseSnapshot.artifacts.resume.payload.data.meta,
+                name: 'Hydrated Before Flush',
+              },
             },
           },
         },
@@ -541,7 +549,7 @@ describe('persistence runtime', () => {
     const savedSnapshot = await workspaceBackend.loadWorkspaceSnapshot('ws-1')
 
     expect(useResumeStore.getState().data.meta.name).toBe('Hydrated Before Flush')
-    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Hydrated Before Flush')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Hydrated Before Flush')
     expect(usePersistenceRuntimeStore.getState().hydrated).toBe(true)
 
     runtime.dispose()
@@ -578,7 +586,7 @@ describe('persistence runtime', () => {
 
     expect(snapshot.workspace.id).toBe('ws-7')
     expect(snapshot.workspace.name).toBe('Workspace Seven')
-    expect(snapshot.artifacts.resume.payload.meta.name).toBe('Exported Directly')
+    expect(snapshot.artifacts.resume.payload.data.meta.name).toBe('Exported Directly')
     expect(usePersistenceRuntimeStore.getState().hydrated).toBe(false)
 
     runtime.dispose()
@@ -602,7 +610,7 @@ describe('persistence runtime', () => {
     const savedPreferences =
       await preferencesBackend.loadLocalPreferencesSnapshot('facet-local-workspace')
 
-    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Runtime Save')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Runtime Save')
     expect(savedPreferences?.ui.appearance).toBe('dark')
     expect(usePersistenceRuntimeStore.getState().status.phase).toBe('saved')
 
@@ -649,9 +657,12 @@ describe('persistence runtime', () => {
           ...baseSnapshot.artifacts.resume,
           payload: {
             ...baseSnapshot.artifacts.resume.payload,
-            meta: {
-              ...baseSnapshot.artifacts.resume.payload.meta,
-              name: 'Hydrated Snapshot',
+            data: {
+              ...baseSnapshot.artifacts.resume.payload.data,
+              meta: {
+                ...baseSnapshot.artifacts.resume.payload.data.meta,
+                name: 'Hydrated Snapshot',
+              },
             },
           },
         },
@@ -682,7 +693,7 @@ describe('persistence runtime', () => {
 
     expect(useResumeStore.getState().data.meta.name).toBe('Hydrated Snapshot')
     expect(persistedSnapshots).toHaveLength(1)
-    expect(persistedSnapshots[0]?.artifacts.resume.payload.meta.name).toBe('Hydrated Snapshot')
+    expect(persistedSnapshots[0]?.artifacts.resume.payload.data.meta.name).toBe('Hydrated Snapshot')
 
     runtime.dispose()
   })
@@ -710,7 +721,7 @@ describe('persistence runtime', () => {
     const savedSnapshot = await backing.loadWorkspaceSnapshot('facet-local-workspace')
 
     expect(getSaveCalls()).toBe(1)
-    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Draft Two')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Draft Two')
     expect(usePersistenceRuntimeStore.getState().status.phase).toBe('saved')
 
     runtime.dispose()
@@ -854,9 +865,12 @@ describe('persistence runtime', () => {
           ...baseSnapshot.artifacts.resume,
           payload: {
             ...baseSnapshot.artifacts.resume.payload,
-            meta: {
-              ...baseSnapshot.artifacts.resume.payload.meta,
-              name: 'Imported Person',
+            data: {
+              ...baseSnapshot.artifacts.resume.payload.data,
+              meta: {
+                ...baseSnapshot.artifacts.resume.payload.data.meta,
+                name: 'Imported Person',
+              },
             },
           },
         },
@@ -1018,9 +1032,12 @@ describe('persistence runtime', () => {
           ...baseSnapshot.artifacts.resume,
           payload: {
             ...baseSnapshot.artifacts.resume.payload,
-            meta: {
-              ...baseSnapshot.artifacts.resume.payload.meta,
-              name: 'Imported Winner',
+            data: {
+              ...baseSnapshot.artifacts.resume.payload.data,
+              meta: {
+                ...baseSnapshot.artifacts.resume.payload.data.meta,
+                name: 'Imported Winner',
+              },
             },
           },
         },
@@ -1037,7 +1054,7 @@ describe('persistence runtime', () => {
 
     expect(useResumeStore.getState().data.meta.name).toBe('Imported Winner')
     const savedSnapshot = await backing.loadWorkspaceSnapshot('facet-local-workspace')
-    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Imported Winner')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Imported Winner')
 
     runtime.dispose()
   })
@@ -1071,9 +1088,12 @@ describe('persistence runtime', () => {
           ...buildWorkspaceSnapshot().artifacts.resume,
           payload: {
             ...buildWorkspaceSnapshot().artifacts.resume.payload,
-            meta: {
-              ...buildWorkspaceSnapshot().artifacts.resume.payload.meta,
-              name: 'Imported After Failure',
+            data: {
+              ...buildWorkspaceSnapshot().artifacts.resume.payload.data,
+              meta: {
+                ...buildWorkspaceSnapshot().artifacts.resume.payload.data.meta,
+                name: 'Imported After Failure',
+              },
             },
           },
         },
@@ -1090,7 +1110,7 @@ describe('persistence runtime', () => {
     await runtime.flush()
 
     const savedSnapshot = await workspaceBackend.loadWorkspaceSnapshot('facet-local-workspace')
-    expect(savedSnapshot?.artifacts.resume.payload.meta.name).toBe('Recovered Save')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Recovered Save')
 
     runtime.dispose()
   })
@@ -1124,9 +1144,12 @@ describe('persistence runtime', () => {
           ...buildWorkspaceSnapshot().artifacts.resume,
           payload: {
             ...buildWorkspaceSnapshot().artifacts.resume.payload,
-            meta: {
-              ...buildWorkspaceSnapshot().artifacts.resume.payload.meta,
-              name: 'Should Not Hydrate',
+            data: {
+              ...buildWorkspaceSnapshot().artifacts.resume.payload.data,
+              meta: {
+                ...buildWorkspaceSnapshot().artifacts.resume.payload.data.meta,
+                name: 'Should Not Hydrate',
+              },
             },
           },
         },
@@ -1144,7 +1167,7 @@ describe('persistence runtime', () => {
     resolveSave!()
 
     const returnedSnapshot = await importPromise
-    expect(returnedSnapshot.artifacts.resume.payload.meta.name).toBe('Should Not Hydrate')
+    expect(returnedSnapshot.artifacts.resume.payload.data.meta.name).toBe('Should Not Hydrate')
     expect(useResumeStore.getState().data.meta.name).toBe('Before Dispose')
   })
 

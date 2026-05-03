@@ -202,6 +202,8 @@ export interface PipelineEntry {
   presetId: string | null
   resumeVariant: string
   resumeGeneration: PipelineResumeGenerationState | null
+  resumeId?: string | null
+  resumeSnapshotId?: string | null
 
   // Positioning
   positioning: string
@@ -224,6 +226,12 @@ export interface PipelineEntry {
   dateClosed: string
   lastAction: string
   createdAt: string
+  /**
+   * Soft-delete marker. Deleted entries stay in durable storage and retain
+   * resume IDs and snapshots for historical recovery; list UIs should filter
+   * them unless explicitly showing archived records.
+   */
+  deletedAt?: string | null
 
   // History
   history: PipelineHistoryEntry[]

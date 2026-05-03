@@ -15,6 +15,7 @@ import type {
   ComponentPriority,
 } from '../types'
 import type { ResumeWorkspaceGenerationState } from '../types/resumeGeneration'
+import type { ResumeEntity, ResumeOrigin, ResumeSnapshot } from '../types/resume'
 import { defaultResumeData } from './defaultData'
 import { reorderSkillGroupForSelection } from '../utils/skillGroupVectors'
 import { reorderById } from '../utils/reorderById'
@@ -22,8 +23,18 @@ import { createId } from '../utils/idUtils'
 import { normalizeResumeWorkspaceGeneration } from '../utils/resumeGeneration'
 import { ensureDurableMetadata, touchDurableMetadata } from './durableMetadata'
 import { useUiStore } from './uiStore'
+import {
+  cloneResumeContent,
+  createResumeEntity,
+  createResumeSnapshot,
+  normalizeResumeOrigin,
+  normalizeResumeWorkspacePayload,
+  resumeOriginFromGeneration,
+  updateResumeEntityContent,
+} from '../utils/resumeEntities'
 
 const MAX_HISTORY = 50
+const DEFAULT_ACTIVE_RESUME_ID = 'resume-local-default'
 
 let legacyUiStoreRaw: string | null = null
 if (typeof globalThis.localStorage !== 'undefined' && typeof globalThis.localStorage.getItem === 'function') {
@@ -43,6 +54,9 @@ const legacyUiStoreSnapshot = legacyUiStoreRaw
 
 interface ResumeState {
   data: ResumeData
+  resumes: ResumeEntity[]
+  snapshots: ResumeSnapshot[]
+  activeResumeId: string | null
   past: ResumeData[]
   future: ResumeData[]
   setData: (data: ResumeData) => void
@@ -53,6 +67,21 @@ interface ResumeState {
   canUndo: boolean
   canRedo: boolean
   updateGeneration: (generation: Partial<ResumeWorkspaceGenerationState>) => void
+  createResume: (input?: {
+    content?: ResumeData
+    origin?: ResumeOrigin
+    identityVersion?: number | null
+    pipelineEntryId?: string | null
+    activate?: boolean
+  }) => ResumeEntity
+  saveActiveResume: (input?: {
+    content?: ResumeData
+    origin?: ResumeOrigin
+    identityVersion?: number | null
+    pipelineEntryId?: string | null
+  }) => ResumeEntity
+  setActiveResume: (id: string) => void
+  createSnapshotForPipelineEntry: (resumeId: string, pipelineEntryId: string) => ResumeSnapshot | null
   
   // Positioning actions (Moved from uiStore for Global Undo/Redo)
   setOverride: (vectorId: VectorId | 'all', componentKey: string, included: boolean | null) => void
@@ -148,6 +177,11 @@ const normalizeResumeData = (
       : ensureDurableMetadata(data.durableMeta, timestamp),
   }
 }
+
+export const normalizeResumeWorkspaceData = (payload: unknown) =>
+  normalizeResumeWorkspacePayload(payload, normalizeResumeData(defaultResumeData), {
+    fallbackResumeId: DEFAULT_ACTIVE_RESUME_ID,
+  })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- migration handles raw persisted state with unknown shape
 export function resumeMigration(persistedState: any, version: number, legacyUiData: string | null = legacyUiStoreSnapshot) {
@@ -307,11 +341,23 @@ export function resumeMigration(persistedState: any, version: number, legacyUiDa
     persistedState.data = normalizeResumeData(persistedState.data)
   }
 
+  const normalizedWorkspace = normalizeResumeWorkspacePayload(
+    persistedState,
+    normalizeResumeData(persistedState.data ?? defaultResumeData),
+    { fallbackResumeId: DEFAULT_ACTIVE_RESUME_ID },
+  )
+  persistedState.data = normalizeResumeData(normalizedWorkspace.data)
+  persistedState.resumes = normalizedWorkspace.resumes
+  persistedState.snapshots = normalizedWorkspace.snapshots
+  persistedState.activeResumeId = normalizedWorkspace.activeResumeId
+
   return persistedState
 }
 
 export const useResumeStore = create<ResumeState>()((set, get) => ({
-      data: normalizeResumeData(defaultResumeData),
+      ...normalizeResumeWorkspacePayload(undefined, normalizeResumeData(defaultResumeData), {
+        fallbackResumeId: DEFAULT_ACTIVE_RESUME_ID,
+      }),
       past: [],
       future: [],
       canUndo: false,
@@ -334,12 +380,22 @@ export const useResumeStore = create<ResumeState>()((set, get) => ({
       },
 
       updateData: (fn) => {
-        const { data: current, past } = get()
+        const { data: current, past, activeResumeId, resumes } = get()
         const nextState = fn(current)
         if (nextState === current) return
         const next = normalizeResumeData(nextState, { touch: true })
+        const activeResume =
+          resumes.find((resume) => resume.id === activeResumeId) ?? resumes[0] ?? null
+        const nextResume = activeResume
+          ? updateResumeEntityContent(activeResume, next)
+          : createResumeEntity({ content: next })
+        const nextResumes = activeResume
+          ? resumes.map((resume) => (resume.id === nextResume.id ? nextResume : resume))
+          : [...resumes, nextResume]
         set({
           data: next,
+          resumes: nextResumes,
+          activeResumeId: nextResume.id,
           past: [...past, current].slice(-MAX_HISTORY),
           future: [],
           canUndo: true,
@@ -348,9 +404,23 @@ export const useResumeStore = create<ResumeState>()((set, get) => ({
       },
 
       resetToDefaults: () => {
-        const { data: current, past } = get()
+        const { data: current, past, activeResumeId, resumes } = get()
+        const next = normalizeResumeData(defaultResumeData)
+        const activeResume =
+          resumes.find((resume) => resume.id === activeResumeId) ?? resumes[0] ?? null
+        const nextResume = activeResume
+          ? updateResumeEntityContent(activeResume, next, {
+              origin: resumeOriginFromGeneration(next.generation),
+              identityVersion: null,
+              pipelineEntryId: null,
+            })
+          : createResumeEntity({ content: next, id: DEFAULT_ACTIVE_RESUME_ID })
         set({
-          data: normalizeResumeData(defaultResumeData),
+          data: next,
+          resumes: activeResume
+            ? resumes.map((resume) => (resume.id === nextResume.id ? nextResume : resume))
+            : [nextResume],
+          activeResumeId: nextResume.id,
           past: [...past, current].slice(-MAX_HISTORY),
           future: [],
           canUndo: true,
@@ -359,13 +429,22 @@ export const useResumeStore = create<ResumeState>()((set, get) => ({
       },
 
       undo: () => {
-        const { past, data: current, future } = get()
+        const { past, data: current, future, activeResumeId, resumes } = get()
         const previous = past.at(-1)
         if (!previous) return
         
         const nextPast = past.slice(0, -1)
+        const activeResume =
+          resumes.find((resume) => resume.id === activeResumeId) ?? resumes[0] ?? null
+        const nextResume = activeResume
+          ? updateResumeEntityContent(activeResume, previous)
+          : createResumeEntity({ content: previous })
         set({
           data: previous,
+          resumes: activeResume
+            ? resumes.map((resume) => (resume.id === nextResume.id ? nextResume : resume))
+            : [...resumes, nextResume],
+          activeResumeId: nextResume.id,
           past: nextPast,
           future: [current, ...future].slice(0, MAX_HISTORY),
           canUndo: nextPast.length > 0,
@@ -374,18 +453,108 @@ export const useResumeStore = create<ResumeState>()((set, get) => ({
       },
 
       redo: () => {
-        const { past, data: current, future } = get()
+        const { past, data: current, future, activeResumeId, resumes } = get()
         const next = future.at(0)
         if (!next) return
         
         const nextFuture = future.slice(1)
+        const activeResume =
+          resumes.find((resume) => resume.id === activeResumeId) ?? resumes[0] ?? null
+        const nextResume = activeResume
+          ? updateResumeEntityContent(activeResume, next)
+          : createResumeEntity({ content: next })
         set({
           data: next,
+          resumes: activeResume
+            ? resumes.map((resume) => (resume.id === nextResume.id ? nextResume : resume))
+            : [...resumes, nextResume],
+          activeResumeId: nextResume.id,
           past: [...past, current],
           future: nextFuture,
           canUndo: true,
           canRedo: nextFuture.length > 0,
         })
+      },
+
+      createResume: (input = {}) => {
+        const content = normalizeResumeData(input.content ?? get().data)
+        const resume = createResumeEntity({
+          content,
+          origin: input.origin,
+          identityVersion: input.identityVersion ?? null,
+          pipelineEntryId: input.pipelineEntryId ?? null,
+        })
+        const activate = input.activate ?? true
+        set((state) => ({
+          resumes: [...state.resumes, resume],
+          ...(activate
+            ? {
+                data: resume.content,
+                activeResumeId: resume.id,
+                past: [],
+                future: [],
+                canUndo: false,
+                canRedo: false,
+              }
+            : {}),
+        }))
+        return resume
+      },
+
+      saveActiveResume: (input = {}) => {
+        const state = get()
+        const content = normalizeResumeData(input.content ?? state.data)
+        const activeResume =
+          state.resumes.find((resume) => resume.id === state.activeResumeId) ??
+          state.resumes[0] ??
+          null
+        const origin = normalizeResumeOrigin(
+          input.origin,
+          activeResume?.origin ?? resumeOriginFromGeneration(content.generation),
+        )
+        const resume = activeResume
+          ? updateResumeEntityContent(activeResume, content, {
+              origin,
+              identityVersion: input.identityVersion,
+              pipelineEntryId: input.pipelineEntryId,
+            })
+          : createResumeEntity({
+              content,
+              origin,
+              identityVersion: input.identityVersion ?? null,
+              pipelineEntryId: input.pipelineEntryId ?? null,
+            })
+        set({
+          data: cloneResumeContent(content),
+          resumes: activeResume
+            ? state.resumes.map((item) => (item.id === resume.id ? resume : item))
+            : [...state.resumes, resume],
+          activeResumeId: resume.id,
+        })
+        return resume
+      },
+
+      setActiveResume: (id) => {
+        const resume = get().resumes.find((item) => item.id === id)
+        if (!resume) return
+        set({
+          data: cloneResumeContent(resume.content),
+          activeResumeId: resume.id,
+          past: [],
+          future: [],
+          canUndo: false,
+          canRedo: false,
+        })
+      },
+
+      createSnapshotForPipelineEntry: (resumeId, pipelineEntryId) => {
+        const resume = get().resumes.find((item) => item.id === resumeId)
+        if (!resume) return null
+        const snapshot = createResumeSnapshot(resume, pipelineEntryId)
+        set((state) => ({
+          snapshots: [...state.snapshots, snapshot],
+        }))
+        return snapshot
       },
 
       setOverride: (vector, componentKey, included) => {

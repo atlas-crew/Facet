@@ -13,6 +13,49 @@ const isStringArray = (value: unknown): value is string[] =>
 const isParseableDateString = (value: unknown): value is string =>
   typeof value === 'string' && Number.isFinite(Date.parse(value))
 
+const assertValidResumeEntity = (resume: unknown, index: number) => {
+  if (!isRecord(resume)) {
+    throw new Error(`Workspace snapshot has invalid artifacts.resume.payload.resumes[${index}].`)
+  }
+
+  if (
+    typeof resume.id !== 'string' ||
+    !isRecord(resume.content) ||
+    !isRecord(resume.content.meta) ||
+    !Array.isArray(resume.content.vectors) ||
+    typeof resume.contentHash !== 'string' ||
+    !isRecord(resume.origin) ||
+    !isParseableDateString(resume.createdAt) ||
+    !isParseableDateString(resume.updatedAt)
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.resume.payload.resumes[${index}] shape.`,
+    )
+  }
+}
+
+const assertValidResumeSnapshot = (snapshot: unknown, index: number) => {
+  if (!isRecord(snapshot)) {
+    throw new Error(`Workspace snapshot has invalid artifacts.resume.payload.snapshots[${index}].`)
+  }
+
+  if (
+    typeof snapshot.id !== 'string' ||
+    typeof snapshot.sourceResumeId !== 'string' ||
+    typeof snapshot.pipelineEntryId !== 'string' ||
+    !isRecord(snapshot.content) ||
+    !isRecord(snapshot.content.meta) ||
+    !Array.isArray(snapshot.content.vectors) ||
+    typeof snapshot.contentHash !== 'string' ||
+    !isRecord(snapshot.origin) ||
+    !isParseableDateString(snapshot.createdAt)
+  ) {
+    throw new Error(
+      `Workspace snapshot has invalid artifacts.resume.payload.snapshots[${index}] shape.`,
+    )
+  }
+}
+
 const assertValidJDAnalysis = (analysis: unknown, index: number) => {
   if (!isRecord(analysis)) {
     throw new Error(`Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses[${index}].`)
@@ -88,7 +131,22 @@ const assertValidArtifactPayload = (
 
   switch (artifactType) {
     case 'resume':
-      if (!isRecord(payload.meta) || !Array.isArray(payload.vectors)) {
+      if ('data' in payload) {
+        if (
+          'meta' in payload ||
+          'vectors' in payload ||
+          !isRecord(payload.data) ||
+          !isRecord(payload.data.meta) ||
+          !Array.isArray(payload.data.vectors) ||
+          !Array.isArray(payload.resumes) ||
+          !Array.isArray(payload.snapshots) ||
+          (payload.activeResumeId !== null && typeof payload.activeResumeId !== 'string')
+        ) {
+          throw new Error('Workspace snapshot has invalid artifacts.resume.payload shape.')
+        }
+        payload.resumes.forEach((resume, index) => assertValidResumeEntity(resume, index))
+        payload.snapshots.forEach((snapshot, index) => assertValidResumeSnapshot(snapshot, index))
+      } else if (!isRecord(payload.meta) || !Array.isArray(payload.vectors)) {
         throw new Error('Workspace snapshot has invalid artifacts.resume.payload shape.')
       }
       break

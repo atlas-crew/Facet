@@ -3,8 +3,11 @@ import {
   migratePipelineState,
   usePipelineStore,
 } from '../store/pipelineStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import type { PipelineEntry } from '../types/pipeline'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+import { defaultResumeData } from '../store/defaultData'
 
 const makeEntry = (overrides: Partial<PipelineEntry> = {}): Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'> => ({
   company: 'Acme Corp',
@@ -39,6 +42,14 @@ const makeEntry = (overrides: Partial<PipelineEntry> = {}): Omit<PipelineEntry, 
 describe('pipelineStore', () => {
   beforeEach(() => {
     usePipelineStore.setState({ entries: [], sortField: 'tier', sortDir: 'asc', filters: { tier: 'all', status: 'all', search: '' } })
+    useJDAnalysisStore.setState({ analyses: [] })
+    useResumeStore.setState({
+      ...normalizeResumeWorkspaceData(defaultResumeData),
+      past: [],
+      future: [],
+      canUndo: false,
+      canRedo: false,
+    })
   })
 
   it('adds an entry with generated id, createdAt, lastAction, and history', () => {
@@ -78,14 +89,75 @@ describe('pipelineStore', () => {
     expect(updated.durableMeta?.revision).toBe((before.durableMeta?.revision ?? 0) + 1)
   })
 
-  it('deletes an entry', () => {
+  it('soft-deletes an entry without removing durable records', () => {
     usePipelineStore.getState().addEntry(makeEntry())
     usePipelineStore.getState().addEntry(makeEntry({ company: 'Other' }))
     expect(usePipelineStore.getState().entries).toHaveLength(2)
     const id = usePipelineStore.getState().entries[0].id
     usePipelineStore.getState().deleteEntry(id)
-    expect(usePipelineStore.getState().entries).toHaveLength(1)
-    expect(usePipelineStore.getState().entries[0].company).toBe('Other')
+    expect(usePipelineStore.getState().entries).toHaveLength(2)
+    expect(usePipelineStore.getState().entries[0].deletedAt).toBeTruthy()
+    expect(usePipelineStore.getState().entries[1].company).toBe('Other')
+  })
+
+  it('clears canonical JD analysis when an entry is soft-deleted', () => {
+    usePipelineStore.getState().addEntry(makeEntry({ jdAnalysisId: 'analysis-1' }))
+    const id = usePipelineStore.getState().entries[0].id
+    useJDAnalysisStore.setState({
+      analyses: [
+        {
+          id: 'analysis-1',
+          pipelineEntryId: id,
+          jdTextHash: 'abc',
+          identityVersion: 1,
+          modelVersion: 'test',
+          generatedAt: '2026-04-14T12:00:00.000Z',
+          updatedAt: '2026-04-14T12:00:00.000Z',
+          warnings: [],
+          company: 'Acme Corp',
+          role: 'Staff Engineer',
+          summary: '',
+          analyzedJobDescription: '',
+          jobDescriptionWordCount: 0,
+          jobDescriptionTruncated: false,
+          requirements: [],
+          overallFit: 'moderate',
+          fitScore: 0,
+          confidence: 'low',
+          recommendation: 'consider',
+          oneLineSummary: '',
+          rationale: '',
+          matchedVectors: [],
+          primaryVectorId: null,
+          skillMatches: [],
+          evidenceMapping: {
+            topBullets: [],
+            topSkills: [],
+            topProjects: [],
+            topProfiles: [],
+            topPhilosophy: [],
+          },
+          strengthsToLead: [],
+          advantages: [],
+          advantageHypotheses: [],
+          gaps: [],
+          gapFocus: [],
+          watchOuts: [],
+          triggeredPrioritize: [],
+          triggeredAvoid: [],
+          relevantAwareness: [],
+          positioningRecommendations: [],
+          requirementCoverageScore: 0,
+          matchedRequirementIds: [],
+          matchedKeywords: [],
+        },
+      ],
+    })
+
+    usePipelineStore.getState().deleteEntry(id)
+
+    expect(usePipelineStore.getState().entries[0].jdAnalysisId).toBeNull()
+    expect(useJDAnalysisStore.getState().analyses).toEqual([])
   })
 
   it('adds a history note', () => {
@@ -105,6 +177,23 @@ describe('pipelineStore', () => {
     expect(entry.status).toBe('applied')
     expect(entry.history).toHaveLength(2)
     expect(entry.history[1].note).toContain('applied')
+  })
+
+  it('creates an immutable resume snapshot when status transitions to applied', () => {
+    const resumeId = useResumeStore.getState().activeResumeId
+    expect(resumeId).toBeTruthy()
+    usePipelineStore.getState().addEntry(makeEntry({ resumeId }))
+    const id = usePipelineStore.getState().entries[0].id
+
+    usePipelineStore.getState().setStatus(id, 'applied')
+
+    const entry = usePipelineStore.getState().entries[0]
+    expect(entry.resumeSnapshotId).toBeTruthy()
+    expect(useResumeStore.getState().snapshots[0]).toMatchObject({
+      id: entry.resumeSnapshotId,
+      sourceResumeId: resumeId,
+      pipelineEntryId: id,
+    })
   })
 
   it('sets sort field and toggles direction', () => {

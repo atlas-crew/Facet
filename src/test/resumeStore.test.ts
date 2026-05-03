@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { describe, expect, it, beforeEach } from 'vitest'
-import { resumeMigration, useResumeStore } from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, resumeMigration, useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
 describe('resumeStore', () => {
   beforeEach(() => {
     // Fresh deep clone for each test to ensure isolation
+    const workspace = normalizeResumeWorkspaceData(JSON.parse(JSON.stringify(defaultResumeData)))
     useResumeStore.setState({
-      data: JSON.parse(JSON.stringify(defaultResumeData)),
+      ...workspace,
       past: [],
       future: [],
       canUndo: false,
@@ -57,6 +58,80 @@ describe('resumeStore', () => {
         vectorIds: ['platform', 'backend'],
         suggestedVectorIds: ['backend'],
       })
+    })
+
+    it('keeps the active first-class resume in sync with editor updates', () => {
+      const startingResume = useResumeStore.getState().resumes[0]
+
+      useResumeStore.getState().updateMetaField('name', 'Entity Synced')
+
+      const state = useResumeStore.getState()
+      const activeResume = state.resumes.find((resume) => resume.id === state.activeResumeId)
+      expect(activeResume?.id).toBe(startingResume.id)
+      expect(activeResume?.content.meta.name).toBe('Entity Synced')
+      expect(activeResume?.contentHash).toBeTruthy()
+      expect(activeResume?.contentHash).not.toBe(startingResume.contentHash)
+    })
+
+    it('saves active resume metadata and creates immutable pipeline snapshots', () => {
+      const resume = useResumeStore.getState().saveActiveResume({
+        identityVersion: 12,
+        pipelineEntryId: 'pipe-1',
+        origin: {
+          type: 'dynamic',
+          vectorId: 'backend',
+          vectorIds: ['backend'],
+          pipelineEntryId: 'pipe-1',
+        },
+      })
+
+      const snapshot = useResumeStore.getState().createSnapshotForPipelineEntry(resume.id, 'pipe-1')
+      expect(snapshot).toMatchObject({
+        sourceResumeId: resume.id,
+        pipelineEntryId: 'pipe-1',
+        identityVersion: 12,
+      })
+
+      useResumeStore.getState().updateMetaField('name', 'Edited After Apply')
+
+      const storedSnapshot = useResumeStore.getState().snapshots[0]
+      expect(storedSnapshot?.content.meta.name).not.toBe('Edited After Apply')
+      expect(storedSnapshot?.contentHash).toBe(snapshot?.contentHash)
+    })
+
+    it('can explicitly clear active resume relationships', () => {
+      const linked = useResumeStore.getState().saveActiveResume({
+        identityVersion: 12,
+        pipelineEntryId: 'pipe-1',
+      })
+      expect(linked.pipelineEntryId).toBe('pipe-1')
+
+      const cleared = useResumeStore.getState().saveActiveResume({
+        identityVersion: null,
+        pipelineEntryId: null,
+      })
+
+      expect(cleared.identityVersion).toBeNull()
+      expect(cleared.pipelineEntryId).toBeNull()
+    })
+
+    it('resetToDefaults preserves other first-class resumes', () => {
+      const originalId = useResumeStore.getState().activeResumeId
+      const second = useResumeStore.getState().createResume({
+        content: {
+          ...defaultResumeData,
+          meta: { ...defaultResumeData.meta, name: 'Second Resume' },
+        },
+      })
+
+      expect(useResumeStore.getState().resumes).toHaveLength(2)
+
+      useResumeStore.getState().setActiveResume(originalId ?? '')
+      useResumeStore.getState().resetToDefaults()
+
+      expect(useResumeStore.getState().resumes.map((resume) => resume.id)).toContain(second.id)
+      expect(useResumeStore.getState().resumes).toHaveLength(2)
+      expect(useResumeStore.getState().data.meta.name).toBe(defaultResumeData.meta.name)
     })
 
     it('undo/redo works for data changes and flags correctly', () => {

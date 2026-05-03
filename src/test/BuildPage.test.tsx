@@ -7,7 +7,7 @@ import { defaultResumeData } from '../store/defaultData'
 import { useHandoffStore } from '../store/handoffStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
-import { useResumeStore } from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { PipelineEntry } from '../types/pipeline'
@@ -300,7 +300,7 @@ describe('BuildPage', () => {
       applyPreset: vi.fn(),
     })
     useResumeStore.setState({
-      data: JSON.parse(JSON.stringify(defaultResumeData)),
+      ...normalizeResumeWorkspaceData(JSON.parse(JSON.stringify(defaultResumeData))),
       past: [],
       future: [],
       canUndo: false,
@@ -808,6 +808,14 @@ describe('BuildPage', () => {
       'Acme Corp · Staff Platform Engineer',
     )
     expect(usePipelineStore.getState().entries[0]?.resumeGeneration?.lastGeneratedAt).toBeTruthy()
+    expect(usePipelineStore.getState().entries[0]?.resumeId).toBe(useResumeStore.getState().activeResumeId)
+    expect(useResumeStore.getState().resumes[0]).toMatchObject({
+      origin: {
+        type: 'dynamic',
+        pipelineEntryId: 'pipe-77',
+      },
+      pipelineEntryId: 'pipe-77',
+    })
     expect(useResumeStore.getState().data.generation).toMatchObject({
       mode: 'dynamic',
       source: 'pipeline',

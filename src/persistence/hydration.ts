@@ -25,9 +25,11 @@ import {
 } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
 import {
+  normalizeResumeWorkspaceData,
   resumeMigration,
   useResumeStore,
 } from '../store/resumeStore'
+import { normalizeResumeWorkspacePayload } from '../utils/resumeEntities'
 import {
   migrateSearchState,
   useSearchStore,
@@ -83,8 +85,15 @@ const readSyncStorageValue = (key: string): string | null => {
 }
 
 export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot) => {
+  const resumeWorkspace = normalizeResumeWorkspacePayload(
+    snapshot.artifacts.resume.payload,
+    defaultResumeData,
+  )
   useResumeStore.setState({
-    data: cloneValue(snapshot.artifacts.resume.payload),
+    data: cloneValue(resumeWorkspace.data),
+    resumes: cloneValue(resumeWorkspace.resumes),
+    snapshots: cloneValue(resumeWorkspace.snapshots),
+    activeResumeId: resumeWorkspace.activeResumeId,
     past: [],
     future: [],
     canUndo: false,
@@ -243,7 +252,7 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
         resumeEnvelope.version ?? 0,
         readSyncStorageValue(LEGACY_RESUME_UI_KEY),
       )
-    : { data: defaultResumeData }
+    : normalizeResumeWorkspaceData(undefined)
 
   const migratedPipeline = pipelineEnvelope
     ? migratePipelineState(pipelineEnvelope.state)
@@ -258,6 +267,9 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
 
   useResumeStore.setState({
     data: cloneValue(migratedResume.data ?? defaultResumeData),
+    resumes: cloneValue(migratedResume.resumes ?? []),
+    snapshots: cloneValue(migratedResume.snapshots ?? []),
+    activeResumeId: migratedResume.activeResumeId ?? null,
     past: [],
     future: [],
     canUndo: false,

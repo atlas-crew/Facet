@@ -40,7 +40,7 @@ const TIER_ORDER: Record<string, number> = { '1': 1, '2': 2, '3': 3, watch: 4 }
 const PIPELINE_HANDOFF_DEFAULT_MODE = 'dynamic'
 
 export function PipelinePage() {
-  const entries = usePipelineStore((s) => s.entries)
+  const allEntries = usePipelineStore((s) => s.entries)
   const addEntry = usePipelineStore((s) => s.addEntry)
   const updateEntry = usePipelineStore((s) => s.updateEntry)
   const deleteEntry = usePipelineStore((s) => s.deleteEntry)
@@ -70,15 +70,19 @@ export function PipelinePage() {
   )
   const search = useSearch({ strict: false }) as { entry?: string }
   const requestedEntryId = typeof search.entry === 'string' ? search.entry : ''
+  const entries = useMemo(
+    () => allEntries.filter((entry) => !entry.deletedAt),
+    [allEntries],
+  )
 
   useEffect(() => {
     if (!requestedEntryId) return
     if (honoredLinkedEntryRef.current === requestedEntryId) return
-    if (usePipelineStore.getState().entries.some((entry) => entry.id === requestedEntryId)) {
+    if (entries.some((entry) => entry.id === requestedEntryId)) {
       setExpandedId(requestedEntryId)
       honoredLinkedEntryRef.current = requestedEntryId
     }
-  }, [requestedEntryId])
+  }, [entries, requestedEntryId])
 
   const handleSort = useCallback(
     (field: SortField) => {

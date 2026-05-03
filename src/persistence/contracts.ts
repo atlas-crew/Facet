@@ -6,6 +6,7 @@ import type { LinkedInProfileDraft } from '../types/linkedin'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck, PrepWorkspaceMode } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
+import type { ResumeWorkspaceData } from '../types/resume'
 import type {
   ActiveResearchJobState,
   SearchFeedbackEvent,
@@ -14,7 +15,7 @@ import type {
   SearchRun,
   SearchThesis,
 } from '../types/search'
-import type { ResumeData, VectorSelection } from '../types'
+import type { VectorSelection } from '../types'
 
 export const FACET_WORKSPACE_SNAPSHOT_VERSION = 1 as const
 export const FACET_LOCAL_PREFERENCES_VERSION = 1 as const
@@ -95,7 +96,7 @@ export interface FacetArtifactSnapshot<TType extends FacetArtifactType, TPayload
   payload: TPayload
 }
 
-export type ResumeArtifactSnapshot = FacetArtifactSnapshot<'resume', ResumeData>
+export type ResumeArtifactSnapshot = FacetArtifactSnapshot<'resume', ResumeWorkspaceData>
 export type PipelineArtifactSnapshot = FacetArtifactSnapshot<'pipeline', PipelineWorkspaceData>
 export type JDAnalysisArtifactSnapshot = FacetArtifactSnapshot<'jdAnalysis', JDAnalysisWorkspaceData>
 export type PrepArtifactSnapshot = FacetArtifactSnapshot<'prep', PrepWorkspaceData>
