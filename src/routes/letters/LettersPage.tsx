@@ -7,7 +7,8 @@ import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
-import type { CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import type { CoverLetter, CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import type { PipelineEntry } from '../../types/pipeline'
 import type { ResumeEntity } from '../../types/resume'
 import { resolveCoverLetterCandidateMeta } from '../../utils/coverLetterCandidate'
 import { stripResumeVectorContext } from '../../utils/coverLetterContext'
@@ -49,6 +50,69 @@ function buildJobPromptContext(value: unknown) {
   return rest
 }
 
+function getLetterCreatedAt(template: CoverLetterTemplate) {
+  return template.durableMeta?.createdAt ?? template.generatedAt ?? ''
+}
+
+function formatPipelineEntryLabel(entry: PipelineEntry) {
+  return [entry.company, entry.role].filter(Boolean).join(' - ') || 'Untitled opportunity'
+}
+
+function resolveLetterDrift(
+  letter: CoverLetter | null,
+  pipelineEntry: PipelineEntry | null,
+  sourceResume: ResumeEntity | null,
+  currentPipelineResume: ResumeEntity | null,
+) {
+  if (!letter) return null
+
+  const pipelineResumeChanged = !!pipelineEntry?.resumeId && pipelineEntry.resumeId !== letter.sourceResumeId
+  const sourceResumeChanged = !!sourceResume && sourceResume.contentHash !== letter.sourceResumeHash
+  const currentPipelineResumeChanged =
+    !!currentPipelineResume && currentPipelineResume.contentHash !== letter.sourceResumeHash
+
+  if (pipelineResumeChanged && sourceResumeChanged) {
+    return {
+      title: 'Resume context changed since this letter was generated - regenerate?',
+      detail: 'The original source resume changed and the pipeline entry now points to a different resume.',
+    }
+  }
+
+  if (pipelineResumeChanged) {
+    return {
+      title: 'Pipeline resume link changed since this letter was generated - regenerate?',
+      detail: currentPipelineResumeChanged
+        ? 'The pipeline entry now points to a different resume than this letter used.'
+        : 'The pipeline entry now points to another resume record with matching content.',
+    }
+  }
+
+  if (!sourceResume) {
+    return {
+      title: 'Source resume is unavailable - regenerate?',
+      detail: 'Choose a current resume in the generator section before replacing the draft.',
+    }
+  }
+
+  if (sourceResumeChanged) {
+    return {
+      title: 'Resume has changed since this letter was generated - regenerate?',
+      detail: 'Regenerate from the current resume if you want the letter to reflect the latest edits.',
+    }
+  }
+
+  return null
+}
+
+function resolveDefaultResumeId(
+  entryResumeId: string | null | undefined,
+  resumes: ResumeEntity[],
+  activeResumeId: string | null,
+) {
+  const resumeIds = new Set(resumes.map((resume) => resume.id))
+  return [entryResumeId, activeResumeId, resumes[0]?.id].find((id) => !!id && resumeIds.has(id)) ?? ''
+}
+
 type LetterEditDraft =
   | {
       key: string
@@ -64,7 +128,7 @@ type LetterEditDraft =
     }
 
 export function LettersPage() {
-  const { templates, createLetter, upsertLetterForPipelineEntry, updateTemplate, deleteTemplate } = useCoverLetterStore()
+  const { letters, templates, createLetter, upsertLetterForPipelineEntry, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const updatePipelineEntry = usePipelineStore((state) => state.updateEntry)
   const resumeEntities = useResumeStore((state) => state.resumes)
@@ -85,6 +149,14 @@ export function LettersPage() {
     () => pipelineEntries.filter((entry) => !entry.deletedAt).sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
     [pipelineEntries],
   )
+  const pipelineEntryById = useMemo(
+    () => new Map(pipelineEntries.filter((entry) => !entry.deletedAt).map((entry) => [entry.id, entry])),
+    [pipelineEntries],
+  )
+  const letterById = useMemo(
+    () => new Map(letters.map((letter) => [letter.id, letter])),
+    [letters],
+  )
   const resumeOptions = useMemo(
     () => [...resumeEntities].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [resumeEntities],
@@ -92,9 +164,7 @@ export function LettersPage() {
   const letterHistory = useMemo(
     () =>
       [...templates].sort((left, right) =>
-        (right.generatedAt ?? right.durableMeta?.updatedAt ?? '').localeCompare(
-          left.generatedAt ?? left.durableMeta?.updatedAt ?? '',
-        ),
+        getLetterCreatedAt(right).localeCompare(getLetterCreatedAt(left)),
       ),
     [templates],
   )
@@ -105,6 +175,25 @@ export function LettersPage() {
 
   const activeTemplateId = selectedTemplateId ?? letterHistory[0]?.id ?? null
   const activeTemplate = templates.find(t => t.id === activeTemplateId)
+  const activeLetter = activeTemplateId ? letterById.get(activeTemplateId) ?? null : null
+  const activeLetterPipelineEntry = activeLetter ? pipelineEntryById.get(activeLetter.pipelineEntryId) ?? null : null
+  const activeLetterSourceResume = activeLetter
+    ? resumeEntities.find((resume) => resume.id === activeLetter.sourceResumeId) ?? null
+    : null
+  const activeLetterPipelineResume = activeLetterPipelineEntry?.resumeId
+    ? resumeEntities.find((resume) => resume.id === activeLetterPipelineEntry.resumeId) ?? null
+    : null
+  const activeLetterRegenerationResume = activeLetterPipelineResume ?? activeLetterSourceResume
+  const activeLetterDrift = useMemo(
+    () =>
+      resolveLetterDrift(
+        activeLetter,
+        activeLetterPipelineEntry,
+        activeLetterSourceResume,
+        activeLetterPipelineResume,
+      ),
+    [activeLetter, activeLetterPipelineEntry, activeLetterPipelineResume, activeLetterSourceResume],
+  )
   const editingKey = editDraft?.key ?? null
   const editDraftValue = editDraft?.value ?? ''
   const selectedEntry = useMemo(
@@ -134,6 +223,22 @@ export function LettersPage() {
     candidateEntries.length > 0 &&
     resumeOptions.length > 0 &&
     !isGenerating
+  const canRegenerateActiveLetter =
+    !!aiEndpoint &&
+    !!activeLetterPipelineEntry &&
+    !!activeLetterRegenerationResume &&
+    !!activeLetterPipelineEntry.jobDescription.trim() &&
+    !isGenerating
+  const regenerateDisabledReason =
+    !aiEndpoint
+      ? 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
+      : !activeLetterPipelineEntry
+        ? 'This cover letter is not linked to an available pipeline entry.'
+        : !activeLetterRegenerationResume
+          ? 'Choose a current resume in the generator section before regenerating.'
+          : !activeLetterPipelineEntry.jobDescription.trim()
+            ? 'This pipeline entry needs a job description before regenerating.'
+            : undefined
 
   useEffect(() => {
     if (selectedEntryId) return
@@ -153,7 +258,7 @@ export function LettersPage() {
   }, [selectedEntry, selectedEntryId])
 
   useEffect(() => {
-    const fallbackResumeId = selectedEntry?.resumeId ?? activeResumeId ?? resumeOptions[0]?.id ?? ''
+    const fallbackResumeId = resolveDefaultResumeId(selectedEntry?.resumeId, resumeOptions, activeResumeId)
     if (!fallbackResumeId) {
       setSelectedResumeId('')
       return
@@ -166,18 +271,23 @@ export function LettersPage() {
   }, [activeResumeId, resumeOptions, selectedEntry?.id, selectedEntry?.resumeId])
 
   const handleCreateTemplate = () => {
-    if (!confirmDiscardEdit()) return
     if (!selectedEntry || !selectedResume) {
       setGenerationError('Choose a pipeline entry and source resume before creating a cover letter draft.')
       return
     }
+    if (!confirmDiscardEdit()) return
 
+    const freshEntry = usePipelineStore.getState().entries.find((entry) => entry.id === selectedEntry.id && !entry.deletedAt)
+    if (!freshEntry) {
+      setGenerationError('The selected pipeline entry is no longer available.')
+      return
+    }
     const freshResume = useResumeStore.getState().resumes.find((resume) => resume.id === selectedResume.id)
     if (!freshResume) {
       setGenerationError('The selected source resume is no longer available.')
       return
     }
-    if (selectedEntry.coverLetterId) {
+    if (freshEntry.coverLetterId) {
       const shouldReplace = window.confirm(
         'This opportunity already has a linked cover letter draft. Replace the current draft link?',
       )
@@ -205,15 +315,15 @@ export function LettersPage() {
     try {
       const letter = createLetter({
         content,
-        pipelineEntryId: selectedEntry.id,
+        pipelineEntryId: freshEntry.id,
         sourceResumeId: freshResume.id,
         sourceResumeHash: freshResume.contentHash,
         identityVersion,
         generatedAt,
       })
-      updatePipelineEntry(selectedEntry.id, {
+      updatePipelineEntry(freshEntry.id, {
         coverLetterId: letter.id,
-        resumeId: selectedEntry.resumeId ?? freshResume.id,
+        resumeId: freshResume.id,
       })
       cancelEditing()
       setSelectedTemplateId(letter.id)
@@ -356,9 +466,9 @@ export function LettersPage() {
     void copyTextWithFlag(composeLetterText(templateToCopy), 'letter')
   }
 
-  const handleDeleteTemplate = (id: string, name: string) => {
+  const handleDeleteTemplate = (id: string, displayName: string) => {
     if (activeTemplateId === id && !confirmDiscardEdit()) return
-    if (window.confirm(`Are you sure you want to delete the variant "${name}"?`)) {
+    if (window.confirm(`Are you sure you want to delete the cover letter draft for "${displayName}"?`)) {
       deleteTemplate(id)
       if (activeTemplateId === id) {
         cancelEditing()
@@ -372,11 +482,15 @@ export function LettersPage() {
     const nextEntry = pipelineEntries.find((entry) => entry.id === entryId)
     if (!nextEntry) return
 
-    setSelectedResumeId(nextEntry.resumeId ?? activeResumeId ?? resumeOptions[0]?.id ?? '')
+    setSelectedResumeId(resolveDefaultResumeId(nextEntry.resumeId, resumeOptions, activeResumeId))
     setCompanyResearchDraft(buildResearchDraft(nextEntry.positioning, nextEntry.notes, nextEntry.url))
   }
 
-  const handleGenerate = async () => {
+  const handleGenerateForContext = async (
+    entry: PipelineEntry | null,
+    resume: ResumeEntity | null,
+    researchDraft = companyResearchDraft,
+  ) => {
     if (isGenerating) {
       return
     }
@@ -394,20 +508,26 @@ export function LettersPage() {
 
     try {
       const freshIdentity = useIdentityStore.getState().currentIdentity
-      if (!selectedEntry) {
+      if (!entry) {
         setGenerationError('Choose a pipeline entry before generating a cover letter.')
         return
       }
-      if (!selectedResume) {
+      if (!resume) {
         setGenerationError('Choose the resume this cover letter should accompany.')
         return
       }
-      const freshResume = useResumeStore.getState().resumes.find((resume) => resume.id === selectedResume.id)
+      // Re-read store state so generation uses the latest pipeline and resume records after async UI work.
+      const freshEntry = usePipelineStore.getState().entries.find((item) => item.id === entry.id && !item.deletedAt)
+      if (!freshEntry) {
+        setGenerationError('The selected pipeline entry is no longer available.')
+        return
+      }
+      const freshResume = useResumeStore.getState().resumes.find((item) => item.id === resume.id)
       if (!freshResume) {
         setGenerationError('The selected source resume is no longer available.')
         return
       }
-      if (!selectedEntry.jobDescription.trim()) {
+      if (!freshEntry.jobDescription.trim()) {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
       }
@@ -420,20 +540,20 @@ export function LettersPage() {
       }
 
       const generated = await generateCoverLetter(aiEndpoint, {
-        company: selectedEntry.company,
-        role: selectedEntry.role,
-        contact: selectedEntry.contact || undefined,
-        companyUrl: selectedEntry.url || undefined,
-        skillMatch: selectedEntry.skillMatch || undefined,
-        positioning: selectedEntry.positioning || undefined,
-        notes: selectedEntry.notes || undefined,
-        companyResearch: companyResearchDraft || undefined,
-        jobDescription: selectedEntry.jobDescription,
+        company: freshEntry.company,
+        role: freshEntry.role,
+        contact: freshEntry.contact || undefined,
+        companyUrl: freshEntry.url || undefined,
+        skillMatch: freshEntry.skillMatch || undefined,
+        positioning: freshEntry.positioning || undefined,
+        notes: freshEntry.notes || undefined,
+        companyResearch: researchDraft || undefined,
+        jobDescription: freshEntry.jobDescription,
         resumeContext: {
           candidate: candidateMeta,
           assembled: {
             resume: fullResumeContext,
-            pipelineEntry: buildJobPromptContext(selectedEntry),
+            pipelineEntry: buildJobPromptContext(freshEntry),
           },
           identity: freshIdentity,
         },
@@ -454,15 +574,15 @@ export function LettersPage() {
       }
       const letter = upsertLetterForPipelineEntry({
         content,
-        pipelineEntryId: selectedEntry.id,
+        pipelineEntryId: freshEntry.id,
         sourceResumeId: freshResume.id,
         sourceResumeHash: freshResume.contentHash,
         identityVersion: resolveLetterIdentityVersion(freshResume, freshIdentity),
         generatedAt,
       })
-      updatePipelineEntry(selectedEntry.id, {
+      updatePipelineEntry(freshEntry.id, {
         coverLetterId: letter.id,
-        resumeId: selectedEntry.resumeId ?? freshResume.id,
+        resumeId: freshResume.id,
       })
       cancelEditing()
       setSelectedTemplateId(letter.id)
@@ -471,6 +591,28 @@ export function LettersPage() {
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  const handleGenerate = async () => {
+    await handleGenerateForContext(selectedEntry, selectedResume)
+  }
+
+  const handleRegenerateActiveLetter = async () => {
+    if (!activeLetter || !activeLetterPipelineEntry) {
+      setGenerationError('This cover letter is not linked to an available pipeline entry.')
+      return
+    }
+    if (!activeLetterRegenerationResume) {
+      setGenerationError('Choose a current resume for this pipeline entry before regenerating.')
+      return
+    }
+
+    const researchDraft = buildResearchDraft(
+      activeLetterPipelineEntry.positioning,
+      activeLetterPipelineEntry.notes,
+      activeLetterPipelineEntry.url,
+    )
+    await handleGenerateForContext(activeLetterPipelineEntry, activeLetterRegenerationResume, researchDraft)
   }
 
   const handleRefineParagraph = async (paragraph: CoverLetterParagraph) => {
@@ -599,27 +741,35 @@ export function LettersPage() {
           </button>
         </div>
         <div className="letters-template-list">
-          {letterHistory.map(t => (
-            <div key={t.id} className="letters-template-list-item">
-              <button 
-                className={`letters-template-item ${activeTemplateId === t.id ? 'active' : ''}`}
-                onClick={() => selectTemplate(t.id)}
-              >
-                <span className="letters-history-title">{t.name}</span>
-                <span className="letters-history-meta">
-                  {t.pipelineEntryId ? 'Pipeline variant' : 'Legacy variant'}
-                </span>
-              </button>
-              <button 
-                className="letters-btn-icon letters-text-danger" 
-                onClick={() => handleDeleteTemplate(t.id, t.name)}
-                aria-label={`Delete ${t.name}`}
-                title={`Delete ${t.name}`}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
+          {letterHistory.map(t => {
+            const linkedEntry = t.pipelineEntryId ? pipelineEntryById.get(t.pipelineEntryId) : null
+            const historyTitle = linkedEntry ? formatPipelineEntryLabel(linkedEntry) : t.name
+            const historyMeta = linkedEntry
+              ? 'Pipeline draft'
+              : t.pipelineEntryId
+                ? 'Pipeline entry unavailable'
+                : 'Standalone draft'
+
+            return (
+              <div key={t.id} className="letters-template-list-item">
+                <button
+                  className={`letters-template-item ${activeTemplateId === t.id ? 'active' : ''}`}
+                  onClick={() => selectTemplate(t.id)}
+                >
+                  <span className="letters-history-title">{historyTitle}</span>
+                  <span className="letters-history-meta">{historyMeta}</span>
+                </button>
+                <button
+                  className="letters-btn-icon letters-text-danger"
+                  onClick={() => handleDeleteTemplate(t.id, historyTitle)}
+                  aria-label={`Delete ${historyTitle}`}
+                  title={`Delete ${historyTitle}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            )
+          })}
           {letterHistory.length === 0 && (
             <p className="letters-empty-text">No variants yet.</p>
           )}
@@ -746,6 +896,24 @@ export function LettersPage() {
               placeholder="Variant Name"
               aria-label="Variant Name"
             />
+
+            {activeLetterDrift ? (
+              <div className="letters-drift-callout" role="alert">
+                <div className="letters-drift-callout-body">
+                  <h4 className="letters-drift-callout-title">{activeLetterDrift.title}</h4>
+                  <span className="letters-drift-callout-detail">{activeLetterDrift.detail}</span>
+                </div>
+                <button
+                  className="letters-btn letters-btn-sm"
+                  type="button"
+                  onClick={() => void handleRegenerateActiveLetter()}
+                  disabled={!canRegenerateActiveLetter}
+                  title={regenerateDisabledReason}
+                >
+                  <RefreshCw size={14} /> Regenerate
+                </button>
+              </div>
+            ) : null}
 
             {renderTemplateSection('Header', 'header', 3)}
             {renderTemplateSection('Greeting', 'greeting', 2)}

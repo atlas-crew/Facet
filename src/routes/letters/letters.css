@@ -240,6 +240,37 @@
   color: var(--text-tertiary);
 }
 
+.letters-drift-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.letters-drift-callout-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.letters-drift-callout-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.letters-drift-callout-detail {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .letters-field {
   display: flex;
   flex-direction: column;

@@ -169,6 +169,282 @@ describe('LettersPage', () => {
     expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(letter?.id)
   })
 
+  it('names linked history items from pipeline entries and sorts by created date', () => {
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: [
+        state.entries[0],
+        {
+          ...state.entries[0],
+          id: 'pipe-2',
+          company: 'Beta Corp',
+          role: 'Platform Lead',
+          lastAction: '2026-03-10',
+        },
+      ],
+    }))
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'older-letter',
+          durableMeta: {
+            schemaVersion: 1,
+            revision: 1,
+            workspaceId: 'facet-local-workspace',
+            tenantId: null,
+            userId: null,
+            createdAt: '2026-03-01T00:00:00.000Z',
+            updatedAt: '2026-04-01T00:00:00.000Z',
+          },
+          name: 'Generated Acme Name',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [{ id: 'older-p', text: 'Older paragraph.', vectors: {} }],
+          signOff: 'Bye',
+          pipelineEntryId: 'pipe-1',
+        },
+        {
+          id: 'newer-letter',
+          durableMeta: {
+            schemaVersion: 1,
+            revision: 1,
+            workspaceId: 'facet-local-workspace',
+            tenantId: null,
+            userId: null,
+            createdAt: '2026-04-01T00:00:00.000Z',
+            updatedAt: '2026-04-01T00:00:00.000Z',
+          },
+          name: 'Generated Beta Name',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [{ id: 'newer-p', text: 'Newer paragraph.', vectors: {} }],
+          signOff: 'Bye',
+          pipelineEntryId: 'pipe-2',
+        },
+      ],
+    })
+
+    const { container } = render(<LettersPage />)
+    const historyItems = Array.from(container.querySelectorAll('.letters-template-item'))
+
+    expect(historyItems[0]?.textContent).toContain('Beta Corp - Platform Lead')
+    expect(historyItems[0]?.textContent).toContain('Pipeline draft')
+    expect(historyItems[1]?.textContent).toContain('Acme Corp - Staff Engineer')
+  })
+
+  it('prompts to regenerate when the source resume changes after letter generation', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    act(() => {
+      useResumeStore.setState((state) => ({
+        ...state,
+        resumes: state.resumes.map((resume) =>
+          resume.id === 'resume-local-default'
+            ? { ...resume, contentHash: 'resume-hash-after-edit' }
+            : resume,
+        ),
+      }))
+    })
+
+    expect(await screen.findByText('Resume has changed since this letter was generated - regenerate?')).toBeTruthy()
+    expect(screen.getByText('Regenerate')).toBeTruthy()
+  })
+
+  it('prompts to regenerate when the pipeline entry switches to a different resume', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    let alternateResumeId = ''
+    act(() => {
+      const alternateResume = useResumeStore.getState().createResume({
+        content: {
+          ...JSON.parse(JSON.stringify(defaultResumeData)),
+          meta: { ...defaultResumeData.meta, name: 'Alternate Candidate' },
+        },
+        activate: false,
+      })
+      alternateResumeId = alternateResume.id
+    })
+    act(() => {
+      usePipelineStore.setState((state) => ({
+        ...state,
+        entries: state.entries.map((entry) =>
+          entry.id === 'pipe-1' ? { ...entry, resumeId: alternateResumeId } : entry,
+        ),
+      }))
+    })
+
+    expect(await screen.findByText(/changed since this letter was generated - regenerate\?/)).toBeTruthy()
+  })
+
+  it('prompts with combined drift when the source resume changes and the pipeline switches resumes', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    let alternateResumeId = ''
+    act(() => {
+      const alternateResume = useResumeStore.getState().createResume({
+        content: {
+          ...JSON.parse(JSON.stringify(defaultResumeData)),
+          meta: { ...defaultResumeData.meta, name: 'Alternate Candidate' },
+        },
+        activate: false,
+      })
+      alternateResumeId = alternateResume.id
+      useResumeStore.setState((state) => ({
+        ...state,
+        resumes: state.resumes.map((resume) =>
+          resume.id === 'resume-local-default'
+            ? { ...resume, contentHash: 'source-resume-edited-after-generation' }
+            : resume,
+        ),
+      }))
+      usePipelineStore.setState((state) => ({
+        ...state,
+        entries: state.entries.map((entry) =>
+          entry.id === 'pipe-1' ? { ...entry, resumeId: alternateResumeId } : entry,
+        ),
+      }))
+    })
+
+    expect(await screen.findByText('Resume context changed since this letter was generated - regenerate?')).toBeTruthy()
+    expect(screen.getByText('The original source resume changed and the pipeline entry now points to a different resume.')).toBeTruthy()
+  })
+
+  it('regenerates a drifted letter into the same pipeline draft slot', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+    const firstLetter = useCoverLetterStore.getState().letters[0]
+
+    let alternateResumeId = ''
+    act(() => {
+      const alternateResume = useResumeStore.getState().createResume({
+        content: {
+          ...JSON.parse(JSON.stringify(defaultResumeData)),
+          meta: { ...defaultResumeData.meta, name: 'Alternate Candidate' },
+        },
+        activate: false,
+      })
+      alternateResumeId = alternateResume.id
+      usePipelineStore.setState((state) => ({
+        ...state,
+        entries: state.entries.map((entry) =>
+          entry.id === 'pipe-1' ? { ...entry, resumeId: alternateResumeId } : entry,
+        ),
+      }))
+    })
+
+    expect(await screen.findByText(/changed since this letter was generated - regenerate\?/)).toBeTruthy()
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Regenerated Drift Letter',
+                greeting: 'Dear Jordan Lee,',
+                signOff: 'Sincerely,\\nJane Smith',
+                paragraphs: [{ text: 'Regenerated from drift.' }],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    fireEvent.click(screen.getByText('Regenerate'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters[0]?.name).toBe('Regenerated Drift Letter')
+    })
+
+    const regeneratedLetter = useCoverLetterStore.getState().letters[0]
+    expect(regeneratedLetter?.id).toBe(firstLetter?.id)
+    expect(regeneratedLetter?.sourceResumeId).toBe(alternateResumeId)
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Emphasize backend platform depth.')
+  })
+
+  it('prompts when a letter source resume is unavailable', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    act(() => {
+      useResumeStore.setState((state) => ({
+        ...state,
+        resumes: [],
+        activeResumeId: null,
+      }))
+      usePipelineStore.setState((state) => ({
+        ...state,
+        entries: state.entries.map((entry) =>
+          entry.id === 'pipe-1' ? { ...entry, resumeId: null } : entry,
+        ),
+      }))
+    })
+
+    expect(await screen.findByText('Source resume is unavailable - regenerate?')).toBeTruthy()
+    const regenerateButton = screen.getByText('Regenerate') as HTMLButtonElement
+    expect(regenerateButton.disabled).toBe(true)
+    expect(regenerateButton.title).toBe('Choose a current resume in the generator section before regenerating.')
+  })
+
+  it('keeps the pipeline entry linked to the resume used for generation', async () => {
+    let alternateResumeId = ''
+    act(() => {
+      const alternateResume = useResumeStore.getState().createResume({
+        content: {
+          ...JSON.parse(JSON.stringify(defaultResumeData)),
+          meta: { ...defaultResumeData.meta, name: 'Alternate Candidate' },
+        },
+        activate: false,
+      })
+      alternateResumeId = alternateResume.id
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.change(screen.getByLabelText('Source Resume'), { target: { value: alternateResumeId } })
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    expect(useCoverLetterStore.getState().letters[0]?.sourceResumeId).toBe(alternateResumeId)
+    expect(usePipelineStore.getState().entries[0]?.resumeId).toBe(alternateResumeId)
+    expect(screen.queryByText(/changed since this letter was generated/)).toBeNull()
+  })
+
   it('clears the pipeline draft link when deleting a generated letter', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
@@ -183,9 +459,9 @@ describe('LettersPage', () => {
     const letter = useCoverLetterStore.getState().letters[0]
     expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(letter?.id)
 
-    fireEvent.click(screen.getByLabelText(`Delete ${letter?.name}`))
+    fireEvent.click(screen.getByLabelText('Delete Acme Corp - Staff Engineer'))
 
-    expect(confirm).toHaveBeenCalledWith(`Are you sure you want to delete the variant "${letter?.name}"?`)
+    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Acme Corp - Staff Engineer"?')
     expect(useCoverLetterStore.getState().letters).toHaveLength(0)
     expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBeNull()
   })
@@ -315,6 +591,59 @@ describe('LettersPage', () => {
     expect((screen.getByLabelText('Additional Notes') as HTMLTextAreaElement).value).toContain(
       'Lead with platform leadership.',
     )
+  })
+
+  it('falls back to the first available resume when stored resume ids are stale', () => {
+    useResumeStore.getState().createResume({
+      content: {
+        ...JSON.parse(JSON.stringify(defaultResumeData)),
+        meta: { ...defaultResumeData.meta, name: 'Fresh Candidate' },
+      },
+      activate: false,
+    })
+    useResumeStore.setState((state) => ({
+      ...state,
+      activeResumeId: 'missing-active-resume',
+    }))
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: state.entries.map((entry) =>
+        entry.id === 'pipe-1' ? { ...entry, resumeId: 'missing-entry-resume' } : entry,
+      ),
+    }))
+
+    render(<LettersPage />)
+
+    const expectedFallbackId = [...useResumeStore.getState().resumes].sort((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt),
+    )[0]?.id
+    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(expectedFallbackId)
+  })
+
+  it('preserves a manual source resume choice when resume ordering changes', () => {
+    const alternateResume = useResumeStore.getState().createResume({
+      content: {
+        ...JSON.parse(JSON.stringify(defaultResumeData)),
+        meta: { ...defaultResumeData.meta, name: 'Manual Candidate' },
+      },
+      activate: false,
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.change(screen.getByLabelText('Source Resume'), { target: { value: alternateResume.id } })
+    act(() => {
+      useResumeStore.setState((state) => ({
+        ...state,
+        resumes: state.resumes.map((resume) =>
+          resume.id === 'resume-local-default'
+            ? { ...resume, updatedAt: '2099-01-01T00:00:00.000Z' }
+            : resume,
+        ),
+      }))
+    })
+
+    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(alternateResume.id)
   })
 
   it('shows progress while generating an Opus cover letter', async () => {
@@ -935,7 +1264,7 @@ describe('LettersPage', () => {
 
     confirm.mockReturnValueOnce(true).mockReturnValueOnce(true)
     fireEvent.click(screen.getByLabelText('Delete Acme Variant'))
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the variant "Acme Variant"?')
+    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Acme Variant"?')
     expect(useCoverLetterStore.getState().templates).toHaveLength(0)
   })
 
@@ -973,7 +1302,7 @@ describe('LettersPage', () => {
     fireEvent.click(screen.getByLabelText('Delete Background Variant'))
 
     expect(confirm).not.toHaveBeenCalledWith('Discard unsaved edits?')
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the variant "Background Variant"?')
+    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Background Variant"?')
     expect(useCoverLetterStore.getState().templates.map((template) => template.id)).toEqual(['active-variant'])
     expect(screen.getByDisplayValue('Unsaved active header')).toBeTruthy()
   })
@@ -1185,7 +1514,7 @@ describe('LettersPage', () => {
       pipelineEntryId: 'pipe-1',
     })
     expect(created?.generatedAt).toBeTruthy()
-    expect(container.querySelector('.letters-template-item')?.textContent).toContain('New Variant')
+    expect(container.querySelector('.letters-template-item')?.textContent).toContain('Acme Corp - Staff Engineer')
   })
 
   it('sorts legacy history items by durable metadata when generatedAt is absent', () => {
@@ -1216,7 +1545,7 @@ describe('LettersPage', () => {
             workspaceId: 'facet-local-workspace',
             tenantId: null,
             userId: null,
-            createdAt: '2026-01-01T00:00:00.000Z',
+            createdAt: '2026-03-01T00:00:00.000Z',
             updatedAt: '2026-03-01T00:00:00.000Z',
           },
           name: 'Newer Legacy Variant',
@@ -1273,7 +1602,7 @@ describe('LettersPage', () => {
     expect(screen.getByDisplayValue('Newest Variant')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('Delete Newest Variant'))
 
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the variant "Newest Variant"?')
+    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Newest Variant"?')
     expect(useCoverLetterStore.getState().templates.map((template) => template.id)).not.toContain('newest-variant')
     expect(screen.getByDisplayValue('Middle Variant')).toBeTruthy()
   })
