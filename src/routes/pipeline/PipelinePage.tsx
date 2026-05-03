@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, Download, Upload, BarChart3 } from 'lucide-react'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useHandoffStore } from '../../store/handoffStore'
+import { useIdentityStore } from '../../store/identityStore'
 import { useUiStore } from '../../store/uiStore'
 import type { PipelineEntry } from '../../types/pipeline'
 import { getFacetClientEnv } from '../../utils/facetEnv'
@@ -19,6 +20,7 @@ import { PipelineAnalytics } from './PipelineAnalytics'
 import { PasteJdModal } from './PasteJdModal'
 import { samplePipelineData } from './samplePipelineData'
 import { parsePipelineImport } from '../../utils/pipelineImport'
+import { analyzePipelineJobDescription, savePipelineJDAnalysis } from '../../utils/jdAnalysis'
 import {
   getPipelineResumePresetId,
   getPipelineResumePrimaryVectorId,
@@ -44,6 +46,7 @@ export function PipelinePage() {
   const importEntries = usePipelineStore((s) => s.importEntries)
   const setStatus = usePipelineStore((s) => s.setStatus)
   const addHistoryNote = usePipelineStore((s) => s.addHistoryNote)
+  const currentIdentity = useIdentityStore((s) => s.currentIdentity)
 
   const navigate = useNavigate()
 
@@ -54,7 +57,9 @@ export function PipelinePage() {
   const [sortField, setSortField] = useState<SortField>('tier')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [investigatingId, setInvestigatingId] = useState<string | null>(null)
+  const [analyzingJdId, setAnalyzingJdId] = useState<string | null>(null)
   const [investigationErrors, setInvestigationErrors] = useState<Record<string, string>>({})
+  const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({})
   const honoredLinkedEntryRef = useRef<string | null>(null)
 
   const importRef = useRef<HTMLInputElement>(null)
@@ -155,14 +160,49 @@ export function PipelinePage() {
   }, [])
 
   const handleAnalyze = useCallback(
-    (entry: PipelineEntry) => {
-      const handoff = buildPipelineHandoff(entry)
-      if (handoff) {
-        useHandoffStore.getState().setPendingGeneration(handoff)
-        void navigate({ to: '/build' })
+    async (entry: PipelineEntry) => {
+      const jobDescription = entry.jobDescription?.trim() ?? ''
+      if (!jobDescription) {
+        setAnalysisErrors((current) => ({
+          ...current,
+          [entry.id]: 'Attach a job description before analyzing this pipeline entry.',
+        }))
+        return
+      }
+      if (!aiEndpoint) {
+        setAnalysisErrors((current) => ({
+          ...current,
+          [entry.id]: 'JD analysis is disabled. Configure VITE_ANTHROPIC_PROXY_URL.',
+        }))
+        return
+      }
+      if (!currentIdentity) {
+        setAnalysisErrors((current) => ({
+          ...current,
+          [entry.id]: 'Apply an identity model before analyzing a pipeline JD.',
+        }))
+        return
+      }
+
+      try {
+        setAnalysisErrors((current) => ({ ...current, [entry.id]: '' }))
+        setAnalyzingJdId(entry.id)
+        const analysis = await analyzePipelineJobDescription({
+          endpoint: aiEndpoint,
+          pipelineEntryId: entry.id,
+          jobDescription,
+          identity: currentIdentity,
+        })
+        savePipelineJDAnalysis(analysis)
+        addHistoryNote(entry.id, entry.jdAnalysisId ? 'Refreshed JD analysis' : 'Analyzed JD')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'JD analysis failed.'
+        setAnalysisErrors((current) => ({ ...current, [entry.id]: message }))
+      } finally {
+        setAnalyzingJdId((current) => (current === entry.id ? null : current))
       }
     },
-    [buildPipelineHandoff, navigate]
+    [addHistoryNote, aiEndpoint, currentIdentity],
   )
 
   const handleOpenInBuilder = useCallback(
@@ -437,7 +477,9 @@ export function PipelinePage() {
         onInvestigate={handleInvestigate}
         canInvestigate={Boolean(aiEndpoint)}
         investigatingId={investigatingId}
+        analyzingJdId={analyzingJdId}
         investigationErrors={investigationErrors}
+        analysisErrors={analysisErrors}
       />
 
       {(modal === 'add' || modalEntry || initialData) && (

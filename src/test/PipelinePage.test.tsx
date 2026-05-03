@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PipelinePage } from '../routes/pipeline/PipelinePage'
 import { useHandoffStore } from '../store/handoffStore'
+import { useIdentityStore } from '../store/identityStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
+import type { JDAnalysis } from '../types/jdAnalysis'
 
 const mockNavigate = vi.fn()
 const mockUseSearch = vi.fn()
 const mockInvestigatePipelineEntry = vi.fn()
+const mockAnalyzePipelineJobDescription = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
@@ -18,6 +22,14 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('../utils/pipelineInvestigation', () => ({
   investigatePipelineEntry: (...args: unknown[]) => mockInvestigatePipelineEntry(...args),
 }))
+
+vi.mock('../utils/jdAnalysis', async () => {
+  const actual = await vi.importActual<typeof import('../utils/jdAnalysis')>('../utils/jdAnalysis')
+  return {
+    ...actual,
+    analyzePipelineJobDescription: (...args: unknown[]) => mockAnalyzePipelineJobDescription(...args),
+  }
+})
 
 const baseEntry = {
   id: 'pipe-1',
@@ -52,6 +64,53 @@ const baseEntry = {
   history: [],
 }
 
+const jdAnalysisFixture: JDAnalysis = {
+  id: 'analysis-1',
+  pipelineEntryId: 'pipe-1',
+  jdTextHash: 'abc123',
+  identityVersion: 1,
+  modelVersion: 'jd-analysis.v1.test',
+  generatedAt: '2026-04-14T12:00:00.000Z',
+  updatedAt: '2026-04-14T12:00:00.000Z',
+  warnings: [],
+  company: 'Acme Corp',
+  role: 'Staff Platform Engineer',
+  summary: 'Platform reliability role.',
+  analyzedJobDescription: 'We need a platform-minded engineer.',
+  jobDescriptionWordCount: 5,
+  jobDescriptionTruncated: false,
+  requirements: [],
+  overallFit: 'strong',
+  fitScore: 0.86,
+  confidence: 'high',
+  recommendation: 'apply',
+  oneLineSummary: 'Lead with platform reliability.',
+  rationale: 'Strong platform match.',
+  matchedVectors: [],
+  primaryVectorId: 'backend',
+  skillMatches: [],
+  evidenceMapping: {
+    topBullets: [],
+    topSkills: [],
+    topProjects: [],
+    topProfiles: [],
+    topPhilosophy: [],
+  },
+  strengthsToLead: [],
+  advantages: [],
+  advantageHypotheses: [],
+  gaps: [],
+  gapFocus: [],
+  watchOuts: [],
+  triggeredPrioritize: [],
+  triggeredAvoid: [],
+  relevantAwareness: [],
+  positioningRecommendations: ['Lead with platform reliability.'],
+  requirementCoverageScore: 0.8,
+  matchedRequirementIds: [],
+  matchedKeywords: ['platform'],
+}
+
 describe('PipelinePage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
@@ -59,7 +118,13 @@ describe('PipelinePage', () => {
     mockUseSearch.mockReset()
     mockUseSearch.mockReturnValue({})
     mockInvestigatePipelineEntry.mockReset()
+    mockAnalyzePipelineJobDescription.mockReset()
+    mockAnalyzePipelineJobDescription.mockResolvedValue(jdAnalysisFixture)
     useHandoffStore.setState({ pendingGeneration: null })
+    useJDAnalysisStore.setState({ analyses: [] })
+    useIdentityStore.setState({
+      currentIdentity: { model_revision: 1 } as Parameters<typeof mockAnalyzePipelineJobDescription>[0],
+    })
     usePipelineStore.setState({
       entries: [baseEntry],
       sortField: 'tier',
@@ -239,6 +304,40 @@ describe('PipelinePage', () => {
     expect(screen.getByRole('button', { name: /Edit/i })).toBeTruthy()
   })
 
+  it('analyzes a pipeline JD and stores the canonical analysis reference', async () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: 'We need a platform-minded engineer.',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Analyze JD/i }))
+
+    await waitFor(() => {
+      expect(mockAnalyzePipelineJobDescription).toHaveBeenCalledWith({
+        endpoint: 'https://ai.example/proxy',
+        pipelineEntryId: 'pipe-1',
+        jobDescription: 'We need a platform-minded engineer.',
+        identity: { model_revision: 1 },
+      })
+    })
+
+    await waitFor(() => {
+      expect(useJDAnalysisStore.getState().findByPipelineEntry('pipe-1')?.id).toBe('analysis-1')
+      expect(usePipelineStore.getState().entries[0]?.jdAnalysisId).toBe('analysis-1')
+    })
+    expect(usePipelineStore.getState().entries[0]?.history.at(-1)?.note).toBe('Analyzed JD')
+  })
+
   it('opens pipeline entries in Build using the structured generation handoff when a JD exists', () => {
     usePipelineStore.setState({
       entries: [
@@ -255,7 +354,9 @@ describe('PipelinePage', () => {
     render(<PipelinePage />)
 
     fireEvent.click(screen.getByText('Acme Corp'))
-    fireEvent.click(screen.getByRole('button', { name: /Open in Builder/i }))
+    expect(screen.getByRole('button', { name: /Analyze JD/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Generate Cover Letter/i })).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByRole('button', { name: /Generate Resume/i }))
 
     expect(useHandoffStore.getState().pendingGeneration).toMatchObject({
       mode: 'dynamic',

@@ -27,7 +27,9 @@ interface PipelineDetailProps {
   onInvestigate: () => void
   canInvestigate: boolean
   isInvestigating: boolean
+  isAnalyzingJd: boolean
   investigationError?: string
+  analysisError?: string
 }
 
 const ACTIVE_STATUSES = new Set(['screening', 'interviewing'])
@@ -42,7 +44,9 @@ export function PipelineDetail({
   onInvestigate,
   canInvestigate,
   isInvestigating,
+  isAnalyzingJd,
   investigationError,
+  analysisError,
 }: PipelineDetailProps) {
   const actionGroupId = useId()
   const primaryVectorId = getPipelineResumePrimaryVectorId(entry)
@@ -260,14 +264,33 @@ export function PipelineDetail({
           >
             <span id={`${actionGroupId}-execution`} className="pipeline-detail-action-label">Execution</span>
             <div className="pipeline-detail-actions">
-              {primaryVectorId && (
+              {primaryVectorId && !entry.jobDescription && (
                 <button className="pipeline-btn pipeline-btn-sm" onClick={onOpenInBuilder}>
                   <ArrowRight size={14} /> Open in Builder
                 </button>
               )}
               {entry.jobDescription && (
-                <button className="pipeline-btn pipeline-btn-sm pipeline-btn-primary" onClick={onAnalyze}>
-                  <Zap size={14} /> Analyze in Builder
+                <button
+                  className="pipeline-btn pipeline-btn-sm pipeline-btn-primary"
+                  onClick={onAnalyze}
+                  disabled={isAnalyzingJd}
+                  aria-busy={isAnalyzingJd}
+                >
+                  <Zap size={14} /> {isAnalyzingJd ? 'Analyzing JD…' : entry.jdAnalysisId ? 'Refresh JD Analysis' : 'Analyze JD'}
+                </button>
+              )}
+              {entry.jobDescription && (
+                <button className="pipeline-btn pipeline-btn-sm" onClick={onOpenInBuilder}>
+                  <ArrowRight size={14} /> Generate Resume
+                </button>
+              )}
+              {entry.jobDescription && (
+                <button
+                  className="pipeline-btn pipeline-btn-sm"
+                  disabled
+                  title="Bundle 2 connects cover letters to first-class Pipeline artifacts."
+                >
+                  <BookMarked size={14} /> Generate Cover Letter
                 </button>
               )}
               {ACTIVE_STATUSES.has(entry.status) && (
@@ -275,6 +298,9 @@ export function PipelineDetail({
                   <BookOpen size={14} /> Prep for Interview
                 </button>
               )}
+              {analysisError ? (
+                <span className="pipeline-action-hint" role="alert">{analysisError}</span>
+              ) : null}
             </div>
           </div>
         ) : null}
