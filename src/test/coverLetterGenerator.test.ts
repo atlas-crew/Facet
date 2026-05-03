@@ -127,9 +127,9 @@ describe('coverLetterGenerator', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual(
       expect.objectContaining({
         feature: 'letters.generate',
-        model: 'opus',
-        max_tokens: 16000,
-        thinking_budget: 12000,
+        model: 'sonnet',
+        max_tokens: 8000,
+        thinking_budget: 6000,
         output_config: { effort: 'high' },
       }),
     )
@@ -166,6 +166,127 @@ describe('coverLetterGenerator', () => {
     expect(body.messages[0].content).toContain('Do not imply the candidate has worked at or directly used GitLab')
   })
 
+  it('uses canonical JD analysis as the role-emphasis source when provided', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      jobDescription: 'Raw JD still grounds the generated letter.',
+      jdAnalysis: {
+        summary: 'Own platform reliability for distributed systems.',
+        overallFit: 'strong',
+        fitScore: 88,
+        confidence: 'high',
+        recommendation: 'apply',
+        oneLineSummary: 'Strong platform match.',
+        rationale: 'Candidate evidence maps to backend platform ownership.',
+        requirements: [
+          {
+            id: 'req-platform',
+            label: 'Platform reliability ownership',
+            priority: 'core',
+            evidence: 'Job asks for distributed systems reliability.',
+            tags: ['platform'],
+            keywords: ['distributed systems', 'reliability'],
+            coverageScore: 0.92,
+            matchedAssetCount: 4,
+            matchedTags: ['platform'],
+          },
+        ],
+        skillMatches: [
+          {
+            skillName: 'Distributed systems',
+            jdRequirement: 'Reliability ownership',
+            requirementStrength: 'required',
+            userDepth: 'expert',
+            userPositioning: 'Lead with reliability systems.',
+            matchQuality: 'strong',
+            presentationGuidance: 'Use concrete platform evidence.',
+          },
+        ],
+        strengthsToLead: ['Backend platform reliability'],
+        advantages: [{ id: 'adv-1', claim: 'Can own distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] }],
+        gaps: [],
+        gapFocus: ['Do not over-index on frontend work.'],
+        watchOuts: [],
+        positioningRecommendations: ['Lead with reliability outcomes.'],
+        requirementCoverageScore: 0.92,
+        matchedRequirementIds: ['req-platform'],
+        matchedKeywords: ['distributed systems', 'reliability'],
+      },
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        vector: { id: 'backend' },
+        assembled: { keep: 'Candidate evidence survives.' },
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.system).toContain('When canonical JD analysis is provided')
+    expect(body.messages[0].content).toContain('Canonical JD Analysis:')
+    expect(body.messages[0].content).toContain('Own platform reliability for distributed systems.')
+    expect(body.messages[0].content).toContain('Platform reliability ownership')
+    expect(body.messages[0].content).toContain('Use concrete platform evidence.')
+    expect(body.messages[0].content).toContain('Lead with reliability outcomes.')
+    expect(body.messages[0].content).toContain('Matched keywords: distributed systems, reliability')
+    expect(body.messages[0].content).toContain('Raw JD still grounds the generated letter.')
+    expect(body.messages[0].content).toContain('Candidate evidence survives.')
+    expect(body.messages[0].content).not.toContain('"vector"')
+    expect(body.messages[0].content).not.toContain('"vectorId"')
+  })
+
+  it('bounds raw job-description backstop text when canonical JD analysis is present', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      jobDescription: 'A'.repeat(6100),
+      jdAnalysis: {
+        summary: 'Use canonical role emphasis.',
+        overallFit: 'strong',
+        fitScore: 88,
+        confidence: 'high',
+        recommendation: 'apply',
+        oneLineSummary: 'Strong match.',
+        rationale: 'Canonical analysis covers the role.',
+        requirements: [],
+        skillMatches: [],
+        strengthsToLead: [],
+        advantages: [],
+        gaps: [],
+        gapFocus: [],
+        watchOuts: [],
+        positioningRecommendations: [],
+        requirementCoverageScore: 0,
+        matchedRequirementIds: [],
+        matchedKeywords: [],
+      },
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('... (100 characters omitted)')
+  })
+
+  it('bounds raw job-description text even when canonical JD analysis is absent', async () => {
+    await generateCoverLetter('https://ai.example/proxy', {
+      company: 'Acme Corp',
+      role: 'Staff Engineer',
+      jobDescription: 'B'.repeat(12100),
+      resumeContext: {
+        candidate: defaultResumeData.meta,
+        assembled: {},
+      },
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('... (100 characters omitted)')
+  })
+
   it('refines a single cover letter paragraph from user feedback', async () => {
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
     global.fetch = vi.fn().mockResolvedValue({
@@ -195,9 +316,9 @@ describe('coverLetterGenerator', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.feature).toBe('letters.generate')
-    expect(body.model).toBe('opus')
-    expect(body.max_tokens).toBe(16000)
-    expect(body.thinking_budget).toBe(12000)
+    expect(body.model).toBe('sonnet')
+    expect(body.max_tokens).toBe(8000)
+    expect(body.thinking_budget).toBe(6000)
     expect(body.output_config).toEqual({ effort: 'high' })
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 120000)
     expect(body.system).toContain('Rewrite only the requested paragraph')
@@ -601,7 +722,7 @@ describe('coverLetterGenerator', () => {
     const body = JSON.parse((init as RequestInit).body as string)
     const auditSection = (body.messages[0].content as string)
       .split('Candidate Experience Audit:\n')[1]
-      .split('\n\nJob Description:')[0]
+      .split('\n\nCanonical JD Analysis:')[0]
     expect(auditSection).toContain('Experience audit (Acme Corp):')
     expect(auditSection).toContain('Experience audit (GitLab):')
     expect(auditSection).toContain('Experience audit (Kubernetes):')
@@ -624,7 +745,7 @@ describe('coverLetterGenerator', () => {
     const body = JSON.parse((init as RequestInit).body as string)
     const auditSection = (body.messages[0].content as string)
       .split('Candidate Experience Audit:\n')[1]
-      .split('\n\nJob Description:')[0]
+      .split('\n\nCanonical JD Analysis:')[0]
     expect(auditSection).toBe('No audited candidate evidence found.')
     expect(auditSection).not.toContain('Experience audit ():')
   })
@@ -646,7 +767,7 @@ describe('coverLetterGenerator', () => {
     const body = JSON.parse((init as RequestInit).body as string)
     const auditSection = (body.messages[0].content as string)
       .split('Candidate Experience Audit:\n')[1]
-      .split('\n\nJob Description:')[0]
+      .split('\n\nCanonical JD Analysis:')[0]
     expect(auditSection.match(/Experience audit \(GitLab\):/g)).toHaveLength(1)
   })
 
@@ -667,7 +788,7 @@ describe('coverLetterGenerator', () => {
     const body = JSON.parse((init as RequestInit).body as string)
     const auditSection = (body.messages[0].content as string)
       .split('Candidate Experience Audit:\n')[1]
-      .split('\n\nJob Description:')[0]
+      .split('\n\nCanonical JD Analysis:')[0]
     expect(auditSection.match(/Experience audit \(/g)).toHaveLength(1)
     expect(auditSection).toContain('Experience audit (GitLab):')
   })
@@ -693,7 +814,7 @@ describe('coverLetterGenerator', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
     const prompt = body.messages[0].content as string
-    const auditSection = prompt.split('Candidate Experience Audit:\n')[1].split('\n\nJob Description:')[0]
+    const auditSection = prompt.split('Candidate Experience Audit:\n')[1].split('\n\nCanonical JD Analysis:')[0]
     expect(auditSection).toContain('GitLab evidence line 8')
     expect(auditSection).not.toContain('GitLab evidence line 9')
     expect(auditSection).not.toContain('GitLab evidence line 10')

@@ -5,17 +5,22 @@ import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import type { CoverLetter, CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import type { JDAnalysis, JDAnalysisDriftStatus } from '../../types/jdAnalysis'
 import type { PipelineEntry } from '../../types/pipeline'
 import type { ResumeEntity } from '../../types/resume'
 import { resolveCoverLetterCandidateMeta } from '../../utils/coverLetterCandidate'
 import { stripResumeVectorContext } from '../../utils/coverLetterContext'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
+import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
 import './letters.css'
+
+const AI_ENDPOINT_DISABLED_MESSAGE = 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
 
 function buildResearchDraft(positioning: string, notes: string, url: string) {
   return [positioning, notes, url].filter(Boolean).join('\n\n')
@@ -113,6 +118,99 @@ function resolveDefaultResumeId(
   return [entryResumeId, activeResumeId, resumes[0]?.id].find((id) => !!id && resumeIds.has(id)) ?? ''
 }
 
+function resolvePipelineJdAnalysis(entry: PipelineEntry | null, analyses: JDAnalysis[]): JDAnalysis | null {
+  if (!entry) return null
+  if (entry.jdAnalysisId) {
+    const referencedAnalysis = analyses.find(
+      (analysis) => analysis.id === entry.jdAnalysisId && analysis.pipelineEntryId === entry.id,
+    )
+    return referencedAnalysis ?? null
+  }
+
+  return analyses.find((analysis) => analysis.pipelineEntryId === entry.id) ?? null
+}
+
+function resolveGenerationIdentityVersion(
+  analysis: JDAnalysis,
+  resume: Pick<ResumeEntity, 'identityVersion'> | null,
+  identity: Pick<ProfessionalIdentityV3, 'model_revision'> | null,
+) {
+  return identity?.model_revision ?? resume?.identityVersion ?? analysis.identityVersion
+}
+
+function formatJdAnalysisDriftReason(reasons: JDAnalysisDriftStatus['reasons']): string {
+  const labels: Record<JDAnalysisDriftStatus['reasons'][number], string> = {
+    'jd-text': 'job description changed',
+    'identity-version': 'identity model changed',
+    'model-version': 'analysis model changed',
+  }
+  return reasons.map((reason) => labels[reason]).join(', ')
+}
+
+function resolveJdAnalysisGenerationIssue(
+  entry: PipelineEntry | null,
+  resume: ResumeEntity | null,
+  identity: ProfessionalIdentityV3 | null,
+  analysis: JDAnalysis | null,
+): string | null {
+  if (!entry || !resume || !entry.jobDescription.trim()) return null
+  if (!analysis) return 'Analyze this pipeline JD before generating a cover letter.'
+
+  const identityVersion = resolveGenerationIdentityVersion(analysis, resume, identity)
+
+  const drift = getJdAnalysisDriftStatus(analysis, {
+    jobDescription: entry.jobDescription,
+    identityVersion,
+  })
+  if (!drift.stale) return null
+
+  const reasonText = formatJdAnalysisDriftReason(drift.reasons)
+  return reasonText
+    ? 'Refresh JD analysis before generating a cover letter (' + reasonText + ').'
+    : 'Refresh JD analysis before generating a cover letter.'
+}
+
+function resolveGenerationHelperMessage({
+  aiEndpoint,
+  selectedEntry,
+  selectedResume,
+  selectedJdAnalysisIssue,
+  candidateCount,
+}: {
+  aiEndpoint: string
+  selectedEntry: PipelineEntry | null
+  selectedResume: ResumeEntity | null
+  selectedJdAnalysisIssue: string | null
+  candidateCount: number
+}): string | null {
+  if (!aiEndpoint) return AI_ENDPOINT_DISABLED_MESSAGE
+  if (selectedEntry && !selectedEntry.jobDescription.trim()) {
+    return 'This pipeline entry needs a job description before AI generation will work.'
+  }
+  if (selectedEntry && !selectedResume) return 'Choose the resume this cover letter should accompany.'
+  if (selectedJdAnalysisIssue) return selectedJdAnalysisIssue
+  if (candidateCount === 0) return 'Add a pipeline opportunity with a job description to generate a cover letter draft.'
+  return null
+}
+
+function resolveRegenerateDisabledReason({
+  aiEndpoint,
+  activeLetterPipelineEntry,
+  activeLetterRegenerationResume,
+  activeLetterJdAnalysisIssue,
+}: {
+  aiEndpoint: string
+  activeLetterPipelineEntry: PipelineEntry | null
+  activeLetterRegenerationResume: ResumeEntity | null
+  activeLetterJdAnalysisIssue: string | null
+}): string | undefined {
+  if (!aiEndpoint) return AI_ENDPOINT_DISABLED_MESSAGE
+  if (!activeLetterPipelineEntry) return 'This cover letter is not linked to an available pipeline entry.'
+  if (!activeLetterRegenerationResume) return 'Choose a current resume in the generator section before regenerating.'
+  if (!activeLetterPipelineEntry.jobDescription.trim()) return 'This pipeline entry needs a job description before regenerating.'
+  return activeLetterJdAnalysisIssue ?? undefined
+}
+
 type LetterEditDraft =
   | {
       key: string
@@ -131,6 +229,8 @@ export function LettersPage() {
   const { letters, templates, createLetter, upsertLetterForPipelineEntry, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const updatePipelineEntry = usePipelineStore((state) => state.updateEntry)
+  const jdAnalyses = useJDAnalysisStore((state) => state.analyses)
+  const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const resumeEntities = useResumeStore((state) => state.resumes)
   const activeResumeId = useResumeStore((state) => state.activeResumeId)
 
@@ -204,22 +304,44 @@ export function LettersPage() {
     () => resumeOptions.find((resume) => resume.id === selectedResumeId) ?? null,
     [resumeOptions, selectedResumeId],
   )
-  const helperMessage =
-    !aiEndpoint
-      ? 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
-      : selectedEntry && !selectedEntry.jobDescription.trim()
-        ? 'This pipeline entry needs a job description before AI generation will work.'
-        : selectedEntry && !selectedResume
-        ? 'Choose the resume this cover letter should accompany.'
-        : candidateEntries.length === 0
-          ? 'Add a pipeline opportunity with a job description to generate a cover letter draft.'
-          : null
+  const selectedJdAnalysis = useMemo(
+    () => resolvePipelineJdAnalysis(selectedEntry, jdAnalyses),
+    [jdAnalyses, selectedEntry],
+  )
+  const selectedJdAnalysisIssue = useMemo(
+    () => resolveJdAnalysisGenerationIssue(selectedEntry, selectedResume, currentIdentity, selectedJdAnalysis),
+    [currentIdentity, selectedEntry, selectedJdAnalysis, selectedResume],
+  )
+  const activeLetterJdAnalysis = useMemo(
+    () => resolvePipelineJdAnalysis(activeLetterPipelineEntry, jdAnalyses),
+    [activeLetterPipelineEntry, jdAnalyses],
+  )
+  const activeLetterJdAnalysisIssue = useMemo(
+    () => resolveJdAnalysisGenerationIssue(
+      activeLetterPipelineEntry,
+      activeLetterRegenerationResume,
+      currentIdentity,
+      activeLetterJdAnalysis,
+    ),
+    [activeLetterJdAnalysis, activeLetterPipelineEntry, activeLetterRegenerationResume, currentIdentity],
+  )
+  const helperMessage = useMemo(
+    () => resolveGenerationHelperMessage({
+      aiEndpoint,
+      selectedEntry,
+      selectedResume,
+      selectedJdAnalysisIssue,
+      candidateCount: candidateEntries.length,
+    }),
+    [aiEndpoint, candidateEntries.length, selectedEntry, selectedJdAnalysisIssue, selectedResume],
+  )
   const canCreateDraft = !!selectedEntry && !!selectedResume
   const canGenerate =
     !!aiEndpoint &&
     !!selectedEntry &&
     !!selectedResume &&
     !!selectedEntry.jobDescription.trim() &&
+    !selectedJdAnalysisIssue &&
     candidateEntries.length > 0 &&
     resumeOptions.length > 0 &&
     !isGenerating
@@ -228,17 +350,17 @@ export function LettersPage() {
     !!activeLetterPipelineEntry &&
     !!activeLetterRegenerationResume &&
     !!activeLetterPipelineEntry.jobDescription.trim() &&
+    !activeLetterJdAnalysisIssue &&
     !isGenerating
-  const regenerateDisabledReason =
-    !aiEndpoint
-      ? 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
-      : !activeLetterPipelineEntry
-        ? 'This cover letter is not linked to an available pipeline entry.'
-        : !activeLetterRegenerationResume
-          ? 'Choose a current resume in the generator section before regenerating.'
-          : !activeLetterPipelineEntry.jobDescription.trim()
-            ? 'This pipeline entry needs a job description before regenerating.'
-            : undefined
+  const regenerateDisabledReason = useMemo(
+    () => resolveRegenerateDisabledReason({
+      aiEndpoint,
+      activeLetterPipelineEntry,
+      activeLetterRegenerationResume,
+      activeLetterJdAnalysisIssue,
+    }),
+    [aiEndpoint, activeLetterJdAnalysisIssue, activeLetterPipelineEntry, activeLetterRegenerationResume],
+  )
 
   useEffect(() => {
     if (selectedEntryId) return
@@ -499,7 +621,7 @@ export function LettersPage() {
     }
     cancelEditing()
     if (!aiEndpoint) {
-      setGenerationError('AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+      setGenerationError(AI_ENDPOINT_DISABLED_MESSAGE)
       return
     }
 
@@ -531,6 +653,21 @@ export function LettersPage() {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
       }
+      const freshAnalyses = useJDAnalysisStore.getState().analyses
+      const freshJdAnalysis = resolvePipelineJdAnalysis(
+        freshEntry,
+        Array.isArray(freshAnalyses) ? freshAnalyses : [],
+      )
+      const jdAnalysisIssue = resolveJdAnalysisGenerationIssue(
+        freshEntry,
+        freshResume,
+        freshIdentity,
+        freshJdAnalysis,
+      )
+      if (jdAnalysisIssue) {
+        setGenerationError(jdAnalysisIssue)
+        return
+      }
 
       const resumeContent = freshResume.content
       const candidateMeta = resolveCoverLetterCandidateMeta(resumeContent.meta, freshIdentity)
@@ -549,6 +686,7 @@ export function LettersPage() {
         notes: freshEntry.notes || undefined,
         companyResearch: researchDraft || undefined,
         jobDescription: freshEntry.jobDescription,
+        jdAnalysis: freshJdAnalysis ?? undefined,
         resumeContext: {
           candidate: candidateMeta,
           assembled: {

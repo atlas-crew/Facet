@@ -99,12 +99,12 @@ const FEATURE_MODEL_DEFAULTS = {
   'research.profile-inference': CURRENT_OPUS_MODEL,
   'research.thesis': CURRENT_OPUS_MODEL,
   'prep.generate': CURRENT_OPUS_MODEL,
-  'letters.generate': CURRENT_OPUS_MODEL,
   'linkedin.generate': CURRENT_OPUS_MODEL,
   // Sonnet 4.6 — structured transformation
   'identity.extract': CURRENT_SONNET_MODEL,
   'debrief.generate': CURRENT_SONNET_MODEL,
   'build.bullet-reframe': CURRENT_SONNET_MODEL,
+  'letters.generate': CURRENT_SONNET_MODEL,
   'research.search': CURRENT_SONNET_MODEL,
   // Haiku 4.5 — mechanical field extraction
   'match.jd-analysis': CURRENT_HAIKU_MODEL,

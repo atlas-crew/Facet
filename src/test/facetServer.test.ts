@@ -1317,7 +1317,7 @@ describe('facetServer persistence API', () => {
     )
   })
 
-  it('routes drafting and suggestion features to opus 4.7 when callers send generic aliases', async () => {
+  it('routes opus-class drafting and suggestion features to opus 4.7 when callers send generic aliases', async () => {
     const messagesCreate = vi.fn(async () => ({
       content: [{ type: 'text', text: '{"ok":true}' }],
       usage: { input_tokens: 0, output_tokens: 0 },
@@ -1346,7 +1346,7 @@ describe('facetServer persistence API', () => {
       throw new Error('Failed to bind feature-model test server.')
     }
 
-    for (const feature of ['prep.generate', 'letters.generate', 'research.profile-inference']) {
+    for (const feature of ['prep.generate', 'research.profile-inference']) {
       const response = await fetch(`http://127.0.0.1:${address.port}`, {
         method: 'POST',
         headers: {
@@ -1378,17 +1378,65 @@ describe('facetServer persistence API', () => {
         model: 'claude-opus-4-7',
       }),
     )
-    expect(messagesCreate).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({
-        model: 'claude-opus-4-7',
-      }),
-    )
-    const [routedCall1, routedCall2, routedCall3] =
+    const [routedCall1, routedCall2] =
       messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
     expect(routedCall1).not.toHaveProperty('temperature')
     expect(routedCall2).not.toHaveProperty('temperature')
-    expect(routedCall3).not.toHaveProperty('temperature')
+  })
+
+  it('routes cover-letter generation to sonnet when callers send generic aliases', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind letters feature-model test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'letters.generate',
+        model: 'opus',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Draft a letter.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-sonnet-4-6')
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-sonnet-4-6',
+      }),
+    )
+    const [routedCall] = messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    expect(routedCall).not.toHaveProperty('temperature')
   })
 
   it('preserves explicit raw model overrides for mapped features', async () => {

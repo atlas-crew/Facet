@@ -5,12 +5,90 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { LettersPage } from '../routes/letters/LettersPage'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useIdentityStore } from '../store/identityStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
+import type { JDAnalysis } from '../types/jdAnalysis'
+import { JD_ANALYSIS_MODEL_VERSION } from '../types/jdAnalysis'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { stripResumeVectorContext } from '../utils/coverLetterContext'
+import { hashJobDescriptionText } from '../utils/jdAnalysis'
+
+const PIPELINE_JOB_DESCRIPTION = 'Build distributed systems and platform tooling.'
+
+function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
+  return {
+    id: 'analysis-1',
+    pipelineEntryId: 'pipe-1',
+    jdTextHash: hashJobDescriptionText(PIPELINE_JOB_DESCRIPTION),
+    identityVersion: 7,
+    modelVersion: JD_ANALYSIS_MODEL_VERSION,
+    generatedAt: '2026-03-09T00:00:00.000Z',
+    updatedAt: '2026-03-09T00:00:00.000Z',
+    warnings: [],
+    company: 'Acme Corp',
+    role: 'Staff Engineer',
+    summary: 'Own platform reliability and distributed systems delivery.',
+    analyzedJobDescription: PIPELINE_JOB_DESCRIPTION,
+    jobDescriptionWordCount: 6,
+    jobDescriptionTruncated: false,
+    requirements: [
+      {
+        id: 'req-platform',
+        label: 'Platform reliability ownership',
+        priority: 'core',
+        evidence: 'Build distributed systems and platform tooling.',
+        tags: ['platform'],
+        keywords: ['distributed systems', 'platform tooling'],
+        coverageScore: 0.86,
+        matchedAssetCount: 3,
+        matchedTags: ['platform'],
+      },
+    ],
+    overallFit: 'strong',
+    fitScore: 86,
+    confidence: 'high',
+    recommendation: 'apply',
+    oneLineSummary: 'Strong platform reliability fit.',
+    rationale: 'Candidate evidence supports backend platform ownership.',
+    matchedVectors: [],
+    primaryVectorId: 'backend',
+    skillMatches: [
+      {
+        skillName: 'Distributed systems',
+        jdRequirement: 'Build distributed systems',
+        requirementStrength: 'required',
+        userDepth: 'expert',
+        userPositioning: 'Lead with backend reliability systems.',
+        matchQuality: 'strong',
+        presentationGuidance: 'Use concrete backend platform evidence.',
+      },
+    ],
+    evidenceMapping: {
+      topBullets: [],
+      topSkills: [],
+      topProjects: [],
+      topProfiles: [],
+      topPhilosophy: [],
+    },
+    strengthsToLead: ['Backend platform reliability'],
+    advantages: [{ id: 'adv-1', claim: 'Owns distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] }],
+    advantageHypotheses: [{ id: 'hyp-1', claim: 'Can stabilize developer platforms.', requirementIds: ['req-platform'] }],
+    gaps: [],
+    gapFocus: ['Keep the letter concise on frontend depth.'],
+    watchOuts: [],
+    triggeredPrioritize: [],
+    triggeredAvoid: [],
+    relevantAwareness: [],
+    positioningRecommendations: ['Lead with platform reliability outcomes.'],
+    requirementCoverageScore: 0.86,
+    matchedRequirementIds: ['req-platform'],
+    matchedKeywords: ['distributed systems', 'platform tooling'],
+    ...overrides,
+  }
+}
 
 describe('LettersPage', () => {
   beforeEach(() => {
@@ -18,6 +96,7 @@ describe('LettersPage', () => {
     resolveStorage().removeItem('facet-cover-letter-data')
     resolveStorage().removeItem('vector-resume-data')
     useCoverLetterStore.setState({ letters: [], snapshots: [], activeLetterId: null, templates: [] })
+    useJDAnalysisStore.setState({ analyses: [makeJdAnalysis()] })
     useIdentityStore.setState({ currentIdentity: null })
     useResumeStore.setState({
       ...normalizeResumeWorkspaceData(JSON.parse(JSON.stringify(defaultResumeData))),
@@ -38,7 +117,8 @@ describe('LettersPage', () => {
           url: 'https://acme.example/jobs/1',
           contact: 'Jordan Lee',
           vectorId: 'backend',
-          jobDescription: 'Build distributed systems and platform tooling.',
+          jobDescription: PIPELINE_JOB_DESCRIPTION,
+          jdAnalysisId: 'analysis-1',
           presetId: null,
           resumeVariant: '',
           resumeGeneration: null,
@@ -156,6 +236,10 @@ describe('LettersPage', () => {
     const body = JSON.parse((init as RequestInit).body as string)
     const prompt = body.messages?.[0]?.content ?? ''
     expect(prompt).not.toContain('Target Vector:')
+    expect(prompt).toContain('Canonical JD Analysis:')
+    expect(prompt).toContain('Own platform reliability and distributed systems delivery.')
+    expect(prompt).toContain('Lead with platform reliability outcomes.')
+    expect(prompt).toContain('Build distributed systems and platform tooling.')
     expect(prompt).not.toContain('"vectors"')
     expect(prompt).not.toContain('"vectorId"')
     expect(prompt).not.toContain('"manualOverrides"')
@@ -167,6 +251,115 @@ describe('LettersPage', () => {
       sourceResumeId: 'resume-local-default',
     })
     expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(letter?.id)
+  })
+
+  it('blocks AI generation until the selected pipeline entry has canonical JD analysis', () => {
+    useJDAnalysisStore.setState({ analyses: [] })
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: state.entries.map((entry) => ({ ...entry, jdAnalysisId: null })),
+    }))
+
+    render(<LettersPage />)
+
+    expect(screen.getByText('Analyze this pipeline JD before generating a cover letter.')).toBeTruthy()
+    expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('blocks AI generation when canonical JD analysis is stale', () => {
+    useJDAnalysisStore.setState({
+      analyses: [makeJdAnalysis({ jdTextHash: hashJobDescriptionText('Old job description') })],
+    })
+
+    render(<LettersPage />)
+
+    expect(screen.getByText('Refresh JD analysis before generating a cover letter (job description changed).')).toBeTruthy()
+    expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('formats multiple canonical JD analysis drift reasons', () => {
+    useIdentityStore.setState({ currentIdentity: { ...cloneIdentityFixture(), model_revision: 8 } })
+    useJDAnalysisStore.setState({
+      analyses: [
+        makeJdAnalysis({
+          jdTextHash: hashJobDescriptionText('Old job description'),
+          modelVersion: 'old-model',
+        }),
+      ],
+    })
+
+    render(<LettersPage />)
+
+    expect(
+      screen.getByText(
+        'Refresh JD analysis before generating a cover letter (job description changed, identity model changed, analysis model changed).',
+      ),
+    ).toBeTruthy()
+    expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('fails closed if canonical JD analysis disappears before generation reads fresh store state', async () => {
+    render(<LettersPage />)
+    const generateButton = screen.getByText('Generate with AI') as HTMLButtonElement
+
+    useJDAnalysisStore.setState({ analyses: [] })
+    fireEvent.click(generateButton)
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Analyze this pipeline JD before generating a cover letter.').length).toBeGreaterThan(0)
+    })
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+    expect(useCoverLetterStore.getState().templates).toHaveLength(0)
+  })
+
+  it('uses a matching pipeline JD analysis when the pipeline entry reference is missing', async () => {
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: state.entries.map((entry) => ({ ...entry, jdAnalysisId: null })),
+    }))
+
+    render(<LettersPage />)
+
+    const generateButton = screen.getByText('Generate with AI') as HTMLButtonElement
+    expect(generateButton.disabled).toBe(false)
+
+    fireEvent.click(generateButton)
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.messages[0].content).toContain('Own platform reliability and distributed systems delivery.')
+  })
+
+  it('disables regeneration when the linked pipeline JD analysis is missing', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    act(() => {
+      useResumeStore.setState((state) => ({
+        ...state,
+        resumes: state.resumes.map((resume) =>
+          resume.id === 'resume-local-default'
+            ? { ...resume, contentHash: 'resume-hash-after-edit' }
+            : resume,
+        ),
+      }))
+      useJDAnalysisStore.setState({ analyses: [] })
+    })
+
+    expect(await screen.findByText('Resume has changed since this letter was generated - regenerate?')).toBeTruthy()
+    const regenerateButton = screen.getByText('Regenerate') as HTMLButtonElement
+    expect(regenerateButton.disabled).toBe(true)
+    expect(regenerateButton.title).toBe('Analyze this pipeline JD before generating a cover letter.')
   })
 
   it('names linked history items from pipeline entries and sorts by created date', () => {
