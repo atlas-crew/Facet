@@ -74,6 +74,42 @@ const identitySkillEntries = (identity: ProfessionalIdentityV3): Array<{
       }),
   )
 
+/**
+ * Look up an identity skill item by name (or alias) and return the canonical
+ * `{ name, depth, context, positioning }` so the thesis can mirror identity-
+ * canonical fields rather than re-derive them per thesis.
+ *
+ * See `docs/architecture/identity-canonical-data.md` for the diagnostic rule
+ * and `docs/development/reports/2026-04-llm-identity-anti-pattern-audit.md`
+ * (entries A1, D1) for the audit decisions this implements.
+ */
+const findIdentitySkillItem = (
+  identity: ProfessionalIdentityV3,
+  query: string,
+): { name: string; depth?: string; context?: string; positioning?: string } | null => {
+  const target = normalizeSkillKey(query)
+  if (!target) return null
+  for (const group of identity.skills.groups) {
+    for (const item of group.items) {
+      if (item.depth === 'avoid' || item.skipped_at) continue
+      const name = item.name.trim()
+      if (!name) continue
+      if (normalizeSkillKey(name) === target) {
+        return { name, depth: item.depth, context: item.context, positioning: item.positioning }
+      }
+      const rawAliases = (item as unknown as { aliases?: unknown }).aliases
+      if (Array.isArray(rawAliases)) {
+        for (const alias of rawAliases) {
+          if (isString(alias) && normalizeSkillKey(alias) === target) {
+            return { name, depth: item.depth, context: item.context, positioning: item.positioning }
+          }
+        }
+      }
+    }
+  }
+  return null
+}
+
 export interface ThesisGenerationContext {
   /** Free-text user correction notes from the previous thesis (cleared after regenerate). */
   userCorrections?: string
@@ -131,15 +167,18 @@ export function buildThesisGenerationPrompt(
   return sections.join('\n')
 }
 
+// `depth` was dropped from `SearchUnfairAdvantage` because it duplicated
+// identity-canonical skill depth (audit entry A2). Express depth through the
+// `combination` phrase itself ("Production Kubernetes + product-aware platform
+// judgment"). Any LLM-emitted `depth` is ignored here.
 const normalizeUnfairAdvantages = (value: unknown): SearchUnfairAdvantage[] =>
   Array.isArray(value)
     ? value.flatMap((entry) => {
         if (!isRecord(entry)) return []
         const combination = normalizeString(entry.combination)
-        const depth = normalizeString(entry.depth)
         const targetCompanyProfile = normalizeString(entry.targetCompanyProfile)
-        return combination && depth && targetCompanyProfile
-          ? [{ id: normalizeString(entry.id) || createId('sadv'), combination, depth, targetCompanyProfile }]
+        return combination && targetCompanyProfile
+          ? [{ id: normalizeString(entry.id) || createId('sadv'), combination, targetCompanyProfile }]
           : []
       })
     : []
@@ -244,24 +283,45 @@ const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined
   }
 }
 
-const normalizeSkillDepthMap = (value: unknown): SearchSkillDepthEntry[] =>
-  Array.isArray(value)
-    ? value.flatMap((entry) => {
-        if (!isRecord(entry)) return []
-        const skill = normalizeString(entry.skill)
-        const depth = normalizeString(entry.depth)
-        const context = normalizeString(entry.context)
-        const searchSignal = normalizeString(entry.searchSignal)
-        if (!skill || !depth || !context || !searchSignal) return []
-        return [{
-          skill,
-          depth,
-          context,
-          searchSignal,
-          ...(normalizeString(entry.calibration) ? { calibration: normalizeString(entry.calibration) } : {}),
-        }]
-      })
-    : []
+/**
+ * Build the per-thesis `skillDepthMap` from LLM output. The LLM emits only
+ * `skill` (must match an identity skill name) and an optional `calibration`
+ * (per-thesis honest framing). Depth, context, and search signal are sourced
+ * from `identity.skills.*.{depth, context, positioning}` — they are identity-
+ * canonical fields that artifacts mirror by reference (audit entries A1, D1).
+ *
+ * Entries whose `skill` doesn't match an identity skill are dropped — they're
+ * either hallucinations or stale references. Entries whose matched identity
+ * skill lacks depth/context/positioning are also dropped because the validator
+ * and downstream deep-research consumers require all three.
+ */
+const normalizeSkillDepthMap = (
+  value: unknown,
+  identity: ProfessionalIdentityV3,
+): SearchSkillDepthEntry[] => {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) return []
+    const skill = normalizeString(entry.skill)
+    if (!skill) return []
+    const identitySkill = findIdentitySkillItem(identity, skill)
+    if (!identitySkill) return []
+    const depth = identitySkill.depth ?? ''
+    const context = identitySkill.context ?? ''
+    const searchSignal = identitySkill.positioning ?? ''
+    if (!depth || !context || !searchSignal) return []
+    const calibration = normalizeString(entry.calibration)
+    return [
+      {
+        skill: identitySkill.name,
+        depth,
+        context,
+        searchSignal,
+        ...(calibration ? { calibration } : {}),
+      },
+    ]
+  })
+}
 
 export function normalizeGeneratedSearchThesis(
   payload: unknown,
@@ -292,7 +352,7 @@ export function normalizeGeneratedSearchThesis(
     avoid: normalizeAvoid(record.avoid),
     ...(timeline ? { timeline } : {}),
     keywordCombinations: normalizeKeywordCombinations(record.keywordCombinations, fallbackLaneId),
-    skillDepthMap: normalizeSkillDepthMap(record.skillDepthMap),
+    skillDepthMap: normalizeSkillDepthMap(record.skillDepthMap, identity),
     ...(overrides ? { searchOverrides: overrides } : {}),
     ...(directiveTrimmed ? { customDirective: directiveTrimmed } : {}),
     source: 'generated',
@@ -361,6 +421,14 @@ export async function generateSearchThesisFromIdentity(
     '',
     'Per-search overrides (`searchOverrides`): infer plausible per-search values from identity context and the chosen lanes. These are starting points the user will correct, NOT static placeholders. Better to make a confident guess that teaches the user what the field means than to leave fields blank. Concrete > abstract: prefer "$240k base / $340k total" over "competitive comp"; prefer "Tampa Bay (Remote-friendly)" over "Remote".',
     '',
+    'Identity-canonical fields (do NOT generate; these are sourced from identity at normalization):',
+    '- `skillDepthMap[].depth`, `skillDepthMap[].context`, `skillDepthMap[].searchSignal` come from `identity.skills.*.depth`, `.context`, and `.positioning`. Emit only the `skill` name (must match an identity skill — by name or alias) and an optional per-thesis `calibration` framing.',
+    '- `unfairAdvantages[].depth` is duplicate. Express depth through the `combination` phrase itself ("Production Kubernetes + product-aware platform judgment") rather than a separate depth field.',
+    '',
+    'Editorial fields with guardrails (LLM generates per-thesis but stays grounded):',
+    '- `interviewStrategy`: search-tailored emphasis for THIS specific role/lane — what to lead with in this search\'s interview process. Do NOT restate the candidate\'s general prep approach (which lives on `identity.self_model.interview_style.prep_strategy`).',
+    '- `skillDepthMap[].calibration`: per-thesis honest framing ("not a K8s admin; building around it is fine"). Cite identity calibration_notes; do not invent new claims about the candidate.',
+    '',
     'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction — it represents intent the identity model does not encode.',
     'If user corrections are provided, weave them into the new thesis without quoting them verbatim, and update overrides to reflect them.',
     '',
@@ -368,14 +436,14 @@ export async function generateSearchThesisFromIdentity(
     '{',
     '  "narrative": "3-5 paragraphs weaving moat -> unfair advantages -> search lanes -> signals",',
     '  "competitiveMoat": "specific strategic moat",',
-    '  "unfairAdvantages": [{ "combination": "string", "depth": "string", "targetCompanyProfile": "string" }],',
+    '  "unfairAdvantages": [{ "combination": "string", "targetCompanyProfile": "string" }],',
     '  "searchLanes": [{ "id": "optional", "title": "string", "rationale": "2+ sentence prose", "competitiveContext": "optional prose", "targetSignals": ["string"] }],',
     '  "interviewStrategy": "string",',
     '  "lookFor": ["string"],',
     '  "avoid": [{ "label": "string", "condition": "optional qualifier" }],',
     '  "timeline": { "urgency": "critical|active|exploratory", "deadline": "optional ISO date", "strategyImpact": "string" },',
     '  "keywordCombinations": [{ "query": "string", "lane": "lane id", "noiseLevel": "low|medium|high" }],',
-    '  "skillDepthMap": [{ "skill": "string", "depth": "semantic depth", "context": "specific PAIO evidence", "searchSignal": "string", "calibration": "optional honest framing" }],',
+    '  "skillDepthMap": [{ "skill": "string (must match an identity skill name)", "calibration": "optional honest framing per this search" }],',
     '  "searchOverrides": {',
     '    "constraints": { "compensation": "string", "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|" },',
     '    "filters": { "prioritize": ["string"], "avoid": ["string"] },',
@@ -388,8 +456,7 @@ export async function generateSearchThesisFromIdentity(
     'Contract:',
     '- narrative must be 3-5 paragraphs, not bullets.',
     '- every lane rationale must be prose, not fragments.',
-    '- skillDepthMap context must cite specific evidence from the identity model.',
-    '- cover every user skill unless the identity explicitly marks it irrelevant or avoid.',
+    '- cover every user skill unless the identity explicitly marks it irrelevant or avoid (emit each as a `skillDepthMap` entry; depth/context/searchSignal will be sourced from identity).',
     '- searchOverrides values must be concrete and tailored to the chosen lanes; leave hiddenSkillIds empty unless the lane choice clearly excludes a skill.',
   ].join('\n')
 

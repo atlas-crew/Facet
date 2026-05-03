@@ -1415,7 +1415,6 @@ export function ResearchPage() {
               {
                 id: createId('sadv'),
                 combination: 'New advantage combination',
-                depth: 'Describe the depth signal',
                 targetCompanyProfile: 'Describe the target company profile',
               },
             ],
@@ -2914,17 +2913,6 @@ export function ResearchPage() {
                                 value={advantage.combination}
                                 onChange={(event) =>
                                   updateThesisAdvantage(index, { combination: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field">
-                              <span>Depth</span>
-                              <input
-                                className="research-input"
-                                aria-label={`Advantage ${index + 1} depth`}
-                                value={advantage.depth}
-                                onChange={(event) =>
-                                  updateThesisAdvantage(index, { depth: event.target.value })
                                 }
                               />
                             </label>

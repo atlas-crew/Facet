@@ -504,7 +504,6 @@ describe('searchStore', () => {
         {
           id: 'sadv-1',
           combination: 'Kubernetes plus product judgment',
-          depth: 'strong',
           targetCompanyProfile: 'Platform modernization teams',
         },
       ],

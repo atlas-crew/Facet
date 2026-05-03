@@ -122,7 +122,6 @@ const buildRoundTripThesis = (overrides: Partial<SearchThesis> = {}): SearchThes
     {
       id: 'sadv-rt',
       combination: 'Kubernetes delivery plus product judgment',
-      depth: 'strong production evidence',
       targetCompanyProfile: 'Platform teams modernizing deployment paths',
     },
   ],

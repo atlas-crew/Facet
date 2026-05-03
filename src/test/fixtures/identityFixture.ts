@@ -44,7 +44,16 @@ export const identityFixture: ProfessionalIdentityV3 = {
       {
         id: 'platform',
         label: 'Platform',
-        items: [{ name: 'Kubernetes', tags: ['platform', 'kubernetes'] }],
+        items: [
+          {
+            name: 'Kubernetes',
+            tags: ['platform', 'kubernetes'],
+            depth: 'strong',
+            context:
+              'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths.',
+            positioning: 'Use as a strong match signal for deployment architecture roles.',
+          },
+        ],
       },
     ],
   },

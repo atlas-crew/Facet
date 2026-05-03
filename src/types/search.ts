@@ -313,8 +313,6 @@ export interface SearchUnfairAdvantage {
   id: string
   /** Skill combination that creates competitive edge. */
   combination: string
-  /** Semantic depth description for this combination. */
-  depth: string
   /** What kind of company this advantage targets. */
   targetCompanyProfile: string
 }

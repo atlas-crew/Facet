@@ -317,7 +317,6 @@ describe('ResearchPage', () => {
           {
             id: 'sadv-generated',
             combination: 'Kubernetes delivery plus product judgment',
-            depth: 'strong production evidence',
             targetCompanyProfile: 'Platform teams modernizing deployment paths',
           },
         ],
@@ -1717,7 +1716,6 @@ describe('ResearchPage', () => {
         {
           id: 'sadv-original',
           combination: 'Original combination',
-          depth: 'Original depth',
           targetCompanyProfile: 'Original target company profile',
         },
       ],
@@ -1744,7 +1742,6 @@ describe('ResearchPage', () => {
     expect(useSearchStore.getState().theses[0]?.unfairAdvantages[1]).toMatchObject({
       id: expect.stringMatching(/^sadv-/),
       combination: 'New combination',
-      depth: 'Describe the depth signal',
       targetCompanyProfile: 'Describe the target company profile',
     })
 
@@ -1756,7 +1753,6 @@ describe('ResearchPage', () => {
         {
           id: 'sadv-original',
           combination: 'Original combination',
-          depth: 'Original depth',
           targetCompanyProfile: 'Original target company profile',
         },
       ])
