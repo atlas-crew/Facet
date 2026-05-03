@@ -44,6 +44,7 @@ interface CoverLetterState {
   ) => void
   deleteLetter: (id: string) => void
   addSnapshot: (snapshot: CoverLetterSnapshot) => void
+  removeSnapshot: (id: string) => void
   importWorkspaceData: (data: CoverLetterWorkspaceData) => void
 
   addTemplate: (
@@ -142,6 +143,12 @@ export const useCoverLetterStore = create<CoverLetterState>()((set, get) => ({
           ? state.snapshots.map((existing) => (existing.id === snapshot.id ? snapshot : existing))
           : [...state.snapshots, snapshot]
       ).sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+    }))
+  },
+
+  removeSnapshot: (id) => {
+    set((state) => ({
+      snapshots: state.snapshots.filter((snapshot) => snapshot.id !== id),
     }))
   },
 

@@ -179,6 +179,7 @@ export const createResumeSnapshot = (
   resume: ResumeEntity,
   pipelineEntryId: string,
   timestamp = new Date().toISOString(),
+  identityVersionAtApply: number | null = null,
 ): ResumeSnapshot => ({
   id: createId('resumesnap'),
   sourceResumeId: resume.id,
@@ -187,6 +188,7 @@ export const createResumeSnapshot = (
   contentHash: resume.contentHash,
   origin: resume.origin,
   identityVersion: resume.identityVersion,
+  identityVersionAtApply,
   createdAt: timestamp,
 })
 
@@ -249,6 +251,7 @@ const normalizeResumeSnapshot = (
     contentHash: hashResumeContent(content),
     origin: normalizeResumeOrigin(value.origin, resumeOriginFromGeneration(content.generation)),
     identityVersion: normalizeResumeIdentityVersion(value.identityVersion),
+    identityVersionAtApply: normalizeResumeIdentityVersion(value.identityVersionAtApply),
     createdAt,
   }
 }

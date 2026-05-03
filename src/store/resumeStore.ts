@@ -81,6 +81,8 @@ interface ResumeState {
     pipelineEntryId?: string | null
   }) => ResumeEntity
   setActiveResume: (id: string) => void
+  addSnapshot: (snapshot: ResumeSnapshot) => void
+  removeSnapshot: (id: string) => void
   createSnapshotForPipelineEntry: (resumeId: string, pipelineEntryId: string) => ResumeSnapshot | null
   
   // Positioning actions (Moved from uiStore for Global Undo/Redo)
@@ -547,13 +549,27 @@ export const useResumeStore = create<ResumeState>()((set, get) => ({
         })
       },
 
+      addSnapshot: (snapshot) => {
+        set((state) => ({
+          snapshots: (
+            state.snapshots.some((existing) => existing.id === snapshot.id)
+              ? state.snapshots.map((existing) => (existing.id === snapshot.id ? snapshot : existing))
+              : [...state.snapshots, snapshot]
+          ).sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+        }))
+      },
+
+      removeSnapshot: (id) => {
+        set((state) => ({
+          snapshots: state.snapshots.filter((snapshot) => snapshot.id !== id),
+        }))
+      },
+
       createSnapshotForPipelineEntry: (resumeId, pipelineEntryId) => {
         const resume = get().resumes.find((item) => item.id === resumeId)
         if (!resume) return null
         const snapshot = createResumeSnapshot(resume, pipelineEntryId)
-        set((state) => ({
-          snapshots: [...state.snapshots, snapshot],
-        }))
+        get().addSnapshot(snapshot)
         return snapshot
       },
 

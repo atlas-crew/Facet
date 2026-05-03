@@ -90,6 +90,7 @@ describe('resumeStore', () => {
         sourceResumeId: resume.id,
         pipelineEntryId: 'pipe-1',
         identityVersion: 12,
+        identityVersionAtApply: null,
       })
 
       useResumeStore.getState().updateMetaField('name', 'Edited After Apply')

@@ -16,6 +16,7 @@ import {
 } from './durableMetadata'
 import { createId } from '../utils/idUtils'
 import { normalizePipelineResearchSnapshot } from '../utils/pipelineResearch'
+import { createResumeSnapshot } from '../utils/resumeEntities'
 import {
   buildPipelineResumeVariantLabel,
   getPipelineResumePresetId,
@@ -24,6 +25,9 @@ import {
 } from '../utils/resumeGeneration'
 import { useJDAnalysisStore } from './jdAnalysisStore'
 import { useResumeStore } from './resumeStore'
+import { useCoverLetterStore } from './coverLetterStore'
+import { useIdentityStore } from './identityStore'
+import { createCoverLetterSnapshot } from '../utils/coverLetterEntities'
 
 interface PipelineFilters {
   tier: PipelineTier | 'all'
@@ -140,6 +144,8 @@ const normalizeEntry = (
     resumeGeneration: normalizedResumeGeneration,
     resumeId: entry.resumeId ?? null,
     resumeSnapshotId: entry.resumeSnapshotId ?? null,
+    coverLetterId: entry.coverLetterId ?? null,
+    coverLetterSnapshotId: entry.coverLetterSnapshotId ?? null,
     deletedAt: entry.deletedAt ?? null,
     durableMeta: options.touch
       ? touchDurableMetadata(entry.durableMeta, timestamp())
@@ -254,6 +260,10 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
         const date = now()
         const currentEntry = get().entries.find((entry) => entry.id === id)
         let resumeSnapshotId = currentEntry?.resumeSnapshotId ?? null
+        let coverLetterId = currentEntry?.coverLetterId ?? null
+        let coverLetterSnapshotId = currentEntry?.coverLetterSnapshotId ?? null
+        let createdResumeSnapshotId: string | null = null
+        let createdCoverLetterSnapshotId: string | null = null
         if (
           currentEntry &&
           status === 'applied' &&
@@ -269,30 +279,98 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
             })
             snapshotResumeId = savedResume.id
           }
-          const snapshot = useResumeStore
+
+          const resume = useResumeStore
             .getState()
-            .createSnapshotForPipelineEntry(snapshotResumeId, currentEntry.id)
-          resumeSnapshotId = snapshot?.id ?? resumeSnapshotId
+            .resumes.find((item) => item.id === snapshotResumeId)
+          if (!resume) {
+            throw new Error('Could not find the resume linked to this pipeline entry.')
+          }
+
+          const appliedAt = timestamp()
+          const identityVersionAtApply =
+            useIdentityStore.getState().currentIdentity?.model_revision ?? null
+          const resumeSnapshot = createResumeSnapshot(
+            resume,
+            currentEntry.id,
+            appliedAt,
+            identityVersionAtApply,
+          )
+          const coverLetters = useCoverLetterStore.getState().letters
+          const coverLetter =
+            (currentEntry.coverLetterId
+              ? coverLetters.find((letter) => letter.id === currentEntry.coverLetterId)
+              : undefined) ??
+            [...coverLetters]
+              .filter((letter) => letter.pipelineEntryId === currentEntry.id)
+              .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
+          const coverLetterSnapshot = coverLetter
+            ? createCoverLetterSnapshot({
+                letter: coverLetter,
+                sourceResumeSnapshotId: resumeSnapshot.id,
+                identityVersionAtApply,
+                timestamp: appliedAt,
+              })
+            : null
+
+          let resumeSnapshotWritten = false
+          let coverLetterSnapshotWritten = false
+          try {
+            useResumeStore.getState().addSnapshot(resumeSnapshot)
+            resumeSnapshotWritten = true
+            if (coverLetterSnapshot) {
+              useCoverLetterStore.getState().addSnapshot(coverLetterSnapshot)
+              coverLetterSnapshotWritten = true
+            }
+          } catch (error) {
+            if (coverLetterSnapshotWritten && coverLetterSnapshot) {
+              useCoverLetterStore.getState().removeSnapshot(coverLetterSnapshot.id)
+            }
+            if (resumeSnapshotWritten) {
+              useResumeStore.getState().removeSnapshot(resumeSnapshot.id)
+            }
+            console.error('Failed to create application snapshots before applying pipeline entry.', error)
+            throw new Error('Could not create application snapshots for this pipeline entry.')
+          }
+
+          resumeSnapshotId = resumeSnapshot.id
+          coverLetterId = coverLetter?.id ?? coverLetterId
+          coverLetterSnapshotId = coverLetterSnapshot?.id ?? coverLetterSnapshotId
+          createdResumeSnapshotId = resumeSnapshot.id
+          createdCoverLetterSnapshotId = coverLetterSnapshot?.id ?? null
         }
 
-        set((s) => ({
-          entries: s.entries.map((e) => {
-            if (e.id !== id) {
-              return e
-            }
+        try {
+          set((s) => ({
+            entries: s.entries.map((e) => {
+              if (e.id !== id) {
+                return e
+              }
 
-            return normalizeEntry(
-              {
-                ...e,
-                status,
-                resumeSnapshotId,
-                lastAction: date,
-                history: [...e.history, { date, note: `Status → ${status}` }],
-              },
-              { touch: true },
-            )
-          }),
-        }))
+              return normalizeEntry(
+                {
+                  ...e,
+                  status,
+                  resumeSnapshotId,
+                  coverLetterId,
+                  coverLetterSnapshotId,
+                  lastAction: date,
+                  history: [...e.history, { date, note: `Status → ${status}` }],
+                },
+                { touch: true },
+              )
+            }),
+          }))
+        } catch (error) {
+          if (createdCoverLetterSnapshotId) {
+            useCoverLetterStore.getState().removeSnapshot(createdCoverLetterSnapshotId)
+          }
+          if (createdResumeSnapshotId) {
+            useResumeStore.getState().removeSnapshot(createdResumeSnapshotId)
+          }
+          console.error('Failed to update pipeline entry after creating application snapshots.', error)
+          throw new Error('Could not update this pipeline entry after creating application snapshots.')
+        }
       },
 
       setSort: (field, dir) => {

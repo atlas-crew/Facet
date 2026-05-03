@@ -30,6 +30,7 @@ export interface ResumeSnapshot {
   contentHash: string
   origin: ResumeOrigin
   identityVersion: number | null
+  identityVersionAtApply: number | null
   createdAt: string
 }
 

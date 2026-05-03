@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   migratePipelineState,
   usePipelineStore,
 } from '../store/pipelineStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
+import { useCoverLetterStore } from '../store/coverLetterStore'
+import { useIdentityStore } from '../store/identityStore'
 import type { PipelineEntry } from '../types/pipeline'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 import { defaultResumeData } from '../store/defaultData'
@@ -43,6 +45,13 @@ describe('pipelineStore', () => {
   beforeEach(() => {
     usePipelineStore.setState({ entries: [], sortField: 'tier', sortDir: 'asc', filters: { tier: 'all', status: 'all', search: '' } })
     useJDAnalysisStore.setState({ analyses: [] })
+    useCoverLetterStore.setState({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
+      templates: [],
+    })
+    useIdentityStore.setState({ currentIdentity: null })
     useResumeStore.setState({
       ...normalizeResumeWorkspaceData(defaultResumeData),
       past: [],
@@ -193,7 +202,144 @@ describe('pipelineStore', () => {
       id: entry.resumeSnapshotId,
       sourceResumeId: resumeId,
       pipelineEntryId: id,
+      identityVersionAtApply: null,
     })
+  })
+
+  it('creates paired resume and cover letter snapshots when applying with a letter draft', () => {
+    useIdentityStore.setState({ currentIdentity: { model_revision: 5 } as never })
+    const resumeId = useResumeStore.getState().activeResumeId
+    expect(resumeId).toBeTruthy()
+    usePipelineStore.getState().addEntry(makeEntry({ resumeId }))
+    const id = usePipelineStore.getState().entries[0].id
+    const sourceResume = useResumeStore.getState().resumes.find((resume) => resume.id === resumeId)
+    expect(sourceResume).toBeTruthy()
+    const letter = useCoverLetterStore.getState().createLetter({
+      content: {
+        name: 'Pipeline Letter',
+        header: 'Header',
+        greeting: 'Hello',
+        paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+        signOff: 'Thanks',
+      },
+      pipelineEntryId: id,
+      sourceResumeId: resumeId!,
+      sourceResumeHash: sourceResume!.contentHash,
+      identityVersion: 3,
+    })
+
+    usePipelineStore.getState().setStatus(id, 'applied')
+
+    const entry = usePipelineStore.getState().entries[0]
+    const resumeSnapshot = useResumeStore.getState().snapshots[0]
+    const letterSnapshot = useCoverLetterStore.getState().snapshots[0]
+    expect(entry).toMatchObject({
+      resumeSnapshotId: resumeSnapshot?.id,
+      coverLetterId: letter.id,
+      coverLetterSnapshotId: letterSnapshot?.id,
+    })
+    expect(resumeSnapshot).toMatchObject({
+      pipelineEntryId: id,
+      identityVersionAtApply: 5,
+    })
+    expect(letterSnapshot).toMatchObject({
+      sourceLetterId: letter.id,
+      sourceResumeSnapshotId: resumeSnapshot?.id,
+      identityVersionAtGeneration: 3,
+      identityVersionAtApply: 5,
+    })
+  })
+
+  it('uses the pipeline entry coverLetterId when multiple letter drafts exist', () => {
+    const resumeId = useResumeStore.getState().activeResumeId
+    expect(resumeId).toBeTruthy()
+    usePipelineStore.getState().addEntry(makeEntry({ resumeId }))
+    const id = usePipelineStore.getState().entries[0].id
+    const sourceResume = useResumeStore.getState().resumes.find((resume) => resume.id === resumeId)
+    expect(sourceResume).toBeTruthy()
+    useCoverLetterStore.getState().createLetter({
+      id: 'letter-stale',
+      content: {
+        name: 'Stale Letter',
+        header: 'Header',
+        greeting: 'Hello',
+        paragraphs: [],
+        signOff: 'Thanks',
+      },
+      pipelineEntryId: id,
+      sourceResumeId: resumeId!,
+      sourceResumeHash: sourceResume!.contentHash,
+    })
+    const selectedLetter = useCoverLetterStore.getState().createLetter({
+      id: 'letter-selected',
+      content: {
+        name: 'Selected Letter',
+        header: 'Header',
+        greeting: 'Hello',
+        paragraphs: [],
+        signOff: 'Thanks',
+      },
+      pipelineEntryId: id,
+      sourceResumeId: resumeId!,
+      sourceResumeHash: sourceResume!.contentHash,
+    })
+    usePipelineStore.getState().updateEntry(id, { coverLetterId: selectedLetter.id })
+
+    usePipelineStore.getState().setStatus(id, 'applied')
+
+    expect(usePipelineStore.getState().entries[0].coverLetterSnapshotId).toBeTruthy()
+    expect(useCoverLetterStore.getState().snapshots[0]?.sourceLetterId).toBe('letter-selected')
+  })
+
+  it('throws before updating the pipeline entry when paired snapshot writes fail', () => {
+    const resumeId = useResumeStore.getState().activeResumeId
+    expect(resumeId).toBeTruthy()
+    usePipelineStore.getState().addEntry(makeEntry({ resumeId }))
+    const id = usePipelineStore.getState().entries[0].id
+    const sourceResume = useResumeStore.getState().resumes.find((resume) => resume.id === resumeId)
+    expect(sourceResume).toBeTruthy()
+    useCoverLetterStore.getState().createLetter({
+      content: {
+        name: 'Pipeline Letter',
+        header: 'Header',
+        greeting: 'Hello',
+        paragraphs: [],
+        signOff: 'Thanks',
+      },
+      pipelineEntryId: id,
+      sourceResumeId: resumeId!,
+      sourceResumeHash: sourceResume!.contentHash,
+    })
+    const originalAddSnapshot = useCoverLetterStore.getState().addSnapshot
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    useCoverLetterStore.setState({
+      addSnapshot: () => {
+        throw new Error('snapshot write failed')
+      },
+    })
+
+    expect(() => usePipelineStore.getState().setStatus(id, 'applied')).toThrow(
+      /Could not create application snapshots/,
+    )
+
+    expect(usePipelineStore.getState().entries[0].status).toBe('researching')
+    expect(usePipelineStore.getState().entries[0].resumeSnapshotId ?? null).toBeNull()
+    expect(usePipelineStore.getState().entries[0].coverLetterSnapshotId ?? null).toBeNull()
+    expect(useResumeStore.getState().snapshots).toEqual([])
+    useCoverLetterStore.setState({ addSnapshot: originalAddSnapshot })
+    consoleSpy.mockRestore()
+  })
+
+  it('blocks applied status when the linked resume is missing', () => {
+    usePipelineStore.getState().addEntry(makeEntry({ resumeId: 'missing-resume' }))
+    const id = usePipelineStore.getState().entries[0].id
+
+    expect(() => usePipelineStore.getState().setStatus(id, 'applied')).toThrow(
+      /Could not find the resume/,
+    )
+
+    expect(usePipelineStore.getState().entries[0].status).toBe('researching')
+    expect(useResumeStore.getState().snapshots).toEqual([])
   })
 
   it('sets sort field and toggles direction', () => {

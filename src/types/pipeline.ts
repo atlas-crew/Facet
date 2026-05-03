@@ -204,6 +204,8 @@ export interface PipelineEntry {
   resumeGeneration: PipelineResumeGenerationState | null
   resumeId?: string | null
   resumeSnapshotId?: string | null
+  coverLetterId?: string | null
+  coverLetterSnapshotId?: string | null
 
   // Positioning
   positioning: string
