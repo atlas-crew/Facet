@@ -3,7 +3,8 @@
 > Workstream: Pipeline / JD Match / Build / Cross-workspace foundation
 > Scope: Audit + canonical JDAnalysis entity + JD Match migration + Build migration
 > Estimated effort: 4-6 days post-audit
-> Status: Audit complete (2026-04-29). Workstream 2 ready to start.
+> Status: Workstreams 1-4 shipped. Canonical JDAnalysis, JD Match migration,
+> and Build migration landed; Interview Prep remains the deferred duplicate.
 > Replaces (temporarily): cover letter refactor work — see
 > `2026-04-resume-letter-architecture.md` which depends on this work
 > Architecture references:
@@ -490,16 +491,22 @@ JDAnalysis. It can proceed once Workstream 2 lands.
 
 ## Implementation Order
 
-1. ~~Audit (Workstream 1)~~ — **COMPLETE 2026-04-29**
-2. **Canonical JDAnalysis entity + service** (Workstream 2). Foundation.
-3. **JD Match migration** (Workstream 3). First consumer migration,
-   establishes pattern.
-4. **Build migration** (Workstream 4). Second consumer, retires
-   `jdAnalyzer.ts` and restricts job-specific generation to Pipeline
-   handoff while Bundle 2's variant selector is still pending.
-5. **Document Interview Prep TODO** for follow-up workstream.
-6. **Signal cover letter workstream is unblocked** so that work can
-   resume against canonical JDAnalysis.
+1. ~~Audit (Workstream 1)~~ — **COMPLETE 2026-04-29**.
+2. ~~Canonical JDAnalysis entity + service (Workstream 2)~~ — **SHIPPED**.
+   Pipeline-anchored JDAnalysis entities, persistence, drift inputs, and
+   shared generation helpers are now the canonical foundation.
+3. ~~JD Match migration (Workstream 3)~~ — **SHIPPED**. JD Match writes
+   canonical JDAnalysis and promote-to-pipeline preserves that analysis
+   instead of recomputing.
+4. ~~Build migration (Workstream 4)~~ — **SHIPPED**. Build consumes
+   canonical JDAnalysis through BuildProjection, `jdAnalyzer.ts` is retired,
+   and job-specific resume generation requires a Pipeline entry with
+   canonical analysis.
+5. **Interview Prep migration remains deferred.** Prep still runs its own
+   embedded JD analysis and is the known remaining duplicate for a follow-up
+   workstream.
+6. **Cover letter workstream is unblocked.** Letter generation should consume
+   canonical JDAnalysis rather than creating a separate JD analysis pass.
 
 ---
 
@@ -510,12 +517,12 @@ was originally going to build its own JD analysis as part of letter
 generation. With this consolidation, cover letter generation reads from
 canonical JDAnalysis instead.
 
-Update the cover letter spec after this workstream lands:
+Cover letter follow-up requirements:
 - Letter generator consumes JDAnalysis from pipeline entry
 - Letter generator surfaces "no JD analysis yet" prompts when one doesn't
   exist (with action to trigger analysis)
 - No JD analysis logic in the letter generator itself
 
-The cover letter agent currently doing audit work is being switched to this
-JD analysis workstream first. After this lands, that agent (or a different
-one) returns to the cover letter refactor.
+The cover letter refactor is unblocked and owned by the separate
+resume-letter architecture workstream. Interview Prep remains the only
+documented in-scope duplicate left for a later migration.
