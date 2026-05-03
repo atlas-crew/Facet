@@ -1,6 +1,22 @@
-import { useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, ArrowRight, Download, Fingerprint, Search, Sparkles } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChevronDown,
+  Download,
+  Fingerprint,
+  Search,
+  Sparkles,
+} from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
@@ -28,12 +44,46 @@ const downloadJson = (filename: string, content: string) => {
 
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`
 const MATCH_WORKSPACE_ANALYSIS_ANCHOR = 'match-workspace-transient'
+const MATCH_REPORT_SECTION_IDS = {
+  vectorSummary: 'match-report-vector-summary',
+  summary: 'match-report-summary',
+  advantages: 'match-report-advantages',
+  requirements: 'match-report-requirements',
+  evidence: 'match-report-evidence',
+  gaps: 'match-report-gaps',
+  history: 'match-report-history',
+} as const
+const REPORT_NAV_ITEMS = [
+  { id: MATCH_REPORT_SECTION_IDS.vectorSummary, label: 'Vector' },
+  { id: MATCH_REPORT_SECTION_IDS.summary, label: 'Summary' },
+  { id: MATCH_REPORT_SECTION_IDS.advantages, label: 'Advantages' },
+  { id: MATCH_REPORT_SECTION_IDS.requirements, label: 'Requirements' },
+  { id: MATCH_REPORT_SECTION_IDS.evidence, label: 'Evidence' },
+  { id: MATCH_REPORT_SECTION_IDS.gaps, label: 'Gaps' },
+  { id: MATCH_REPORT_SECTION_IDS.history, label: 'History' },
+] as const
+
+type MatchReportSectionId = (typeof MATCH_REPORT_SECTION_IDS)[keyof typeof MATCH_REPORT_SECTION_IDS]
+
+const MATCH_REPORT_SECTION_ID_SET = new Set<MatchReportSectionId>(
+  Object.values(MATCH_REPORT_SECTION_IDS) as MatchReportSectionId[],
+)
+const isMatchReportSectionId = (value: string): value is MatchReportSectionId =>
+  MATCH_REPORT_SECTION_ID_SET.has(value as MatchReportSectionId)
+
+const getDefaultOpenReportSections = (hasVectorSummary: boolean): ReadonlySet<MatchReportSectionId> =>
+  new Set([
+    ...(hasVectorSummary ? [MATCH_REPORT_SECTION_IDS.vectorSummary] : []),
+    MATCH_REPORT_SECTION_IDS.summary,
+    MATCH_REPORT_SECTION_IDS.advantages,
+  ])
 
 export function MatchPage() {
   const navigate = useNavigate()
   const [isGenerating, setIsGenerating] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
   const [pageNotice, setPageNotice] = useState<string | null>(null)
+  const lastReportDisclosureKeyRef = useRef<string | null>(null)
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const resumeData = useResumeStore((state) => state.data)
   const setResumeData = useResumeStore((state) => state.setData)
@@ -42,6 +92,18 @@ export function MatchPage() {
   const currentJDAnalysis = useMatchStore((state) => state.currentJDAnalysis)
   const currentAnalysis = useMatchStore((state) => state.currentAnalysis)
   const currentReport = useMatchStore((state) => state.currentReport)
+  const currentReportDisclosureKey = currentReport
+    ? [
+        currentReport.generatedAt,
+        currentReport.identityVersion,
+        currentReport.company,
+        currentReport.role,
+        currentReport.summary,
+      ].join('::')
+    : ''
+  const [openReportSections, setOpenReportSections] = useState<ReadonlySet<MatchReportSectionId>>(() =>
+    currentReport ? getDefaultOpenReportSections(Boolean(currentAnalysis)) : new Set(),
+  )
   const warnings = useMatchStore((state) => state.warnings)
   const history = useMatchStore((state) => state.history)
   const setJobDescription = useMatchStore((state) => state.setJobDescription)
@@ -68,6 +130,83 @@ export function MatchPage() {
       profiles: currentIdentity.profiles.length,
     }
   }, [currentIdentity])
+  const reportNavItems = useMemo(
+    () =>
+      REPORT_NAV_ITEMS.filter((item) => {
+        if (item.id === MATCH_REPORT_SECTION_IDS.vectorSummary) return Boolean(currentAnalysis)
+        if (item.id === MATCH_REPORT_SECTION_IDS.history) return history.length > 0
+        return true
+      }),
+    [currentAnalysis, history.length],
+  )
+
+  useEffect(() => {
+    if (lastReportDisclosureKeyRef.current === currentReportDisclosureKey) return
+    lastReportDisclosureKeyRef.current = currentReportDisclosureKey
+
+    if (!currentReport) {
+      setOpenReportSections(new Set())
+      return
+    }
+
+    setOpenReportSections(getDefaultOpenReportSections(Boolean(currentAnalysis)))
+  }, [currentAnalysis, currentReport, currentReportDisclosureKey])
+
+  const openReportSection = useCallback((id: MatchReportSectionId) => {
+    setOpenReportSections((sections) => new Set(sections).add(id))
+  }, [])
+
+  const scrollReportSectionIntoView = useCallback((id: MatchReportSectionId) => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    document
+      .getElementById(id)
+      ?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }, [])
+
+  const handleReportSectionToggle = useCallback((id: MatchReportSectionId, open: boolean) => {
+    setOpenReportSections((sections) => {
+      const nextSections = new Set(sections)
+      if (open) {
+        nextSections.add(id)
+      } else {
+        nextSections.delete(id)
+      }
+      return nextSections
+    })
+  }, [])
+
+  const handleReportNavClick = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>, id: MatchReportSectionId) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return
+      }
+
+      event.preventDefault()
+      openReportSection(id)
+
+      scrollReportSectionIntoView(id)
+      if (window.location.hash !== `#${id}`) {
+        window.history.replaceState(null, '', `#${id}`)
+      }
+    },
+    [openReportSection, scrollReportSectionIntoView],
+  )
+
+  useEffect(() => {
+    const openHashTarget = () => {
+      const targetId = window.location.hash.slice(1)
+      if (!isMatchReportSectionId(targetId)) return
+
+      openReportSection(targetId)
+      const scheduleFrame =
+        window.requestAnimationFrame ?? ((callback: FrameRequestCallback) => window.setTimeout(callback, 0))
+      scheduleFrame(() => scrollReportSectionIntoView(targetId))
+    }
+
+    openHashTarget()
+    window.addEventListener('hashchange', openHashTarget)
+    return () => window.removeEventListener('hashchange', openHashTarget)
+  }, [openReportSection, scrollReportSectionIntoView])
 
   const handleAnalyze = async () => {
     if (!currentIdentity) {
@@ -268,6 +407,23 @@ export function MatchPage() {
       {pageError && <div className="match-banner match-banner-error" role="alert">{pageError}</div>}
       {pageNotice && <div className="match-banner match-banner-notice" role="status">{pageNotice}</div>}
 
+      {currentReport ? (
+        <nav className="match-report-nav" aria-label="Match report sections">
+          <ul className="match-report-nav-list">
+            {reportNavItems.map((item) => (
+              <li key={item.id}>
+                <a
+                  href={`#${item.id}`}
+                  onClick={(event) => handleReportNavClick(event, item.id)}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+
       <section className="match-panel">
         <div className="match-panel-header">
           <div>
@@ -295,6 +451,37 @@ export function MatchPage() {
             label="AI is analyzing the job description against your identity."
           />
         </div>
+
+        <ol className="match-flow-rail" aria-label="Match workflow">
+          <li className={currentIdentity ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+            <span>1</span>
+            <div>
+              <strong>Identity</strong>
+              <p>{currentIdentity ? 'Model loaded' : 'Load a model first'}</p>
+            </div>
+          </li>
+          <li className={jobDescription.trim() ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+            <span>2</span>
+            <div>
+              <strong>Job description</strong>
+              <p>{jobDescription.trim() ? `${prepared.wordCount} words ready` : 'Paste the full JD'}</p>
+            </div>
+          </li>
+          <li className={currentReport ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+            <span>3</span>
+            <div>
+              <strong>Report</strong>
+              <p>{currentReport ? 'Generated' : 'Run the matcher'}</p>
+            </div>
+          </li>
+          <li className={currentReport ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+            <span>4</span>
+            <div>
+              <strong>Next action</strong>
+              <p>{currentReport ? 'Build, save, or export' : 'Unlocks after analysis'}</p>
+            </div>
+          </li>
+        </ol>
 
         <div className="match-editor-grid">
           <label className="match-field match-field-span-2">
@@ -364,14 +551,14 @@ export function MatchPage() {
                 </article>
               </section>
 
-              <section className="match-panel">
-                <div className="match-panel-header">
-                  <div>
-                    <h2>Vector-Aware Summary</h2>
-                    <p>{currentAnalysis.rationale}</p>
-                  </div>
-                </div>
-
+              <ReportDisclosure
+                id={MATCH_REPORT_SECTION_IDS.vectorSummary}
+                title="Vector-Aware Summary"
+                description={currentAnalysis.rationale}
+                meta="Identity signal"
+                open={openReportSections.has(MATCH_REPORT_SECTION_IDS.vectorSummary)}
+                onOpenChange={handleReportSectionToggle}
+              >
                 <div className="match-analysis-grid">
                   <article className="match-analysis-card">
                     <div className="match-analysis-label">Matched vectors</div>
@@ -393,7 +580,7 @@ export function MatchPage() {
                     <FilterAwarenessSummary analysis={currentAnalysis} />
                   </article>
                 </div>
-              </section>
+              </ReportDisclosure>
             </>
           ) : null}
 
@@ -415,15 +602,16 @@ export function MatchPage() {
             </article>
           </section>
 
-          <section className="match-panel">
-            <div className="match-panel-header">
-              <div>
-                <h2>Summary</h2>
-                <p>{currentReport.summary}</p>
-              </div>
-            </div>
-                {warnings.length > 0 ? (
-                  <div className="match-warning-list">
+          <ReportDisclosure
+            id={MATCH_REPORT_SECTION_IDS.summary}
+            title="Summary"
+            description={currentReport.summary}
+            meta="Decision frame"
+            open={openReportSections.has(MATCH_REPORT_SECTION_IDS.summary)}
+            onOpenChange={handleReportSectionToggle}
+          >
+            {warnings.length > 0 ? (
+              <div className="match-warning-list">
                 {warnings.map((warning, index) => (
                   <div key={`warning-${index}`} className="match-warning-item">
                     <AlertTriangle size={14} />
@@ -432,87 +620,100 @@ export function MatchPage() {
                 ))}
               </div>
             ) : null}
-          </section>
+          </ReportDisclosure>
 
-          <section className="match-panel">
-            <div className="match-panel-header">
-              <div>
-                <h2>Advantages</h2>
-                <p>Computed fresh for this JD from the top-supported requirement combinations.</p>
-              </div>
-            </div>
+          <ReportDisclosure
+            id={MATCH_REPORT_SECTION_IDS.advantages}
+            title="Advantages"
+            description="Computed fresh for this JD from the top-supported requirement combinations."
+            meta={`${currentReport.advantages.length} found`}
+            open={openReportSections.has(MATCH_REPORT_SECTION_IDS.advantages)}
+            onOpenChange={handleReportSectionToggle}
+          >
             <div className="match-advantage-list">
-              {currentReport.advantages.map((advantage) => (
-                <article key={advantage.id} className="match-advantage-card">
-                  <div className="match-advantage-claim">
-                    <Sparkles size={16} />
-                    <span>{advantage.claim}</span>
-                  </div>
-                  <div className="match-chip-row">
-                    {advantage.requirementIds.map((requirementId) => (
-                      <span key={requirementId} className="match-chip">{requirementId}</span>
-                    ))}
-                  </div>
-                  <div className="match-evidence-list">
-                    {advantage.evidence.map((asset) => (
-                      <div key={`${advantage.id}::${asset.kind}::${asset.id}`} className="match-evidence-item">
-                        <div className="match-evidence-title">
-                          <span>{asset.label}</span>
-                          <span>{formatPercent(asset.score)}</span>
-                        </div>
-                        <div className="match-evidence-meta">{asset.sourceLabel}</div>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="match-panel">
-            <div className="match-panel-header">
-              <div>
-                <h2>Requirement Coverage</h2>
-                <p>Structured JD requirements scored against tags, technologies, and identity text.</p>
-              </div>
-            </div>
-            <div className="match-requirement-list">
-              {currentReport.requirements.map((requirement) => (
-                <article key={requirement.id} className="match-requirement-card">
-                  <div className="match-requirement-topline">
-                    <div>
-                      <h3>{requirement.label}</h3>
-                      <p>{requirement.evidence}</p>
+              {currentReport.advantages.length > 0 ? (
+                currentReport.advantages.map((advantage) => (
+                  <article key={advantage.id} className="match-advantage-card">
+                    <div className="match-advantage-claim">
+                      <Sparkles size={16} />
+                      <span>{advantage.claim}</span>
                     </div>
-                    <div className="match-requirement-score">{formatPercent(requirement.coverageScore)}</div>
-                  </div>
-                  <div className="match-chip-row">
-                    <span className={`match-chip match-chip-priority-${requirement.priority}`}>{requirement.priority}</span>
-                    {requirement.tags.map((tag) => (
-                      <span key={tag} className="match-chip">{tag}</span>
-                    ))}
-                  </div>
-                  <div className="match-requirement-foot">
-                    <span>{requirement.matchedAssetCount} matched assets</span>
-                    {requirement.matchedTags.length > 0 ? (
-                      <span>Matched tags: {requirement.matchedTags.join(', ')}</span>
-                    ) : (
-                      <span>No matched tags yet</span>
-                    )}
-                  </div>
-                </article>
-              ))}
+                    <div className="match-chip-row">
+                      {advantage.requirementIds.map((requirementId) => (
+                        <span key={requirementId} className="match-chip">{requirementId}</span>
+                      ))}
+                    </div>
+                    <div className="match-evidence-list">
+                      {advantage.evidence.map((asset) => (
+                        <div key={`${advantage.id}::${asset.kind}::${asset.id}`} className="match-evidence-item">
+                          <div className="match-evidence-title">
+                            <span>{asset.label}</span>
+                            <span>{formatPercent(asset.score)}</span>
+                          </div>
+                          <div className="match-evidence-meta">{asset.sourceLabel}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="match-empty-inline">No distinct advantages were identified in this report.</div>
+              )}
             </div>
-          </section>
+          </ReportDisclosure>
+
+          <ReportDisclosure
+            id={MATCH_REPORT_SECTION_IDS.requirements}
+            title="Requirement Coverage"
+            description="Structured JD requirements scored against tags, technologies, and identity text."
+            meta={`${currentReport.requirements.length} requirements`}
+            open={openReportSections.has(MATCH_REPORT_SECTION_IDS.requirements)}
+            onOpenChange={handleReportSectionToggle}
+          >
+            <div className="match-requirement-list">
+              {currentReport.requirements.length > 0 ? (
+                currentReport.requirements.map((requirement) => (
+                  <article key={requirement.id} className="match-requirement-card">
+                    <div className="match-requirement-topline">
+                      <div>
+                        <h3>{requirement.label}</h3>
+                        <p>{requirement.evidence}</p>
+                      </div>
+                      <div className="match-requirement-score">{formatPercent(requirement.coverageScore)}</div>
+                    </div>
+                    <div className="match-chip-row">
+                      <span className={`match-chip match-chip-priority-${requirement.priority}`}>
+                        {requirement.priority}
+                      </span>
+                      {requirement.tags.map((tag) => (
+                        <span key={tag} className="match-chip">{tag}</span>
+                      ))}
+                    </div>
+                    <div className="match-requirement-foot">
+                      <span>{requirement.matchedAssetCount} matched assets</span>
+                      {requirement.matchedTags.length > 0 ? (
+                        <span>Matched tags: {requirement.matchedTags.join(', ')}</span>
+                      ) : (
+                        <span>No matched tags yet</span>
+                      )}
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="match-empty-inline">No structured requirements flagged for this JD.</div>
+              )}
+            </div>
+          </ReportDisclosure>
 
           <section className="match-two-column">
-            <section className="match-panel">
-              <div className="match-panel-header">
-                <div>
-                  <h2>Top Evidence</h2>
-                  <p>Highest-scoring identity assets for this job.</p>
-                </div>
-              </div>
+            <ReportDisclosure
+              id={MATCH_REPORT_SECTION_IDS.evidence}
+              title="Top Evidence"
+              description="Highest-scoring identity assets for this job."
+              meta="Identity assets"
+              open={openReportSections.has(MATCH_REPORT_SECTION_IDS.evidence)}
+              onOpenChange={handleReportSectionToggle}
+            >
               <div className="match-asset-groups">
                 <AssetGroup title="Bullets" assets={currentReport.topBullets} />
                 <AssetGroup title="Skills" assets={currentReport.topSkills} />
@@ -520,16 +721,18 @@ export function MatchPage() {
                 <AssetGroup title="Profiles" assets={currentReport.topProfiles} />
                 <AssetGroup title="Philosophy" assets={currentReport.topPhilosophy} />
               </div>
-            </section>
+            </ReportDisclosure>
 
-            <section className="match-panel">
-              <div className="match-panel-header">
-                <div>
-                  <h2>Gaps and Positioning</h2>
-                  <p>What the JD asks for that the identity model does not strongly cover yet.</p>
-                </div>
-              </div>
-
+            <ReportDisclosure
+              id={MATCH_REPORT_SECTION_IDS.gaps}
+              title="Gaps and Positioning"
+              description="What the JD asks for that the identity model does not strongly cover yet."
+              meta={`${currentReport.gaps.length} gaps · ${
+                currentReport.positioningRecommendations.length + currentReport.gapFocus.length
+              } notes`}
+              open={openReportSections.has(MATCH_REPORT_SECTION_IDS.gaps)}
+              onOpenChange={handleReportSectionToggle}
+            >
               <div className="match-gap-list">
                 {currentReport.gaps.length > 0 ? (
                   currentReport.gaps.map((gap) => (
@@ -567,7 +770,7 @@ export function MatchPage() {
                   </ul>
                 </div>
               ) : null}
-            </section>
+            </ReportDisclosure>
           </section>
         </>
       ) : (
@@ -585,13 +788,14 @@ export function MatchPage() {
       )}
 
       {history.length > 0 ? (
-        <section className="match-panel">
-          <div className="match-panel-header">
-            <div>
-              <h2>Recent Reports</h2>
-              <p>Stored locally for quick comparison while iterating on identity and targeting.</p>
-            </div>
-          </div>
+        <ReportDisclosure
+          id={MATCH_REPORT_SECTION_IDS.history}
+          title="Recent Reports"
+          description="Stored locally for quick comparison while iterating on identity and targeting."
+          meta={`${history.length} saved`}
+          open={openReportSections.has(MATCH_REPORT_SECTION_IDS.history)}
+          onOpenChange={handleReportSectionToggle}
+        >
           <div className="match-history-list">
             {history.map((entry) => (
               <article key={entry.id} className="match-history-card">
@@ -606,9 +810,60 @@ export function MatchPage() {
               </article>
             ))}
           </div>
-        </section>
+        </ReportDisclosure>
       ) : null}
     </div>
+  )
+}
+
+function ReportDisclosure({
+  id,
+  title,
+  description,
+  meta,
+  open,
+  onOpenChange,
+  children,
+}: {
+  id: MatchReportSectionId
+  title: string
+  description?: string
+  meta?: string
+  open: boolean
+  onOpenChange: (id: MatchReportSectionId, open: boolean) => void
+  children: ReactNode
+}) {
+  const bodyId = `${id}-body`
+
+  return (
+    <section id={id} className="match-report-section">
+      <details
+        open={open}
+        className="match-disclosure"
+        data-disclosure-root="true"
+      >
+        <summary
+          className="match-disclosure-summary"
+          aria-controls={bodyId}
+          onClick={(event) => {
+            event.preventDefault()
+            onOpenChange(id, !open)
+          }}
+        >
+          <span className="match-disclosure-title">
+            <span>{title}</span>
+            {meta ? <small>{meta}</small> : null}
+          </span>
+          <span className="match-disclosure-icon" aria-hidden="true">
+            <ChevronDown size={18} />
+          </span>
+        </summary>
+        {description ? <div className="match-disclosure-intro">{description}</div> : null}
+        <div id={bodyId} className="match-disclosure-body" role="region" aria-label={title}>
+          {children}
+        </div>
+      </details>
+    </section>
   )
 }
 

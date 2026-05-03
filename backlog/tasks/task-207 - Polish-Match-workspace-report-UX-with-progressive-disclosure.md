@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-05-03 22:39'
-updated_date: '2026-05-03 22:39'
+updated_date: '2026-05-03 23:42'
 labels:
   - feature
   - match
@@ -26,11 +26,11 @@ The Match workspace currently renders the JD input, vector-aware analysis, repor
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Match workspace has a clearer primary flow for paste/analyze/review/actions without hiding required setup states.
-- [ ] #2 Dense generated-report sections use progressive disclosure so users can scan summary, advantages, requirements, evidence, gaps, and history without a wall of content.
-- [ ] #3 A floating or sticky report navigation affordance appears when a report exists and links to the major Match sections.
-- [ ] #4 Responsive styling preserves readable layout and usable actions on narrow viewports.
-- [ ] #5 Focused MatchPage tests cover the new disclosure/navigation behavior.
+- [x] #1 Match workspace has a clearer primary flow for paste/analyze/review/actions without hiding required setup states.
+- [x] #2 Dense generated-report sections use progressive disclosure so users can scan summary, advantages, requirements, evidence, gaps, and history without a wall of content.
+- [x] #3 A floating or sticky report navigation affordance appears when a report exists and links to the major Match sections.
+- [x] #4 Responsive styling preserves readable layout and usable actions on narrow viewports.
+- [x] #5 Focused MatchPage tests cover the new disclosure/navigation behavior.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -48,14 +48,18 @@ The Match workspace currently renders the JD input, vector-aware analysis, repor
 
 <!-- SECTION:NOTES:BEGIN -->
 Started TASK-207 after local backlog search found no existing Match workspace UX task. Backlog remote fetch is currently blocked by an existing git commit-graph lock, so commands are running with BACKLOG_REMOTE_OPERATIONS=false to avoid touching the lock.
+
+Implemented Match workspace UX polish in src/routes/match/MatchPage.tsx and src/routes/match/match.css with a sticky report nav, workflow rail, controlled details-based report disclosures, responsive nav behavior, hash deep-link handling, and summary/body accessibility wiring. Added focused coverage in src/test/MatchPage.test.tsx for nav visibility, workflow rail readiness, disclosure defaults, empty states, hash open/cleanup, history nav, and repeat nav reopening after manual collapse.
+
+Verification receipts: pnpm vitest run src/test/MatchPage.test.tsx passed 14/14; npx eslint src/routes/match/MatchPage.tsx src/test/MatchPage.test.tsx --no-warn-ignored passed; git diff --check for the three scoped files passed; Playwright browser smoke via webapp-testing with local Vite server passed nav open/manual close/reopen, summary aria-controls/body region, hash update, and gaps meta checks. diff-test-audit latest clean of P0/P1 at .agents/reviews/test-audit-20260503-192440.md; later source review drove additional controlled-disclosure and a11y fixes. App-wide npx tsc --noEmit -p tsconfig.app.json and pnpm build remain blocked by pre-existing src/routes/prep/PrepPage.tsx createDeck/setActiveDeck missing-name errors, so DoD all-tests/build are intentionally left unchecked.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->

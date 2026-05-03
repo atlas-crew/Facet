@@ -3,13 +3,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MatchPage } from '../routes/match/MatchPage'
+import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { resolveStorage } from '../store/storage'
 import type { JDAnalysis } from '../types/jdAnalysis'
-import type { MatchReport, VectorAwareMatchResult } from '../types/match'
+import type { MatchHistoryEntry, MatchReport, VectorAwareMatchResult } from '../types/match'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const navigateMock = vi.fn(async () => undefined)
 
@@ -184,6 +186,7 @@ describe('MatchPage', () => {
     exportedBlob = null
     navigateMock.mockReset()
     resolveStorage().removeItem('facet-match-workspace')
+    useIdentityStore.setState({ currentIdentity: cloneIdentityFixture() })
     useJDAnalysisStore.setState({ analyses: [] })
     usePipelineStore.setState({
       entries: [],
@@ -216,6 +219,7 @@ describe('MatchPage', () => {
   })
 
   afterEach(() => {
+    window.location.hash = ''
     cleanup()
     vi.restoreAllMocks()
   })
@@ -228,6 +232,195 @@ describe('MatchPage', () => {
     expect(screen.getByText('Kubernetes')).toBeTruthy()
     expect(screen.getByText('Filters and awareness')).toBeTruthy()
     expect(screen.getByText('Requirement Coverage')).toBeTruthy()
+  })
+
+  it('shows report navigation only when a report exists', () => {
+    const { rerender } = render(<MatchPage />)
+
+    const nav = screen.getByRole('navigation', { name: /match report sections/i })
+    expect(nav.querySelector('a[href="#match-report-summary"]')?.textContent).toBe('Summary')
+    expect(nav.querySelector('a[href="#match-report-requirements"]')?.textContent).toBe('Requirements')
+    expect(nav.querySelector('a[href="#match-report-history"]')).toBeNull()
+
+    useMatchStore.setState({
+      jobDescription: '',
+      currentJDAnalysis: null,
+      currentAnalysis: null,
+      currentReport: null,
+      warnings: [],
+      history: [],
+    })
+    rerender(<MatchPage />)
+
+    expect(screen.queryByRole('navigation', { name: /match report sections/i })).toBeNull()
+  })
+
+  it('updates the workflow rail as inputs become ready', () => {
+    useIdentityStore.setState({ currentIdentity: null })
+    useMatchStore.setState({
+      jobDescription: '',
+      currentJDAnalysis: null,
+      currentAnalysis: null,
+      currentReport: null,
+      warnings: [],
+      history: [],
+    })
+
+    const { container, rerender } = render(<MatchPage />)
+    const emptySteps = Array.from(container.querySelectorAll<HTMLLIElement>('.match-flow-rail li'))
+
+    expect(emptySteps).toHaveLength(4)
+    expect(emptySteps.every((step) => !step.classList.contains('match-flow-step-ready'))).toBe(true)
+    expect(screen.getByText('Load a model first')).toBeTruthy()
+    expect(screen.getByText('Paste the full JD')).toBeTruthy()
+    expect(screen.getByText('Run the matcher')).toBeTruthy()
+    expect(screen.getByText('Unlocks after analysis')).toBeTruthy()
+
+    useIdentityStore.setState({ currentIdentity: cloneIdentityFixture() })
+    useMatchStore.setState({
+      jobDescription: reportFixture.jobDescription,
+      currentJDAnalysis: jdAnalysisFixture,
+      currentAnalysis: analysisFixture,
+      currentReport: reportFixture,
+      warnings: reportFixture.warnings,
+      history: [],
+    })
+    rerender(<MatchPage />)
+
+    const readySteps = Array.from(container.querySelectorAll<HTMLLIElement>('.match-flow-rail li'))
+    expect(readySteps.every((step) => step.classList.contains('match-flow-step-ready'))).toBe(true)
+    expect(screen.getByText('Model loaded')).toBeTruthy()
+    expect(screen.getByText('6 words ready')).toBeTruthy()
+    expect(screen.getByText('Generated')).toBeTruthy()
+    expect(screen.getByText('Build, save, or export')).toBeTruthy()
+  })
+
+  it('shows the history nav item and collapsed history disclosure when saved reports exist', () => {
+    const historyEntry: MatchHistoryEntry = {
+      id: 'history-1',
+      createdAt: '2026-04-08T00:10:00.000Z',
+      company: 'Atlas',
+      role: 'Staff Platform Engineer',
+      matchScore: 0.82,
+      requirementCount: 1,
+      gapCount: 0,
+      summary: 'Saved report summary.',
+    }
+
+    useMatchStore.setState({ history: [historyEntry] })
+
+    const { container } = render(<MatchPage />)
+    const nav = screen.getByRole('navigation', { name: /match report sections/i })
+    const history = container.querySelector<HTMLDetailsElement>('#match-report-history details')
+
+    expect(nav.querySelector('a[href="#match-report-history"]')?.textContent).toBe('History')
+    expect(history?.open).toBe(false)
+    expect(screen.getByText('1 saved')).toBeTruthy()
+    expect(screen.getByText('Staff Platform Engineer')).toBeTruthy()
+    expect(screen.getByText('Atlas · 1 requirements · 0 gaps')).toBeTruthy()
+    expect(screen.getByText('Saved report summary.')).toBeTruthy()
+  })
+
+  it('progressively discloses dense report sections', () => {
+    const { container } = render(<MatchPage />)
+
+    const vectorSummary = container.querySelector<HTMLDetailsElement>('#match-report-vector-summary details')
+    const summary = container.querySelector<HTMLDetailsElement>('#match-report-summary details')
+    const advantages = container.querySelector<HTMLDetailsElement>('#match-report-advantages details')
+    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    const evidence = container.querySelector<HTMLDetailsElement>('#match-report-evidence details')
+    const gaps = container.querySelector<HTMLDetailsElement>('#match-report-gaps details')
+
+    expect(vectorSummary?.open).toBe(true)
+    expect(summary?.open).toBe(true)
+    expect(advantages?.open).toBe(true)
+    expect(requirements?.open).toBe(false)
+    expect(evidence?.open).toBe(false)
+    expect(gaps?.open).toBe(false)
+
+    fireEvent.click(screen.getByText('Requirement Coverage'))
+
+    expect(requirements?.open).toBe(true)
+  })
+
+  it('renders inline empty states for empty advantages and requirements', () => {
+    useMatchStore.setState({
+      currentReport: {
+        ...reportFixture,
+        advantages: [],
+        requirements: [],
+      },
+    })
+
+    render(<MatchPage />)
+
+    expect(screen.getByText('No distinct advantages were identified in this report.')).toBeTruthy()
+    expect(screen.getByText('No structured requirements flagged for this JD.')).toBeTruthy()
+  })
+
+  it('opens a collapsed report section when reached from a hash link', () => {
+    const { container } = render(<MatchPage />)
+
+    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    expect(requirements?.open).toBe(false)
+
+    window.location.hash = '#match-report-requirements'
+    fireEvent(window, new Event('hashchange'))
+
+    expect(requirements?.open).toBe(true)
+  })
+
+  it('opens a collapsed report section when the page loads with a section hash', () => {
+    window.location.hash = '#match-report-requirements'
+
+    const { container } = render(<MatchPage />)
+
+    expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(true)
+  })
+
+  it('ignores unknown report section hashes', () => {
+    const { container } = render(<MatchPage />)
+    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+
+    expect(requirements?.open).toBe(false)
+
+    window.location.hash = '#not-a-section'
+    fireEvent(window, new Event('hashchange'))
+
+    expect(requirements?.open).toBe(false)
+  })
+
+  it('cleans up the report hash listener on unmount', () => {
+    const removeListener = vi.spyOn(window, 'removeEventListener')
+    const { unmount } = render(<MatchPage />)
+
+    unmount()
+
+    expect(removeListener).toHaveBeenCalledWith('hashchange', expect.any(Function))
+    window.location.hash = '#match-report-requirements'
+    expect(() => fireEvent(window, new Event('hashchange'))).not.toThrow()
+  })
+
+  it('reopens a manually collapsed section when its nav link is clicked again', () => {
+    const { container } = render(<MatchPage />)
+    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    const nav = screen.getByRole('navigation', { name: /match report sections/i })
+    const requirementLink = nav.querySelector<HTMLAnchorElement>('a[href="#match-report-requirements"]')
+
+    expect(requirementLink).toBeTruthy()
+    expect(requirements?.open).toBe(false)
+
+    fireEvent.click(requirementLink!)
+    expect(requirements?.open).toBe(true)
+
+    fireEvent.click(screen.getByText('Requirement Coverage'))
+    expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(false)
+
+    const refreshedRequirementLink = screen
+      .getByRole('navigation', { name: /match report sections/i })
+      .querySelector<HTMLAnchorElement>('a[href="#match-report-requirements"]')
+    fireEvent.click(refreshedRequirementLink!)
+    expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(true)
   })
 
   it('renders safely for legacy-only persisted match state', () => {
@@ -243,7 +436,12 @@ describe('MatchPage', () => {
     render(<MatchPage />)
 
     expect(screen.queryByText('Vector-Aware Summary')).toBeNull()
-    expect(screen.getByText('Summary')).toBeTruthy()
+    expect(
+      screen
+        .getByRole('navigation', { name: /match report sections/i })
+        .querySelector('a[href="#match-report-vector-summary"]'),
+    ).toBeNull()
+    expect(screen.getAllByText('Summary').length).toBeGreaterThan(0)
     expect(screen.getByText(reportFixture.summary)).toBeTruthy()
   })
 
