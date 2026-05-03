@@ -5,9 +5,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { BuildPage } from '../routes/build/BuildPage'
 import { defaultResumeData } from '../store/defaultData'
 import { useHandoffStore } from '../store/handoffStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
+import type { JDAnalysis } from '../types/jdAnalysis'
+import type { PipelineEntry } from '../types/pipeline'
 
 const {
   analyzeJobDescriptionMock,
@@ -96,6 +99,131 @@ vi.mock('../components/VectorBar', () => ({
     return <div data-testid="vector-bar" />
   },
 }))
+
+const createPipelineEntry = (overrides: Partial<PipelineEntry> = {}): PipelineEntry => ({
+  id: 'pipe-77',
+  company: 'Acme Corp',
+  role: 'Staff Platform Engineer',
+  tier: '1',
+  status: 'researching',
+  comp: '',
+  url: '',
+  contact: '',
+  vectorId: null,
+  jobDescription: 'We need a platform-minded engineer.',
+  jdAnalysisId: 'analysis-77',
+  presetId: null,
+  resumeVariant: '',
+  resumeGeneration: null,
+  positioning: '',
+  skillMatch: '',
+  nextStep: '',
+  notes: '',
+  appMethod: 'unknown',
+  response: 'none',
+  daysToResponse: null,
+  rounds: null,
+  format: [],
+  rejectionStage: '',
+  rejectionReason: '',
+  offerAmount: '',
+  dateApplied: '',
+  dateClosed: '',
+  lastAction: '2026-04-18',
+  createdAt: '2026-04-18',
+  history: [],
+  ...overrides,
+})
+
+const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
+  id: 'analysis-77',
+  pipelineEntryId: 'pipe-77',
+  jdTextHash: 'abc123',
+  identityVersion: 1,
+  modelVersion: 'jd-analysis.v1.test',
+  generatedAt: '2026-04-18T12:00:00.000Z',
+  updatedAt: '2026-04-18T12:00:00.000Z',
+  warnings: [],
+  company: 'Acme Corp',
+  role: 'Staff Platform Engineer',
+  summary: 'Platform-minded role.',
+  analyzedJobDescription: 'We need a platform-minded engineer.',
+  jobDescriptionWordCount: 5,
+  jobDescriptionTruncated: false,
+  requirements: [],
+  overallFit: 'strong',
+  fitScore: 0.86,
+  confidence: 'high',
+  recommendation: 'apply',
+  oneLineSummary: 'Lead with platform outcomes.',
+  rationale: 'Start with Platform and keep Backend as a supporting lane.',
+  matchedVectors: [
+    {
+      vectorId: 'platform',
+      title: 'Platform / DevEx',
+      priority: 'high',
+      matchStrength: 'strong',
+      evidence: ['Platform-minded engineer.'],
+      thesisApplies: true,
+      thesisFitExplanation: 'Platform delivery is central.',
+    },
+    {
+      vectorId: 'backend',
+      title: 'Backend Engineering',
+      priority: 'medium',
+      matchStrength: 'moderate',
+      evidence: ['Backend systems.'],
+      thesisApplies: true,
+      thesisFitExplanation: 'Backend depth supports the platform story.',
+    },
+  ],
+  primaryVectorId: 'platform',
+  skillMatches: [],
+  evidenceMapping: {
+    topBullets: [],
+    topSkills: [],
+    topProjects: [],
+    topProfiles: [],
+    topPhilosophy: [],
+  },
+  strengthsToLead: [],
+  advantages: [],
+  advantageHypotheses: [],
+  gaps: [],
+  gapFocus: [],
+  watchOuts: [],
+  triggeredPrioritize: [],
+  triggeredAvoid: [],
+  relevantAwareness: [],
+  positioningRecommendations: ['Lead with platform outcomes.'],
+  requirementCoverageScore: 0.8,
+  matchedRequirementIds: [],
+  matchedKeywords: ['TypeScript'],
+  ...overrides,
+})
+
+const seedPipelineHandoff = (analysisOverrides: Partial<JDAnalysis> = {}) => {
+  const entry = createPipelineEntry()
+  usePipelineStore.setState({
+    entries: [entry],
+    sortField: 'tier',
+    sortDir: 'asc',
+    filters: { tier: 'all', status: 'all', search: '' },
+  })
+  useJDAnalysisStore.setState({ analyses: [createJDAnalysis(analysisOverrides)] })
+  useHandoffStore.getState().setPendingGeneration({
+    mode: 'dynamic',
+    vectorMode: 'manual',
+    source: 'pipeline',
+    jobDescription: entry.jobDescription,
+    pipelineEntryId: entry.id,
+    presetId: null,
+    primaryVectorId: null,
+    vectorIds: [],
+    suggestedVectorIds: [],
+    resumeGeneration: null,
+  })
+}
 
 vi.mock('../components/UndoRedoControls', () => ({
   UndoRedoControls: () => <div data-testid="undo-redo-controls" />,
@@ -188,6 +316,7 @@ describe('BuildPage', () => {
     })
 
     useHandoffStore.setState({ pendingGeneration: null })
+    useJDAnalysisStore.setState({ analyses: [] })
     usePipelineStore.setState({
       entries: [],
       sortField: 'tier',
@@ -217,8 +346,8 @@ describe('BuildPage', () => {
     expect(previewToolbar.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(previewToolbar.firstElementChild).toBe(screen.getByTestId('undo-redo-controls'))
     const toolbarButtons = within(previewToolbar).getAllByRole('button').map((button) => button.getAttribute('aria-label') ?? button.textContent)
-    expect(toolbarButtons.slice(-3)).toEqual(['More tools', 'Generate for Job', 'Download PDF'])
-    expect(screen.getAllByRole('button', { name: /Generate for Job/i })).toHaveLength(1)
+    expect(toolbarButtons.slice(-2)).toEqual(['More tools', 'Download PDF'])
+    expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
 
     expect(screen.queryByLabelText('Resume generation model')).toBeNull()
 
@@ -259,13 +388,11 @@ describe('BuildPage', () => {
     expect(screen.getByTestId('status-bar')).toBeTruthy()
   })
 
-  it('opens job-specific generation from the top-level toolbar action', () => {
+  it('does not expose direct job-specific generation from Build', () => {
     render(<BuildPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
-
-    expect(screen.getByRole('dialog', { name: 'Analyze Job Description' })).toBeTruthy()
-    expect(screen.getByPlaceholderText('Paste JD text here...')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Analyze Job Description' })).toBeNull()
   })
 
   it('keeps numeric vector shortcuts aligned after moving View All Bullets', () => {
@@ -278,13 +405,12 @@ describe('BuildPage', () => {
     expect(useUiStore.getState().selectedVector).toBe('backend')
   })
 
-  it('keeps job-specific generation visible but disabled without AI configuration', () => {
+  it('keeps job-specific generation hidden from Build without a pipeline handoff', () => {
     facetClientEnvMock.anthropicProxyUrl = ''
 
     render(<BuildPage />)
 
-    const generateButton = screen.getByRole('button', { name: /Generate for Job/i }) as HTMLButtonElement
-    expect(generateButton.disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
   })
 
   it('does not duplicate preview render progress in the working context', () => {
@@ -507,49 +633,30 @@ describe('BuildPage', () => {
   })
 
   it('keeps JD analysis separate from assembly suggestions until the vector plan is confirmed', async () => {
-    analyzeJobDescriptionMock.mockResolvedValue({
-      primary_vector: 'platform',
-      suggested_vectors: ['platform', 'backend'],
-      bullet_adjustments: [],
-      suggested_target_line: '',
-      skill_gaps: ['Rust'],
-      matched_keywords: ['TypeScript'],
-      suggested_variables: { company: 'Acme' },
-      positioning_note: 'Lead with platform outcomes.',
-      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
+    seedPipelineHandoff({
+      gaps: [
+        {
+          requirementId: 'req-rust',
+          label: 'Rust',
+          severity: 'low',
+          reason: 'Rust evidence is light.',
+          tags: ['rust'],
+        },
+      ],
     })
 
     render(<BuildPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
-    fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
-      target: { value: 'We need a platform-minded engineer.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Resume Vector Plan')).toBeTruthy()
     })
 
-    expect(analyzeJobDescriptionMock).toHaveBeenCalledWith(
-      {
-        content: 'We need a platform-minded engineer.',
-        wordCount: 5,
-        truncated: false,
-      },
-      expect.objectContaining({
-        generation: expect.objectContaining({
-          mode: 'single',
-          vectorMode: 'manual',
-        }),
-      }),
-      expect.any(String),
-    )
+    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
 
     expect(useUiStore.getState().suggestionModeActive).toBe(false)
 
     fireEvent.click(screen.getByLabelText('Manual'))
-    fireEvent.click(screen.getByLabelText('Single vector'))
+    fireEvent.click(screen.getByLabelText('Platform / DevEx (AI suggested)'))
     fireEvent.click(screen.getByLabelText('Backend Engineering (AI suggested)'))
     fireEvent.click(screen.getByRole('button', { name: 'Continue to assembly suggestions' }))
 
@@ -559,7 +666,7 @@ describe('BuildPage', () => {
 
     expect(useUiStore.getState().selectedVector).toBe('backend')
     expect(useResumeStore.getState().data.generation).toMatchObject({
-      mode: 'single',
+      mode: 'dynamic',
       vectorMode: 'manual',
       primaryVectorId: 'backend',
       vectorIds: ['backend'],
@@ -568,25 +675,9 @@ describe('BuildPage', () => {
   })
 
   it('applies the default AI multi-vector plan when confirmed without manual edits', async () => {
-    analyzeJobDescriptionMock.mockResolvedValue({
-      primary_vector: 'platform',
-      suggested_vectors: ['platform', 'backend'],
-      bullet_adjustments: [],
-      suggested_target_line: '',
-      skill_gaps: [],
-      matched_keywords: ['TypeScript'],
-      suggested_variables: { company: 'Acme' },
-      positioning_note: 'Lead with platform outcomes.',
-      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
-    })
+    seedPipelineHandoff()
 
     const { rerender } = render(<BuildPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
-    fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
-      target: { value: 'We need a platform-minded engineer.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Platform / DevEx (AI suggested)')).toBeTruthy()
@@ -600,7 +691,7 @@ describe('BuildPage', () => {
 
     expect(useUiStore.getState().selectedVector).toBe('platform')
     expect(useResumeStore.getState().data.generation).toMatchObject({
-      mode: 'multi-vector',
+      mode: 'dynamic',
       vectorMode: 'auto',
       primaryVectorId: 'platform',
       vectorIds: ['platform', 'backend'],
@@ -618,81 +709,16 @@ describe('BuildPage', () => {
     expect(within(unavailableContext).getByText('Configure AI to analyze JDs')).toBeTruthy()
 
     expect(screen.queryByRole('button', { name: /Open Build context details/i })).toBeNull()
-    expect(within(unavailableContext).getByText('Multi-vector')).toBeTruthy()
+    expect(within(unavailableContext).getByText('Dynamic')).toBeTruthy()
     expect(within(unavailableContext).getByText('AI vector plan active')).toBeTruthy()
     expect(within(unavailableContext).queryByText('Turn on suggestion mode after JD analysis')).toBeNull()
     expect(within(unavailableContext).queryByText('Analyze a JD to tailor this draft')).toBeNull()
   })
 
   it('persists structured dynamic variant metadata back to the originating pipeline entry', async () => {
-    analyzeJobDescriptionMock.mockResolvedValue({
-      primary_vector: 'platform',
-      suggested_vectors: ['platform', 'backend'],
-      bullet_adjustments: [],
-      suggested_target_line: '',
-      skill_gaps: [],
-      matched_keywords: [],
-      suggested_variables: {},
-      positioning_note: 'Lead with platform outcomes.',
-      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
-    })
-
-    usePipelineStore.setState({
-      entries: [
-        {
-          id: 'pipe-77',
-          company: 'Acme Corp',
-          role: 'Staff Platform Engineer',
-          tier: '1',
-          status: 'researching',
-          comp: '',
-          url: '',
-          contact: '',
-          vectorId: null,
-          jobDescription: 'We need a platform-minded engineer.',
-          presetId: null,
-          resumeVariant: '',
-          resumeGeneration: null,
-          positioning: '',
-          skillMatch: '',
-          nextStep: '',
-          notes: '',
-          appMethod: 'unknown',
-          response: 'none',
-          daysToResponse: null,
-          rounds: null,
-          format: [],
-          rejectionStage: '',
-          rejectionReason: '',
-          offerAmount: '',
-          dateApplied: '',
-          dateClosed: '',
-          lastAction: '2026-04-18',
-          createdAt: '2026-04-18',
-          history: [],
-        },
-      ],
-      sortField: 'tier',
-      sortDir: 'asc',
-      filters: { tier: 'all', status: 'all', search: '' },
-    })
-
-    useHandoffStore.getState().setPendingGeneration({
-      mode: 'dynamic',
-      vectorMode: 'manual',
-      source: 'pipeline',
-      jobDescription: 'We need a platform-minded engineer.',
-      pipelineEntryId: 'pipe-77',
-      presetId: null,
-      primaryVectorId: null,
-      vectorIds: [],
-      suggestedVectorIds: [],
-      resumeGeneration: null,
-    })
+    seedPipelineHandoff({ matchedKeywords: [] })
 
     render(<BuildPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Resume Vector Plan')).toBeTruthy()
@@ -734,32 +760,15 @@ describe('BuildPage', () => {
   })
 
   it('prevents deselecting every vector in manual multi-vector mode', async () => {
-    analyzeJobDescriptionMock.mockResolvedValue({
-      primary_vector: 'platform',
-      suggested_vectors: ['platform', 'backend'],
-      bullet_adjustments: [],
-      suggested_target_line: '',
-      skill_gaps: [],
-      matched_keywords: ['TypeScript'],
-      suggested_variables: { company: 'Acme' },
-      positioning_note: 'Lead with platform outcomes.',
-      vector_strategy: 'Start with Platform and keep Backend as a supporting lane.',
-    })
+    seedPipelineHandoff()
 
     render(<BuildPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate for Job/i }))
-    fireEvent.change(screen.getByPlaceholderText('Paste JD text here...'), {
-      target: { value: 'We need a platform-minded engineer.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /^Analyze$/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Platform / DevEx (AI suggested)')).toBeTruthy()
     })
 
     fireEvent.click(screen.getByLabelText('Manual'))
-    fireEvent.click(screen.getByLabelText('Multi-vector'))
     fireEvent.click(screen.getByLabelText('Platform / DevEx (AI suggested)'))
     fireEvent.click(screen.getByLabelText('Backend Engineering (AI suggested)'))
 

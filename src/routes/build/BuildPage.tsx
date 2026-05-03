@@ -12,7 +12,6 @@ import {
   Package,
   Paintbrush,
   Save,
-  ScanSearch,
   Trash2,
   Upload,
   X,
@@ -54,11 +53,7 @@ import { mergeResumeData } from '../../engine/importMerge'
 import type { ResumeConfigSourceKind } from '../../engine/serializer'
 import { resolveEffectiveBulletOrders } from '../../utils/bulletOrder'
 import { buildResumePdfFileName } from '../../utils/pdfFormatting'
-import {
-  analyzeJobDescription,
-  prepareJobDescription,
-  reframeBulletForVector,
-} from '../../utils/jdAnalyzer'
+import { reframeBulletForVector } from '../../utils/jdAnalyzer'
 import type {
   ResumeGenerationMode,
   ResumeGenerationVectorMode,
@@ -75,6 +70,8 @@ import { normalizeThemeState, resolveTheme } from '../../themes/theme'
 import { ThemeEditorPanel } from '../../components/ThemeEditorPanel'
 import { usePdfPreview } from '../../hooks/usePdfPreview'
 import { useHandoffStore } from '../../store/handoffStore'
+import { useIdentityStore } from '../../store/identityStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useSuggestionActions } from '../../hooks/useSuggestionActions'
 import { usePresets } from '../../hooks/usePresets'
@@ -93,6 +90,8 @@ import {
 import { useMatchStore } from '../../store/matchStore'
 import { buildMatchVectorId } from '../../utils/matchAssembler'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
+import { analyzePipelineJobDescription, savePipelineJDAnalysis } from '../../utils/jdAnalysis'
+import { buildProjectionFromJDAnalysis } from '../../utils/buildProjection'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
 const CURRENT_YEAR = new Date().getFullYear()
@@ -314,6 +313,7 @@ export function BuildPage() {
     setTourCompleted,
   } = useUiStore()
   const currentMatchReport = useMatchStore((state) => state.currentReport)
+  const currentIdentity = useIdentityStore((state) => state.currentIdentity)
 
   // 3. Refs
   const noticeTimeoutRef = useRef<number | null>(null)
@@ -730,13 +730,32 @@ export function BuildPage() {
     [],
   )
 
+  const applyCanonicalJdAnalysis = useCallback(
+    (
+      analysis: Parameters<typeof buildProjectionFromJDAnalysis>[0],
+      currentGeneration = generationState,
+    ) => {
+      const projection = buildProjectionFromJDAnalysis(analysis, data)
+      const nextVectorPlan = buildInitialResumeVectorPlan(projection, data.vectors, currentGeneration)
+      setJdAnalysisResult(projection)
+      setVectorPlan(nextVectorPlan)
+      setManualVectorPlanIds(nextVectorPlan.vectorIds)
+      setJdWordCount(analysis.jobDescriptionWordCount)
+      setJdWasTruncated(analysis.jobDescriptionTruncated)
+      setIgnoredSuggestionIds(new Set())
+      setSuggestionModeActive(false)
+      return projection
+    },
+    [data, generationState, setIgnoredSuggestionIds, setSuggestionModeActive],
+  )
+
   const onOpenJobGeneration = useCallback(() => {
-    if (!jdAnalysisEndpoint) {
+    if (generationState.source !== 'pipeline') {
       return
     }
 
     setJdModalOpen(true)
-  }, [jdAnalysisEndpoint])
+  }, [generationState.source])
 
   const workingContextItems = useMemo<BuildContextItem[]>(() => {
     const generationDetail =
@@ -826,6 +845,7 @@ export function BuildPage() {
     const handoff = useHandoffStore.getState().consume()
     if (handoff) {
       setJdInput(handoff.jobDescription)
+      setJdError(null)
       setJdModalOpen(true)
       const handoffVectorId = handoff.primaryVectorId
       const pipelineEntry = handoff.pipelineEntryId
@@ -858,6 +878,18 @@ export function BuildPage() {
           : {}),
       }
       updateGeneration(nextGeneration)
+      const canonicalAnalysis = handoff.pipelineEntryId
+        ? useJDAnalysisStore.getState().findByPipelineEntry(handoff.pipelineEntryId)
+        : null
+      if (canonicalAnalysis) {
+        applyCanonicalJdAnalysis(canonicalAnalysis, normalizeResumeWorkspaceGeneration(nextGeneration))
+      } else {
+        setJdAnalysisResult(null)
+        setVectorPlan(null)
+        setManualVectorPlanIds([])
+        setJdWordCount(handoff.jobDescription.trim().split(/\s+/).filter(Boolean).length)
+        setJdWasTruncated(false)
+      }
       if (handoffVectorId) {
         setSelectedVector(handoffVectorId)
       }
@@ -962,6 +994,16 @@ export function BuildPage() {
   }
 
   const onAnalyzeJd = async () => {
+    if (generationState.source !== 'pipeline' || !generationState.pipelineEntryId) {
+      showNotice('error', 'Start job-specific resume generation from a pipeline entry.')
+      setJdError('Build only analyzes job descriptions that are linked from Pipeline.')
+      return
+    }
+    if (!currentIdentity) {
+      showNotice('error', 'Apply an identity model before analyzing a pipeline job.')
+      setJdError('Load or apply an identity model before analyzing this pipeline job.')
+      return
+    }
     if (!jdAnalysisEndpoint) {
       showNotice('error', 'JD analysis is disabled. Configure VITE_ANTHROPIC_PROXY_URL to enable it.')
       setJdError('AI proxy not configured.')
@@ -971,19 +1013,22 @@ export function BuildPage() {
     setJdAnalysisResult(null)
     setVectorPlan(null)
     setManualVectorPlanIds([])
-    const prepared = prepareJobDescription(jdInput)
-    setJdWordCount(prepared.wordCount)
-    setJdWasTruncated(prepared.truncated)
     setJdLoading(true)
     try {
-      const result = await analyzeJobDescription(prepared, data, jdAnalysisEndpoint)
-      const nextVectorPlan = buildInitialResumeVectorPlan(result, data.vectors, generationState)
-      setJdAnalysisResult(result)
-      setVectorPlan(nextVectorPlan)
-      setManualVectorPlanIds(nextVectorPlan.vectorIds)
-      setIgnoredSuggestionIds(new Set())
-      setSuggestionModeActive(false)
-      showNotice('success', 'JD analysis complete. Review the vector plan before continuing.')
+      const existingAnalysis = useJDAnalysisStore
+        .getState()
+        .findByPipelineEntry(generationState.pipelineEntryId)
+      const analysis = existingAnalysis ?? await analyzePipelineJobDescription({
+        endpoint: jdAnalysisEndpoint,
+        pipelineEntryId: generationState.pipelineEntryId,
+        jobDescription: jdInput,
+        identity: currentIdentity,
+      })
+      if (!existingAnalysis) {
+        savePipelineJDAnalysis(analysis)
+      }
+      applyCanonicalJdAnalysis(analysis)
+      showNotice('success', 'Pipeline JD analysis ready. Review the vector plan before continuing.')
     } catch (error) {
       setJdError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -1522,21 +1567,23 @@ export function BuildPage() {
           />
         </DropdownMenu>
 
-        <button
-          className="btn-secondary"
-          type="button"
-          onClick={onOpenJobGeneration}
-          disabled={!jdAnalysisEndpoint}
-          aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
-          title={
-            jdAnalysisEndpoint
-              ? 'Generate a job-specific resume from a pasted job description'
-              : 'Generate for Job requires AI proxy configuration'
-          }
-        >
-          <ScanSearch size={14} />
-          <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
-        </button>
+        {generationState.source === 'pipeline' && (
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={onOpenJobGeneration}
+            disabled={!jdAnalysisEndpoint}
+            aria-label={jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job: AI not configured'}
+            title={
+              jdAnalysisEndpoint
+                ? 'Review the pipeline-linked JD analysis and vector plan'
+                : 'Generate for Job requires AI proxy configuration'
+            }
+          >
+            <FileText size={14} />
+            <span className="btn-label">{jdAnalysisEndpoint ? 'Generate for Job' : 'Generate for Job (AI not configured)'}</span>
+          </button>
+        )}
 
         <button
           className="btn-primary"
@@ -1828,13 +1875,14 @@ export function BuildPage() {
             </header>
             <div className="jd-modal-body">
               <p className="modal-intro">
-                Paste a job description to get AI-powered positioning advice, skill gap analysis, and tailored bullet suggestions.
+                Review the pipeline-linked job description, generate canonical JD analysis if needed, and apply the
+                resulting vector plan to this resume.
               </p>
               <textarea
                 className="component-input jd-input"
-                placeholder="Paste JD text here..."
+                placeholder="Pipeline job description"
                 value={jdInput}
-                onChange={(e) => setJdInput(e.target.value)}
+                readOnly
               />
               <div className="jd-meta">
                 <span>{jdWordCount} words</span>
@@ -1854,7 +1902,7 @@ export function BuildPage() {
                   disabled={jdLoading || jdInput.trim().length === 0 || !jdAnalysisEndpoint}
                   onClick={onAnalyzeJd}
                 >
-                  {jdLoading ? 'Analyzing…' : 'Analyze'}
+                  {jdLoading ? 'Analyzing…' : jdAnalysisResult ? 'Refresh Analysis' : 'Analyze Pipeline JD'}
                 </button>
 
                 {jdAnalysisResult && (
