@@ -1,26 +1,54 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Copy, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Check, Copy, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
-import { assembleResume } from '../../engine/assembler'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import type { CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
-import {
-  applyCoverLetterCandidateMetaToAssembledResume,
-  resolveCoverLetterCandidateMeta,
-} from '../../utils/coverLetterCandidate'
-import { facetClientEnv } from '../../utils/facetEnv'
+import { resolveCoverLetterCandidateMeta } from '../../utils/coverLetterCandidate'
+import { stripResumeVectorContext } from '../../utils/coverLetterContext'
+import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
-import { generateCoverLetter } from '../../utils/coverLetterGenerator'
-import { createMatchMaterialContext } from '../../utils/matchMaterial'
-import { VectorPriorityEditor } from '../../components/VectorPriorityEditor'
+import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
+import type { MatchReport } from '../../types/match'
 import './letters.css'
 
 function buildResearchDraft(positioning: string, notes: string, url: string) {
   return [positioning, notes, url].filter(Boolean).join('\n\n')
+}
+
+function joinParagraphs(parts: Array<string | undefined>) {
+  const filtered = parts.map((part) => part?.trim()).filter(Boolean)
+  return filtered.length > 0 ? filtered.join('\n\n') : undefined
+}
+
+function createLetterMatchContext(report: MatchReport) {
+  const topSkillLabels = report.topSkills.slice(0, 6).map((asset) => asset.label.trim()).filter(Boolean)
+  const positioningRecommendations = report.positioningRecommendations.map((entry) => entry.trim()).filter(Boolean)
+  const advantageNotes = report.advantages.slice(0, 3).map((entry) => entry.claim.trim()).filter(Boolean)
+  const gapNotes = report.gaps
+    .slice(0, 4)
+    .map((entry) => [entry.label.trim(), entry.reason.trim()].filter(Boolean).join(': '))
+    .filter(Boolean)
+  const positioning = joinParagraphs([report.summary, ...positioningRecommendations])
+  const notes = joinParagraphs([
+    advantageNotes.length > 0 ? 'Advantages\n' + advantageNotes.join('\n') : undefined,
+    gapNotes.length > 0 ? 'Gap focus\n' + gapNotes.join('\n') : undefined,
+  ])
+
+  return {
+    company: report.company.trim() || 'Target Company',
+    role: report.role.trim() || 'Target Role',
+    jobDescription: report.jobDescription,
+    summary: report.summary,
+    matchScore: report.matchScore,
+    skillMatch: topSkillLabels.length > 0 ? topSkillLabels.join(', ') : undefined,
+    positioning,
+    notes,
+    briefingNotes: joinParagraphs([positioning, notes]) ?? '',
+  }
 }
 
 function composeLetterText(template: CoverLetterTemplate): string {
@@ -35,36 +63,54 @@ function composeLetterText(template: CoverLetterTemplate): string {
     .join('\n\n')
 }
 
+function buildJobPromptContext(value: unknown) {
+  const stripped = stripResumeVectorContext(value)
+  if (!stripped || typeof stripped !== 'object' || Array.isArray(stripped)) {
+    return stripped
+  }
+
+  const { jobDescription: _jobDescription, ...rest } = stripped as Record<string, unknown>
+  return rest
+}
+
 export function LettersPage() {
   const { templates, addTemplate, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const currentReport = useMatchStore((state) => state.currentReport)
   const pipelineEntries = usePipelineStore((state) => state.entries)
-  const resumeData = useResumeStore((state) => state.data)
-  const { vectors } = resumeData
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [generationSource, setGenerationSource] = useState<'match' | 'pipeline'>(currentReport ? 'match' : 'pipeline')
   const [selectedEntryId, setSelectedEntryId] = useState('')
-  const [selectedVectorId, setSelectedVectorId] = useState('')
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [refiningParagraphId, setRefiningParagraphId] = useState<string | null>(null)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [refinementError, setRefinementError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const candidateEntries = useMemo(
     () => [...pipelineEntries].sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
     [pipelineEntries],
   )
+  const letterHistory = useMemo(
+    () =>
+      [...templates].sort((left, right) =>
+        (right.generatedAt ?? right.durableMeta?.updatedAt ?? '').localeCompare(
+          left.generatedAt ?? left.durableMeta?.updatedAt ?? '',
+        ),
+      ),
+    [templates],
+  )
   const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
+    () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
     [],
   )
 
-  const activeTemplateId = selectedTemplateId ?? templates[0]?.id ?? null
+  const activeTemplateId = selectedTemplateId ?? letterHistory[0]?.id ?? null
   const activeTemplate = templates.find(t => t.id === activeTemplateId)
   const matchMaterial = useMemo(
-    () => (currentReport ? createMatchMaterialContext(resumeData, currentReport) : null),
-    [currentReport, resumeData],
+    () => (currentReport ? createLetterMatchContext(currentReport) : null),
+    [currentReport],
   )
   const selectedEntry = useMemo(
     () => pipelineEntries.find((entry) => entry.id === selectedEntryId) ?? null,
@@ -93,10 +139,9 @@ export function LettersPage() {
     if (!firstEntry) return
 
     setSelectedEntryId(firstEntry.id)
-    setSelectedVectorId(firstEntry.vectorId ?? vectors[0]?.id ?? '')
     // When the selected entry disappears, fall back to the freshest remaining opportunity.
     setCompanyResearchDraft(buildResearchDraft(firstEntry.positioning, firstEntry.notes, firstEntry.url))
-  }, [candidateEntries, selectedEntryId, vectors])
+  }, [candidateEntries, selectedEntryId])
 
   useEffect(() => {
     if (!selectedEntryId) return
@@ -107,7 +152,6 @@ export function LettersPage() {
 
   useEffect(() => {
     if (generationSource !== 'match' || !matchMaterial) return
-    setSelectedVectorId(matchMaterial.vector.id)
     setCompanyResearchDraft((current) => current || matchMaterial.briefingNotes)
   }, [generationSource, matchMaterial])
 
@@ -115,7 +159,7 @@ export function LettersPage() {
     const id = createId('clt')
     const newTemplate = {
       id,
-      name: 'New Template',
+      name: 'New Variant',
       header: `Your Name\nAddress\nEmail`,
       greeting: 'Dear Hiring Manager,',
       paragraphs: [
@@ -125,7 +169,9 @@ export function LettersPage() {
           vectors: {}
         }
       ],
-      signOff: `Sincerely,\nYour Name`
+      signOff: `Sincerely,\nYour Name`,
+      source: 'manual' as const,
+      generatedAt: new Date().toISOString(),
     }
     addTemplate(newTemplate)
     setSelectedTemplateId(id)
@@ -133,10 +179,12 @@ export function LettersPage() {
 
   const updateParagraph = (paragraphId: string, patch: Partial<CoverLetterParagraph>) => {
     if (!activeTemplate) return
-    const newPars = activeTemplate.paragraphs.map(p => 
+    const latestTemplate = useCoverLetterStore.getState().templates.find((template) => template.id === activeTemplate.id)
+    const sourceTemplate = latestTemplate ?? activeTemplate
+    const newPars = sourceTemplate.paragraphs.map(p =>
       p.id === paragraphId ? { ...p, ...patch } : p
     )
-    updateTemplate(activeTemplate.id, { paragraphs: newPars })
+    updateTemplate(sourceTemplate.id, { paragraphs: newPars })
   }
 
   const removeParagraph = (paragraphId: string) => {
@@ -165,10 +213,10 @@ export function LettersPage() {
   }
 
   const handleDeleteTemplate = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete the template "${name}"?`)) {
+    if (window.confirm(`Are you sure you want to delete the variant "${name}"?`)) {
       deleteTemplate(id)
       if (activeTemplateId === id) {
-        setSelectedTemplateId(templates.find(t => t.id !== id)?.id ?? null)
+        setSelectedTemplateId(letterHistory.find(t => t.id !== id)?.id ?? null)
       }
     }
   }
@@ -179,7 +227,6 @@ export function LettersPage() {
     if (!nextEntry) return
 
     setCompanyResearchDraft(buildResearchDraft(nextEntry.positioning, nextEntry.notes, nextEntry.url))
-    setSelectedVectorId(nextEntry.vectorId ?? vectors[0]?.id ?? '')
   }
 
   const handleSourceChange = (nextSource: 'match' | 'pipeline') => {
@@ -187,13 +234,11 @@ export function LettersPage() {
     setGenerationError(null)
 
     if (nextSource === 'match' && matchMaterial) {
-      setSelectedVectorId(matchMaterial.vector.id)
       setCompanyResearchDraft(matchMaterial.briefingNotes)
       return
     }
 
     if (nextSource === 'pipeline' && selectedEntry) {
-      setSelectedVectorId(selectedEntry.vectorId ?? vectors[0]?.id ?? '')
       setCompanyResearchDraft(buildResearchDraft(selectedEntry.positioning, selectedEntry.notes, selectedEntry.url))
     }
   }
@@ -214,9 +259,13 @@ export function LettersPage() {
       const freshResumeData = useResumeStore.getState().data
       const freshIdentity = useIdentityStore.getState().currentIdentity
       const candidateMeta = resolveCoverLetterCandidateMeta(freshResumeData.meta, freshIdentity)
+      const fullResumeContext = {
+        ...(stripResumeVectorContext(freshResumeData) as Record<string, unknown>),
+        meta: candidateMeta,
+      }
       const activeMatchMaterial =
         generationSource === 'match' && currentReport
-          ? createMatchMaterialContext(freshResumeData, currentReport)
+          ? createLetterMatchContext(currentReport)
           : null
 
       if (generationSource === 'match') {
@@ -228,8 +277,6 @@ export function LettersPage() {
         const generated = await generateCoverLetter(aiEndpoint, {
           company: activeMatchMaterial.company,
           role: activeMatchMaterial.role,
-          vectorId: activeMatchMaterial.vector.id,
-          vectorLabel: activeMatchMaterial.vector.label,
           skillMatch: activeMatchMaterial.skillMatch,
           positioning: activeMatchMaterial.positioning,
           notes: activeMatchMaterial.notes,
@@ -237,11 +284,10 @@ export function LettersPage() {
           jobDescription: activeMatchMaterial.jobDescription,
           resumeContext: {
             candidate: candidateMeta,
-            vector: activeMatchMaterial.vector,
-            assembled: applyCoverLetterCandidateMetaToAssembledResume(
-              activeMatchMaterial.assembled,
-              candidateMeta,
-            ),
+            assembled: {
+              resume: fullResumeContext,
+              matchEvidence: buildJobPromptContext(activeMatchMaterial),
+            },
             identity: freshIdentity,
           },
         })
@@ -256,9 +302,11 @@ export function LettersPage() {
             id: createId('clp'),
             label: paragraph.label,
             text: paragraph.text,
-            vectors: { [activeMatchMaterial.vector.id]: 'include' },
+            vectors: {},
           })),
           signOff: generated.signOff,
+          source: 'match',
+          generatedAt: new Date().toISOString(),
         })
         setSelectedTemplateId(id)
         return
@@ -268,35 +316,15 @@ export function LettersPage() {
         setGenerationError('Choose a pipeline entry before generating a cover letter.')
         return
       }
-      if (!selectedVectorId) {
-        setGenerationError('Choose a vector before generating a cover letter.')
-        return
-      }
       if (!selectedEntry.jobDescription.trim()) {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
       }
 
-      const vector = freshResumeData.vectors.find((item) => item.id === selectedVectorId)
-      if (!vector) {
-        setGenerationError('The selected vector could not be found in resume data.')
-        return
-      }
-
-      const assembled = assembleResume(freshResumeData, {
-        selectedVector: vector.id,
-        manualOverrides: freshResumeData.manualOverrides?.[vector.id] ?? {},
-        bulletOrderByRole: freshResumeData.bulletOrders?.[vector.id] ?? {},
-        targetPages: 2,
-        variables: freshResumeData.variables ?? {},
-      }).resume
-
       const generated = await generateCoverLetter(aiEndpoint, {
         company: selectedEntry.company,
         role: selectedEntry.role,
         contact: selectedEntry.contact || undefined,
-        vectorId: vector.id,
-        vectorLabel: vector.label,
         companyUrl: selectedEntry.url || undefined,
         skillMatch: selectedEntry.skillMatch || undefined,
         positioning: selectedEntry.positioning || undefined,
@@ -305,8 +333,10 @@ export function LettersPage() {
         jobDescription: selectedEntry.jobDescription,
         resumeContext: {
           candidate: candidateMeta,
-          vector,
-          assembled: applyCoverLetterCandidateMetaToAssembledResume(assembled, candidateMeta),
+          assembled: {
+            resume: fullResumeContext,
+            pipelineEntry: buildJobPromptContext(selectedEntry),
+          },
           identity: freshIdentity,
         },
       })
@@ -321,9 +351,12 @@ export function LettersPage() {
           id: createId('clp'),
           label: paragraph.label,
           text: paragraph.text,
-          vectors: { [vector.id]: 'include' },
+          vectors: {},
         })),
         signOff: generated.signOff,
+        source: 'pipeline',
+        pipelineEntryId: selectedEntry.id,
+        generatedAt: new Date().toISOString(),
       })
       setSelectedTemplateId(id)
     } catch (error) {
@@ -333,28 +366,62 @@ export function LettersPage() {
     }
   }
 
+  const handleRefineParagraph = async (paragraph: CoverLetterParagraph) => {
+    if (!activeTemplate || refiningParagraphId) return
+    const feedback = paragraph.refinement?.trim()
+    if (!feedback) return
+    if (!aiEndpoint) {
+      setRefinementError('AI refinement is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+      return
+    }
+
+    setRefinementError(null)
+    setRefiningParagraphId(paragraph.id)
+
+    try {
+      const refined = await refineCoverLetterParagraph(aiEndpoint, {
+        variantName: activeTemplate.name,
+        sectionLabel: paragraph.label,
+        currentParagraph: paragraph.text,
+        userFeedback: feedback,
+        fullLetterText: composeLetterText(activeTemplate),
+      })
+      updateParagraph(paragraph.id, {
+        text: refined.text,
+        refinement: '',
+      })
+    } catch (error) {
+      setRefinementError(error instanceof Error ? error.message : 'Paragraph refinement failed.')
+    } finally {
+      setRefiningParagraphId(null)
+    }
+  }
+
   return (
     <div className="letters-page">
-      <nav className="letters-sidebar" aria-label="Template list">
+      <nav className="letters-sidebar" aria-label="Cover letter history">
         <div className="letters-sidebar-header">
-          <h2>Templates</h2>
+          <h2>History</h2>
           <button 
             className="letters-btn-icon" 
             onClick={handleCreateTemplate} 
-            title="New Template"
-            aria-label="Create New Template"
+            title="New Variant"
+            aria-label="Create New Variant"
           >
             <Plus size={16} />
           </button>
         </div>
         <div className="letters-template-list">
-          {templates.map(t => (
+          {letterHistory.map(t => (
             <div key={t.id} className="letters-template-list-item">
               <button 
                 className={`letters-template-item ${activeTemplateId === t.id ? 'active' : ''}`}
                 onClick={() => setSelectedTemplateId(t.id)}
               >
-                {t.name}
+                <span className="letters-history-title">{t.name}</span>
+                <span className="letters-history-meta">
+                  {t.pipelineEntryId ? 'Pipeline variant' : t.source === 'match' ? 'Match variant' : 'Manual variant'}
+                </span>
               </button>
               <button 
                 className="letters-btn-icon letters-text-danger" 
@@ -366,8 +433,8 @@ export function LettersPage() {
               </button>
             </div>
           ))}
-          {templates.length === 0 && (
-            <p className="letters-empty-text">No templates yet.</p>
+          {letterHistory.length === 0 && (
+            <p className="letters-empty-text">No variants yet.</p>
           )}
         </div>
       </nav>
@@ -377,9 +444,9 @@ export function LettersPage() {
           <div className="letters-generator-header">
             <div>
               <p className="letters-generator-eyebrow">AI Draft</p>
-              <h3 id="letters-generator-title">Generate a cover letter from the current match report or a pipeline opportunity</h3>
+              <h3 id="letters-generator-title">Generate a cover letter variant from the current match report or a pipeline opportunity</h3>
               <p className="letters-generator-copy">
-                Match-first generation uses the current Phase 1 report. Pipeline mode remains available for older opportunities.
+                Generation uses the full candidate context and job details, not resume vectors. Pipeline variants stay attached to their opportunity.
               </p>
             </div>
             <button
@@ -438,31 +505,19 @@ export function LettersPage() {
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="letters-field">
-                      <label htmlFor="cl-entry">Pipeline Entry</label>
-                      <select id="cl-entry" value={selectedEntryId} onChange={(event) => handleEntryChange(event.target.value)}>
-                        <option value="">Select an opportunity</option>
-                        {candidateEntries.map((entry) => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.company} - {entry.role}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="letters-field">
-                      <label htmlFor="cl-vector">Vector</label>
-                      <select id="cl-vector" value={selectedVectorId} onChange={(event) => setSelectedVectorId(event.target.value)}>
-                        <option value="">Select a vector</option>
-                        {vectors.map((vector) => (
-                          <option key={vector.id} value={vector.id}>
-                            {vector.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
+                  <div className="letters-field" style={{ gridColumn: '1 / -1' }}>
+                    <label htmlFor="cl-entry">Pipeline Entry</label>
+                    <select id="cl-entry" value={selectedEntryId} onChange={(event) => handleEntryChange(event.target.value)}>
+                      <option value="" disabled hidden>
+                        Select an opportunity
+                      </option>
+                      {candidateEntries.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.company} - {entry.role}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               </div>
 
@@ -499,7 +554,8 @@ export function LettersPage() {
 
         {activeTemplate ? (
           <div className="letters-editor">
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+            <div className="letters-editor-toolbar">
+              <span className="letters-save-status">Live saved</span>
               <button
                 className="letters-btn letters-btn-sm"
                 type="button"
@@ -516,8 +572,8 @@ export function LettersPage() {
               className="letters-title-input"
               value={activeTemplate.name}
               onChange={(e) => updateTemplate(activeTemplate.id, { name: e.target.value })}
-              placeholder="Template Name"
-              aria-label="Template Name"
+              placeholder="Variant Name"
+              aria-label="Variant Name"
             />
             
             <div className="letters-field">
@@ -584,6 +640,8 @@ export function LettersPage() {
               <div className="letters-paragraph-list">
                 {activeTemplate.paragraphs.map((p, index) => {
                   const paragraphKey = `paragraph:${p.id}`
+                  const refinementId = `cl-refinement-${p.id}`
+                  const isRefining = refiningParagraphId === p.id
                   return (
                     <div key={p.id} className="letters-paragraph-item">
                       <div className="letters-paragraph-content">
@@ -594,12 +652,25 @@ export function LettersPage() {
                           aria-label={`Paragraph ${index + 1} text`}
                           placeholder="Write your paragraph content..."
                         />
-                        <div className="letters-paragraph-vectors">
-                          <VectorPriorityEditor
-                            vectors={p.vectors}
-                            vectorDefs={vectors}
-                            onChange={(newVectors) => updateParagraph(p.id, { vectors: newVectors })}
+                        <div className="letters-refinement">
+                          <label htmlFor={refinementId}>Refinement notes</label>
+                          <textarea
+                            id={refinementId}
+                            value={p.refinement ?? ''}
+                            onChange={(e) => updateParagraph(p.id, { refinement: e.target.value })}
+                            rows={2}
+                            aria-label={`Paragraph ${index + 1} refinement notes`}
+                            placeholder="Tell AI what to tighten, add, remove, or make more specific for this paragraph."
                           />
+                          <button
+                            className="letters-btn letters-btn-sm"
+                            type="button"
+                            onClick={() => void handleRefineParagraph(p)}
+                            disabled={!!refiningParagraphId || !p.text.trim() || !p.refinement?.trim()}
+                            aria-busy={isRefining}
+                          >
+                            <RefreshCw size={14} /> {isRefining ? 'Refining...' : 'Refine Paragraph'}
+                          </button>
                         </div>
                       </div>
                       <div className="letters-paragraph-actions">
@@ -626,6 +697,11 @@ export function LettersPage() {
                   )
                 })}
               </div>
+              {refinementError && (
+                <p className="letters-generator-note letters-generator-note-error" role="alert">
+                  {refinementError}
+                </p>
+              )}
             </div>
 
             <div className="letters-field">
@@ -654,9 +730,9 @@ export function LettersPage() {
         ) : (
           <div className="letters-empty-state">
             <div className="letters-empty-state-content">
-              <p>Select or create a template to start building cover letters.</p>
+              <p>Select a history item or create a variant to start building cover letters.</p>
               <button className="letters-btn letters-btn-primary" onClick={handleCreateTemplate}>
-                <Plus size={16} /> Create Template
+                <Plus size={16} /> Create Variant
               </button>
             </div>
           </div>

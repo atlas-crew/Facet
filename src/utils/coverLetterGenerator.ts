@@ -1,6 +1,6 @@
 import type { CoverLetterParagraph } from '../types/coverLetter'
 import type { ProfessionalIdentityV3 } from '../identity/schema'
-import type { ResumeMeta, ResumeVector } from '../types'
+import type { ResumeMeta } from '../types'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 /** Model used for cover letters — needs creative, polished prose. */
@@ -17,8 +17,6 @@ export interface CoverLetterGenerationRequest {
   company: string
   role: string
   contact?: string
-  vectorId: string
-  vectorLabel: string
   companyUrl?: string
   skillMatch?: string
   positioning?: string
@@ -28,10 +26,19 @@ export interface CoverLetterGenerationRequest {
   jobDescription: string
   resumeContext: {
     candidate: ResumeMeta
-    vector: ResumeVector
+    /** Legacy callers may still include this; generation does not use vector framing. */
+    vector?: unknown
     assembled: unknown
     identity?: ProfessionalIdentityV3 | null
   }
+}
+
+export interface CoverLetterParagraphRefinementRequest {
+  variantName: string
+  sectionLabel?: string
+  currentParagraph: string
+  userFeedback: string
+  fullLetterText: string
 }
 
 export type GeneratedCoverLetterParagraph = Pick<CoverLetterParagraph, 'label' | 'text'>
@@ -42,6 +49,10 @@ export interface CoverLetterGenerationResult {
   greeting: string
   signOff: string
   paragraphs: GeneratedCoverLetterParagraph[]
+}
+
+interface CoverLetterParagraphRefinementPayload {
+  text: string
 }
 
 const VAGUE_CONNECTOR_REPLACEMENTS = [
@@ -125,10 +136,16 @@ function buildCompanyExperienceAudit(request: CoverLetterGenerationRequest): str
     if (trimmed) auditTermsByKey.set(trimmed.toLowerCase(), auditTermsByKey.get(trimmed.toLowerCase()) ?? trimmed)
   }
   const auditTerms = Array.from(auditTermsByKey.values())
+  const assembledRecord =
+    request.resumeContext.assembled &&
+    typeof request.resumeContext.assembled === 'object' &&
+    !Array.isArray(request.resumeContext.assembled)
+      ? (request.resumeContext.assembled as Record<string, unknown>)
+      : null
   const candidateEvidence = collectCandidateEvidenceStrings({
     identity: request.resumeContext.identity ?? null,
     candidate: request.resumeContext.candidate,
-    assembled: request.resumeContext.assembled,
+    resume: assembledRecord && 'resume' in assembledRecord ? assembledRecord.resume : request.resumeContext.assembled,
   })
   const sections: string[] = []
 
@@ -156,7 +173,7 @@ function tightenConnectorLanguage(text: string): string {
         match[0] === match[0]?.toUpperCase() ? replacement[0]?.toUpperCase() + replacement.slice(1) : replacement,
       ),
     text,
-  ).replace(/\s+/g, ' ').trim()
+  ).replace(/[ \t]+/g, ' ').trim()
 }
 
 function stringifyForPrompt(value: unknown): string {
@@ -203,7 +220,7 @@ export async function generateCoverLetter(
 Draft a concise, specific, truthful cover letter grounded only in the provided resume and job context.
 Favor 3 to 5 paragraphs with direct, modern language. Keep the tone confident but not inflated.
 Do not invent employers, projects, metrics, technologies, or responsibilities not present in the input.
-Use the target vector and job description to decide what to emphasize.
+Use the job description, company context, and candidate evidence to decide what to emphasize. Do not frame the letter around resume vectors.
 If a hiring contact is unavailable, use a professional generic greeting.
 Make claim transitions direct and concrete. Avoid hedges and vague-positive connectors such as "lines up well", "lines up with", and generic claims like "build systems that scale with the org".
 When a company or product name appears in the job context, do not imply the candidate has direct experience with it unless the candidate evidence audit says that experience exists.
@@ -226,7 +243,6 @@ Response schema:
   const userPrompt = `Target Company: ${request.company}
 Target Role: ${request.role}
 Hiring Contact: ${request.contact || 'Not provided'}
-Target Vector: ${request.vectorLabel} (${request.vectorId})
 Company URL: ${request.companyUrl ?? 'Not provided'}
 Skill Match Notes: ${request.skillMatch ?? 'Not provided'}
 Positioning Notes: ${request.positioning ?? 'Not provided'}
@@ -272,5 +288,56 @@ Return JSON only.`
     greeting: parsed.greeting.trim(),
     signOff: parsed.signOff.trim(),
     paragraphs,
+  }
+}
+
+export async function refineCoverLetterParagraph(
+  endpoint: string,
+  request: CoverLetterParagraphRefinementRequest,
+): Promise<GeneratedCoverLetterParagraph> {
+  const systemPrompt = `You revise one section of a cover letter for a senior technical candidate. Return JSON only.
+Rewrite only the requested paragraph. Preserve truthful specificity from the existing letter.
+Use the user's refinement notes directly, but do not invent employers, metrics, technologies, or responsibilities.
+Make transitions direct and concrete. Avoid vague-positive connectors such as "lines up well", "lines up with", and "build systems that scale with the org".
+
+Response schema:
+{
+  "text": "string"
+}`
+
+  const userPrompt = `Variant Name: ${request.variantName}
+Section Label: ${request.sectionLabel ?? 'Paragraph'}
+
+Current Paragraph:
+${request.currentParagraph}
+
+User Refinement Notes:
+${request.userFeedback}
+
+Full Letter Context:
+${request.fullLetterText}
+
+Return JSON only.`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+    feature: 'letters.generate',
+    model: COVER_LETTER_MODEL,
+    timeoutMs: 30000,
+  })
+
+  let parsed: CoverLetterParagraphRefinementPayload
+  try {
+    parsed = JSON.parse(extractJsonBlock(rawResponse)) as CoverLetterParagraphRefinementPayload
+  } catch (error) {
+    if (error instanceof JsonExtractionError) throw error
+    throw new Error('Failed to parse cover letter paragraph refinement response.')
+  }
+
+  if (!isString(parsed.text) || !parsed.text.trim()) {
+    throw new Error('Cover letter paragraph refinement response schema was invalid.')
+  }
+
+  return {
+    text: tightenConnectorLanguage(parsed.text),
   }
 }

@@ -6,6 +6,7 @@ export interface CoverLetterParagraph {
   id: string
   label?: string
   text: string
+  refinement?: string
   vectors: PriorityByVector
 }
 
@@ -17,6 +18,8 @@ export interface CoverLetterTemplate {
   greeting: string
   paragraphs: CoverLetterParagraph[]
   signOff: string
+  source?: 'manual' | 'match' | 'pipeline'
+  pipelineEntryId?: string
   generatedAt?: string
   identityVersion?: number
   /** Field-level dependencies are preserved when supplied; letter generation can populate this for precision beyond version fallback. */
