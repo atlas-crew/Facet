@@ -4,6 +4,7 @@ import { Plus, Download, Upload, BarChart3 } from 'lucide-react'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useHandoffStore } from '../../store/handoffStore'
 import { useIdentityStore } from '../../store/identityStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useUiStore } from '../../store/uiStore'
 import type { PipelineEntry } from '../../types/pipeline'
 import { getFacetClientEnv } from '../../utils/facetEnv'
@@ -144,6 +145,9 @@ export function PipelinePage() {
     if (!entry.jobDescription) {
       return null
     }
+    if (!useJDAnalysisStore.getState().findByPipelineEntry(entry.id)) {
+      return null
+    }
 
     return {
       mode: entry.resumeGeneration?.mode ?? PIPELINE_HANDOFF_DEFAULT_MODE,
@@ -169,6 +173,7 @@ export function PipelinePage() {
         }))
         return
       }
+      setAnalysisErrors((current) => ({ ...current, [entry.id]: '' }))
       if (!aiEndpoint) {
         setAnalysisErrors((current) => ({
           ...current,
@@ -185,7 +190,6 @@ export function PipelinePage() {
       }
 
       try {
-        setAnalysisErrors((current) => ({ ...current, [entry.id]: '' }))
         setAnalyzingJdId(entry.id)
         const analysis = await analyzePipelineJobDescription({
           endpoint: aiEndpoint,
@@ -211,6 +215,14 @@ export function PipelinePage() {
       if (handoff) {
         useHandoffStore.getState().setPendingGeneration(handoff)
         void navigate({ to: '/build' })
+        return
+      }
+
+      if (entry.jobDescription?.trim()) {
+        setAnalysisErrors((current) => ({
+          ...current,
+          [entry.id]: 'Analyze this JD from Pipeline before generating a resume.',
+        }))
         return
       }
 

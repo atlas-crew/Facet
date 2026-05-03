@@ -364,7 +364,8 @@ describe('BuildPage', () => {
     expect(within(workingContext).getByText('Suggestions')).toBeTruthy()
     expect(within(workingContext).getByText('Inactive')).toBeTruthy()
     expect(within(workingContext).getByText('JD Analysis')).toBeTruthy()
-    expect(within(workingContext).getByText('Not analyzed')).toBeTruthy()
+    expect(within(workingContext).getByText('Not applicable')).toBeTruthy()
+    expect(within(workingContext).getByText('No pipeline entry linked')).toBeTruthy()
     expect(within(workingContext).queryByText('Backend Engineering')).toBeNull()
     expect(within(workingContext).queryByText(/bullets included/)).toBeNull()
     expect(within(workingContext).queryByText('2 pages')).toBeNull()
@@ -392,7 +393,7 @@ describe('BuildPage', () => {
     render(<BuildPage />)
 
     expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
-    expect(screen.queryByRole('dialog', { name: 'Analyze Job Description' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Job Description Analysis' })).toBeNull()
   })
 
   it('keeps numeric vector shortcuts aligned after moving View All Bullets', () => {
@@ -674,6 +675,70 @@ describe('BuildPage', () => {
     })
   })
 
+  it('requires pipeline-owned JD analysis instead of analyzing raw JD text in Build', async () => {
+    const entry = createPipelineEntry()
+    usePipelineStore.setState({
+      entries: [entry],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({ analyses: [] })
+    useHandoffStore.getState().setPendingGeneration({
+      mode: 'dynamic',
+      vectorMode: 'manual',
+      source: 'pipeline',
+      jobDescription: entry.jobDescription,
+      pipelineEntryId: entry.id,
+      presetId: null,
+      primaryVectorId: null,
+      vectorIds: [],
+      suggestedVectorIds: [],
+      resumeGeneration: null,
+    })
+
+    render(<BuildPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Run JD analysis from Pipeline')
+    })
+    const workingContext = screen.getByLabelText('Current working context')
+    expect(within(workingContext).getByText('Analysis required')).toBeTruthy()
+    expect(within(workingContext).getByText('Run JD analysis from Pipeline before generating')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Analyze Pipeline JD|Refresh Analysis/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Open Pipeline Entry$/i })).toBeTruthy()
+    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
+  })
+
+  it('refreshes pipeline JD analysis from the canonical store without local analysis', async () => {
+    seedPipelineHandoff()
+
+    render(<BuildPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Resume Vector Plan')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^Generate for Job$/i }))
+    expect(screen.getByRole('dialog', { name: 'Job Description Analysis' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Refresh from Pipeline Analysis$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toContain('Pipeline JD analysis loaded')
+    })
+    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
+
+    useJDAnalysisStore.setState({ analyses: [] })
+    fireEvent.click(screen.getByRole('button', { name: /^Refresh from Pipeline Analysis$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Run JD analysis from Pipeline before generating a resume.').length).toBeGreaterThan(0)
+    })
+    expect(screen.getByRole('button', { name: /^Open Pipeline Entry$/i })).toBeTruthy()
+    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
+  })
+
   it('applies the default AI multi-vector plan when confirmed without manual edits', async () => {
     seedPipelineHandoff()
 
@@ -705,8 +770,9 @@ describe('BuildPage', () => {
     facetClientEnvMock.anthropicProxyUrl = ''
     rerender(<BuildPage />)
     const unavailableContext = screen.getByLabelText('Current working context')
-    expect(within(unavailableContext).getByText('AI unavailable')).toBeTruthy()
-    expect(within(unavailableContext).getByText('Configure AI to analyze JDs')).toBeTruthy()
+    expect(within(unavailableContext).getByText('Insights ready')).toBeTruthy()
+    expect(within(unavailableContext).getByText('Positioning and gaps ready')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Generate for Job$/i })).toHaveProperty('disabled', false)
 
     expect(screen.queryByRole('button', { name: /Open Build context details/i })).toBeNull()
     expect(within(unavailableContext).getByText('Dynamic')).toBeTruthy()

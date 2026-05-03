@@ -7,6 +7,7 @@ import { useHandoffStore } from '../store/handoffStore'
 import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
+import { useUiStore } from '../store/uiStore'
 import type { JDAnalysis } from '../types/jdAnalysis'
 
 const mockNavigate = vi.fn()
@@ -122,6 +123,7 @@ describe('PipelinePage', () => {
     mockAnalyzePipelineJobDescription.mockResolvedValue(jdAnalysisFixture)
     useHandoffStore.setState({ pendingGeneration: null })
     useJDAnalysisStore.setState({ analyses: [] })
+    useUiStore.setState({ selectedVector: 'all' })
     useIdentityStore.setState({
       currentIdentity: { model_revision: 1 } as Parameters<typeof mockAnalyzePipelineJobDescription>[0],
     })
@@ -338,7 +340,7 @@ describe('PipelinePage', () => {
     expect(usePipelineStore.getState().entries[0]?.history.at(-1)?.note).toBe('Analyzed JD')
   })
 
-  it('opens pipeline entries in Build using the structured generation handoff when a JD exists', () => {
+  it('requires canonical JD analysis before generating a resume from raw JD text', async () => {
     usePipelineStore.setState({
       entries: [
         {
@@ -355,6 +357,63 @@ describe('PipelinePage', () => {
 
     fireEvent.click(screen.getByText('Acme Corp'))
     expect(screen.getByRole('button', { name: /Analyze JD/i })).toBeTruthy()
+    const generateButton = screen.getByRole('button', { name: /Generate Resume/i })
+    expect(generateButton.getAttribute('aria-disabled')).toBe('true')
+    const hintId = generateButton.getAttribute('aria-describedby')
+    expect(hintId).toBeTruthy()
+    expect(document.getElementById(hintId ?? '')?.textContent).toContain('Analyze JD before generating')
+    fireEvent.click(generateButton)
+    expect(screen.getByRole('alert').textContent).toContain('Analyze this JD from Pipeline')
+    expect(useHandoffStore.getState().pendingGeneration).toBeNull()
+    expect(mockNavigate).not.toHaveBeenCalledWith({ to: '/build' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Analyze JD/i }))
+    await waitFor(() => {
+      expect(useJDAnalysisStore.getState().findByPipelineEntry('pipe-1')?.id).toBe('analysis-1')
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('treats whitespace-only job descriptions as missing before opening Build', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: '   ',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Open in Builder/i }))
+    expect(screen.queryByRole('button', { name: /Generate Resume/i })).toBeNull()
+    expect(useUiStore.getState().selectedVector).toBe('backend')
+    expect(mockNavigate).toHaveBeenCalledWith({ to: '/build' })
+  })
+
+  it('opens pipeline entries in Build using canonical JD analysis and the structured generation handoff', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: 'We need a platform-minded engineer.',
+          jdAnalysisId: 'analysis-1',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture] })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
     expect(screen.getByRole('button', { name: /Generate Cover Letter/i })).toHaveProperty('disabled', true)
     fireEvent.click(screen.getByRole('button', { name: /Generate Resume/i }))
 

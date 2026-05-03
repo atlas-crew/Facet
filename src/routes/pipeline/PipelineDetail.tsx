@@ -49,10 +49,13 @@ export function PipelineDetail({
   analysisError,
 }: PipelineDetailProps) {
   const actionGroupId = useId()
+  const jdAnalysisHintId = `${actionGroupId}-jd-analysis-required`
   const primaryVectorId = getPipelineResumePrimaryVectorId(entry)
   const linkedPresetId = getPipelineResumePresetId(entry)
+  const hasJobDescription = Boolean(entry.jobDescription?.trim())
+  const jdAnalysisRequired = hasJobDescription && !entry.jdAnalysisId
   const showExecutionActions =
-    Boolean(primaryVectorId) || Boolean(entry.jobDescription) || ACTIVE_STATUSES.has(entry.status)
+    Boolean(primaryVectorId) || hasJobDescription || ACTIVE_STATUSES.has(entry.status)
   const linkedPreset = useResumeStore((s) =>
     linkedPresetId ? (s.data.presets ?? []).find((p) => p.id === linkedPresetId) ?? null : null
   )
@@ -264,12 +267,12 @@ export function PipelineDetail({
           >
             <span id={`${actionGroupId}-execution`} className="pipeline-detail-action-label">Execution</span>
             <div className="pipeline-detail-actions">
-              {primaryVectorId && !entry.jobDescription && (
+              {primaryVectorId && !hasJobDescription && (
                 <button className="pipeline-btn pipeline-btn-sm" onClick={onOpenInBuilder}>
                   <ArrowRight size={14} /> Open in Builder
                 </button>
               )}
-              {entry.jobDescription && (
+              {hasJobDescription && (
                 <button
                   className="pipeline-btn pipeline-btn-sm pipeline-btn-primary"
                   onClick={onAnalyze}
@@ -279,12 +282,18 @@ export function PipelineDetail({
                   <Zap size={14} /> {isAnalyzingJd ? 'Analyzing JD…' : entry.jdAnalysisId ? 'Refresh JD Analysis' : 'Analyze JD'}
                 </button>
               )}
-              {entry.jobDescription && (
-                <button className="pipeline-btn pipeline-btn-sm" onClick={onOpenInBuilder}>
+              {hasJobDescription && (
+                <button
+                  className="pipeline-btn pipeline-btn-sm"
+                  onClick={onOpenInBuilder}
+                  aria-disabled={jdAnalysisRequired}
+                  aria-describedby={jdAnalysisRequired ? jdAnalysisHintId : undefined}
+                  title={entry.jdAnalysisId ? 'Generate a resume from canonical JD analysis' : 'Analyze JD before generating a resume'}
+                >
                   <ArrowRight size={14} /> Generate Resume
                 </button>
               )}
-              {entry.jobDescription && (
+              {hasJobDescription && (
                 <button
                   className="pipeline-btn pipeline-btn-sm"
                   disabled
@@ -298,8 +307,15 @@ export function PipelineDetail({
                   <BookOpen size={14} /> Prep for Interview
                 </button>
               )}
+              {jdAnalysisRequired && !analysisError ? (
+                <span id={jdAnalysisHintId} className="pipeline-action-hint">
+                  Analyze JD before generating a resume.
+                </span>
+              ) : null}
               {analysisError ? (
-                <span className="pipeline-action-hint" role="alert">{analysisError}</span>
+                <span id={jdAnalysisRequired ? jdAnalysisHintId : undefined} className="pipeline-action-hint" role="alert">
+                  {analysisError}
+                </span>
               ) : null}
             </div>
           </div>
