@@ -2,54 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { Check, Copy, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
+import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
-import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
-import type { CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import type { CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import type { ResumeEntity } from '../../types/resume'
 import { resolveCoverLetterCandidateMeta } from '../../utils/coverLetterCandidate'
 import { stripResumeVectorContext } from '../../utils/coverLetterContext'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
-import type { MatchReport } from '../../types/match'
 import './letters.css'
 
 function buildResearchDraft(positioning: string, notes: string, url: string) {
   return [positioning, notes, url].filter(Boolean).join('\n\n')
 }
 
-function joinParagraphs(parts: Array<string | undefined>) {
-  const filtered = parts.map((part) => part?.trim()).filter(Boolean)
-  return filtered.length > 0 ? filtered.join('\n\n') : undefined
-}
-
-function createLetterMatchContext(report: MatchReport) {
-  const topSkillLabels = report.topSkills.slice(0, 6).map((asset) => asset.label.trim()).filter(Boolean)
-  const positioningRecommendations = report.positioningRecommendations.map((entry) => entry.trim()).filter(Boolean)
-  const advantageNotes = report.advantages.slice(0, 3).map((entry) => entry.claim.trim()).filter(Boolean)
-  const gapNotes = report.gaps
-    .slice(0, 4)
-    .map((entry) => [entry.label.trim(), entry.reason.trim()].filter(Boolean).join(': '))
-    .filter(Boolean)
-  const positioning = joinParagraphs([report.summary, ...positioningRecommendations])
-  const notes = joinParagraphs([
-    advantageNotes.length > 0 ? 'Advantages\n' + advantageNotes.join('\n') : undefined,
-    gapNotes.length > 0 ? 'Gap focus\n' + gapNotes.join('\n') : undefined,
-  ])
-
-  return {
-    company: report.company.trim() || 'Target Company',
-    role: report.role.trim() || 'Target Role',
-    jobDescription: report.jobDescription,
-    summary: report.summary,
-    matchScore: report.matchScore,
-    skillMatch: topSkillLabels.length > 0 ? topSkillLabels.join(', ') : undefined,
-    positioning,
-    notes,
-    briefingNotes: joinParagraphs([positioning, notes]) ?? '',
-  }
+function resolveLetterIdentityVersion(
+  resume: Pick<ResumeEntity, 'identityVersion'>,
+  identity: Pick<ProfessionalIdentityV3, 'model_revision'> | null,
+) {
+  return identity?.model_revision ?? resume.identityVersion ?? null
 }
 
 function composeLetterText(template: CoverLetterTemplate): string {
@@ -89,13 +64,15 @@ type LetterEditDraft =
     }
 
 export function LettersPage() {
-  const { templates, addTemplate, updateTemplate, deleteTemplate } = useCoverLetterStore()
-  const currentReport = useMatchStore((state) => state.currentReport)
+  const { templates, createLetter, upsertLetterForPipelineEntry, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
+  const updatePipelineEntry = usePipelineStore((state) => state.updateEntry)
+  const resumeEntities = useResumeStore((state) => state.resumes)
+  const activeResumeId = useResumeStore((state) => state.activeResumeId)
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
-  const [generationSource, setGenerationSource] = useState<'match' | 'pipeline'>(currentReport ? 'match' : 'pipeline')
   const [selectedEntryId, setSelectedEntryId] = useState('')
+  const [selectedResumeId, setSelectedResumeId] = useState('')
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [refiningParagraphId, setRefiningParagraphId] = useState<string | null>(null)
@@ -105,8 +82,12 @@ export function LettersPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const candidateEntries = useMemo(
-    () => [...pipelineEntries].sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
+    () => pipelineEntries.filter((entry) => !entry.deletedAt).sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
     [pipelineEntries],
+  )
+  const resumeOptions = useMemo(
+    () => [...resumeEntities].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    [resumeEntities],
   )
   const letterHistory = useMemo(
     () =>
@@ -126,30 +107,33 @@ export function LettersPage() {
   const activeTemplate = templates.find(t => t.id === activeTemplateId)
   const editingKey = editDraft?.key ?? null
   const editDraftValue = editDraft?.value ?? ''
-  const matchMaterial = useMemo(
-    () => (currentReport ? createLetterMatchContext(currentReport) : null),
-    [currentReport],
-  )
   const selectedEntry = useMemo(
     () => pipelineEntries.find((entry) => entry.id === selectedEntryId) ?? null,
     [pipelineEntries, selectedEntryId],
   )
+  const selectedResume = useMemo(
+    () => resumeOptions.find((resume) => resume.id === selectedResumeId) ?? null,
+    [resumeOptions, selectedResumeId],
+  )
   const helperMessage =
     !aiEndpoint
       ? 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
-      : generationSource === 'match'
-        ? (!matchMaterial ? 'Generate a Phase 1 match report before generating a cover letter draft.' : null)
-        : selectedEntry && !selectedEntry.jobDescription.trim()
+      : selectedEntry && !selectedEntry.jobDescription.trim()
         ? 'This pipeline entry needs a job description before AI generation will work.'
+        : selectedEntry && !selectedResume
+        ? 'Choose the resume this cover letter should accompany.'
         : candidateEntries.length === 0
           ? 'Add a pipeline opportunity with a job description to generate a cover letter draft.'
           : null
-
-  useEffect(() => {
-    if (!currentReport && generationSource === 'match') {
-      setGenerationSource('pipeline')
-    }
-  }, [currentReport, generationSource])
+  const canCreateDraft = !!selectedEntry && !!selectedResume
+  const canGenerate =
+    !!aiEndpoint &&
+    !!selectedEntry &&
+    !!selectedResume &&
+    !!selectedEntry.jobDescription.trim() &&
+    candidateEntries.length > 0 &&
+    resumeOptions.length > 0 &&
+    !isGenerating
 
   useEffect(() => {
     if (selectedEntryId) return
@@ -169,15 +153,43 @@ export function LettersPage() {
   }, [selectedEntry, selectedEntryId])
 
   useEffect(() => {
-    if (generationSource !== 'match' || !matchMaterial) return
-    setCompanyResearchDraft((current) => current || matchMaterial.briefingNotes)
-  }, [generationSource, matchMaterial])
+    const fallbackResumeId = selectedEntry?.resumeId ?? activeResumeId ?? resumeOptions[0]?.id ?? ''
+    if (!fallbackResumeId) {
+      setSelectedResumeId('')
+      return
+    }
+    setSelectedResumeId((current) =>
+      current && resumeOptions.some((resume) => resume.id === current)
+        ? current
+        : fallbackResumeId,
+    )
+  }, [activeResumeId, resumeOptions, selectedEntry?.id, selectedEntry?.resumeId])
 
   const handleCreateTemplate = () => {
     if (!confirmDiscardEdit()) return
-    const id = createId('clt')
-    const newTemplate = {
-      id,
+    if (!selectedEntry || !selectedResume) {
+      setGenerationError('Choose a pipeline entry and source resume before creating a cover letter draft.')
+      return
+    }
+
+    const freshResume = useResumeStore.getState().resumes.find((resume) => resume.id === selectedResume.id)
+    if (!freshResume) {
+      setGenerationError('The selected source resume is no longer available.')
+      return
+    }
+    if (selectedEntry.coverLetterId) {
+      const shouldReplace = window.confirm(
+        'This opportunity already has a linked cover letter draft. Replace the current draft link?',
+      )
+      if (!shouldReplace) return
+    }
+
+    const generatedAt = new Date().toISOString()
+    const identityVersion = resolveLetterIdentityVersion(
+      freshResume,
+      useIdentityStore.getState().currentIdentity,
+    )
+    const content: CoverLetterContent = {
       name: 'New Variant',
       header: `Your Name\nAddress\nEmail`,
       greeting: 'Dear Hiring Manager,',
@@ -185,16 +197,29 @@ export function LettersPage() {
         {
           id: createId('clp'),
           text: 'I am writing to express my interest in...',
-          vectors: {}
-        }
+          vectors: {},
+        },
       ],
       signOff: `Sincerely,\nYour Name`,
-      source: 'manual' as const,
-      generatedAt: new Date().toISOString(),
     }
-    addTemplate(newTemplate)
-    cancelEditing()
-    setSelectedTemplateId(id)
+    try {
+      const letter = createLetter({
+        content,
+        pipelineEntryId: selectedEntry.id,
+        sourceResumeId: freshResume.id,
+        sourceResumeHash: freshResume.contentHash,
+        identityVersion,
+        generatedAt,
+      })
+      updatePipelineEntry(selectedEntry.id, {
+        coverLetterId: letter.id,
+        resumeId: selectedEntry.resumeId ?? freshResume.id,
+      })
+      cancelEditing()
+      setSelectedTemplateId(letter.id)
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Cover letter draft creation failed.')
+    }
   }
 
   const updateParagraph = (paragraphId: string, patch: Partial<CoverLetterParagraph>) => {
@@ -347,21 +372,8 @@ export function LettersPage() {
     const nextEntry = pipelineEntries.find((entry) => entry.id === entryId)
     if (!nextEntry) return
 
+    setSelectedResumeId(nextEntry.resumeId ?? activeResumeId ?? resumeOptions[0]?.id ?? '')
     setCompanyResearchDraft(buildResearchDraft(nextEntry.positioning, nextEntry.notes, nextEntry.url))
-  }
-
-  const handleSourceChange = (nextSource: 'match' | 'pipeline') => {
-    setGenerationSource(nextSource)
-    setGenerationError(null)
-
-    if (nextSource === 'match' && matchMaterial) {
-      setCompanyResearchDraft(matchMaterial.briefingNotes)
-      return
-    }
-
-    if (nextSource === 'pipeline' && selectedEntry) {
-      setCompanyResearchDraft(buildResearchDraft(selectedEntry.positioning, selectedEntry.notes, selectedEntry.url))
-    }
   }
 
   const handleGenerate = async () => {
@@ -381,70 +393,30 @@ export function LettersPage() {
     setIsGenerating(true)
 
     try {
-      const freshResumeData = useResumeStore.getState().data
       const freshIdentity = useIdentityStore.getState().currentIdentity
-      const candidateMeta = resolveCoverLetterCandidateMeta(freshResumeData.meta, freshIdentity)
-      const fullResumeContext = {
-        ...(stripResumeVectorContext(freshResumeData) as Record<string, unknown>),
-        meta: candidateMeta,
-      }
-      const activeMatchMaterial =
-        generationSource === 'match' && currentReport
-          ? createLetterMatchContext(currentReport)
-          : null
-
-      if (generationSource === 'match') {
-        if (!activeMatchMaterial) {
-          setGenerationError('Generate a Phase 1 match report before generating a cover letter.')
-          return
-        }
-
-        const generated = await generateCoverLetter(aiEndpoint, {
-          company: activeMatchMaterial.company,
-          role: activeMatchMaterial.role,
-          skillMatch: activeMatchMaterial.skillMatch,
-          positioning: activeMatchMaterial.positioning,
-          notes: activeMatchMaterial.notes,
-          companyResearch: companyResearchDraft || undefined,
-          jobDescription: activeMatchMaterial.jobDescription,
-          resumeContext: {
-            candidate: candidateMeta,
-            assembled: {
-              resume: fullResumeContext,
-              matchEvidence: buildJobPromptContext(activeMatchMaterial),
-            },
-            identity: freshIdentity,
-          },
-        })
-
-        const id = createId('clt')
-        addTemplate({
-          id,
-          name: generated.name,
-          header: generated.header,
-          greeting: generated.greeting,
-          paragraphs: generated.paragraphs.map((paragraph) => ({
-            id: createId('clp'),
-            label: paragraph.label,
-            text: paragraph.text,
-            vectors: {},
-          })),
-          signOff: generated.signOff,
-          source: 'match',
-          generatedAt: new Date().toISOString(),
-        })
-        cancelEditing()
-        setSelectedTemplateId(id)
-        return
-      }
-
       if (!selectedEntry) {
         setGenerationError('Choose a pipeline entry before generating a cover letter.')
+        return
+      }
+      if (!selectedResume) {
+        setGenerationError('Choose the resume this cover letter should accompany.')
+        return
+      }
+      const freshResume = useResumeStore.getState().resumes.find((resume) => resume.id === selectedResume.id)
+      if (!freshResume) {
+        setGenerationError('The selected source resume is no longer available.')
         return
       }
       if (!selectedEntry.jobDescription.trim()) {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
+      }
+
+      const resumeContent = freshResume.content
+      const candidateMeta = resolveCoverLetterCandidateMeta(resumeContent.meta, freshIdentity)
+      const fullResumeContext = {
+        ...(stripResumeVectorContext(resumeContent) as Record<string, unknown>),
+        meta: candidateMeta,
       }
 
       const generated = await generateCoverLetter(aiEndpoint, {
@@ -467,9 +439,8 @@ export function LettersPage() {
         },
       })
 
-      const id = createId('clt')
-      addTemplate({
-        id,
+      const generatedAt = new Date().toISOString()
+      const content: CoverLetterContent = {
         name: generated.name,
         header: generated.header,
         greeting: generated.greeting,
@@ -480,12 +451,21 @@ export function LettersPage() {
           vectors: {},
         })),
         signOff: generated.signOff,
-        source: 'pipeline',
+      }
+      const letter = upsertLetterForPipelineEntry({
+        content,
         pipelineEntryId: selectedEntry.id,
-        generatedAt: new Date().toISOString(),
+        sourceResumeId: freshResume.id,
+        sourceResumeHash: freshResume.contentHash,
+        identityVersion: resolveLetterIdentityVersion(freshResume, freshIdentity),
+        generatedAt,
+      })
+      updatePipelineEntry(selectedEntry.id, {
+        coverLetterId: letter.id,
+        resumeId: selectedEntry.resumeId ?? freshResume.id,
       })
       cancelEditing()
-      setSelectedTemplateId(id)
+      setSelectedTemplateId(letter.id)
     } catch (error) {
       setGenerationError(error instanceof Error ? error.message : 'Cover letter generation failed.')
     } finally {
@@ -611,7 +591,8 @@ export function LettersPage() {
           <button 
             className="letters-btn-icon" 
             onClick={handleCreateTemplate} 
-            title="New Variant"
+            disabled={!canCreateDraft}
+            title={canCreateDraft ? 'New Variant' : 'Choose a pipeline entry and source resume first'}
             aria-label="Create New Variant"
           >
             <Plus size={16} />
@@ -626,7 +607,7 @@ export function LettersPage() {
               >
                 <span className="letters-history-title">{t.name}</span>
                 <span className="letters-history-meta">
-                  {t.pipelineEntryId ? 'Pipeline variant' : t.source === 'match' ? 'Match variant' : 'Manual variant'}
+                  {t.pipelineEntryId ? 'Pipeline variant' : 'Legacy variant'}
                 </span>
               </button>
               <button 
@@ -650,15 +631,15 @@ export function LettersPage() {
           <div className="letters-generator-header">
             <div>
               <p className="letters-generator-eyebrow">AI Draft</p>
-              <h3 id="letters-generator-title">Generate a cover letter variant from the current match report or a pipeline opportunity</h3>
+              <h3 id="letters-generator-title">Generate a cover letter draft from a pipeline opportunity</h3>
               <p className="letters-generator-copy">
-                Generation uses the full candidate context and job details, not resume vectors. Pipeline variants stay attached to their opportunity.
+                Generation uses the selected resume, identity model, and pipeline job context. Drafts stay attached to their opportunity.
               </p>
             </div>
             <button
               className="letters-btn letters-btn-primary ai-working-button"
               onClick={() => void handleGenerate()}
-              disabled={isGenerating || (generationSource === 'match' ? !matchMaterial : candidateEntries.length === 0)}
+              disabled={!canGenerate}
               aria-busy={isGenerating}
               aria-describedby={[
                 helperMessage ? 'letters-generator-help' : null,
@@ -675,58 +656,40 @@ export function LettersPage() {
             expectedDurationMs={45000}
           />
 
-          {(currentReport || candidateEntries.length > 0) ? (
+          {candidateEntries.length > 0 ? (
             <>
-              {currentReport && (
-                <div className="letters-generator-grid">
-                  <fieldset className="letters-field letters-fieldset">
-                    <legend>Source</legend>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button
-                        className={`letters-btn ${generationSource === 'match' ? 'letters-btn-primary' : ''}`}
-                        type="button"
-                        onClick={() => handleSourceChange('match')}
-                        aria-pressed={generationSource === 'match'}
-                      >
-                        Current Match Report
-                      </button>
-                      <button
-                        className={`letters-btn ${generationSource === 'pipeline' ? 'letters-btn-primary' : ''}`}
-                        type="button"
-                        onClick={() => handleSourceChange('pipeline')}
-                        aria-pressed={generationSource === 'pipeline'}
-                      >
-                        Pipeline Entry
-                      </button>
-                    </div>
-                  </fieldset>
-                </div>
-              )}
-
               <div className="letters-generator-grid">
-                {generationSource === 'match' && matchMaterial ? (
-                  <div className="letters-field" style={{ gridColumn: '1 / -1' }}>
-                    <label>Current match context</label>
-                    <div className="letters-generator-note">
-                      {matchMaterial.company} - {matchMaterial.role} · Match {Math.round(matchMaterial.matchScore * 100)}%
-                      {matchMaterial.skillMatch ? ` · Skills: ${matchMaterial.skillMatch}` : ''}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="letters-field" style={{ gridColumn: '1 / -1' }}>
-                    <label htmlFor="cl-entry">Pipeline Entry</label>
-                    <select id="cl-entry" value={selectedEntryId} onChange={(event) => handleEntryChange(event.target.value)}>
-                      <option value="" disabled hidden>
-                        Select an opportunity
+                <div className="letters-field">
+                  <label htmlFor="cl-entry">Pipeline Entry</label>
+                  <select id="cl-entry" value={selectedEntryId} onChange={(event) => handleEntryChange(event.target.value)}>
+                    <option value="" disabled hidden>
+                      Select an opportunity
+                    </option>
+                    {candidateEntries.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.company} - {entry.role}
                       </option>
-                      {candidateEntries.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.company} - {entry.role}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                    ))}
+                  </select>
+                </div>
+                <div className="letters-field">
+                  <label htmlFor="cl-resume">Source Resume</label>
+                  <select
+                    id="cl-resume"
+                    value={selectedResumeId}
+                    onChange={(event) => setSelectedResumeId(event.target.value)}
+                    disabled={resumeOptions.length === 0}
+                  >
+                    <option value="" disabled hidden>
+                      Select a resume
+                    </option>
+                    {resumeOptions.map((resume) => (
+                      <option key={resume.id} value={resume.id}>
+                        {resume.content.meta.name || 'Untitled resume'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="letters-field">
@@ -741,7 +704,7 @@ export function LettersPage() {
               </div>
             </>
           ) : (
-            <p id="letters-generator-help" className="letters-generator-note">Generate a match report or add a pipeline opportunity with a job description to generate a cover letter draft.</p>
+            <p id="letters-generator-help" className="letters-generator-note">Add a pipeline opportunity with a job description to generate a cover letter draft.</p>
           )}
 
           {candidateEntries.length > 0 && helperMessage && (
@@ -931,7 +894,12 @@ export function LettersPage() {
           <div className="letters-empty-state">
             <div className="letters-empty-state-content">
               <p>Select a history item or create a variant to start building cover letters.</p>
-              <button className="letters-btn letters-btn-primary" onClick={handleCreateTemplate}>
+              <button
+                className="letters-btn letters-btn-primary"
+                onClick={handleCreateTemplate}
+                disabled={!canCreateDraft}
+                title={canCreateDraft ? 'Create Variant' : 'Choose a pipeline entry and source resume first'}
+              >
                 <Plus size={16} /> Create Variant
               </button>
             </div>

@@ -28,6 +28,14 @@ interface CreateCoverLetterInput {
 type CoverLetterTemplatePatch = Partial<CoverLetterContent> &
   Partial<Pick<CoverLetter, 'stalenessReview'>>
 
+type CoverLetterDeleteHandler = (id: string) => void
+
+let coverLetterDeleteHandler: CoverLetterDeleteHandler | null = null
+
+export const registerCoverLetterDeleteHandler = (handler: CoverLetterDeleteHandler | null) => {
+  coverLetterDeleteHandler = handler
+}
+
 interface CoverLetterState {
   letters: CoverLetter[]
   snapshots: CoverLetterSnapshot[]
@@ -55,8 +63,13 @@ interface CoverLetterState {
   importTemplates: (templates: CoverLetterTemplate[]) => void
 }
 
-const legacyTemplatesFromLetters = (letters: CoverLetter[]) =>
-  letters.map((letter) => coverLetterToLegacyTemplate(letter))
+const legacyTemplatesFromLetters = (letters: CoverLetter[], existingTemplates: CoverLetterTemplate[] = []) => {
+  const projectedTemplates = letters.map((letter) => coverLetterToLegacyTemplate(letter))
+  const projectedIds = new Set(projectedTemplates.map((template) => template.id))
+  const legacyOnlyTemplates = existingTemplates.filter((template) => !projectedIds.has(template.id))
+
+  return [...projectedTemplates, ...legacyOnlyTemplates]
+}
 
 const stateFromWorkspaceData = (data: CoverLetterWorkspaceData) => ({
   letters: data.letters,
@@ -80,7 +93,7 @@ export const useCoverLetterStore = create<CoverLetterState>()((set, get) => ({
       const letters = [...state.letters, letter]
       return {
         letters,
-        templates: legacyTemplatesFromLetters(letters),
+        templates: legacyTemplatesFromLetters(letters, state.templates),
         activeLetterId: letter.id,
       }
     })
@@ -104,7 +117,7 @@ export const useCoverLetterStore = create<CoverLetterState>()((set, get) => ({
       const letters = state.letters.map((item) => (item.id === letter.id ? letter : item))
       return {
         letters,
-        templates: legacyTemplatesFromLetters(letters),
+        templates: legacyTemplatesFromLetters(letters, state.templates),
         activeLetterId: letter.id,
       }
     })
@@ -118,7 +131,7 @@ export const useCoverLetterStore = create<CoverLetterState>()((set, get) => ({
       )
       return {
         letters,
-        templates: legacyTemplatesFromLetters(letters),
+        templates: legacyTemplatesFromLetters(letters, state.templates),
       }
     })
   },
@@ -130,10 +143,14 @@ export const useCoverLetterStore = create<CoverLetterState>()((set, get) => ({
         state.activeLetterId === id ? letters[0]?.id ?? null : state.activeLetterId
       return {
         letters,
-        templates: legacyTemplatesFromLetters(letters),
+        templates: legacyTemplatesFromLetters(
+          letters,
+          state.templates.filter((template) => template.id !== id),
+        ),
         activeLetterId,
       }
     })
+    coverLetterDeleteHandler?.(id)
   },
 
   addSnapshot: (snapshot) => {
@@ -179,11 +196,27 @@ export const useCoverLetterStore = create<CoverLetterState>()((set, get) => ({
   },
 
   updateTemplate: (id, patch) => {
-    get().updateLetter(id, patch)
+    if (get().letters.some((letter) => letter.id === id)) {
+      get().updateLetter(id, patch)
+      return
+    }
+
+    set((state) => ({
+      templates: state.templates.map((template) =>
+        template.id === id ? { ...template, ...patch } : template,
+      ),
+    }))
   },
 
   deleteTemplate: (id) => {
-    get().deleteLetter(id)
+    if (get().letters.some((letter) => letter.id === id)) {
+      get().deleteLetter(id)
+      return
+    }
+
+    set((state) => ({
+      templates: state.templates.filter((template) => template.id !== id),
+    }))
   },
 
   importTemplates: (_templates) => {

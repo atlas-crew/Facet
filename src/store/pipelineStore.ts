@@ -25,7 +25,7 @@ import {
 } from '../utils/resumeGeneration'
 import { useJDAnalysisStore } from './jdAnalysisStore'
 import { useResumeStore } from './resumeStore'
-import { useCoverLetterStore } from './coverLetterStore'
+import { registerCoverLetterDeleteHandler, useCoverLetterStore } from './coverLetterStore'
 import { useIdentityStore } from './identityStore'
 import { createCoverLetterSnapshot } from '../utils/coverLetterEntities'
 
@@ -508,3 +508,13 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
         }))
       },
     }))
+
+registerCoverLetterDeleteHandler((coverLetterId) => {
+  usePipelineStore.setState((state) => ({
+    entries: state.entries.map((entry) =>
+      entry.coverLetterId === coverLetterId
+        ? normalizeEntry({ ...entry, coverLetterId: null }, { touch: true })
+        : entry,
+    ),
+  }))
+})

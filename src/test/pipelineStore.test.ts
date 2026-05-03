@@ -98,6 +98,30 @@ describe('pipelineStore', () => {
     expect(updated.durableMeta?.revision).toBe((before.durableMeta?.revision ?? 0) + 1)
   })
 
+  it('clears pipeline cover letter links when the linked letter is deleted', () => {
+    usePipelineStore.getState().addEntry(makeEntry({ coverLetterId: 'letter-1' }))
+    usePipelineStore.getState().addEntry(makeEntry({ company: 'Other Corp', coverLetterId: 'letter-2' }))
+    const entryId = usePipelineStore.getState().entries[0].id
+    useCoverLetterStore.getState().createLetter({
+      id: 'letter-1',
+      content: {
+        name: 'Acme Letter',
+        header: 'Jane Smith',
+        greeting: 'Dear Hiring Manager,',
+        paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: {} }],
+        signOff: 'Sincerely, Jane',
+      },
+      pipelineEntryId: entryId,
+      sourceResumeId: 'resume-1',
+      sourceResumeHash: 'hash-1',
+    })
+
+    useCoverLetterStore.getState().deleteLetter('letter-1')
+
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBeNull()
+    expect(usePipelineStore.getState().entries[1]?.coverLetterId).toBe('letter-2')
+  })
+
   it('soft-deletes an entry without removing durable records', () => {
     usePipelineStore.getState().addEntry(makeEntry())
     usePipelineStore.getState().addEntry(makeEntry({ company: 'Other' }))

@@ -5,40 +5,22 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { LettersPage } from '../routes/letters/LettersPage'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useIdentityStore } from '../store/identityStore'
-import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
-import { useResumeStore } from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { stripResumeVectorContext } from '../utils/coverLetterContext'
-import type { MatchAssetScore, MatchReport } from '../types/match'
-
-function createMatchAsset(id: string, label: string): MatchAssetScore {
-  return {
-    kind: 'skill',
-    id,
-    label,
-    sourceLabel: 'Infrastructure',
-    text: label,
-    tags: [label.toLowerCase()],
-    matchedTags: [label.toLowerCase()],
-    matchedKeywords: [label],
-    matchedRequirementIds: ['req-1'],
-    score: 0.8,
-  }
-}
 
 describe('LettersPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     resolveStorage().removeItem('facet-cover-letter-data')
     resolveStorage().removeItem('vector-resume-data')
-    useCoverLetterStore.setState({ templates: [] })
+    useCoverLetterStore.setState({ letters: [], snapshots: [], activeLetterId: null, templates: [] })
     useIdentityStore.setState({ currentIdentity: null })
-    useMatchStore.setState({ jobDescription: '', currentReport: null, warnings: [], history: [] })
     useResumeStore.setState({
-      data: JSON.parse(JSON.stringify(defaultResumeData)),
+      ...normalizeResumeWorkspaceData(JSON.parse(JSON.stringify(defaultResumeData))),
       past: [],
       future: [],
       canUndo: false,
@@ -60,6 +42,8 @@ describe('LettersPage', () => {
           presetId: null,
           resumeVariant: '',
           resumeGeneration: null,
+          resumeId: 'resume-local-default',
+          coverLetterId: null,
           positioning: 'Emphasize backend platform depth.',
           skillMatch: 'distributed systems, platform',
           nextStep: '',
@@ -176,10 +160,161 @@ describe('LettersPage', () => {
     expect(prompt).not.toContain('"vectorId"')
     expect(prompt).not.toContain('"manualOverrides"')
     expect(prompt).not.toContain('"jobDescription"')
-    expect(useCoverLetterStore.getState().templates[0]).toMatchObject({
+    const letter = useCoverLetterStore.getState().letters[0]
+    expect(letter).toMatchObject({
       source: 'pipeline',
       pipelineEntryId: 'pipe-1',
+      sourceResumeId: 'resume-local-default',
     })
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(letter?.id)
+  })
+
+  it('clears the pipeline draft link when deleting a generated letter', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+
+    const letter = useCoverLetterStore.getState().letters[0]
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(letter?.id)
+
+    fireEvent.click(screen.getByLabelText(`Delete ${letter?.name}`))
+
+    expect(confirm).toHaveBeenCalledWith(`Are you sure you want to delete the variant "${letter?.name}"?`)
+    expect(useCoverLetterStore.getState().letters).toHaveLength(0)
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBeNull()
+  })
+
+  it('regenerates into the existing pipeline draft slot', async () => {
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    })
+    const firstLetter = useCoverLetterStore.getState().letters[0]
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Regenerated Acme Letter',
+                greeting: 'Dear Jordan Lee,',
+                signOff: 'Sincerely,\nJane Smith',
+                paragraphs: [{ text: 'Second generated paragraph.' }],
+              }),
+            },
+          },
+        ],
+      }),
+    }) as typeof fetch
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters[0]?.name).toBe('Regenerated Acme Letter')
+    })
+    expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    expect(useCoverLetterStore.getState().letters[0]?.id).toBe(firstLetter?.id)
+  })
+
+  it('confirms before replacing an existing pipeline cover letter link from create', () => {
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: state.entries.map((entry) => ({ ...entry, coverLetterId: 'existing-letter' })),
+    }))
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Create New Variant'))
+    expect(confirm).toHaveBeenCalledWith('This opportunity already has a linked cover letter draft. Replace the current draft link?')
+    expect(useCoverLetterStore.getState().letters).toHaveLength(0)
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe('existing-letter')
+
+    fireEvent.click(screen.getByLabelText('Create New Variant'))
+    expect(useCoverLetterStore.getState().letters).toHaveLength(1)
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(useCoverLetterStore.getState().letters[0]?.id)
+  })
+
+  it('hides soft-deleted pipeline entries from the generator picker', () => {
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: [
+        ...state.entries,
+        {
+          ...state.entries[0],
+          id: 'pipe-deleted',
+          company: 'Deleted Co',
+          role: 'Archived Role',
+          deletedAt: '2026-04-01T00:00:00.000Z',
+        },
+      ],
+    }))
+
+    render(<LettersPage />)
+
+    const optionLabels = Array.from((screen.getByLabelText('Pipeline Entry') as HTMLSelectElement).options).map(
+      (option) => option.textContent,
+    )
+    expect(optionLabels).toContain('Acme Corp - Staff Engineer')
+    expect(optionLabels).not.toContain('Deleted Co - Archived Role')
+  })
+
+  it('blocks generation when the selected pipeline entry has no job description', () => {
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: state.entries.map((entry) => ({ ...entry, jobDescription: '' })),
+    }))
+
+    render(<LettersPage />)
+
+    expect(screen.getByText('This pipeline entry needs a job description before AI generation will work.')).toBeTruthy()
+    expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('switches the selected source resume when changing pipeline opportunities', () => {
+    const alternateResume = useResumeStore.getState().createResume({
+      content: {
+        ...JSON.parse(JSON.stringify(defaultResumeData)),
+        meta: { ...defaultResumeData.meta, name: 'Alternate Candidate' },
+      },
+      activate: false,
+    })
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: [
+        state.entries[0],
+        {
+          ...state.entries[0],
+          id: 'pipe-2',
+          company: 'Beta Corp',
+          role: 'Platform Lead',
+          resumeId: alternateResume.id,
+          lastAction: '2026-03-10',
+          positioning: 'Lead with platform leadership.',
+          notes: 'Beta cares about team leverage.',
+          url: 'https://beta.example/jobs/2',
+        },
+      ],
+    }))
+
+    render(<LettersPage />)
+
+    fireEvent.change(screen.getByLabelText('Pipeline Entry'), { target: { value: 'pipe-2' } })
+
+    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(alternateResume.id)
+    expect((screen.getByLabelText('Additional Notes') as HTMLTextAreaElement).value).toContain(
+      'Lead with platform leadership.',
+    )
   })
 
   it('shows progress while generating an Opus cover letter', async () => {
@@ -224,6 +359,7 @@ describe('LettersPage', () => {
 
   it('renders generated letter contact from the applied identity instead of seeded resume defaults', async () => {
     const identity = cloneIdentityFixture()
+    identity.model_revision = 7
     identity.identity.name = 'Nicholas Ferguson'
     identity.identity.display_name = 'Nicholas Ferguson'
     identity.identity.email = 'nick@example.dev'
@@ -248,6 +384,7 @@ describe('LettersPage', () => {
     expect(template?.header).toContain('nick@example.dev')
     expect(template?.header).not.toContain('Jane Smith')
     expect(template?.header).not.toContain('jane@example.com')
+    expect(useCoverLetterStore.getState().letters[0]?.identityVersion).toBe(identity.model_revision)
 
     const headerCard = screen.getByText(/Nicholas Ferguson/)
     expect(headerCard.textContent).toContain('nick@example.dev')
@@ -1013,7 +1150,7 @@ describe('LettersPage', () => {
     expect((screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('creates manual variants at the top of history', () => {
+  it('creates pipeline-anchored variants at the top of history', () => {
     useCoverLetterStore.setState({
       templates: [
         {
@@ -1043,7 +1180,10 @@ describe('LettersPage', () => {
     fireEvent.click(screen.getByLabelText('Create New Variant'))
 
     const created = useCoverLetterStore.getState().templates.find((template) => template.name === 'New Variant')
-    expect(created).toMatchObject({ source: 'manual' })
+    expect(created).toMatchObject({
+      source: 'pipeline',
+      pipelineEntryId: 'pipe-1',
+    })
     expect(created?.generatedAt).toBeTruthy()
     expect(container.querySelector('.letters-template-item')?.textContent).toContain('New Variant')
   })
@@ -1303,302 +1443,14 @@ describe('LettersPage', () => {
 
     expect(useCoverLetterStore.getState().templates).toHaveLength(0)
   })
-
-  it('generates a template from the current match report without a pipeline entry', async () => {
-    const identity = cloneIdentityFixture()
-    identity.identity.name = 'Nicholas Ferguson'
-    identity.identity.display_name = 'Nicholas Ferguson'
-    identity.identity.email = 'nick@example.dev'
-    useIdentityStore.setState({ currentIdentity: identity })
-
-    const matchReport: MatchReport = {
-      generatedAt: '2026-04-02T00:00:00.000Z',
-      identityVersion: 3,
-      company: 'Atlas',
-      role: 'Staff Platform Engineer',
-      summary: 'Strong platform fit.',
-      jobDescription: 'Own platform engineering and reliability.',
-      matchScore: 0.84,
-      requirements: [],
-      topBullets: [
-        {
-          kind: 'bullet',
-          id: 'acme-b1',
-          label: 'Order pipeline',
-          sourceLabel: 'Acme',
-          text: 'Built a distributed order pipeline.',
-          tags: ['platform'],
-          matchedTags: ['platform'],
-          matchedKeywords: ['platform'],
-          matchedRequirementIds: ['req-1'],
-          score: 0.9,
-        },
-      ],
-      topSkills: [
-        createMatchAsset('skill-1', 'AWS'),
-        createMatchAsset('skill-2', 'Kubernetes'),
-        createMatchAsset('skill-3', 'TypeScript'),
-        createMatchAsset('skill-4', 'Postgres'),
-        createMatchAsset('skill-5', 'Observability'),
-        createMatchAsset('skill-6', 'Incident response'),
-        createMatchAsset('skill-7', 'GraphQL'),
-      ],
-      topProjects: [],
-      topProfiles: [
-        {
-          kind: 'profile',
-          id: 'profile-backend',
-          label: 'Backend profile',
-          sourceLabel: 'Profiles',
-          text: 'Backend systems profile.',
-          tags: ['backend'],
-          matchedTags: ['backend'],
-          matchedKeywords: ['systems'],
-          matchedRequirementIds: ['req-1'],
-          score: 0.7,
-        },
-      ],
-      topPhilosophy: [],
-      gaps: [
-        {
-          requirementId: 'gap-1',
-          label: 'Cost controls',
-          severity: 'medium',
-          reason: 'Less explicit FinOps ownership in candidate evidence.',
-          tags: ['cost'],
-        },
-        {
-          requirementId: 'gap-2',
-          label: 'ML platform',
-          severity: 'low',
-          reason: 'Adjacent platform experience but not ML-specific.',
-          tags: ['ml'],
-        },
-        {
-          requirementId: 'gap-3',
-          label: 'Terraform modules',
-          severity: 'low',
-          reason: 'Infrastructure automation evidence is broader than modules.',
-          tags: ['terraform'],
-        },
-        {
-          requirementId: 'gap-4',
-          label: 'Regulated environments',
-          severity: 'medium',
-          reason: 'Security work is present but compliance depth is not explicit.',
-          tags: ['compliance'],
-        },
-        {
-          requirementId: 'gap-5',
-          label: 'Do not include fifth gap',
-          severity: 'low',
-          reason: 'This fifth gap should be omitted from the bounded prompt context.',
-          tags: ['omit'],
-        },
-      ],
-      advantages: [
-        {
-          id: 'advantage-1',
-          claim: 'Led reliability programs across platform teams.',
-          requirementIds: ['req-1'],
-          evidence: [],
-        },
-        {
-          id: 'advantage-2',
-          claim: 'Built developer tooling that shortened release feedback loops.',
-          requirementIds: ['req-2'],
-          evidence: [],
-        },
-        {
-          id: 'advantage-3',
-          claim: 'Operated production systems with clear incident practices.',
-          requirementIds: ['req-3'],
-          evidence: [],
-        },
-        {
-          id: 'advantage-4',
-          claim: 'Do not include fourth advantage.',
-          requirementIds: ['req-4'],
-          evidence: [],
-        },
-      ],
-      positioningRecommendations: ['Lead with platform reliability.'],
-      gapFocus: [],
-      warnings: [],
-    }
-
+  it('keeps cover letter generation pipeline-only even when no opportunity exists', () => {
     usePipelineStore.setState((state) => ({ ...state, entries: [] }))
-    useMatchStore.setState({
-      jobDescription: matchReport.jobDescription,
-      currentReport: matchReport,
-      warnings: [],
-      history: [],
-    })
 
     render(<LettersPage />)
 
-    fireEvent.click(screen.getByText('Generate with AI'))
-
-    await waitFor(() => {
-      expect(useCoverLetterStore.getState().templates).toHaveLength(1)
-    })
-
-    expect(screen.getByDisplayValue('Acme Staff Engineer Cover Letter')).toBeTruthy()
-    expect(screen.getByText(/Atlas - Staff Platform Engineer/)).toBeTruthy()
-
-    const template = useCoverLetterStore.getState().templates[0]
-    expect(template?.header).toContain('Nicholas Ferguson')
-    expect(template?.header).toContain('nick@example.dev')
-    expect(template?.header).not.toContain('jane@example.com')
-    expect(template?.source).toBe('match')
-    expect(template?.generatedAt).toBeTruthy()
-
-    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
-    const body = JSON.parse((init as RequestInit).body as string)
-    const userPrompt = body.messages?.[0]?.content ?? ''
-    expect(userPrompt).toContain('Nicholas Ferguson')
-    expect(userPrompt).toContain('nick@example.dev')
-    expect(userPrompt).not.toContain('jane@example.com')
-    expect(userPrompt).toContain('Skill Match Notes: AWS, Kubernetes, TypeScript, Postgres, Observability, Incident response')
-    expect(userPrompt).not.toContain('GraphQL')
-    expect(userPrompt).toContain('Led reliability programs across platform teams.')
-    expect(userPrompt).toContain('Built developer tooling that shortened release feedback loops.')
-    expect(userPrompt).toContain('Operated production systems with clear incident practices.')
-    expect(userPrompt).not.toContain('Do not include fourth advantage.')
-    expect(userPrompt).toContain('Cost controls: Less explicit FinOps ownership in candidate evidence.')
-    expect(userPrompt).toContain('Regulated environments: Security work is present but compliance depth is not explicit.')
-    expect(userPrompt).not.toContain('Do not include fifth gap')
-  })
-
-  it('omits match-report advantage and gap headers when arrays are empty', async () => {
-    const matchReport: MatchReport = {
-      generatedAt: '2026-04-02T00:00:00.000Z',
-      identityVersion: 3,
-      company: 'Atlas',
-      role: 'Staff Platform Engineer',
-      summary: 'Sparse but usable platform fit.',
-      jobDescription: 'Own platform engineering and reliability.',
-      matchScore: 0.72,
-      requirements: [],
-      topBullets: [],
-      topSkills: [],
-      topProjects: [],
-      topProfiles: [],
-      topPhilosophy: [],
-      gaps: [],
-      advantages: [],
-      positioningRecommendations: [],
-      gapFocus: [],
-      warnings: [],
-    }
-
-    usePipelineStore.setState((state) => ({ ...state, entries: [] }))
-    useMatchStore.setState({
-      jobDescription: matchReport.jobDescription,
-      currentReport: matchReport,
-      warnings: [],
-      history: [],
-    })
-
-    render(<LettersPage />)
-
-    fireEvent.click(screen.getByText('Generate with AI'))
-
-    await waitFor(() => {
-      expect(useCoverLetterStore.getState().templates).toHaveLength(1)
-    })
-
-    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
-    const body = JSON.parse((init as RequestInit).body as string)
-    const userPrompt = body.messages?.[0]?.content ?? ''
-    expect(userPrompt).toContain('Skill Match Notes: Not provided')
-    expect(userPrompt).not.toContain('Advantages\n')
-    expect(userPrompt).not.toContain('Gap focus\n')
-  })
-
-  it('uses match-context fallbacks when company and role are blank', async () => {
-    const matchReport: MatchReport = {
-      generatedAt: '2026-04-02T00:00:00.000Z',
-      identityVersion: 3,
-      company: '   ',
-      role: '   ',
-      summary: 'Sparse but usable platform fit.',
-      jobDescription: 'Own platform engineering and reliability.',
-      matchScore: 0.72,
-      requirements: [],
-      topBullets: [],
-      topSkills: [],
-      topProjects: [],
-      topProfiles: [],
-      topPhilosophy: [],
-      gaps: [],
-      advantages: [],
-      positioningRecommendations: [],
-      gapFocus: [],
-      warnings: [],
-    }
-
-    usePipelineStore.setState((state) => ({ ...state, entries: [] }))
-    useMatchStore.setState({
-      jobDescription: matchReport.jobDescription,
-      currentReport: matchReport,
-      warnings: [],
-      history: [],
-    })
-
-    render(<LettersPage />)
-
-    fireEvent.click(screen.getByText('Generate with AI'))
-
-    await waitFor(() => {
-      expect(useCoverLetterStore.getState().templates).toHaveLength(1)
-    })
-
-    expect(screen.getByText(/Target Company - Target Role/)).toBeTruthy()
-    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
-    const body = JSON.parse((init as RequestInit).body as string)
-    const userPrompt = body.messages?.[0]?.content ?? ''
-    expect(userPrompt).toContain('Target Company: Target Company')
-    expect(userPrompt).toContain('Target Role: Target Role')
-  })
-
-  it('lets the user switch from match generation back to a pipeline opportunity', () => {
-    const matchReport: MatchReport = {
-      generatedAt: '2026-04-02T00:00:00.000Z',
-      identityVersion: 3,
-      company: 'Atlas',
-      role: 'Staff Platform Engineer',
-      summary: 'Strong platform fit.',
-      jobDescription: 'Own platform engineering and reliability.',
-      matchScore: 0.84,
-      requirements: [],
-      topBullets: [],
-      topSkills: [],
-      topProjects: [],
-      topProfiles: [],
-      topPhilosophy: [],
-      gaps: [],
-      advantages: [],
-      positioningRecommendations: ['Lead with platform reliability.'],
-      gapFocus: [],
-      warnings: [],
-    }
-
-    useMatchStore.setState({
-      jobDescription: matchReport.jobDescription,
-      currentReport: matchReport,
-      warnings: [],
-      history: [],
-    })
-
-    render(<LettersPage />)
-
+    expect(screen.getByText('Add a pipeline opportunity with a job description to generate a cover letter draft.')).toBeTruthy()
+    expect(screen.queryByText('Current Match Report')).toBeNull()
     expect(screen.queryByLabelText('Pipeline Entry')).toBeNull()
-    expect(screen.getByText(/Match 84%/)).toBeTruthy()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Pipeline Entry' })[0])
-
-    expect(screen.getByLabelText('Pipeline Entry')).toBeTruthy()
-    expect(screen.queryByText(/Match 84%/)).toBeNull()
+    expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
   })
 })
