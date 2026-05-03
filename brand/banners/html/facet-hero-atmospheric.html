@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Atmospheric Hero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #050709;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.hero {
+  width: 1200px;
+  height: 630px;
+  background: #0a0c10;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -55%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(108, 184, 232, 0.12) 0%,
+    rgba(45, 106, 150, 0.06) 35%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.facet-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image:
+    linear-gradient(40deg, #6cb8e8 1px, transparent 1px),
+    linear-gradient(-40deg, #6cb8e8 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+}
+
+.scan-line {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  top: 50%;
+  background: linear-gradient(
+    90deg,
+    transparent 5%,
+    rgba(108, 184, 232, 0.06) 20%,
+    rgba(108, 184, 232, 0.12) 50%,
+    rgba(108, 184, 232, 0.06) 80%,
+    transparent 95%
+  );
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 50%,
+    rgba(5, 7, 9, 0.6) 100%
+  );
+  pointer-events: none;
+}
+
+.bottom-fade {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 200px;
+  background: linear-gradient(to top, rgba(10, 12, 16, 0.8), transparent);
+  pointer-events: none;
+}
+
+.logo-group {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  margin-top: -40px;
+}
+
+.icon-wrapper {
+  filter: drop-shadow(0 0 40px rgba(108, 184, 232, 0.2))
+          drop-shadow(0 0 80px rgba(108, 184, 232, 0.08));
+}
+
+.lockup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.lockup svg {
+  filter: drop-shadow(0 0 20px rgba(108, 184, 232, 0.15));
+}
+
+.lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400;
+  font-size: 64px;
+  color: #e8ecf2;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: #5ba4d9;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.description {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  font-size: 17px;
+  color: #6b7a8d;
+  line-height: 1.6;
+  text-align: center;
+  max-width: 520px;
+}
+.description strong {
+  color: #c0c8d4;
+  font-weight: 400;
+}
+
+.corner {
+  position: absolute;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+}
+.corner-tl {
+  top: 32px; left: 32px;
+  border-top: 1px solid rgba(108, 184, 232, 0.15);
+  border-left: 1px solid rgba(108, 184, 232, 0.15);
+}
+.corner-tr {
+  top: 32px; right: 32px;
+  border-top: 1px solid rgba(108, 184, 232, 0.15);
+  border-right: 1px solid rgba(108, 184, 232, 0.15);
+}
+.corner-bl {
+  bottom: 32px; left: 32px;
+  border-bottom: 1px solid rgba(108, 184, 232, 0.15);
+  border-left: 1px solid rgba(108, 184, 232, 0.15);
+}
+.corner-br {
+  bottom: 32px; right: 32px;
+  border-bottom: 1px solid rgba(108, 184, 232, 0.15);
+  border-right: 1px solid rgba(108, 184, 232, 0.15);
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #6cb8e8;
+  border-radius: 50%;
+  opacity: 0;
+  animation: drift 8s ease-in-out infinite;
+}
+.particle:nth-child(1) { top: 25%; left: 15%; animation-delay: 0s; animation-duration: 10s; }
+.particle:nth-child(2) { top: 60%; left: 80%; animation-delay: 2s; animation-duration: 12s; }
+.particle:nth-child(3) { top: 35%; left: 70%; animation-delay: 4s; animation-duration: 9s; }
+.particle:nth-child(4) { top: 70%; left: 25%; animation-delay: 1s; animation-duration: 11s; }
+.particle:nth-child(5) { top: 15%; left: 55%; animation-delay: 3s; animation-duration: 8s; }
+.particle:nth-child(6) { top: 80%; left: 60%; animation-delay: 5s; animation-duration: 13s; }
+
+@keyframes drift {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  50% { opacity: 0.4; transform: translateY(-10px); }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="facet-grid"></div>
+  <div class="scan-line"></div>
+  <div class="vignette"></div>
+  <div class="bottom-fade"></div>
+
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+
+  <div class="logo-group">
+    <div class="icon-wrapper">
+      <svg width="72" height="104" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+        <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+        <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+        <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+        <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+      </svg>
+    </div>
+    <div class="lockup">
+      <span class="lockup-text">Facet</span>
+    </div>
+    <div class="tagline">Same diamond · Different face</div>
+    <div class="description">
+      <strong>Build a deep model of who you are professionally.</strong>
+      Then let it find the right jobs, build materials, and prep for interviews.
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

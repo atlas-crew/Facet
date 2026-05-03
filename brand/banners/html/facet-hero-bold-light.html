@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Bold Hero (Light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #e8ecf0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.hero {
+  width: 1200px;
+  height: 630px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.bg-light {
+  position: absolute;
+  top: 0; left: 0;
+  width: 55%; height: 100%;
+  background: #f8fafc;
+  z-index: 0;
+}
+
+.bg-accent {
+  position: absolute;
+  top: 0; right: 0;
+  width: 45%; height: 100%;
+  background: linear-gradient(160deg, #3d8ab8 0%, #1e5a82 100%);
+  z-index: 0;
+}
+
+.diagonal-cut {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+.diagonal-cut svg { width: 100%; height: 100%; }
+
+.watermark {
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  opacity: 0.07;
+}
+
+.content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 80px;
+}
+
+.left-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400;
+  font-size: 72px;
+  color: #0f172a;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  color: #2d6a96;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.divider {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, #2d6a96, transparent);
+}
+
+.description {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  font-size: 17px;
+  color: #64748b;
+  line-height: 1.6;
+  max-width: 420px;
+}
+.description strong {
+  color: #0f172a;
+  font-weight: 400;
+}
+
+.grid-overlay {
+  position: absolute;
+  top: 0; right: 0;
+  width: 45%; height: 100%;
+  z-index: 2;
+  opacity: 0.06;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="bg-light"></div>
+  <div class="bg-accent"></div>
+
+  <div class="diagonal-cut">
+    <svg viewBox="0 0 1200 630" preserveAspectRatio="none" fill="none">
+      <polygon points="0,0 660,0 780,630 0,630" fill="#f8fafc"/>
+      <line x1="660" y1="0" x2="780" y2="630" stroke="#2d6a96" stroke-width="1" opacity="0.2"/>
+    </svg>
+  </div>
+
+  <div class="grid-overlay"></div>
+
+  <div class="watermark">
+    <svg width="320" height="464" viewBox="0 0 22 32" fill="none">
+      <path d="M6 2 H16 L20 9 H2 Z" fill="rgba(255,255,255,0.5)"/>
+      <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="rgba(255,255,255,0.15)"/>
+      <path d="M2 9 L11 31 L11 9 Z" fill="rgba(255,255,255,0.2)"/>
+      <path d="M20 9 L11 31 L11 9 Z" fill="rgba(255,255,255,0.35)"/>
+      <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <line x1="11" y1="2" x2="11" y2="31" stroke="rgba(255,255,255,0.1)" stroke-width="0.35"/>
+    </svg>
+  </div>
+
+  <div class="content">
+    <div class="left-content">
+      <div class="lockup">
+        <svg width="56" height="81" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+          <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+        </svg>
+        <span class="lockup-text">Facet</span>
+      </div>
+      <div class="divider"></div>
+      <div class="tagline">Same diamond · Different face</div>
+      <div class="description">
+        <strong>Build a deep model of who you are professionally.</strong>
+        Then let it find the right jobs, build materials, and prep for interviews.
+        Open source. Self-hostable. $49 when you need it.
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

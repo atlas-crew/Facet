@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet Brand Reference Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #050709; margin: 0; padding: 48px; font-family: 'DM Sans', system-ui; }
+
+.card {
+  max-width: 1100px; margin: 0 auto;
+  background: #0a0c10; border: 1px solid #252a36; border-radius: 12px;
+  padding: 56px 64px; display: flex; flex-direction: column; gap: 48px;
+}
+
+.section-title {
+  font-size: 11px; color: #5ba4d9; font-weight: 500;
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px;
+}
+
+.row { display: flex; align-items: center; gap: 32px; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+
+.label {
+  font-size: 11px; color: #6b7a8d; font-family: 'DM Mono', monospace; line-height: 1.5;
+}
+
+.swatch-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch {
+  width: 56px; height: 40px; border-radius: 5px;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
+}
+.swatch-label { font-size: 7.5px; font-family: 'DM Mono', monospace; letter-spacing: 0.3px; }
+
+.swatch-wide {
+  width: 72px; height: 44px; border-radius: 5px;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
+}
+
+.dep { opacity: 0.3; }
+.dep-tag {
+  font-size: 9px; color: #f07178; font-family: 'DM Mono', monospace;
+  letter-spacing: 1px; text-transform: uppercase; margin-left: 8px;
+}
+
+.divider { width: 100%; height: 1px; background: #1a1e28; }
+</style>
+</head>
+<body>
+<div class="card">
+
+<!-- ─── HEADER ─── -->
+<div>
+  <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+    <svg viewBox="0 0 22 32" width="44" height="64" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/><path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/><path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/><path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/><line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/><line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/></svg>
+    <span style="font-family:'Instrument Serif'; font-size:64px; font-weight:400; color:#e8ecf2; letter-spacing:2px; line-height:1;">Facet</span>
+  </div>
+  <div style="font-family:'DM Mono'; font-size:13px; color:#5ba4d9; letter-spacing:1.5px; opacity:0.65;">SAME DIAMOND · DIFFERENT FACE</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─── MARKS ─── -->
+<div style="display:flex; gap:64px;">
+  <div>
+    <div class="section-title">Gem mark (primary icon)</div>
+    <div style="display:flex; gap:28px; align-items:flex-end;">
+      <div class="col" style="align-items:center;">
+        <svg viewBox="0 0 22 32" width="48" height="70" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#5ba4d9"/><path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#6cb8e8" opacity="0.25"/><path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/><path d="M20 9 L11 31 L11 9 Z" fill="#3d88b8"/><line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#6cb8e8" stroke-width="0.5" opacity="0.5"/><line x1="11" y1="2" x2="11" y2="31" stroke="#6cb8e8" stroke-width="0.35" opacity="0.25"/></svg>
+        <span class="label">Default</span>
+      </div>
+      <div class="col" style="align-items:center;">
+        <svg viewBox="0 0 22 32" width="48" height="70" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/><path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/><path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/><path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/><line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/><line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/></svg>
+        <span class="label">Active</span>
+      </div>
+      <div class="col" style="align-items:center;">
+        <div style="background:#f8fafc; border-radius:6px; padding:12px 16px; display:flex; gap:20px; align-items:flex-end;">
+          <div class="col" style="align-items:center;">
+            <svg viewBox="0 0 22 32" width="48" height="70" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/><path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/><path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/><path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/><line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/></svg>
+            <span style="font-size:11px; color:#64748b; font-family:'DM Mono',monospace;">Light bg</span>
+          </div>
+        </div>
+      </div>
+      <div class="col" style="align-items:center;">
+        <svg viewBox="0 0 22 32" width="24" height="35" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#5ba4d9"/><path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/><path d="M20 9 L11 31 L11 9 Z" fill="#3d88b8"/></svg>
+        <span class="label">24px</span>
+      </div>
+      <div class="col" style="align-items:center;">
+        <svg viewBox="0 0 22 32" width="16" height="23" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#5ba4d9"/><path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/><path d="M20 9 L11 31 L11 9 Z" fill="#3d88b8"/></svg>
+        <span class="label">Favicon</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Wordmark lockup</div>
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+      <svg viewBox="0 0 22 32" width="28" height="41" fill="none"><path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/><path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/><path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/><path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/><line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/></svg>
+      <span style="font-family:'Instrument Serif'; font-size:36px; font-weight:400; color:#e8ecf2; letter-spacing:1px; line-height:1;">Facet</span>
+    </div>
+    <span class="label">Instrument Serif 400</span>
+    <div class="dep" style="display:flex; align-items:center; gap:4px; margin-top:16px;">
+      <svg viewBox="0 0 34 42" width="20" height="25" fill="none"><defs><clipPath id="du"><path d="M0 0 H34 V42 L0 21 Z"/></clipPath><clipPath id="dl"><path d="M0 21 L34 42 V42 H0 Z"/></clipPath></defs><g clip-path="url(#du)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#6cb8e8"/></g><g clip-path="url(#dl)"><path d="M4 2 H28 V10 H13 V18 H24 V26 H13 V40 H4 Z" fill="#2d6a96"/></g></svg>
+      <span style="font-family:'Outfit'; font-size:20px; font-weight:300; color:#e8ecf2; letter-spacing:-0.5px; line-height:1;">acet</span>
+      <span class="dep-tag">deprecated</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─── COLORS ─── -->
+<div>
+  <div class="section-title">Color system</div>
+  <div style="display:flex; gap:48px; flex-wrap:wrap;">
+
+    <div class="col" style="gap:12px;">
+      <span class="label">Brand blue · #2d6a96 is primary</span>
+      <div class="swatch-row">
+        <div class="swatch" style="background:#1e5a82;"><span class="swatch-label" style="color:#5ba4d9;">#1e5a82</span></div>
+        <div class="swatch" style="background:#2d6a96; outline:2px solid #5ba4d9; outline-offset:-2px;"><span class="swatch-label" style="color:#7ac4f0;">#2d6a96</span></div>
+        <div class="swatch" style="background:#3d88b8;"><span class="swatch-label" style="color:#e8ecf2;">#3d88b8</span></div>
+        <div class="swatch" style="background:#4a94c8;"><span class="swatch-label" style="color:#e8ecf2;">#4a94c8</span></div>
+        <div class="swatch" style="background:#5ba4d9;"><span class="swatch-label" style="color:#0a0c10;">#5ba4d9</span></div>
+        <div class="swatch" style="background:#6cb8e8;"><span class="swatch-label" style="color:#0a0c10;">#6cb8e8</span></div>
+        <div class="swatch" style="background:#7ac4f0;"><span class="swatch-label" style="color:#0a0c10;">#7ac4f0</span></div>
+      </div>
+    </div>
+
+    <div class="col" style="gap:12px;">
+      <span class="label">Status</span>
+      <div class="swatch-row">
+        <div class="swatch-wide" style="background:#3fbf8a;"><span class="swatch-label" style="color:#0a0c10;">success</span></div>
+        <div class="swatch-wide" style="background:#d8a34d;"><span class="swatch-label" style="color:#0a0c10;">warning</span></div>
+        <div class="swatch-wide" style="background:#f07178;"><span class="swatch-label" style="color:#0a0c10;">error</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:48px; margin-top:20px; flex-wrap:wrap;">
+    <div class="col" style="gap:12px;">
+      <span class="label">Dark surfaces</span>
+      <div class="swatch-row">
+        <div class="swatch-wide" style="background:#0a0c10; border:1px solid #252a36;"><span class="swatch-label" style="color:#6b7a8d;">bg-primary</span></div>
+        <div class="swatch-wide" style="background:#0e1117; border:1px solid #252a36;"><span class="swatch-label" style="color:#6b7a8d;">bg-inset</span></div>
+        <div class="swatch-wide" style="background:#12151c; border:1px solid #252a36;"><span class="swatch-label" style="color:#6b7a8d;">bg-surface</span></div>
+        <div class="swatch-wide" style="background:#171b24; border:1px solid #252a36;"><span class="swatch-label" style="color:#6b7a8d;">bg-hover</span></div>
+        <div class="swatch-wide" style="background:#252a36;"><span class="swatch-label" style="color:#6b7a8d;">border</span></div>
+        <div class="swatch-wide" style="background:#303745;"><span class="swatch-label" style="color:#c0c8d4;">border+</span></div>
+      </div>
+    </div>
+
+    <div class="col" style="gap:12px;">
+      <span class="label">Dark text</span>
+      <div class="swatch-row">
+        <div class="swatch-wide" style="background:#e8ecf2;"><span class="swatch-label" style="color:#0a0c10;">primary</span></div>
+        <div class="swatch-wide" style="background:#c0c8d4;"><span class="swatch-label" style="color:#0a0c10;">secondary</span></div>
+        <div class="swatch-wide" style="background:#6b7a8d;"><span class="swatch-label" style="color:#e8ecf2;">tertiary</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:48px; margin-top:20px; flex-wrap:wrap;">
+    <div class="col" style="gap:12px;">
+      <span class="label">Light surfaces</span>
+      <div class="swatch-row">
+        <div class="swatch-wide" style="background:#f8fafc; border:1px solid #e2e8f0;"><span class="swatch-label" style="color:#64748b;">bg-primary</span></div>
+        <div class="swatch-wide" style="background:#ffffff; border:1px solid #e2e8f0;"><span class="swatch-label" style="color:#64748b;">bg-surface</span></div>
+        <div class="swatch-wide" style="background:#f1f5f9; border:1px solid #e2e8f0;"><span class="swatch-label" style="color:#64748b;">bg-inset</span></div>
+        <div class="swatch-wide" style="background:#e2e8f0;"><span class="swatch-label" style="color:#475569;">border</span></div>
+        <div class="swatch-wide" style="background:#cbd5e1;"><span class="swatch-label" style="color:#1e293b;">border+</span></div>
+      </div>
+    </div>
+
+    <div class="col" style="gap:12px;">
+      <span class="label">Light text</span>
+      <div class="swatch-row">
+        <div class="swatch-wide" style="background:#0f172a;"><span class="swatch-label" style="color:#f8fafc;">primary</span></div>
+        <div class="swatch-wide" style="background:#475569;"><span class="swatch-label" style="color:#f8fafc;">secondary</span></div>
+        <div class="swatch-wide" style="background:#4a5568;"><span class="swatch-label" style="color:#f8fafc;">tertiary</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─── TYPOGRAPHY ─── -->
+<div>
+  <div class="section-title">Typography</div>
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <div>
+      <span class="label" style="margin-bottom:4px; display:block;">Instrument Serif 400 — wordmark only</span>
+      <span style="font-family:'Instrument Serif'; font-size:40px; font-weight:400; color:#e8ecf2; letter-spacing:1px;">Facet</span>
+    </div>
+    <div>
+      <span class="label" style="margin-bottom:4px; display:block;">Outfit 300 — hero / marketing</span>
+      <span style="font-family:'Outfit'; font-size:28px; font-weight:300; color:#e8ecf2; letter-spacing:1px;">Same diamond, different face</span>
+    </div>
+    <div>
+      <span class="label" style="margin-bottom:4px; display:block;">DM Sans 400 — app body</span>
+      <span style="font-family:'DM Sans'; font-size:15px; font-weight:400; color:#c0c8d4; line-height:1.6;">I drop into unfamiliar environments and pick up whatever is needed to ship. I start by learning the problems of the people around me, which gives me an accelerated tour of the company.</span>
+    </div>
+    <div>
+      <span class="label" style="margin-bottom:4px; display:block;">DM Sans 500 — labels, nav</span>
+      <span style="font-family:'DM Sans'; font-size:14px; font-weight:500; color:#e8ecf2; letter-spacing:0.5px;">Identity · Build · Match · Pipeline · Prep · Letters · LinkedIn · Recruiter · Debrief</span>
+    </div>
+    <div>
+      <span class="label" style="margin-bottom:4px; display:block;">DM Mono 400 — code, values</span>
+      <span style="font-family:'DM Mono'; font-size:13px; font-weight:400; color:#5ba4d9;">identity.json v3 · 19 bullets · 4 profiles · 10 philosophy snippets · #2d6a96</span>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

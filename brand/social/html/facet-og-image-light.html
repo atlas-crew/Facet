@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Facet — OG Image (Light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #e8ecf0; margin: 0; padding: 0; }
+
+.card {
+  width: 1200px; height: 630px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.card::before {
+  content: ''; position: absolute;
+  width: 900px; height: 700px; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, rgba(45,106,150,0.06) 0%, rgba(45,106,150,0.02) 40%, transparent 70%);
+  pointer-events: none;
+}
+.facet-grid {
+  position: absolute; inset: 0; opacity: 0.04;
+  background-image: linear-gradient(40deg, #2d6a96 1px, transparent 1px), linear-gradient(-40deg, #2d6a96 1px, transparent 1px);
+  background-size: 60px 60px; pointer-events: none;
+}
+.vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(226,232,240,0.5) 100%);
+  pointer-events: none;
+}
+.corner { position: absolute; z-index: 2; width: 36px; height: 36px; }
+.corner-tl { top: 28px; left: 28px; border-top: 1px solid rgba(45,106,150,0.15); border-left: 1px solid rgba(45,106,150,0.15); }
+.corner-tr { top: 28px; right: 28px; border-top: 1px solid rgba(45,106,150,0.15); border-right: 1px solid rgba(45,106,150,0.15); }
+.corner-bl { bottom: 28px; left: 28px; border-bottom: 1px solid rgba(45,106,150,0.15); border-left: 1px solid rgba(45,106,150,0.15); }
+.corner-br { bottom: 28px; right: 28px; border-bottom: 1px solid rgba(45,106,150,0.15); border-right: 1px solid rgba(45,106,150,0.15); }
+
+.content {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 32px;
+}
+.lockup { display: flex; align-items: center; gap: 20px; }
+.lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 96px; color: #0f172a;
+  letter-spacing: 3px; line-height: 1;
+}
+.tagline {
+  font-family: 'DM Mono', monospace; font-size: 16px;
+  color: #2d6a96; letter-spacing: 2px; text-transform: uppercase; opacity: 0.6;
+}
+.pitch {
+  font-family: 'DM Sans', sans-serif; font-size: 22px; font-weight: 300;
+  color: #475569; letter-spacing: 0.3px; text-align: center; line-height: 1.5;
+  max-width: 700px;
+}
+.pitch strong { color: #0f172a; font-weight: 400; }
+.url {
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  color: #94a3b8; letter-spacing: 1px; margin-top: -8px;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="facet-grid"></div>
+  <div class="vignette"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+  <div class="content">
+    <div class="lockup">
+      <svg width="76" height="110" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+        <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+        <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+        <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+        <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+        <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+      </svg>
+      <span class="lockup-text">Facet</span>
+    </div>
+    <div class="pitch"><strong>Build a deep model of who you are professionally.</strong><br>Then let it find the right jobs, build materials, and prep for interviews.</div>
+    <div class="tagline">Open source · Free tier · Self-hostable</div>
+    <div class="url">myfacets.cv</div>
+  </div>
+</div>
+</body>
+</html>
