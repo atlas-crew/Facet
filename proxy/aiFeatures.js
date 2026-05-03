@@ -1,5 +1,4 @@
 export const FACET_AI_FEATURE_KEYS = [
-  'build.jd-analysis',
   'build.bullet-reframe',
   'identity.extract',
   'identity.deepen',

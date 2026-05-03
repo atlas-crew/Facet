@@ -53,7 +53,7 @@ import { mergeResumeData } from '../../engine/importMerge'
 import type { ResumeConfigSourceKind } from '../../engine/serializer'
 import { resolveEffectiveBulletOrders } from '../../utils/bulletOrder'
 import { buildResumePdfFileName } from '../../utils/pdfFormatting'
-import { reframeBulletForVector } from '../../utils/jdAnalyzer'
+import { reframeBulletForVector } from '../../utils/bulletReframing'
 import type {
   ResumeGenerationMode,
   ResumeGenerationVectorMode,

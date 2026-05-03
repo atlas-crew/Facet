@@ -107,12 +107,10 @@ const FEATURE_MODEL_DEFAULTS = {
   'build.bullet-reframe': CURRENT_SONNET_MODEL,
   'research.search': CURRENT_SONNET_MODEL,
   // Haiku 4.5 — mechanical field extraction
-  'build.jd-analysis': CURRENT_HAIKU_MODEL,
   'match.jd-analysis': CURRENT_HAIKU_MODEL,
 }
 
 const DEFAULT_AI_FEATURE_RATE_LIMITS = {
-  'build.jd-analysis': { max: 18, windowMs: 60_000 },
   'build.bullet-reframe': { max: 12, windowMs: 60_000 },
   'identity.extract': { max: 8, windowMs: 60_000 },
   'identity.deepen': { max: 12, windowMs: 60_000 },

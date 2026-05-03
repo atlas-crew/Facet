@@ -7,7 +7,7 @@ import { getHostedAccessToken } from './hostedSession'
  * Shared AI proxy utilities.
  *
  * Consolidates the `callLlmProxy`, `extractJsonBlock`, and `JsonExtractionError`
- * helpers previously duplicated across jdAnalyzer, prepGenerator,
+ * helpers previously duplicated across bulletReframing, prepGenerator,
  * coverLetterGenerator, and searchProfileInference.
  *
  * Each feature passes its own `model` alias (e.g. 'haiku', 'sonnet', 'opus')

@@ -13,7 +13,6 @@ import type { JDAnalysis } from '../types/jdAnalysis'
 import type { PipelineEntry } from '../types/pipeline'
 
 const {
-  analyzeJobDescriptionMock,
   reframeBulletForVectorMock,
   usePresetsMock,
   facetClientEnvMock,
@@ -21,7 +20,6 @@ const {
   vectorBarPropsMock,
   navigateMock,
 } = vi.hoisted(() => ({
-  analyzeJobDescriptionMock: vi.fn(),
   reframeBulletForVectorMock: vi.fn(),
   pdfPreviewMock: vi.fn(),
   vectorBarPropsMock: vi.fn(),
@@ -45,14 +43,9 @@ vi.mock('../utils/facetEnv', () => ({
   facetClientEnv: facetClientEnvMock,
 }))
 
-vi.mock('../utils/jdAnalyzer', async () => {
-  const actual = await vi.importActual<typeof import('../utils/jdAnalyzer')>('../utils/jdAnalyzer')
-  return {
-    ...actual,
-    analyzeJobDescription: analyzeJobDescriptionMock,
-    reframeBulletForVector: reframeBulletForVectorMock,
-  }
-})
+vi.mock('../utils/bulletReframing', () => ({
+  reframeBulletForVector: reframeBulletForVectorMock,
+}))
 
 vi.mock('../hooks/usePdfPreview', () => ({
   usePdfPreview: () => pdfPreviewMock(),
@@ -275,7 +268,6 @@ vi.mock('../components/ComparisonDiff', () => ({
 
 describe('BuildPage', () => {
   beforeEach(() => {
-    analyzeJobDescriptionMock.mockReset()
     reframeBulletForVectorMock.mockReset()
     vectorBarPropsMock.mockReset()
     navigateMock.mockReset()
@@ -652,8 +644,6 @@ describe('BuildPage', () => {
       expect(screen.getByText('Resume Vector Plan')).toBeTruthy()
     })
 
-    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
-
     expect(useUiStore.getState().suggestionModeActive).toBe(false)
 
     fireEvent.click(screen.getByLabelText('Manual'))
@@ -707,7 +697,6 @@ describe('BuildPage', () => {
     expect(within(workingContext).getByText('Run JD analysis from Pipeline before generating')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Analyze Pipeline JD|Refresh Analysis/i })).toBeNull()
     expect(screen.getByRole('button', { name: /^Open Pipeline Entry$/i })).toBeTruthy()
-    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
   })
 
   it('refreshes pipeline JD analysis from the canonical store without local analysis', async () => {
@@ -727,7 +716,6 @@ describe('BuildPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('status').textContent).toContain('Pipeline JD analysis loaded')
     })
-    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
 
     useJDAnalysisStore.setState({ analyses: [] })
     fireEvent.click(screen.getByRole('button', { name: /^Refresh from Pipeline Analysis$/i }))
@@ -736,7 +724,6 @@ describe('BuildPage', () => {
       expect(screen.getAllByText('Run JD analysis from Pipeline before generating a resume.').length).toBeGreaterThan(0)
     })
     expect(screen.getByRole('button', { name: /^Open Pipeline Entry$/i })).toBeTruthy()
-    expect(analyzeJobDescriptionMock).not.toHaveBeenCalled()
   })
 
   it('applies the default AI multi-vector plan when confirmed without manual edits', async () => {

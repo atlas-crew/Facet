@@ -134,7 +134,7 @@ describe('resolveAiAccess', () => {
           billingCustomer: null,
           billingSubscription: null,
         }),
-        'build.jd-analysis',
+        'build.bullet-reframe',
       ),
     ).toEqual({
       allowed: false,
