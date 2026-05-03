@@ -60,7 +60,7 @@ const DEFAULT_MODEL = CURRENT_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 const TASK_BUDGET_FEATURE_MAX_TOKENS = 128_000
-const TASK_BUDGET_FEATURES = new Set(['research.deep-search', 'research.thesis'])
+const TASK_BUDGET_FEATURES = new Set(['research.deep-search', 'research.thesis', 'letters.generate'])
 const TEXT_UTF8_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.map', '.svg', '.txt', '.xml'])
 const STATIC_CONTENT_TYPES = {
   '.css': 'text/css',

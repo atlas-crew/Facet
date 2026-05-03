@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Copy, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
-import { AiActivityIndicator } from '../../components/AiActivityIndicator'
+import type { KeyboardEvent } from 'react'
+import { Check, Copy, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
+import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
@@ -73,6 +74,20 @@ function buildJobPromptContext(value: unknown) {
   return rest
 }
 
+type LetterEditDraft =
+  | {
+      key: string
+      value: string
+      initialValue: string
+      target: { kind: 'field'; field: 'header' | 'greeting' | 'signOff' }
+    }
+  | {
+      key: string
+      value: string
+      initialValue: string
+      target: { kind: 'paragraph'; paragraphId: string }
+    }
+
 export function LettersPage() {
   const { templates, addTemplate, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const currentReport = useMatchStore((state) => state.currentReport)
@@ -84,6 +99,7 @@ export function LettersPage() {
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [refiningParagraphId, setRefiningParagraphId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<LetterEditDraft | null>(null)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [refinementError, setRefinementError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -108,6 +124,8 @@ export function LettersPage() {
 
   const activeTemplateId = selectedTemplateId ?? letterHistory[0]?.id ?? null
   const activeTemplate = templates.find(t => t.id === activeTemplateId)
+  const editingKey = editDraft?.key ?? null
+  const editDraftValue = editDraft?.value ?? ''
   const matchMaterial = useMemo(
     () => (currentReport ? createLetterMatchContext(currentReport) : null),
     [currentReport],
@@ -156,6 +174,7 @@ export function LettersPage() {
   }, [generationSource, matchMaterial])
 
   const handleCreateTemplate = () => {
+    if (!confirmDiscardEdit()) return
     const id = createId('clt')
     const newTemplate = {
       id,
@@ -174,6 +193,7 @@ export function LettersPage() {
       generatedAt: new Date().toISOString(),
     }
     addTemplate(newTemplate)
+    cancelEditing()
     setSelectedTemplateId(id)
   }
 
@@ -187,10 +207,88 @@ export function LettersPage() {
     updateTemplate(sourceTemplate.id, { paragraphs: newPars })
   }
 
+  const updateEditDraftValue = (value: string) => {
+    setEditDraft((current) => current ? { ...current, value } : current)
+  }
+
+  const startEditingField = (field: 'header' | 'greeting' | 'signOff', value: string) => {
+    if (!confirmDiscardEdit()) return
+    setEditDraft({
+      key: `section:${field}`,
+      value,
+      initialValue: value,
+      target: { kind: 'field', field },
+    })
+  }
+
+  const startEditingParagraph = (paragraphId: string, value: string) => {
+    if (!confirmDiscardEdit()) return
+    setEditDraft({
+      key: `paragraph:${paragraphId}:text`,
+      value,
+      initialValue: value,
+      target: { kind: 'paragraph', paragraphId },
+    })
+  }
+
+  const cancelEditing = () => {
+    setEditDraft(null)
+  }
+
+  const confirmDiscardEdit = () =>
+    !editDraft || editDraft.value === editDraft.initialValue || window.confirm('Discard unsaved edits?')
+
+  const selectTemplate = (id: string) => {
+    if (!confirmDiscardEdit()) return
+    cancelEditing()
+    setSelectedTemplateId(id)
+  }
+
+  const saveActiveEdit = () => {
+    if (!activeTemplate || !editDraft) return
+    if (editDraft.target.kind === 'field') {
+      updateTemplate(activeTemplate.id, { [editDraft.target.field]: editDraft.value })
+    } else {
+      updateParagraph(editDraft.target.paragraphId, { text: editDraft.value })
+    }
+    cancelEditing()
+  }
+
+  const handleEditKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      saveActiveEdit()
+    }
+  }
+
   const removeParagraph = (paragraphId: string) => {
     if (!activeTemplate) return
-    const newPars = activeTemplate.paragraphs.filter(p => p.id !== paragraphId)
-    updateTemplate(activeTemplate.id, { paragraphs: newPars })
+    const latestTemplate = useCoverLetterStore.getState().templates.find((template) => template.id === activeTemplate.id)
+    const sourceTemplate = latestTemplate ?? activeTemplate
+    const newPars = sourceTemplate.paragraphs.filter(p => p.id !== paragraphId)
+    updateTemplate(sourceTemplate.id, { paragraphs: newPars })
+    if (editDraft?.target.kind === 'paragraph' && editDraft.target.paragraphId === paragraphId) {
+      cancelEditing()
+    }
+  }
+
+  const addParagraph = () => {
+    if (!activeTemplate) return
+    if (!confirmDiscardEdit()) return
+    const newP: CoverLetterParagraph = {
+      id: createId('clp'),
+      text: 'New paragraph content...',
+      vectors: {},
+    }
+    const latestTemplate = useCoverLetterStore.getState().templates.find((template) => template.id === activeTemplate.id)
+    const sourceTemplate = latestTemplate ?? activeTemplate
+    updateTemplate(sourceTemplate.id, { paragraphs: [...sourceTemplate.paragraphs, newP] })
+    setEditDraft({
+      key: `paragraph:${newP.id}:text`,
+      value: newP.text,
+      initialValue: newP.text,
+      target: { kind: 'paragraph', paragraphId: newP.id },
+    })
   }
 
   const copyTextWithFlag = async (text: string, key: string) => {
@@ -207,15 +305,38 @@ export function LettersPage() {
     }
   }
 
+  const getActiveTemplateWithDraft = (): CoverLetterTemplate | null => {
+    if (!activeTemplate) return null
+    if (!editDraft) return activeTemplate
+
+    if (editDraft.target.kind === 'field') {
+      return { ...activeTemplate, [editDraft.target.field]: editDraft.value }
+    }
+
+    const draftParagraphId = editDraft.target.paragraphId
+
+    return {
+      ...activeTemplate,
+      paragraphs: activeTemplate.paragraphs.map((paragraph) =>
+        paragraph.id === draftParagraphId
+          ? { ...paragraph, text: editDraft.value }
+          : paragraph,
+      ),
+    }
+  }
+
   const handleCopyLetter = () => {
-    if (!activeTemplate) return
-    void copyTextWithFlag(composeLetterText(activeTemplate), 'letter')
+    const templateToCopy = getActiveTemplateWithDraft()
+    if (!templateToCopy) return
+    void copyTextWithFlag(composeLetterText(templateToCopy), 'letter')
   }
 
   const handleDeleteTemplate = (id: string, name: string) => {
+    if (activeTemplateId === id && !confirmDiscardEdit()) return
     if (window.confirm(`Are you sure you want to delete the variant "${name}"?`)) {
       deleteTemplate(id)
       if (activeTemplateId === id) {
+        cancelEditing()
         setSelectedTemplateId(letterHistory.find(t => t.id !== id)?.id ?? null)
       }
     }
@@ -247,6 +368,10 @@ export function LettersPage() {
     if (isGenerating) {
       return
     }
+    if (!confirmDiscardEdit()) {
+      return
+    }
+    cancelEditing()
     if (!aiEndpoint) {
       setGenerationError('AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
       return
@@ -308,6 +433,7 @@ export function LettersPage() {
           source: 'match',
           generatedAt: new Date().toISOString(),
         })
+        cancelEditing()
         setSelectedTemplateId(id)
         return
       }
@@ -358,6 +484,7 @@ export function LettersPage() {
         pipelineEntryId: selectedEntry.id,
         generatedAt: new Date().toISOString(),
       })
+      cancelEditing()
       setSelectedTemplateId(id)
     } catch (error) {
       setGenerationError(error instanceof Error ? error.message : 'Cover letter generation failed.')
@@ -397,6 +524,85 @@ export function LettersPage() {
     }
   }
 
+  const renderTemplateSection = (
+    label: string,
+    field: 'header' | 'greeting' | 'signOff',
+    rows: number,
+  ) => {
+    if (!activeTemplate) return null
+
+    const value = activeTemplate[field]
+    const editKey = `section:${field}`
+    const isEditing = editingKey === editKey
+    const copyValue = isEditing ? editDraftValue : value
+    const copyKey = field
+    const labelId = `letters-${field}-label`
+
+    return (
+      <section className="letters-section-card" aria-labelledby={labelId}>
+        <div className="letters-section-card-header">
+          <h3 id={labelId}>{label}</h3>
+          <div className="letters-section-actions">
+            <button
+              className="letters-btn-icon"
+              type="button"
+              onClick={() => void copyTextWithFlag(copyValue, copyKey)}
+              disabled={!copyValue.trim()}
+              title={`Copy ${label.toLowerCase()}`}
+              aria-label={`Copy ${label.toLowerCase()}`}
+            >
+              {copiedKey === copyKey ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            {!isEditing ? (
+              <button
+                className="letters-btn-icon"
+                type="button"
+                onClick={() => startEditingField(field, value)}
+                title={`Edit ${label.toLowerCase()}`}
+                aria-label={`Edit ${label.toLowerCase()}`}
+              >
+                <Pencil size={14} />
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {isEditing ? (
+          <div className="letters-section-edit">
+            <textarea
+              value={editDraftValue}
+	              onChange={(event) => updateEditDraftValue(event.target.value)}
+	              onKeyDown={handleEditKeyDown}
+	              rows={rows}
+	              aria-label={`${label} edit`}
+              autoFocus
+            />
+            <div className="letters-edit-actions">
+              <button
+                className="letters-btn letters-btn-primary letters-btn-sm"
+                type="button"
+                onClick={saveActiveEdit}
+              >
+                <Save size={14} /> Save
+              </button>
+              <button
+                className="letters-btn letters-btn-sm"
+                type="button"
+                onClick={cancelEditing}
+              >
+                <X size={14} /> Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="letters-section-text">
+            {value || 'Empty'}
+          </div>
+        )}
+      </section>
+    )
+  }
+
   return (
     <div className="letters-page">
       <nav className="letters-sidebar" aria-label="Cover letter history">
@@ -416,7 +622,7 @@ export function LettersPage() {
             <div key={t.id} className="letters-template-list-item">
               <button 
                 className={`letters-template-item ${activeTemplateId === t.id ? 'active' : ''}`}
-                onClick={() => setSelectedTemplateId(t.id)}
+                onClick={() => selectTemplate(t.id)}
               >
                 <span className="letters-history-title">{t.name}</span>
                 <span className="letters-history-meta">
@@ -461,11 +667,13 @@ export function LettersPage() {
             >
               <Sparkles size={14} /> {isGenerating ? 'Generating...' : 'Generate with AI'}
             </button>
-            <AiActivityIndicator
-              active={isGenerating}
-              label="AI is drafting the cover letter."
-            />
           </div>
+          <AiWorkingStatus
+            active={isGenerating}
+            label="Drafting cover letter"
+            caption="Opus 4.7 is reasoning through the candidate and job context."
+            expectedDurationMs={45000}
+          />
 
           {(currentReport || candidateEntries.length > 0) ? (
             <>
@@ -555,13 +763,13 @@ export function LettersPage() {
         {activeTemplate ? (
           <div className="letters-editor">
             <div className="letters-editor-toolbar">
-              <span className="letters-save-status">Live saved</span>
+              <span className="letters-save-status">{editingKey ? 'Editing' : 'Saved'}</span>
               <button
                 className="letters-btn letters-btn-sm"
-                type="button"
-                onClick={handleCopyLetter}
-                disabled={!composeLetterText(activeTemplate)}
-                title="Copy assembled letter to clipboard"
+	                type="button"
+	                onClick={handleCopyLetter}
+	                disabled={!composeLetterText(getActiveTemplateWithDraft() ?? activeTemplate)}
+	                title="Copy assembled letter to clipboard"
                 aria-label="Copy letter to clipboard"
               >
                 {copiedKey === 'letter' ? <Check size={14} /> : <Copy size={14} />}{' '}
@@ -575,123 +783,135 @@ export function LettersPage() {
               placeholder="Variant Name"
               aria-label="Variant Name"
             />
-            
-            <div className="letters-field">
-              <div className="letters-field-header">
-                <label htmlFor="cl-header">Header</label>
-                <button
-                  className="letters-btn-icon"
-                  type="button"
-                  onClick={() => void copyTextWithFlag(activeTemplate.header, 'header')}
-                  disabled={!activeTemplate.header.trim()}
-                  title="Copy header"
-                  aria-label="Copy header"
-                >
-                  {copiedKey === 'header' ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-              </div>
-              <textarea
-                id="cl-header"
-                value={activeTemplate.header}
-                onChange={(e) => updateTemplate(activeTemplate.id, { header: e.target.value })}
-                rows={3}
-              />
-            </div>
 
-            <div className="letters-field">
-              <div className="letters-field-header">
-                <label htmlFor="cl-greeting">Greeting</label>
-                <button
-                  className="letters-btn-icon"
-                  type="button"
-                  onClick={() => void copyTextWithFlag(activeTemplate.greeting, 'greeting')}
-                  disabled={!activeTemplate.greeting.trim()}
-                  title="Copy greeting"
-                  aria-label="Copy greeting"
-                >
-                  {copiedKey === 'greeting' ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-              </div>
-              <input
-                id="cl-greeting"
-                value={activeTemplate.greeting}
-                onChange={(e) => updateTemplate(activeTemplate.id, { greeting: e.target.value })}
-              />
-            </div>
+            {renderTemplateSection('Header', 'header', 3)}
+            {renderTemplateSection('Greeting', 'greeting', 2)}
 
             <div className="letters-paragraphs-section">
               <div className="letters-section-header">
                 <h3>Paragraphs</h3>
-                <button 
+                <button
                   className="letters-btn letters-btn-sm"
-                  onClick={() => {
-                    const newP: CoverLetterParagraph = {
-                      id: createId('clp'),
-                      text: 'New paragraph content...',
-                      vectors: {}
-                    }
-                    updateTemplate(activeTemplate.id, { paragraphs: [...activeTemplate.paragraphs, newP] })
-                  }}
+                  onClick={addParagraph}
                 >
                   <Plus size={14} /> Add Paragraph
                 </button>
               </div>
-              
+
               <div className="letters-paragraph-list">
                 {activeTemplate.paragraphs.map((p, index) => {
                   const paragraphKey = `paragraph:${p.id}`
+                  const paragraphEditKey = `paragraph:${p.id}:text`
                   const refinementId = `cl-refinement-${p.id}`
                   const isRefining = refiningParagraphId === p.id
+                  const isEditingParagraph = editingKey === paragraphEditKey
+                  const paragraphCopyValue = isEditingParagraph ? editDraftValue : p.text
                   return (
                     <div key={p.id} className="letters-paragraph-item">
                       <div className="letters-paragraph-content">
-                        <textarea
-                          value={p.text}
-                          onChange={(e) => updateParagraph(p.id, { text: e.target.value })}
-                          rows={3}
-                          aria-label={`Paragraph ${index + 1} text`}
-                          placeholder="Write your paragraph content..."
-                        />
+                        <div className="letters-paragraph-card-header">
+                          <h4>{p.label || `Paragraph ${index + 1}`}</h4>
+                          <div className="letters-section-actions">
+                            <button
+                              className="letters-btn-icon"
+                              type="button"
+                              onClick={() => void copyTextWithFlag(paragraphCopyValue, paragraphKey)}
+                              disabled={!paragraphCopyValue.trim()}
+                              aria-label={`Copy paragraph ${index + 1}`}
+                              title={`Copy paragraph ${index + 1}`}
+                            >
+                              {copiedKey === paragraphKey ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
+                            {!isEditingParagraph ? (
+	                              <button
+	                                className="letters-btn-icon"
+	                                type="button"
+	                                onClick={() => startEditingParagraph(p.id, p.text)}
+	                                disabled={isRefining}
+	                                aria-label={`Edit paragraph ${index + 1}`}
+	                                title={`Edit paragraph ${index + 1}`}
+	                              >
+	                                <Pencil size={14} />
+	                              </button>
+                            ) : null}
+	                            <button
+	                              className="letters-btn-icon letters-text-danger"
+	                              type="button"
+	                              onClick={() => removeParagraph(p.id)}
+	                              disabled={isRefining}
+	                              aria-label={`Delete paragraph ${index + 1}`}
+	                              title={`Delete paragraph ${index + 1}`}
+	                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        {isEditingParagraph ? (
+                          <div className="letters-section-edit">
+                            <textarea
+	                              value={editDraftValue}
+	                              onChange={(event) => updateEditDraftValue(event.target.value)}
+	                              onKeyDown={handleEditKeyDown}
+	                              rows={4}
+                              aria-label={`Paragraph ${index + 1} text edit`}
+                              placeholder="Write your paragraph content..."
+                              autoFocus
+                            />
+                            <div className="letters-edit-actions">
+                              <button
+                                className="letters-btn letters-btn-primary letters-btn-sm"
+                                type="button"
+                                onClick={saveActiveEdit}
+                              >
+                                <Save size={14} /> Save
+                              </button>
+                              <button
+                                className="letters-btn letters-btn-sm"
+                                type="button"
+                                onClick={cancelEditing}
+                              >
+                                <X size={14} /> Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="letters-section-text">
+                            {p.text || 'Empty'}
+                          </div>
+                        )}
                         <div className="letters-refinement">
                           <label htmlFor={refinementId}>Refinement notes</label>
                           <textarea
                             id={refinementId}
                             value={p.refinement ?? ''}
-                            onChange={(e) => updateParagraph(p.id, { refinement: e.target.value })}
-                            rows={2}
-                            aria-label={`Paragraph ${index + 1} refinement notes`}
-                            placeholder="Tell AI what to tighten, add, remove, or make more specific for this paragraph."
-                          />
+	                            onChange={(e) => updateParagraph(p.id, { refinement: e.target.value })}
+	                            rows={2}
+	                            aria-label={`Paragraph ${index + 1} refinement notes`}
+	                            placeholder="Tell AI what to tighten, add, remove, or make more specific for this paragraph."
+	                            disabled={isRefining || isEditingParagraph}
+	                          />
                           <button
                             className="letters-btn letters-btn-sm"
                             type="button"
                             onClick={() => void handleRefineParagraph(p)}
-                            disabled={!!refiningParagraphId || !p.text.trim() || !p.refinement?.trim()}
+                            disabled={
+                              !!refiningParagraphId ||
+                              isEditingParagraph ||
+                              !p.text.trim() ||
+                              !p.refinement?.trim()
+                            }
                             aria-busy={isRefining}
                           >
                             <RefreshCw size={14} /> {isRefining ? 'Refining...' : 'Refine Paragraph'}
                           </button>
+                          <AiWorkingStatus
+                            active={isRefining}
+                            label="Refining paragraph"
+                            caption="Opus 4.7 is applying the refinement notes."
+                            expectedDurationMs={30000}
+                            className="letters-refinement-activity"
+                          />
                         </div>
-                      </div>
-                      <div className="letters-paragraph-actions">
-                        <button
-                          className="letters-btn-icon"
-                          type="button"
-                          onClick={() => void copyTextWithFlag(p.text, paragraphKey)}
-                          disabled={!p.text.trim()}
-                          aria-label={`Copy paragraph ${index + 1}`}
-                          title={`Copy paragraph ${index + 1}`}
-                        >
-                          {copiedKey === paragraphKey ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
-                        <button
-                          className="letters-btn-icon letters-text-danger"
-                          onClick={() => removeParagraph(p.id)}
-                          aria-label={`Delete paragraph ${index + 1}`}
-                          title={`Delete paragraph ${index + 1}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
                       </div>
                     </div>
                   )
@@ -704,27 +924,7 @@ export function LettersPage() {
               )}
             </div>
 
-            <div className="letters-field">
-              <div className="letters-field-header">
-                <label htmlFor="cl-signoff">Sign Off</label>
-                <button
-                  className="letters-btn-icon"
-                  type="button"
-                  onClick={() => void copyTextWithFlag(activeTemplate.signOff, 'signOff')}
-                  disabled={!activeTemplate.signOff.trim()}
-                  title="Copy sign off"
-                  aria-label="Copy sign off"
-                >
-                  {copiedKey === 'signOff' ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-              </div>
-              <textarea
-                id="cl-signoff"
-                value={activeTemplate.signOff}
-                onChange={(e) => updateTemplate(activeTemplate.id, { signOff: e.target.value })}
-                rows={2}
-              />
-            </div>
+            {renderTemplateSection('Sign Off', 'signOff', 2)}
 
           </div>
         ) : (

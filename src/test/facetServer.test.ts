@@ -1257,6 +1257,66 @@ describe('facetServer persistence API', () => {
     expect(messagesCreate.mock.calls[0]).toHaveLength(1)
   })
 
+  it('allows letter generation to request enough tokens for high-effort adaptive thinking', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      defaultMaxTokens: 4096,
+      maxRequestTokens: 4096,
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind letters thinking-budget test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'letters.generate',
+        model: 'claude-opus-4-7',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Draft a letter.' }],
+        max_tokens: 16000,
+        thinking_budget: 12000,
+        output_config: { effort: 'high' },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(messagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-opus-4-7',
+        max_tokens: 16000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'high' },
+      }),
+    )
+  })
+
   it('routes drafting and suggestion features to opus 4.7 when callers send generic aliases', async () => {
     const messagesCreate = vi.fn(async () => ({
       content: [{ type: 'text', text: '{"ok":true}' }],

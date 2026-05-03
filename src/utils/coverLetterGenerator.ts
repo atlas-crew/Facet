@@ -3,8 +3,11 @@ import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type { ResumeMeta } from '../types'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
-/** Model used for cover letters — needs creative, polished prose. */
-const COVER_LETTER_MODEL = 'sonnet'
+/** Model used for cover letters — needs quality-critical prose and reasoning. */
+const COVER_LETTER_MODEL = 'opus'
+const COVER_LETTER_MAX_TOKENS = 16000
+const COVER_LETTER_THINKING_BUDGET = 12000
+const COVER_LETTER_OUTPUT_CONFIG = { effort: 'high' }
 
 interface CoverLetterGenerationPayload {
   name: string
@@ -266,7 +269,10 @@ Return JSON only.`
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'letters.generate',
     model: COVER_LETTER_MODEL,
-    timeoutMs: 45000,
+    maxTokens: COVER_LETTER_MAX_TOKENS,
+    thinkingBudget: COVER_LETTER_THINKING_BUDGET,
+    outputConfig: COVER_LETTER_OUTPUT_CONFIG,
+    timeoutMs: 180000,
   })
 
   let parsed: CoverLetterGenerationPayload
@@ -322,7 +328,10 @@ Return JSON only.`
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'letters.generate',
     model: COVER_LETTER_MODEL,
-    timeoutMs: 30000,
+    maxTokens: COVER_LETTER_MAX_TOKENS,
+    thinkingBudget: COVER_LETTER_THINKING_BUDGET,
+    outputConfig: COVER_LETTER_OUTPUT_CONFIG,
+    timeoutMs: 120000,
   })
 
   let parsed: CoverLetterParagraphRefinementPayload

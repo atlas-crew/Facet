@@ -253,6 +253,58 @@
   gap: var(--space-2);
 }
 
+.letters-section-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.letters-section-card-header,
+.letters-paragraph-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.letters-section-card-header h3,
+.letters-paragraph-card-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.letters-section-actions,
+.letters-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.letters-section-text {
+  white-space: pre-wrap;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.letters-section-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.letters-section-edit .letters-edit-actions {
+  justify-content: flex-end;
+}
+
 .letters-field label,
 .letters-field legend {
   font-size: 12px;
@@ -364,13 +416,11 @@
 }
 
 .letters-paragraph-item {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
+  display: block;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: var(--space-3);
+  padding: var(--space-4);
 }
 
 .letters-paragraph-content {
@@ -398,6 +448,10 @@
 
 .letters-refinement .letters-btn {
   align-self: flex-start;
+}
+
+.letters-refinement-activity {
+  align-self: stretch;
 }
 
 .letters-paragraph-vectors {

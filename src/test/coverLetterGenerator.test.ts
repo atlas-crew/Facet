@@ -110,6 +110,8 @@ describe('coverLetterGenerator', () => {
   })
 
   it('tags cover-letter generation requests with the paid AI feature id', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+
     await generateCoverLetter('https://ai.example/proxy', {
       company: 'Acme Corp',
       role: 'Staff Engineer',
@@ -125,8 +127,13 @@ describe('coverLetterGenerator', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual(
       expect.objectContaining({
         feature: 'letters.generate',
+        model: 'opus',
+        max_tokens: 16000,
+        thinking_budget: 12000,
+        output_config: { effort: 'high' },
       }),
     )
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180000)
   })
 
   it('adds direct connector and GitLab evidence instructions to the prompt', async () => {
@@ -160,6 +167,7 @@ describe('coverLetterGenerator', () => {
   })
 
   it('refines a single cover letter paragraph from user feedback', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -187,6 +195,11 @@ describe('coverLetterGenerator', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.feature).toBe('letters.generate')
+    expect(body.model).toBe('opus')
+    expect(body.max_tokens).toBe(16000)
+    expect(body.thinking_budget).toBe(12000)
+    expect(body.output_config).toEqual({ effort: 'high' })
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 120000)
     expect(body.system).toContain('Rewrite only the requested paragraph')
     expect(body.system).toContain('do not invent employers')
     expect(body.system).toContain('Avoid vague-positive connectors')

@@ -165,8 +165,8 @@ describe('LettersPage', () => {
     })
 
     expect(screen.getByDisplayValue('Acme Staff Engineer Cover Letter')).toBeTruthy()
-    expect(screen.getByDisplayValue('Dear Jordan Lee,')).toBeTruthy()
-    expect(screen.getByDisplayValue('I am excited to apply for the Staff Engineer role at Acme Corp.')).toBeTruthy()
+    expect(screen.getByText('Dear Jordan Lee,')).toBeTruthy()
+    expect(screen.getByText('I am excited to apply for the Staff Engineer role at Acme Corp.')).toBeTruthy()
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
@@ -179,6 +179,46 @@ describe('LettersPage', () => {
     expect(useCoverLetterStore.getState().templates[0]).toMatchObject({
       source: 'pipeline',
       pipelineEntryId: 'pipe-1',
+    })
+  })
+
+  it('shows progress while generating an Opus cover letter', async () => {
+    let resolveFetch: ((response: Response) => void) | undefined
+    global.fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        }),
+    ) as typeof fetch
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Drafting cover letter/)).toBeTruthy()
+    })
+    if (!resolveFetch) throw new Error('Expected generation request to be in flight.')
+    resolveFetch({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                name: 'Acme Staff Engineer Cover Letter',
+                greeting: 'Dear Jordan Lee,',
+                signOff: 'Sincerely,\nJane Smith',
+                paragraphs: [{ text: 'Generated paragraph.' }],
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().templates).toHaveLength(1)
     })
   })
 
@@ -209,10 +249,9 @@ describe('LettersPage', () => {
     expect(template?.header).not.toContain('Jane Smith')
     expect(template?.header).not.toContain('jane@example.com')
 
-    const headerTextarea = screen.getByLabelText('Header') as HTMLTextAreaElement
-    expect(headerTextarea.value).toContain('Nicholas Ferguson')
-    expect(headerTextarea.value).toContain('nick@example.dev')
-    expect(headerTextarea.value).not.toContain('jane@example.com')
+    const headerCard = screen.getByText(/Nicholas Ferguson/)
+    expect(headerCard.textContent).toContain('nick@example.dev')
+    expect(headerCard.textContent).not.toContain('jane@example.com')
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
@@ -268,7 +307,7 @@ describe('LettersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Refine Paragraph/ }))
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Sharper paragraph with concrete role detail.')).toBeTruthy()
+      expect(screen.getByText('Sharper paragraph with concrete role detail.')).toBeTruthy()
     })
 
     const paragraph = useCoverLetterStore.getState().templates[0]?.paragraphs[0]
@@ -319,9 +358,11 @@ describe('LettersPage', () => {
     })
     expect(refineButton.disabled).toBe(false)
 
-    fireEvent.change(screen.getByLabelText('Paragraph 1 text'), {
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
       target: { value: '' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(refineButton.disabled).toBe(true)
   })
 
@@ -399,10 +440,19 @@ describe('LettersPage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Refine Paragraph/ })[0])
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalled()
+      expect(screen.getByText(/Refining paragraph/)).toBeTruthy()
     })
-    fireEvent.change(screen.getByLabelText('Paragraph 2 text'), {
+    expect((screen.getByLabelText('Edit paragraph 1') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Delete paragraph 1') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Paragraph 1 refinement notes') as HTMLTextAreaElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Edit paragraph 2') as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByLabelText('Paragraph 2 refinement notes') as HTMLTextAreaElement).disabled).toBe(false)
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 2'))
+    fireEvent.change(screen.getByLabelText('Paragraph 2 text edit'), {
       target: { value: 'User edited second paragraph while AI was running.' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     if (!resolveFetch) throw new Error('Expected refinement request to be in flight.')
     resolveFetch({
       ok: true,
@@ -420,9 +470,9 @@ describe('LettersPage', () => {
     } as Response)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Refined first paragraph.')).toBeTruthy()
+      expect(screen.getByText('Refined first paragraph.')).toBeTruthy()
     })
-    expect(screen.getByDisplayValue('User edited second paragraph while AI was running.')).toBeTruthy()
+    expect(screen.getByText('User edited second paragraph while AI was running.')).toBeTruthy()
   })
 
   it('preserves rapid paragraph edits made before React refreshes the active template', () => {
@@ -454,17 +504,19 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    act(() => {
-      fireEvent.change(screen.getByLabelText('Paragraph 2 text'), {
-        target: { value: 'Fast second paragraph edit.' },
-      })
-      fireEvent.change(screen.getByLabelText('Paragraph 1 text'), {
-        target: { value: 'Fast first paragraph edit.' },
-      })
+    fireEvent.click(screen.getByLabelText('Edit paragraph 2'))
+    fireEvent.change(screen.getByLabelText('Paragraph 2 text edit'), {
+      target: { value: 'Fast second paragraph edit.' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
+      target: { value: 'Fast first paragraph edit.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(screen.getByDisplayValue('Fast first paragraph edit.')).toBeTruthy()
-    expect(screen.getByDisplayValue('Fast second paragraph edit.')).toBeTruthy()
+    expect(screen.getByText('Fast first paragraph edit.')).toBeTruthy()
+    expect(screen.getByText('Fast second paragraph edit.')).toBeTruthy()
   })
 
   it('surfaces paragraph refinement failures', async () => {
@@ -502,6 +554,463 @@ describe('LettersPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('Refinement failed upstream.')
     })
+  })
+
+  it('edits saved section cards with save and cancel controls', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+          source: 'pipeline',
+          pipelineEntryId: 'pipe-1',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Draft header' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText('Original header')).toBeTruthy()
+    expect(screen.queryByText('Draft header')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Edit greeting'))
+    fireEvent.change(screen.getByLabelText('Greeting edit'), {
+      target: { value: 'Hello Jordan,' },
+    })
+    fireEvent.keyDown(screen.getByLabelText('Greeting edit'), {
+      key: 'Enter',
+      ctrlKey: true,
+    })
+    expect(screen.getByText('Hello Jordan,')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
+      target: { value: 'Saved paragraph rewrite.' },
+    })
+    fireEvent.keyDown(screen.getByLabelText('Paragraph 1 text edit'), {
+      key: 'Enter',
+      metaKey: true,
+    })
+    expect(screen.getByText('Saved paragraph rewrite.')).toBeTruthy()
+  })
+
+  it('warns before discarding an unsaved section edit when switching history items', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'First Variant',
+          header: 'First header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'First paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+          generatedAt: '2026-03-01T00:00:00.000Z',
+        },
+        {
+          id: 'variant-2',
+          name: 'Second Variant',
+          header: 'Second header',
+          greeting: 'Hello Jordan,',
+          paragraphs: [{ id: 'paragraph-2', text: 'Second paragraph.', vectors: {} }],
+          signOff: 'Thanks,\nNicholas Ferguson',
+          generatedAt: '2026-02-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved header' },
+    })
+    expect(screen.getByText('Editing')).toBeTruthy()
+
+    confirm.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByText('Second Variant'))
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(screen.getByDisplayValue('Unsaved header')).toBeTruthy()
+    expect(screen.queryByText('Second header')).toBeNull()
+
+    confirm.mockReturnValueOnce(true)
+    fireEvent.click(screen.getByText('Second Variant'))
+    expect(screen.getByText('Second header')).toBeTruthy()
+    expect(screen.getByText('Saved')).toBeTruthy()
+  })
+
+  it('warns before replacing one unsaved edit with another', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved header' },
+    })
+
+    confirm.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByLabelText('Edit greeting'))
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(screen.getByDisplayValue('Unsaved header')).toBeTruthy()
+    expect(screen.queryByLabelText('Greeting edit')).toBeNull()
+
+    confirm.mockReturnValueOnce(true)
+    fireEvent.click(screen.getByLabelText('Edit greeting'))
+    expect(screen.getByDisplayValue('Dear Jordan Lee,')).toBeTruthy()
+  })
+
+  it('warns before discarding an unsaved edit when creating a manual variant', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved header' },
+    })
+
+    confirm.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByLabelText('Create New Variant'))
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(useCoverLetterStore.getState().templates).toHaveLength(1)
+    expect(screen.getByDisplayValue('Unsaved header')).toBeTruthy()
+
+    confirm.mockReturnValueOnce(true)
+    fireEvent.click(screen.getByLabelText('Create New Variant'))
+    expect(useCoverLetterStore.getState().templates).toHaveLength(2)
+    expect(screen.queryByLabelText('Header edit')).toBeNull()
+  })
+
+  it('skips discard warnings for unmodified drafts', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.click(screen.getByLabelText('Create New Variant'))
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(useCoverLetterStore.getState().templates).toHaveLength(2)
+  })
+
+  it('warns before discarding an unsaved edit when adding a paragraph', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved header' },
+    })
+
+    confirm.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByText('Add Paragraph'))
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(useCoverLetterStore.getState().templates[0]?.paragraphs).toHaveLength(1)
+    expect(screen.getByDisplayValue('Unsaved header')).toBeTruthy()
+  })
+
+  it('warns before deleting the active variant with unsaved edits', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved header' },
+    })
+
+    confirm.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByLabelText('Delete Acme Variant'))
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(useCoverLetterStore.getState().templates).toHaveLength(1)
+    expect(screen.getByDisplayValue('Unsaved header')).toBeTruthy()
+
+    confirm.mockReturnValueOnce(true).mockReturnValueOnce(true)
+    fireEvent.click(screen.getByLabelText('Delete Acme Variant'))
+    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the variant "Acme Variant"?')
+    expect(useCoverLetterStore.getState().templates).toHaveLength(0)
+  })
+
+  it('deletes background variants without discarding the active edit', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'active-variant',
+          name: 'Active Variant',
+          header: 'Active header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Active paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+          generatedAt: '2026-03-01T00:00:00.000Z',
+        },
+        {
+          id: 'background-variant',
+          name: 'Background Variant',
+          header: 'Background header',
+          greeting: 'Hello Jordan,',
+          paragraphs: [{ id: 'paragraph-2', text: 'Background paragraph.', vectors: {} }],
+          signOff: 'Thanks,\nNicholas Ferguson',
+          generatedAt: '2026-02-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved active header' },
+    })
+    fireEvent.click(screen.getByLabelText('Delete Background Variant'))
+
+    expect(confirm).not.toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the variant "Background Variant"?')
+    expect(useCoverLetterStore.getState().templates.map((template) => template.id)).toEqual(['active-variant'])
+    expect(screen.getByDisplayValue('Unsaved active header')).toBeTruthy()
+  })
+
+  it('clears paragraph edit drafts when deleting the edited paragraph', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
+      target: { value: 'Unsaved paragraph rewrite.' },
+    })
+    expect(screen.getByText('Editing')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('Delete paragraph 1'))
+    expect(screen.queryByDisplayValue('Unsaved paragraph rewrite.')).toBeNull()
+    expect(screen.getByText('Saved')).toBeTruthy()
+  })
+
+  it('preserves saved paragraph edits when deleting another paragraph before refresh', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [
+            { id: 'paragraph-1', text: 'Original first paragraph.', vectors: {} },
+            { id: 'paragraph-2', text: 'Original second paragraph.', vectors: {} },
+          ],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
+      target: { value: 'Saved first paragraph.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByLabelText('Delete paragraph 2'))
+
+    const paragraphs = useCoverLetterStore.getState().templates[0]?.paragraphs ?? []
+    expect(paragraphs).toHaveLength(1)
+    expect(paragraphs[0]?.text).toBe('Saved first paragraph.')
+  })
+
+  it('preserves saved paragraph edits when adding another paragraph before refresh', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
+      target: { value: 'Saved first paragraph.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByText('Add Paragraph'))
+
+    const paragraphs = useCoverLetterStore.getState().templates[0]?.paragraphs ?? []
+    expect(paragraphs).toHaveLength(2)
+    expect(paragraphs[0]?.text).toBe('Saved first paragraph.')
+    expect(paragraphs[1]?.text).toBe('New paragraph content...')
+  })
+
+  it('closes a confirmed unsaved edit immediately when generation starts', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit header'))
+    fireEvent.change(screen.getByLabelText('Header edit'), {
+      target: { value: 'Unsaved header' },
+    })
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits?')
+    expect(screen.queryByLabelText('Header edit')).toBeNull()
+    expect(screen.getByText('Saved')).toBeTruthy()
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().templates).toHaveLength(2)
+    })
+  })
+
+  it('opens new paragraphs in edit mode', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Original paragraph.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Add Paragraph'))
+
+    expect((screen.getByLabelText('Paragraph 2 text edit') as HTMLTextAreaElement).value).toBe(
+      'New paragraph content...',
+    )
+    expect(screen.getByText('Editing')).toBeTruthy()
+  })
+
+  it('disables paragraph refinement controls while paragraph text is being edited', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Original header',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [
+            {
+              id: 'paragraph-1',
+              text: 'Original paragraph.',
+              refinement: 'Make it more concrete.',
+              vectors: {},
+            },
+          ],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+
+    expect((screen.getByLabelText('Paragraph 1 refinement notes') as HTMLTextAreaElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('creates manual variants at the top of history', () => {
@@ -664,20 +1173,77 @@ describe('LettersPage', () => {
     expect(headerCopy.querySelector('.lucide-check')).toBeTruthy()
     expect(greetingCopy.querySelector('.lucide-check')).toBeNull()
 
+    fireEvent.click(screen.getByLabelText('Edit greeting'))
+    fireEvent.change(screen.getByLabelText('Greeting edit'), {
+      target: { value: 'Hi Jordan,' },
+    })
     await act(async () => {
       fireEvent.click(greetingCopy)
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(writeText).toHaveBeenCalledWith('Dear Jordan Lee,')
+    expect(writeText).toHaveBeenCalledWith('Hi Jordan,')
     expect(greetingCopy.querySelector('.lucide-check')).toBeTruthy()
     expect(headerCopy.querySelector('.lucide-check')).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Copy letter to clipboard'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const copiedLetter = writeText.mock.calls.at(-1)?.[0] ?? ''
+    expect(copiedLetter).toContain('Hi Jordan,')
+    expect(copiedLetter).not.toContain('Dear Jordan Lee,')
 
     act(() => {
       vi.advanceTimersByTime(1500)
     })
     expect(greetingCopy.querySelector('.lucide-check')).toBeNull()
     vi.useRealTimers()
+  })
+
+  it('copies active paragraph drafts in the full letter', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Header text',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [{ id: 'paragraph-1', text: 'Saved paragraph text.', vectors: {} }],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+        },
+      ],
+    })
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
+    fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
+      target: { value: 'Unsaved paragraph draft.' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Copy paragraph 1'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(writeText).toHaveBeenCalledWith('Unsaved paragraph draft.')
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Copy letter to clipboard'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const copiedLetter = writeText.mock.calls.at(-1)?.[0] ?? ''
+    expect(copiedLetter).toContain('Unsaved paragraph draft.')
+    expect(copiedLetter).not.toContain('Saved paragraph text.')
   })
 
   it('ignores clipboard write failures without showing copied state', async () => {
