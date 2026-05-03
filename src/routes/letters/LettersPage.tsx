@@ -571,10 +571,10 @@ export function LettersPage() {
           <div className="letters-section-edit">
             <textarea
               value={editDraftValue}
-	              onChange={(event) => updateEditDraftValue(event.target.value)}
-	              onKeyDown={handleEditKeyDown}
-	              rows={rows}
-	              aria-label={`${label} edit`}
+              onChange={(event) => updateEditDraftValue(event.target.value)}
+              onKeyDown={handleEditKeyDown}
+              rows={rows}
+              aria-label={`${label} edit`}
               autoFocus
             />
             <div className="letters-edit-actions">
@@ -766,10 +766,10 @@ export function LettersPage() {
               <span className="letters-save-status">{editingKey ? 'Editing' : 'Saved'}</span>
               <button
                 className="letters-btn letters-btn-sm"
-	                type="button"
-	                onClick={handleCopyLetter}
-	                disabled={!composeLetterText(getActiveTemplateWithDraft() ?? activeTemplate)}
-	                title="Copy assembled letter to clipboard"
+                type="button"
+                onClick={handleCopyLetter}
+                disabled={!composeLetterText(getActiveTemplateWithDraft() ?? activeTemplate)}
+                title="Copy assembled letter to clipboard"
                 aria-label="Copy letter to clipboard"
               >
                 {copiedKey === 'letter' ? <Check size={14} /> : <Copy size={14} />}{' '}
@@ -823,25 +823,25 @@ export function LettersPage() {
                               {copiedKey === paragraphKey ? <Check size={14} /> : <Copy size={14} />}
                             </button>
                             {!isEditingParagraph ? (
-	                              <button
-	                                className="letters-btn-icon"
-	                                type="button"
-	                                onClick={() => startEditingParagraph(p.id, p.text)}
-	                                disabled={isRefining}
-	                                aria-label={`Edit paragraph ${index + 1}`}
-	                                title={`Edit paragraph ${index + 1}`}
-	                              >
-	                                <Pencil size={14} />
-	                              </button>
+                              <button
+                                className="letters-btn-icon"
+                                type="button"
+                                onClick={() => startEditingParagraph(p.id, p.text)}
+                                disabled={isRefining}
+                                aria-label={`Edit paragraph ${index + 1}`}
+                                title={`Edit paragraph ${index + 1}`}
+                              >
+                                <Pencil size={14} />
+                              </button>
                             ) : null}
-	                            <button
-	                              className="letters-btn-icon letters-text-danger"
-	                              type="button"
-	                              onClick={() => removeParagraph(p.id)}
-	                              disabled={isRefining}
-	                              aria-label={`Delete paragraph ${index + 1}`}
-	                              title={`Delete paragraph ${index + 1}`}
-	                            >
+                            <button
+                              className="letters-btn-icon letters-text-danger"
+                              type="button"
+                              onClick={() => removeParagraph(p.id)}
+                              disabled={isRefining}
+                              aria-label={`Delete paragraph ${index + 1}`}
+                              title={`Delete paragraph ${index + 1}`}
+                            >
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -849,10 +849,10 @@ export function LettersPage() {
                         {isEditingParagraph ? (
                           <div className="letters-section-edit">
                             <textarea
-	                              value={editDraftValue}
-	                              onChange={(event) => updateEditDraftValue(event.target.value)}
-	                              onKeyDown={handleEditKeyDown}
-	                              rows={4}
+                              value={editDraftValue}
+                              onChange={(event) => updateEditDraftValue(event.target.value)}
+                              onKeyDown={handleEditKeyDown}
+                              rows={4}
                               aria-label={`Paragraph ${index + 1} text edit`}
                               placeholder="Write your paragraph content..."
                               autoFocus
@@ -884,12 +884,12 @@ export function LettersPage() {
                           <textarea
                             id={refinementId}
                             value={p.refinement ?? ''}
-	                            onChange={(e) => updateParagraph(p.id, { refinement: e.target.value })}
-	                            rows={2}
-	                            aria-label={`Paragraph ${index + 1} refinement notes`}
-	                            placeholder="Tell AI what to tighten, add, remove, or make more specific for this paragraph."
-	                            disabled={isRefining || isEditingParagraph}
-	                          />
+                            onChange={(e) => updateParagraph(p.id, { refinement: e.target.value })}
+                            rows={2}
+                            aria-label={`Paragraph ${index + 1} refinement notes`}
+                            placeholder="Tell AI what to tighten, add, remove, or make more specific for this paragraph."
+                            disabled={isRefining || isEditingParagraph}
+                          />
                           <button
                             className="letters-btn letters-btn-sm"
                             type="button"
