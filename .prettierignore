@@ -1,0 +1,22 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+.vercel
+.agents
+.claude
+.codanna
+pnpm-lock.yaml
+*.lock
+
+.playwright-*
+
+# Brand sheets are hand-tuned/export-oriented HTML; backlog markdown is managed by Backlog.md.
+brand
+backlog
+dist-*
+dist-unmin-*
+
+*.log
+*.tsbuildinfo
