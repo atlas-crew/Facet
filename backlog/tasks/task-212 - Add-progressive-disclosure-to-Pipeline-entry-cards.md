@@ -1,9 +1,10 @@
 ---
 id: TASK-212
 title: Add progressive disclosure to Pipeline entry cards
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-04 07:05'
+updated_date: '2026-05-04 22:42'
 labels:
   - pipeline
   - ux
@@ -30,14 +31,20 @@ Expanded Pipeline entries currently show dense nested cards and sections at once
 - [x] #5 Focused tests cover collapsing and expanding the new Pipeline entry cards.
 <!-- AC:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Post-Prep-blocker verification on 2026-05-04: pnpm typecheck passed; pnpm build passed with existing Vite large-chunk warnings only.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
 - [x] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
 
 ## Notes

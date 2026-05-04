@@ -1,10 +1,10 @@
 ---
 id: TASK-211
 title: Expose saved JD analysis from Pipeline entries
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-04 04:01'
-updated_date: '2026-05-04 04:28'
+updated_date: '2026-05-04 22:42'
 labels:
   - pipeline
   - jd-analysis
@@ -37,6 +37,8 @@ Pipeline entries that already have a saved job description analysis should clear
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented Pipeline saved-JD-analysis indicators and disclosure: table badge states (not run, saved, stale, missing), expanded-row Show/Hide JD Analysis panel, stale/missing recovery messaging, and id-based analysis lookup. Verification: `npx vitest run src/test/PipelinePage.test.tsx src/test/PipelineJDAnalysisPanel.test.tsx src/test/pipelineAnalysis.test.ts` passed with 29 tests; targeted ESLint on touched Pipeline source/tests passed. `npm run typecheck` remains blocked by unrelated baseline errors in `src/routes/prep/PrepPage.tsx` (`createDeck`, `setActiveDeck`). Independent review artifact: `.agents/reviews/review-20260504-001440.md` (P0/P1 clean, P2 only). Test audit artifact: `.agents/reviews/test-audit-20260504-002505.md` (P0/P1 clean, P2 only; follow-up P2 coverage gaps were partially addressed with direct panel tests).
+
+Post-Prep-blocker verification on 2026-05-04: pnpm typecheck passed; pnpm build passed with existing Vite large-chunk warnings only.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
@@ -44,7 +46,7 @@ Implemented Pipeline saved-JD-analysis indicators and disclosure: table badge st
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
 - [x] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
+- [x] #4 Automatic formatting was applied.
 - [x] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
