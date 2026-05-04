@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { KeyboardEvent } from 'react'
-import { Check, Copy, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
+import type { KeyboardEvent, ReactNode } from 'react'
+import { Check, ChevronRight, Copy, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
@@ -21,6 +21,18 @@ import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/cov
 import './letters.css'
 
 const AI_ENDPOINT_DISABLED_MESSAGE = 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
+const LETTER_SECTION_IDS = {
+  header: 'letters-section-header',
+  greeting: 'letters-section-greeting',
+  paragraphs: 'letters-section-paragraphs',
+  signOff: 'letters-section-sign-off',
+} as const
+const LETTER_SECTION_NAV_ITEMS = [
+  { id: LETTER_SECTION_IDS.header, label: 'Header' },
+  { id: LETTER_SECTION_IDS.greeting, label: 'Greeting' },
+  { id: LETTER_SECTION_IDS.paragraphs, label: 'Paragraphs' },
+  { id: LETTER_SECTION_IDS.signOff, label: 'Sign off' },
+] as const
 
 function buildResearchDraft(positioning: string, notes: string, url: string) {
   return [positioning, notes, url].filter(Boolean).join('\n\n')
@@ -225,6 +237,39 @@ type LetterEditDraft =
       target: { kind: 'paragraph'; paragraphId: string }
     }
 
+function LettersDisclosure({
+  title,
+  caption,
+  initialOpen = false,
+  className = '',
+  children,
+}: {
+  title: string
+  caption?: string
+  initialOpen?: boolean
+  className?: string
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(initialOpen)
+
+  return (
+    <details
+      className={['letters-disclosure', className].filter(Boolean).join(' ')}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="letters-disclosure-summary">
+        <ChevronRight className="letters-disclosure-icon" size={15} aria-hidden="true" />
+        <span>
+          <span className="letters-disclosure-title">{title}</span>
+          {caption ? <span className="letters-disclosure-caption">{caption}</span> : null}
+        </span>
+      </summary>
+      <div className="letters-disclosure-body">{children}</div>
+    </details>
+  )
+}
+
 export function LettersPage() {
   const { letters, templates, createLetter, upsertLetterForPipelineEntry, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
@@ -244,6 +289,7 @@ export function LettersPage() {
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [refinementError, setRefinementError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [activeLetterSection, setActiveLetterSection] = useState(LETTER_SECTION_IDS.header)
 
   const candidateEntries = useMemo(
     () => pipelineEntries.filter((entry) => !entry.deletedAt).sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
@@ -361,6 +407,7 @@ export function LettersPage() {
     }),
     [aiEndpoint, activeLetterJdAnalysisIssue, activeLetterPipelineEntry, activeLetterRegenerationResume],
   )
+  const editorStatusClass = editingKey ? 'letters-save-status-editing' : 'letters-save-status-saved'
 
   useEffect(() => {
     if (selectedEntryId) return
@@ -784,6 +831,11 @@ export function LettersPage() {
     }
   }
 
+  const handleSectionNavClick = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setActiveLetterSection(sectionId)
+  }
+
   const renderTemplateSection = (
     label: string,
     field: 'header' | 'greeting' | 'signOff',
@@ -796,7 +848,7 @@ export function LettersPage() {
     const isEditing = editingKey === editKey
     const copyValue = isEditing ? editDraftValue : value
     const copyKey = field
-    const labelId = `letters-${field}-label`
+    const labelId = LETTER_SECTION_IDS[field]
 
     return (
       <section className="letters-section-card" aria-labelledby={labelId}>
@@ -945,7 +997,12 @@ export function LettersPage() {
           />
 
           {candidateEntries.length > 0 ? (
-            <>
+            <LettersDisclosure
+              title="Generation setup"
+              caption="Pipeline opportunity, resume source, and optional research notes"
+              initialOpen
+              className="letters-generator-disclosure"
+            >
               <div className="letters-generator-grid">
                 <div className="letters-field">
                   <label htmlFor="cl-entry">Pipeline Entry</label>
@@ -990,7 +1047,7 @@ export function LettersPage() {
                   placeholder="Paste company research, hiring-manager notes, product context, or any specifics you want reflected in the draft."
                 />
               </div>
-            </>
+            </LettersDisclosure>
           ) : (
             <p id="letters-generator-help" className="letters-generator-note">Add a pipeline opportunity with a job description to generate a cover letter draft.</p>
           )}
@@ -1014,7 +1071,7 @@ export function LettersPage() {
         {activeTemplate ? (
           <div className="letters-editor">
             <div className="letters-editor-toolbar">
-              <span className="letters-save-status">{editingKey ? 'Editing' : 'Saved'}</span>
+              <span className={`letters-save-status ${editorStatusClass}`}>{editingKey ? 'Editing' : 'Saved'}</span>
               <button
                 className="letters-btn letters-btn-sm"
                 type="button"
@@ -1034,6 +1091,19 @@ export function LettersPage() {
               placeholder="Variant Name"
               aria-label="Variant Name"
             />
+
+            <nav className="letters-editor-nav" aria-label="Letter sections">
+              {LETTER_SECTION_NAV_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSectionNavClick(item.id)}
+                  aria-current={activeLetterSection === item.id ? 'location' : undefined}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
 
             {activeLetterDrift ? (
               <div className="letters-drift-callout" role="alert">
@@ -1058,7 +1128,7 @@ export function LettersPage() {
 
             <div className="letters-paragraphs-section">
               <div className="letters-section-header">
-                <h3>Paragraphs</h3>
+                <h3 id={LETTER_SECTION_IDS.paragraphs}>Paragraphs</h3>
                 <button
                   className="letters-btn letters-btn-sm"
                   onClick={addParagraph}
@@ -1148,7 +1218,12 @@ export function LettersPage() {
                             {p.text || 'Empty'}
                           </div>
                         )}
-                        <div className="letters-refinement">
+                        <LettersDisclosure
+                          title="Refinement"
+                          caption={p.refinement?.trim() ? 'Notes ready for AI refinement' : 'Optional AI rewrite notes'}
+                          initialOpen={Boolean(p.refinement?.trim()) || isRefining}
+                          className="letters-refinement-disclosure"
+                        >
                           <label htmlFor={refinementId}>Refinement notes</label>
                           <textarea
                             id={refinementId}
@@ -1180,7 +1255,7 @@ export function LettersPage() {
                             expectedDurationMs={30000}
                             className="letters-refinement-activity"
                           />
-                        </div>
+                        </LettersDisclosure>
                       </div>
                     </div>
                   )

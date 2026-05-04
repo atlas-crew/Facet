@@ -1015,7 +1015,7 @@ describe('LettersPage', () => {
     fireEvent.change(screen.getByLabelText('Paragraph 1 refinement notes'), {
       target: { value: 'Make this more direct.' },
     })
-    expect(refineButton.disabled).toBe(false)
+    expect((screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled).toBe(false)
 
     fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
     fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
@@ -1023,6 +1023,59 @@ describe('LettersPage', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(refineButton.disabled).toBe(true)
+  })
+
+  it('uses progressive disclosures for generation setup and paragraph refinement controls', () => {
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'variant-1',
+          name: 'Acme Variant',
+          header: 'Nicholas Ferguson\nnick@example.dev',
+          greeting: 'Dear Jordan Lee,',
+          paragraphs: [
+            {
+              id: 'paragraph-1',
+              text: 'Original first paragraph.',
+              refinement: '',
+              vectors: {},
+            },
+            {
+              id: 'paragraph-2',
+              text: 'Original second paragraph.',
+              refinement: 'Make this more outcome-oriented.',
+              vectors: {},
+            },
+          ],
+          signOff: 'Sincerely,\nNicholas Ferguson',
+          source: 'pipeline',
+          pipelineEntryId: 'pipe-1',
+        },
+      ],
+    })
+
+    const { container, rerender } = render(<LettersPage />)
+
+    const generatorDisclosure = container.querySelector('.letters-generator-disclosure') as HTMLDetailsElement
+    expect(generatorDisclosure.open).toBe(true)
+    fireEvent.click(generatorDisclosure.querySelector('summary') as HTMLElement)
+    expect(generatorDisclosure.open).toBe(false)
+
+    const refinementDisclosures = Array.from(
+      container.querySelectorAll('.letters-refinement-disclosure'),
+    ) as HTMLDetailsElement[]
+    expect(refinementDisclosures).toHaveLength(2)
+    expect(refinementDisclosures[0]?.open).toBe(false)
+    expect(refinementDisclosures[1]?.open).toBe(true)
+
+    fireEvent.click(refinementDisclosures[0]?.querySelector('summary') as HTMLElement)
+    expect(refinementDisclosures[0]?.open).toBe(true)
+
+    useCoverLetterStore.getState().updateTemplate('variant-1', { name: 'Renamed Variant' })
+    rerender(<LettersPage />)
+    expect((container.querySelector('.letters-refinement-disclosure') as HTMLDetailsElement).open).toBe(true)
+    expect(container.querySelector('.letters-editor-nav')?.textContent).toContain('Paragraphs')
+    expect(container.querySelector('.letters-save-status-saved')?.textContent).toBe('Saved')
   })
 
   it('surfaces paragraph refinement disabled state when the AI endpoint is missing', async () => {
