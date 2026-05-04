@@ -128,10 +128,37 @@ describe('docxRenderer', () => {
     expect(documentXml).toContain('BS Computer Science')
     expect(documentXml).toContain('AWS Solutions Architect')
     expect(documentXml).toContain('ABC-123')
+    expect(documentXml).toContain('Unsafe')
     expect(relationshipsXml).toContain('https://github.com/janesmith')
     expect(relationshipsXml).toContain('https://example.com/deploy-guard')
     expect(relationshipsXml).toContain('https://example.com/cert')
     expect(relationshipsXml).not.toContain('javascript:alert')
+  })
+
+  it('applies theme overrides to DOCX output', async () => {
+    const theme = {
+      ...resolveTheme(undefined),
+      fontBody: 'Test Body Font',
+      fontHeading: 'Test Heading Font',
+      colorBody: '#AABBCC',
+      nameAlignment: 'left' as const,
+      contactAlignment: 'right' as const,
+      marginTop: 1.5,
+      sizeName: 18,
+      nameBold: false,
+    }
+
+    const result = await renderResumeAsDocx(createResume(), theme)
+    const zip = await loadDocx(result.blob)
+    const documentXml = await readZipFile(zip, 'word/document.xml')
+
+    expect(documentXml).toContain('w:ascii="Test Body Font"')
+    expect(documentXml).toContain('w:ascii="Test Heading Font"')
+    expect(documentXml).toContain('w:color w:val="AABBCC"')
+    expect(documentXml).toContain('w:jc w:val="left"')
+    expect(documentXml).toContain('w:jc w:val="right"')
+    expect(documentXml).toContain('w:top="2160"')
+    expect(documentXml).toContain('w:sz w:val="36"')
   })
 
   it('renders minimal resumes without empty section headings', async () => {
@@ -212,5 +239,25 @@ describe('docxRenderer', () => {
     expect(documentXml).toContain('Staff Engineer role at Acme')
     expect(documentXml).toContain('Sincerely')
     expect(documentXml).toContain('<w:br/>')
+  })
+
+  it('skips blank cover letter sections and paragraphs', async () => {
+    const result = await renderCoverLetterAsDocx({
+      name: 'Sparse Letter',
+      header: '   ',
+      greeting: '',
+      paragraphs: [
+        { id: 'blank-paragraph', text: '    ', vectors: {} },
+        { id: 'real-paragraph', text: 'Only the real paragraph renders.', vectors: {} },
+      ],
+      signOff: '\n  \n',
+    }, resolveTheme(undefined))
+
+    const zip = await loadDocx(result.blob)
+    const documentXml = await readZipFile(zip, 'word/document.xml')
+
+    expect(documentXml).toContain('Only the real paragraph renders.')
+    expect(documentXml).not.toContain('blank-paragraph')
+    expect(documentXml).not.toContain('<w:t xml:space="preserve">    </w:t>')
   })
 })
