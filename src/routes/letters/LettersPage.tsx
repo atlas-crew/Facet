@@ -33,6 +33,7 @@ import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
 import { renderLetterAsPdf } from '../../utils/letterPdfRenderer'
 import { buildCoverLetterDocxFileName, buildCoverLetterPdfFileName } from '../../utils/pdfFormatting'
+import { downloadBlob } from '../../utils/downloadBlob'
 import { resolveTheme } from '../../themes/theme'
 import './letters.css'
 
@@ -71,17 +72,6 @@ function composeLetterText(template: CoverLetterTemplate): string {
     .map((section) => section.trim())
     .filter(Boolean)
     .join('\n\n')
-}
-
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.append(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
 
 function buildJobPromptContext(value: unknown) {
@@ -318,6 +308,7 @@ export function LettersPage() {
   const [refinementError, setRefinementError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [activeLetterSection, setActiveLetterSection] = useState<string>(LETTER_SECTION_IDS.header)
+  const exportErrorId = 'letters-export-error'
 
   const candidateEntries = useMemo(
     () => pipelineEntries.filter((entry) => !entry.deletedAt).sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
@@ -448,6 +439,10 @@ export function LettersPage() {
     // When the selected entry disappears, fall back to the freshest remaining opportunity.
     setCompanyResearchDraft(buildResearchDraft(firstEntry.positioning, firstEntry.notes, firstEntry.url))
   }, [candidateEntries, selectedEntryId])
+
+  useEffect(() => {
+    setExportError(null)
+  }, [activeTemplateId])
 
   useEffect(() => {
     if (!selectedEntryId) return
@@ -703,10 +698,14 @@ export function LettersPage() {
   const handleDownloadLetterDocx = async () => {
     const templateToExport = getActiveTemplateWithDraft()
     if (!templateToExport) return
+    if (!activeLetterExportResume) {
+      setExportError('A source resume is required before exporting this cover letter as DOCX.')
+      return
+    }
 
     try {
       const { renderCoverLetterAsDocx } = await import('../../utils/docxRenderer')
-      const theme = resolveTheme(activeLetterExportResume?.content.theme)
+      const theme = resolveTheme(activeLetterExportResume.content.theme)
       const { blob } = await renderCoverLetterAsDocx(templateToExport, theme)
       downloadBlob(blob, buildCoverLetterDocxFileName(getActiveLetterExportLabel()))
       setExportError(null)
@@ -1158,6 +1157,7 @@ export function LettersPage() {
                   type="button"
                   onClick={() => void handleDownloadLetterPdf()}
                   disabled={!activeLetterExportResume}
+                  aria-describedby={exportError ? exportErrorId : undefined}
                   title={activeLetterExportResume ? 'Download cover letter as PDF' : 'A source resume is required before PDF export'}
                 >
                   <Download size={14} /> Download PDF
@@ -1166,7 +1166,9 @@ export function LettersPage() {
                   className="letters-btn letters-btn-sm"
                   type="button"
                   onClick={() => void handleDownloadLetterDocx()}
-                  title="Download cover letter as DOCX"
+                  disabled={!activeLetterExportResume}
+                  aria-describedby={exportError ? exportErrorId : undefined}
+                  title={activeLetterExportResume ? 'Download cover letter as DOCX' : 'A source resume is required before DOCX export'}
                 >
                   <FileText size={14} /> Download DOCX
                 </button>
@@ -1184,7 +1186,7 @@ export function LettersPage() {
               </div>
             </div>
             {exportError ? (
-              <p className="letters-export-error" role="alert">{exportError}</p>
+              <p id={exportErrorId} className="letters-export-error" role="alert">{exportError}</p>
             ) : null}
             <input
               className="letters-title-input"

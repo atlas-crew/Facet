@@ -30,6 +30,7 @@ import { assembleResume, getPriorityForVector } from '../../engine/assembler'
 import { renderResumeAsText } from '../../utils/textRenderer'
 import { renderResumeAsMarkdown } from '../../utils/markdownRenderer'
 import { buildBundle } from '../../utils/bundleExporter'
+import { downloadBlob } from '../../utils/downloadBlob'
 import { exportResumeConfig } from '../../engine/serializer'
 import { ComparisonDiff } from '../../components/ComparisonDiff'
 import { useResumeStore } from '../../store/resumeStore'
@@ -1180,14 +1181,7 @@ export function BuildPage() {
       showNotice('error', 'PDF is still rendering. Please try again in a moment.')
       return
     }
-    const url = URL.createObjectURL(cachedPdfBlob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = buildResumePdfFileName(data.meta.name, selectedVector, data.vectors)
-    document.body.append(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+    downloadBlob(cachedPdfBlob, buildResumePdfFileName(data.meta.name, selectedVector, data.vectors))
     showNotice('success', 'PDF downloaded')
   }, [cachedPdfBlob, data.meta.name, selectedVector, data.vectors, showNotice])
 
@@ -1213,14 +1207,7 @@ export function BuildPage() {
     try {
       const { renderResumeAsDocx } = await import('../../utils/docxRenderer')
       const { blob } = await renderResumeAsDocx(assembledResult.resume, resolvedTheme)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = buildResumeDocxFileName(data.meta.name, selectedVector, data.vectors)
-      document.body.append(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      downloadBlob(blob, buildResumeDocxFileName(data.meta.name, selectedVector, data.vectors))
       showNotice('success', 'DOCX downloaded')
     } catch {
       showNotice('error', 'Failed to create DOCX')
@@ -1241,14 +1228,7 @@ export function BuildPage() {
         jsonSource: exportResumeConfig(data, 'json'),
         baseFileName,
       })
-      const url = URL.createObjectURL(zipBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${baseFileName}.zip`
-      document.body.append(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      downloadBlob(zipBlob, `${baseFileName}.zip`)
       showNotice('success', 'Bundle downloaded')
     } catch {
       showNotice('error', 'Failed to create bundle')

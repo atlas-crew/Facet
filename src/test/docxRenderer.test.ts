@@ -111,7 +111,6 @@ describe('docxRenderer', () => {
 
     expect(result.blob).toBeInstanceOf(Blob)
     expect(result.blob.type).toBe(DOCX_MIME)
-    expect(result.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
 
     const zip = await loadDocx(result.blob)
     const documentXml = await readZipFile(zip, 'word/document.xml')

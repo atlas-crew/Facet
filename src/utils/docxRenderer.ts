@@ -32,7 +32,6 @@ type TextRunOptions = Exclude<ConstructorParameters<typeof TextRun>[0], string>
 
 export interface DocxRenderResult {
   blob: Blob
-  generatedAt: string
 }
 
 const cleanText = (value: string | null | undefined): string => (value ?? '').replace(/\s+/g, ' ').trim()
@@ -43,8 +42,12 @@ const normalizeColor = (value: string | undefined, fallback: string): string => 
 }
 
 // The docx library expects font sizes in half-points.
+// Keep exports readable even if a theme accidentally supplies very small text.
 const pointSize = (valuePt: number | undefined, fallbackHalfPt: number): number =>
   valuePt == null ? fallbackHalfPt : Math.max(14, Math.round(valuePt * 2))
+
+const characterSpacingTwips = (valuePt: number | undefined, fallbackPt: number): number =>
+  Math.max(0, Math.round((valuePt ?? fallbackPt) * 20))
 
 const bodyFont = (theme?: ResumeTheme): string => theme?.fontBody || 'Aptos'
 const headingFont = (theme?: ResumeTheme): string => theme?.fontHeading || theme?.fontBody || 'Aptos Display'
@@ -74,20 +77,24 @@ const lineBreakRuns = (
   theme: ResumeTheme | undefined,
   options: Partial<TextRunOptions> = {},
 ) =>
-  value.split(/\r?\n/).flatMap((line, index) => [
-    ...(index > 0
-      ? [
-          new TextRun({
-            break: 1,
-            font: bodyFont(theme),
-            size: bodySize(theme),
-            color: normalizeColor(theme?.colorBody, '222222'),
-            ...options,
-          }),
-        ]
-      : []),
-    textRun(line, theme, options),
-  ])
+  value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line, index) => [
+      ...(index > 0
+        ? [
+            new TextRun({
+              break: 1,
+              font: bodyFont(theme),
+              size: bodySize(theme),
+              color: normalizeColor(theme?.colorBody, '222222'),
+              ...options,
+            }),
+          ]
+        : []),
+      textRun(line, theme, options),
+    ])
 
 const linkRun = (link: ResumeLink, theme?: ResumeTheme) => {
   const safeUrl = sanitizeUrl(link.url)
@@ -161,7 +168,7 @@ const sectionHeading = (label: string, theme?: ResumeTheme) =>
         size: headingSize(theme),
         bold: true,
         allCaps: true,
-        characterSpacing: Math.max(0, Math.round(theme?.sectionHeaderLetterSpacing ?? 24)),
+        characterSpacing: characterSpacingTwips(theme?.sectionHeaderLetterSpacing, 1.2),
         color: normalizeColor(theme?.colorSection, '2B5797'),
       }),
     ],
@@ -246,7 +253,7 @@ const educationParagraph = (entry: AssembledEducation, theme?: ResumeTheme) =>
     spacing: paragraphSpacing(80),
     children: [
       textRun(entry.school, theme, { bold: true }),
-      textRun(' - ' + joinedDetails([entry.degree, entry.location, entry.year]), theme),
+      textRun(' | ' + joinedDetails([entry.degree, entry.location, entry.year]), theme),
     ],
   })
 
@@ -255,7 +262,7 @@ const certificationParagraph = (cert: AssembledCertification, theme?: ResumeThem
     spacing: paragraphSpacing(80),
     children: [
       textRun(cert.name, theme, { bold: true }),
-      textRun(' - ' + joinedDetails([cert.issuer, cert.date, cert.credential_id]), theme),
+      textRun(' | ' + joinedDetails([cert.issuer, cert.date, cert.credential_id]), theme),
       ...(cert.url ? [textRun(' - ', theme), linkRun({ url: cert.url }, theme)] : []),
     ],
   })
@@ -297,7 +304,6 @@ const renderDocx = async (children: Paragraph[], title: string, theme?: ResumeTh
 
   return {
     blob: await Packer.toBlob(doc),
-    generatedAt: new Date().toISOString(),
   }
 }
 
@@ -321,7 +327,7 @@ export const renderResumeAsDocx = async (
           size: nameSize(theme),
           bold: theme?.nameBold ?? true,
           color: normalizeColor(theme?.colorHeading, '1A1A1A'),
-          characterSpacing: Math.max(0, Math.round(theme?.nameLetterSpacing ?? 12)),
+          characterSpacing: characterSpacingTwips(theme?.nameLetterSpacing, 0.6),
         }),
       ],
     }),
