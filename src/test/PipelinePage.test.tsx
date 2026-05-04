@@ -8,7 +8,8 @@ import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useUiStore } from '../store/uiStore'
-import type { JDAnalysis } from '../types/jdAnalysis'
+import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
+import { hashJobDescriptionText } from '../utils/jdAnalysis'
 
 const mockNavigate = vi.fn()
 const mockUseSearch = vi.fn()
@@ -65,19 +66,21 @@ const baseEntry = {
   history: [],
 }
 
+const analyzedJobDescription = 'We need a platform-minded engineer.'
+
 const jdAnalysisFixture: JDAnalysis = {
   id: 'analysis-1',
   pipelineEntryId: 'pipe-1',
-  jdTextHash: 'abc123',
+  jdTextHash: hashJobDescriptionText(analyzedJobDescription),
   identityVersion: 1,
-  modelVersion: 'jd-analysis.v1.test',
+  modelVersion: JD_ANALYSIS_MODEL_VERSION,
   generatedAt: '2026-04-14T12:00:00.000Z',
   updatedAt: '2026-04-14T12:00:00.000Z',
-  warnings: [],
+  warnings: ['Review the Kubernetes requirement before applying.'],
   company: 'Acme Corp',
   role: 'Staff Platform Engineer',
   summary: 'Platform reliability role.',
-  analyzedJobDescription: 'We need a platform-minded engineer.',
+  analyzedJobDescription,
   jobDescriptionWordCount: 5,
   jobDescriptionTruncated: false,
   requirements: [],
@@ -87,7 +90,17 @@ const jdAnalysisFixture: JDAnalysis = {
   recommendation: 'apply',
   oneLineSummary: 'Lead with platform reliability.',
   rationale: 'Strong platform match.',
-  matchedVectors: [],
+  matchedVectors: [
+    {
+      vectorId: 'backend',
+      title: 'Backend Platform',
+      priority: 'high',
+      matchStrength: 'strong',
+      evidence: ['Platform reliability leadership'],
+      thesisApplies: true,
+      thesisFitExplanation: 'The role emphasizes platform reliability.',
+    },
+  ],
   primaryVectorId: 'backend',
   skillMatches: [],
   evidenceMapping: {
@@ -97,10 +110,18 @@ const jdAnalysisFixture: JDAnalysis = {
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: [],
+  strengthsToLead: ['Reliability leadership'],
   advantages: [],
   advantageHypotheses: [],
-  gaps: [],
+  gaps: [
+    {
+      requirementId: 'req-1',
+      label: 'Kubernetes',
+      severity: 'medium',
+      reason: 'JD mentions Kubernetes ownership.',
+      tags: ['platform'],
+    },
+  ],
   gapFocus: [],
   watchOuts: [],
   triggeredPrioritize: [],
@@ -169,6 +190,7 @@ describe('PipelinePage', () => {
     const { container } = render(<PipelinePage />)
 
     expect(screen.getByText('Execution Workspace')).toBeTruthy()
+    expect(screen.getByText('Not run')).toBeTruthy()
     expect(screen.getByRole('button', { name: /^Add Entry$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^Paste JD$/i })).toBeTruthy()
     expect(container.querySelectorAll('.pipeline-header .pipeline-btn-primary')).toHaveLength(1)
@@ -311,7 +333,7 @@ describe('PipelinePage', () => {
       entries: [
         {
           ...baseEntry,
-          jobDescription: 'We need a platform-minded engineer.',
+          jobDescription: analyzedJobDescription,
         },
       ],
       sortField: 'tier',
@@ -328,7 +350,7 @@ describe('PipelinePage', () => {
       expect(mockAnalyzePipelineJobDescription).toHaveBeenCalledWith({
         endpoint: 'https://ai.example/proxy',
         pipelineEntryId: 'pipe-1',
-        jobDescription: 'We need a platform-minded engineer.',
+        jobDescription: analyzedJobDescription,
         identity: { model_revision: 1 },
       })
     })
@@ -340,12 +362,193 @@ describe('PipelinePage', () => {
     expect(usePipelineStore.getState().entries[0]?.history.at(-1)?.note).toBe('Analyzed JD')
   })
 
+  it('shows and opens a saved JD analysis from the pipeline tracker', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: analyzedJobDescription,
+          jdAnalysisId: 'analysis-1',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture] })
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('JD saved')).toBeTruthy()
+    fireEvent.click(screen.getByText('Acme Corp'))
+    const showButton = screen.getByRole('button', { name: /Show JD Analysis/i })
+    expect(showButton.getAttribute('aria-expanded')).toBe('false')
+    const panelId = showButton.getAttribute('aria-controls')
+    expect(panelId).toBeTruthy()
+    fireEvent.click(showButton)
+
+    expect(screen.getByRole('heading', { name: /Lead with platform reliability/i })).toBeTruthy()
+    expect(document.getElementById(panelId ?? '')).toBeTruthy()
+    const hideButton = screen.getByRole('button', { name: /Hide JD Analysis/i })
+    expect(hideButton.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('86%')).toBeTruthy()
+    expect(screen.getByText('Strong')).toBeTruthy()
+    expect(screen.getByText('High')).toBeTruthy()
+    expect(screen.getByText('Apply')).toBeTruthy()
+    expect(screen.getByText('Platform reliability role.')).toBeTruthy()
+    expect(screen.getByText('Strong platform match.')).toBeTruthy()
+    expect(screen.getByText(/Acme Corp.*Staff Platform Engineer/)).toBeTruthy()
+    expect(screen.getByText('Backend Platform (primary): Strong')).toBeTruthy()
+    expect(screen.getByText('Reliability leadership')).toBeTruthy()
+    expect(screen.getAllByText('Lead with platform reliability.').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Kubernetes: JD mentions Kubernetes ownership.')).toBeTruthy()
+    expect(screen.getByText('Review the Kubernetes requirement before applying.')).toBeTruthy()
+
+    fireEvent.click(hideButton)
+    expect(screen.queryByRole('heading', { name: /Lead with platform reliability/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /Show JD Analysis/i }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('opens missing saved JD analysis references as non-destructive unavailable state', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: analyzedJobDescription,
+          jdAnalysisId: 'analysis-missing',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('Analysis missing')).toBeTruthy()
+    fireEvent.click(screen.getByText('Acme Corp'))
+    expect(screen.getByText(/Saved JD analysis reference is missing/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
+
+    expect(screen.getByRole('heading', { name: /Saved analysis unavailable/i })).toBeTruthy()
+    expect(screen.getByText(/analysis artifact is no longer available/i)).toBeTruthy()
+    expect(useJDAnalysisStore.getState().analyses).toEqual([])
+  })
+
+  it('marks saved JD analysis as stale when source inputs change', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: 'This JD has changed since the saved analysis.',
+          jdAnalysisId: 'analysis-1',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture] })
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('JD stale')).toBeTruthy()
+    fireEvent.click(screen.getByText('Acme Corp'))
+    expect(screen.getByText(/Saved JD analysis may need review/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
+    expect(screen.getByText(/^Saved analysis may need review because the job description changed\.$/i)).toBeTruthy()
+  })
+
+  it('shows saved analysis as pending, not stale, when identity is unloaded', () => {
+    useIdentityStore.setState({ currentIdentity: null })
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: analyzedJobDescription,
+          jdAnalysisId: 'analysis-1',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture] })
+
+    render(<PipelinePage />)
+
+    const tableBadge = screen.getByText('JD saved')
+    expect(tableBadge.className).toContain('is-pending')
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
+    expect(screen.getByText('Saved')).toBeTruthy()
+    expect(screen.queryByText(/Saved analysis may need review/i)).toBeNull()
+  })
+
+  it('still marks JD drift as stale when identity is unloaded', () => {
+    useIdentityStore.setState({ currentIdentity: null })
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: 'The job description changed after analysis.',
+          jdAnalysisId: 'analysis-1',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture] })
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('JD stale')).toBeTruthy()
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
+    expect(screen.getByText(/^Saved analysis may need review because the job description changed\.$/i)).toBeTruthy()
+  })
+
+  it('explains identity and model drift in the saved analysis panel', () => {
+    useIdentityStore.setState({
+      currentIdentity: { model_revision: 2 } as Parameters<typeof mockAnalyzePipelineJobDescription>[0],
+    })
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          jobDescription: analyzedJobDescription,
+          jdAnalysisId: 'analysis-1',
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    useJDAnalysisStore.setState({
+      analyses: [
+        {
+          ...jdAnalysisFixture,
+          modelVersion: 'jd-analysis.v0.old',
+        },
+      ],
+    })
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('JD stale')).toBeTruthy()
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
+    expect(screen.getByText(/the identity model changed/i)).toBeTruthy()
+    expect(screen.getByText(/the analysis model changed/i)).toBeTruthy()
+  })
+
   it('requires canonical JD analysis before generating a resume from raw JD text', async () => {
     usePipelineStore.setState({
       entries: [
         {
           ...baseEntry,
-          jobDescription: 'We need a platform-minded engineer.',
+          jobDescription: analyzedJobDescription,
         },
       ],
       sortField: 'tier',
@@ -401,7 +604,7 @@ describe('PipelinePage', () => {
       entries: [
         {
           ...baseEntry,
-          jobDescription: 'We need a platform-minded engineer.',
+          jobDescription: analyzedJobDescription,
           jdAnalysisId: 'analysis-1',
         },
       ],
@@ -421,7 +624,7 @@ describe('PipelinePage', () => {
       mode: 'dynamic',
       vectorMode: 'manual',
       source: 'pipeline',
-      jobDescription: 'We need a platform-minded engineer.',
+      jobDescription: analyzedJobDescription,
       pipelineEntryId: baseEntry.id,
       primaryVectorId: 'backend',
       vectorIds: ['backend'],

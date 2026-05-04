@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { Edit3, Trash2, Zap, BookOpen, ArrowRight, Search, Plus, BookMarked } from 'lucide-react'
+import { Edit3, Trash2, Zap, BookOpen, ArrowRight, Search, Plus, BookMarked, FileText } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import type {
   InterviewFormat,
@@ -16,6 +16,8 @@ import {
   getPipelineResumeVariantLabel,
 } from '../../utils/resumeGeneration'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
+import { PipelineJDAnalysisPanel } from './PipelineJDAnalysisPanel'
+import type { PipelineJDAnalysisViewState } from './pipelineAnalysis'
 
 interface PipelineDetailProps {
   entry: PipelineEntry
@@ -23,8 +25,11 @@ interface PipelineDetailProps {
   onDelete: () => void
   onAnalyze: () => void
   onPrep: () => void
+  onToggleAnalysis: () => void
   onOpenInBuilder: () => void
   onInvestigate: () => void
+  analysisState?: PipelineJDAnalysisViewState
+  isAnalysisOpen: boolean
   canInvestigate: boolean
   isInvestigating: boolean
   isAnalyzingJd: boolean
@@ -40,8 +45,11 @@ export function PipelineDetail({
   onDelete,
   onAnalyze,
   onPrep,
+  onToggleAnalysis,
   onOpenInBuilder,
   onInvestigate,
+  analysisState,
+  isAnalysisOpen,
   canInvestigate,
   isInvestigating,
   isAnalyzingJd,
@@ -50,10 +58,14 @@ export function PipelineDetail({
 }: PipelineDetailProps) {
   const actionGroupId = useId()
   const jdAnalysisHintId = `${actionGroupId}-jd-analysis-required`
+  const jdAnalysisPanelId = `${actionGroupId}-jd-analysis-panel`
+  const jdAnalysisPanelTitleId = `${jdAnalysisPanelId}-title`
   const primaryVectorId = getPipelineResumePrimaryVectorId(entry)
   const linkedPresetId = getPipelineResumePresetId(entry)
   const hasJobDescription = Boolean(entry.jobDescription?.trim())
   const jdAnalysisRequired = hasJobDescription && !entry.jdAnalysisId
+  const analysisNeedsReview = analysisState?.status === 'stale'
+  const hasAnalysisReference = Boolean(entry.jdAnalysisId)
   const showExecutionActions =
     Boolean(primaryVectorId) || hasJobDescription || ACTIVE_STATUSES.has(entry.status)
   const linkedPreset = useResumeStore((s) =>
@@ -282,6 +294,17 @@ export function PipelineDetail({
                   <Zap size={14} /> {isAnalyzingJd ? 'Analyzing JD…' : entry.jdAnalysisId ? 'Refresh JD Analysis' : 'Analyze JD'}
                 </button>
               )}
+              {/* Missing-analysis references intentionally open the fallback panel instead of disabling disclosure. */}
+              {hasAnalysisReference && (
+                <button
+                  className={`pipeline-btn pipeline-btn-sm ${isAnalysisOpen ? 'pipeline-btn-active' : ''}`}
+                  onClick={onToggleAnalysis}
+                  aria-controls={jdAnalysisPanelId}
+                  aria-expanded={isAnalysisOpen}
+                >
+                  <FileText size={14} /> {isAnalysisOpen ? 'Hide JD Analysis' : 'Show JD Analysis'}
+                </button>
+              )}
               {hasJobDescription && (
                 <button
                   className="pipeline-btn pipeline-btn-sm"
@@ -317,6 +340,16 @@ export function PipelineDetail({
                   {analysisError}
                 </span>
               ) : null}
+              {analysisNeedsReview && !analysisError ? (
+                <span className="pipeline-action-hint">
+                  Saved JD analysis may need review. Show it to inspect or refresh before generating.
+                </span>
+              ) : null}
+              {analysisState?.status === 'missing' && !analysisError ? (
+                <span className="pipeline-action-hint">
+                  Saved JD analysis reference is missing. Refresh JD Analysis to recreate it.
+                </span>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -337,6 +370,14 @@ export function PipelineDetail({
           </div>
         </div>
       </div>
+
+      {isAnalysisOpen && hasAnalysisReference ? (
+        <PipelineJDAnalysisPanel
+          panelId={jdAnalysisPanelId}
+          state={analysisState}
+          titleId={jdAnalysisPanelTitleId}
+        />
+      ) : null}
     </div>
   )
 }

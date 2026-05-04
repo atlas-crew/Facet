@@ -27,6 +27,10 @@ import {
   getPipelineResumePrimaryVectorId,
   getPipelineResumeVectorIds,
 } from '../../utils/resumeGeneration'
+import {
+  getPipelineJDAnalysisViewState,
+  type PipelineJDAnalysisViewState,
+} from './pipelineAnalysis'
 import './pipeline.css'
 
 type ModalState = 
@@ -48,6 +52,7 @@ export function PipelinePage() {
   const setStatus = usePipelineStore((s) => s.setStatus)
   const addHistoryNote = usePipelineStore((s) => s.addHistoryNote)
   const currentIdentity = useIdentityStore((s) => s.currentIdentity)
+  const jdAnalyses = useJDAnalysisStore((s) => s.analyses)
 
   const navigate = useNavigate()
 
@@ -57,6 +62,7 @@ export function PipelinePage() {
   const [filters, setFilters] = useState<PipelineFilterState>({ tiers: [], statuses: [], search: '' })
   const [sortField, setSortField] = useState<SortField>('tier')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [openAnalysisId, setOpenAnalysisId] = useState<string | null>(null)
   const [investigatingId, setInvestigatingId] = useState<string | null>(null)
   const [analyzingJdId, setAnalyzingJdId] = useState<string | null>(null)
   const [investigationErrors, setInvestigationErrors] = useState<Record<string, string>>({})
@@ -74,6 +80,24 @@ export function PipelinePage() {
     () => allEntries.filter((entry) => !entry.deletedAt),
     [allEntries],
   )
+  const jdAnalysisById = useMemo(
+    () => new Map(jdAnalyses.map((analysis) => [analysis.id, analysis])),
+    [jdAnalyses],
+  )
+  const analysisStates = useMemo<Record<string, PipelineJDAnalysisViewState>>(() => {
+    const identityVersion = currentIdentity?.model_revision ?? null
+
+    return Object.fromEntries(
+      entries.map((entry) => [
+        entry.id,
+        getPipelineJDAnalysisViewState(
+          entry,
+          entry.jdAnalysisId ? jdAnalysisById.get(entry.jdAnalysisId) ?? null : null,
+          identityVersion,
+        ),
+      ]),
+    )
+  }, [currentIdentity?.model_revision, entries, jdAnalysisById])
 
   useEffect(() => {
     if (!requestedEntryId) return
@@ -488,9 +512,12 @@ export function PipelinePage() {
         onDelete={handleDelete}
         onAnalyze={handleAnalyze}
         onPrep={handlePrep}
+        onToggleAnalysis={(entry) => setOpenAnalysisId((current) => (current === entry.id ? null : entry.id))}
         onStatusChange={setStatus}
         onOpenInBuilder={handleOpenInBuilder}
         onInvestigate={handleInvestigate}
+        analysisStates={analysisStates}
+        openAnalysisId={openAnalysisId}
         canInvestigate={Boolean(aiEndpoint)}
         investigatingId={investigatingId}
         analyzingJdId={analyzingJdId}

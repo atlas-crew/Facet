@@ -302,6 +302,14 @@
   color: var(--text-secondary);
 }
 
+.pipeline-table th.pipeline-th-static {
+  cursor: default;
+}
+
+.pipeline-table th.pipeline-th-static:hover {
+  color: var(--text-tertiary);
+}
+
 .pipeline-table th svg {
   vertical-align: middle;
   margin-left: 2px;
@@ -335,6 +343,41 @@
 .pipeline-cell-muted {
   color: var(--text-tertiary);
   font-size: 12px;
+}
+
+.pipeline-analysis-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pipeline-analysis-badge.is-empty {
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+}
+
+.pipeline-analysis-badge.is-current {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.pipeline-analysis-badge.is-pending {
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+}
+
+.pipeline-analysis-badge.is-stale {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.pipeline-analysis-badge.is-missing {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
 }
 
 /* ── Badges ── */
@@ -482,6 +525,133 @@
 .pipeline-action-hint {
   color: color-mix(in srgb, var(--text-tertiary) 88%, white 12%);
   font-size: 12px;
+}
+
+.pipeline-jd-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-surface) 90%, var(--accent-cyan) 10%);
+}
+
+.pipeline-jd-analysis-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.pipeline-jd-analysis-header h3,
+.pipeline-jd-analysis-header p,
+.pipeline-jd-analysis-copy p,
+.pipeline-jd-analysis-summary {
+  margin: 0;
+}
+
+.pipeline-jd-analysis-header h3 {
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.pipeline-jd-analysis-header p,
+.pipeline-jd-analysis-copy p,
+.pipeline-jd-analysis-summary {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pipeline-jd-analysis-alert {
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-radius: 6px;
+  color: var(--warning);
+  padding: var(--space-2) var(--space-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pipeline-jd-analysis-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-2);
+}
+
+.pipeline-jd-analysis-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.pipeline-jd-analysis-metric span {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pipeline-jd-analysis-metric strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pipeline-jd-analysis-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pipeline-jd-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.pipeline-jd-analysis-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pipeline-jd-analysis-list h4,
+.pipeline-jd-analysis-list p,
+.pipeline-jd-analysis-list ul {
+  margin: 0;
+}
+
+.pipeline-jd-analysis-list h4 {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pipeline-jd-analysis-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-left: 18px;
+}
+
+.pipeline-jd-analysis-list li,
+.pipeline-jd-analysis-list p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .pipeline-research {

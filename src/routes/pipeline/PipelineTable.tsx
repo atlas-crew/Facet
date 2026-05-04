@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { PipelineEntry, PipelineStatus } from '../../types/pipeline'
 import { PipelineDetail } from './PipelineDetail'
+import type { PipelineJDAnalysisViewState } from './pipelineAnalysis'
 
 const STATUSES: PipelineStatus[] = [
   'researching', 'applied', 'screening', 'interviewing',
@@ -21,9 +22,12 @@ interface PipelineTableProps {
   onDelete: (id: string) => void
   onAnalyze: (entry: PipelineEntry) => void
   onPrep: (entry: PipelineEntry) => void
+  onToggleAnalysis: (entry: PipelineEntry) => void
   onStatusChange: (id: string, status: PipelineStatus) => void
   onOpenInBuilder: (entry: PipelineEntry) => void
   onInvestigate: (entry: PipelineEntry) => void
+  analysisStates: Record<string, PipelineJDAnalysisViewState>
+  openAnalysisId: string | null
   canInvestigate: boolean
   investigatingId: string | null
   analyzingJdId: string | null
@@ -56,9 +60,12 @@ export function PipelineTable({
   onDelete,
   onAnalyze,
   onPrep,
+  onToggleAnalysis,
   onStatusChange,
   onOpenInBuilder,
   onInvestigate,
+  analysisStates,
+  openAnalysisId,
   canInvestigate,
   investigatingId,
   analyzingJdId,
@@ -78,6 +85,7 @@ export function PipelineTable({
                 )}
               </th>
             ))}
+            <th className="pipeline-th-static">Analysis</th>
           </tr>
         </thead>
         <tbody>
@@ -109,18 +117,24 @@ export function PipelineTable({
                 <td className="pipeline-cell-mono">{entry.comp || '\u2014'}</td>
                 <td className="pipeline-cell-muted">{entry.lastAction || '\u2014'}</td>
                 <td className="pipeline-cell-muted">{entry.nextStep || '\u2014'}</td>
+                <td>
+                  <PipelineAnalysisBadge state={analysisStates[entry.id]} />
+                </td>
               </tr>
               {expandedId === entry.id && (
                 <tr className="pipeline-detail-row">
-                  <td colSpan={COLUMNS.length}>
+                  <td colSpan={COLUMNS.length + 1}>
                     <PipelineDetail
                       entry={entry}
                       onEdit={() => onEdit(entry)}
                       onDelete={() => onDelete(entry.id)}
                       onAnalyze={() => onAnalyze(entry)}
                       onPrep={() => onPrep(entry)}
+                      onToggleAnalysis={() => onToggleAnalysis(entry)}
                       onOpenInBuilder={() => onOpenInBuilder(entry)}
                       onInvestigate={() => onInvestigate(entry)}
+                      analysisState={analysisStates[entry.id]}
+                      isAnalysisOpen={openAnalysisId === entry.id}
                       canInvestigate={canInvestigate}
                       isInvestigating={investigatingId === entry.id}
                       isAnalyzingJd={analyzingJdId === entry.id}
@@ -134,7 +148,7 @@ export function PipelineTable({
           ))}
           {entries.length === 0 && (
             <tr>
-              <td colSpan={COLUMNS.length} className="pipeline-cell-muted" style={{ textAlign: 'center', padding: '32px' }}>
+              <td colSpan={COLUMNS.length + 1} className="pipeline-cell-muted" style={{ textAlign: 'center', padding: '32px' }}>
                 No entries match your filters.
               </td>
             </tr>
@@ -143,4 +157,24 @@ export function PipelineTable({
       </table>
     </div>
   )
+}
+
+function PipelineAnalysisBadge({ state }: { state?: PipelineJDAnalysisViewState }) {
+  if (!state || state.status === 'none') {
+    return <span className="pipeline-analysis-badge is-empty">Not run</span>
+  }
+
+  if (state.status === 'missing') {
+    return <span className="pipeline-analysis-badge is-missing">Analysis missing</span>
+  }
+
+  if (state.status === 'unknown') {
+    return <span className="pipeline-analysis-badge is-pending">JD saved</span>
+  }
+
+  if (state.status === 'stale') {
+    return <span className="pipeline-analysis-badge is-stale">JD stale</span>
+  }
+
+  return <span className="pipeline-analysis-badge is-current">JD saved</span>
 }
