@@ -161,6 +161,23 @@ describe('docxRenderer', () => {
     expect(documentXml).toContain('w:sz w:val="36"')
   })
 
+  it('clamps tiny theme text and converts letter spacing to DOCX units', async () => {
+    const theme = {
+      ...resolveTheme(undefined),
+      sizeBody: 1,
+      nameLetterSpacing: 1,
+      sectionHeaderLetterSpacing: 2,
+    }
+
+    const result = await renderResumeAsDocx(createResume(), theme)
+    const zip = await loadDocx(result.blob)
+    const documentXml = await readZipFile(zip, 'word/document.xml')
+
+    expect(documentXml).toContain('w:sz w:val="14"')
+    expect(documentXml).toContain('w:spacing w:val="20"')
+    expect(documentXml).toContain('w:spacing w:val="40"')
+  })
+
   it('renders minimal resumes without empty section headings', async () => {
     const result = await renderResumeAsDocx({
       selectedVector: 'all',
