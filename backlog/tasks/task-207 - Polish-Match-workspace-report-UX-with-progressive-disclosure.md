@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-05-03 22:39'
-updated_date: '2026-05-03 23:42'
+updated_date: '2026-05-04 01:27'
 labels:
   - feature
   - match
@@ -52,6 +52,10 @@ Started TASK-207 after local backlog search found no existing Match workspace UX
 Implemented Match workspace UX polish in src/routes/match/MatchPage.tsx and src/routes/match/match.css with a sticky report nav, workflow rail, controlled details-based report disclosures, responsive nav behavior, hash deep-link handling, and summary/body accessibility wiring. Added focused coverage in src/test/MatchPage.test.tsx for nav visibility, workflow rail readiness, disclosure defaults, empty states, hash open/cleanup, history nav, and repeat nav reopening after manual collapse.
 
 Verification receipts: pnpm vitest run src/test/MatchPage.test.tsx passed 14/14; npx eslint src/routes/match/MatchPage.tsx src/test/MatchPage.test.tsx --no-warn-ignored passed; git diff --check for the three scoped files passed; Playwright browser smoke via webapp-testing with local Vite server passed nav open/manual close/reopen, summary aria-controls/body region, hash update, and gaps meta checks. diff-test-audit latest clean of P0/P1 at .agents/reviews/test-audit-20260503-192440.md; later source review drove additional controlled-disclosure and a11y fixes. App-wide npx tsc --noEmit -p tsconfig.app.json and pnpm build remain blocked by pre-existing src/routes/prep/PrepPage.tsx createDeck/setActiveDeck missing-name errors, so DoD all-tests/build are intentionally left unchecked.
+
+Follow-up style correction after visual review: replaced undefined Match-only CSS tokens with shared Facet tokens (bg-surface/bg-inset/shadow-xs/sm/error/etc.), restored workspace page padding/max-width/scroll behavior consistent with Research/Prep/Letters patterns, changed panel/card radius and button treatment to match route-scoped component grammar, added semantic tone classes for fit/requirements/advantages/gaps/evidence, fixed the sticky nav collapsed-height regression, and added nested progressive disclosure inside vector summary, advantages, requirements, evidence groups, and gaps. Added MatchPage test coverage for nested disclosure defaults and rerender persistence.
+
+Follow-up receipts: pnpm vitest run src/test/MatchPage.test.tsx passed 15/15; npx eslint src/routes/match/MatchPage.tsx src/test/MatchPage.test.tsx --no-warn-ignored passed; git diff --check passed; browser smoke verified page padding 16px 24px 24px, visible 40px sticky nav, panel shadow from shared token, nav opening Requirements, and nested requirement disclosure opening. Source review artifact .agents/reviews/review-20260503-212552.md still marked BLOCKED, but its remaining P1s were either verified false/currently satisfied (MatchGapSeverity is exported; nested disclosures are keyed by report) or addressed after the artifact with the Record<MatchGapSeverity, MatchTone> map. App-wide type/build still blocked by unrelated PrepPage createDeck/setActiveDeck errors.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

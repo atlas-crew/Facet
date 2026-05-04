@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MatchPage } from '../routes/match/MatchPage'
 import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
@@ -343,6 +343,37 @@ describe('MatchPage', () => {
     expect(requirements?.open).toBe(true)
   })
 
+  it('uses nested disclosures for dense report details', () => {
+    const { container, rerender } = render(<MatchPage />)
+
+    const vectorNestedSections = Array.from(
+      container.querySelectorAll<HTMLDetailsElement>('#match-report-vector-summary .match-nested-disclosure'),
+    )
+    const evidenceNestedSections = Array.from(
+      container.querySelectorAll<HTMLDetailsElement>('#match-report-evidence .match-nested-disclosure'),
+    )
+    const requirementNestedSection = container.querySelector<HTMLDetailsElement>(
+      '#match-report-requirements .match-nested-disclosure',
+    )
+
+    expect(vectorNestedSections).toHaveLength(4)
+    expect(vectorNestedSections[0]?.open).toBe(true)
+    expect(vectorNestedSections.slice(1).every((section) => !section.open)).toBe(true)
+    expect(evidenceNestedSections).toHaveLength(5)
+    expect(evidenceNestedSections.every((section) => !section.open)).toBe(true)
+    expect(requirementNestedSection?.open).toBe(false)
+
+    fireEvent.click(screen.getByText('Skill matches'))
+    expect(vectorNestedSections[1]?.open).toBe(true)
+
+    useMatchStore.setState({ warnings: ['Updated warning after nested section opened.'] })
+    rerender(<MatchPage />)
+
+    expect(
+      container.querySelectorAll<HTMLDetailsElement>('#match-report-vector-summary .match-nested-disclosure')[1]?.open,
+    ).toBe(true)
+  })
+
   it('renders inline empty states for empty advantages and requirements', () => {
     useMatchStore.setState({
       currentReport: {
@@ -401,7 +432,7 @@ describe('MatchPage', () => {
     expect(() => fireEvent(window, new Event('hashchange'))).not.toThrow()
   })
 
-  it('reopens a manually collapsed section when its nav link is clicked again', () => {
+  it('reopens a manually collapsed section when its nav link is clicked again', async () => {
     const { container } = render(<MatchPage />)
     const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
     const nav = screen.getByRole('navigation', { name: /match report sections/i })
@@ -420,7 +451,9 @@ describe('MatchPage', () => {
       .getByRole('navigation', { name: /match report sections/i })
       .querySelector<HTMLAnchorElement>('a[href="#match-report-requirements"]')
     fireEvent.click(refreshedRequirementLink!)
-    expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(true)
+    await waitFor(() => {
+      expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(true)
+    })
   })
 
   it('renders safely for legacy-only persisted match state', () => {

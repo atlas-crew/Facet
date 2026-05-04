@@ -24,7 +24,7 @@ import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { useHandoffStore } from '../../store/handoffStore'
-import type { SkillMatch, VectorAwareMatchResult, WatchOut } from '../../types/match'
+import type { MatchGapSeverity, SkillMatch, VectorAwareMatchResult, WatchOut } from '../../types/match'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from '../../utils/jobMatch'
 import { createJdAnalysisFromMatchArtifacts, hashJobDescriptionText, savePipelineJDAnalysis } from '../../utils/jdAnalysis'
 import { applyMatchReportToResumeData } from '../../utils/matchAssembler'
@@ -77,6 +77,27 @@ const getDefaultOpenReportSections = (hasVectorSummary: boolean): ReadonlySet<Ma
     MATCH_REPORT_SECTION_IDS.summary,
     MATCH_REPORT_SECTION_IDS.advantages,
   ])
+
+type MatchTone = 'neutral' | 'accent' | 'success' | 'warning' | 'critical' | 'violet'
+
+const STRONG_TONE_THRESHOLD = 0.75
+const WARNING_TONE_THRESHOLD = 0.5
+
+const getFitTone = (score: number): MatchTone => {
+  if (score >= STRONG_TONE_THRESHOLD) return 'success'
+  if (score >= WARNING_TONE_THRESHOLD) return 'warning'
+  return 'critical'
+}
+
+const getCoverageTone = (score: number): MatchTone => getFitTone(score)
+
+const GAP_SEVERITY_TONE: Record<MatchGapSeverity, MatchTone> = {
+  high: 'critical',
+  medium: 'warning',
+  low: 'accent',
+}
+
+const getGapSeverityTone = (severity: MatchGapSeverity): MatchTone => GAP_SEVERITY_TONE[severity]
 
 export function MatchPage() {
   const navigate = useNavigate()
@@ -139,6 +160,8 @@ export function MatchPage() {
       }),
     [currentAnalysis, history.length],
   )
+  const matchTone = currentReport ? getFitTone(currentReport.matchScore) : 'neutral'
+  const requirementsTone = currentReport && currentReport.gaps.length > 0 ? 'warning' : 'success'
 
   useEffect(() => {
     if (lastReportDisclosureKeyRef.current === currentReportDisclosureKey) return
@@ -528,12 +551,12 @@ export function MatchPage() {
           {currentAnalysis ? (
             <>
               <section className="match-overview-grid match-analysis-overview-grid">
-                <article className="match-overview-card">
+                <article className={`match-overview-card match-overview-card-${getFitTone(currentAnalysis.fitScore)}`}>
                   <div className="match-overview-label">Overall fit</div>
                   <div className="match-overview-value">{currentAnalysis.overallFit}</div>
                   <p>{currentAnalysis.recommendation} recommendation · {currentAnalysis.confidence} confidence</p>
                 </article>
-                <article className="match-overview-card">
+                <article className="match-overview-card match-overview-card-accent">
                   <div className="match-overview-label">Primary vector</div>
                   <div className="match-overview-value">
                     {currentAnalysis.matchedVectors[0]?.title ?? 'None'}
@@ -544,7 +567,7 @@ export function MatchPage() {
                       : 'Skill-first fallback'}
                   </p>
                 </article>
-                <article className="match-overview-card">
+                <article className={`match-overview-card match-overview-card-${getFitTone(currentAnalysis.fitScore)}`}>
                   <div className="match-overview-label">Fit score</div>
                   <div className="match-overview-value">{formatPercent(currentAnalysis.fitScore)}</div>
                   <p>{currentAnalysis.oneLineSummary}</p>
@@ -556,46 +579,64 @@ export function MatchPage() {
                 title="Vector-Aware Summary"
                 description={currentAnalysis.rationale}
                 meta="Identity signal"
+                tone="accent"
                 open={openReportSections.has(MATCH_REPORT_SECTION_IDS.vectorSummary)}
                 onOpenChange={handleReportSectionToggle}
               >
                 <div className="match-analysis-grid">
-                  <article className="match-analysis-card">
-                    <div className="match-analysis-label">Matched vectors</div>
+                  <NestedDisclosure
+                    key={`${currentReportDisclosureKey}:matched-vectors`}
+                    title="Matched vectors"
+                    meta={`${currentAnalysis.matchedVectors.length} vectors`}
+                    tone="accent"
+                    defaultOpen
+                  >
                     <VectorMatchList analysis={currentAnalysis} />
-                  </article>
+                  </NestedDisclosure>
 
-                  <article className="match-analysis-card">
-                    <div className="match-analysis-label">Skill matches</div>
+                  <NestedDisclosure
+                    key={`${currentReportDisclosureKey}:skill-matches`}
+                    title="Skill matches"
+                    meta={`${currentAnalysis.skillMatches.length} skills`}
+                    tone="success"
+                  >
                     <SkillMatchList skillMatches={currentAnalysis.skillMatches} />
-                  </article>
+                  </NestedDisclosure>
 
-                  <article className="match-analysis-card">
-                    <div className="match-analysis-label">Watch-outs</div>
+                  <NestedDisclosure
+                    key={`${currentReportDisclosureKey}:watch-outs`}
+                    title="Watch-outs"
+                    meta={`${currentAnalysis.watchOuts.length} items`}
+                    tone="warning"
+                  >
                     <WatchOutList watchOuts={currentAnalysis.watchOuts} />
-                  </article>
+                  </NestedDisclosure>
 
-                  <article className="match-analysis-card">
-                    <div className="match-analysis-label">Filters and awareness</div>
+                  <NestedDisclosure
+                    key={`${currentReportDisclosureKey}:filters-awareness`}
+                    title="Filters and awareness"
+                    meta="Targeting rules"
+                    tone="violet"
+                  >
                     <FilterAwarenessSummary analysis={currentAnalysis} />
-                  </article>
+                  </NestedDisclosure>
                 </div>
               </ReportDisclosure>
             </>
           ) : null}
 
           <section className="match-overview-grid">
-            <article className="match-overview-card">
+            <article className={`match-overview-card match-overview-card-${matchTone}`}>
               <div className="match-overview-label">Match score</div>
               <div className="match-overview-value">{formatPercent(currentReport.matchScore)}</div>
               <p>{currentReport.role || 'Unspecified role'}{currentReport.company ? ` at ${currentReport.company}` : ''}</p>
             </article>
-            <article className="match-overview-card">
+            <article className={`match-overview-card match-overview-card-${requirementsTone}`}>
               <div className="match-overview-label">Requirements</div>
               <div className="match-overview-value">{currentReport.requirements.length}</div>
               <p>{currentReport.gaps.length} currently flagged as coverage gaps.</p>
             </article>
-            <article className="match-overview-card">
+            <article className="match-overview-card match-overview-card-success">
               <div className="match-overview-label">Advantages</div>
               <div className="match-overview-value">{currentReport.advantages.length}</div>
               <p>{currentReport.positioningRecommendations.length} positioning recommendations.</p>
@@ -607,6 +648,7 @@ export function MatchPage() {
             title="Summary"
             description={currentReport.summary}
             meta="Decision frame"
+            tone={matchTone}
             open={openReportSections.has(MATCH_REPORT_SECTION_IDS.summary)}
             onOpenChange={handleReportSectionToggle}
           >
@@ -627,13 +669,19 @@ export function MatchPage() {
             title="Advantages"
             description="Computed fresh for this JD from the top-supported requirement combinations."
             meta={`${currentReport.advantages.length} found`}
+            tone="success"
             open={openReportSections.has(MATCH_REPORT_SECTION_IDS.advantages)}
             onOpenChange={handleReportSectionToggle}
           >
             <div className="match-advantage-list">
               {currentReport.advantages.length > 0 ? (
                 currentReport.advantages.map((advantage) => (
-                  <article key={advantage.id} className="match-advantage-card">
+                  <NestedDisclosure
+                    key={`${currentReportDisclosureKey}:${advantage.id}`}
+                    title={advantage.claim}
+                    meta={`${advantage.evidence.length} evidence`}
+                    tone="success"
+                  >
                     <div className="match-advantage-claim">
                       <Sparkles size={16} />
                       <span>{advantage.claim}</span>
@@ -654,7 +702,7 @@ export function MatchPage() {
                         </div>
                       ))}
                     </div>
-                  </article>
+                  </NestedDisclosure>
                 ))
               ) : (
                 <div className="match-empty-inline">No distinct advantages were identified in this report.</div>
@@ -667,13 +715,19 @@ export function MatchPage() {
             title="Requirement Coverage"
             description="Structured JD requirements scored against tags, technologies, and identity text."
             meta={`${currentReport.requirements.length} requirements`}
+            tone="warning"
             open={openReportSections.has(MATCH_REPORT_SECTION_IDS.requirements)}
             onOpenChange={handleReportSectionToggle}
           >
             <div className="match-requirement-list">
               {currentReport.requirements.length > 0 ? (
                 currentReport.requirements.map((requirement) => (
-                  <article key={requirement.id} className="match-requirement-card">
+                  <NestedDisclosure
+                    key={`${currentReportDisclosureKey}:${requirement.id}`}
+                    title={requirement.label}
+                    meta={`${formatPercent(requirement.coverageScore)} coverage`}
+                    tone={getCoverageTone(requirement.coverageScore)}
+                  >
                     <div className="match-requirement-topline">
                       <div>
                         <h3>{requirement.label}</h3>
@@ -697,7 +751,7 @@ export function MatchPage() {
                         <span>No matched tags yet</span>
                       )}
                     </div>
-                  </article>
+                  </NestedDisclosure>
                 ))
               ) : (
                 <div className="match-empty-inline">No structured requirements flagged for this JD.</div>
@@ -711,15 +765,16 @@ export function MatchPage() {
               title="Top Evidence"
               description="Highest-scoring identity assets for this job."
               meta="Identity assets"
+              tone="violet"
               open={openReportSections.has(MATCH_REPORT_SECTION_IDS.evidence)}
               onOpenChange={handleReportSectionToggle}
             >
               <div className="match-asset-groups">
-                <AssetGroup title="Bullets" assets={currentReport.topBullets} />
-                <AssetGroup title="Skills" assets={currentReport.topSkills} />
-                <AssetGroup title="Projects" assets={currentReport.topProjects} />
-                <AssetGroup title="Profiles" assets={currentReport.topProfiles} />
-                <AssetGroup title="Philosophy" assets={currentReport.topPhilosophy} />
+                <AssetGroup key={`${currentReportDisclosureKey}:bullets`} title="Bullets" assets={currentReport.topBullets} />
+                <AssetGroup key={`${currentReportDisclosureKey}:skills`} title="Skills" assets={currentReport.topSkills} />
+                <AssetGroup key={`${currentReportDisclosureKey}:projects`} title="Projects" assets={currentReport.topProjects} />
+                <AssetGroup key={`${currentReportDisclosureKey}:profiles`} title="Profiles" assets={currentReport.topProfiles} />
+                <AssetGroup key={`${currentReportDisclosureKey}:philosophy`} title="Philosophy" assets={currentReport.topPhilosophy} />
               </div>
             </ReportDisclosure>
 
@@ -730,19 +785,25 @@ export function MatchPage() {
               meta={`${currentReport.gaps.length} gaps · ${
                 currentReport.positioningRecommendations.length + currentReport.gapFocus.length
               } notes`}
+              tone={currentReport.gaps.length > 0 ? 'critical' : 'success'}
               open={openReportSections.has(MATCH_REPORT_SECTION_IDS.gaps)}
               onOpenChange={handleReportSectionToggle}
             >
               <div className="match-gap-list">
                 {currentReport.gaps.length > 0 ? (
                   currentReport.gaps.map((gap) => (
-                    <article key={gap.requirementId} className="match-gap-card">
+                    <NestedDisclosure
+                      key={`${currentReportDisclosureKey}:${gap.requirementId}`}
+                      title={gap.label}
+                      meta={gap.severity}
+                      tone={getGapSeverityTone(gap.severity)}
+                    >
                       <div className="match-gap-topline">
                         <span>{gap.label}</span>
                         <span className={`match-chip match-chip-gap-${gap.severity}`}>{gap.severity}</span>
                       </div>
                       <p>{gap.reason}</p>
-                    </article>
+                    </NestedDisclosure>
                   ))
                 ) : (
                   <div className="match-empty-inline">No major gaps flagged for this JD.</div>
@@ -793,6 +854,7 @@ export function MatchPage() {
           title="Recent Reports"
           description="Stored locally for quick comparison while iterating on identity and targeting."
           meta={`${history.length} saved`}
+          tone="neutral"
           open={openReportSections.has(MATCH_REPORT_SECTION_IDS.history)}
           onOpenChange={handleReportSectionToggle}
         >
@@ -821,6 +883,7 @@ function ReportDisclosure({
   title,
   description,
   meta,
+  tone = 'neutral',
   open,
   onOpenChange,
   children,
@@ -829,6 +892,7 @@ function ReportDisclosure({
   title: string
   description?: string
   meta?: string
+  tone?: MatchTone
   open: boolean
   onOpenChange: (id: MatchReportSectionId, open: boolean) => void
   children: ReactNode
@@ -839,7 +903,7 @@ function ReportDisclosure({
     <section id={id} className="match-report-section">
       <details
         open={open}
-        className="match-disclosure"
+        className={`match-disclosure match-tone-${tone}`}
         data-disclosure-root="true"
       >
         <summary
@@ -867,6 +931,37 @@ function ReportDisclosure({
   )
 }
 
+function NestedDisclosure({
+  title,
+  meta,
+  tone = 'neutral',
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  meta?: string
+  tone?: MatchTone
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <details
+      className={`match-nested-disclosure match-tone-${tone}`}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="match-nested-summary">
+        <span className="match-nested-title">{title}</span>
+        {meta ? <span className="match-nested-meta">{meta}</span> : null}
+        <ChevronDown className="match-nested-icon" size={16} aria-hidden="true" />
+      </summary>
+      <div className="match-nested-body">{children}</div>
+    </details>
+  )
+}
+
 function AssetGroup({
   title,
   assets,
@@ -882,8 +977,7 @@ function AssetGroup({
   }>
 }) {
   return (
-    <section className="match-asset-group">
-      <h3>{title}</h3>
+    <NestedDisclosure title={title} meta={`${assets.length} items`} tone="violet">
       {assets.length > 0 ? (
         <div className="match-asset-list">
           {assets.map((asset) => (
@@ -907,7 +1001,7 @@ function AssetGroup({
       ) : (
         <div className="match-empty-inline">No high-confidence {title.toLowerCase()} for this JD yet.</div>
       )}
-    </section>
+    </NestedDisclosure>
   )
 }
 
