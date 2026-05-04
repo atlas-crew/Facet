@@ -17,11 +17,13 @@ const {
   usePresetsMock,
   facetClientEnvMock,
   pdfPreviewMock,
+  renderResumeAsDocxMock,
   vectorBarPropsMock,
   navigateMock,
 } = vi.hoisted(() => ({
   reframeBulletForVectorMock: vi.fn(),
   pdfPreviewMock: vi.fn(),
+  renderResumeAsDocxMock: vi.fn(),
   vectorBarPropsMock: vi.fn(),
   navigateMock: vi.fn(),
   usePresetsMock: vi.fn(),
@@ -45,6 +47,10 @@ vi.mock('../utils/facetEnv', () => ({
 
 vi.mock('../utils/bulletReframing', () => ({
   reframeBulletForVector: reframeBulletForVectorMock,
+}))
+
+vi.mock('../utils/docxRenderer', () => ({
+  renderResumeAsDocx: renderResumeAsDocxMock,
 }))
 
 vi.mock('../hooks/usePdfPreview', () => ({
@@ -278,6 +284,11 @@ describe('BuildPage', () => {
       pageCount: 2,
       pending: false,
       error: null,
+    })
+    renderResumeAsDocxMock.mockReset()
+    renderResumeAsDocxMock.mockResolvedValue({
+      blob: new Blob(['docx'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      generatedAt: '2026-05-04T00:00:00.000Z',
     })
     facetClientEnvMock.anthropicProxyUrl = 'http://localhost:9001'
     usePresetsMock.mockReset()
@@ -567,6 +578,7 @@ describe('BuildPage', () => {
     expect(document.activeElement).toBe(screen.getByText('Export').closest('button'))
     expect(screen.getByText('Import')).toBeTruthy()
     expect(screen.getByText('Export')).toBeTruthy()
+    expect(screen.getByText('Download DOCX')).toBeTruthy()
     expect(screen.getByText('Variables')).toBeTruthy()
     expect(within(screen.getByRole('menu')).queryByText('Generate for Job')).toBeNull()
     expect(within(screen.getByRole('menu')).queryByText('View All Bullets')).toBeNull()
@@ -597,6 +609,21 @@ describe('BuildPage', () => {
     expect(createObjectUrl).toHaveBeenCalledTimes(1)
     expect(anchorClick).toHaveBeenCalledTimes(1)
     expect(revokeObjectUrl).not.toHaveBeenCalled()
+  })
+
+  it('downloads the active resume as DOCX from the compact preview menu', async () => {
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:docx-download')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^More tools$/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Download DOCX/i }))
+
+    await waitFor(() => expect(renderResumeAsDocxMock).toHaveBeenCalledTimes(1))
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob))
+    expect(anchorClick).toHaveBeenCalledTimes(1)
   })
 
   it('preserves existing workspace variant metadata when a legacy handoff has no structured generation payload', () => {

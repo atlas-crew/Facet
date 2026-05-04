@@ -29,6 +29,7 @@ import type {
 import { assembleResume, getPriorityForVector } from '../../engine/assembler'
 import { renderResumeAsText } from '../../utils/textRenderer'
 import { renderResumeAsMarkdown } from '../../utils/markdownRenderer'
+import { renderResumeAsDocx } from '../../utils/docxRenderer'
 import { buildBundle } from '../../utils/bundleExporter'
 import { exportResumeConfig } from '../../engine/serializer'
 import { ComparisonDiff } from '../../components/ComparisonDiff'
@@ -52,7 +53,7 @@ import { HelpHint } from '../../components/HelpHint'
 import { mergeResumeData } from '../../engine/importMerge'
 import type { ResumeConfigSourceKind } from '../../engine/serializer'
 import { resolveEffectiveBulletOrders } from '../../utils/bulletOrder'
-import { buildResumePdfFileName } from '../../utils/pdfFormatting'
+import { buildResumeDocxFileName, buildResumePdfFileName } from '../../utils/pdfFormatting'
 import { reframeBulletForVector } from '../../utils/bulletReframing'
 import type {
   ResumeGenerationMode,
@@ -1209,6 +1210,23 @@ export function BuildPage() {
     }
   }
 
+  const onDownloadDocx = useCallback(async () => {
+    try {
+      const { blob } = await renderResumeAsDocx(assembledResult.resume, resolvedTheme)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = buildResumeDocxFileName(data.meta.name, selectedVector, data.vectors)
+      document.body.append(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      showNotice('success', 'DOCX downloaded')
+    } catch {
+      showNotice('error', 'Failed to create DOCX')
+    }
+  }, [assembledResult.resume, data.meta.name, selectedVector, data.vectors, resolvedTheme, showNotice])
+
   const onDownloadBundle = useCallback(async () => {
     if (!cachedPdfBlob) {
       showNotice('error', 'PDF is still rendering. Please try again in a moment.')
@@ -1525,6 +1543,7 @@ export function BuildPage() {
           <DropdownMenu.Divider />
           <DropdownMenu.Item icon={Copy} label="Copy as Text" onClick={onCopyText} />
           <DropdownMenu.Item icon={FileDown} label="Copy as Markdown" onClick={onCopyMarkdown} />
+          <DropdownMenu.Item icon={FileText} label="Download DOCX" onClick={() => void onDownloadDocx()} />
           <DropdownMenu.Item icon={Package} label="Download Bundle" onClick={onDownloadBundle} />
           <DropdownMenu.Divider />
           <DropdownMenu.Item icon={Paintbrush} label="Variables" onClick={() => setVariablesOpen(true)} />
