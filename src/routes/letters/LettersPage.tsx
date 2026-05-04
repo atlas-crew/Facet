@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
-import { Check, ChevronRight, Copy, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
+import { Check, ChevronRight, Copy, Download, FileText, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
@@ -18,6 +18,10 @@ import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
+import { renderCoverLetterAsDocx } from '../../utils/docxRenderer'
+import { renderLetterAsPdf } from '../../utils/letterPdfRenderer'
+import { buildCoverLetterDocxFileName, buildCoverLetterPdfFileName } from '../../utils/pdfFormatting'
+import { resolveTheme } from '../../themes/theme'
 import './letters.css'
 
 const AI_ENDPOINT_DISABLED_MESSAGE = 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
@@ -55,6 +59,17 @@ function composeLetterText(template: CoverLetterTemplate): string {
     .map((section) => section.trim())
     .filter(Boolean)
     .join('\n\n')
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
 
 function buildJobPromptContext(value: unknown) {
@@ -330,6 +345,7 @@ export function LettersPage() {
     ? resumeEntities.find((resume) => resume.id === activeLetterPipelineEntry.resumeId) ?? null
     : null
   const activeLetterRegenerationResume = activeLetterPipelineResume ?? activeLetterSourceResume
+  const activeLetterExportResume = activeLetterRegenerationResume ?? activeLetterSourceResume
   const activeLetterDrift = useMemo(
     () =>
       resolveLetterDrift(
@@ -633,6 +649,55 @@ export function LettersPage() {
     const templateToCopy = getActiveTemplateWithDraft()
     if (!templateToCopy) return
     void copyTextWithFlag(composeLetterText(templateToCopy), 'letter')
+  }
+
+  const getActiveLetterExportLabel = () => {
+    if (activeLetterPipelineEntry) return formatPipelineEntryLabel(activeLetterPipelineEntry)
+    return activeTemplate?.name ?? 'Cover Letter'
+  }
+
+  const resolveActiveLetterVectorId = () =>
+    activeLetterPipelineEntry?.resumeGeneration?.primaryVectorId ??
+    activeLetterPipelineEntry?.vectorId ??
+    activeLetterExportResume?.origin.vectorId ??
+    'all'
+
+  const handleDownloadLetterPdf = async () => {
+    const templateToExport = getActiveTemplateWithDraft()
+    if (!templateToExport) return
+    if (!activeLetterExportResume) {
+      setGenerationError('A source resume is required before exporting this cover letter as PDF.')
+      return
+    }
+
+    try {
+      const theme = resolveTheme(activeLetterExportResume.content.theme)
+      const candidateMeta = resolveCoverLetterCandidateMeta(activeLetterExportResume.content.meta, currentIdentity)
+      const { blob } = await renderLetterAsPdf(
+        templateToExport,
+        theme,
+        candidateMeta,
+        resolveActiveLetterVectorId(),
+      )
+      downloadBlob(blob, buildCoverLetterPdfFileName(getActiveLetterExportLabel()))
+      setGenerationError(null)
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Cover letter PDF export failed.')
+    }
+  }
+
+  const handleDownloadLetterDocx = async () => {
+    const templateToExport = getActiveTemplateWithDraft()
+    if (!templateToExport) return
+
+    try {
+      const theme = resolveTheme(activeLetterExportResume?.content.theme)
+      const { blob } = await renderCoverLetterAsDocx(templateToExport, theme)
+      downloadBlob(blob, buildCoverLetterDocxFileName(getActiveLetterExportLabel()))
+      setGenerationError(null)
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : 'Cover letter DOCX export failed.')
+    }
   }
 
   const handleDeleteTemplate = (id: string, displayName: string) => {
@@ -1072,17 +1137,36 @@ export function LettersPage() {
           <div className="letters-editor">
             <div className="letters-editor-toolbar">
               <span className={`letters-save-status ${editorStatusClass}`}>{editingKey ? 'Editing' : 'Saved'}</span>
-              <button
-                className="letters-btn letters-btn-sm"
-                type="button"
-                onClick={handleCopyLetter}
-                disabled={!composeLetterText(getActiveTemplateWithDraft() ?? activeTemplate)}
-                title="Copy assembled letter to clipboard"
-                aria-label="Copy letter to clipboard"
-              >
-                {copiedKey === 'letter' ? <Check size={14} /> : <Copy size={14} />}{' '}
-                {copiedKey === 'letter' ? 'Copied' : 'Copy Letter'}
-              </button>
+              <div className="letters-editor-actions">
+                <button
+                  className="letters-btn letters-btn-sm"
+                  type="button"
+                  onClick={() => void handleDownloadLetterPdf()}
+                  disabled={!activeLetterExportResume}
+                  title={activeLetterExportResume ? 'Download cover letter as PDF' : 'A source resume is required before PDF export'}
+                >
+                  <Download size={14} /> Download PDF
+                </button>
+                <button
+                  className="letters-btn letters-btn-sm"
+                  type="button"
+                  onClick={() => void handleDownloadLetterDocx()}
+                  title="Download cover letter as DOCX"
+                >
+                  <FileText size={14} /> Download DOCX
+                </button>
+                <button
+                  className="letters-btn letters-btn-sm"
+                  type="button"
+                  onClick={handleCopyLetter}
+                  disabled={!composeLetterText(getActiveTemplateWithDraft() ?? activeTemplate)}
+                  title="Copy assembled letter to clipboard"
+                  aria-label="Copy letter to clipboard"
+                >
+                  {copiedKey === 'letter' ? <Check size={14} /> : <Copy size={14} />}{' '}
+                  {copiedKey === 'letter' ? 'Copied' : 'Copy Letter'}
+                </button>
+              </div>
             </div>
             <input
               className="letters-title-input"

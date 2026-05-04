@@ -18,6 +18,22 @@ import { hashJobDescriptionText } from '../utils/jdAnalysis'
 
 const PIPELINE_JOB_DESCRIPTION = 'Build distributed systems and platform tooling.'
 
+const {
+  renderCoverLetterAsDocxMock,
+  renderLetterAsPdfMock,
+} = vi.hoisted(() => ({
+  renderCoverLetterAsDocxMock: vi.fn(),
+  renderLetterAsPdfMock: vi.fn(),
+}))
+
+vi.mock('../utils/docxRenderer', () => ({
+  renderCoverLetterAsDocx: renderCoverLetterAsDocxMock,
+}))
+
+vi.mock('../utils/letterPdfRenderer', () => ({
+  renderLetterAsPdf: renderLetterAsPdfMock,
+}))
+
 function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
   return {
     id: 'analysis-1',
@@ -93,6 +109,18 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
 describe('LettersPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
+    renderCoverLetterAsDocxMock.mockReset()
+    renderLetterAsPdfMock.mockReset()
+    renderCoverLetterAsDocxMock.mockResolvedValue({
+      blob: new Blob(['docx'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      generatedAt: '2026-05-04T00:00:00.000Z',
+    })
+    renderLetterAsPdfMock.mockResolvedValue({
+      blob: new Blob(['pdf'], { type: 'application/pdf' }),
+      bytes: new Uint8Array([1, 2, 3]),
+      pageCount: 1,
+      generatedAt: '2026-05-04T00:00:00.000Z',
+    })
     resolveStorage().removeItem('facet-cover-letter-data')
     resolveStorage().removeItem('vector-resume-data')
     useCoverLetterStore.setState({ letters: [], snapshots: [], activeLetterId: null, templates: [] })
@@ -1959,6 +1987,74 @@ describe('LettersPage', () => {
     const copiedLetter = writeText.mock.calls.at(-1)?.[0] ?? ''
     expect(copiedLetter).toContain('Unsaved paragraph draft.')
     expect(copiedLetter).not.toContain('Saved paragraph text.')
+  })
+
+  it('downloads the active cover letter as DOCX with draft edits', async () => {
+    const sourceResume = useResumeStore.getState().resumes[0]!
+    useCoverLetterStore.getState().createLetter({
+      content: {
+        name: 'Acme Staff Engineer Cover Letter',
+        header: 'Jane Smith\njane@example.com',
+        greeting: 'Dear Jordan Lee,',
+        paragraphs: [{ id: 'paragraph-1', text: 'Saved paragraph text.', vectors: {} }],
+        signOff: 'Sincerely,\nJane Smith',
+      },
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: sourceResume.id,
+      sourceResumeHash: sourceResume.contentHash,
+      identityVersion: 7,
+      generatedAt: '2026-05-04T00:00:00.000Z',
+    })
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:letter-docx')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByLabelText('Edit greeting'))
+    fireEvent.change(screen.getByLabelText('Greeting edit'), {
+      target: { value: 'Hi Jordan,' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Download DOCX/i }))
+
+    await waitFor(() => expect(renderCoverLetterAsDocxMock).toHaveBeenCalledTimes(1))
+    expect(renderCoverLetterAsDocxMock.mock.calls[0]?.[0]).toMatchObject({
+      greeting: 'Hi Jordan,',
+    })
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob))
+    expect(anchorClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('downloads the active cover letter as PDF from its source resume context', async () => {
+    const sourceResume = useResumeStore.getState().resumes[0]!
+    useCoverLetterStore.getState().createLetter({
+      content: {
+        name: 'Acme Staff Engineer Cover Letter',
+        header: 'Jane Smith\njane@example.com',
+        greeting: 'Dear Jordan Lee,',
+        paragraphs: [{ id: 'paragraph-1', text: 'Saved paragraph text.', vectors: {} }],
+        signOff: 'Sincerely,\nJane Smith',
+      },
+      pipelineEntryId: 'pipe-1',
+      sourceResumeId: sourceResume.id,
+      sourceResumeHash: sourceResume.contentHash,
+      identityVersion: 7,
+      generatedAt: '2026-05-04T00:00:00.000Z',
+    })
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:letter-pdf')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Download PDF/i }))
+
+    await waitFor(() => expect(renderLetterAsPdfMock).toHaveBeenCalledTimes(1))
+    expect(renderLetterAsPdfMock.mock.calls[0]?.[2]).toMatchObject({
+      name: sourceResume.content.meta.name,
+    })
+    expect(renderLetterAsPdfMock.mock.calls[0]?.[3]).toBe('backend')
+    expect(anchorClick).toHaveBeenCalledTimes(1)
   })
 
   it('ignores clipboard write failures without showing copied state', async () => {

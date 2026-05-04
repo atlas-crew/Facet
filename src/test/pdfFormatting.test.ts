@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildResumePdfFileName } from '../utils/pdfFormatting'
+import {
+  buildCoverLetterDocxFileName,
+  buildCoverLetterPdfFileName,
+  buildResumeDocxFileName,
+  buildResumePdfFileName,
+} from '../utils/pdfFormatting'
 
 describe('pdfFormatting', () => {
   it('builds vector-aware pdf filenames from candidate and vector labels', () => {
@@ -13,6 +18,19 @@ describe('pdfFormatting', () => {
   it('uses AllVectors suffix when selection is all', () => {
     const fileName = buildResumePdfFileName('Alex Example', 'all', [])
     expect(fileName).toBe('AlexExample_Resume_AllVectors.pdf')
+  })
+
+  it('builds docx filenames for resumes', () => {
+    const fileName = buildResumeDocxFileName('Alex Example', 'security-platform', [
+      { id: 'security-platform', label: 'Security Platform', color: '#000000' },
+    ])
+
+    expect(fileName).toBe('AlexExample_Resume_SecurityPlatform.docx')
+  })
+
+  it('builds artifact filenames for cover letters', () => {
+    expect(buildCoverLetterPdfFileName('Acme Corp - Staff Engineer')).toBe('AcmeCorpStaffEngineer_CoverLetter.pdf')
+    expect(buildCoverLetterDocxFileName('Acme Corp - Staff Engineer')).toBe('AcmeCorpStaffEngineer_CoverLetter.docx')
   })
 
   it.each([

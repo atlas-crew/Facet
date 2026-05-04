@@ -35,3 +35,14 @@ export const buildResumeDocxFileName = (
   selectedVector: VectorSelection,
   vectors: ResumeVector[],
 ): string => buildResumeFileName(fullName, selectedVector, vectors, 'docx')
+
+const buildCoverLetterFileName = (label: string, extension: 'pdf' | 'docx'): string => {
+  const labelPart = slugPart(label)
+  return `${labelPart}_CoverLetter.${extension}`
+}
+
+export const buildCoverLetterPdfFileName = (label: string): string =>
+  buildCoverLetterFileName(label, 'pdf')
+
+export const buildCoverLetterDocxFileName = (label: string): string =>
+  buildCoverLetterFileName(label, 'docx')
