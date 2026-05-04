@@ -289,7 +289,7 @@ export function LettersPage() {
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [refinementError, setRefinementError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [activeLetterSection, setActiveLetterSection] = useState(LETTER_SECTION_IDS.header)
+  const [activeLetterSection, setActiveLetterSection] = useState<string>(LETTER_SECTION_IDS.header)
 
   const candidateEntries = useMemo(
     () => pipelineEntries.filter((entry) => !entry.deletedAt).sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
