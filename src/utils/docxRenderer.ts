@@ -42,8 +42,9 @@ const normalizeColor = (value: string | undefined, fallback: string): string => 
   return /^[0-9a-fA-F]{6}$/.test(stripped) ? stripped.toUpperCase() : fallback
 }
 
-const pointSize = (value: number | undefined, fallback: number): number =>
-  Math.max(14, Math.round((value ?? fallback / 2) * 2))
+// The docx library expects font sizes in half-points.
+const pointSize = (valuePt: number | undefined, fallbackHalfPt: number): number =>
+  valuePt == null ? fallbackHalfPt : Math.max(14, Math.round(valuePt * 2))
 
 const bodyFont = (theme?: ResumeTheme): string => theme?.fontBody || 'Aptos'
 const headingFont = (theme?: ResumeTheme): string => theme?.fontHeading || theme?.fontBody || 'Aptos Display'
@@ -74,7 +75,17 @@ const lineBreakRuns = (
   options: Partial<TextRunOptions> = {},
 ) =>
   value.split(/\r?\n/).flatMap((line, index) => [
-    ...(index > 0 ? [new TextRun({ break: 1 })] : []),
+    ...(index > 0
+      ? [
+          new TextRun({
+            break: 1,
+            font: bodyFont(theme),
+            size: bodySize(theme),
+            color: normalizeColor(theme?.colorBody, '222222'),
+            ...options,
+          }),
+        ]
+      : []),
     textRun(line, theme, options),
   ])
 
@@ -210,7 +221,9 @@ const roleParagraphs = (role: AssembledRole, theme?: ResumeTheme): Paragraph[] =
           }),
         ]
       : []),
-    ...role.bullets.map((bullet) => bulletParagraph(bullet.text, theme)),
+    ...role.bullets
+      .filter((bullet) => cleanText(bullet.text))
+      .map((bullet) => bulletParagraph(bullet.text, theme)),
   ]
 }
 

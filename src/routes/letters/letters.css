@@ -237,6 +237,12 @@
   gap: var(--space-2);
 }
 
+.letters-export-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
 .letters-save-status {
   --letters-status-color: var(--success);
   display: inline-flex;

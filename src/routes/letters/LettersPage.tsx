@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
-import { Check, ChevronRight, Copy, Download, FileText, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  ChevronRight,
+  Copy,
+  Download,
+  FileText,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
@@ -18,7 +31,6 @@ import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
-import { renderCoverLetterAsDocx } from '../../utils/docxRenderer'
 import { renderLetterAsPdf } from '../../utils/letterPdfRenderer'
 import { buildCoverLetterDocxFileName, buildCoverLetterPdfFileName } from '../../utils/pdfFormatting'
 import { resolveTheme } from '../../themes/theme'
@@ -302,6 +314,7 @@ export function LettersPage() {
   const [refiningParagraphId, setRefiningParagraphId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<LetterEditDraft | null>(null)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [refinementError, setRefinementError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [activeLetterSection, setActiveLetterSection] = useState<string>(LETTER_SECTION_IDS.header)
@@ -345,7 +358,8 @@ export function LettersPage() {
     ? resumeEntities.find((resume) => resume.id === activeLetterPipelineEntry.resumeId) ?? null
     : null
   const activeLetterRegenerationResume = activeLetterPipelineResume ?? activeLetterSourceResume
-  const activeLetterExportResume = activeLetterRegenerationResume ?? activeLetterSourceResume
+  // Exports use the resume the letter was authored against; regeneration can still prefer the current pipeline resume.
+  const activeLetterExportResume = activeLetterSourceResume
   const activeLetterDrift = useMemo(
     () =>
       resolveLetterDrift(
@@ -666,7 +680,7 @@ export function LettersPage() {
     const templateToExport = getActiveTemplateWithDraft()
     if (!templateToExport) return
     if (!activeLetterExportResume) {
-      setGenerationError('A source resume is required before exporting this cover letter as PDF.')
+      setExportError('A source resume is required before exporting this cover letter as PDF.')
       return
     }
 
@@ -680,9 +694,9 @@ export function LettersPage() {
         resolveActiveLetterVectorId(),
       )
       downloadBlob(blob, buildCoverLetterPdfFileName(getActiveLetterExportLabel()))
-      setGenerationError(null)
+      setExportError(null)
     } catch (error) {
-      setGenerationError(error instanceof Error ? error.message : 'Cover letter PDF export failed.')
+      setExportError(error instanceof Error ? error.message : 'Cover letter PDF export failed.')
     }
   }
 
@@ -691,12 +705,13 @@ export function LettersPage() {
     if (!templateToExport) return
 
     try {
+      const { renderCoverLetterAsDocx } = await import('../../utils/docxRenderer')
       const theme = resolveTheme(activeLetterExportResume?.content.theme)
       const { blob } = await renderCoverLetterAsDocx(templateToExport, theme)
       downloadBlob(blob, buildCoverLetterDocxFileName(getActiveLetterExportLabel()))
-      setGenerationError(null)
+      setExportError(null)
     } catch (error) {
-      setGenerationError(error instanceof Error ? error.message : 'Cover letter DOCX export failed.')
+      setExportError(error instanceof Error ? error.message : 'Cover letter DOCX export failed.')
     }
   }
 
@@ -1137,7 +1152,7 @@ export function LettersPage() {
           <div className="letters-editor">
             <div className="letters-editor-toolbar">
               <span className={`letters-save-status ${editorStatusClass}`}>{editingKey ? 'Editing' : 'Saved'}</span>
-              <div className="letters-editor-actions">
+              <div className="letters-editor-actions" role="group" aria-label="Letter export actions">
                 <button
                   className="letters-btn letters-btn-sm"
                   type="button"
@@ -1168,6 +1183,9 @@ export function LettersPage() {
                 </button>
               </div>
             </div>
+            {exportError ? (
+              <p className="letters-export-error" role="alert">{exportError}</p>
+            ) : null}
             <input
               className="letters-title-input"
               value={activeTemplate.name}

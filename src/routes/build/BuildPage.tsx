@@ -29,7 +29,6 @@ import type {
 import { assembleResume, getPriorityForVector } from '../../engine/assembler'
 import { renderResumeAsText } from '../../utils/textRenderer'
 import { renderResumeAsMarkdown } from '../../utils/markdownRenderer'
-import { renderResumeAsDocx } from '../../utils/docxRenderer'
 import { buildBundle } from '../../utils/bundleExporter'
 import { exportResumeConfig } from '../../engine/serializer'
 import { ComparisonDiff } from '../../components/ComparisonDiff'
@@ -1212,6 +1211,7 @@ export function BuildPage() {
 
   const onDownloadDocx = useCallback(async () => {
     try {
+      const { renderResumeAsDocx } = await import('../../utils/docxRenderer')
       const { blob } = await renderResumeAsDocx(assembledResult.resume, resolvedTheme)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
