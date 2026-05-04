@@ -118,10 +118,83 @@ describe('docxRenderer', () => {
 
     expect(documentXml).toContain('Jane Smith')
     expect(documentXml).toContain('Senior Backend Engineer')
+    expect(documentXml).toContain('Atlas Cloud')
+    expect(documentXml).toContain('Remote')
+    expect(documentXml).toContain('2022 - Present')
+    expect(documentXml).toContain('Platform reliability')
     expect(documentXml).toContain('Reduced incident response time')
     expect(documentXml).toContain('CORE COMPETENCIES')
+    expect(documentXml).toContain('State University')
+    expect(documentXml).toContain('BS Computer Science')
+    expect(documentXml).toContain('AWS Solutions Architect')
+    expect(documentXml).toContain('ABC-123')
     expect(relationshipsXml).toContain('https://github.com/janesmith')
+    expect(relationshipsXml).toContain('https://example.com/deploy-guard')
+    expect(relationshipsXml).toContain('https://example.com/cert')
     expect(relationshipsXml).not.toContain('javascript:alert')
+  })
+
+  it('renders minimal resumes without empty section headings', async () => {
+    const result = await renderResumeAsDocx({
+      selectedVector: 'all',
+      header: {
+        name: '',
+        email: '',
+        phone: '',
+        location: '',
+        links: [],
+      },
+      skillGroups: [],
+      roles: [],
+      projects: [],
+      education: [],
+      certifications: [],
+    }, resolveTheme(undefined))
+
+    const zip = await loadDocx(result.blob)
+    const documentXml = await readZipFile(zip, 'word/document.xml')
+
+    expect(documentXml).toContain('Resume')
+    expect(documentXml).not.toContain('PROFILE')
+    expect(documentXml).not.toContain('CORE COMPETENCIES')
+    expect(documentXml).not.toContain('PROFESSIONAL EXPERIENCE')
+    expect(documentXml).not.toContain('PROJECTS')
+    expect(documentXml).not.toContain('EDUCATION')
+    expect(documentXml).not.toContain('CERTIFICATIONS')
+  })
+
+  it('sanitizes project and certification URLs independently from contact links', async () => {
+    const resume = createResume()
+    resume.projects = [
+      ...resume.projects,
+      {
+        id: 'project-unsafe',
+        name: 'Unsafe Project',
+        url: 'javascript:alert(1)',
+        text: 'Should render text without creating a relationship.',
+      },
+    ]
+    resume.certifications = [
+      ...resume.certifications,
+      {
+        id: 'cert-unsafe',
+        name: 'Unsafe Cert',
+        issuer: 'Example',
+        url: 'data:text/html,<script>alert(1)</script>',
+      },
+    ]
+
+    const result = await renderResumeAsDocx(resume, resolveTheme(undefined))
+    const zip = await loadDocx(result.blob)
+    const documentXml = await readZipFile(zip, 'word/document.xml')
+    const relationshipsXml = await readZipFile(zip, 'word/_rels/document.xml.rels')
+
+    expect(documentXml).toContain('Unsafe Project')
+    expect(documentXml).toContain('Unsafe Cert')
+    expect(relationshipsXml).toContain('https://example.com/deploy-guard')
+    expect(relationshipsXml).toContain('https://example.com/cert')
+    expect(relationshipsXml).not.toContain('javascript:alert')
+    expect(relationshipsXml).not.toContain('data:text/html')
   })
 
   it('renders cover letter content into DOCX documents', async () => {
@@ -134,7 +207,10 @@ describe('docxRenderer', () => {
     const documentXml = await readZipFile(zip, 'word/document.xml')
 
     expect(documentXml).toContain('Dear Hiring Manager')
+    expect(documentXml).toContain('Jane Smith')
+    expect(documentXml).toContain('jane@example.com')
     expect(documentXml).toContain('Staff Engineer role at Acme')
     expect(documentXml).toContain('Sincerely')
+    expect(documentXml).toContain('<w:br/>')
   })
 })
