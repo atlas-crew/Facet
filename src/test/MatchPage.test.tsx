@@ -512,6 +512,267 @@ describe('MatchPage', () => {
     expect(attachedAnalysis?.id).toBe('match-analysis-1')
     expect(attachedAnalysis?.pipelineEntryId).toBe(entry?.id)
     expect(attachedAnalysis?.jdTextHash).toBe(hashJobDescriptionText(entry?.jobDescription ?? ''))
+    expect(entry?.history.at(-1)?.note).toBe('Saved JD Match analysis')
+    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+  })
+
+  it('reuses a matching pipeline entry when saving the canonical JD analysis', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Atlas, Inc.',
+      role: 'Staff Platform Engineer',
+      tier: '1',
+      status: 'interviewing',
+      comp: '$250k',
+      url: 'https://atlas.example/jobs/platform',
+      contact: 'recruiter@atlas.example',
+      vectorId: 'backend',
+      jobDescription: 'Old job description.',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: 'Curated recruiter-facing positioning.',
+      skillMatch: 'Curated skill framing.',
+      nextStep: 'Prepare for the recruiter screen.',
+      notes: 'Existing hand-written note.',
+      appMethod: 'referral',
+      response: 'screen-scheduled',
+      daysToResponse: 2,
+      rounds: 3,
+      format: ['hm-screen'],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '2026-04-02',
+      dateClosed: '',
+    })
+    const existingEntryId = usePipelineStore.getState().entries[0]!.id
+
+    render(<MatchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entries = usePipelineStore.getState().entries
+    expect(entries).toHaveLength(1)
+    const entry = entries[0]!
+    expect(entry.id).toBe(existingEntryId)
+    expect(entry.company).toBe('Atlas, Inc.')
+    expect(entry.role).toBe('Staff Platform Engineer')
+    expect(entry.status).toBe('interviewing')
+    expect(entry.comp).toBe('$250k')
+    expect(entry.appMethod).toBe('referral')
+    expect(entry.dateApplied).toBe('2026-04-02')
+    expect(entry.notes).toBe('Existing hand-written note.')
+    expect(entry.nextStep).toBe('Prepare for the recruiter screen.')
+    expect(entry.jobDescription).toBe(reportFixture.jobDescription)
+    expect(entry.jdAnalysisId).toBe('match-analysis-1')
+    expect(entry.vectorId).toBe('backend')
+    expect(entry.positioning).toBe('Curated recruiter-facing positioning.')
+    expect(entry.skillMatch).toBe('Curated skill framing.')
+    expect(entry.history.at(-1)?.note).toBe('Updated JD Match analysis')
+
+    const attachedAnalysis = useJDAnalysisStore.getState().findByPipelineEntry(existingEntryId)
+    expect(attachedAnalysis?.id).toBe('match-analysis-1')
+    expect(attachedAnalysis?.pipelineEntryId).toBe(existingEntryId)
+    expect(screen.getByRole('status').textContent).toContain('most recent matching Atlas · Staff Platform Engineer')
+  })
+
+  it('fills blank analysis-derived fields on a matching pipeline entry', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Atlas',
+      role: 'Staff Platform Engineer',
+      tier: '2',
+      status: 'researching',
+      comp: '',
+      url: '',
+      contact: '',
+      vectorId: null,
+      jobDescription: '',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: '',
+      skillMatch: '',
+      nextStep: '',
+      notes: '',
+      appMethod: 'unknown',
+      response: 'none',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '',
+      dateClosed: '',
+    })
+
+    render(<MatchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entry = usePipelineStore.getState().entries[0]!
+    expect(entry.vectorId).toBe('platform-lead')
+    expect(entry.positioning).toBe('Lead with platform migration stories.')
+    expect(entry.skillMatch).toBe('platform')
+    expect(entry.nextStep).toBe('Review JD analysis and decide whether to apply.')
+    expect(entry.jdAnalysisId).toBe('match-analysis-1')
+    expect(usePipelineStore.getState().entries).toHaveLength(1)
+  })
+
+  it('creates a new pipeline entry when existing entries do not match the JD analysis role', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Globex',
+      role: 'Senior Backend Engineer',
+      tier: '2',
+      status: 'researching',
+      comp: '$210k',
+      url: 'https://globex.example/jobs/backend',
+      contact: '',
+      vectorId: 'backend',
+      jobDescription: 'Build backend APIs.',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: 'Backend systems fit.',
+      skillMatch: 'backend',
+      nextStep: 'Follow up with Globex.',
+      notes: 'Keep this entry untouched.',
+      appMethod: 'unknown',
+      response: 'none',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '',
+      dateClosed: '',
+    })
+    const globexId = usePipelineStore.getState().entries[0]!.id
+
+    render(<MatchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entries = usePipelineStore.getState().entries
+    expect(entries).toHaveLength(2)
+    expect(entries.find((entry) => entry.id === globexId)).toMatchObject({
+      company: 'Globex',
+      role: 'Senior Backend Engineer',
+      jobDescription: 'Build backend APIs.',
+      notes: 'Keep this entry untouched.',
+      jdAnalysisId: null,
+    })
+    const atlas = entries.find((entry) => entry.company === 'Atlas')
+    expect(atlas?.role).toBe('Staff Platform Engineer')
+    expect(atlas?.jobDescription).toBe(reportFixture.jobDescription)
+    expect(atlas?.jdAnalysisId).toBe('match-analysis-1')
+    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+  })
+
+  it('creates a fresh entry instead of reusing a terminal matching pipeline entry', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Atlas',
+      role: 'Staff Platform Engineer',
+      tier: '1',
+      status: 'rejected',
+      comp: '',
+      url: '',
+      contact: '',
+      vectorId: null,
+      jobDescription: 'Rejected role JD.',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: 'Rejected positioning.',
+      skillMatch: '',
+      nextStep: '',
+      notes: 'Closed-out history.',
+      appMethod: 'unknown',
+      response: 'human-reject',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: 'technical',
+      rejectionReason: 'Past process closed.',
+      offerAmount: '',
+      dateApplied: '2026-03-10',
+      dateClosed: '2026-03-20',
+    })
+    const rejectedId = usePipelineStore.getState().entries[0]!.id
+
+    render(<MatchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entries = usePipelineStore.getState().entries
+    expect(entries).toHaveLength(2)
+    expect(entries.find((entry) => entry.id === rejectedId)).toMatchObject({
+      status: 'rejected',
+      jobDescription: 'Rejected role JD.',
+      jdAnalysisId: null,
+      notes: 'Closed-out history.',
+      dateClosed: '2026-03-20',
+    })
+    const fresh = entries.find((entry) => entry.id !== rejectedId)
+    expect(fresh?.company).toBe('Atlas')
+    expect(fresh?.jdAnalysisId).toBe('match-analysis-1')
+    expect(useJDAnalysisStore.getState().findByPipelineEntry(fresh?.id ?? '')?.id).toBe('match-analysis-1')
+    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+  })
+
+  it('creates a fresh entry instead of reusing a soft-deleted matching pipeline entry', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Atlas',
+      role: 'Staff Platform Engineer',
+      tier: '1',
+      status: 'researching',
+      comp: '',
+      url: '',
+      contact: '',
+      vectorId: null,
+      jobDescription: 'Deleted role JD.',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: '',
+      skillMatch: '',
+      nextStep: '',
+      notes: 'Deleted row.',
+      appMethod: 'unknown',
+      response: 'none',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '',
+      dateClosed: '',
+      deletedAt: '2026-04-03T12:00:00.000Z',
+    })
+    const deletedId = usePipelineStore.getState().entries[0]!.id
+
+    render(<MatchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entries = usePipelineStore.getState().entries
+    expect(entries).toHaveLength(2)
+    expect(entries.find((entry) => entry.id === deletedId)).toMatchObject({
+      deletedAt: '2026-04-03T12:00:00.000Z',
+      jobDescription: 'Deleted role JD.',
+      jdAnalysisId: null,
+    })
+    const fresh = entries.find((entry) => entry.id !== deletedId)
+    expect(fresh?.company).toBe('Atlas')
+    expect(fresh?.jdAnalysisId).toBe('match-analysis-1')
+    expect(useJDAnalysisStore.getState().findByPipelineEntry(fresh?.id ?? '')?.id).toBe('match-analysis-1')
     expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
   })
 })

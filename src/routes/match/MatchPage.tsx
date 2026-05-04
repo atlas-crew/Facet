@@ -25,11 +25,13 @@ import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { useHandoffStore } from '../../store/handoffStore'
 import type { MatchGapSeverity, SkillMatch, VectorAwareMatchResult, WatchOut } from '../../types/match'
+import type { PipelineEntry } from '../../types/pipeline'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from '../../utils/jobMatch'
 import { createJdAnalysisFromMatchArtifacts, hashJobDescriptionText, savePipelineJDAnalysis } from '../../utils/jdAnalysis'
 import { applyMatchReportToResumeData } from '../../utils/matchAssembler'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
+import { findMatchingPipelineEntry } from './matchPipeline'
 import './match.css'
 
 const downloadJson = (filename: string, content: string) => {
@@ -312,9 +314,7 @@ export function MatchPage() {
       setPageError('The job description changed after this analysis. Re-run JD matching before saving to Pipeline.')
       return
     }
-    const existingIds = new Set(usePipelineStore.getState().entries.map((entry) => entry.id))
-
-    addPipelineEntry({
+    const pipelineEntryDraft: Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'> = {
       company,
       role,
       tier: '2',
@@ -342,10 +342,32 @@ export function MatchPage() {
       offerAmount: '',
       dateApplied: '',
       dateClosed: '',
-    })
+    }
 
-    const createdEntry = usePipelineStore.getState().entries.find((entry) => !existingIds.has(entry.id))
-    if (!createdEntry) {
+    const pipelineStore = usePipelineStore.getState()
+    const matchingEntry = findMatchingPipelineEntry(pipelineStore.entries, company, role)
+    let targetEntryId = matchingEntry?.id ?? null
+
+    if (matchingEntry) {
+      // Preserve workflow/user-owned fields such as status, notes, dates, method, comp, and selected vector.
+      // Refresh only the JD analysis attachment and blank analysis-derived text fields.
+      pipelineStore.updateEntry(matchingEntry.id, {
+        jobDescription: jdText,
+        jdAnalysisId: currentJDAnalysis.id,
+        vectorId: matchingEntry.vectorId || currentJDAnalysis.primaryVectorId,
+        positioning: matchingEntry.positioning || pipelineEntryDraft.positioning,
+        skillMatch: matchingEntry.skillMatch || pipelineEntryDraft.skillMatch,
+        nextStep: matchingEntry.nextStep || pipelineEntryDraft.nextStep,
+      })
+    } else {
+      const existingIds = new Set(pipelineStore.entries.map((entry) => entry.id))
+      addPipelineEntry(pipelineEntryDraft)
+
+      const createdEntry = usePipelineStore.getState().entries.find((entry) => !existingIds.has(entry.id))
+      targetEntryId = createdEntry?.id ?? null
+    }
+
+    if (!targetEntryId) {
       setPageNotice(null)
       setPageError('Could not create a pipeline entry for this analysis.')
       return
@@ -353,15 +375,19 @@ export function MatchPage() {
 
     savePipelineJDAnalysis({
       ...currentJDAnalysis,
-      pipelineEntryId: createdEntry.id,
+      pipelineEntryId: targetEntryId,
       company,
       role,
       analyzedJobDescription: jdText,
       jdTextHash: currentJDAnalysis.jdTextHash,
     })
-    usePipelineStore.getState().addHistoryNote(createdEntry.id, 'Saved JD Match analysis')
+    usePipelineStore.getState().addHistoryNote(targetEntryId, matchingEntry ? 'Updated JD Match analysis' : 'Saved JD Match analysis')
     setPageError(null)
-    setPageNotice(`Saved ${company} · ${role} to Pipeline with the current JD analysis attached.`)
+    setPageNotice(
+      matchingEntry
+        ? `Updated the most recent matching ${company} · ${role} Pipeline entry with the current JD analysis while preserving existing workflow details.`
+        : `Saved ${company} · ${role} to Pipeline with the current JD analysis attached.`,
+    )
   }
 
   const handleAssembleInBuild = () => {
