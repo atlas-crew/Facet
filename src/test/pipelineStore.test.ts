@@ -588,11 +588,12 @@ describe('pipelineStore', () => {
 
     it('adds a round with generated id, timestamps, and history note', () => {
       const id = addEntryAndGetId()
-      usePipelineStore.getState().addRound(id, { label: 'HM screen', format: 'hm-screen' })
+      const roundId = usePipelineStore.getState().addRound(id, { label: 'HM screen', format: 'hm-screen' })
 
       const entry = getEntry(id)
       expect(entry.interviewRounds).toHaveLength(1)
       const round = entry.interviewRounds![0]
+      expect(roundId).toBe(round.id)
       expect(round.id).toMatch(/^round-/)
       expect(round.label).toBe('HM screen')
       expect(round.format).toBe('hm-screen')

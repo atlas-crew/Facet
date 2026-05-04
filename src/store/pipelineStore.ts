@@ -66,7 +66,8 @@ interface PipelineState {
   importEntries: (entries: PipelineEntry[]) => void
   exportEntries: () => PipelineEntry[]
 
-  addRound: (entryId: string, input: RoundInput) => void
+  /** Returns the new round id so callers can focus or expand it after creation. */
+  addRound: (entryId: string, input: RoundInput) => string
   updateRound: (entryId: string, roundId: string, patch: Partial<PipelineRound>) => void
   deleteRound: (entryId: string, roundId: string) => void
   addInterviewer: (entryId: string, roundId: string, input: InterviewerInput) => void
@@ -419,6 +420,7 @@ export const usePipelineStore = create<PipelineState>()((set, get) => ({
               : e
           ),
         }))
+        return round.id
       },
 
       updateRound: (entryId, roundId, patch) => {

@@ -243,7 +243,14 @@ describe('PipelinePage', () => {
     fireEvent.click(screen.getByText('Acme Corp'))
 
     expect(screen.getByText('Seeded from Research')).toBeTruthy()
-    expect(screen.getByText('Strong fit from the research phase.')).toBeTruthy()
+    expect(screen.getByText('Strong fit from the research phase.', { selector: '.pipeline-card-summary-text' })).toBeTruthy()
+    const researchButton = screen.getByRole('button', { name: /^Research$/i })
+    const researchPanel = document.getElementById(researchButton.getAttribute('aria-controls') ?? '')
+    expect(researchButton.getAttribute('aria-expanded')).toBe('false')
+    expect(researchPanel?.hasAttribute('hidden')).toBe(true)
+    fireEvent.click(researchButton)
+    expect(researchButton.getAttribute('aria-expanded')).toBe('true')
+    expect(researchPanel?.hasAttribute('hidden')).toBe(false)
     expect(screen.getByRole('link', { name: 'Acme Corp job posting' })).toBeTruthy()
   })
 
@@ -289,9 +296,10 @@ describe('PipelinePage', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Investigated with AI').length).toBeGreaterThan(0)
-      expect(screen.getByText('Public signals point to a platform reliability leadership role.')).toBeTruthy()
+      expect(screen.getAllByText('Public signals point to a platform reliability leadership role.').length).toBeGreaterThan(0)
     })
 
+    fireEvent.click(screen.getByRole('button', { name: /^Research$/i }))
     expect(screen.getByText('Public reports mention a recruiter screen and system design round.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Acme careers' })).toBeTruthy()
     expect(usePipelineStore.getState().entries[0]?.format).toEqual(['hr-screen', 'system-design'])
@@ -311,6 +319,7 @@ describe('PipelinePage', () => {
       expect(screen.getByRole('alert').textContent).toContain('Proxy search failed')
     })
 
+    expect(screen.queryByRole('button', { name: /^Research$/i })).toBeNull()
     expect(usePipelineStore.getState().entries[0]?.research).toBeUndefined()
     expect(usePipelineStore.getState().entries[0]?.history).toEqual([])
   })
@@ -323,6 +332,7 @@ describe('PipelinePage', () => {
     expect(screen.getByText('Research')).toBeTruthy()
     expect(screen.getByText('Execution')).toBeTruthy()
     expect(screen.getByText('Management')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Research$/i })).toBeNull()
     expect(screen.getByRole('button', { name: /Investigate with AI/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Open in Builder/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Edit/i })).toBeTruthy()
@@ -360,6 +370,208 @@ describe('PipelinePage', () => {
       expect(usePipelineStore.getState().entries[0]?.jdAnalysisId).toBe('analysis-1')
     })
     expect(usePipelineStore.getState().entries[0]?.history.at(-1)?.note).toBe('Analyzed JD')
+  })
+
+  it('collapses and expands dense cards inside a pipeline entry', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          history: [
+            { date: '2026-04-10', note: 'Applied' },
+            { date: '2026-04-14', note: 'Recruiter replied' },
+          ],
+          interviewRounds: [
+            {
+              id: 'round-1',
+              label: 'Technical panel',
+              format: 'system-design',
+              durationMinutes: 60,
+              interviewers: [
+                {
+                  id: 'interviewer-1',
+                  name: 'Dana Lee',
+                  title: 'Engineering Manager',
+                },
+              ],
+              notes: 'Prepare reliability architecture story.',
+              createdAt: '2026-04-14T12:00:00.000Z',
+              updatedAt: '2026-04-14T12:00:00.000Z',
+            },
+          ],
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    const roundsButton = screen.getByRole('button', { name: /^Rounds \(1\)$/i })
+    const roundsPanel = document.getElementById(roundsButton.getAttribute('aria-controls') ?? '')
+    expect(roundsPanel?.hasAttribute('hidden')).toBe(true)
+    expect(screen.getByText('1 round tracked')).toBeTruthy()
+    expect(screen.getByText('Recruiter replied')).toBeTruthy()
+    const historyButton = screen.getByRole('button', { name: /^History \(2\)$/i })
+    const historyPanel = document.getElementById(historyButton.getAttribute('aria-controls') ?? '')
+    expect(historyPanel?.hasAttribute('hidden')).toBe(true)
+
+    fireEvent.click(roundsButton)
+    expect(roundsButton.getAttribute('aria-expanded')).toBe('true')
+    expect(roundsPanel?.hasAttribute('hidden')).toBe(false)
+    expect(screen.getByText('Technical panel')).toBeTruthy()
+    expect(screen.getByText('System Design · 1 interviewer')).toBeTruthy()
+    const roundExpandButton = screen.getByRole('button', { name: /Expand Technical panel round/i })
+    const roundPanel = document.getElementById(roundExpandButton.getAttribute('aria-controls') ?? '')
+    expect(roundPanel?.hasAttribute('hidden')).toBe(true)
+
+    fireEvent.click(roundExpandButton)
+    expect(screen.getByDisplayValue('Technical panel')).toBeTruthy()
+    const roundCollapseButton = screen.getByRole('button', { name: /Collapse Technical panel round/i })
+    expect(roundPanel?.hasAttribute('hidden')).toBe(false)
+    expect(screen.getByRole('option', { name: 'System Design' })).toBeTruthy()
+    expect(screen.queryByRole('option', { name: 'system-design' })).toBeNull()
+    expect(screen.getByLabelText('Interviewer name')).toHaveProperty('value', 'Dana Lee')
+    expect(screen.getByDisplayValue('Prepare reliability architecture story.')).toBeTruthy()
+
+    fireEvent.click(roundCollapseButton)
+    expect(roundPanel?.hasAttribute('hidden')).toBe(true)
+    expect(screen.getByText('System Design · 1 interviewer')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /Expand Technical panel round/i }))
+    expect(roundPanel?.hasAttribute('hidden')).toBe(false)
+
+    fireEvent.click(historyButton)
+    expect(historyButton.getAttribute('aria-expanded')).toBe('true')
+    expect(historyPanel?.hasAttribute('hidden')).toBe(false)
+    expect(screen.getByText('Applied', { selector: '.pipeline-history-note' })).toBeTruthy()
+
+    fireEvent.click(historyButton)
+    expect(historyButton.getAttribute('aria-expanded')).toBe('false')
+    expect(historyPanel?.hasAttribute('hidden')).toBe(true)
+  })
+
+  it('opens the rounds card when adding a round from the collapsed state', () => {
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    const roundsButton = screen.getByRole('button', { name: /^Rounds \(0\)$/i })
+    const roundsPanel = document.getElementById(roundsButton.getAttribute('aria-controls') ?? '')
+    expect(roundsButton.getAttribute('aria-expanded')).toBe('false')
+    expect(roundsPanel?.hasAttribute('hidden')).toBe(true)
+    expect(screen.getByText('No structured rounds')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Add Round$/i }))
+
+    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(roundsPanel?.hasAttribute('hidden')).toBe(false)
+    expect(screen.queryByText('HR screen · 0 interviewers')).toBeNull()
+    expect(screen.getByRole('button', { name: /Collapse New round round/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByDisplayValue('New round')).toBeTruthy()
+  })
+
+  it('summarizes plural round counts and unnamed collapsed rounds', () => {
+    usePipelineStore.setState({
+      entries: [
+        {
+          ...baseEntry,
+          interviewRounds: [
+            {
+              id: 'round-1',
+              label: '',
+              format: 'exec',
+              durationMinutes: 30,
+              interviewers: [],
+              createdAt: '2026-04-14T12:00:00.000Z',
+              updatedAt: '2026-04-14T12:00:00.000Z',
+            },
+            {
+              id: 'round-2',
+              label: 'Peer panel',
+              format: 'peer-panel',
+              durationMinutes: 60,
+              interviewers: [
+                { id: 'interviewer-1', name: 'Dana Lee' },
+                { id: 'interviewer-2', name: 'Sam Patel' },
+              ],
+              createdAt: '2026-04-15T12:00:00.000Z',
+              updatedAt: '2026-04-15T12:00:00.000Z',
+            },
+          ],
+        },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    expect(screen.getByRole('button', { name: /^Rounds \(2\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByText('2 rounds tracked')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Rounds \(2\)$/i }))
+    expect(screen.getByRole('button', { name: /Expand untitled round/i })).toBeTruthy()
+    expect(screen.getByText('Executive · 0 interviewers')).toBeTruthy()
+    expect(screen.getByText('Peer Panel · 2 interviewers')).toBeTruthy()
+  })
+
+  it('resets collapsed card state when switching between pipeline entries', () => {
+    const research = {
+      status: 'seeded' as const,
+      summary: 'Research preview.',
+      jobDescriptionSummary: '',
+      interviewSignals: [],
+      people: [],
+      sources: [],
+      searchQueries: [],
+      lastInvestigatedAt: '',
+    }
+    const history = [{ date: '2026-04-14', note: 'Recruiter replied' }]
+    const interviewRounds = [
+      {
+        id: 'round-1',
+        label: 'Technical panel',
+        format: 'system-design' as const,
+        durationMinutes: 60,
+        interviewers: [],
+        createdAt: '2026-04-14T12:00:00.000Z',
+        updatedAt: '2026-04-14T12:00:00.000Z',
+      },
+    ]
+    usePipelineStore.setState({
+      entries: [
+        { ...baseEntry, id: 'pipe-1', company: 'Acme Corp', research, history, interviewRounds },
+        { ...baseEntry, id: 'pipe-2', company: 'Beta Systems', research, history, interviewRounds },
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /^Research$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Rounds \(1\)$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^History \(1\)$/i }))
+    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded')).toBe('true')
+
+    fireEvent.click(screen.getByText('Beta Systems'))
+    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it('shows and opens a saved JD analysis from the pipeline tracker', () => {

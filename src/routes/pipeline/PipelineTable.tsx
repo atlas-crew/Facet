@@ -125,6 +125,7 @@ export function PipelineTable({
                 <tr className="pipeline-detail-row">
                   <td colSpan={COLUMNS.length + 1}>
                     <PipelineDetail
+                      key={entry.id}
                       entry={entry}
                       onEdit={() => onEdit(entry)}
                       onDelete={() => onDelete(entry.id)}

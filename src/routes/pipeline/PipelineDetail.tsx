@@ -1,5 +1,17 @@
-import { useId } from 'react'
-import { Edit3, Trash2, Zap, BookOpen, ArrowRight, Search, Plus, BookMarked, FileText } from 'lucide-react'
+import { useId, useState } from 'react'
+import {
+  Edit3,
+  Trash2,
+  Zap,
+  BookOpen,
+  ArrowRight,
+  Search,
+  Plus,
+  BookMarked,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import type {
   InterviewFormat,
@@ -57,9 +69,16 @@ export function PipelineDetail({
   analysisError,
 }: PipelineDetailProps) {
   const actionGroupId = useId()
+  // PipelineTable keys this detail by entry.id, so dense sections reset whenever a different entry opens.
+  const [researchOpen, setResearchOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const jdAnalysisHintId = `${actionGroupId}-jd-analysis-required`
   const jdAnalysisPanelId = `${actionGroupId}-jd-analysis-panel`
   const jdAnalysisPanelTitleId = `${jdAnalysisPanelId}-title`
+  const researchPanelId = `${actionGroupId}-research-card`
+  const researchTitleId = `${researchPanelId}-title`
+  const historyPanelId = `${actionGroupId}-history-card`
+  const historyTitleId = `${historyPanelId}-title`
   const primaryVectorId = getPipelineResumePrimaryVectorId(entry)
   const linkedPresetId = getPipelineResumePresetId(entry)
   const hasJobDescription = Boolean(entry.jobDescription?.trim())
@@ -73,6 +92,7 @@ export function PipelineDetail({
   )
   const resumeVariantLabel = getPipelineResumeVariantLabel(entry) || '\u2014'
   const hasStructuredRounds = (entry.interviewRounds?.length ?? 0) > 0
+  const latestHistory = entry.history.at(-1)
 
   return (
     <div className="pipeline-detail">
@@ -154,93 +174,129 @@ export function PipelineDetail({
         )}
       </div>
 
-      {(entry.research || investigationError) && (
-        <div className="pipeline-research">
-          <div className="pipeline-research-header">
-            <span className="pipeline-history-title">Research</span>
-            {entry.research && (
-              <span
-                className={`pipeline-research-status ${entry.research.status === 'investigated' ? 'is-investigated' : 'is-seeded'}`}
-              >
-                {entry.research.status === 'investigated' ? 'Investigated with AI' : 'Seeded from Research'}
-              </span>
-            )}
-          </div>
-
-          {investigationError && (
-            <div className="pipeline-research-error" role="alert">
-              {investigationError}
-            </div>
-          )}
-
-          {entry.research?.summary && (
-            <div className="pipeline-detail-field pipeline-detail-notes">
-              <span className="pipeline-detail-field-label">Research Summary</span>
-              <span className="pipeline-detail-field-value">{entry.research.summary}</span>
-            </div>
-          )}
-
-          {entry.research?.jobDescriptionSummary && (
-            <div className="pipeline-detail-field pipeline-detail-notes">
-              <span className="pipeline-detail-field-label">Role Snapshot</span>
-              <span className="pipeline-detail-field-value">{entry.research.jobDescriptionSummary}</span>
-            </div>
-          )}
-
-          {entry.research?.interviewSignals?.length ? (
-            <div className="pipeline-detail-field pipeline-detail-notes">
-              <span className="pipeline-detail-field-label">Interview Signals</span>
-              <ul className="pipeline-research-list">
-                {entry.research.interviewSignals.map((signal, index) => (
-                  <li key={`${signal}-${index}`}>{signal}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {entry.research?.sources?.length ? (
-            <div className="pipeline-detail-field pipeline-detail-notes">
-              <span className="pipeline-detail-field-label">Sources</span>
-              <ul className="pipeline-research-list">
-                {entry.research.sources.map((source) => (
-                  (() => {
-                    const safeSourceUrl = sanitizeUrl(source.url)
-                    return (
-                      <li key={[
-                        source.kind,
-                        source.label,
-                        source.url ?? '',
-                      ].join('|')}>
-                        {safeSourceUrl ? (
-                          <a href={safeSourceUrl} target="_blank" rel="noopener noreferrer">
-                            {source.label}
-                          </a>
-                        ) : (
-                          <span>{source.label}</span>
-                        )}
-                        <span className="pipeline-research-source-kind">{source.kind}</span>
-                      </li>
-                    )
-                  })()
-                ))}
-              </ul>
-            </div>
-          ) : null}
+      {investigationError && (
+        <div className="pipeline-research-error" role="alert">
+          {investigationError}
         </div>
       )}
+
+      {entry.research ? (
+        <section className="pipeline-research pipeline-collapsible-card" aria-labelledby={researchTitleId}>
+          <div className="pipeline-collapsible-header">
+            <button
+              type="button"
+              className="pipeline-card-toggle"
+              onClick={() => setResearchOpen((prev) => !prev)}
+              aria-expanded={researchOpen}
+              aria-controls={researchPanelId}
+            >
+              {researchOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              <span id={researchTitleId} className="pipeline-history-title">Research</span>
+            </button>
+            <div className="pipeline-collapsible-summary">
+              {entry.research && (
+                <span
+                  className={`pipeline-research-status ${entry.research.status === 'investigated' ? 'is-investigated' : 'is-seeded'}`}
+                >
+                  {entry.research.status === 'investigated' ? 'Investigated with AI' : 'Seeded from Research'}
+                </span>
+              )}
+              {!researchOpen && (
+                <span className="pipeline-card-summary-text">
+                  {entry.research?.summary || 'Research details'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div id={researchPanelId} className="pipeline-collapsible-body" hidden={!researchOpen}>
+            {entry.research?.summary && (
+              <div className="pipeline-detail-field pipeline-detail-notes">
+                <span className="pipeline-detail-field-label">Research Summary</span>
+                <span className="pipeline-detail-field-value">{entry.research.summary}</span>
+              </div>
+            )}
+
+            {entry.research?.jobDescriptionSummary && (
+              <div className="pipeline-detail-field pipeline-detail-notes">
+                <span className="pipeline-detail-field-label">Role Snapshot</span>
+                <span className="pipeline-detail-field-value">{entry.research.jobDescriptionSummary}</span>
+              </div>
+            )}
+
+            {entry.research?.interviewSignals?.length ? (
+              <div className="pipeline-detail-field pipeline-detail-notes">
+                <span className="pipeline-detail-field-label">Interview Signals</span>
+                <ul className="pipeline-research-list">
+                  {entry.research.interviewSignals.map((signal, index) => (
+                    <li key={`${signal}-${index}`}>{signal}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {entry.research?.sources?.length ? (
+              <div className="pipeline-detail-field pipeline-detail-notes">
+                <span className="pipeline-detail-field-label">Sources</span>
+                <ul className="pipeline-research-list">
+                  {entry.research.sources.map((source) => (
+                    (() => {
+                      const safeSourceUrl = sanitizeUrl(source.url)
+                      return (
+                        <li key={[
+                          source.kind,
+                          source.label,
+                          source.url ?? '',
+                        ].join('|')}>
+                          {safeSourceUrl ? (
+                            <a href={safeSourceUrl} target="_blank" rel="noopener noreferrer">
+                              {source.label}
+                            </a>
+                          ) : (
+                            <span>{source.label}</span>
+                          )}
+                          <span className="pipeline-research-source-kind">{source.kind}</span>
+                        </li>
+                      )
+                    })()
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <PipelineRoundsSection entry={entry} />
 
       {entry.history.length > 0 && (
-        <div className="pipeline-history">
-          <span className="pipeline-history-title">History</span>
-          {[...entry.history].reverse().map((h, i) => (
-            <div key={i} className="pipeline-history-entry">
-              <span className="pipeline-history-date">{h.date}</span>
-              <span className="pipeline-history-note">{h.note}</span>
-            </div>
-          ))}
-        </div>
+        <section className="pipeline-history pipeline-collapsible-card" aria-labelledby={historyTitleId}>
+          <div className="pipeline-collapsible-header">
+            <button
+              type="button"
+              className="pipeline-card-toggle"
+              onClick={() => setHistoryOpen((prev) => !prev)}
+              aria-expanded={historyOpen}
+              aria-controls={historyPanelId}
+            >
+              {historyOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              <span id={historyTitleId} className="pipeline-history-title">History ({entry.history.length})</span>
+            </button>
+            {!historyOpen && (
+              <span className="pipeline-card-summary-text">
+                {latestHistory ? `${latestHistory.date}: ${latestHistory.note}` : 'History entries'}
+              </span>
+            )}
+          </div>
+          <div id={historyPanelId} className="pipeline-collapsible-body" hidden={!historyOpen}>
+            {[...entry.history].reverse().map((h, i) => (
+              <div key={i} className="pipeline-history-entry">
+                <span className="pipeline-history-date">{h.date}</span>
+                <span className="pipeline-history-note">{h.note}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="pipeline-detail-action-groups">
@@ -426,16 +482,38 @@ function fromLocalDateTimeInput(value: string): string | undefined {
 function PipelineRoundsSection({ entry }: { entry: PipelineEntry }) {
   const rounds = entry.interviewRounds ?? []
   const addRound = usePipelineStore((s) => s.addRound)
+  const [roundsOpen, setRoundsOpen] = useState(false)
+  const [justAddedRoundId, setJustAddedRoundId] = useState<string | null>(null)
+  const sectionId = useId()
+  const sectionTitleId = `${sectionId}-title`
   const sorted = sortRoundsForDisplay(rounds)
 
   const handleAdd = () => {
-    addRound(entry.id, { label: 'New round', format: 'hr-screen' })
+    const roundId = addRound(entry.id, { label: 'New round', format: 'hr-screen' })
+    setJustAddedRoundId(roundId)
+    setRoundsOpen(true)
   }
 
   return (
-    <div className="pipeline-rounds">
-      <div className="pipeline-rounds-header">
-        <span className="pipeline-history-title">Rounds ({rounds.length})</span>
+    <section className="pipeline-rounds pipeline-collapsible-card" aria-labelledby={sectionTitleId}>
+      <div className="pipeline-collapsible-header">
+        <button
+          type="button"
+          className="pipeline-card-toggle"
+          onClick={() => setRoundsOpen((prev) => !prev)}
+          aria-expanded={roundsOpen}
+          aria-controls={sectionId}
+        >
+          {roundsOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          <span id={sectionTitleId} className="pipeline-history-title">Rounds ({rounds.length})</span>
+        </button>
+        {!roundsOpen && (
+          <span className="pipeline-card-summary-text">
+            {rounds.length === 0
+              ? 'No structured rounds'
+              : `${rounds.length} ${rounds.length === 1 ? 'round' : 'rounds'} tracked`}
+          </span>
+        )}
         <button
           type="button"
           className="pipeline-btn pipeline-btn-sm"
@@ -445,40 +523,96 @@ function PipelineRoundsSection({ entry }: { entry: PipelineEntry }) {
         </button>
       </div>
 
-      {rounds.length === 0 ? (
-        <p className="pipeline-rounds-empty">
-          No rounds yet. Add a round to track interviewers and link prep decks.
-        </p>
-      ) : (
-        <div className="pipeline-rounds-list">
-          {sorted.map((round) => (
-            <PipelineRoundCard key={round.id} entryId={entry.id} round={round} />
-          ))}
-        </div>
-      )}
-    </div>
+      <div id={sectionId} className="pipeline-collapsible-body" hidden={!roundsOpen}>
+        {rounds.length === 0 ? (
+          <p className="pipeline-rounds-empty">
+            No rounds yet. Add a round to track interviewers and link prep decks.
+          </p>
+        ) : (
+          <div className="pipeline-rounds-list">
+            {sorted.map((round) => (
+              <PipelineRoundCard
+                key={round.id}
+                entryId={entry.id}
+                round={round}
+                defaultOpen={round.id === justAddedRoundId}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
-function PipelineRoundCard({ entryId, round }: { entryId: string; round: PipelineRound }) {
+const INTERVIEW_FORMAT_LABELS: Record<InterviewFormat, string> = {
+  'hr-screen': 'HR Screen',
+  'hm-screen': 'HM Screen',
+  'tech-discussion': 'Tech Discussion',
+  'take-home': 'Take Home',
+  'system-design': 'System Design',
+  'live-coding': 'Live Coding',
+  leetcode: 'LeetCode',
+  'pair-programming': 'Pair Programming',
+  behavioral: 'Behavioral',
+  'peer-panel': 'Peer Panel',
+  'cross-team': 'Cross-Team',
+  exec: 'Executive',
+  presentation: 'Presentation',
+}
+
+function formatInterviewFormatLabel(format: InterviewFormat): string {
+  return INTERVIEW_FORMAT_LABELS[format]
+}
+
+function PipelineRoundCard({
+  entryId,
+  round,
+  defaultOpen,
+}: {
+  entryId: string
+  round: PipelineRound
+  defaultOpen: boolean
+}) {
   const updateRound = usePipelineStore((s) => s.updateRound)
   const deleteRound = usePipelineStore((s) => s.deleteRound)
   const addInterviewer = usePipelineStore((s) => s.addInterviewer)
   const fieldId = useId()
+  const panelId = `${fieldId}-round-card`
+  const [cardOpen, setCardOpen] = useState(defaultOpen)
 
   const patch = (p: Partial<PipelineRound>) => updateRound(entryId, round.id, p)
 
   return (
     <div className="pipeline-round-card">
       <div className="pipeline-round-header">
-        <input
-          type="text"
-          className="pipeline-round-label-input"
-          value={round.label}
-          onChange={(e) => patch({ label: e.target.value })}
-          placeholder="Round label (e.g. Doug technical)"
-          aria-label="Round label"
-        />
+        <button
+          type="button"
+          className="pipeline-card-toggle pipeline-round-card-toggle"
+          onClick={() => setCardOpen((prev) => !prev)}
+          aria-expanded={cardOpen}
+          aria-controls={panelId}
+          aria-label={`${cardOpen ? 'Collapse' : 'Expand'} ${round.label || 'untitled'} round`}
+        >
+          {cardOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        </button>
+        {cardOpen ? (
+          <input
+            type="text"
+            className="pipeline-round-label-input"
+            value={round.label}
+            onChange={(e) => patch({ label: e.target.value })}
+            placeholder="Round label (e.g. Doug technical)"
+            aria-label="Round label"
+          />
+        ) : (
+          <span className="pipeline-round-label-text">{round.label}</span>
+        )}
+        {!cardOpen && (
+          <span className="pipeline-card-summary-text pipeline-round-card-summary">
+            {formatInterviewFormatLabel(round.format)} · {round.interviewers.length} {round.interviewers.length === 1 ? 'interviewer' : 'interviewers'}
+          </span>
+        )}
         <button
           type="button"
           className="pipeline-btn pipeline-btn-sm pipeline-btn-danger"
@@ -489,93 +623,95 @@ function PipelineRoundCard({ entryId, round }: { entryId: string; round: Pipelin
         </button>
       </div>
 
-      <div className="pipeline-round-fields">
-        <label className="pipeline-round-field">
-          <span>Format</span>
-          <select
-            value={round.format}
-            onChange={(e) => patch({ format: e.target.value as InterviewFormat })}
-          >
-            {INTERVIEW_FORMAT_VALUES.map((f) => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
-        </label>
-        <label className="pipeline-round-field">
-          <span>Scheduled for</span>
-          <input
-            type="datetime-local"
-            value={toLocalDateTimeInput(round.scheduledFor)}
-            onChange={(e) => patch({ scheduledFor: fromLocalDateTimeInput(e.target.value) })}
+      <div id={panelId} className="pipeline-round-card-body" hidden={!cardOpen}>
+        <div className="pipeline-round-fields">
+          <label className="pipeline-round-field">
+            <span>Format</span>
+            <select
+              value={round.format}
+              onChange={(e) => patch({ format: e.target.value as InterviewFormat })}
+            >
+              {INTERVIEW_FORMAT_VALUES.map((f) => (
+                <option key={f} value={f}>{formatInterviewFormatLabel(f)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="pipeline-round-field">
+            <span>Scheduled for</span>
+            <input
+              type="datetime-local"
+              value={toLocalDateTimeInput(round.scheduledFor)}
+              onChange={(e) => patch({ scheduledFor: fromLocalDateTimeInput(e.target.value) })}
+            />
+          </label>
+          <label className="pipeline-round-field">
+            <span>Duration (min)</span>
+            <input
+              type="number"
+              min={0}
+              value={round.durationMinutes ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                patch({ durationMinutes: v === '' ? undefined : Number(v) })
+              }}
+            />
+          </label>
+        </div>
+
+        <label className="pipeline-round-field pipeline-round-field-full">
+          <span>Notes</span>
+          <textarea
+            id={`${fieldId}-notes`}
+            rows={2}
+            value={round.notes ?? ''}
+            onChange={(e) => patch({ notes: e.target.value || undefined })}
+            placeholder="Context, prompts to remember, etc."
           />
         </label>
-        <label className="pipeline-round-field">
-          <span>Duration (min)</span>
-          <input
-            type="number"
-            min={0}
-            value={round.durationMinutes ?? ''}
-            onChange={(e) => {
-              const v = e.target.value
-              patch({ durationMinutes: v === '' ? undefined : Number(v) })
-            }}
-          />
-        </label>
-      </div>
 
-      <label className="pipeline-round-field pipeline-round-field-full">
-        <span>Notes</span>
-        <textarea
-          id={`${fieldId}-notes`}
-          rows={2}
-          value={round.notes ?? ''}
-          onChange={(e) => patch({ notes: e.target.value || undefined })}
-          placeholder="Context, prompts to remember, etc."
-        />
-      </label>
+        <div className="pipeline-round-interviewers">
+          <div className="pipeline-round-interviewers-header">
+            <span className="pipeline-round-interviewers-title">
+              Interviewers ({round.interviewers.length})
+            </span>
+            <button
+              type="button"
+              className="pipeline-btn pipeline-btn-sm"
+              onClick={() =>
+                addInterviewer(entryId, round.id, { name: '' })
+              }
+            >
+              <Plus size={14} /> Add Interviewer
+            </button>
+          </div>
+          {round.interviewers.length === 0 ? (
+            <p className="pipeline-round-interviewers-empty">
+              Paste names from the calendar invite. Dossiers fill in when you generate prep.
+            </p>
+          ) : (
+            <div className="pipeline-round-interviewer-list">
+              {round.interviewers.map((iv) => (
+                <PipelineInterviewerRow
+                  key={iv.id}
+                  entryId={entryId}
+                  roundId={round.id}
+                  interviewer={iv}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
-      <div className="pipeline-round-interviewers">
-        <div className="pipeline-round-interviewers-header">
-          <span className="pipeline-round-interviewers-title">
-            Interviewers ({round.interviewers.length})
-          </span>
+        <div className="pipeline-round-actions">
           <button
             type="button"
             className="pipeline-btn pipeline-btn-sm"
-            onClick={() =>
-              addInterviewer(entryId, round.id, { name: '' })
-            }
+            disabled
+            title="Coming soon — triggers per-interviewer research and generates a prep deck."
           >
-            <Plus size={14} /> Add Interviewer
+            <BookMarked size={14} /> Generate Prep Deck
           </button>
         </div>
-        {round.interviewers.length === 0 ? (
-          <p className="pipeline-round-interviewers-empty">
-            Paste names from the calendar invite. Dossiers fill in when you generate prep.
-          </p>
-        ) : (
-          <div className="pipeline-round-interviewer-list">
-            {round.interviewers.map((iv) => (
-              <PipelineInterviewerRow
-                key={iv.id}
-                entryId={entryId}
-                roundId={round.id}
-                interviewer={iv}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="pipeline-round-actions">
-        <button
-          type="button"
-          className="pipeline-btn pipeline-btn-sm"
-          disabled
-          title="Coming soon — triggers per-interviewer research and generates a prep deck."
-        >
-          <BookMarked size={14} /> Generate Prep Deck
-        </button>
       </div>
     </div>
   )
