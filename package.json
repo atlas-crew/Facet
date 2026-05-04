@@ -43,6 +43,7 @@
     "@myriaddreamin/typst.ts": "0.7.0-rc2",
     "@supabase/supabase-js": "^2.99.1",
     "@tanstack/react-router": "^1.166.2",
+    "docx": "^9.6.1",
     "js-yaml": "^4.1.1",
     "jsonrepair": "^3.13.3",
     "jszip": "^3.10.1",
