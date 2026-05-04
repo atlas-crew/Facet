@@ -18,6 +18,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  Home,
 } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
 import type { FacetWorkspaceSnapshot } from '../persistence'
@@ -48,6 +49,12 @@ const HELP_ROUTE = '/help' as const
 const HOME_ROUTE = '/' as const
 
 const NAV_ITEMS = [
+  {
+    to: HOME_ROUTE,
+    icon: Home,
+    label: 'Hub',
+    description: 'Monitor workspace readiness and jump into the next useful action.',
+  },
   {
     to: '/identity' as const,
     icon: Fingerprint,
@@ -117,7 +124,7 @@ const NAV_GROUPS = [
     id: 'core',
     label: 'Core',
     eyebrow: 'Core Workspace',
-    routes: ['/identity', '/research', '/match', '/build'] satisfies readonly NavRoute[],
+    routes: [HOME_ROUTE, '/identity', '/research', '/match', '/build'] satisfies readonly NavRoute[],
   },
   {
     id: 'execution',

@@ -81,6 +81,14 @@ vi.mock('../components/WorkspaceBackupDialog', () => ({
     open ? <div data-testid="workspace-backup-dialog">Backup Dialog</div> : null,
 }))
 
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof globalThis.ResizeObserver
+}
+
 const hostedContext = {
   deploymentMode: 'hosted' as const,
   account: {
@@ -507,6 +515,7 @@ describe('AppShell hosted workspace bootstrap', () => {
   })
 
   it.each([
+    ['/', 'Overview', 'Workspace Hub', 'Hub'],
     ['/build', 'Build', 'Core Workspace', 'Build'],
     ['/pipeline', 'Pipeline', 'Execution Workspace', 'Pipeline'],
     ['/identity', 'Identity', 'Core Workspace', 'Identity'],
@@ -521,7 +530,7 @@ describe('AppShell hosted workspace bootstrap', () => {
 
       expect(screen.getByRole('heading', { name: heading })).toBeTruthy()
       expect(screen.getByText(eyebrow)).toBeTruthy()
-      expect(screen.getByRole('link', { name: new RegExp(navLabel, 'i') }).className).toContain('active')
+      expect(screen.getByRole('link', { name: new RegExp(`^${navLabel}$`, 'i') }).className).toContain('active')
     },
   )
 
