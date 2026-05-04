@@ -280,6 +280,16 @@ The earlier draft of this document sequenced Letters → Prep → Build because 
 - Prep needs three architectural decisions resolved before implementation. Build's work establishes additional pattern context that may inform those decisions.
 - Single-agent throughput is higher when context is hot from Letters → Build than Letters → Prep (Prep needs much more architectural setup).
 
+### Warning: queued prep tasks may be subsumed or redirected by the refactor
+
+Eleven prep-specific tasks are currently queued in `To Do` status (task-136, 137, 139, 140, 146, 170, 171, 173, 177, 179, 180). Most were filed before the canonical-projections principle was established and before this document existed. Some of them describe work that JDAnalysis now produces directly (skill positioning, narrative variants, takeaways, skill-mapping). Others describe work that survives unchanged (drillable content, format/presentation, user-sourced interviewer intel).
+
+**Pulling any of these tasks before task-208's audit is risky.** An agent could ship work that gets thrown away when the canonical-projections refactor lands, or worse, ship work that conflicts with the architecture and has to be unwound.
+
+The mitigation is built into task-208: Workstream 1 (audit) explicitly produces a triage list classifying each queued prep task as survives, redirected, or subsumed. The audit output informs cleanup work that closes subsumed tasks, rewrites redirected tasks, and confirms surviving tasks are still appropriately scoped.
+
+**Operational rule until task-208 audit completes:** Do not assign queued prep tasks (task-136, 137, 139, 140, 146, 170, 171, 173, 177, 179, 180) to agents. They stay in `To Do` but should not be pulled. Other prep work (e.g., bug fixes, task-209 typecheck cleanup, task-210 Letters polish patterns applied to Prep) is fine.
+
 Until the formal ADR lands, this document serves as the architectural commitment that future per-listing artifacts and refactors should align with.
 
 ## Related Documents

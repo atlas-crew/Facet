@@ -66,6 +66,7 @@ Per doc-30, Prep also needs a role-level / round-level split (see open decisions
 - Map current `PrepDeck` and `PrepCard` types to identify which fields are JDAnalysis-projected vs. Prep-original (anchor stories, scripts, meta-coaching, drilling content)
 - Inventory current generation prompt structure to identify the rewrite scope
 - Audit how Prep consumes JD context today (raw JD text? PipelineEntry.jdText? PipelineResearchSnapshot.jobDescriptionSummary?) and identify the migration path to `pipelineEntry.jdAnalysisId`
+- **Triage existing queued prep tasks against the canonical-projections refactor.** Several queued tasks (task-136, task-137, task-139, task-140, task-146, task-170, task-171, task-173, task-177, task-179, task-180) were filed before this architectural shift. The audit must classify each as: **survives** (work is still needed and unchanged), **redirected** (the user-facing capability stays but the implementation changes — the task description needs rewriting), or **subsumed** (the work is now produced by canonical JDAnalysis and the task can close). Output: a triage list informing post-refactor cleanup. Initial guess (subject to audit): drilling/format/intel-capture tasks likely survive (139, 170, 171, 177, 180); narrative/takeaway/skill-mapping tasks likely subsumed or redirected (136, 137, 146, 173, 179); model evaluation reframes (140). Confirm or correct during audit.
 
 **In scope (Workstream 2 — Implementation):**
 
@@ -117,6 +118,7 @@ JD Analysis Bundle 1 has shipped. JD Analysis Bundle 2 (Workstream 3 — first-c
 
 <!-- AC:BEGIN -->
 - [ ] Workstream 1 audit complete, decisions surfaced and locked
+- [ ] Audit produces triage list classifying queued prep tasks (task-136, 137, 139, 140, 146, 170, 171, 173, 177, 179, 180) as survives/redirected/subsumed, with rationale per task
 - [ ] PrepDeck data model includes `jdAnalysisId` reference
 - [ ] `prepGenerator.ts` reads from canonical JDAnalysis, not from raw JD text or re-inferred analysis
 - [ ] Existing prep features (homework, live, anchor stories, conditionals) preserved
