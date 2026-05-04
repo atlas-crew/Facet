@@ -3,8 +3,8 @@ id: doc-36
 title: Per-Listing Artifacts as Projections of Canonical JDAnalysis
 type: architecture
 created_date: '2026-05-03 22:35'
-updated_date: '2026-05-03 23:10'
-status: Architectural commitment / draft for ADR (data shapes confirmed in live output 2026-05-03)
+updated_date: '2026-05-03 23:55'
+status: Architectural commitment / draft for ADR (Letters consumes canonical as of commit 449ac24)
 relates_to:
   - decision-2 (Pipeline owns durable job context)
   - decision-3 (Identity is canonical for candidate-only data)
@@ -14,6 +14,8 @@ relates_to:
   - doc-28 (Prep Workspace Structural Additions)
   - doc-30 (Pipeline Depth — Rounds, Research Tiers, and the Calendar)
   - task-208 (Refactor Prep workspace to consume canonical JDAnalysis)
+  - task-209 (Fix PrepPage typecheck errors — precondition for task-208)
+  - doc-37 (Research is Discovery, Not a Per-Listing Artifact — clarifies scope)
 ---
 
 # Per-Listing Artifacts as Projections of Canonical JDAnalysis
@@ -203,9 +205,10 @@ This is what makes per-requirement framings possible. A gap framing for `req-7` 
 
 The original document framed canonical-plus-projections as the right architectural shape. The live output confirms it is the shipping shape. The data shapes above mean:
 
-- Downstream artifact refactors (Letters consuming canonical `jdAnalysis` before Workstream 4, in flight as of 2026-05-03; task-208 for Prep, queued; similar work eventually for Build's vector targeting) can be specified concretely against the actual `evidenceMapping` and `requirements[]` structures, not against a hypothetical schema.
+- Downstream artifact refactors (Letters consuming canonical `jdAnalysis` shipped 2026-05-03 in commit 449ac24; Build/Workstream 4 next as the second downstream consumer; task-208 for Prep, queued behind Build) can be specified concretely against the actual `evidenceMapping` and `requirements[]` structures, not against a hypothetical schema.
 - The `jdAnalysisId + jdTextHash + identityVersion` triple makes drift detection implementable as a comparison, not a heuristic. An artifact's stored `jdAnalysisId` either matches the current pipeline-entry analysis or doesn't.
 - The hypothesize-then-ground pattern is a real pattern in production code, not a future ambition. New generation features (prep generation, letter generation, future formats) should be checked against this pattern: are claims hypothesized first and grounded second, or are they generated as a single pass that bundles hypothesis and grounding together?
+- The Letters refactor established the canonical-consumption pattern that subsequent migrations follow: hard-fail on missing/stale analysis, fresh store re-read before model call, drift detection in UI, test coverage for missing/stale/regenerate paths. Build follows this pattern; Prep follows Build.
 
 ### `analysis` vs `jdAnalysis`: adapter boundary, not a new source of truth
 
@@ -251,21 +254,31 @@ These are not blocking commitments; they are areas where this principle's applic
 
 3. **Cross-artifact regeneration semantics.** When JDAnalysis updates (e.g., user re-runs analysis after JD edits, or identity model improves), what happens to downstream artifacts? Stale-flag UI is the obvious answer for visible artifacts. What about apply-time snapshots that are immutable? Per decision-5, snapshots stay immutable; current drafts get stale-flagged. Confirm and document.
 
-4. **Generalization beyond per-listing artifacts.** Does this principle apply to per-search artifacts (search runs, search results, recommended companies)? Per-candidate artifacts (resumes generated speculatively, no pipeline entry)? The cleanest framing is that it applies to anything anchored to a JD; speculative resumes generated without a JD do not have this constraint.
+4. **Generalization beyond per-listing artifacts.** This question is partially resolved by doc-37 (Research is Discovery, Not a Per-Listing Artifact): the canonical-projections principle applies to per-listing artifacts only. Research is upstream of Pipeline and reads from Identity (search criteria), not from JDAnalysis. Per-candidate artifacts (resumes generated speculatively, no pipeline entry) remain an open question — likely they don't fall under this principle either, but worth confirming when the use case emerges.
 
 ## Suggested Path to Adoption
 
 This principle should be promoted to a formal decision ADR (decision-10 or whatever the next number is) once the open questions above are resolved or explicitly deferred. Promoting too early risks staking commitments before the design is clear; deferring indefinitely risks the principle eroding through new feature additions.
 
-Recommended sequence:
+Recommended sequence (revised after Letters shipped 2026-05-03):
 
-1. **Letters consumes canonical `jdAnalysis`** (in flight as of 2026-05-03). Cover letter agent migrating Letters to read from canonical analysis before proceeding to Workstream 4. Locks the canonical-consumption test guardrail (cleanup item #4) for the letters bundle, establishes the pattern subsequent artifacts follow.
-2. Land task-208 (Prep refactor) as the next explicit application. Audit can specify concretely against the live `evidenceMapping` and `requirements[]` shapes documented above, not against a hypothetical schema. Prep references the test guardrail Letters establishes rather than re-locking it.
-3. Use Prep work to surface and resolve the round-level vs role-level question (#2 in Open Architectural Questions above)
-4. Audit Build's current targeting logic to resolve the vector-input question (#1 above). Build should consume `evidenceMapping.topBullets` filtered by `matchedRequirementIds` rather than running its own bullet-to-JD matching pass.
-5. Apply the hypothesize-then-ground check to existing generation features (Prep, Letters): are they currently single-pass, or do they separate hypothesis from grounding? If single-pass, consider migrating to the two-stage pattern as a follow-up.
-6. Write the formal decision ADR with the principle, the diagnostic rule, the artifact projection table, and the data shapes documented in "Concrete Data Shapes" above.
-7. Reference the ADR from CLAUDE.md and AGENTS.md.
+1. **Letters consumes canonical `jdAnalysis`** — *shipped commit 449ac24, 2026-05-03.* Established the canonical-consumption pattern: hard-fail on missing/stale analysis, fresh store re-read before model call, drift detection in UI, test coverage for missing/stale/regenerate paths.
+2. **Build (Workstream 4) consumes canonical `jdAnalysis`** — *next bundle, audit-first.* Mechanically simpler than Prep because Build already consumes structured JD context; the work is swapping the source from legacy `jdAnalyzer.ts` to canonical `currentJDAnalysis`, retiring the legacy module, and applying Letters' pattern. Build should also consume `evidenceMapping.topBullets` filtered by `matchedRequirementIds` for vector-aware bullet selection. Locks the second test guardrail.
+3. **task-209 (PrepPage typecheck fix)** — *parallel-safe, can run alongside Build.* Standalone 15-minute fix that clears precondition for task-208 to start cleanly.
+4. **task-208 (Prep refactor)** — queued behind Build. Uses Letters and Build patterns as established. Audit phase surfaces the three open architectural decisions (round-level vs role-level cardinality, PrepDeck ↔ PipelineEntry cardinality, migration policy) for resolution before implementation.
+5. Use Prep work to surface and resolve the round-level vs role-level question (#2 in Open Architectural Questions above).
+6. Apply the hypothesize-then-ground check to existing generation features (Prep, Letters, Build): are they currently single-pass, or do they separate hypothesis from grounding? If single-pass, consider migrating to the two-stage pattern as a follow-up.
+7. Write the formal decision ADR with the principle, the diagnostic rule, the artifact projection table, and the data shapes documented in "Concrete Data Shapes" above.
+8. Reference the ADR from CLAUDE.md and AGENTS.md.
+
+### Why Build before Prep (despite original ordering)
+
+The earlier draft of this document sequenced Letters → Prep → Build because Letters was in flight. With Letters shipped, the cleaner sequence is Letters → Build → Prep:
+
+- Build is mechanically simpler. Resume generation already consumes structured JD input; the refactor reuses Letters' patterns directly.
+- Build retires legacy `jdAnalyzer.ts`, removing a foot-gun before more downstream artifacts are added.
+- Prep needs three architectural decisions resolved before implementation. Build's work establishes additional pattern context that may inform those decisions.
+- Single-agent throughput is higher when context is hot from Letters → Build than Letters → Prep (Prep needs much more architectural setup).
 
 Until the formal ADR lands, this document serves as the architectural commitment that future per-listing artifacts and refactors should align with.
 
@@ -278,4 +291,6 @@ Until the formal ADR lands, this document serves as the architectural commitment
 - `backlog/docs/doc-25` — Prep workspace gap analysis (strategy/meta-coaching layer)
 - `backlog/docs/doc-28` — Prep workspace structural additions (interviewer intel, card kinds)
 - `backlog/docs/doc-30` — Pipeline depth, rounds, research tiers
-- `backlog/tasks/task-208` — Prep refactor to consume canonical JDAnalysis (first explicit application)
+- `backlog/tasks/task-208` — Prep refactor to consume canonical JDAnalysis (queued behind Build)
+- `backlog/tasks/task-209` — Fix PrepPage typecheck errors (precondition for task-208)
+- `backlog/docs/doc-37` — Research is Discovery, Not a Per-Listing Artifact (clarifies scope of this principle)

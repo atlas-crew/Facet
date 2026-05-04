@@ -13,6 +13,7 @@ dependencies:
   - decision-2
   - decision-4
   - decision-5
+  - task-209 (PrepPage typecheck fix is a precondition for clean baseline)
 references:
   - src/utils/prepGenerator.ts
   - src/types/prep.ts
@@ -92,7 +93,9 @@ Per doc-30, Prep also needs a role-level / round-level split (see open decisions
 
 JD Analysis Bundle 1 has shipped. JD Analysis Bundle 2 (Workstream 3 — first-class cover letter entities + paired snapshots) is in flight. Cover letter agent has cleanup commits queued. Pulling either agent off current work to start Prep refactor would introduce coordination cost without enabling parallel delivery. File now to capture insight before it evaporates; pick up after Bundle 2 lands.
 
-**Update (2026-05-03):** The cover letter agent is also planning to migrate Letters to consume canonical `jdAnalysis` before proceeding to Workstream 4. That work locks the canonical-consumption test guardrail for the letters bundle (per doc-36 cleanup item #4). Task-208 references that guardrail rather than re-locking it from scratch — Prep follows the same pattern Letters establishes.
+**Update (2026-05-03):** The cover letter agent is also planning to migrate Letters to consume canonical `jdAnalysis` before proceeding to Workstream 4. That work locks the canonical-consumption test guardrail (per doc-36 cleanup item #4). Task-208 references that guardrail rather than re-locking it from scratch — Prep follows the same pattern Letters establishes.
+
+**Update (2026-05-03 23:55):** Letters refactor shipped in commit 449ac24. Sequencing is now Letters (shipped) → Build/Workstream 4 (next) → task-208 Prep (after Build). Reasons: Build is mechanically simpler than Prep, Build's work retires legacy `jdAnalyzer.ts` removing a foot-gun, Prep needs three open architectural decisions resolved before implementation. task-209 (PrepPage typecheck fixes) is the precondition that should land before task-208 starts.
 
 ## Success Criteria
 
