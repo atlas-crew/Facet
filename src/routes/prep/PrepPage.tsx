@@ -3062,21 +3062,3 @@ export function PrepPage() {
     </div>
   )
 }
-import { samplePrepData, samplePrepInterviewers } from './samplePrepData'
-          {import.meta.env.DEV ? (
-            <button
-              className="prep-btn"
-              onClick={() => {
-                const id = createDeck({
-                  title: 'Sample Deck',
-                  company: 'Acme',
-                  role: 'Platform Engineer',
-                  interviewers: samplePrepInterviewers,
-                  cards: samplePrepData,
-                })
-                setActiveDeck(id)
-              }}
-            >
-              Load Sample
-            </button>
-          ) : null}
