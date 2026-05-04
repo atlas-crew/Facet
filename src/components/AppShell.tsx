@@ -52,7 +52,7 @@ const NAV_ITEMS = [
   {
     to: HOME_ROUTE,
     icon: Home,
-    label: 'Hub',
+    label: 'Overview',
     description: 'Monitor workspace readiness and jump into the next useful action.',
   },
   {
@@ -118,27 +118,51 @@ const NAV_ITEMS = [
 ] as const
 
 type NavRoute = (typeof NAV_ITEMS)[number]['to']
+type NavGroup = {
+  id: string
+  label: string
+  eyebrow: string
+  hideLabel: boolean
+  routes: readonly NavRoute[]
+}
 
 const NAV_GROUPS = [
   {
-    id: 'core',
-    label: 'Core',
-    eyebrow: 'Core Workspace',
-    routes: [HOME_ROUTE, '/identity', '/research', '/match', '/build'] satisfies readonly NavRoute[],
+    id: 'overview',
+    label: 'Overview',
+    eyebrow: 'Workspace Overview',
+    hideLabel: true,
+    routes: [HOME_ROUTE] satisfies readonly NavRoute[],
   },
   {
-    id: 'execution',
-    label: 'Execution',
-    eyebrow: 'Execution Workspace',
+    id: 'foundation',
+    label: 'Foundation',
+    eyebrow: 'Foundation Workspace',
+    hideLabel: false,
+    routes: ['/identity'] satisfies readonly NavRoute[],
+  },
+  {
+    id: 'analyze',
+    label: 'Analyze',
+    eyebrow: 'Analyze Workspace',
+    hideLabel: false,
+    routes: ['/research', '/match'] satisfies readonly NavRoute[],
+  },
+  {
+    id: 'apply',
+    label: 'Apply',
+    eyebrow: 'Apply Workspace',
+    hideLabel: false,
+    routes: ['/build', '/letters', '/linkedin', '/recruiter'] satisfies readonly NavRoute[],
+  },
+  {
+    id: 'interview',
+    label: 'Interview',
+    eyebrow: 'Interview Workspace',
+    hideLabel: false,
     routes: ['/pipeline', '/prep', '/debrief'] satisfies readonly NavRoute[],
   },
-  {
-    id: 'output',
-    label: 'Output',
-    eyebrow: 'Output Workspace',
-    routes: ['/letters', '/linkedin', '/recruiter'] satisfies readonly NavRoute[],
-  },
-] as const
+] as const satisfies readonly NavGroup[]
 
 const isRouteActive = (currentPath: string, route: string) =>
   currentPath === route || currentPath.startsWith(`${route}/`)
@@ -181,7 +205,7 @@ export function AppShell() {
     if (isHomeRoute) {
       return {
         title: 'Overview',
-        eyebrow: 'Workspace Hub',
+        eyebrow: 'Workspace Overview',
         description: 'Jump into the next step of your search system and monitor overall readiness.',
       }
     }
@@ -739,15 +763,8 @@ export function AppShell() {
     <div className="app-root">
       <nav className="app-sidebar" aria-label="Main navigation">
         <div className="sidebar-nav">
-          {visibleNavGroups.map((group) => (
-            <section
-              key={group.id}
-              className={`sidebar-nav-group ${activeNavGroup?.id === group.id ? 'active' : ''}`}
-              aria-labelledby={`sidebar-nav-group-${group.id}`}
-            >
-              <p id={`sidebar-nav-group-${group.id}`} className="sidebar-nav-group-label">
-                {group.label}
-              </p>
+          {visibleNavGroups.map((group) => {
+            const groupItems = (
               <div className="sidebar-nav-group-items">
                 {group.items.map(({ to, icon: Icon, label }) => (
                   <Link
@@ -761,8 +778,24 @@ export function AppShell() {
                   </Link>
                 ))}
               </div>
-            </section>
-          ))}
+            )
+
+            return (
+              <section
+                key={group.id}
+                className={`sidebar-nav-group ${activeNavGroup?.id === group.id ? 'active' : ''}`}
+                aria-label={group.hideLabel ? group.eyebrow : undefined}
+                aria-labelledby={group.hideLabel ? undefined : `sidebar-nav-group-${group.id}`}
+              >
+                {group.hideLabel ? null : (
+                  <p id={`sidebar-nav-group-${group.id}`} className="sidebar-nav-group-label">
+                    {group.label}
+                  </p>
+                )}
+                {groupItems}
+              </section>
+            )
+          })}
         </div>
 
         <div className="sidebar-bottom">

@@ -355,7 +355,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('button', { name: 'Theme: light' })).toBeTruthy()
   })
 
-  it('groups workspace navigation and shows route context in the topbar', () => {
+  it('groups workspace navigation by search stage and shows route context in the topbar', () => {
     routerMocks.currentPath = '/research'
     setHostedStore({})
     runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
@@ -370,11 +370,43 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
+    const sidebarNav = document.querySelector('.sidebar-nav') as HTMLElement
+    expect(
+      within(sidebarNav).getAllByRole('link').map((link) => link.textContent?.trim()),
+    ).toEqual([
+      'Overview',
+      'Identity',
+      'Research',
+      'Match',
+      'Build',
+      'Letters',
+      'LinkedIn',
+      'Recruiter',
+      'Pipeline',
+      'Prep',
+      'Debrief',
+    ])
+    expect(within(sidebarNav).getByRole('link', { name: /^Overview$/i })).toBeTruthy()
+    const overviewGroup = document.querySelector('.sidebar-nav-group:first-child') as HTMLElement
+    expect(overviewGroup.tagName).toBe('SECTION')
+    expect(overviewGroup.getAttribute('aria-label')).toBe('Workspace Overview')
+    expect(overviewGroup.hasAttribute('aria-labelledby')).toBe(false)
+    expect(within(overviewGroup).queryByText('Overview')).toBeTruthy()
+    expect(overviewGroup.querySelector('.sidebar-nav-group-label')).toBeNull()
+    const labelledGroups = Array.from(sidebarNav.querySelectorAll('section.sidebar-nav-group[aria-labelledby]'))
+    expect(labelledGroups).toHaveLength(4)
+    labelledGroups.forEach((group) => {
+      expect(group.getAttribute('aria-labelledby')).toMatch(/^sidebar-nav-group-/)
+    })
     expect(screen.getByRole('heading', { name: 'Research' })).toBeTruthy()
-    expect(screen.getAllByText('Core')[0]).toBeTruthy()
-    expect(screen.getByText('Execution')).toBeTruthy()
-    expect(screen.getByText('Output')).toBeTruthy()
-    expect(screen.getByText('Core Workspace')).toBeTruthy()
+    expect(within(sidebarNav).getByText('Foundation')).toBeTruthy()
+    expect(within(sidebarNav).getByText('Analyze')).toBeTruthy()
+    expect(within(sidebarNav).getByText('Apply')).toBeTruthy()
+    expect(within(sidebarNav).getByText('Interview')).toBeTruthy()
+    expect(within(sidebarNav).queryByText('Core')).toBeNull()
+    expect(within(sidebarNav).queryByText('Execution')).toBeNull()
+    expect(within(sidebarNav).queryByText('Output')).toBeNull()
+    expect(document.querySelector('.app-topbar-eyebrow')?.textContent).toBe('Analyze Workspace')
     expect(
       screen.getByText('Turn your identity into targeted searches and pipeline-ready opportunities.')
     ).toBeTruthy()
@@ -515,10 +547,10 @@ describe('AppShell hosted workspace bootstrap', () => {
   })
 
   it.each([
-    ['/', 'Overview', 'Workspace Hub', 'Hub'],
-    ['/build', 'Build', 'Core Workspace', 'Build'],
-    ['/pipeline', 'Pipeline', 'Execution Workspace', 'Pipeline'],
-    ['/identity', 'Identity', 'Core Workspace', 'Identity'],
+    ['/', 'Overview', 'Workspace Overview', 'Overview'],
+    ['/build', 'Build', 'Apply Workspace', 'Build'],
+    ['/pipeline', 'Pipeline', 'Interview Workspace', 'Pipeline'],
+    ['/identity', 'Identity', 'Foundation Workspace', 'Identity'],
   ] as const)(
     'renders route context and active nav state for %s',
     (pathname, heading, eyebrow, navLabel) => {
@@ -529,7 +561,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       render(<AppShell />)
 
       expect(screen.getByRole('heading', { name: heading })).toBeTruthy()
-      expect(screen.getByText(eyebrow)).toBeTruthy()
+      expect(document.querySelector('.app-topbar-eyebrow')?.textContent).toBe(eyebrow)
       expect(screen.getByRole('link', { name: new RegExp(`^${navLabel}$`, 'i') }).className).toContain('active')
     },
   )
