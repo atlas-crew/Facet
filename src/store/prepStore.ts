@@ -69,6 +69,10 @@ interface CreateDeckInput {
   companyResearch?: string
   interviewers?: PrepInterviewer[]
   jobDescription?: string
+  jdAnalysisId?: string | null
+  jdAnalysisGeneratedAt?: string | null
+  jdAnalysisModelVersion?: string | null
+  jdTextHash?: string | null
   rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
@@ -113,6 +117,10 @@ function sanitizeText(value: unknown, options: SanitizeOptions = {}): string | u
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return options.preserveDrafts ? trimmed : trimmed || undefined
+}
+
+function sanitizeNullableText(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null
 }
 
 function sanitizeRoundNumber(value: unknown): number | undefined {
@@ -624,6 +632,10 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    jdAnalysisId: sanitizeNullableText(deck.jdAnalysisId),
+    jdAnalysisGeneratedAt: sanitizeNullableText(deck.jdAnalysisGeneratedAt),
+    jdAnalysisModelVersion: sanitizeNullableText(deck.jdAnalysisModelVersion),
+    jdTextHash: sanitizeNullableText(deck.jdTextHash),
     identityVersion: sanitizeIdentityVersion(deck.identityVersion),
     identityFields: sanitizeIdentityFields(deck.identityFields),
     stalenessReview: sanitizeArtifactStalenessReview(deck.stalenessReview),
@@ -719,6 +731,10 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
     jobDescription: deck.jobDescription?.trim() || undefined,
+    jdAnalysisId: sanitizeNullableText(deck.jdAnalysisId),
+    jdAnalysisGeneratedAt: sanitizeNullableText(deck.jdAnalysisGeneratedAt),
+    jdAnalysisModelVersion: sanitizeNullableText(deck.jdAnalysisModelVersion),
+    jdTextHash: sanitizeNullableText(deck.jdTextHash),
     rules: sanitizeStringList(deck.rules),
     donts: sanitizeStringList(deck.donts),
     questionsToAsk: sanitizeQuestionsToAsk(deck.questionsToAsk),
@@ -823,6 +839,10 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
           companyResearch: input.companyResearch,
           interviewers: input.interviewers,
           jobDescription: input.jobDescription,
+          jdAnalysisId: input.jdAnalysisId,
+          jdAnalysisGeneratedAt: input.jdAnalysisGeneratedAt,
+          jdAnalysisModelVersion: input.jdAnalysisModelVersion,
+          jdTextHash: input.jdTextHash,
           rules: input.rules,
           donts: input.donts,
           questionsToAsk: input.questionsToAsk,

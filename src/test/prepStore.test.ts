@@ -21,6 +21,10 @@ describe('prepStore', () => {
       company: 'Acme',
       role: 'Staff Engineer',
       vectorId: 'backend',
+      jdAnalysisId: ' jd-analysis-1 ',
+      jdAnalysisGeneratedAt: ' 2026-04-20T12:00:00.000Z ',
+      jdAnalysisModelVersion: ' jd-analysis.v1.match-multipass-sonnet ',
+      jdTextHash: ' jdhash_123 ',
       roundType: 'hm-screen',
       rules: [' Lead with specifics ', '', 'Listen more than you talk'],
       donts: [' Ramble ', '', 'Skip the ask'],
@@ -73,6 +77,10 @@ describe('prepStore', () => {
     expect(state.activeMode).toBe('edit')
     expect(state.decks[0].title).toBe('Acme Staff Prep')
     expect(state.decks[0].company).toBe('Acme')
+    expect(state.decks[0].jdAnalysisId).toBe('jd-analysis-1')
+    expect(state.decks[0].jdAnalysisGeneratedAt).toBe('2026-04-20T12:00:00.000Z')
+    expect(state.decks[0].jdAnalysisModelVersion).toBe('jd-analysis.v1.match-multipass-sonnet')
+    expect(state.decks[0].jdTextHash).toBe('jdhash_123')
     expect(state.decks[0].roundType).toBe('hm-screen')
     expect(state.decks[0].rules).toEqual(['Lead with specifics', 'Listen more than you talk'])
     expect(state.decks[0].donts).toEqual(['Ramble', 'Skip the ask'])
@@ -101,6 +109,14 @@ describe('prepStore', () => {
     expect(state.decks[0].contextGapAnswers).toEqual({ 'gap-1': 'Wanted broader ownership.' })
     expect(state.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(state.decks[0].durableMeta?.revision).toBe(0)
+
+    const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck).toEqual(expect.objectContaining({
+      jdAnalysisId: 'jd-analysis-1',
+      jdAnalysisGeneratedAt: '2026-04-20T12:00:00.000Z',
+      jdAnalysisModelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+      jdTextHash: 'jdhash_123',
+    }))
   })
 
   it('threads interviewers through createDeck and links them to cards by id', () => {
@@ -381,6 +397,10 @@ describe('prepStore', () => {
           role: ' Staff Engineer ',
           vectorId: ' backend ',
           pipelineEntryId: null,
+          jdAnalysisId: ' jd-analysis-legacy ',
+          jdAnalysisGeneratedAt: 42,
+          jdAnalysisModelVersion: ' ',
+          jdTextHash: ' jdhash_legacy ',
           numbersToKnow: {
             candidate: [{ value: ' 12 ', label: ' Pipelines ' }],
           },
@@ -398,6 +418,10 @@ describe('prepStore', () => {
     expect(migrated.decks).toHaveLength(1)
     expect(migrated.decks[0].title).toBe('Legacy Prep')
     expect(migrated.decks[0].vectorId).toBe('backend')
+    expect(migrated.decks[0].jdAnalysisId).toBe('jd-analysis-legacy')
+    expect(migrated.decks[0].jdAnalysisGeneratedAt).toBeNull()
+    expect(migrated.decks[0].jdAnalysisModelVersion).toBeNull()
+    expect(migrated.decks[0].jdTextHash).toBe('jdhash_legacy')
     expect(migrated.decks[0].numbersToKnow).toEqual({
       candidate: [expect.objectContaining({ value: '12', label: 'Pipelines' })],
     })
@@ -792,6 +816,10 @@ describe('prepStore', () => {
         role: ' Staff Engineer ',
         vectorId: ' backend ',
         pipelineEntryId: null,
+        jdAnalysisId: ' jd-analysis-imported ',
+        jdAnalysisGeneratedAt: ' 2026-04-21T08:30:00.000Z ',
+        jdAnalysisModelVersion: ' jd-analysis.v1.match-multipass-sonnet ',
+        jdTextHash: ' jdhash_imported ',
         roundNumber: 4.9 as never,
         roundDebriefs: [
           {
@@ -871,6 +899,10 @@ describe('prepStore', () => {
 
     expect(deck.roundType).toBe('hm-screen')
     expect(deck.roundNumber).toBe(4)
+    expect(deck.jdAnalysisId).toBe('jd-analysis-imported')
+    expect(deck.jdAnalysisGeneratedAt).toBe('2026-04-21T08:30:00.000Z')
+    expect(deck.jdAnalysisModelVersion).toBe('jd-analysis.v1.match-multipass-sonnet')
+    expect(deck.jdTextHash).toBe('jdhash_imported')
     expect(deck.roundDebriefs).toEqual([
       {
         round: 2,

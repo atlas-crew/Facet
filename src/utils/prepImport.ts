@@ -9,6 +9,9 @@ const VALID_CATEGORIES = new Set<string>([
   'opener', 'behavioral', 'technical', 'project', 'metrics', 'situational',
 ])
 
+const nullableString = (value: unknown): string | null =>
+  typeof value === 'string' ? value.trim() || null : null
+
 function validateMetricList(raw: unknown): PrepMetric[] | undefined {
   if (!Array.isArray(raw)) return undefined
   const metrics = raw.flatMap((metric) => {
@@ -196,6 +199,10 @@ function validateDeck(raw: unknown): PrepDeck | null {
       typeof deck.companyResearch === 'string' ? deck.companyResearch : undefined,
     jobDescription:
       typeof deck.jobDescription === 'string' ? deck.jobDescription : undefined,
+    jdAnalysisId: nullableString(deck.jdAnalysisId),
+    jdAnalysisGeneratedAt: nullableString(deck.jdAnalysisGeneratedAt),
+    jdAnalysisModelVersion: nullableString(deck.jdAnalysisModelVersion),
+    jdTextHash: nullableString(deck.jdTextHash),
     numbersToKnow: validateNumbersToKnow(deck.numbersToKnow),
     stackAlignment: validateStackAlignment(deck.stackAlignment),
     generatedAt: typeof deck.generatedAt === 'string' ? deck.generatedAt : undefined,

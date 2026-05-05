@@ -360,6 +360,10 @@ export interface PrepDeck {
    */
   interviewers?: PrepInterviewer[]
   jobDescription?: string
+  jdAnalysisId?: string | null
+  jdAnalysisGeneratedAt?: string | null
+  jdAnalysisModelVersion?: string | null
+  jdTextHash?: string | null
   rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
