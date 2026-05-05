@@ -594,7 +594,7 @@ describe('PrepPage identity generation', () => {
         needs_review: true,
       }),
     ])
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/workbench' })
   })
 
   it('re-generates the active prep set with saved context gap answers', async () => {

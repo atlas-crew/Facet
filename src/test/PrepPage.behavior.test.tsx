@@ -568,7 +568,7 @@ describe('PrepPage behavior follow-ups', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Queue for Identity Review' }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/workbench' })
     })
 
     expect(screen.queryByRole('dialog', { name: 'Replace the current identity draft?' })).toBeNull()
@@ -696,7 +696,7 @@ describe('PrepPage behavior follow-ups', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Replace draft' }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/workbench' })
     })
 
     expect(useIdentityStore.getState().draft).toMatchObject({
