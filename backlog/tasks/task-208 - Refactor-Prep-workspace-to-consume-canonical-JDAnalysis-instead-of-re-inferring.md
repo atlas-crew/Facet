@@ -3,10 +3,10 @@ id: TASK-208
 title: >-
   Refactor Prep workspace to consume canonical JDAnalysis instead of
   re-inferring
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-03 22:30'
-updated_date: '2026-05-05 16:23'
+updated_date: '2026-05-05 22:51'
 labels:
   - prep
   - refactor
@@ -121,14 +121,14 @@ JD Analysis Bundle 1 has shipped. JD Analysis Bundle 2 (Workstream 3 — first-c
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Workstream 1 audit complete, decisions surfaced and locked
+- [x] #1 Workstream 1 audit complete, decisions surfaced and locked
 - [x] #2 Audit produces triage list classifying queued prep tasks (task-136, 137, 139, 140, 146, 170, 171, 173, 177, 179, 180) as survives/redirected/subsumed, with rationale per task
-- [ ] #3 PrepDeck data model includes `jdAnalysisId` reference
-- [ ] #4 `prepGenerator.ts` reads from canonical JDAnalysis, not from raw JD text or re-inferred analysis
-- [ ] #5 Existing prep features (homework, live, anchor stories, conditionals) preserved
-- [ ] #6 Stale-detection UI surfaces when source JDAnalysis updates after deck generation
-- [ ] #7 Match-workspace report and Prep deck content for same pipeline entry are internally consistent
-- [ ] #8 Test coverage validates prepGenerator no longer reads raw JD text directly
+- [x] #3 PrepDeck data model includes `jdAnalysisId` reference
+- [x] #4 `prepGenerator.ts` reads from canonical JDAnalysis, not from raw JD text or re-inferred analysis
+- [x] #5 Existing prep features (homework, live, anchor stories, conditionals) preserved
+- [x] #6 Stale-detection UI surfaces when source JDAnalysis updates after deck generation
+- [x] #7 Match-workspace report and Prep deck content for same pipeline entry are internally consistent
+- [x] #8 Test coverage validates prepGenerator no longer reads raw JD text directly
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -176,4 +176,12 @@ Open decisions for user lock:
 3. Should task-209 be closed as stale now that typecheck passes and createDeck/setActiveDeck exist?
 
 Decision locks have been split into child implementation tasks: TASK-208.1 retires direct Match-to-Prep generation behind Pipeline promotion; TASK-208.2 persists JDAnalysis generation metadata on PrepDeck; TASK-208.3 passes canonical JDAnalysis projection into pure Prep generation and depends on 208.1/208.2.
+
+Workstream 2 closeout (2026-05-05): child tasks are complete. TASK-208.2 added/preserved PrepDeck JDAnalysis metadata; TASK-208.3 migrated prepGenerator/PrepPage to canonical JDAnalysis projection with missing/stale hard-fail behavior and generator guardrail tests; TASK-208.1 retired direct Match-to-Prep generation behind Pipeline promotion. Focused verification: pnpm vitest run src/test/prepGenerator.test.ts src/test/prepStore.test.ts src/test/prepImport.test.ts src/test/PrepPage.identityGeneration.test.tsx src/test/PrepPage.test.tsx — 5 files, 68 tests passed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Prep now follows the canonical JDAnalysis projection topology. Pipeline-linked prep generation resolves the saved JDAnalysis, blocks missing or stale analysis, passes structured canonical analysis into the pure generator, stamps generated decks with JDAnalysis metadata, preserves existing Prep rehearsal features, and removes the direct Match-to-Prep AI generation path. The queued prep task triage from the audit remains available for follow-up cleanup.
+<!-- SECTION:FINAL_SUMMARY:END -->
