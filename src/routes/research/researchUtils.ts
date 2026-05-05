@@ -1,5 +1,9 @@
 import type { InterviewFormat, PipelineEntry } from '../../types/pipeline'
 import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
+import {
+  normalizeJobDescriptionSourceUrl,
+  normalizeJobDescriptionText,
+} from '../../utils/jobDescriptionText'
 import type {
   SearchInstanceOverrides,
   SearchProfile,
@@ -56,14 +60,13 @@ export function upsertVectorConfig(
   vectorId: string,
   patch: Partial<VectorSearchConfig>,
 ): VectorSearchConfig[] {
-  const current =
-    existing.find((vector) => vector.vectorId === vectorId) ?? {
-      vectorId,
-      priority: existing.length + 1,
-      description: '',
-      targetRoleTitles: [],
-      searchKeywords: [],
-    }
+  const current = existing.find((vector) => vector.vectorId === vectorId) ?? {
+    vectorId,
+    priority: existing.length + 1,
+    description: '',
+    targetRoleTitles: [],
+    searchKeywords: [],
+  }
 
   const next = { ...current, ...patch, vectorId }
   const others = existing.filter((vector) => vector.vectorId !== vectorId)
@@ -74,11 +77,12 @@ export function buildRequestDraft(
   profile: Pick<SearchProfile, 'vectors' | 'constraints'> | null,
   thesisOverrides?: Pick<SearchInstanceOverrides, 'constraints'> | null,
 ): Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'> {
-  const focusVectors = profile?.vectors
-    .slice()
-    .sort((left, right) => left.priority - right.priority)
-    .map((vector) => vector.vectorId)
-    .slice(0, 2) ?? []
+  const focusVectors =
+    profile?.vectors
+      .slice()
+      .sort((left, right) => left.priority - right.priority)
+      .map((vector) => vector.vectorId)
+      .slice(0, 2) ?? []
 
   // Per-search overrides take precedence over identity-derived profile defaults: the user
   // edited these on the active thesis to apply specifically to this search. Profile is the
@@ -138,7 +142,10 @@ const FORMAT_PHRASE_TO_ENUM: ReadonlyArray<readonly [RegExp, InterviewFormat]> =
   [/\bcross[\s-]?team\b/i, 'cross-team'],
   [/\b(exec(utive)?|founder)\b/i, 'exec'],
   [/\bpresentation\b/i, 'presentation'],
-  [/\b(tech(nical)?[\s-]?(discussion|deep[\s-]?dive|chat)|architecture[\s-]?review)\b/i, 'tech-discussion'],
+  [
+    /\b(tech(nical)?[\s-]?(discussion|deep[\s-]?dive|chat)|architecture[\s-]?review)\b/i,
+    'tech-discussion',
+  ],
 ]
 
 /**
@@ -217,6 +224,12 @@ export function createPipelineEntryDraft(
   if (entry.risks.length > 0) {
     notesParts.push('Risks:\n' + entry.risks.map((risk) => '- ' + risk).join('\n'))
   }
+  const researchJobDescription = normalizeJobDescriptionText(entry.jobDescription)
+  const researchJobDescriptionSourceUrl = researchJobDescription
+    ? normalizeJobDescriptionSourceUrl(entry.jobDescriptionSourceUrl, entry.url)
+    : undefined
+  const jobDescription = researchJobDescriptionSourceUrl ? researchJobDescription : ''
+  const jobDescriptionSourceUrl = researchJobDescriptionSourceUrl ?? null
 
   return {
     company: entry.company,
@@ -227,7 +240,9 @@ export function createPipelineEntryDraft(
     url: entry.url,
     contact: '',
     vectorId: vectorId || null,
-    jobDescription: '',
+    jobDescription,
+    jobDescriptionSourceUrl,
+    jdAnalysisId: null,
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,

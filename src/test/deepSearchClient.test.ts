@@ -66,13 +66,18 @@ const baseRequest: SearchRequest = {
   maxResults: { tier1: 2, tier2: 3, tier3: 4 },
 }
 
-const buildJob = (overrides: Partial<ResearchJob> = {}, thesisSnapshot?: SearchThesis): ResearchJob => {
-  const thesis = thesisSnapshot ?? buildDeepResearchThesisSnapshot({
-    profile: baseProfile,
-    request: baseRequest,
-    identity: null,
-    createdAt: '2026-03-10T10:06:00.000Z',
-  })
+const buildJob = (
+  overrides: Partial<ResearchJob> = {},
+  thesisSnapshot?: SearchThesis,
+): ResearchJob => {
+  const thesis =
+    thesisSnapshot ??
+    buildDeepResearchThesisSnapshot({
+      profile: baseProfile,
+      request: baseRequest,
+      identity: null,
+      createdAt: '2026-03-10T10:06:00.000Z',
+    })
 
   return {
     id: 'job-1',
@@ -99,21 +104,20 @@ describe('deepSearchClient', () => {
   })
 
   it('resolves research job URLs at the proxy origin', () => {
-    expect(resolveResearchJobsUrl('https://ai.example/proxy')).toBe('https://ai.example/proxy/research/jobs')
+    expect(resolveResearchJobsUrl('https://ai.example/proxy')).toBe(
+      'https://ai.example/proxy/research/jobs',
+    )
     expect(resolveResearchJobsUrl('http://127.0.0.1:9001', '/job-1')).toBe(
       'http://127.0.0.1:9001/research/jobs/job-1',
     )
-    expect(resolveResearchUsageUrl('https://ai.example/proxy')).toBe('https://ai.example/proxy/research/usage')
+    expect(resolveResearchUsageUrl('https://ai.example/proxy')).toBe(
+      'https://ai.example/proxy/research/usage',
+    )
   })
 
   it('caps polling delay at 30 seconds', () => {
     expect([0, 1, 2, 3, 4, 99].map(getResearchJobPollDelay)).toEqual([
-      2000,
-      5000,
-      15000,
-      30000,
-      30000,
-      30000,
+      2000, 5000, 15000, 30000, 30000, 30000,
     ])
   })
 
@@ -282,6 +286,11 @@ describe('deepSearchClient', () => {
     expect(body.thesisSnapshot).toMatchObject({ id: thesisSnapshot.id })
     expect(body.identityEvidence.archetype).toBe(identity.identity.thesis)
     expect(body.promptContract).toContain('candidateEdge as 2-4 sentences')
+    expect(body.promptContract).toContain(
+      'jobDescription only when raw job posting text is directly available',
+    )
+    expect(body.promptContract).toContain('same-origin source URL')
+    expect(body.promptContract).toContain('jobDescriptionSourceUrl')
   })
 
   it('fetches and cancels deep research jobs with authenticated lifecycle requests', async () => {
@@ -326,10 +335,12 @@ describe('deepSearchClient', () => {
       id: 'job-1',
       status: 'running',
     })
-    await expect(cancelDeepResearchJob('https://ai.example/proxy', 'job-1')).resolves.toMatchObject({
-      id: 'job-1',
-      status: 'canceled',
-    })
+    await expect(cancelDeepResearchJob('https://ai.example/proxy', 'job-1')).resolves.toMatchObject(
+      {
+        id: 'job-1',
+        status: 'canceled',
+      },
+    )
     await expect(fetchResearchUsage('https://ai.example/proxy')).resolves.toMatchObject({
       estimate: { runCostCents: 618 },
       budget: { status: 'ok' },
@@ -363,20 +374,28 @@ describe('deepSearchClient', () => {
 
   it('throws parsed proxy errors from job lifecycle clients', async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'job create denied' }), { status: 403 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'job fetch denied' }), { status: 404 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'job cancel denied' }), { status: 409 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'job create denied' }), { status: 403 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'job fetch denied' }), { status: 404 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'job cancel denied' }), { status: 409 }),
+      )
     const thesisSnapshot = buildDeepResearchThesisSnapshot({
       profile: baseProfile,
       request: baseRequest,
       identity: null,
     })
 
-    await expect(createDeepResearchJob({
-      endpoint: 'https://ai.example/proxy',
-      thesisSnapshot,
-      params: baseRequest,
-    })).rejects.toThrow('job create denied')
+    await expect(
+      createDeepResearchJob({
+        endpoint: 'https://ai.example/proxy',
+        thesisSnapshot,
+        params: baseRequest,
+      }),
+    ).rejects.toThrow('job create denied')
     await expect(fetchDeepResearchJob('https://ai.example/proxy', 'missing-job')).rejects.toThrow(
       'job fetch denied',
     )
@@ -387,9 +406,12 @@ describe('deepSearchClient', () => {
 
   it('streams SSE events with authenticated fetch headers and reports clean close', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response('event: thinking\ndata:  indented source\n\nevent: ping\ndata: ignore me\n\nevent: complete\ndata: job-1\n\n', {
-        status: 200,
-      }),
+      new Response(
+        'event: thinking\ndata:  indented source\n\nevent: ping\ndata: ignore me\n\nevent: complete\ndata: job-1\n\n',
+        {
+          status: 200,
+        },
+      ),
     )
     const events: string[] = []
     let closed = false
@@ -436,7 +458,9 @@ describe('deepSearchClient', () => {
     vi.mocked(fetch).mockImplementationOnce(((_url: string | URL | Request, init?: RequestInit) => {
       captured.signal = init?.signal as AbortSignal
       return new Promise<Response>((_resolve, reject) => {
-        captured.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+        captured.signal?.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError')),
+        )
       })
     }) as typeof fetch)
     const onError = vi.fn()
@@ -535,10 +559,14 @@ describe('deepSearchClient', () => {
   })
 
   it('hydrates failed, canceled, queued, and running jobs into SearchRun patches', () => {
-    expect(hydrateSearchRunFromResearchJob(buildJob({
-      status: 'failed',
-      error: { code: 'upstream_529', message: 'Provider timed out', retriable: true },
-    }))).toEqual({
+    expect(
+      hydrateSearchRunFromResearchJob(
+        buildJob({
+          status: 'failed',
+          error: { code: 'upstream_529', message: 'Provider timed out', retriable: true },
+        }),
+      ),
+    ).toEqual({
       status: 'failed',
       error: 'Provider timed out',
     })

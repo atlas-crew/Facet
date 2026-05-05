@@ -191,6 +191,9 @@ describe('searchExecutor', () => {
             risks: [],
             source: 'web',
             candidateEdge: 'Built 4 platforms solo in 11 months — PostHog needs that velocity.',
+            jobDescription:
+              '  Own product analytics infrastructure and improve developer platform reliability.  ',
+            jobDescriptionSourceUrl: ' https://posthog.com/careers/platform ',
             interviewProcess: {
               format: 'Paid SuperDay — build a real project',
               builderFriendly: true,
@@ -212,7 +215,9 @@ describe('searchExecutor', () => {
     )
 
     expect(results).toHaveLength(1)
-    expect(results[0]?.candidateEdge).toBe('Built 4 platforms solo in 11 months — PostHog needs that velocity.')
+    expect(results[0]?.candidateEdge).toBe(
+      'Built 4 platforms solo in 11 months — PostHog needs that velocity.',
+    )
     expect(results[0]?.interviewProcess?.format).toBe('Paid SuperDay — build a real project')
     expect(results[0]?.interviewProcess?.builderFriendly).toBe(true)
     expect(results[0]?.interviewProcess?.aiToolsAllowed).toBe(true)
@@ -223,6 +228,10 @@ describe('searchExecutor', () => {
     expect(results[0]?.companyIntel?.openRoleCount).toBe(27)
     expect(results[0]?.signalGroup).toBe('every signal aligns')
     expect(results[0]?.advantageMatch).toBe('Platform + Security + Fleet Management')
+    expect(results[0]?.jobDescription).toBe(
+      'Own product analytics infrastructure and improve developer platform reliability.',
+    )
+    expect(results[0]?.jobDescriptionSourceUrl).toBe('https://posthog.com/careers/platform')
   })
 
   it('omits enriched fields when absent from AI response', () => {
@@ -251,6 +260,95 @@ describe('searchExecutor', () => {
     expect(results[0]?.companyIntel).toBeUndefined()
     expect(results[0]?.signalGroup).toBeUndefined()
     expect(results[0]?.advantageMatch).toBeUndefined()
+    expect(results[0]?.jobDescription).toBeUndefined()
+    expect(results[0]?.jobDescriptionSourceUrl).toBeUndefined()
+  })
+
+  it('drops raw job descriptions without source URLs and caps oversized descriptions', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'NoSource',
+            title: 'Platform Engineer',
+            url: 'https://example.com/no-source',
+            matchScore: 80,
+            matchReason: 'Source missing',
+            vectorAlignment: 'platform',
+            risks: [],
+            source: 'web',
+            jobDescription: 'This should not be trusted without a source URL.',
+          },
+          {
+            tier: 1,
+            company: 'BadSource',
+            title: 'Backend Engineer',
+            url: 'https://example.com/bad-source',
+            matchScore: 75,
+            matchReason: 'Invalid source',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            jobDescription: 'This should not be trusted with a non-URL source.',
+            jobDescriptionSourceUrl: 'see posting',
+          },
+          {
+            tier: 1,
+            company: 'WrongOrigin',
+            title: 'Infrastructure Engineer',
+            url: 'https://example.com/wrong-origin',
+            matchScore: 70,
+            matchReason: 'Wrong source origin',
+            vectorAlignment: 'infra',
+            risks: [],
+            source: 'web',
+            jobDescription: 'This should not be trusted with a different source origin.',
+            jobDescriptionSourceUrl: 'https://evil.example/jobs/wrong-origin',
+          },
+          {
+            tier: 2,
+            company: 'HugeCo',
+            title: 'Staff Platform Engineer',
+            url: 'https://example.com/huge',
+            matchScore: 90,
+            matchReason: 'Has source',
+            vectorAlignment: 'platform',
+            risks: [],
+            source: 'web',
+            jobDescription: 'A'.repeat(50_000) + '\uD83D',
+            jobDescriptionSourceUrl: 'https://example.com/huge',
+          },
+          {
+            tier: 3,
+            company: 'WrongType',
+            title: 'Backend Engineer',
+            url: 'https://example.com/wrong',
+            matchScore: 70,
+            matchReason: 'Wrong type',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            jobDescription: 42,
+            jobDescriptionSourceUrl: 'https://example.com/wrong',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.company).toBe('NoSource')
+    expect(results[0]?.jobDescription).toBeUndefined()
+    expect(results[1]?.company).toBe('BadSource')
+    expect(results[1]?.jobDescription).toBeUndefined()
+    expect(results[2]?.company).toBe('WrongOrigin')
+    expect(results[2]?.jobDescription).toBeUndefined()
+    expect(results[3]?.company).toBe('HugeCo')
+    expect(results[3]?.jobDescription).toHaveLength(50_000)
+    expect(results[3]?.jobDescription).not.toMatch(/[\uD800-\uDBFF]$/)
+    expect(results[3]?.jobDescriptionSourceUrl).toBe('https://example.com/huge')
+    expect(results[4]?.company).toBe('WrongType')
+    expect(results[4]?.jobDescription).toBeUndefined()
   })
 
   it('normalizes interviewProcess with missing optional fields', () => {
@@ -309,6 +407,10 @@ describe('searchExecutor', () => {
 
     expect(prompt).toContain('"vectorId": "backend"')
     expect(prompt).toContain('"name": "TypeScript"')
+    expect(prompt).toContain('"jobDescription": "optional raw job posting text')
+    expect(prompt).toContain(
+      '"jobDescriptionSourceUrl": "optional same-origin source URL required when jobDescription is present"',
+    )
     expect(prompt).not.toContain('"name": "On-call"')
 
     const promptWithAllVectors = buildSearchPrompt(baseProfile, {
@@ -380,11 +482,7 @@ describe('searchExecutor', () => {
       }),
     } as Response)
 
-    const choicesResult = await callSearchProxy(
-      'https://ai.example/proxy',
-      'system',
-      'user',
-    )
+    const choicesResult = await callSearchProxy('https://ai.example/proxy', 'system', 'user')
     expect(choicesResult.text).toBe('{"results":[]}')
     expect(choicesResult.tokenUsage).toBeUndefined()
 
@@ -395,11 +493,7 @@ describe('searchExecutor', () => {
       }),
     } as Response)
 
-    const fallbackResult = await callSearchProxy(
-      'https://ai.example/proxy',
-      'system',
-      'user',
-    )
+    const fallbackResult = await callSearchProxy('https://ai.example/proxy', 'system', 'user')
     expect(fallbackResult.text).toBe(JSON.stringify({ unexpected: 'shape' }))
   })
 
@@ -531,7 +625,9 @@ describe('normalizeRunNarrative', () => {
   })
 
   it('returns undefined narrative with a violation when payload is not an object', () => {
-    expect(normalizeRunNarrative(null)).toEqual({ violations: ['narrative: payload is not an object'] })
+    expect(normalizeRunNarrative(null)).toEqual({
+      violations: ['narrative: payload is not an object'],
+    })
     expect(normalizeRunNarrative('string')).toEqual({
       violations: ['narrative: payload is not an object'],
     })
@@ -674,9 +770,7 @@ describe('normalizeRunNarrative', () => {
           },
           {
             name: 'outreach',
-            tasks: [
-              { label: 'Apply to top 5', startDate: '2026-03-01', durationDays: 2 },
-            ],
+            tasks: [{ label: 'Apply to top 5', startDate: '2026-03-01', durationDays: 2 }],
           },
         ],
         mermaidDiagram: 'gantt\n  dateFormat YYYY-MM-DD\n',
@@ -699,7 +793,9 @@ describe('normalizeRunNarrative', () => {
     }
     const { narrative, violations } = normalizeRunNarrative(payload)
     expect(narrative?.applicationPlan).toBeUndefined()
-    expect(violations).toContain('narrative.applicationPlan: malformed (missing startDate or not an object)')
+    expect(violations).toContain(
+      'narrative.applicationPlan: malformed (missing startDate or not an object)',
+    )
   })
 
   it('drops invalid entries inside optional arrays without crashing', () => {
@@ -726,10 +822,7 @@ describe('normalizeRunNarrative', () => {
 })
 
 describe('validateNarrativeCandidateEdges', () => {
-  const makeResult = (
-    company: string,
-    candidateEdge: string | undefined,
-  ): SearchResultEntry => ({
+  const makeResult = (company: string, candidateEdge: string | undefined): SearchResultEntry => ({
     id: `sres-${company}`,
     tier: 1,
     company,
@@ -745,8 +838,14 @@ describe('validateNarrativeCandidateEdges', () => {
 
   it('returns no violations when every candidateEdge has 2+ sentences', () => {
     const results = [
-      makeResult('PostHog', 'Open-source culture matches the candidate. Stack overlap is near-exact.'),
-      makeResult('Railway', 'Build-with-API interview rewards shipping speed. Team is distributed.'),
+      makeResult(
+        'PostHog',
+        'Open-source culture matches the candidate. Stack overlap is near-exact.',
+      ),
+      makeResult(
+        'Railway',
+        'Build-with-API interview rewards shipping speed. Team is distributed.',
+      ),
     ]
     expect(validateNarrativeCandidateEdges(results)).toEqual([])
   })

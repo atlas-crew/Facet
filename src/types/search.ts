@@ -154,6 +154,10 @@ export interface SearchResultEntry {
   signalGroup?: string
   /** Which unfair advantage combination from the search thesis drove this match. */
   advantageMatch?: string
+  /** Raw public job description text when a source posting exposes it. Not inferred analysis. */
+  jobDescription?: string
+  /** Same-origin source URL required for jobDescription to be preserved. */
+  jobDescriptionSourceUrl?: string
 }
 
 export interface SearchTokenUsage {

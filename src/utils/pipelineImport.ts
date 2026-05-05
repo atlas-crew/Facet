@@ -1,4 +1,5 @@
 import type { InterviewFormat, PipelineEntry } from '../types/pipeline'
+import { normalizeJobDescriptionSourceUrl, normalizeJobDescriptionText } from './jobDescriptionText'
 import { normalizePipelineResumeGeneration } from './resumeGeneration'
 import { sanitizeUrl } from './sanitizeUrl'
 import { normalizePipelineResearchSnapshot } from './pipelineResearch'
@@ -6,18 +7,24 @@ import { normalizePipelineResearchSnapshot } from './pipelineResearch'
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
 
 const VALID_STATUSES = new Set([
-  'researching', 'applied', 'screening', 'interviewing',
-  'offer', 'accepted', 'rejected', 'withdrawn', 'closed',
+  'researching',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+  'rejected',
+  'withdrawn',
+  'closed',
 ])
 
 const VALID_TIERS = new Set(['1', '2', '3', 'watch'])
 
 /**
- * Validates a single imported pipeline entry. Rejects entries with
- * missing required fields or dangerous URL schemes. Coerces optional
- * fields to safe defaults.
+ * Validates one untrusted JSON pipeline entry. Returns a normalized PipelineEntry,
+ * or null when required fields are missing; never throws for malformed input.
  */
-function validateEntry(raw: unknown): PipelineEntry | null {
+export function validatePipelineImportEntry(raw: unknown): PipelineEntry | null {
   if (!raw || typeof raw !== 'object') return null
   const e = raw as Record<string, unknown>
 
@@ -48,7 +55,10 @@ function validateEntry(raw: unknown): PipelineEntry | null {
     url,
     contact: str(e.contact),
     vectorId: strOrNull(e.vectorId),
-    jobDescription: str(e.jobDescription),
+    // Imported/manual Pipeline entries may carry user-pasted JD text without source provenance.
+    jobDescription: normalizeJobDescriptionText(e.jobDescription),
+    jobDescriptionSourceUrl:
+      normalizeJobDescriptionSourceUrl(e.jobDescriptionSourceUrl, url) ?? null,
     presetId: strOrNull(e.presetId),
     resumeVariant: str(e.resumeVariant),
     resumeGeneration: normalizePipelineResumeGeneration(e.resumeGeneration, {
@@ -60,11 +70,13 @@ function validateEntry(raw: unknown): PipelineEntry | null {
     skillMatch: str(e.skillMatch),
     nextStep: str(e.nextStep),
     notes: str(e.notes),
-    appMethod: str(e.appMethod) as PipelineEntry['appMethod'] || 'unknown',
-    response: str(e.response) as PipelineEntry['response'] || 'none',
+    appMethod: (str(e.appMethod) as PipelineEntry['appMethod']) || 'unknown',
+    response: (str(e.response) as PipelineEntry['response']) || 'none',
     daysToResponse: numOrNull(e.daysToResponse),
     rounds: numOrNull(e.rounds),
-    format: Array.isArray(e.format) ? (e.format.filter((f): f is string => typeof f === 'string') as InterviewFormat[]) : [],
+    format: Array.isArray(e.format)
+      ? (e.format.filter((f): f is string => typeof f === 'string') as InterviewFormat[])
+      : [],
     rejectionStage: str(e.rejectionStage) as PipelineEntry['rejectionStage'],
     rejectionReason: str(e.rejectionReason),
     offerAmount: str(e.offerAmount),
@@ -73,9 +85,10 @@ function validateEntry(raw: unknown): PipelineEntry | null {
     lastAction: str(e.lastAction),
     createdAt: str(e.createdAt),
     history: Array.isArray(e.history)
-      ? e.history
-          .filter((h): h is { date: string; note: string } =>
-            h && typeof h === 'object' && typeof h.date === 'string' && typeof h.note === 'string')
+      ? e.history.filter(
+          (h): h is { date: string; note: string } =>
+            h && typeof h === 'object' && typeof h.date === 'string' && typeof h.note === 'string',
+        )
       : [],
     research: normalizePipelineResearchSnapshot(e.research),
   }
@@ -94,7 +107,11 @@ export interface ImportResult {
 export function parsePipelineImport(file: File): Promise<ImportResult> {
   return new Promise((resolve) => {
     if (file.size > MAX_IMPORT_BYTES) {
-      resolve({ entries: [], skipped: 0, error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.` })
+      resolve({
+        entries: [],
+        skipped: 0,
+        error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.`,
+      })
       return
     }
 
@@ -102,7 +119,11 @@ export function parsePipelineImport(file: File): Promise<ImportResult> {
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string)
-        const raw = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.entries) ? parsed.entries : null
+        const raw = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.entries)
+            ? parsed.entries
+            : null
         if (!raw) {
           resolve({ entries: [], skipped: 0, error: 'Expected a JSON array of pipeline entries.' })
           return
@@ -110,7 +131,7 @@ export function parsePipelineImport(file: File): Promise<ImportResult> {
         const entries: PipelineEntry[] = []
         let skipped = 0
         for (const item of raw) {
-          const validated = validateEntry(item)
+          const validated = validatePipelineImportEntry(item)
           if (validated) entries.push(validated)
           else skipped++
         }

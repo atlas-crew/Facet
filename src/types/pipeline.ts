@@ -120,12 +120,7 @@ export interface PipelineResearchSnapshot {
   lastInvestigatedAt: string
 }
 
-export type PipelineRoundOutcome =
-  | 'pending'
-  | 'advanced'
-  | 'rejected'
-  | 'ghosted'
-  | 'completed'
+export type PipelineRoundOutcome = 'pending' | 'advanced' | 'rejected' | 'ghosted' | 'completed'
 
 export const PIPELINE_ROUND_OUTCOME_VALUES = [
   'pending',
@@ -198,6 +193,8 @@ export interface PipelineEntry {
   // Facet integration
   vectorId: string | null
   jobDescription: string
+  // Provenance for research/investigation-captured JD text. User-pasted JDs may not have a source.
+  jobDescriptionSourceUrl?: string | null
   jdAnalysisId?: string | null
   presetId: string | null
   resumeVariant: string

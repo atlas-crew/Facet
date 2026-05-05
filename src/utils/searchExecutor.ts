@@ -21,6 +21,7 @@ import { readAiProxyError } from './aiProxyErrors'
 import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
 import { createId } from './idUtils'
+import { normalizeJobDescriptionSourceUrl, normalizeJobDescriptionText } from './jobDescriptionText'
 import type { FacetAiFeatureKey } from '../types/hosted'
 
 const REQUEST_TIMEOUT_MS = 120000
@@ -88,8 +89,7 @@ export async function callSearchProxy(
     const bearerToken = await getHostedAccessToken()
     const configuredProxyApiKey = facetClientEnv.anthropicProxyApiKey || undefined
     const resolvedProxyApiKey =
-      configuredProxyApiKey ??
-      (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
+      configuredProxyApiKey ?? (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -216,7 +216,9 @@ function normalizeInterviewProcess(value: unknown): SearchResultInterviewProcess
     format,
     builderFriendly: typeof record.builderFriendly === 'boolean' ? record.builderFriendly : false,
     aiToolsAllowed: typeof record.aiToolsAllowed === 'boolean' ? record.aiToolsAllowed : false,
-    estimatedTimeline: isString(record.estimatedTimeline) ? record.estimatedTimeline.trim() || undefined : undefined,
+    estimatedTimeline: isString(record.estimatedTimeline)
+      ? record.estimatedTimeline.trim() || undefined
+      : undefined,
   }
 }
 
@@ -338,9 +340,10 @@ function normalizeVisualizations(value: unknown): SearchVisualization[] {
     if (!entry || typeof entry !== 'object') return []
     const record = entry as Record<string, unknown>
     const rawType = record.type
-    const type = isString(rawType) && (VISUALIZATION_TYPES as readonly string[]).includes(rawType)
-      ? (rawType as SearchVisualizationType)
-      : 'mermaid-other'
+    const type =
+      isString(rawType) && (VISUALIZATION_TYPES as readonly string[]).includes(rawType)
+        ? (rawType as SearchVisualizationType)
+        : 'mermaid-other'
     // Preserve Mermaid source verbatim — do not trim or re-serialize the body.
     // Leading/trailing blank lines in Mermaid diagrams are legal and sometimes load-bearing.
     const source = isString(record.source) ? record.source : ''
@@ -425,7 +428,9 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
   }
 
   const record = value as Record<string, unknown>
-  const readRequired = (key: 'competitiveMoat' | 'selectionMethodology' | 'marketContext' | 'executiveSummary'): string | null => {
+  const readRequired = (
+    key: 'competitiveMoat' | 'selectionMethodology' | 'marketContext' | 'executiveSummary',
+  ): string | null => {
     const raw = record[key]
     if (!isNonEmptyString(raw)) {
       violations.push(`narrative.${key}: missing or empty`)
@@ -453,9 +458,8 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
   flagShort('marketContext', marketContext, MIN_PROSE_LENGTH)
   flagShort('executiveSummary', executiveSummary, MIN_EXECUTIVE_SUMMARY_LENGTH)
 
-  const applicationPlan = record.applicationPlan !== undefined
-    ? normalizeApplicationPlan(record.applicationPlan)
-    : null
+  const applicationPlan =
+    record.applicationPlan !== undefined ? normalizeApplicationPlan(record.applicationPlan) : null
   if (record.applicationPlan !== undefined && !applicationPlan) {
     violations.push('narrative.applicationPlan: malformed (missing startDate or not an object)')
   }
@@ -541,9 +545,7 @@ export function countSentences(text: string): number {
  * Check each result's `candidateEdge` against the prompt's "2-4 sentences of prose" contract.
  * Returns violation strings for absent or fragment-length candidateEdges.
  */
-export function validateNarrativeCandidateEdges(
-  results: readonly SearchResultEntry[],
-): string[] {
+export function validateNarrativeCandidateEdges(results: readonly SearchResultEntry[]): string[] {
   const violations: string[] = []
   for (const result of results) {
     const label = result.company || result.id
@@ -626,6 +628,14 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
       if (!company || !title || !url || tier === null) {
         return []
       }
+      // Research output is model-provided, so raw JD text only survives with same-origin provenance.
+      const jobDescriptionSourceUrl = normalizeJobDescriptionSourceUrl(
+        item.jobDescriptionSourceUrl,
+        url,
+      )
+      const jobDescription = jobDescriptionSourceUrl
+        ? normalizeJobDescriptionText(item.jobDescription) || undefined
+        : undefined
 
       return [
         {
@@ -639,15 +649,26 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
           matchReason: isString(item.matchReason) ? item.matchReason.trim() : '',
           vectorAlignment: isString(item.vectorAlignment) ? item.vectorAlignment.trim() : '',
           risks: Array.isArray(item.risks)
-            ? item.risks.filter(isString).map((risk) => risk.trim()).filter(Boolean)
+            ? item.risks
+                .filter(isString)
+                .map((risk) => risk.trim())
+                .filter(Boolean)
             : [],
           estimatedComp: isString(item.estimatedComp) ? item.estimatedComp.trim() : undefined,
           source: isString(item.source) ? item.source.trim() : 'web_search',
-          candidateEdge: isString(item.candidateEdge) ? item.candidateEdge.trim() || undefined : undefined,
+          candidateEdge: isString(item.candidateEdge)
+            ? item.candidateEdge.trim() || undefined
+            : undefined,
           interviewProcess: normalizeInterviewProcess(item.interviewProcess),
           companyIntel: normalizeCompanyIntel(item.companyIntel),
-          signalGroup: isString(item.signalGroup) ? item.signalGroup.trim() || undefined : undefined,
-          advantageMatch: isString(item.advantageMatch) ? item.advantageMatch.trim() || undefined : undefined,
+          signalGroup: isString(item.signalGroup)
+            ? item.signalGroup.trim() || undefined
+            : undefined,
+          advantageMatch: isString(item.advantageMatch)
+            ? item.advantageMatch.trim() || undefined
+            : undefined,
+          jobDescription,
+          jobDescriptionSourceUrl: jobDescription ? jobDescriptionSourceUrl : undefined,
         },
       ]
     })
@@ -684,18 +705,18 @@ export function buildSearchPrompt(profile: SearchProfile, request: SearchRequest
 
 Candidate profile:
 ${JSON.stringify(
-    {
-      skills: prioritizedSkills,
-      vectors: activeVectors,
-      workSummary: profile.workSummary,
-      openQuestions: profile.openQuestions,
-      constraints: profile.constraints,
-      filters: profile.filters,
-      interviewPrefs: profile.interviewPrefs,
-    },
-    null,
-    2,
-  )}
+  {
+    skills: prioritizedSkills,
+    vectors: activeVectors,
+    workSummary: profile.workSummary,
+    openQuestions: profile.openQuestions,
+    constraints: profile.constraints,
+    filters: profile.filters,
+    interviewPrefs: profile.interviewPrefs,
+  },
+  null,
+  2,
+)}
 
 Search request:
 ${JSON.stringify(request, null, 2)}
@@ -729,6 +750,8 @@ Return JSON only (inside the tags) with this schema:
       "vectorAlignment": "string",
       "risks": ["string"],
       "estimatedComp": "optional string",
+      "jobDescription": "optional raw job posting text; include only when directly available from a source, never inferred",
+      "jobDescriptionSourceUrl": "optional same-origin source URL required when jobDescription is present",
       "source": "string"
     }
   ]
@@ -743,7 +766,11 @@ export async function executeSearch(
   const systemPrompt = `You are a strategic executive recruiter and job-search operator. Use web search actively, evaluate fit rigorously, and return JSON only.
 Prioritize roles that match the candidate's vectors, seniority, and search constraints. Be realistic about fit, call out risks, and avoid duplicate listings.`
 
-  const execution = await callSearchProxy(endpoint, systemPrompt, buildSearchPrompt(profile, request))
+  const execution = await callSearchProxy(
+    endpoint,
+    systemPrompt,
+    buildSearchPrompt(profile, request),
+  )
 
   try {
     return {

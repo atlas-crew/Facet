@@ -122,8 +122,20 @@ describe('researchUtils', () => {
 
     const updated = upsertVectorConfig(
       [
-        { vectorId: 'platform', priority: 3, description: '', targetRoleTitles: [], searchKeywords: [] },
-        { vectorId: 'backend', priority: 2, description: '', targetRoleTitles: [], searchKeywords: [] },
+        {
+          vectorId: 'platform',
+          priority: 3,
+          description: '',
+          targetRoleTitles: [],
+          searchKeywords: [],
+        },
+        {
+          vectorId: 'backend',
+          priority: 2,
+          description: '',
+          targetRoleTitles: [],
+          searchKeywords: [],
+        },
       ],
       'platform',
       { priority: 1, searchKeywords: ['internal tools'] },
@@ -227,6 +239,8 @@ describe('researchUtils', () => {
       contact: '',
       vectorId: 'backend',
       jobDescription: '',
+      jobDescriptionSourceUrl: null,
+      jdAnalysisId: null,
       presetId: null,
       resumeVariant: '',
       resumeGeneration: null,
@@ -268,17 +282,42 @@ describe('researchUtils', () => {
 
     expect(
       createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription:
+            '  Own platform reliability, developer experience, and release automation.  ',
+          jobDescriptionSourceUrl: 'https://example.com/jobs/1',
+        },
+        'backend',
+      ),
+    ).toMatchObject({
+      jobDescription: 'Own platform reliability, developer experience, and release automation.',
+      jobDescriptionSourceUrl: 'https://example.com/jobs/1',
+      jdAnalysisId: null,
+    })
+
+    const unprovenancedDraft = createPipelineEntryDraft(
+      {
+        ...searchResult,
+        jobDescription: 'Source URL did not validate, so research text should be dropped.',
+        jobDescriptionSourceUrl: 'https://other.example/jobs/1',
+      },
+      'backend',
+    )
+    expect(unprovenancedDraft?.jobDescription).toBe('')
+    expect(unprovenancedDraft?.jobDescriptionSourceUrl).toBeNull()
+
+    expect(
+      createPipelineEntryDraft(
         { ...searchResult, tier: 4 as unknown as SearchResultEntry['tier'] },
         'backend',
       ),
     ).toBeNull()
 
     expect(
-      createPipelineEntryDraft(
-        { ...searchResult, estimatedComp: undefined, risks: [] },
-        '',
-        { searchQueries: ['Acme staff engineer remote'] },
-      ),
+      createPipelineEntryDraft({ ...searchResult, estimatedComp: undefined, risks: [] }, '', {
+        searchQueries: ['Acme staff engineer remote'],
+      }),
     ).toMatchObject({
       comp: '',
       notes: '',
@@ -384,10 +423,7 @@ describe('researchUtils', () => {
   })
 
   it('falls back to vectorAlignment when candidateEdge is missing or whitespace', () => {
-    const draft = createPipelineEntryDraft(
-      { ...searchResult, candidateEdge: '   ' },
-      'backend',
-    )
+    const draft = createPipelineEntryDraft({ ...searchResult, candidateEdge: '   ' }, 'backend')
     expect(draft?.positioning).toBe('backend')
   })
 

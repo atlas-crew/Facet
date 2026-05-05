@@ -25,6 +25,7 @@ export const DEEP_RESEARCH_OUTPUT_CONTRACT = [
   'Include run-level synthesis when useful: laneSummaries[], objectiveRecommendations[], applicationPlan tied to SearchTimeline.deadline, and Mermaid visualizations[].',
   'Each result must include candidateEdge as 2-4 sentences using candidate fact + company fact + interpretation.',
   'Each result should include interviewProcess, companyIntel, signalGroup, and advantageMatch when evidence is available.',
+  'Each result may include jobDescription only when raw job posting text is directly available from a cited/source page; include jobDescriptionSourceUrl with the same-origin source URL and do not infer or synthesize a JD.',
   'Every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding must use [cite:<id>] markers resolving to citations/references.',
   'Do not collapse reasoning into fragments. Fields labeled narrative or summary expect prose. Fields labeled edge or reason expect 2-4 sentences. If you cannot cite a factual claim, do not claim it.',
 ].join('\n')
@@ -67,8 +68,7 @@ export async function researchJobHeaders(): Promise<Record<string, string>> {
   const bearerToken = await getHostedAccessToken()
   const configuredProxyApiKey = facetClientEnv.anthropicProxyApiKey || undefined
   const resolvedProxyApiKey =
-    configuredProxyApiKey ??
-    (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
+    configuredProxyApiKey ?? (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
 
   return {
     'Content-Type': 'application/json',
@@ -120,14 +120,17 @@ export function streamDeepResearchJob(
 
   void (async () => {
     try {
-      const response = await fetch(resolveResearchJobsUrl(endpoint, '/' + encodeURIComponent(jobId) + '/stream'), {
-        method: 'GET',
-        headers: {
-          ...(await researchJobHeaders()),
-          Accept: 'text/event-stream',
+      const response = await fetch(
+        resolveResearchJobsUrl(endpoint, '/' + encodeURIComponent(jobId) + '/stream'),
+        {
+          method: 'GET',
+          headers: {
+            ...(await researchJobHeaders()),
+            Accept: 'text/event-stream',
+          },
+          signal: controller.signal,
         },
-        signal: controller.signal,
-      })
+      )
       if (!response.ok) {
         throw await readAiProxyError(response)
       }
@@ -203,10 +206,13 @@ export async function fetchDeepResearchJob(endpoint: string, jobId: string): Pro
 }
 
 export async function cancelDeepResearchJob(endpoint: string, jobId: string): Promise<ResearchJob> {
-  const response = await fetch(resolveResearchJobsUrl(endpoint, `/${encodeURIComponent(jobId)}/cancel`), {
-    method: 'POST',
-    headers: await researchJobHeaders(),
-  })
+  const response = await fetch(
+    resolveResearchJobsUrl(endpoint, `/${encodeURIComponent(jobId)}/cancel`),
+    {
+      method: 'POST',
+      headers: await researchJobHeaders(),
+    },
+  )
   const payload = await readJsonResponse<{ job: ResearchJob }>(response)
   return payload.job
 }
@@ -248,11 +254,11 @@ export function buildDeepResearchIdentityEvidence(
   }
 
   const roleHighlights = identity.roles.flatMap((role) =>
-    role.bullets.slice(0, 2).map((bullet) =>
-      [role.company, bullet.problem, bullet.action, bullet.outcome]
-        .filter(Boolean)
-        .join(' | '),
-    ),
+    role.bullets
+      .slice(0, 2)
+      .map((bullet) =>
+        [role.company, bullet.problem, bullet.action, bullet.outcome].filter(Boolean).join(' | '),
+      ),
   )
   const projectHighlights = identity.projects.map((project) =>
     [project.name, project.description, project.portfolio_dive].filter(Boolean).join(' | '),
@@ -308,42 +314,46 @@ export function buildDeepResearchThesisSnapshot({
       ? profile.vectors.filter((vector) => request.focusVectors.includes(vector.vectorId))
       : profile.vectors
   const vectors = activeVectors.length > 0 ? activeVectors : profile.vectors
-  const prioritizedSkills = profile.skills
-    .filter((skill) => skill.depth !== 'avoid')
-    .slice(0, 12)
+  const prioritizedSkills = profile.skills.filter((skill) => skill.depth !== 'avoid').slice(0, 12)
   const skillDepthMap = prioritizedSkills.map((skill) => ({
     skill: skill.name,
     depth: skill.depth,
-    context: skill.context ?? skill.positioning ?? `${skill.category} skill from the search profile`,
+    context:
+      skill.context ?? skill.positioning ?? `${skill.category} skill from the search profile`,
     searchSignal: skill.positioning ?? `Use ${skill.name} as a ${skill.depth} match signal.`,
   }))
   const fallbackSkill = profile.skills.find((skill) => skill.name.trim())
   const safeSkillDepthMap =
     skillDepthMap.length > 0
       ? skillDepthMap
-      : [{
-          skill: fallbackSkill?.name ?? 'Candidate profile',
-          depth: fallbackSkill?.depth ?? 'working',
-          context: fallbackSkill?.context ?? 'Search profile evidence is available but sparse.',
-          searchSignal: 'Use the candidate profile as the primary fit signal.',
-        }]
+      : [
+          {
+            skill: fallbackSkill?.name ?? 'Candidate profile',
+            depth: fallbackSkill?.depth ?? 'working',
+            context: fallbackSkill?.context ?? 'Search profile evidence is available but sparse.',
+            searchSignal: 'Use the candidate profile as the primary fit signal.',
+          },
+        ]
   const lanes = vectors.map((vector, index) => ({
     id: vector.vectorId || `lane-${index + 1}`,
     title: vector.targetRoleTitles[0] || vector.description || `Search lane ${index + 1}`,
     rationale:
       vector.description ||
       `Search for roles where ${vector.searchKeywords.slice(0, 3).join(', ') || 'the candidate profile'} creates an advantage.`,
-    targetSignals: vector.searchKeywords.length > 0 ? vector.searchKeywords : vector.targetRoleTitles,
+    targetSignals:
+      vector.searchKeywords.length > 0 ? vector.searchKeywords : vector.targetRoleTitles,
   }))
   const safeLanes =
     lanes.length > 0
       ? lanes
-      : [{
-          id: 'general-fit',
-          title: 'General fit',
-          rationale: 'Search for roles that match the candidate profile and constraints.',
-          targetSignals: prioritizedSkills.map((skill) => skill.name).slice(0, 5),
-        }]
+      : [
+          {
+            id: 'general-fit',
+            title: 'General fit',
+            rationale: 'Search for roles that match the candidate profile and constraints.',
+            targetSignals: prioritizedSkills.map((skill) => skill.name).slice(0, 5),
+          },
+        ]
   const keywordCombinations = safeLanes.flatMap((lane) => {
     const keywords = lane.targetSignals.length > 0 ? lane.targetSignals : [lane.title]
     return keywords.slice(0, 3).map((keyword) => ({
@@ -356,7 +366,12 @@ export function buildDeepResearchThesisSnapshot({
   const moat =
     identity?.identity.thesis ||
     profile.workSummary[0]?.summary ||
-    `Candidate combines ${prioritizedSkills.slice(0, 3).map((skill) => skill.name).join(', ') || 'validated experience'} with the requested search constraints.`
+    `Candidate combines ${
+      prioritizedSkills
+        .slice(0, 3)
+        .map((skill) => skill.name)
+        .join(', ') || 'validated experience'
+    } with the requested search constraints.`
   const narrative = [
     moat,
     `This search prioritizes ${safeLanes.map((lane) => lane.title).join(', ')} while respecting compensation, location, and company-fit constraints.`,
