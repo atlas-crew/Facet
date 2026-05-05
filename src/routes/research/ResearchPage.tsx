@@ -2451,7 +2451,12 @@ export function ResearchPage() {
                     if (!activeThesis) return
                     updateThesisOverrides(activeThesis.id, patch)
                   }}
-                  onNavigateToIdentity={() => void navigate({ to: '/identity' })}
+                  onNavigateToIdentity={() =>
+                    void navigate({
+                      to: '/identity',
+                      search: { focus: 'preferences', return: '/research' },
+                    })
+                  }
                 />
               </div>
             </>
