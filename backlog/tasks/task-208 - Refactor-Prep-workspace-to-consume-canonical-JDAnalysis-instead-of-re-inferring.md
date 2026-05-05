@@ -1,9 +1,12 @@
 ---
 id: TASK-208
-title: Refactor Prep workspace to consume canonical JDAnalysis instead of re-inferring
-status: To Do
+title: >-
+  Refactor Prep workspace to consume canonical JDAnalysis instead of
+  re-inferring
+status: In Progress
 assignee: []
 created_date: '2026-05-03 22:30'
+updated_date: '2026-05-05 07:45'
 labels:
   - prep
   - refactor
@@ -24,7 +27,9 @@ documentation:
   - docs/architecture/identity-canonical-data.md
   - backlog/docs/doc-25 (Prep Workspace Gap Analysis)
   - backlog/docs/doc-28 (Prep Workspace Structural Additions)
-  - backlog/docs/doc-30 (Pipeline Depth — Rounds, Research Tiers, and the Calendar)
+  - >-
+    backlog/docs/doc-30 (Pipeline Depth — Rounds, Research Tiers, and the
+    Calendar)
 priority: medium
 ---
 
@@ -115,22 +120,21 @@ JD Analysis Bundle 1 has shipped. JD Analysis Bundle 2 (Workstream 3 — first-c
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
-- [ ] Workstream 1 audit complete, decisions surfaced and locked
-- [ ] Audit produces triage list classifying queued prep tasks (task-136, 137, 139, 140, 146, 170, 171, 173, 177, 179, 180) as survives/redirected/subsumed, with rationale per task
-- [ ] PrepDeck data model includes `jdAnalysisId` reference
-- [ ] `prepGenerator.ts` reads from canonical JDAnalysis, not from raw JD text or re-inferred analysis
-- [ ] Existing prep features (homework, live, anchor stories, conditionals) preserved
-- [ ] Stale-detection UI surfaces when source JDAnalysis updates after deck generation
-- [ ] Match-workspace report and Prep deck content for same pipeline entry are internally consistent
-- [ ] Test coverage validates prepGenerator no longer reads raw JD text directly
+- [ ] #1 Workstream 1 audit complete, decisions surfaced and locked
+- [x] #2 Audit produces triage list classifying queued prep tasks (task-136, 137, 139, 140, 146, 170, 171, 173, 177, 179, 180) as survives/redirected/subsumed, with rationale per task
+- [ ] #3 PrepDeck data model includes `jdAnalysisId` reference
+- [ ] #4 `prepGenerator.ts` reads from canonical JDAnalysis, not from raw JD text or re-inferred analysis
+- [ ] #5 Existing prep features (homework, live, anchor stories, conditionals) preserved
+- [ ] #6 Stale-detection UI surfaces when source JDAnalysis updates after deck generation
+- [ ] #7 Match-workspace report and Prep deck content for same pipeline entry are internally consistent
+- [ ] #8 Test coverage validates prepGenerator no longer reads raw JD text directly
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-TBD — finalize after Workstream 1 audit.
+Workstream 1 audit only: (1) confirm Prep baseline and precondition status, (2) map current Prep generation inputs and duplicated JD inference, (3) map PrepDeck/PrepCard fields into JDAnalysis-projected vs Prep-original, (4) compare canonical JDAnalysis coverage and missing Prep-only layers, (5) triage queued prep tasks, then stop for decision lock before implementation.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -141,4 +145,33 @@ This insight surfaced from reviewing a real Match-workspace JDAnalysis output fo
 Original Slack-equivalent quote from the conversation: "we actually weren't expecting the JD analysis to be so comprehensive it could drive interview prep but that's actually what its doing. The current interview prep workspace is inferring a lot of this, probably not as well and like you said risk of inconsistency."
 
 The architectural claim being staked: any per-listing artifact should read from canonical JDAnalysis as a projection, not re-derive its own interpretation. See companion doc capturing the broader principle.
+
+Audit started. Baseline check: pnpm typecheck currently passes; TASK-209 remains open in backlog but its recorded createDeck/setActiveDeck errors are not present in the current working tree.
+
+Workstream 1 audit findings:
+- Current Prep generation still sends raw jobDescription and asks the model to derive likely interview themes, stackAlignment, gap-framing, landmines, market-rarity notes, and role/company motivation. This is the duplicate analysis path to retire.
+- Current Pipeline generation path gates only on selectedEntry.jobDescription and does not require/resolve selectedEntry.jdAnalysisId. Regeneration uses the deck's stored jobDescription, so it can continue re-inferring even if Pipeline analysis is stale or missing.
+- PrepDeck has pipelineEntryId, pipelineRoundId, identityVersion, identityFields, stalenessReview, generatedAt, and rich Prep-original fields, but no jdAnalysisId/jdAnalysisGeneratedAt/jdAnalysisModelVersion snapshot fields yet.
+- Canonical JDAnalysis already covers requirements, skillMatches, strengthsToLead, advantages, gaps, gapFocus, watchOuts, positioningRecommendations, matched vectors, evidence mapping, matched keywords, and drift inputs. Prep should project stackAlignment, gap cards, landmines, role/company framing, and warnings from those fields instead of asking the model to rediscover them from the JD.
+- Prep-original layers that should remain generated by Prep: rehearsable scripts, story selection/variants, keyPoints/beat sheets, delivery coaching, question drills, conditionals, prior-round remediation, contextGaps, and interviewer-specific cards from user-sourced round.interviewers/T3 dossiers.
+- Existing match-source generation path creates Prep decks without a pipeline entry. This conflicts with the current topology for job-specific artifacts. Recommended decision: retire direct Match-to-Prep generation and require Promote/Create Pipeline Entry first, matching Letters.
+- Recommended implementation shape: keep prepGenerator pure. PrepPage or a small prepGenerationContext helper should resolve PipelineEntry + JDAnalysis + drift status from stores, pass jdAnalysis as structured input, and block generation when missing/stale. Do not import stores directly into prepGenerator.
+- Stale detection should use getJdAnalysisDriftStatus against the linked Pipeline entry and current identity version. PrepDeck should record jdAnalysisId and enough generation metadata to show stale when the entry points to a newer/different/stale analysis.
+
+Queued prep task triage:
+- TASK-136 redirected: alternative narrative support survives, but generation should choose alternatives from JDAnalysis evidenceMapping/advantages + identity stories, not raw-JD inference.
+- TASK-137 redirected/subsumed: one-liner takeaways can be generated as Prep-original scriptLabel/closer copy, but their role/company specificity should derive from JDAnalysis strengths/positioning.
+- TASK-139 survives: technical drills and answer templates are Prep-original rehearsal artifacts, seeded by JDAnalysis requirements/watchOuts/gaps.
+- TASK-140 redirected: model evaluation should compare canonical-JDAnalysis projection quality, not raw JD prompt quality. Re-run after task-208 implementation.
+- TASK-146 redirected: multi-role opener survives, but relevance should be seeded by JDAnalysis evidenceMapping/top assets rather than Prep re-ranking roles from raw JD.
+- TASK-170 mostly subsumed/stale: contract validation types/UI already exist in current code. Remaining work, if any, should be re-filed narrowly as telemetry or JDAnalysis-projection guardrails.
+- TASK-171 partly subsumed/redirected: PrepInterviewer exists and is gated by user-sourced round.interviewers. CompanyIntel is not present; if needed, it belongs to Pipeline research/T3 dossiers first, with Prep rendering/projection after.
+- TASK-173 subsumed/redirected: stack alignment should be projected from JDAnalysis.skillMatches.userDepth/matchQuality/presentationGuidance, not from a separate Prep skill-depth mapping. Keep only if a display mapping from SkillMatch to PrepStackAlignmentConfidence is still needed.
+- TASK-177 mostly subsumed/stale: keyPoints, beat sheet/glance labels, live mode rendering, and homework reveal exist. Remaining work should be narrowed to prompt/projection wording after canonical JDAnalysis input.
+- TASK-179 survives: storyVariants are Prep-original and still useful; source candidate stories from JDAnalysis evidenceMapping/advantages.
+- TASK-180 survives: pushbackScript is Prep-original delivery UX; seed from JDAnalysis watchOuts/gaps and prior-round debriefs.
+Open decisions for user lock:
+1. Should direct Match-to-Prep generation be retired now, requiring pipeline promotion before Prep generation?
+2. Should PrepDeck store only jdAnalysisId, or also jdAnalysisGeneratedAt/modelVersion/jdTextHash at generation time for clearer stale messages?
+3. Should task-209 be closed as stale now that typecheck passes and createDeck/setActiveDeck exist?
 <!-- SECTION:NOTES:END -->
