@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Upload } from 'lucide-react'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
-import { buildStaleSelectionNotice, parseMapSelection } from '../../utils/mapSelectionUrl'
+import {
+  buildStaleSelectionNotice,
+  parseMapSelection,
+  serializeMapSelection,
+  validateReturnUrl,
+  getReturnOriginName,
+} from '../../utils/mapSelectionUrl'
 import { IdentityInspector } from './IdentityInspector'
 import { ThesisBand } from './bands/ThesisBand'
 import { SelfModelBand } from './bands/SelfModelBand'
@@ -25,14 +31,24 @@ import './identityMap.css'
  */
 export function IdentityMapPage() {
   const identity = useIdentityStore((state) => state.currentIdentity)
+  const mapSelection = useIdentityStore((state) => state.mapSelection)
   const setMapSelection = useIdentityStore((state) => state.setMapSelection)
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { sel?: string; return?: string }
   const requestedSel = typeof search.sel === 'string' ? search.sel : ''
+  const requestedReturn = typeof search.return === 'string' ? search.return : ''
+  const validatedReturn = validateReturnUrl(requestedReturn)
 
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
   const honoredSelRef = useRef<string | null>(null)
+  // One-shot signal from forward → reverse: when forward dispatches
+  // setMapSelection, reverse on the same effect tick still sees pre-dispatch
+  // state and would otherwise treat it as divergence. The flag tells reverse
+  // to skip this tick; the dispatch's re-render brings state and URL into
+  // alignment, after which the regular `expected === search.sel` bail kicks in.
+  const skipNextReverseRef = useRef(false)
 
+  // Forward bridge: URL → state. Honor-once per distinct sel string.
   useEffect(() => {
     if (!requestedSel) return
     if (honoredSelRef.current === requestedSel) return
@@ -41,6 +57,7 @@ export function IdentityMapPage() {
     const parsed = parseMapSelection(requestedSel)
     if (parsed && isMapSelectionValid(parsed, identity)) {
       setMapSelection(parsed)
+      skipNextReverseRef.current = true
       setStaleNotice(null)
     } else {
       setStaleNotice(buildStaleSelectionNotice(parsed))
@@ -55,6 +72,40 @@ export function IdentityMapPage() {
     honoredSelRef.current = requestedSel
   }, [requestedSel, identity, setMapSelection, navigate])
 
+  // Reverse bridge: state → URL. Selection changes get mirrored into the `sel`
+  // param so refresh and copy-paste-link preserve state. Per TASK-217
+  // Decision 3, the `return` param is dropped on every reverse-sync write —
+  // the breadcrumb (below) survives only as long as the URL's `sel` already
+  // matches the selection (i.e., on initial deep-link landing where forward
+  // dispatch produces a state change but no URL divergence). Once the user
+  // clicks a different slot, expected ≠ search.sel, this effect writes, and
+  // the breadcrumb disappears with the dropped `return`. Per Decision 5,
+  // intra-Identity URL writes use replace: true so click-to-explore doesn't
+  // pollute browser history.
+  useEffect(() => {
+    if (!identity) return
+    if (skipNextReverseRef.current) {
+      skipNextReverseRef.current = false
+      return
+    }
+    const expected = mapSelection ? serializeMapSelection(mapSelection) : undefined
+    if (search.sel === expected) return // already in sync, no-op
+    // Pre-mark the about-to-be-written sel as honored so the forward effect
+    // doesn't re-process it as if it came from outside.
+    honoredSelRef.current = expected ?? null
+    void navigate({
+      to: '/identity',
+      search: { sel: expected, return: undefined } as { sel?: string; return?: string },
+      replace: true,
+    })
+  }, [mapSelection, search.sel, identity, navigate])
+
+  const handleReturnClick = () => {
+    if (!validatedReturn) return
+    setMapSelection(null)
+    void navigate({ to: validatedReturn })
+  }
+
   const openQuestions = identity?.awareness?.open_questions?.length ?? 0
   const roleCount = identity?.roles?.length ?? 0
   const bulletCount = identity?.roles?.reduce((sum, r) => sum + (r.bullets?.length ?? 0), 0) ?? 0
@@ -68,6 +119,16 @@ export function IdentityMapPage() {
   return (
     <div className="identity-map">
       <main className="identity-map-canvas">
+        {validatedReturn ? (
+          <button
+            type="button"
+            className="identity-map-return label-tracked"
+            onClick={handleReturnClick}
+          >
+            ← Back to {getReturnOriginName(validatedReturn)}
+          </button>
+        ) : null}
+
         <div className="identity-map-topbar">
           <div className="identity-map-topbar-left">
             <span className="label-tracked identity-map-crumb">

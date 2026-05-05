@@ -101,6 +101,26 @@
   max-width: 600px;
 }
 
+.identity-map-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-4);
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--easing);
+}
+.identity-map-return:hover {
+  color: var(--text-primary);
+}
+
 .identity-map-notice {
   margin: 0 0 var(--space-4);
   padding: var(--space-3) calc(var(--space-3) + var(--space-1));

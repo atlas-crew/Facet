@@ -170,3 +170,138 @@ describe('IdentityMapPage deep-link forward bridge', () => {
     })
   })
 })
+
+describe('IdentityMapPage reverse-sync (state → URL)', () => {
+  it('writes the serialized selection to the URL when mapSelection changes from null', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({})
+
+    render(<IdentityMapPage />)
+    useIdentityStore.getState().setMapSelection({
+      type: 'match-rule',
+      kind: 'prioritize',
+      id: 'rule-prio-1',
+    })
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/identity',
+          search: expect.objectContaining({ sel: 'match-rule:prioritize:rule-prio-1' }),
+          replace: true,
+        }),
+      )
+    })
+  })
+
+  it('does NOT write to URL when selection already matches the URL (no-op preserves return param)', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({
+      sel: 'match-rule:prioritize:rule-prio-1',
+      return: '/research',
+    })
+
+    render(<IdentityMapPage />)
+
+    // Forward dispatches setMapSelection(rule-prio-1) → mapSelection now matches URL.
+    await waitFor(() => {
+      expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
+    })
+
+    // Reverse-sync's signature write has shape `search: { sel, return }`. The
+    // forward stale-cleanup path uses `search: (prev) => ...` (a function), so
+    // we filter for the static-object shape to count only reverse writes.
+    const reverseWrites = mockNavigate.mock.calls.filter(([arg]) => {
+      if (!arg || arg.to !== '/identity' || arg.replace !== true) return false
+      return typeof arg.search === 'object' && arg.search !== null
+    })
+    expect(reverseWrites).toHaveLength(0)
+  })
+
+  it('drops the `return` param on the first reverse-sync write after user diverges from the deep-linked selection (Decision 3)', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({
+      sel: 'match-rule:prioritize:rule-prio-1',
+      return: '/research',
+    })
+
+    render(<IdentityMapPage />)
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
+    })
+    mockNavigate.mockClear()
+
+    // User diverges to a different rule on the Map.
+    useIdentityStore.getState().setMapSelection({
+      type: 'match-rule',
+      kind: 'avoid',
+      id: 'rule-avoid-1',
+    })
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/identity',
+          search: { sel: 'match-rule:avoid:rule-avoid-1', return: undefined },
+          replace: true,
+        }),
+      )
+    })
+  })
+})
+
+describe('IdentityMapPage return-URL breadcrumb', () => {
+  it('renders the "Back to {origin}" affordance when a valid return URL is present', () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({ return: '/research' })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByRole('button', { name: '← Back to Research' })).toBeTruthy()
+  })
+
+  it('preserves origin name across query strings on the return URL', () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({ return: '/pipeline?entry=pipe-77' })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByRole('button', { name: '← Back to Pipeline' })).toBeTruthy()
+  })
+
+  it('does NOT render the affordance when the return URL is missing', () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({})
+
+    render(<IdentityMapPage />)
+
+    expect(screen.queryByRole('button', { name: /Back to/ })).toBeNull()
+  })
+
+  it('does NOT render the affordance when the return URL fails the internal-prefix allowlist', () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({ return: 'https://evil.com/x' })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.queryByRole('button', { name: /Back to/ })).toBeNull()
+  })
+
+  it('clicking the affordance clears mapSelection and navigates to the validated URL', async () => {
+    seedIdentityWithMatchRule()
+    useIdentityStore.setState({
+      mapSelection: { type: 'match-rule', kind: 'prioritize', id: 'rule-prio-1' },
+    })
+    mockUseSearch.mockReturnValue({ return: '/research' })
+
+    render(<IdentityMapPage />)
+
+    screen.getByRole('button', { name: '← Back to Research' }).click()
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().mapSelection).toBeNull()
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/research' })
+    })
+  })
+})

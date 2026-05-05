@@ -3,8 +3,10 @@ import type { MapSelection } from '../types/identity'
 import {
   buildStaleSelectionNotice,
   getEntityNoun,
+  getReturnOriginName,
   parseMapSelection,
   serializeMapSelection,
+  validateReturnUrl,
 } from '../utils/mapSelectionUrl'
 
 const allVariants: MapSelection[] = [
@@ -120,5 +122,64 @@ describe('buildStaleSelectionNotice', () => {
     expect(buildStaleSelectionNotice(null)).toBe(
       "That link target isn't there anymore. Dropped you at the Identity Map landing instead.",
     )
+  })
+})
+
+describe('validateReturnUrl', () => {
+  it('returns the URL unchanged for an internal route prefix', () => {
+    expect(validateReturnUrl('/research')).toBe('/research')
+    expect(validateReturnUrl('/pipeline')).toBe('/pipeline')
+    expect(validateReturnUrl('/build')).toBe('/build')
+    expect(validateReturnUrl('/match')).toBe('/match')
+    expect(validateReturnUrl('/letters')).toBe('/letters')
+    expect(validateReturnUrl('/prep')).toBe('/prep')
+    expect(validateReturnUrl('/debrief')).toBe('/debrief')
+  })
+
+  it('preserves the URL when query or fragment are appended', () => {
+    expect(validateReturnUrl('/research?tab=preferences')).toBe('/research?tab=preferences')
+    expect(validateReturnUrl('/pipeline?entry=pipe-77')).toBe('/pipeline?entry=pipe-77')
+    expect(validateReturnUrl('/prep#anchors')).toBe('/prep#anchors')
+  })
+
+  it('honors deep paths within an allowed prefix', () => {
+    expect(validateReturnUrl('/research/some-detail')).toBe('/research/some-detail')
+  })
+
+  it('rejects external/scheme-bearing URLs', () => {
+    expect(validateReturnUrl('https://evil.com/research')).toBeNull()
+    expect(validateReturnUrl('http://evil.com')).toBeNull()
+    expect(validateReturnUrl('javascript:alert(1)')).toBeNull()
+    expect(validateReturnUrl('data:text/html,oops')).toBeNull()
+    expect(validateReturnUrl('//evil.com/research')).toBeNull()
+  })
+
+  it('rejects paths not in the allowlist', () => {
+    expect(validateReturnUrl('/admin')).toBeNull()
+    expect(validateReturnUrl('/random/path')).toBeNull()
+  })
+
+  it('rejects empty / undefined / null inputs', () => {
+    expect(validateReturnUrl('')).toBeNull()
+    expect(validateReturnUrl(undefined)).toBeNull()
+    expect(validateReturnUrl(null)).toBeNull()
+  })
+
+  it('does not match a sibling path that shares a prefix substring', () => {
+    expect(validateReturnUrl('/researchers')).toBeNull()
+    expect(validateReturnUrl('/preparation')).toBeNull()
+  })
+})
+
+describe('getReturnOriginName', () => {
+  it('returns the user-facing name for each allowed origin', () => {
+    expect(getReturnOriginName('/research')).toBe('Research')
+    expect(getReturnOriginName('/pipeline?entry=x')).toBe('Pipeline')
+    expect(getReturnOriginName('/prep')).toBe('Prep')
+    expect(getReturnOriginName('/debrief')).toBe('Debrief')
+  })
+
+  it('returns the defensive fallback for unrecognized paths (caller should validate first)', () => {
+    expect(getReturnOriginName('/admin')).toBe('origin')
   })
 })

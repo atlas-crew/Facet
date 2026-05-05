@@ -165,3 +165,73 @@ export function buildStaleSelectionNotice(selection: MapSelection | null): strin
   const noun = selection ? getEntityNoun(selection) : 'link target'
   return `That ${noun} isn't there anymore. Dropped you at the Identity Map landing instead.`
 }
+
+/**
+ * Origin-name table for the return-URL breadcrumb. Keys are the path prefixes
+ * the validator accepts; values are the user-facing names rendered as
+ * `← Back to {name}`. Order matters for prefix matching: longer prefixes must
+ * come before their shorter parents.
+ *
+ * Per TASK-217 Decision 2, only paths whose prefix matches one of these keys
+ * are honored as valid `return` targets — anything else falls back to "no
+ * back affordance shown."
+ */
+const RETURN_ORIGIN_TABLE: ReadonlyArray<readonly [string, string]> = [
+  ['/research', 'Research'],
+  ['/pipeline', 'Pipeline'],
+  ['/build', 'Build'],
+  ['/match', 'Match'],
+  ['/letters', 'Letters'],
+  ['/prep', 'Prep'],
+  ['/debrief', 'Debrief'],
+  ['/account', 'Account'],
+  ['/help', 'Help'],
+  ['/terms', 'Terms'],
+  ['/privacy', 'Privacy'],
+]
+
+const matchOrigin = (path: string): readonly [string, string] | null => {
+  for (const entry of RETURN_ORIGIN_TABLE) {
+    const [prefix] = entry
+    if (path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`)) {
+      return entry
+    }
+  }
+  return null
+}
+
+/**
+ * Validate a return URL against the internal-route allowlist. Returns the URL
+ * unchanged if its path component matches a known prefix; returns null
+ * otherwise. Reject scheme-bearing URLs (http://, javascript:, data:, etc.)
+ * outright — only same-origin internal paths are allowed. Per TASK-217
+ * Decision 2, the validation cost is tiny and the habit lands before
+ * external-origin links are part of the threat model.
+ */
+export function validateReturnUrl(url: string | undefined | null): string | null {
+  if (!url) return null
+  // Reject anything that smells like an absolute URL or a non-path scheme.
+  // Only same-origin paths starting with a single `/` are honored.
+  if (!url.startsWith('/')) return null
+  if (url.startsWith('//')) return null
+  // Split off the path component (drop query / fragment for prefix matching).
+  const queryIndex = url.indexOf('?')
+  const fragmentIndex = url.indexOf('#')
+  const cutoff = [queryIndex, fragmentIndex].filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? url.length
+  const path = url.slice(0, cutoff)
+  return matchOrigin(path) ? url : null
+}
+
+/**
+ * Derive the user-facing origin name for a validated return URL. Caller
+ * MUST pass a URL that already passed `validateReturnUrl`; the function
+ * returns 'origin' as a defensive fallback if no prefix matches (which
+ * shouldn't happen post-validation).
+ */
+export function getReturnOriginName(validatedUrl: string): string {
+  const queryIndex = validatedUrl.indexOf('?')
+  const fragmentIndex = validatedUrl.indexOf('#')
+  const cutoff = [queryIndex, fragmentIndex].filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? validatedUrl.length
+  const path = validatedUrl.slice(0, cutoff)
+  return matchOrigin(path)?.[1] ?? 'origin'
+}
