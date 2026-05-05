@@ -67,7 +67,7 @@ export function IdentityMapPage() {
     if (parsed && isMapSelectionValid(parsed, identity)) {
       setMapSelection(parsed)
       skipNextReverseRef.current = true
-      setStaleNotice(null)
+      setStaleNotice(null) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredSelRef so no cascade
     } else {
       setStaleNotice(buildStaleSelectionNotice(parsed))
       // Drop the now-stale `sel` param so refresh doesn't re-fire the bad link.
@@ -129,7 +129,7 @@ export function IdentityMapPage() {
       const layer = getBandDataLayerForFocus(validatedFocus)
       const element = document.querySelector<HTMLElement>(`[data-layer="${layer}"]`)
       element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      setStaleNotice(null)
+      setStaleNotice(null) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredFocusRef so no cascade
     } else {
       setStaleNotice(buildStaleSelectionNotice(null))
       void navigate({

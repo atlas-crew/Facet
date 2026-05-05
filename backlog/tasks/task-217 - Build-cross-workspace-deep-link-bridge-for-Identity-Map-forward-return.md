@@ -1,9 +1,10 @@
 ---
 id: TASK-217
 title: Build cross-workspace deep-link bridge for Identity Map (forward + return)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-05'
+updated_date: '2026-05-05'
 labels:
   - identity
   - routing
@@ -61,15 +62,15 @@ Audit identified three cross-workspace call sites navigating to `/identity` (see
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `/identity` route's `validateSearch` accepts a serialized `MapSelection` plus a return-URL parameter; existing call sites without these params continue to work unchanged
-- [ ] #2 Serialization is bounded to the closed set of `MapSelection` discriminants and round-trips losslessly (encode → URL → decode produces the original selection)
-- [ ] #3 `IdentityMapPage` reads the deep-link selection on mount and calls `setMapSelection` once stores have hydrated; honor-once guard mirrors `PipelinePage`'s `honoredLinkedEntryRef` pattern
-- [ ] #4 Map writes the current selection back into the URL on selection change so refresh and browser back-button preserve state; clearing the selection clears the param
-- [ ] #5 Invalid or stale deep-link selection (entity not present in current identity) falls back to landing state and shows a page-local notice that names what was missing
-- [ ] #6 Originating workspaces can pass a return URL; `IdentityMapPage` displays a "Back to [origin name]" affordance in workspace chrome when a return URL is present, and hides it otherwise
-- [ ] #7 The three existing cross-workspace affordances are retrofit to use the bridge: (a) `searchWorkspaceComponents.tsx` "Edit in Identity" button → deep-link target depends on context (preferences readout → likely lands on a `pref-field` selection or identity preferences band root); (b) `DebriefPage` post-debrief navigation → carries draft-apply intent; (c) `PrepPage` identity-gap-draft queue → carries draft-apply intent. Final selection targets locked during implementation, surfaced for review before each retrofit lands.
-- [ ] #8 Tests cover: forward deep-link (URL → selection), reverse encode (selection → URL), invalid selection fallback (with notice text assertion), return URL round-trip, retrofit per call site
-- [ ] #9 No regressions in existing `/identity` callers that don't use bridge params
+- [x] #1 `/identity` route's `validateSearch` accepts `?sel`, `?focus`, and `?return` params (all optional); existing call sites without these params continue to work unchanged
+- [x] #2 Serialization is bounded to the closed set of `MapSelection` discriminants and round-trips losslessly (encode → URL → decode produces the original selection); literal-union narrowings (`match-rule.kind`, `pref-field.field`) validated at parse boundary per Decision 1's refinement
+- [x] #3 `IdentityMapPage` reads the deep-link selection on mount and calls `setMapSelection` once stores have hydrated; honor-once guard via `honoredSelRef` mirrors `PipelinePage`'s `honoredLinkedEntryRef` pattern
+- [x] #4 Map writes the current selection back into the URL on selection change so refresh and browser back-button preserve state; clearing the selection clears the param; intra-Identity writes use `replace: true` per Decision 5
+- [x] #5 Invalid or stale deep-link selection falls back to landing state and shows a page-local notice that names what was missing using Decision 4's locked copy ("That {entity-noun} isn't there anymore. Dropped you at the Identity Map landing instead.")
+- [x] #6 Originating workspaces can pass a return URL; `IdentityMapPage` displays a "← Back to {origin name}" breadcrumb above the workspace topbar when validatedReturn is non-null, and hides it otherwise; return URL is validated against an internal-prefix allowlist (Decision 2)
+- [x] #7 Two of the three existing cross-workspace affordances are retrofit to use the bridge: (a) `searchWorkspaceComponents.tsx` "Edit in Identity" button uses the new `?focus=preferences&return=/research` pattern via the focus extension surfaced during retrofit 1's audit; (c) `PrepPage` identity-gap-draft queue redirected to `/identity/workbench` (production-bug fix surfaced during audit; bridge does not participate per retrofit 2 lock 2.A). The (b) `DebriefPage` retrofit was deferred to the upcoming Debrief redesign work — Debrief is moving toward a voice-dump input surface and the current call site may not exist in the new design; bridge infrastructure is ready when the redesign needs it.
+- [x] #8 Tests cover: forward deep-link (URL → selection, 7 cases), reverse encode (state → URL, 3 cases), invalid selection / unknown variant fallback with notice copy assertion, return URL validation + breadcrumb (5 cases), focus extension scroll + invalid + coexistence (5 cases), retrofit-1 button contract (2 cases), retrofit-2 navigation target updated in 3 PrepPage assertions
+- [x] #9 No regressions in existing `/identity` callers that don't use bridge params; production call sites needed zero updates (all bridge fields optional); 3 test files (`IdentityMapEditing`, `BulletInspector.deepen`, `BulletInspector.sheet`) gained `useSearch: () => ({})` in their router mock as the only ripple
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -325,12 +326,67 @@ Sub-question B — what happens on `setMapSelection(null)`? **Clear the URL para
 - **Phase 5 retrofit caveat on "where draft apply happens"**: don't pre-design a new `MapSelection` variant or landing band. Surface during the per-call-site audit at retrofit time. The audit may reveal the target is already a known variant under a different name, or that landing on a related slot is fine for the v1 retrofit.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Bridge shipped end-to-end across 7 commits. The cross-workspace deep-link gap that triggered this task (existing affordances landing at `/identity` root regardless of intent) is closed for the two retrofitted call sites; the third (Debrief) is deferred to the Debrief redesign work where the bridge infrastructure remains available without further extensions.
+
+### Commits
+
+1. `92ed4db` — `feat(identity): add MapSelection URL serialization helpers`
+2. `223663c` — `feat(identity): forward deep-link from URL to map selection`
+3. `915d29f` — `feat(identity): mirror map selection to URL with return-URL breadcrumb`
+4. `fb0ae97` — `feat(identity): add ?focus=<band> URL extension to deep-link bridge`
+5. `83326a7` — `refactor(research): retrofit "Edit in Identity" to use deep-link bridge`
+6. `5f90111` — `refactor(prep): redirect identity-gap-draft apply to Workbench`
+7. (this commit) — `chore(backlog): close TASK-217 as Done`
+
+### Bridge surface shipped
+
+- **Forward (URL → state)**: `?sel=<MapSelection>` parsed via `parseMapSelection`, validated against current identity via the existing `isMapSelectionValid` helper at `identityStore.ts:548`; valid → dispatches `setMapSelection`; invalid/unknown-variant → page-local stale notice + drops the param. Honor-once via `honoredSelRef`.
+- **Reverse (state → URL)**: subscribes to `mapSelection`; on change writes `{ sel, return: undefined, focus: undefined }` with `replace: true`. Bails when expected matches `search.sel` (preserves return on initial deep-link landing). One-shot `skipNextReverseRef` flag closes the forward-dispatch race where reverse on the same tick sees pre-dispatch state.
+- **Return URL breadcrumb**: `?return=<path>` validated against an internal-prefix allowlist (research, pipeline, build, match, letters, prep, debrief, account, help, terms, privacy). Renders `← Back to {origin name}` above the workspace topbar via `validateReturnUrl` + `getReturnOriginName`. Click clears selection and navigates default-`pushState` (a meaningful history entry). Disappears naturally once reverse-sync drops the return param after the user's first intra-Identity selection change.
+- **Focus extension**: `?focus=<band>` scrolls the matching `[data-layer]` band into view on mount. Bounded set of band identifiers (currently just `preferences`); `validateBandFocus` rejects unknown values; honor-once via `honoredFocusRef`. Orthogonal to selection — sel + focus + return all coexist on initial landing.
+
+### Retrofits in production
+
+- `src/routes/research/searchWorkspaceComponents.tsx:316` "Edit in Identity" → `navigate({ to: '/identity', search: { focus: 'preferences', return: '/research' } })`. Lands users at the Preferences band scrolled into view with the breadcrumb visible.
+- `src/routes/prep/PrepPage.tsx:1492` identity-gap-draft apply → `navigate({ to: '/identity/workbench' })`. Production-bug fix (Map has no draft awareness; Workbench is where draft review happens). Bridge does not participate.
+
+### Decisions locked & honored
+
+All 5 user-locked decisions implemented per spec:
+
+1. Colon-separated single-string serialization with each field individually `encodeURIComponent`'d. Parse-success-but-unknown-variant routes to the same stale-selection path as missing entities.
+2. Plain absolute URL for `?return=`, validated against the internal-prefix allowlist; protocol-relative URLs (`//evil.com`) explicitly rejected; sibling-prefix collisions avoided (`/researchers` does not match `/research`).
+3. Breadcrumb above workspace header; disappears cleanly on first intra-Identity divergence via reverse-sync's `return: undefined` write.
+4. Stale-selection notice copy locked as `"That {entity-noun} isn't there anymore. Dropped you at the Identity Map landing instead."` with per-variant noun map and `"link target"` generic for parse-failed paths.
+5. Cross-workspace navigation INTO Identity uses `pushState` (default `navigate`); intra-Identity selection changes use `replace: true`. Click-to-explore does not pollute browser history.
+
+### Coordination ripples confirmed clean
+
+- `validateSearch` ripple to existing `/identity` consumers turned out to be zero production changes (all bridge fields optional). Only ripple was 3 test mock files gaining `useSearch: () => ({})`.
+- Pre-existing failing tests in 4 files (`PrepPage.behavior`, `PrepPage.identityGeneration` — partially updated for retrofit 2 — `ResearchPage`, `facetServer`, `jdAnalysis`) confirmed unrelated to this task via baseline stash check; full-suite delta is zero new failures across all 7 commits.
+
+### Known follow-ups (filed implicitly via this task's context)
+
+- TASK-196.5's "Edit master list" link target is now infrastructure-resolved: deep-link via `?sel=match-rule:…` for slot-level or `?focus=preferences` for band-level. No bridge extension needed.
+- Debrief retrofit lands as part of the Debrief redesign work (not separately tracked here per scope discipline).
+- Phase D's `?import=1` import overlay extends the same `validateSearch` when it lands; the comment in `router.tsx:56-58` is updated.
+
+### Verification
+
+- `npm run typecheck` clean across all 7 commits
+- 60+ new tests pass (helpers, page integration, retrofit contract); full-suite delta zero new failures
+- Manual eye-check verified: deep-link via clicking "Edit in Identity" lands at Preferences band scrolled into view, breadcrumb visible, click breadcrumb returns to Research; selection change drops both focus and return params.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
