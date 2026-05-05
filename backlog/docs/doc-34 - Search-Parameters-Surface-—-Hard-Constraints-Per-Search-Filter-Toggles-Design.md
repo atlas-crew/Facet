@@ -22,9 +22,11 @@ Builds on:
 - **Identity = source of truth** (durable self-knowledge): permanent constraints, master prioritize/avoid lists, search vectors, skill positioning.
 - **SearchProfile = snapshot for one search instance**: denormalized mirror of identity preferences at search time, plus search-specific overrides.
 - **Per-search overrides** live in `SearchInstanceOverrides`, never in identity.
-- **Master-list mutation** (add/edit/delete custom prioritize/avoid entries) happens in `IdentityStrategyWorkbench`. Per-search toggles happen in `SearchInstancePreferences`.
+- **Master-list mutation** (add/edit/delete custom prioritize/avoid entries) happens on the Identity Map via `MatchRuleInspector` (`src/routes/identity/inspectorSlots/MatchRuleInspector.tsx`). Per-search toggles happen in `SearchInstancePreferences`.
 
 This preserves the staleness/snapshot architecture (`SearchRun.identityVersion`) so artifacts remain reproducible when the underlying identity changes.
+
+> **Reconciliation note (2026-05-05):** This document originally named `IdentityStrategyWorkbench` as the master-list editor. That component was retired in commit `6afda50` (`feat(identity): retire IdentityStrategyWorkbench so Map is the canonical-edit surface`) per TASK-195. Map's inspector slots — specifically `MatchRuleInspector` — now own master-list mutation. References throughout this document have been updated.
 
 ---
 
@@ -215,10 +217,10 @@ For salary (subtask .2):
 
 | Surface | Owner | Lives here |
 |---|---|---|
-| `IdentityStrategyWorkbench` | Identity | Add/edit/delete prioritize+avoid master list. "Suggest priorities" / "Suggest things to avoid" buttons (already wired via `generateAwarenessFromIdentity` and adjacent flows). |
-| `SearchInstancePreferences` (search workspace) | Search | Hard-constraint controls (multi-select chips, salary slider, clearance toggle). Per-item filter checkbox toggle list. "Edit master list" link → IdentityStrategyWorkbench. |
+| Identity Map → `MatchRuleInspector` slot | Identity | Add/edit/delete prioritize+avoid master list. The slot routes selections of the form `{ type: 'matchRule', kind: 'prioritize'\|'avoid', id }` to a per-rule editor. "Suggest priorities" / "Suggest things to avoid" affordances (previously wired via `generateAwarenessFromIdentity`) need a Map-side home if still in scope; track separately if so. |
+| `SearchInstancePreferences` (search workspace) | Search | Hard-constraint controls (multi-select chips, salary slider, clearance toggle). Per-item filter checkbox toggle list. "Edit master list" link → Identity Map (ideally deep-linking the relevant `MatchRuleInspector` selection). |
 
-The search workspace must not mutate identity prioritize/avoid lists. If a user wants to add a new entry, the path is "click 'Edit master list' → modify identity → return to search."
+The search workspace must not mutate identity prioritize/avoid lists. If a user wants to add a new entry, the path is "click 'Edit master list' → land on Identity Map's MatchRuleInspector → modify identity → return to search."
 
 ---
 
@@ -227,7 +229,7 @@ The search workspace must not mutate identity prioritize/avoid lists. If a user 
 - Updating `inferSearchProfileFromIdentity` / `inferSearchProfile` to populate new SearchProfileConstraints fields. The fields must exist before generators can populate them — that's a follow-up after subtasks .1–.5 land.
 - Updating `generateSearchVectorsFromIdentity` to the "one new angle per click" pattern. Deferred per user direction.
 - Per-search overrides for hard constraints (industries, funding, etc.). Spec calls for static-bank infrequent edits; no per-search toggle needed for these.
-- Changing the master-list editor UX in `IdentityStrategyWorkbench`. The existing surface stays as-is; only a "back link" entry point from search needs to be confirmed working.
+- Changing the master-list editor UX inside `MatchRuleInspector`. The existing slot stays as-is; only the cross-workspace entry point from search needs to be wired. If the per-rule label/condition editing benefits from the sheet primitive landed in TASK-202.1, that's a TASK-202.2 lift decision and not a TASK-196 dependency.
 
 ---
 
