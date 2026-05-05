@@ -1,6 +1,8 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Upload } from 'lucide-react'
-import { useIdentityStore } from '../../store/identityStore'
+import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
+import { buildStaleSelectionNotice, parseMapSelection } from '../../utils/mapSelectionUrl'
 import { IdentityInspector } from './IdentityInspector'
 import { ThesisBand } from './bands/ThesisBand'
 import { SelfModelBand } from './bands/SelfModelBand'
@@ -23,7 +25,35 @@ import './identityMap.css'
  */
 export function IdentityMapPage() {
   const identity = useIdentityStore((state) => state.currentIdentity)
+  const setMapSelection = useIdentityStore((state) => state.setMapSelection)
   const navigate = useNavigate()
+  const search = useSearch({ strict: false }) as { sel?: string; return?: string }
+  const requestedSel = typeof search.sel === 'string' ? search.sel : ''
+
+  const [staleNotice, setStaleNotice] = useState<string | null>(null)
+  const honoredSelRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!requestedSel) return
+    if (honoredSelRef.current === requestedSel) return
+    if (!identity) return // wait for store hydration
+
+    const parsed = parseMapSelection(requestedSel)
+    if (parsed && isMapSelectionValid(parsed, identity)) {
+      setMapSelection(parsed)
+      setStaleNotice(null)
+    } else {
+      setStaleNotice(buildStaleSelectionNotice(parsed))
+      // Drop the now-stale `sel` param so refresh doesn't re-fire the bad link.
+      // Per TASK-217 Decision 5, intra-Identity URL writes use replace: true.
+      void navigate({
+        to: '/identity',
+        search: (prev) => ({ ...prev, sel: undefined }),
+        replace: true,
+      })
+    }
+    honoredSelRef.current = requestedSel
+  }, [requestedSel, identity, setMapSelection, navigate])
 
   const openQuestions = identity?.awareness?.open_questions?.length ?? 0
   const roleCount = identity?.roles?.length ?? 0
@@ -93,6 +123,19 @@ export function IdentityMapPage() {
             </div>
           )}
         </div>
+
+        {staleNotice ? (
+          <div className="identity-map-notice" role="status">
+            <span className="chapter-copy">{staleNotice}</span>
+            <button
+              type="button"
+              className="identity-map-notice-dismiss label-tracked"
+              onClick={() => setStaleNotice(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
 
         <ThesisBand />
         <SelfModelBand />

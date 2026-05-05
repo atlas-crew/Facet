@@ -17,6 +17,7 @@ const navigateMock = vi.fn(async () => undefined)
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
+  useSearch: () => ({}),
 }))
 
 vi.mock('../utils/identityExtraction', async (orig) => {

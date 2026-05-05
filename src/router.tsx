@@ -53,8 +53,14 @@ const identityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/identity',
   component: LazyIdentityMapPage,
-  // validateSearch deferred to Phase D when the import overlay consumes ?import=1.
-  // Adding it now forces every <Link to="/identity"> callsite across the app to pass `search`.
+  // ?sel and ?return are the cross-workspace deep-link bridge (TASK-217).
+  // ?import=1 (Phase D import overlay) extends this same validateSearch when it lands.
+  validateSearch: (search: Record<string, unknown>): { sel?: string; return?: string } => {
+    const result: { sel?: string; return?: string } = {}
+    if (typeof search.sel === 'string' && search.sel.trim()) result.sel = search.sel
+    if (typeof search.return === 'string' && search.return.trim()) result.return = search.return
+    return result
+  },
 })
 
 const identityWorkbenchRoute = createRoute({

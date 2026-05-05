@@ -11,6 +11,7 @@ const navigateMock = vi.fn(async () => undefined)
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
+  useSearch: () => ({}),
 }))
 
 const seed = (
