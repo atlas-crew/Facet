@@ -77,3 +77,15 @@ Documentation for contributors and developers working on the Facet codebase.
 | Document | Description |
 |----------|-------------|
 | [Feature Reference](reference/vector-resume-v0.2-feature-reference.md) | Current feature inventory for the shipped Facet product surface |
+
+---
+
+## Brand
+
+Canonical brand references. Read these before writing public-surface copy, working on brand assets, or describing Facet's positioning in long-form contexts.
+
+| Document | Description |
+|----------|-------------|
+| [Brand Reference](../brand/BRAND.md) | Visual brand: marks (gem, F, wordmark lockup), colors, typography, asset library, and weight rules per context |
+| [Copy Reference](../brand/COPY.md) | Canonical taglines, hero copy, brand vocabulary (`recut`, `model`, `face`/`cut`), concept names, manifesto phrases, and the asset-to-phrase index |
+| [Manifesto](../brand/MANIFESTO.md) | Long-form positioning argument: the "why" behind no-auto-apply, episodic pricing, open notebook (Live mode), open-source-as-credibility |
