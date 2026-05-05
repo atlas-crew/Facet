@@ -1,9 +1,10 @@
 ---
 id: TASK-209
-title: Fix PrepPage typecheck errors (createDeck, setActiveDeck undefined)
-status: To Do
+title: 'Fix PrepPage typecheck errors (createDeck, setActiveDeck undefined)'
+status: Done
 assignee: []
 created_date: '2026-05-03 23:55'
+updated_date: '2026-05-05 16:32'
 labels:
   - bug
   - prep
@@ -53,12 +54,11 @@ This task can run in parallel with Workstream 4 (Build refactor). Different file
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
-- [ ] `npm run typecheck` passes (no errors in PrepPage.tsx)
-- [ ] No unrelated changes to PrepPage.tsx beyond the immediate fix
-- [ ] If references were restored (not deleted), the restoration is justified by store/hook context — don't restore symbols that don't belong
-- [ ] If references were deleted, surrounding code still functions (UI state for that flow doesn't silently break)
+- [x] #1 `npm run typecheck` passes (no errors in PrepPage.tsx)
+- [ ] #2 No unrelated changes to PrepPage.tsx beyond the immediate fix
+- [x] #3 If references were restored (not deleted), the restoration is justified by store/hook context — don't restore symbols that don't belong
+- [ ] #4 If references were deleted, surrounding code still functions (UI state for that flow doesn't silently break)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -79,4 +79,12 @@ This task can run in parallel with Workstream 4 (Build refactor). Different file
 Surfaced during the multi-agent session on 2026-05-03 while reviewing the Letters canonical-jdAnalysis refactor (commit 449ac24). The agent correctly noted that typecheck failures were pre-existing and scoped their work appropriately. Filed as standalone task to clear the precondition before task-208 (Prep refactor) starts.
 
 Likely root cause is the `git reset --hard HEAD` at 21:40:05 during a different agent's session that wiped earlier work, including possibly some store action additions that PrepPage was depending on. The Thesis Map migration files (untracked at the time) may be where those symbols originally lived.
+
+Closed as stale/obsolete. Live verification on 2026-05-05: createDeck and setActiveDeck both exist in src/store/prepStore.ts and are destructured/used in src/routes/prep/PrepPage.tsx; pnpm typecheck passes with no PrepPage errors. No code change needed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed without code changes because the recorded PrepPage typecheck failure no longer reproduces. The TASK-208 baseline precondition is satisfied: pnpm typecheck is green and the referenced store actions exist.
+<!-- SECTION:FINAL_SUMMARY:END -->
