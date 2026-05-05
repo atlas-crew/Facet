@@ -41,10 +41,20 @@ const seedIdentityWithMatchRule = () => {
   return identity
 }
 
+// jsdom doesn't implement scrollIntoView; the focus effect calls it on a
+// band element. Stub once at module load so all suites see it.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
+}
+
 beforeEach(() => {
   mockNavigate.mockReset()
   mockUseSearch.mockReset()
   mockUseSearch.mockReturnValue({})
+  if (typeof Element !== 'undefined') {
+    // Reset the spy each test so call counts are isolated.
+    Element.prototype.scrollIntoView = vi.fn()
+  }
   useIdentityStore.setState({
     currentIdentity: null,
     mapSelection: null,
@@ -302,6 +312,105 @@ describe('IdentityMapPage return-URL breadcrumb', () => {
     await waitFor(() => {
       expect(useIdentityStore.getState().mapSelection).toBeNull()
       expect(mockNavigate).toHaveBeenCalledWith({ to: '/research' })
+    })
+  })
+})
+
+describe('IdentityMapPage focus extension (?focus=<band>)', () => {
+  it('scrolls the matching band into view when focus is valid', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({ focus: 'preferences' })
+
+    render(<IdentityMapPage />)
+
+    await waitFor(() => {
+      const scrollFn = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+      expect(scrollFn).toHaveBeenCalled()
+    })
+  })
+
+  it('shows generic stale notice when focus value is unknown and clears the focus param', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({ focus: 'not-a-band' })
+
+    render(<IdentityMapPage />)
+
+    await waitFor(() => {
+      const notice = screen.queryByRole('status')
+      expect(notice).not.toBeNull()
+      expect(notice?.textContent ?? '').toContain(
+        "That link target isn't there anymore. Dropped you at the Identity Map landing instead.",
+      )
+    })
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/identity', replace: true }),
+    )
+  })
+
+  it('does not run the focus effect when no focus param is present', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({})
+
+    render(<IdentityMapPage />)
+    await Promise.resolve()
+
+    const scrollFn = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    expect(scrollFn).not.toHaveBeenCalled()
+  })
+
+  it('honors focus alongside selection (sel + focus + return all coexist on landing)', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({
+      sel: 'match-rule:prioritize:rule-prio-1',
+      focus: 'preferences',
+      return: '/research',
+    })
+
+    render(<IdentityMapPage />)
+
+    await waitFor(() => {
+      // Selection dispatched
+      expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
+    })
+    // Focus scrolled
+    const scrollFn = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    expect(scrollFn).toHaveBeenCalled()
+    // Breadcrumb rendered
+    expect(screen.getByRole('button', { name: '← Back to Research' })).toBeTruthy()
+  })
+
+  it('reverse-sync drops the focus param on the first divergent write (parallel to return)', async () => {
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({
+      sel: 'match-rule:prioritize:rule-prio-1',
+      focus: 'preferences',
+    })
+
+    render(<IdentityMapPage />)
+    await waitFor(() => {
+      expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
+    })
+    mockNavigate.mockClear()
+
+    // User diverges to a different rule.
+    useIdentityStore.getState().setMapSelection({
+      type: 'match-rule',
+      kind: 'avoid',
+      id: 'rule-avoid-1',
+    })
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/identity',
+          search: expect.objectContaining({
+            sel: 'match-rule:avoid:rule-avoid-1',
+            return: undefined,
+            focus: undefined,
+          }),
+          replace: true,
+        }),
+      )
     })
   })
 })

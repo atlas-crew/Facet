@@ -167,6 +167,44 @@ export function buildStaleSelectionNotice(selection: MapSelection | null): strin
 }
 
 /**
+ * Bounded set of band-focus identifiers honored by the `?focus=<band>` URL
+ * param. Used by cross-workspace deep links that want to land users at a
+ * region of the Identity Map without selecting a specific slot — the
+ * "preferences landing" pattern documented in TASK-217 retrofit 1.
+ *
+ * Adding a new band: extend the array AND `BAND_FOCUS_TO_DATA_LAYER`. Per
+ * TASK-217's lock, the param is bounded to URL-readable identifiers; arbitrary
+ * strings are rejected via `validateBandFocus` and fall back to the same
+ * stale-selection notice path as invalid `?sel=` values.
+ *
+ * Focus is orthogonal to selection: a URL may carry both `?sel=…&focus=…`,
+ * and the page honors them independently (selection drives the inspector;
+ * focus drives the scroll position on mount).
+ */
+export const IDENTITY_BAND_FOCUS_VALUES = ['preferences'] as const
+export type IdentityBandFocus = (typeof IDENTITY_BAND_FOCUS_VALUES)[number]
+
+const IDENTITY_BAND_FOCUS_SET: ReadonlySet<string> = new Set(IDENTITY_BAND_FOCUS_VALUES)
+
+const BAND_FOCUS_TO_DATA_LAYER: Record<IdentityBandFocus, string> = {
+  preferences: 'prefs',
+}
+
+export function validateBandFocus(value: string | undefined | null): IdentityBandFocus | null {
+  if (!value) return null
+  return IDENTITY_BAND_FOCUS_SET.has(value) ? (value as IdentityBandFocus) : null
+}
+
+/**
+ * Map a validated focus identifier to the `data-layer` attribute value its
+ * matching band renders. Used by `IdentityMapPage` to find the band element
+ * and scroll it into view via `[data-layer="..."]` selector.
+ */
+export function getBandDataLayerForFocus(focus: IdentityBandFocus): string {
+  return BAND_FOCUS_TO_DATA_LAYER[focus]
+}
+
+/**
  * Origin-name table for the return-URL breadcrumb. Keys are the path prefixes
  * the validator accepts; values are the user-facing names rendered as
  * `← Back to {name}`. Order matters for prefix matching: longer prefixes must

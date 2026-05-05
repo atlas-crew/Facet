@@ -4,8 +4,10 @@ import { Upload } from 'lucide-react'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
 import {
   buildStaleSelectionNotice,
+  getBandDataLayerForFocus,
   parseMapSelection,
   serializeMapSelection,
+  validateBandFocus,
   validateReturnUrl,
   getReturnOriginName,
 } from '../../utils/mapSelectionUrl'
@@ -34,13 +36,20 @@ export function IdentityMapPage() {
   const mapSelection = useIdentityStore((state) => state.mapSelection)
   const setMapSelection = useIdentityStore((state) => state.setMapSelection)
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as { sel?: string; return?: string }
+  const search = useSearch({ strict: false }) as {
+    sel?: string
+    focus?: string
+    return?: string
+  }
   const requestedSel = typeof search.sel === 'string' ? search.sel : ''
+  const requestedFocus = typeof search.focus === 'string' ? search.focus : ''
   const requestedReturn = typeof search.return === 'string' ? search.return : ''
+  const validatedFocus = validateBandFocus(requestedFocus)
   const validatedReturn = validateReturnUrl(requestedReturn)
 
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
   const honoredSelRef = useRef<string | null>(null)
+  const honoredFocusRef = useRef<string | null>(null)
   // One-shot signal from forward → reverse: when forward dispatches
   // setMapSelection, reverse on the same effect tick still sees pre-dispatch
   // state and would otherwise treat it as divergence. The flag tells reverse
@@ -95,10 +104,42 @@ export function IdentityMapPage() {
     honoredSelRef.current = expected ?? null
     void navigate({
       to: '/identity',
-      search: { sel: expected, return: undefined } as { sel?: string; return?: string },
+      // Drops both `return` (Decision 3) and `focus` — once the user has made
+      // an explicit selection change, the deep link's landing intent is stale.
+      search: { sel: expected, return: undefined, focus: undefined } as {
+        sel?: string
+        focus?: string
+        return?: string
+      },
       replace: true,
     })
   }, [mapSelection, search.sel, identity, navigate])
+
+  // Focus effect: scroll the deep-linked band into view on mount when
+  // ?focus=<band> is set. Honor-once via honoredFocusRef so subsequent renders
+  // (or store updates that don't change the URL) don't re-scroll. Invalid
+  // focus values fall back to the same stale-selection notice path used for
+  // unknown ?sel= values, with the `focus` param dropped from the URL.
+  useEffect(() => {
+    if (!requestedFocus) return
+    if (honoredFocusRef.current === requestedFocus) return
+    if (!identity) return // wait for store hydration so bands are mounted
+
+    if (validatedFocus) {
+      const layer = getBandDataLayerForFocus(validatedFocus)
+      const element = document.querySelector<HTMLElement>(`[data-layer="${layer}"]`)
+      element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setStaleNotice(null)
+    } else {
+      setStaleNotice(buildStaleSelectionNotice(null))
+      void navigate({
+        to: '/identity',
+        search: (prev) => ({ ...prev, focus: undefined }),
+        replace: true,
+      })
+    }
+    honoredFocusRef.current = requestedFocus
+  }, [requestedFocus, validatedFocus, identity, navigate])
 
   const handleReturnClick = () => {
     if (!validatedReturn) return

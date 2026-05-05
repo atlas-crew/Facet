@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { MapSelection } from '../types/identity'
 import {
   buildStaleSelectionNotice,
+  getBandDataLayerForFocus,
   getEntityNoun,
   getReturnOriginName,
+  IDENTITY_BAND_FOCUS_VALUES,
   parseMapSelection,
   serializeMapSelection,
+  validateBandFocus,
   validateReturnUrl,
 } from '../utils/mapSelectionUrl'
 
@@ -168,6 +171,32 @@ describe('validateReturnUrl', () => {
   it('does not match a sibling path that shares a prefix substring', () => {
     expect(validateReturnUrl('/researchers')).toBeNull()
     expect(validateReturnUrl('/preparation')).toBeNull()
+  })
+})
+
+describe('validateBandFocus', () => {
+  it('returns the focus value when it matches a known band identifier', () => {
+    expect(validateBandFocus('preferences')).toBe('preferences')
+  })
+
+  it('returns null for unknown band identifiers (per TASK-217 Decision 1 refinement)', () => {
+    expect(validateBandFocus('not-a-band')).toBeNull()
+    expect(validateBandFocus('preference')).toBeNull() // off-by-one typo
+    expect(validateBandFocus('Preferences')).toBeNull() // case-sensitive
+  })
+
+  it('returns null for empty / undefined / null inputs', () => {
+    expect(validateBandFocus('')).toBeNull()
+    expect(validateBandFocus(undefined)).toBeNull()
+    expect(validateBandFocus(null)).toBeNull()
+  })
+
+  it('every value in IDENTITY_BAND_FOCUS_VALUES has a data-layer mapping', () => {
+    for (const focus of IDENTITY_BAND_FOCUS_VALUES) {
+      const layer = getBandDataLayerForFocus(focus)
+      expect(typeof layer).toBe('string')
+      expect(layer.length).toBeGreaterThan(0)
+    }
   })
 })
 

@@ -53,11 +53,14 @@ const identityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/identity',
   component: LazyIdentityMapPage,
-  // ?sel and ?return are the cross-workspace deep-link bridge (TASK-217).
+  // ?sel, ?focus, and ?return are the cross-workspace deep-link bridge (TASK-217).
   // ?import=1 (Phase D import overlay) extends this same validateSearch when it lands.
-  validateSearch: (search: Record<string, unknown>): { sel?: string; return?: string } => {
-    const result: { sel?: string; return?: string } = {}
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { sel?: string; focus?: string; return?: string } => {
+    const result: { sel?: string; focus?: string; return?: string } = {}
     if (typeof search.sel === 'string' && search.sel.trim()) result.sel = search.sel
+    if (typeof search.focus === 'string' && search.focus.trim()) result.focus = search.focus
     if (typeof search.return === 'string' && search.return.trim()) result.return = search.return
     return result
   },
