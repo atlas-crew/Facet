@@ -11,19 +11,22 @@ import { useIdentityStore } from '../../store/identityStore'
 import { usePrepStore } from '../../store/prepStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
 import { createMatchMaterialContext } from '../../utils/matchMaterial'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
+import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
   buildPrepCompanyResearchNotes,
   buildPrepPipelineEntryContext,
 } from '../../utils/prepPipelineContext'
 import { INTERVIEW_FORMAT_VALUES } from '../../types/pipeline'
-import type { InterviewFormat } from '../../types/pipeline'
+import type { InterviewFormat, PipelineEntry } from '../../types/pipeline'
+import type { JDAnalysis, JDAnalysisDriftStatus } from '../../types/jdAnalysis'
 import type {
   PrepCard,
   PrepCardRoundStatus,
@@ -329,6 +332,62 @@ function sortPrepContractViolations(violations: PrepContractViolation[] | undefi
     if (kindDelta !== 0) return kindDelta
     return left.message.localeCompare(right.message)
   })
+}
+
+function resolvePipelineJdAnalysis(entry: PipelineEntry | null, analyses: JDAnalysis[]): JDAnalysis | null {
+  if (!entry) return null
+  if (entry.jdAnalysisId) {
+    const referencedAnalysis = analyses.find(
+      (analysis) => analysis.id === entry.jdAnalysisId && analysis.pipelineEntryId === entry.id,
+    )
+    return referencedAnalysis ?? null
+  }
+
+  return analyses.find((analysis) => analysis.pipelineEntryId === entry.id) ?? null
+}
+
+function resolvePrepGenerationIdentityVersion(
+  analysis: JDAnalysis,
+  identity: { model_revision: number } | null,
+): number {
+  return identity?.model_revision ?? analysis.identityVersion
+}
+
+function formatJdAnalysisDriftReason(reasons: JDAnalysisDriftStatus['reasons']): string {
+  const labels: Record<JDAnalysisDriftStatus['reasons'][number], string> = {
+    'jd-text': 'job description changed',
+    'identity-version': 'identity model changed',
+    'model-version': 'analysis model changed',
+  }
+  return reasons.map((reason) => labels[reason]).join(', ')
+}
+
+function resolvePrepGenerationContext(
+  entry: PipelineEntry | null,
+  analyses: JDAnalysis[],
+  identity: { model_revision: number } | null,
+): { jdAnalysis: JDAnalysis | null; error: string | null } {
+  if (!entry) return { jdAnalysis: null, error: 'Choose a pipeline entry before generating prep.' }
+  if (!entry.jobDescription.trim()) {
+    return { jdAnalysis: null, error: 'The selected pipeline entry does not have a job description yet.' }
+  }
+
+  const jdAnalysis = resolvePipelineJdAnalysis(entry, analyses)
+  if (!jdAnalysis) return { jdAnalysis: null, error: 'Analyze this pipeline JD before generating prep.' }
+
+  const drift = getJdAnalysisDriftStatus(jdAnalysis, {
+    jobDescription: entry.jobDescription,
+    identityVersion: resolvePrepGenerationIdentityVersion(jdAnalysis, identity),
+  })
+  if (!drift.stale) return { jdAnalysis, error: null }
+
+  const reasonText = formatJdAnalysisDriftReason(drift.reasons)
+  return {
+    jdAnalysis,
+    error: reasonText
+      ? 'Refresh JD analysis before generating prep (' + reasonText + ').'
+      : 'Refresh JD analysis before generating prep.',
+  }
 }
 
 function shouldPromotePrepCardToManual(patch: Partial<PrepCard>): boolean {
@@ -900,6 +959,24 @@ export function PrepPage() {
           setGenerationError('Generate a Phase 1 match report before generating prep.')
           return
         }
+        const activeMatchJDAnalysis = useMatchStore.getState().currentJDAnalysis
+        if (!activeMatchJDAnalysis) {
+          setGenerationError('Generate a Phase 1 JD analysis before generating prep.')
+          return
+        }
+        const matchDrift = getJdAnalysisDriftStatus(activeMatchJDAnalysis, {
+          jobDescription: activeMatchMaterial.jobDescription,
+          identityVersion: resolvePrepGenerationIdentityVersion(activeMatchJDAnalysis, currentIdentity),
+        })
+        if (matchDrift.stale) {
+          const reasonText = formatJdAnalysisDriftReason(matchDrift.reasons)
+          setGenerationError(
+            reasonText
+              ? 'Refresh JD analysis before generating prep (' + reasonText + ').'
+              : 'Refresh JD analysis before generating prep.',
+          )
+          return
+        }
 
         const prepIdentityContext = currentIdentity
           ? buildPrepIdentityContext(currentIdentity, activeMatchMaterial.vector.id, activeMatchMaterial.vector.label)
@@ -915,6 +992,7 @@ export function PrepPage() {
           notes: activeMatchMaterial.notes,
           companyResearch: companyResearchDraft || undefined,
           jobDescription: activeMatchMaterial.jobDescription,
+          jdAnalysis: activeMatchJDAnalysis,
           identityContext: prepIdentityContext,
           resumeContext: {
             candidate: freshResumeData.meta,
@@ -942,6 +1020,10 @@ export function PrepPage() {
           notes: activeMatchMaterial.notes,
           companyResearch: result.companyResearchSummary || companyResearchDraft || undefined,
           jobDescription: activeMatchMaterial.jobDescription,
+          jdAnalysisId: activeMatchJDAnalysis.id,
+          jdAnalysisGeneratedAt: activeMatchJDAnalysis.generatedAt,
+          jdAnalysisModelVersion: activeMatchJDAnalysis.modelVersion,
+          jdTextHash: activeMatchJDAnalysis.jdTextHash,
           generatedAt: new Date().toISOString(),
           cards: result.cards.map((card) => ({
             ...card,
@@ -959,10 +1041,17 @@ export function PrepPage() {
         setGenerationError('Choose a pipeline entry before generating prep.')
         return
       }
-      if (!selectedEntry.jobDescription.trim()) {
-        setGenerationError('The selected pipeline entry does not have a job description yet.')
+      const freshJdAnalyses = useJDAnalysisStore.getState().analyses
+      const generationContext = resolvePrepGenerationContext(
+        selectedEntry,
+        Array.isArray(freshJdAnalyses) ? freshJdAnalyses : [],
+        currentIdentity,
+      )
+      if (generationContext.error || !generationContext.jdAnalysis) {
+        setGenerationError(generationContext.error ?? 'Analyze this pipeline JD before generating prep.')
         return
       }
+      const jdAnalysis = generationContext.jdAnalysis
 
       const vector = selectedVectorId
         ? freshResumeData.vectors.find((item) => item.id === selectedVectorId) ?? null
@@ -996,6 +1085,7 @@ export function PrepPage() {
         notes: selectedEntry.notes || undefined,
         companyResearch: companyResearchDraft || undefined,
         jobDescription: selectedEntry.jobDescription,
+        jdAnalysis,
         identityContext: prepIdentityContext,
         pipelineEntryContext: buildPrepPipelineEntryContext(selectedEntry),
         priorRoundDebriefs: pipelineRoundContext.carriedRoundDebriefs,
@@ -1032,6 +1122,10 @@ export function PrepPage() {
         notes: selectedEntry.notes || undefined,
         companyResearch: result.companyResearchSummary || companyResearchDraft || undefined,
         jobDescription: selectedEntry.jobDescription,
+        jdAnalysisId: jdAnalysis.id,
+        jdAnalysisGeneratedAt: jdAnalysis.generatedAt,
+        jdAnalysisModelVersion: jdAnalysis.modelVersion,
+        jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
         cards: result.cards.map((card) => ({
           ...card,
@@ -1552,6 +1646,43 @@ export function PrepPage() {
     const linkedPipelineEntry = latestDeck.pipelineEntryId
       ? usePipelineStore.getState().entries.find((entry) => entry.id === latestDeck.pipelineEntryId) ?? null
       : null
+    const freshJdAnalyses = useJDAnalysisStore.getState().analyses
+    const pipelineGenerationContext = latestDeck.pipelineEntryId
+      ? resolvePrepGenerationContext(
+          linkedPipelineEntry,
+          Array.isArray(freshJdAnalyses) ? freshJdAnalyses : [],
+          currentIdentity,
+        )
+      : { jdAnalysis: null, error: null }
+    const matchJDAnalysis = !latestDeck.pipelineEntryId
+      ? useMatchStore.getState().currentJDAnalysis
+      : null
+    const jdAnalysis = latestDeck.pipelineEntryId
+      ? pipelineGenerationContext.jdAnalysis
+      : matchJDAnalysis
+    if (pipelineGenerationContext.error || !jdAnalysis) {
+      setGenerationError(
+        pipelineGenerationContext.error
+          ?? 'Promote this job to Pipeline and analyze its JD before regenerating prep.',
+      )
+      return
+    }
+    const effectiveJobDescription = linkedPipelineEntry?.jobDescription.trim() || latestJobDescription
+    if (!latestDeck.pipelineEntryId && matchJDAnalysis) {
+      const matchDrift = getJdAnalysisDriftStatus(matchJDAnalysis, {
+        jobDescription: effectiveJobDescription,
+        identityVersion: resolvePrepGenerationIdentityVersion(matchJDAnalysis, currentIdentity),
+      })
+      if (matchDrift.stale) {
+        const reasonText = formatJdAnalysisDriftReason(matchDrift.reasons)
+        setGenerationError(
+          reasonText
+            ? 'Promote this job to Pipeline and refresh JD analysis before regenerating prep (' + reasonText + ').'
+            : 'Promote this job to Pipeline and refresh JD analysis before regenerating prep.',
+        )
+        return
+      }
+    }
     const latestRoundDecks = latestDeck.pipelineEntryId
       ? sortPrepRoundDecks(
         usePrepStore.getState().decks.filter((deck) => deck.pipelineEntryId === latestDeck.pipelineEntryId),
@@ -1590,7 +1721,8 @@ export function PrepPage() {
         positioning: latestDeck.positioning,
         notes: latestDeck.notes,
         companyResearch: latestDeck.companyResearch,
-        jobDescription: latestJobDescription,
+        jobDescription: effectiveJobDescription,
+        jdAnalysis,
         identityContext: prepIdentityContext,
         pipelineEntryContext: linkedPipelineEntry
           ? buildPrepPipelineEntryContext(linkedPipelineEntry)
@@ -1641,6 +1773,11 @@ export function PrepPage() {
           return Object.keys(carriedAnswers).length > 0 ? carriedAnswers : undefined
         })(),
         companyResearch: result.companyResearchSummary || latestDeck.companyResearch,
+        jobDescription: effectiveJobDescription,
+        jdAnalysisId: jdAnalysis.id,
+        jdAnalysisGeneratedAt: jdAnalysis.generatedAt,
+        jdAnalysisModelVersion: jdAnalysis.modelVersion,
+        jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
       })
       // Preserve cards the user authored or pulled from other sources; regenerate only replaces AI cards.

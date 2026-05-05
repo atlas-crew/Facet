@@ -254,6 +254,39 @@ function stripCandidateMetricsFromIdentityContext(
   return rest
 }
 
+function formatJdAnalysisForPrompt(analysis: PrepGenerationRequest['jdAnalysis']): string {
+  return JSON.stringify({
+    id: analysis.id,
+    pipelineEntryId: analysis.pipelineEntryId,
+    generatedAt: analysis.generatedAt,
+    modelVersion: analysis.modelVersion,
+    jdTextHash: analysis.jdTextHash,
+    summary: analysis.summary,
+    oneLineSummary: analysis.oneLineSummary,
+    recommendation: analysis.recommendation,
+    confidence: analysis.confidence,
+    fitScore: analysis.fitScore,
+    rationale: analysis.rationale,
+    requirements: analysis.requirements,
+    skillMatches: analysis.skillMatches,
+    matchedVectors: analysis.matchedVectors,
+    primaryVectorId: analysis.primaryVectorId,
+    strengthsToLead: analysis.strengthsToLead,
+    advantages: analysis.advantages,
+    gaps: analysis.gaps,
+    gapFocus: analysis.gapFocus,
+    watchOuts: analysis.watchOuts,
+    triggeredPrioritize: analysis.triggeredPrioritize,
+    triggeredAvoid: analysis.triggeredAvoid,
+    relevantAwareness: analysis.relevantAwareness,
+    positioningRecommendations: analysis.positioningRecommendations,
+    evidenceMapping: analysis.evidenceMapping,
+    requirementCoverageScore: analysis.requirementCoverageScore,
+    matchedRequirementIds: analysis.matchedRequirementIds,
+    matchedKeywords: analysis.matchedKeywords,
+  }, null, 2)
+}
+
 /**
  * Returns the user-sourced interviewers for the targeted round, or an empty
  * array when no round was specified. This is the sole path by which
@@ -1496,7 +1529,10 @@ ${structuredPipelineEntryContext ? JSON.stringify(structuredPipelineEntryContext
 
 Company Research Notes: ${request.companyResearch ?? 'Not provided'}
 
-Job Description:
+Canonical JD Analysis:
+${formatJdAnalysisForPrompt(request.jdAnalysis)}
+
+Original Job Description Source Text:
 ${request.jobDescription}
 
 Structured Identity Context:
@@ -1528,6 +1564,7 @@ ${JSON.stringify(request.resumeContext, null, 2)}
 
 When structured identity context is provided, use it as the source of truth for candidate evidence and fall back to the tailored resume context only for missing details.
 When structured pipeline entry context is provided, use it as the source of truth for company, process, and interviewer intel before falling back to freeform companyResearch notes.
+Use Canonical JD Analysis as the source of truth for role requirements, skill matches, strengths, gaps, watch-outs, priorities, avoid triggers, and positioning. Do not re-infer the job analysis from Original Job Description Source Text; use that raw text only for source wording, quote-level context, and company numbers when the canonical analysis omits a detail.
 If structured pipeline entry context includes a round.interviewers list, those are the exact user-supplied panel members; use them for named-person intel cards, likely-interviewer framing, and sharper questions-to-ask. If the list is absent, emit no interviewer names at all.
 Do not claim named-person intel unless it is grounded in a user-supplied round.interviewers entry and corroborated by the provided structured pipeline entry context or companyResearch notes.
 Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
@@ -1682,6 +1719,10 @@ Return JSON only (inside the tags).`
       ? normalizeInterviewers(parsed.interviewers)
       : undefined,
     jobDescription: request.jobDescription,
+    jdAnalysisId: request.jdAnalysis.id,
+    jdAnalysisGeneratedAt: request.jdAnalysis.generatedAt,
+    jdAnalysisModelVersion: request.jdAnalysis.modelVersion,
+    jdTextHash: request.jdAnalysis.jdTextHash,
     rules: normalizeStringList(parsed.rules),
     donts: normalizeStringList(parsed.donts),
     questionsToAsk: normalizeQuestionsToAsk(parsed.questionsToAsk),

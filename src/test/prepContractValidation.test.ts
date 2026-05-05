@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generatePrepDeck } from '../utils/prepGenerator'
+import type { JDAnalysis } from '../types/jdAnalysis'
 
 const { callLlmProxyMock } = vi.hoisted(() => ({
   callLlmProxyMock: vi.fn(),
@@ -15,6 +16,53 @@ vi.mock('../utils/llmProxy', async () => {
     callLlmProxy: callLlmProxyMock,
   }
 })
+
+const testJdAnalysis: JDAnalysis = {
+  id: 'jd-analysis-test',
+  pipelineEntryId: 'pipe-test',
+  jdTextHash: 'jdhash-test',
+  identityVersion: 0,
+  modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+  generatedAt: '2026-04-20T12:00:00.000Z',
+  updatedAt: '2026-04-20T12:00:00.000Z',
+  warnings: [],
+  company: 'Acme',
+  role: 'Staff Engineer',
+  summary: 'Distributed systems and platform tooling.',
+  analyzedJobDescription: 'Build distributed systems and platform tooling.',
+  jobDescriptionWordCount: 6,
+  jobDescriptionTruncated: false,
+  requirements: [],
+  overallFit: 'strong',
+  fitScore: 0.82,
+  confidence: 'high',
+  recommendation: 'apply',
+  oneLineSummary: 'Strong platform fit.',
+  rationale: 'The role maps to backend platform evidence.',
+  matchedVectors: [],
+  primaryVectorId: 'backend',
+  skillMatches: [],
+  evidenceMapping: {
+    topBullets: [],
+    topSkills: [],
+    topProjects: [],
+    topProfiles: [],
+    topPhilosophy: [],
+  },
+  strengthsToLead: ['Distributed systems'],
+  advantages: [],
+  advantageHypotheses: [],
+  gaps: [],
+  gapFocus: [],
+  watchOuts: [],
+  triggeredPrioritize: [],
+  triggeredAvoid: [],
+  relevantAwareness: [],
+  positioningRecommendations: ['Lead with platform reliability.'],
+  requirementCoverageScore: 0.8,
+  matchedRequirementIds: [],
+  matchedKeywords: ['distributed systems', 'platform tooling'],
+}
 
 describe('prep contract validation', () => {
   beforeEach(() => {
@@ -73,6 +121,7 @@ describe('prep contract validation', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       companyResearch:
         'Jordan Lee, Director of Platform, and Priya Shah, Sr. Director of Engineering, are in the interview loop.',
       pipelineEntryContext: {
@@ -266,6 +315,7 @@ describe('prep contract validation', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       companyResearch:
         'Jordan Lee, Director of Platform, and Priya Shah, Sr. Director of Engineering, are in the interview loop.',
       pipelineEntryContext: {
@@ -316,6 +366,7 @@ describe('prep contract validation', () => {
         vectorId: 'backend',
         vectorLabel: 'Backend',
         jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
         pipelineEntryContext: {
           company: 'Acme',
           role: 'Staff Engineer',
@@ -351,6 +402,7 @@ describe('prep contract validation', () => {
         vectorId: 'backend',
         vectorLabel: 'Backend',
         jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
         pipelineEntryContext: {
           company: 'Acme',
           role: 'Staff Engineer',
@@ -390,6 +442,7 @@ describe('prep contract validation', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       pipelineEntryContext: {
         company: 'Acme',
         role: 'Staff Engineer',
@@ -549,6 +602,7 @@ describe('prep contract validation', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       pipelineEntryContext: {
         company: 'Acme',
         role: 'Staff Engineer',
@@ -599,6 +653,7 @@ describe('prep contract validation', () => {
         vectorId: 'backend',
         vectorLabel: 'Backend',
         jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
         pipelineEntryContext: {
           company: 'Acme',
           role: 'Staff Engineer',

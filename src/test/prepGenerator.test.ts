@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateInterviewPrep } from '../utils/prepGenerator'
+import type { JDAnalysis } from '../types/jdAnalysis'
 
 const { callLlmProxyMock } = vi.hoisted(() => ({
   callLlmProxyMock: vi.fn(),
@@ -15,6 +16,53 @@ vi.mock('../utils/llmProxy', async () => {
     callLlmProxy: callLlmProxyMock,
   }
 })
+
+const testJdAnalysis: JDAnalysis = {
+  id: 'jd-analysis-test',
+  pipelineEntryId: 'pipe-test',
+  jdTextHash: 'jdhash-test',
+  identityVersion: 0,
+  modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+  generatedAt: '2026-04-20T12:00:00.000Z',
+  updatedAt: '2026-04-20T12:00:00.000Z',
+  warnings: [],
+  company: 'Acme',
+  role: 'Staff Engineer',
+  summary: 'Distributed systems and platform tooling.',
+  analyzedJobDescription: 'Build distributed systems and platform tooling.',
+  jobDescriptionWordCount: 6,
+  jobDescriptionTruncated: false,
+  requirements: [],
+  overallFit: 'strong',
+  fitScore: 0.82,
+  confidence: 'high',
+  recommendation: 'apply',
+  oneLineSummary: 'Strong platform fit.',
+  rationale: 'The role maps to backend platform evidence.',
+  matchedVectors: [],
+  primaryVectorId: 'backend',
+  skillMatches: [],
+  evidenceMapping: {
+    topBullets: [],
+    topSkills: [],
+    topProjects: [],
+    topProfiles: [],
+    topPhilosophy: [],
+  },
+  strengthsToLead: ['Distributed systems'],
+  advantages: [],
+  advantageHypotheses: [],
+  gaps: [],
+  gapFocus: [],
+  watchOuts: [],
+  triggeredPrioritize: [],
+  triggeredAvoid: [],
+  relevantAwareness: [],
+  positioningRecommendations: ['Lead with platform reliability.'],
+  requirementCoverageScore: 0.8,
+  matchedRequirementIds: [],
+  matchedKeywords: ['distributed systems', 'platform tooling'],
+}
 
 describe('generateInterviewPrep', () => {
   beforeEach(() => {
@@ -48,6 +96,7 @@ describe('generateInterviewPrep', () => {
       notes: 'Hiring manager cares about platform judgment.',
       companyResearch: 'Platform reliability is a priority.',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -84,13 +133,14 @@ describe('generateInterviewPrep', () => {
       }),
     )
 
-    await generateInterviewPrep('https://ai.example/proxy', {
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
       company: 'Acme',
       role: 'Staff Engineer',
       vectorId: 'backend',
       vectorLabel: 'Backend',
       roundType: 'hm-screen',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       identityContext: {
         candidate_metrics: [
           {
@@ -184,6 +234,50 @@ describe('generateInterviewPrep', () => {
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Structured Pipeline Entry Context')
+    expect(userPrompt).toContain('Canonical JD Analysis')
+    expect(userPrompt).toContain('"id": "jd-analysis-test"')
+    expect(userPrompt).toContain('"strengthsToLead"')
+    expect(userPrompt).toContain('"watchOuts"')
+    expect(userPrompt).toContain('Original Job Description Source Text')
+    expect(userPrompt).toContain('Do not re-infer the job analysis from Original Job Description Source Text')
+    expect(userPrompt).not.toContain('\nJob Description:\nBuild distributed systems and platform tooling.')
+    const canonicalBlock = userPrompt
+      .split('Canonical JD Analysis:\n')[1]
+      ?.split('\n\nOriginal Job Description Source Text:')[0]
+    expect(canonicalBlock).toBeTruthy()
+    const canonicalAnalysis = JSON.parse(canonicalBlock ?? '{}') as Record<string, unknown>
+    expect(Object.keys(canonicalAnalysis).sort()).toEqual([
+      'advantages',
+      'confidence',
+      'evidenceMapping',
+      'fitScore',
+      'gapFocus',
+      'gaps',
+      'generatedAt',
+      'id',
+      'jdTextHash',
+      'matchedKeywords',
+      'matchedRequirementIds',
+      'matchedVectors',
+      'modelVersion',
+      'oneLineSummary',
+      'pipelineEntryId',
+      'positioningRecommendations',
+      'primaryVectorId',
+      'rationale',
+      'recommendation',
+      'relevantAwareness',
+      'requirementCoverageScore',
+      'requirements',
+      'skillMatches',
+      'strengthsToLead',
+      'summary',
+      'triggeredAvoid',
+      'triggeredPrioritize',
+      'watchOuts',
+    ].sort())
+    expect(canonicalAnalysis).not.toHaveProperty('analyzedJobDescription')
+    expect(canonicalAnalysis).not.toHaveProperty('warnings')
     expect(userPrompt).toContain('Candidate Metrics From Identity')
     expect(userPrompt).toContain(
       'Additional Candidate Metrics Outside The Vector Slice',
@@ -227,6 +321,11 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain(
       'Prefix the affected field with [[needs-review]]',
     )
+    expect(result.deck.jdAnalysisId).toBe(testJdAnalysis.id)
+    expect(result.deck.jdAnalysisGeneratedAt).toBe(testJdAnalysis.generatedAt)
+    expect(result.deck.jdAnalysisModelVersion).toBe(testJdAnalysis.modelVersion)
+    expect(result.deck.jdTextHash).toBe(testJdAnalysis.jdTextHash)
+    expect(result.deck.generatedAt).toBe(result.deck.updatedAt)
   })
 
   it('marks structured identity context as not provided when absent', async () => {
@@ -251,6 +350,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -297,6 +397,7 @@ describe('generateInterviewPrep', () => {
       vectorLabel: 'Backend',
       roundType: 'hm-screen',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -334,6 +435,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       pipelineRoundId: 'round-42',
       resumeContext: { resume: { basics: { name: 'Alex Example' } } },
     })
@@ -360,6 +462,7 @@ describe('generateInterviewPrep', () => {
       company: 'Acme',
       role: 'Staff Engineer',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: { resume: { basics: { name: 'Alex Example' } } },
     })
 
@@ -395,6 +498,7 @@ describe('generateInterviewPrep', () => {
       company: 'Acme',
       role: 'Staff Engineer',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: { resume: { basics: { name: 'Alex Example' } } },
     })
 
@@ -433,6 +537,7 @@ describe('generateInterviewPrep', () => {
       company: 'Acme',
       role: 'Staff Engineer',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       pipelineRoundId: 'round-42',
       pipelineEntryContext: {
         company: 'Acme',
@@ -578,6 +683,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -686,6 +792,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -709,6 +816,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -757,6 +865,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -806,6 +915,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -895,6 +1005,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -939,6 +1050,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -983,6 +1095,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -1026,6 +1139,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -1070,6 +1184,7 @@ describe('generateInterviewPrep', () => {
       vectorId: 'backend',
       vectorLabel: 'Backend',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },
@@ -1110,6 +1225,7 @@ describe('generateInterviewPrep', () => {
       roundNumber: 2,
       roundType: 'hm-screen',
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       priorRoundDebriefs: [
         {
           round: 1,
@@ -1173,6 +1289,7 @@ describe('generateInterviewPrep', () => {
       role: 'Staff Engineer',
       roundNumber: 2,
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       priorRoundCards: [
         {
           id: 'card-r1',
@@ -1224,6 +1341,7 @@ describe('generateInterviewPrep', () => {
       role: 'Staff Engineer',
       roundNumber: 3,
       jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
       priorRoundCards: [
         {
           id: 'card-r2',

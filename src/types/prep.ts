@@ -1,6 +1,7 @@
 import type { DurableMetadata } from './durable'
 import type { ArtifactStalenessReview } from './artifactMeta'
 import type { InterviewFormat } from './pipeline'
+import type { JDAnalysis } from './jdAnalysis'
 
 export type PrepCategory =
   | 'opener'
@@ -430,6 +431,7 @@ export interface PrepGenerationRequest {
   notes?: string
   companyResearch?: string
   jobDescription: string
+  jdAnalysis: JDAnalysis
   identityContext?: PrepIdentityContext
   pipelineEntryContext?: PrepPipelineEntryContext
   /**
