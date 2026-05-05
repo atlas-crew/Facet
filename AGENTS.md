@@ -6,6 +6,14 @@ Facet is a Vite + React 19 + TypeScript app. Core assembly logic lives in `src/e
 ## Reference Materials
 Personal reference artifacts (prep transcripts, search reports, prior-engagement source material) live in the basic-memory vault at `main/facet/ref-materials`, not in the repo. Query via the basic-memory MCP server when context from past job-search runs would inform an answer.
 
+**Architecture references** — load-bearing architectural commitments live in `docs/architecture/`:
+- `facet-workspace-topology.md` — workspace topology and pipeline-as-canonical principle
+- `identity-canonical-data.md` — identity-canonical-data diagnostic rule for per-listing artifact fields
+
+Read these before making structural changes. Architectural ADRs (decision-N) and design notes (doc-N) live in `backlog/decisions/` and `backlog/docs/`.
+
+**UI design system** — `docs/development/ui/facet-style-guide.md`. Covers tokens, semantic color usage, content-typing layer tokens, workspace shell pattern, KPI cards, content-typed borders, progressive disclosure, status badges, the React-component extraction deferral policy, and the do's/don'ts of the visual aesthetic. Read before doing UI work.
+
 ## Build, Test, and Development Commands
 Use Node `>=20.19.0`.
 

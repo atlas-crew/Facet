@@ -85,8 +85,9 @@ Presets snapshot the current override state (manual overrides, variant text sele
 - **Strict TypeScript** with `verbatimModuleSyntax` — use `import type` for type-only imports
 - **No vitest globals** — always import `describe`, `it`, `expect` from `vitest`
 - **Immutable state updates** — Zustand stores use spread/map patterns, never mutate in place (except `pageBudget.ts` which clones first then mutates the clone)
-- **CSS custom properties** for all colors, spacing, and typography — see `docs/development/STYLE_GUIDE.md` for the design system
+- **CSS custom properties** for all colors, spacing, and typography — see `docs/development/ui/facet-style-guide.md` for the complete design system, including layered conventions, semantic color usage, workspace patterns, and React-component extraction policy
+- **Architecture references** — load-bearing architectural commitments live in `docs/architecture/` (workspace topology, identity-canonical data principle). Read these before making structural changes.
 - **4px spacing grid** — all spacing values are multiples of 4
-- **Geist Sans / Geist Mono** font stack
+- **DM Sans / DM Mono** font stack (UI), Outfit for the brand wordmark only
 - Drag-and-drop via `@dnd-kit`
 - Icons from `lucide-react`

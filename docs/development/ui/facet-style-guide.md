@@ -15,6 +15,35 @@ Facet is a precision tool for senior engineers. The aesthetic draws from high-en
 
 ---
 
+## Architecture & Layered Conventions
+
+Facet has a mature CSS token system but does not extract React components into a Facet UI package (no shadcn/ui, no Material, no internal component library). Visual consistency across workspaces is held by token-level discipline, Tailwind utility classes doing standardization work, and convention-by-imitation — agents reference existing implementations (typically Match or Identity workspaces) when building new surfaces.
+
+This is intentional, not accidental. Building a Facet UI package would require extracting working components, generalizing their APIs, and refactoring N workspaces to consume them — high cost, deferred benefit. This style guide is the lighter-weight intervention: documented conventions that prevent reinvention.
+
+### Three layers of consistency
+
+Different parts of the system have different commitment levels:
+
+**Layer 1 — Tokens (strong, enforced):** CSS variables defined in `src/index.css`. Color palette, typography scale, spacing units, semantic status, content-typing. Never duplicate as hardcoded values. Always read from the variables. New colors, sizes, or spacing values do not get hardcoded; they get added to the token system if they're a real new design token, or they map to existing tokens if they're a variation of one.
+
+**Layer 2 — Primitives (moderate, by convention):** Card chrome, button hierarchy, vector badges, eyebrow labels, KPI cards, status badges, content-typed left borders, progressive disclosure patterns. Same shape across workspaces. Documented in the Component Patterns and Workspace Patterns sections below.
+
+**Layer 3 — Composition (weak, by workspace):** How primitives compose into "a Match report" vs "a Prep deck" vs "a Letters draft" — each workspace evolved its own organizing principle. Don't try to standardize layer 3. Different workspaces do genuinely different jobs.
+
+### When to extract a React primitive
+
+Defer extraction to `src/components/ui/` until **all four** are true:
+
+1. The pattern appears in 3+ workspaces with effectively-identical implementation
+2. The pattern's API surface (props, slots, variants) is genuinely understood from real usage, not invented from imagination
+3. A bug or design change has required fixing the same thing in N places (or a contributor asks "how do I do X consistently")
+4. The cost of extraction (implementation, refactoring callers, API migration) is justifiable against the cost of continuing to copy
+
+If any of those is false, prefer inline implementation with reference to this guide.
+
+---
+
 ## Color System
 
 ### Base Palette (Dark Mode)
@@ -65,6 +94,45 @@ Facet is a precision tool for senior engineers. The aesthetic draws from high-en
 ```
 
 All colors are defined as CSS custom properties. A future light mode is a variable swap, not a rewrite.
+
+### Content-Typing Tokens (Identity Map architecture)
+
+Color tokens that identify identity content types across the application. These are **semantic** — the colors carry meaning. Use them rather than direct color values when expressing content type, and never repurpose them for unrelated content.
+
+```css
+:root {
+  --layer-thesis: var(--accent-primary);    /* Thesis content (sky blue) */
+  --layer-self: var(--success);             /* Self-model content (green) */
+  --layer-profiles: var(--accent-violet);   /* Profiles (violet) */
+  --layer-roles: var(--accent-orange);      /* Roles and projects (orange) */
+  --layer-skills: #d946ef;                  /* Skills (magenta) */
+  --layer-prefs: var(--accent-cyan);        /* Preferences (cyan) */
+}
+```
+
+**The semantic meaning is consistent across workspaces.** When a card or section uses `--layer-roles`, the user can rely on it indicating roles/projects content regardless of which workspace they're in. Don't use `--layer-roles` to mean "the third item" or for decorative variety.
+
+### Semantic Color Usage Rules
+
+**Status tokens** (`--success`, `--warning`, `--error`) communicate state, not category:
+
+- `--success` — operations that completed successfully, content that's complete/healthy/ready
+- `--warning` — content that needs attention but isn't broken, drift detected, soft validation failures
+- `--error` — failures, hard validation errors, destructive actions, contract violations
+
+Don't use `--success` green as a decorative accent for "good things" — it carries a specific operational-state meaning.
+
+**Priority tokens** (`--priority-must`, `--priority-strong`, `--priority-optional`) communicate filter-condition severity:
+
+- `--priority-must` — bright, definite. Hard requirements, must-haves, deal-breakers.
+- `--priority-strong` — secondary weight. Strong preferences, important but not required.
+- `--priority-optional` — tertiary weight. Soft preferences, nice-to-haves.
+
+Use these specifically for filter and constraint UI, not for general typographic hierarchy.
+
+**Accent tokens** beyond `--accent-primary`:
+
+- `--accent-violet`, `--accent-cyan`, `--accent-orange` — secondary accents, primarily used as the underlying values for content-typing layer tokens. Reach for the `--layer-*` token when expressing content type; reach for the underlying `--accent-*` token only when you need an accent that doesn't carry layer semantics.
 
 ---
 
@@ -237,9 +305,143 @@ Small, pill-shaped, monospace. The vector color is the text + a very subtle back
 
 ---
 
+## Workspace Patterns
+
+The patterns below appear across multiple workspaces (Match, Identity, Build, Letters, Pipeline, Prep). They are not extracted as React components yet (per the deferral decision in *Architecture & Layered Conventions*), but they have stabilized as conventions.
+
+### Workspace Shell
+
+Per the workspace-shell IA redesign (TASK-123 series, shipped). Every tracked workspace has the same skeleton:
+
+**Header:**
+- Eyebrow label (mono small caps) naming the workspace's navigation class — `FOUNDATION`, `ANALYZE`, `APPLY`, `INTERVIEW` (per decision-10)
+- H1 title naming the workspace
+- One-sentence purpose description below the title
+
+**Primary action:**
+- One dominant primary action button per workspace, top-right of the header
+- Uses `.btn-primary` (token `--accent-primary` background, dark text)
+- Examples: "Generate Match Report" (Match), "Run Search" (Research), "Generate with AI" (Letters), "Add Entry" (Pipeline)
+
+**Secondary actions:**
+- Visually demoted from the primary, using `.btn-secondary` or `.btn-ghost`
+- Examples: Add Card, Import, Export, Delete Set
+
+**Status indicator (optional):**
+- Top-right next to the primary action when relevant
+- "Ready" / "AI working" / model state indicator using `--success` / `--warning` / `--text-tertiary`
+
+**Empty-state hierarchy:**
+- Workspaces with no content show a centered empty state with primary CTA
+- Empty states should reflect what the user can do, not what's missing
+
+### Content-typed Left Borders
+
+A repeated organizing primitive across workspaces. A vertical accent strip on the left edge of a card or section signals content-type identity at a glance.
+
+```css
+.thesis-card { border-left: 1.5px solid var(--layer-thesis); }
+.self-model-card { border-left: 1.5px solid var(--layer-self); }
+.profiles-card { border-left: 1.5px solid var(--layer-profiles); }
+.roles-card { border-left: 1.5px solid var(--layer-roles); }
+.skills-card { border-left: 1.5px solid var(--layer-skills); }
+.prefs-card { border-left: 1.5px solid var(--layer-prefs); }
+```
+
+The colors carry semantic meaning across the entire app. Don't repurpose them for unrelated content.
+
+**Don't use for:**
+- Pure decoration — use `--border-subtle` instead
+- Hierarchy alone — headers don't need accent borders
+- Status indication — use status badges with semantic tokens instead
+
+**Implementation:**
+- Card chrome remains thin/subtle so the border carries the visual weight
+- Border width: 1.5px (consistent across the app)
+
+### KPI Cards
+
+The headline-metric card pattern that appears in Match, Identity, and other report-style surfaces.
+
+**Structure:**
+- Eyebrow (mono caps via `--font-mono`): metric category — `OVERALL FIT`, `MATCH SCORE`
+- Headline value: large numeric or short string — `94%`, `strong`
+- Subtitle: 13-14px, contextualizes the metric — `apply recommendation`
+- Optional content-typed left border using a layer token
+
+**Composition:**
+- Group in trios for headline metrics (3 cards across)
+- Don't stack 6+ KPI cards in close proximity — that's metric overload
+
+### Status Badges
+
+For inline state indicators (active/inactive, ready/working, complete/pending).
+
+**Structure:**
+- Mono small caps text (`--font-mono`)
+- Tinted background using semantic token + transparency: `background: color-mix(in srgb, var(--success) 14%, transparent)`
+- Text color matching the semantic token
+- Subtle border in the same hue
+- Border radius: 3-4px
+
+**Token mapping:**
+- Success states → `--success`
+- Warning states → `--warning`
+- Error states → `--error`
+- Info/neutral → `--accent-primary` or `--text-tertiary`
+- Priority levels → `--priority-must` / `--priority-strong` / `--priority-optional`
+
+### Progressive Disclosure
+
+Per TASK-207 (Match polish), TASK-212 (Pipeline progressive disclosure).
+
+**For dense content:**
+- Default state shows summary or headline
+- Expandable sections reveal full detail
+- Expand affordance: rotation arrow or chevron, right-aligned
+- Respect deep linking when relevant — opening a report should auto-expand to the relevant section
+
+**Composition:**
+- Long pages should not be flat lists of seven+ collapsed sections. Group related sections under a parent header where possible.
+
+### Section Eyebrows (`.label-tracked`)
+
+Mono small caps labels above section headers, identifying the section's category or role.
+
+```css
+.label-tracked {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+```
+
+**Examples:**
+- `FOUNDATION` / `ANALYZE` / `APPLY` / `INTERVIEW` (sidebar navigation per decision-10)
+- `OPENER GUIDANCE` / `BEHAVIORAL GUIDANCE` (Prep workspace section labels)
+- `AI DRAFT` / `AI WORKING` (status indicators)
+
+### Composition Layer (do not standardize)
+
+Each workspace organizes its primitives differently because they do different jobs:
+
+- **Match report:** color-typed cards at the metric level; collapsible sections with content-typed borders; KPI trio at the top.
+- **Identity Model:** content-typed full sections at the document level; status badges per section signaling content quality.
+- **Interview Prep:** form-heavy layout with nested sections; tab-mode shell (Edit / Homework / Live Cheatsheet); rich content cards.
+- **Letters:** two-column layout with History sidebar; AI-draft form layout; empty-state CTA.
+
+These differences are intentional. Match is read-only output; Identity is content-input; Prep is editing-and-rehearsal; Letters is generation-and-history. Forcing them into the same composition would lose information.
+
+---
+
 ## Layout
 
-### Overall Structure
+The structure below describes the **Build workspace** specifically — the original two-panel library + preview layout that predates the multi-workspace product. Other workspaces (Match, Research, Pipeline, Prep, Letters, Identity) follow the **Workspace Shell** pattern documented above and have their own internal layouts appropriate to their job.
+
+### Build Workspace — Overall Structure
 ```
 Full viewport height. No scrolling on the page level — panels scroll independently.
 
