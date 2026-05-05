@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-05-03 22:30'
-updated_date: '2026-05-05 07:45'
+updated_date: '2026-05-05 16:23'
 labels:
   - prep
   - refactor
@@ -174,4 +174,6 @@ Open decisions for user lock:
 1. Should direct Match-to-Prep generation be retired now, requiring pipeline promotion before Prep generation?
 2. Should PrepDeck store only jdAnalysisId, or also jdAnalysisGeneratedAt/modelVersion/jdTextHash at generation time for clearer stale messages?
 3. Should task-209 be closed as stale now that typecheck passes and createDeck/setActiveDeck exist?
+
+Decision locks have been split into child implementation tasks: TASK-208.1 retires direct Match-to-Prep generation behind Pipeline promotion; TASK-208.2 persists JDAnalysis generation metadata on PrepDeck; TASK-208.3 passes canonical JDAnalysis projection into pure Prep generation and depends on 208.1/208.2.
 <!-- SECTION:NOTES:END -->
