@@ -14,7 +14,6 @@ import { useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 import type { JDAnalysis } from '../types/jdAnalysis'
-import type { MatchReport } from '../types/match'
 
 const navigateMock = vi.fn()
 
@@ -55,7 +54,12 @@ const prepIdentityFixture: ProfessionalIdentityV3 = {
         id: 'skills-platform',
         label: 'Platform',
         items: [
-          { name: 'Kubernetes', depth: 'strong', positioning: 'Operates production clusters.', tags: ['platform'] },
+          {
+            name: 'Kubernetes',
+            depth: 'strong',
+            positioning: 'Operates production clusters.',
+            tags: ['platform'],
+          },
           { name: 'COBOL', depth: 'basic', tags: ['legacy'] },
         ],
       },
@@ -117,7 +121,8 @@ const prepIdentityFixture: ProfessionalIdentityV3 = {
 }
 
 function createTestJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
-  const jobDescription = overrides.analyzedJobDescription ?? 'Build distributed systems and platform tooling.'
+  const jobDescription =
+    overrides.analyzedJobDescription ?? 'Build distributed systems and platform tooling.'
   return {
     id: 'jd-analysis-1',
     pipelineEntryId: 'pipe-1',
@@ -175,8 +180,20 @@ describe('PrepPage identity generation', () => {
     navigateMock.mockClear()
     usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'edit' })
     useJDAnalysisStore.setState({ analyses: [createTestJdAnalysis()] })
-    useIdentityStore.setState({ currentIdentity: prepIdentityFixture, draft: null, draftDocument: '', warnings: [], lastError: null })
-    useMatchStore.setState({ jobDescription: '', currentJDAnalysis: null, currentReport: null, warnings: [], history: [] })
+    useIdentityStore.setState({
+      currentIdentity: prepIdentityFixture,
+      draft: null,
+      draftDocument: '',
+      warnings: [],
+      lastError: null,
+    })
+    useMatchStore.setState({
+      jobDescription: '',
+      currentJDAnalysis: null,
+      currentReport: null,
+      warnings: [],
+      history: [],
+    })
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
       past: [],
@@ -209,7 +226,9 @@ describe('PrepPage identity generation', () => {
             status: 'investigated',
             summary: 'Public evidence points to a platform-heavy reliability role.',
             jobDescriptionSummary: 'Reliability and developer experience.',
-            interviewSignals: ['Public reports mention a recruiter screen and system design round.'],
+            interviewSignals: [
+              'Public reports mention a recruiter screen and system design round.',
+            ],
             people: [],
             sources: [
               {
@@ -249,7 +268,8 @@ describe('PrepPage identity generation', () => {
             message: {
               content: JSON.stringify({
                 deckTitle: 'Acme Staff Engineer Prep',
-                companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+                companyResearchSummary:
+                  'Acme is optimizing for platform reliability and developer velocity.',
                 rules: ['Lead with specifics.', 'Listen more than you talk.'],
                 donts: ['Do not ramble.'],
                 questionsToAsk: [
@@ -259,12 +279,8 @@ describe('PrepPage identity generation', () => {
                   },
                 ],
                 numbersToKnow: {
-                  candidate: [
-                    { value: '38%', label: 'Incident reduction' },
-                  ],
-                  company: [
-                    { value: '3', label: 'Core platform bets' },
-                  ],
+                  candidate: [{ value: '38%', label: 'Incident reduction' }],
+                  company: [{ value: '3', label: 'Core platform bets' }],
                 },
                 categoryGuidance: {
                   behavioral: 'Lead with scope.',
@@ -331,7 +347,9 @@ describe('PrepPage identity generation', () => {
     expect(generatedDeck.jdAnalysisId).toBe('jd-analysis-1')
     expect(generatedDeck.jdAnalysisGeneratedAt).toBe('2026-04-20T12:00:00.000Z')
     expect(generatedDeck.jdAnalysisModelVersion).toBe('jd-analysis.v1.match-multipass-sonnet')
-    expect(generatedDeck.jdTextHash).toBe(hashJobDescriptionText('Build distributed systems and platform tooling.'))
+    expect(generatedDeck.jdTextHash).toBe(
+      hashJobDescriptionText('Build distributed systems and platform tooling.'),
+    )
     expect(generatedDeck.roundType).toBe('system-design')
     expect(generatedDeck.rules).toEqual(['Lead with specifics.', 'Listen more than you talk.'])
     expect(generatedDeck.donts).toEqual(['Do not ramble.'])
@@ -384,154 +402,12 @@ describe('PrepPage identity generation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Queue for Identity Review' }))
 
-    expect(screen.getByRole('heading', { name: 'Replace the current identity draft?' })).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: 'Replace the current identity draft?' }),
+    ).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(navigateMock).not.toHaveBeenCalled()
     expect(useIdentityStore.getState().draft?.summary).toBe('Existing draft')
-  })
-
-  it('uses the selected resume vector label to scope identity context for match generation', async () => {
-    const identityBefore = JSON.stringify(useIdentityStore.getState().currentIdentity)
-    const matchReport: MatchReport = {
-      generatedAt: '2026-04-02T00:00:00.000Z',
-      identityVersion: 3,
-      company: 'Atlas',
-      role: 'Staff Platform Engineer',
-      summary: 'Strong platform fit.',
-      jobDescription: 'Own platform engineering and reliability.',
-      matchScore: 0.84,
-      requirements: [],
-      topBullets: [
-        {
-          kind: 'bullet',
-          id: 'acme-b1',
-          label: 'Order pipeline',
-          sourceLabel: 'Acme',
-          text: 'Built a distributed order pipeline.',
-          tags: ['platform'],
-          matchedTags: ['platform'],
-          matchedKeywords: ['platform'],
-          matchedRequirementIds: ['req-1'],
-          score: 0.9,
-        },
-      ],
-      topSkills: [],
-      topProjects: [],
-      topProfiles: [
-        {
-          kind: 'profile',
-          id: 'profile-backend',
-          label: 'Backend profile',
-          sourceLabel: 'Profiles',
-          text: 'Backend systems profile.',
-          tags: ['backend'],
-          matchedTags: ['backend'],
-          matchedKeywords: ['systems'],
-          matchedRequirementIds: ['req-1'],
-          score: 0.7,
-        },
-      ],
-      topPhilosophy: [],
-      gaps: [],
-      advantages: [],
-      positioningRecommendations: ['Lead with platform reliability.'],
-      gapFocus: [],
-      warnings: [],
-    }
-
-    usePipelineStore.setState((state) => ({ ...state, entries: [] }))
-    useMatchStore.setState({
-      jobDescription: matchReport.jobDescription,
-      currentJDAnalysis: createTestJdAnalysis({
-        id: 'jd-analysis-match',
-        pipelineEntryId: 'match-current',
-        company: 'Atlas',
-        role: 'Staff Platform Engineer',
-        analyzedJobDescription: matchReport.jobDescription,
-      }),
-      currentReport: matchReport,
-      warnings: [],
-      history: [],
-    })
-
-    render(<PrepPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
-    fireEvent.click(screen.getByText('Generate with AI'))
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled()
-    })
-
-    const [, init] = vi.mocked(global.fetch).mock.calls[0]
-    const body = JSON.parse(String(init?.body ?? '{}')) as {
-      messages?: Array<{ content?: string }>
-    }
-    const prompt = body.messages?.[0]?.content ?? ''
-
-    expect(prompt).toContain('Structured Identity Context')
-    expect(prompt).toContain('Reduced incidents by 38%')
-    expect(prompt).toContain('Additional Candidate Metrics Outside The Vector Slice')
-    expect(prompt).toContain('Maintained legacy data feeds.')
-    expect(prompt).not.toContain('COBOL')
-    expect(JSON.stringify(useIdentityStore.getState().currentIdentity)).toBe(identityBefore)
-
-    const generatedDeck = usePrepStore.getState().decks[0]
-    expect(generatedDeck.rules).toEqual(['Lead with specifics.', 'Listen more than you talk.'])
-    expect(generatedDeck.donts).toEqual(['Do not ramble.'])
-    expect(generatedDeck.questionsToAsk).toEqual([
-      {
-        question: 'What is the platform team optimizing for next?',
-        context: 'Shows systems thinking.',
-      },
-    ])
-    expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
-  })
-
-  it('blocks match prep generation when the current JD analysis is stale', async () => {
-    const matchReport: MatchReport = {
-      generatedAt: '2026-04-02T00:00:00.000Z',
-      identityVersion: 3,
-      company: 'Atlas',
-      role: 'Staff Platform Engineer',
-      summary: 'Strong platform fit.',
-      jobDescription: 'Own platform engineering and reliability.',
-      matchScore: 0.84,
-      requirements: [],
-      topBullets: [],
-      topSkills: [],
-      topProjects: [],
-      topProfiles: [],
-      topPhilosophy: [],
-      gaps: [],
-      advantages: [],
-      positioningRecommendations: [],
-      gapFocus: [],
-      warnings: [],
-    }
-    usePipelineStore.setState((state) => ({ ...state, entries: [] }))
-    useMatchStore.setState({
-      jobDescription: matchReport.jobDescription,
-      currentJDAnalysis: createTestJdAnalysis({
-        id: 'jd-analysis-match',
-        pipelineEntryId: 'match-current',
-        analyzedJobDescription: matchReport.jobDescription,
-        modelVersion: 'jd-analysis.v0.legacy',
-      }),
-      currentReport: matchReport,
-      warnings: [],
-      history: [],
-    })
-
-    render(<PrepPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
-    fireEvent.click(screen.getByText('Generate with AI'))
-
-    await waitFor(() => {
-      expect(screen.getByText('Refresh JD analysis before generating prep (analysis model changed).')).toBeTruthy()
-    })
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('does not guess a round type when the pipeline entry has multiple formats', async () => {
@@ -595,7 +471,9 @@ describe('PrepPage identity generation', () => {
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
-      expect(screen.getByText('Refresh JD analysis before generating prep (analysis model changed).')).toBeTruthy()
+      expect(
+        screen.getByText('Refresh JD analysis before generating prep (analysis model changed).'),
+      ).toBeTruthy()
     })
     expect(global.fetch).not.toHaveBeenCalled()
   })
@@ -603,11 +481,9 @@ describe('PrepPage identity generation', () => {
   it('blocks prep regeneration when the linked JD analysis is stale', async () => {
     usePipelineStore.setState((state) => ({
       ...state,
-      entries: state.entries.map((entry) => (
-        entry.id === 'pipe-1'
-          ? { ...entry, jobDescription: 'Changed JD text.' }
-          : entry
-      )),
+      entries: state.entries.map((entry) =>
+        entry.id === 'pipe-1' ? { ...entry, jobDescription: 'Changed JD text.' } : entry,
+      ),
     }))
     usePrepStore.getState().createDeck({
       title: 'Acme Staff Engineer Prep',
@@ -648,7 +524,9 @@ describe('PrepPage identity generation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Re-generate with answers' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Refresh JD analysis before generating prep (job description changed).')).toBeTruthy()
+      expect(
+        screen.getByText('Refresh JD analysis before generating prep (job description changed).'),
+      ).toBeTruthy()
     })
     expect(global.fetch).not.toHaveBeenCalled()
   })
@@ -686,7 +564,9 @@ describe('PrepPage identity generation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Fill in the gaps' }))
     fireEvent.change(
-      screen.getByPlaceholderText('Add the missing detail that would make this section accurate and specific.'),
+      screen.getByPlaceholderText(
+        'Add the missing detail that would make this section accurate and specific.',
+      ),
       { target: { value: 'I wanted broader platform ownership and more direct product impact.' } },
     )
     fireEvent.click(screen.getByRole('button', { name: 'Save answers' }))
@@ -794,7 +674,9 @@ describe('PrepPage identity generation', () => {
 
     expect(prompt).toContain('Existing Context Gaps')
     expect(prompt).toContain('Context Gap Answers')
-    expect(prompt).toContain('Original Job Description Source Text:\nBuild distributed systems and platform tooling.')
+    expect(prompt).toContain(
+      'Original Job Description Source Text:\nBuild distributed systems and platform tooling.',
+    )
     expect(prompt).not.toContain('Original saved prep JD text.')
     expect(prompt).toContain('roughly 120 engineers across six product teams')
 

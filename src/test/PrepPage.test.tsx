@@ -4,15 +4,68 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { PrepPage } from '../routes/prep/PrepPage'
 import { useMatchStore } from '../store/matchStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
 import { useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
+import { hashJobDescriptionText } from '../utils/jdAnalysis'
+import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
 import type { MatchReport } from '../types/match'
 import type { PrepDeck } from '../types/prep'
 
 const navigateMock = vi.fn()
+
+const defaultJobDescription = 'Build distributed systems and platform tooling.'
+
+const createJdAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
+  id: 'jd-analysis-1',
+  pipelineEntryId: 'pipe-1',
+  jdTextHash: hashJobDescriptionText(defaultJobDescription),
+  identityVersion: 0,
+  modelVersion: JD_ANALYSIS_MODEL_VERSION,
+  generatedAt: '2026-04-20T12:00:00.000Z',
+  updatedAt: '2026-04-20T12:00:00.000Z',
+  warnings: [],
+  company: 'Acme Corp',
+  role: 'Staff Engineer',
+  summary: 'Distributed systems and platform tooling.',
+  analyzedJobDescription: defaultJobDescription,
+  jobDescriptionWordCount: 6,
+  jobDescriptionTruncated: false,
+  requirements: [],
+  overallFit: 'strong',
+  fitScore: 0.82,
+  confidence: 'high',
+  recommendation: 'apply',
+  oneLineSummary: 'Strong platform fit.',
+  rationale: 'The role maps to backend platform evidence.',
+  matchedVectors: [],
+  primaryVectorId: 'backend',
+  skillMatches: [],
+  evidenceMapping: {
+    topBullets: [],
+    topSkills: [],
+    topProjects: [],
+    topProfiles: [],
+    topPhilosophy: [],
+  },
+  strengthsToLead: ['Distributed systems'],
+  advantages: [],
+  advantageHypotheses: [],
+  gaps: [],
+  gapFocus: [],
+  watchOuts: [],
+  triggeredPrioritize: [],
+  triggeredAvoid: [],
+  relevantAwareness: [],
+  positioningRecommendations: ['Lead with platform reliability.'],
+  requirementCoverageScore: 0.8,
+  matchedRequirementIds: [],
+  matchedKeywords: ['distributed systems', 'platform tooling'],
+  ...overrides,
+})
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -46,7 +99,7 @@ describe('PrepPage', () => {
           url: 'https://acme.example/jobs/1',
           contact: '',
           vectorId: 'backend',
-          jobDescription: 'Build distributed systems and platform tooling.',
+          jobDescription: defaultJobDescription,
           presetId: null,
           resumeVariant: '',
           resumeGeneration: null,
@@ -73,6 +126,7 @@ describe('PrepPage', () => {
       sortDir: 'asc',
       filters: { tier: 'all', status: 'all', search: '' },
     })
+    useJDAnalysisStore.setState({ analyses: [createJdAnalysis()] })
 
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -82,7 +136,8 @@ describe('PrepPage', () => {
             message: {
               content: JSON.stringify({
                 deckTitle: 'Acme Staff Engineer Prep',
-                companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+                companyResearchSummary:
+                  'Acme is optimizing for platform reliability and developer velocity.',
                 cards: [
                   {
                     category: 'opener',
@@ -172,7 +227,9 @@ describe('PrepPage', () => {
     const homeworkTab = screen.getByRole('tab', { name: 'Homework' })
 
     editTab.focus()
-    fireEvent.keyDown(screen.getByRole('tablist', { name: 'Prep workspace modes' }), { key: 'ArrowRight' })
+    fireEvent.keyDown(screen.getByRole('tablist', { name: 'Prep workspace modes' }), {
+      key: 'ArrowRight',
+    })
 
     expect(document.activeElement).toBe(homeworkTab)
   })
@@ -211,12 +268,18 @@ describe('PrepPage', () => {
     expect(screen.getByPlaceholderText('What should the candidate avoid?')).toBeTruthy()
     expect(screen.getByPlaceholderText('What do you want to ask?')).toBeTruthy()
     expect(screen.queryByText('The Rules')).toBeNull()
-    expect(screen.queryByText('Deck-scoped imperatives that should shape every answer in this session.')).toBeNull()
     expect(
-      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map((node) => node.textContent),
+      screen.queryByText('Deck-scoped imperatives that should shape every answer in this session.'),
+    ).toBeNull()
+    expect(
+      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map(
+        (node) => node.textContent,
+      ),
     ).toEqual(['1'])
     expect(
-      Array.from(container.querySelectorAll('#prep-live-donts-editor .prep-guidance-index')).map((node) => node.textContent),
+      Array.from(container.querySelectorAll('#prep-live-donts-editor .prep-guidance-index')).map(
+        (node) => node.textContent,
+      ),
     ).toEqual(['1'])
 
     const rulesToggle = screen.getByRole('button', {
@@ -301,16 +364,32 @@ describe('PrepPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Prep/i }))
 
-    expect(screen.getByRole('button', { name: /RulesShort, imperative reminders/i }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('button', { name: /Questions to AskPrompts/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(
+      screen
+        .getByRole('button', { name: /RulesShort, imperative reminders/i })
+        .getAttribute('aria-expanded'),
+    ).toBe('true')
+    expect(
+      screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded'),
+    ).toBe('true')
+    expect(
+      screen
+        .getByRole('button', { name: /Questions to AskPrompts/i })
+        .getAttribute('aria-expanded'),
+    ).toBe('true')
     expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(false)
     expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha Prep/i }))
 
-    expect(screen.getByRole('button', { name: /RulesShort, imperative reminders/i }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen
+        .getByRole('button', { name: /RulesShort, imperative reminders/i })
+        .getAttribute('aria-expanded'),
+    ).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /Don'tsShort reminders/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
     expect(document.getElementById('prep-live-rules-editor')?.hasAttribute('hidden')).toBe(true)
     expect(document.getElementById('prep-live-donts-editor')?.hasAttribute('hidden')).toBe(true)
   })
@@ -338,21 +417,31 @@ describe('PrepPage', () => {
     const { container } = render(<PrepPage />)
 
     expect(
-      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map((node) => node.textContent),
+      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map(
+        (node) => node.textContent,
+      ),
     ).toEqual(['1', '2', '3'])
     expect(
-      Array.from(container.querySelectorAll('#prep-live-donts-editor .prep-guidance-index')).map((node) => node.textContent),
+      Array.from(container.querySelectorAll('#prep-live-donts-editor .prep-guidance-index')).map(
+        (node) => node.textContent,
+      ),
     ).toEqual(['1', '2'])
 
-    const ruleRemoveButtons = container.querySelectorAll('#prep-live-rules-editor .prep-icon-btn-danger')
+    const ruleRemoveButtons = container.querySelectorAll(
+      '#prep-live-rules-editor .prep-icon-btn-danger',
+    )
     fireEvent.click(ruleRemoveButtons[1]!)
-    const dontRemoveButtons = container.querySelectorAll('#prep-live-donts-editor .prep-icon-btn-danger')
+    const dontRemoveButtons = container.querySelectorAll(
+      '#prep-live-donts-editor .prep-icon-btn-danger',
+    )
     fireEvent.click(dontRemoveButtons[0]!)
 
     expect(usePrepStore.getState().decks[0]?.rules).toEqual(['Rule A', 'Rule C'])
     expect(usePrepStore.getState().decks[0]?.donts).toEqual(['Avoid B'])
     expect(
-      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map((node) => node.textContent),
+      Array.from(container.querySelectorAll('#prep-live-rules-editor .prep-guidance-index')).map(
+        (node) => node.textContent,
+      ),
     ).toEqual(['1', '2'])
   })
 
@@ -373,12 +462,20 @@ describe('PrepPage', () => {
     fireEvent.change(dontInput, { target: { value: 'Do not ramble.' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Rule' }))
-    fireEvent.change(screen.getByPlaceholderText('Use a short imperative one-liner.'), { target: { value: 'Lead with outcomes.' } })
+    fireEvent.change(screen.getByPlaceholderText('Use a short imperative one-liner.'), {
+      target: { value: 'Lead with outcomes.' },
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Question' }))
-    fireEvent.change(screen.getByPlaceholderText('What do you want to ask?'), { target: { value: 'What is the team optimizing for next?' } })
-    fireEvent.change(screen.getByPlaceholderText('Why does this question matter?'), { target: { value: 'Shows systems thinking.' } })
-    fireEvent.change(screen.getByLabelText('Behavioral guidance'), { target: { value: 'Lead with scope.' } })
+    fireEvent.change(screen.getByPlaceholderText('What do you want to ask?'), {
+      target: { value: 'What is the team optimizing for next?' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Why does this question matter?'), {
+      target: { value: 'Shows systems thinking.' },
+    })
+    fireEvent.change(screen.getByLabelText('Behavioral guidance'), {
+      target: { value: 'Lead with scope.' },
+    })
 
     await waitFor(() => {
       const deck = usePrepStore.getState().decks[0]
@@ -492,8 +589,12 @@ describe('PrepPage', () => {
     expect(within(acmeLibrary).getByText('HM Screen')).toBeTruthy()
     expect(within(acmeLibrary).getByText('System Design')).toBeTruthy()
     expect(screen.getByText('Next Up')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current')).toBeNull()
-    expect(screen.getByRole('button', { name: /Acme Systems Prep/i }).getAttribute('data-muted')).toBe('true')
+    expect(
+      screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current'),
+    ).toBeNull()
+    expect(
+      screen.getByRole('button', { name: /Acme Systems Prep/i }).getAttribute('data-muted'),
+    ).toBe('true')
     expect(screen.getAllByRole('button', { name: /Acme .* Prep/i })).toHaveLength(5)
 
     fireEvent.click(acmeGroupToggle)
@@ -506,7 +607,9 @@ describe('PrepPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Acme Most Recent Prep/i }))
 
     expect(usePrepStore.getState().activeDeckId).toBe('deck-6')
-    expect(screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current')).toBe('true')
+    expect(
+      screen.getByRole('button', { name: /Acme Most Recent Prep/i }).getAttribute('aria-current'),
+    ).toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: /1 more/i }))
 
@@ -576,10 +679,12 @@ describe('PrepPage', () => {
     fireEvent.click(screen.getAllByText('Blank Set')[0])
 
     expect(usePrepStore.getState().decks).toHaveLength(1)
-    expect(screen.getAllByDisplayValue('Acme Corp Staff Engineer Interview Prep').length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByDisplayValue('Acme Corp Staff Engineer Interview Prep').length,
+    ).toBeGreaterThan(0)
   })
 
-  it('generates a prep deck from the current match report without a pipeline entry', async () => {
+  it('requires Match reports to be saved to Pipeline before AI prep generation', async () => {
     const matchReport: MatchReport = {
       generatedAt: '2026-04-02T00:00:00.000Z',
       identityVersion: 3,
@@ -651,14 +756,25 @@ describe('PrepPage', () => {
     render(<PrepPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
-    fireEvent.click(screen.getByText('Generate with AI'))
+    expect(screen.getByText('Current Match Report')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Open Match and click Save to Pipeline before generating job-specific prep.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByText('Generate with AI')).toHaveProperty('disabled', true)
+    expect(screen.getByText('Generate with AI').getAttribute('title')).toBe(
+      'Select a Pipeline entry to enable AI generation.',
+    )
+    expect(screen.getByText('Generate with AI').getAttribute('aria-describedby')).toBe(
+      'prep-generate-entry-hint',
+    )
+    expect(screen.getByText('Select a Pipeline entry to enable AI generation.')).toBeTruthy()
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect(usePrepStore.getState().decks).toHaveLength(0)
 
-    await waitFor(() => {
-      expect(usePrepStore.getState().decks).toHaveLength(1)
-    })
-
-    expect(screen.getAllByDisplayValue('Acme Staff Engineer Prep').length).toBeGreaterThan(0)
-    expect(screen.getByDisplayValue('Atlas')).toBeTruthy()
+    fireEvent.click(screen.getByText('Open Match'))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/match' })
   })
 
   it('captures a round debrief and per-card review on the active deck', async () => {
@@ -710,16 +826,16 @@ describe('PrepPage', () => {
 
     await waitFor(() => {
       const deck = usePrepStore.getState().decks[0]
-        expect(deck.roundDebriefs).toEqual([
-          expect.objectContaining({
-            round: 1,
-            intel: expect.objectContaining({
-              teamCulture: 'Warm but direct.',
-              topChallenge: 'Ownership under ambiguity.',
-            }),
-            questionsAsked: ['What is this, exactly?'],
+      expect(deck.roundDebriefs).toEqual([
+        expect.objectContaining({
+          round: 1,
+          intel: expect.objectContaining({
+            teamCulture: 'Warm but direct.',
+            topChallenge: 'Ownership under ambiguity.',
           }),
-        ])
+          questionsAsked: ['What is this, exactly?'],
+        }),
+      ])
       expect(deck.cards[0]?.perRoundState).toEqual([
         {
           round: 1,
@@ -775,8 +891,12 @@ describe('PrepPage', () => {
     render(<PrepPage />)
 
     const roundTimeline = screen.getByText('Round Timeline').closest('section')
-    expect(within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 1/i })).toBeTruthy()
-    expect(within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 2/i })).toBeTruthy()
+    expect(
+      within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 1/i }),
+    ).toBeTruthy()
+    expect(
+      within(roundTimeline as HTMLElement).getByRole('button', { name: /Round 2/i }),
+    ).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Previous Round Cards' }))
 
@@ -925,7 +1045,7 @@ describe('PrepPage', () => {
     ])
   })
 
-  it('does not send current-round debriefs back as prior intel when regenerating a standalone round deck', async () => {
+  it('blocks AI regeneration for standalone decks until they are linked to Pipeline', async () => {
     usePrepStore.setState({
       decks: [
         {
@@ -935,6 +1055,7 @@ describe('PrepPage', () => {
           role: 'Staff Platform Engineer',
           vectorId: 'backend',
           pipelineEntryId: null,
+          companyUrl: 'https://atlas.example/jobs/round-2',
           roundNumber: 2,
           jobDescription: 'Own platform reliability and incident response.',
           roundDebriefs: [
@@ -973,19 +1094,82 @@ describe('PrepPage', () => {
       activeDeckId: 'deck-standalone-round-2',
       activeMode: 'edit',
     })
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: state.entries.map((entry) =>
+        entry.id === 'pipe-1' ? { ...entry, url: '' } : entry,
+      ),
+    }))
 
     render(<PrepPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Re-generate with answers' }))
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByText(
+          'AI regeneration now requires a Pipeline-linked prep set. Use Generate to create a new prep set from a Pipeline entry.',
+        ),
+      ).toBeTruthy()
+    })
+    fireEvent.click(screen.getByText('Link to Acme Corp - Staff Engineer'))
+    await waitFor(() => {
+      const deck = usePrepStore.getState().decks[0]
+      expect(deck.title).toBe('Acme Corp Staff Engineer Interview Prep')
+      expect(deck.pipelineEntryId).toBe('pipe-1')
+      expect(deck.jobDescription).toBe(defaultJobDescription)
+      expect(deck.companyUrl).toBe('https://atlas.example/jobs/round-2')
+      expect(deck.jdAnalysisId).toBe('jd-analysis-1')
+    })
+    expect(screen.getByRole('dialog', { name: 'Generate prep deck' })).toBeTruthy()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a relink path when a prep deck points at a missing Pipeline entry', async () => {
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-stale-link',
+          title: 'Atlas Round 2',
+          company: 'Atlas',
+          role: 'Staff Platform Engineer',
+          vectorId: 'backend',
+          pipelineEntryId: 'pipe-missing',
+          roundNumber: 2,
+          jobDescription: 'Own platform reliability and incident response.',
+          contextGaps: [
+            {
+              id: 'gap-1',
+              section: 'Team',
+              question: 'Who owns the on-call rotation?',
+              why: 'This changes the support story.',
+              priority: 'recommended',
+            },
+          ],
+          contextGapAnswers: {
+            'gap-1': 'Platform owns primary on-call with SRE backup.',
+          },
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          cards: [],
+        } as PrepDeck,
+      ],
+      activeDeckId: 'deck-stale-link',
+      activeMode: 'edit',
     })
 
-    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0]
-    const body = JSON.parse(String(requestInit?.body ?? '{}'))
-    const userPrompt = String(body.messages?.[0]?.content ?? '')
+    render(<PrepPage />)
 
-    expect(userPrompt).not.toContain('CURRENT ROUND ONLY')
+    fireEvent.click(screen.getByRole('button', { name: 'Re-generate with answers' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'The Pipeline entry linked to this prep set no longer exists. Link this deck to a current Pipeline entry or recreate it from Generate.',
+        ),
+      ).toBeTruthy()
+    })
+    fireEvent.click(screen.getByText('Open Generate'))
+    expect(screen.getByRole('dialog', { name: 'Generate prep deck' })).toBeTruthy()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })

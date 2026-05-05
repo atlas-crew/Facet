@@ -107,8 +107,11 @@
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: var(--space-4);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   box-shadow: var(--shadow-xs);
 }
 
@@ -161,7 +164,9 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+  transition:
+    background var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing);
 }
 
 .prep-mode-tab:hover:not([aria-disabled='true']) {
@@ -231,8 +236,14 @@
 }
 
 @keyframes prep-generate-drawer-in {
-  from { transform: translateX(24px); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .prep-generate-drawer-header {
@@ -277,7 +288,16 @@
 .prep-generate-drawer-footer-actions {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.prep-field-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .prep-mode-tab-launch:disabled {
@@ -536,6 +556,11 @@
 }
 
 .prep-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
   margin-top: var(--space-3);
   padding: var(--space-3);
   border-radius: 10px;
@@ -543,6 +568,13 @@
   background: color-mix(in srgb, var(--status-critical) 10%, transparent);
   color: var(--status-critical);
   font-size: 13px;
+}
+
+.prep-error-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .prep-contract-banner {
@@ -971,7 +1003,9 @@
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+  transition:
+    background var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing);
 }
 
 .prep-live-back:hover {
@@ -1059,7 +1093,11 @@
   gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 8%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 8%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
 }
 
 .prep-live-anchor-label {
@@ -1137,7 +1175,9 @@
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   user-select: none;
-  transition: background var(--duration-fast) var(--easing), border-color var(--duration-fast) var(--easing);
+  transition:
+    background var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing);
 }
 
 .prep-live-timer:hover {
@@ -1184,13 +1224,25 @@
   color: var(--text-primary);
 }
 
-.prep-live-timer-warning { border-bottom-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle)); }
-.prep-live-timer-urgent { border-bottom-color: color-mix(in srgb, var(--accent-orange) 32%, var(--border-subtle)); }
-.prep-live-timer-critical { border-bottom-color: color-mix(in srgb, var(--status-critical) 36%, var(--border-subtle)); }
+.prep-live-timer-warning {
+  border-bottom-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle));
+}
+.prep-live-timer-urgent {
+  border-bottom-color: color-mix(in srgb, var(--accent-orange) 32%, var(--border-subtle));
+}
+.prep-live-timer-critical {
+  border-bottom-color: color-mix(in srgb, var(--status-critical) 36%, var(--border-subtle));
+}
 
-.prep-live-timer-display-warning { color: var(--warning); }
-.prep-live-timer-display-urgent { color: var(--accent-orange); }
-.prep-live-timer-display-critical { color: var(--status-critical); }
+.prep-live-timer-display-warning {
+  color: var(--warning);
+}
+.prep-live-timer-display-urgent {
+  color: var(--accent-orange);
+}
+.prep-live-timer-display-critical {
+  color: var(--status-critical);
+}
 
 /* Search — inline compact input */
 .prep-live-search {
@@ -1489,16 +1541,36 @@
   flex-shrink: 0;
 }
 
-.prep-live-tone-overview { background: var(--prep-live-tone-overview); }
-.prep-live-tone-intel { background: var(--prep-live-tone-intel); }
-.prep-live-tone-opener { background: var(--prep-live-tone-opener); }
-.prep-live-tone-behavioral { background: var(--prep-live-tone-behavioral); }
-.prep-live-tone-technical { background: var(--prep-live-tone-technical); }
-.prep-live-tone-project { background: var(--prep-live-tone-project); }
-.prep-live-tone-metrics { background: var(--prep-live-tone-metrics); }
-.prep-live-tone-situational { background: var(--prep-live-tone-situational); }
-.prep-live-tone-landmine { background: var(--prep-live-tone-landmine); }
-.prep-live-tone-warnings { background: var(--prep-live-tone-warnings); }
+.prep-live-tone-overview {
+  background: var(--prep-live-tone-overview);
+}
+.prep-live-tone-intel {
+  background: var(--prep-live-tone-intel);
+}
+.prep-live-tone-opener {
+  background: var(--prep-live-tone-opener);
+}
+.prep-live-tone-behavioral {
+  background: var(--prep-live-tone-behavioral);
+}
+.prep-live-tone-technical {
+  background: var(--prep-live-tone-technical);
+}
+.prep-live-tone-project {
+  background: var(--prep-live-tone-project);
+}
+.prep-live-tone-metrics {
+  background: var(--prep-live-tone-metrics);
+}
+.prep-live-tone-situational {
+  background: var(--prep-live-tone-situational);
+}
+.prep-live-tone-landmine {
+  background: var(--prep-live-tone-landmine);
+}
+.prep-live-tone-warnings {
+  background: var(--prep-live-tone-warnings);
+}
 
 .prep-live-nav-link {
   width: 100%;
@@ -1529,16 +1601,36 @@
   border-left-color: var(--accent-primary);
 }
 
-.prep-live-nav-link-overview { border-left-color: var(--prep-live-tone-overview); }
-.prep-live-nav-link-intel { border-left-color: var(--prep-live-tone-intel); }
-.prep-live-nav-link-opener { border-left-color: var(--prep-live-tone-opener); }
-.prep-live-nav-link-behavioral { border-left-color: var(--prep-live-tone-behavioral); }
-.prep-live-nav-link-technical { border-left-color: var(--prep-live-tone-technical); }
-.prep-live-nav-link-project { border-left-color: var(--prep-live-tone-project); }
-.prep-live-nav-link-metrics { border-left-color: var(--prep-live-tone-metrics); }
-.prep-live-nav-link-situational { border-left-color: var(--prep-live-tone-situational); }
-.prep-live-nav-link-landmine { border-left-color: var(--prep-live-tone-landmine); }
-.prep-live-nav-link-warnings { border-left-color: var(--prep-live-tone-warnings); }
+.prep-live-nav-link-overview {
+  border-left-color: var(--prep-live-tone-overview);
+}
+.prep-live-nav-link-intel {
+  border-left-color: var(--prep-live-tone-intel);
+}
+.prep-live-nav-link-opener {
+  border-left-color: var(--prep-live-tone-opener);
+}
+.prep-live-nav-link-behavioral {
+  border-left-color: var(--prep-live-tone-behavioral);
+}
+.prep-live-nav-link-technical {
+  border-left-color: var(--prep-live-tone-technical);
+}
+.prep-live-nav-link-project {
+  border-left-color: var(--prep-live-tone-project);
+}
+.prep-live-nav-link-metrics {
+  border-left-color: var(--prep-live-tone-metrics);
+}
+.prep-live-nav-link-situational {
+  border-left-color: var(--prep-live-tone-situational);
+}
+.prep-live-nav-link-landmine {
+  border-left-color: var(--prep-live-tone-landmine);
+}
+.prep-live-nav-link-warnings {
+  border-left-color: var(--prep-live-tone-warnings);
+}
 
 .prep-live-nav-copy {
   flex: 1;
@@ -1579,7 +1671,6 @@
   color: var(--accent-orange);
 }
 
-
 .prep-live-main {
   flex: 1;
   min-width: 0;
@@ -1606,20 +1697,42 @@
   box-shadow: var(--shadow-sm);
 }
 
-.prep-live-section-overview { border-top: 4px solid var(--prep-live-tone-overview); }
-.prep-live-section-intel { border-top: 4px solid var(--prep-live-tone-intel); }
-.prep-live-section-opener { border-top: 4px solid var(--prep-live-tone-opener); }
-.prep-live-section-behavioral { border-top: 4px solid var(--prep-live-tone-behavioral); }
-.prep-live-section-technical { border-top: 4px solid var(--prep-live-tone-technical); }
-.prep-live-section-project { border-top: 4px solid var(--prep-live-tone-project); }
-.prep-live-section-metrics { border-top: 4px solid var(--prep-live-tone-metrics); }
-.prep-live-section-situational { border-top: 4px solid var(--prep-live-tone-situational); }
-.prep-live-section-landmine { border-top: 4px solid var(--prep-live-tone-landmine); }
-.prep-live-section-warnings { border-top: 4px solid var(--prep-live-tone-warnings); }
+.prep-live-section-overview {
+  border-top: 4px solid var(--prep-live-tone-overview);
+}
+.prep-live-section-intel {
+  border-top: 4px solid var(--prep-live-tone-intel);
+}
+.prep-live-section-opener {
+  border-top: 4px solid var(--prep-live-tone-opener);
+}
+.prep-live-section-behavioral {
+  border-top: 4px solid var(--prep-live-tone-behavioral);
+}
+.prep-live-section-technical {
+  border-top: 4px solid var(--prep-live-tone-technical);
+}
+.prep-live-section-project {
+  border-top: 4px solid var(--prep-live-tone-project);
+}
+.prep-live-section-metrics {
+  border-top: 4px solid var(--prep-live-tone-metrics);
+}
+.prep-live-section-situational {
+  border-top: 4px solid var(--prep-live-tone-situational);
+}
+.prep-live-section-landmine {
+  border-top: 4px solid var(--prep-live-tone-landmine);
+}
+.prep-live-section-warnings {
+  border-top: 4px solid var(--prep-live-tone-warnings);
+}
 
 .prep-live-section-active {
   border-color: color-mix(in srgb, var(--accent-primary) 28%, var(--border-subtle));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 14%, transparent), var(--shadow-sm);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-primary) 14%, transparent),
+    var(--shadow-sm);
 }
 
 .prep-live-section-groups {
@@ -1827,15 +1940,33 @@
   background: var(--prep-live-surface-2);
 }
 
-.prep-live-item-overview { box-shadow: inset 3px 0 0 var(--prep-live-tone-overview); }
-.prep-live-item-intel { box-shadow: inset 3px 0 0 var(--prep-live-tone-intel); }
-.prep-live-item-opener { box-shadow: inset 3px 0 0 var(--prep-live-tone-opener); }
-.prep-live-item-behavioral { box-shadow: inset 3px 0 0 var(--prep-live-tone-behavioral); }
-.prep-live-item-technical { box-shadow: inset 3px 0 0 var(--prep-live-tone-technical); }
-.prep-live-item-project { box-shadow: inset 3px 0 0 var(--prep-live-tone-project); }
-.prep-live-item-metrics { box-shadow: inset 3px 0 0 var(--prep-live-tone-metrics); }
-.prep-live-item-situational { box-shadow: inset 3px 0 0 var(--prep-live-tone-situational); }
-.prep-live-item-warnings { box-shadow: inset 3px 0 0 var(--prep-live-tone-warnings); }
+.prep-live-item-overview {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-overview);
+}
+.prep-live-item-intel {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-intel);
+}
+.prep-live-item-opener {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-opener);
+}
+.prep-live-item-behavioral {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-behavioral);
+}
+.prep-live-item-technical {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-technical);
+}
+.prep-live-item-project {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-project);
+}
+.prep-live-item-metrics {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-metrics);
+}
+.prep-live-item-situational {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-situational);
+}
+.prep-live-item-warnings {
+  box-shadow: inset 3px 0 0 var(--prep-live-tone-warnings);
+}
 
 .prep-live-item-header {
   display: flex;
@@ -2193,8 +2324,14 @@
 .prep-live-keypoints-panel-rescue {
   padding: 16px 18px;
   border-color: color-mix(in srgb, var(--accent-primary) 28%, var(--border-subtle));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 11%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 96%, transparent) 100%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--accent-primary) 8%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 11%, var(--bg-surface)) 0%,
+    color-mix(in srgb, var(--bg-surface) 96%, transparent) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-primary) 8%, transparent);
 }
 
 .prep-live-keypoints-panel-rescue .prep-live-keypoints-label {
@@ -2254,12 +2391,24 @@
  * violet `closer/lesson`, blue `note`. Identical to the reference
  * template + practice-mode treatment so STAR-arc reading is the
  * same across all three prep modes. */
-.prep-live-story-block-problem  { --prep-story-tone: var(--status-critical); }
-.prep-live-story-block-solution { --prep-story-tone: var(--warning); }
-.prep-live-story-block-result   { --prep-story-tone: var(--success); }
-.prep-live-story-block-closer   { --prep-story-tone: var(--accent-violet); }
-.prep-live-story-block-lesson   { --prep-story-tone: var(--accent-violet); }
-.prep-live-story-block-note     { --prep-story-tone: var(--accent-primary); }
+.prep-live-story-block-problem {
+  --prep-story-tone: var(--status-critical);
+}
+.prep-live-story-block-solution {
+  --prep-story-tone: var(--warning);
+}
+.prep-live-story-block-result {
+  --prep-story-tone: var(--success);
+}
+.prep-live-story-block-closer {
+  --prep-story-tone: var(--accent-violet);
+}
+.prep-live-story-block-lesson {
+  --prep-story-tone: var(--accent-violet);
+}
+.prep-live-story-block-note {
+  --prep-story-tone: var(--accent-primary);
+}
 
 .prep-live-conditionals {
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
@@ -2342,8 +2491,14 @@
 
 .prep-live-conditional-pair-trap {
   border-color: color-mix(in srgb, var(--accent-orange) 42%, var(--border-subtle));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-orange) 12%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 96%, transparent) 100%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-orange) 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--accent-orange) 8%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-orange) 12%, var(--bg-surface)) 0%,
+    color-mix(in srgb, var(--bg-surface) 96%, transparent) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-orange) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-orange) 8%, transparent);
 }
 
 .prep-live-conditional-pair-trap .prep-live-conditional-label {
@@ -2579,7 +2734,10 @@
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--duration-normal) var(--easing), box-shadow var(--duration-normal) var(--easing), transform var(--duration-normal) var(--easing);
+  transition:
+    border-color var(--duration-normal) var(--easing),
+    box-shadow var(--duration-normal) var(--easing),
+    transform var(--duration-normal) var(--easing);
 }
 
 .prep-library-card:hover {
@@ -2590,8 +2748,14 @@
 
 .prep-library-card-active {
   border-color: color-mix(in srgb, var(--accent-primary) 36%, var(--border-subtle));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 18%, transparent), var(--shadow-sm);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 8%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-primary) 18%, transparent),
+    var(--shadow-sm);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 8%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
 }
 
 .prep-library-card[data-muted='true'] {
@@ -2692,7 +2856,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  transition: box-shadow var(--duration-normal) var(--easing), border-color var(--duration-normal) var(--easing);
+  transition:
+    box-shadow var(--duration-normal) var(--easing),
+    border-color var(--duration-normal) var(--easing);
 }
 
 .prep-card:hover {
@@ -2778,12 +2944,30 @@
   letter-spacing: 0.06em;
 }
 
-.prep-category-opener { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
-.prep-category-behavioral { background: color-mix(in srgb, var(--accent-violet) 14%, transparent); color: var(--accent-violet); }
-.prep-category-technical { background: color-mix(in srgb, var(--accent-primary) 14%, transparent); color: var(--accent-primary); }
-.prep-category-project { background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); color: var(--accent-cyan); }
-.prep-category-metrics { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
-.prep-category-situational { background: color-mix(in srgb, var(--accent-orange) 14%, transparent); color: var(--accent-orange); }
+.prep-category-opener {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.prep-category-behavioral {
+  background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+  color: var(--accent-violet);
+}
+.prep-category-technical {
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  color: var(--accent-primary);
+}
+.prep-category-project {
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  color: var(--accent-cyan);
+}
+.prep-category-metrics {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+.prep-category-situational {
+  background: color-mix(in srgb, var(--accent-orange) 14%, transparent);
+  color: var(--accent-orange);
+}
 
 /* ── Tags ── */
 
@@ -2967,14 +3151,30 @@
 }
 
 /* Tone color tokens — map section names to semantic colors. */
-.prep-section-tone-success         { --prep-section-tone: var(--success); }
-.prep-section-tone-warning         { --prep-section-tone: var(--warning); }
-.prep-section-tone-critical        { --prep-section-tone: var(--status-critical); }
-.prep-section-tone-accent-primary  { --prep-section-tone: var(--accent-primary); }
-.prep-section-tone-accent-violet   { --prep-section-tone: var(--accent-violet); }
-.prep-section-tone-accent-cyan     { --prep-section-tone: var(--accent-cyan); }
-.prep-section-tone-accent-orange   { --prep-section-tone: var(--accent-orange); }
-.prep-section-tone-neutral         { --prep-section-tone: var(--text-tertiary); }
+.prep-section-tone-success {
+  --prep-section-tone: var(--success);
+}
+.prep-section-tone-warning {
+  --prep-section-tone: var(--warning);
+}
+.prep-section-tone-critical {
+  --prep-section-tone: var(--status-critical);
+}
+.prep-section-tone-accent-primary {
+  --prep-section-tone: var(--accent-primary);
+}
+.prep-section-tone-accent-violet {
+  --prep-section-tone: var(--accent-violet);
+}
+.prep-section-tone-accent-cyan {
+  --prep-section-tone: var(--accent-cyan);
+}
+.prep-section-tone-accent-orange {
+  --prep-section-tone: var(--accent-orange);
+}
+.prep-section-tone-neutral {
+  --prep-section-tone: var(--text-tertiary);
+}
 
 .prep-section-header {
   display: flex;
@@ -3079,7 +3279,8 @@
   text-transform: uppercase;
   color: var(--prep-section-tone, var(--text-tertiary));
   background: color-mix(in srgb, var(--prep-section-tone, var(--text-tertiary)) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--prep-section-tone, var(--text-tertiary)) 24%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--prep-section-tone, var(--text-tertiary)) 24%, transparent);
 }
 
 .prep-section-body {
@@ -3261,7 +3462,11 @@
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--accent-cyan) 22%, var(--border-subtle));
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 12%, transparent), transparent 48%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-cyan) 12%, transparent),
+      transparent 48%
+    ),
     color-mix(in srgb, var(--bg-surface) 95%, transparent);
   box-shadow: var(--shadow-sm);
 }
@@ -3273,7 +3478,11 @@
 
 .prep-rules-panel-practice {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 10%, transparent), transparent 48%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-primary) 10%, transparent),
+      transparent 48%
+    ),
     color-mix(in srgb, var(--bg-surface) 95%, transparent);
   border-color: color-mix(in srgb, var(--accent-primary) 20%, var(--border-subtle));
 }
@@ -3885,12 +4094,24 @@
 /* Traffic-light: red `problem` → amber `solution` → green `result`,
  * with `closer/lesson` violet and `note` blue. Mirrors the reference
  * doc and the Live mode story-block treatment. */
-.prep-practice-story-card[data-story-label="problem"]   { --prep-story-tone: var(--status-critical); }
-.prep-practice-story-card[data-story-label="solution"]  { --prep-story-tone: var(--warning); }
-.prep-practice-story-card[data-story-label="result"]    { --prep-story-tone: var(--success); }
-.prep-practice-story-card[data-story-label="closer"]    { --prep-story-tone: var(--accent-violet); }
-.prep-practice-story-card[data-story-label="lesson"]    { --prep-story-tone: var(--accent-violet); }
-.prep-practice-story-card[data-story-label="note"]      { --prep-story-tone: var(--accent-primary); }
+.prep-practice-story-card[data-story-label='problem'] {
+  --prep-story-tone: var(--status-critical);
+}
+.prep-practice-story-card[data-story-label='solution'] {
+  --prep-story-tone: var(--warning);
+}
+.prep-practice-story-card[data-story-label='result'] {
+  --prep-story-tone: var(--success);
+}
+.prep-practice-story-card[data-story-label='closer'] {
+  --prep-story-tone: var(--accent-violet);
+}
+.prep-practice-story-card[data-story-label='lesson'] {
+  --prep-story-tone: var(--accent-violet);
+}
+.prep-practice-story-card[data-story-label='note'] {
+  --prep-story-tone: var(--accent-primary);
+}
 
 .prep-practice-story-card-label {
   color: var(--prep-story-tone, var(--text-tertiary));

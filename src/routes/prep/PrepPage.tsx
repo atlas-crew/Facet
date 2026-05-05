@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight, Download, ExternalLink, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  Plus,
+  Sparkles,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { assembleResume } from '../../engine/assembler'
 import { PrepCardGrid } from './PrepCardGrid'
@@ -16,7 +26,6 @@ import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
-import { createMatchMaterialContext } from '../../utils/matchMaterial'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -64,6 +73,10 @@ const CONTRACT_VIOLATION_SEVERITY_ORDER: Record<PrepContractViolation['severity'
   error: 0,
   warning: 1,
 }
+const UNLINKED_REGENERATION_ERROR =
+  'AI regeneration now requires a Pipeline-linked prep set. Use Generate to create a new prep set from a Pipeline entry.'
+const STALE_PIPELINE_LINK_ERROR =
+  'The Pipeline entry linked to this prep set no longer exists. Link this deck to a current Pipeline entry or recreate it from Generate.'
 
 const ROUND_TYPE_LABELS: Record<string, string> = {
   'hr-screen': 'HR Screen',
@@ -156,7 +169,13 @@ type PrepDebriefDraft = {
 
 function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
   if (!roundType) return 'General'
-  return ROUND_TYPE_LABELS[roundType] ?? roundType.split('-').map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1)).join(' ')
+  return (
+    ROUND_TYPE_LABELS[roundType] ??
+    roundType
+      .split('-')
+      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(' ')
+  )
 }
 
 function formatPrepRoundNumberLabel(roundNumber?: number): string {
@@ -191,9 +210,7 @@ function getLocalDateInputValue(): string {
   return `${year}-${month}-${day}`
 }
 
-function formatPrepOtherIntelDraft(
-  value?: PrepRoundDebriefIntel['other'],
-): string {
+function formatPrepOtherIntelDraft(value?: PrepRoundDebriefIntel['other']): string {
   return Object.entries(value ?? {})
     .map(([key, itemValue]) => `${key}: ${itemValue}`)
     .join('\n')
@@ -227,9 +244,7 @@ function buildPrepDebriefDraft(
       const state = roundNumber
         ? card.perRoundState?.find((item) => item.round === roundNumber)
         : undefined
-      return state
-        ? [[card.id, { status: state.status, notes: state.notes ?? '' }] as const]
-        : []
+      return state ? [[card.id, { status: state.status, notes: state.notes ?? '' }] as const] : []
     }),
   )
 
@@ -296,7 +311,8 @@ function formatPrepCategoryLabel(category: PrepCategory): string {
 
 function sortPrepContextGaps(contextGaps: PrepContextGap[] | undefined): PrepContextGap[] {
   return [...(contextGaps ?? [])].sort((left, right) => {
-    const priorityDelta = CONTEXT_GAP_PRIORITY_ORDER[left.priority] - CONTEXT_GAP_PRIORITY_ORDER[right.priority]
+    const priorityDelta =
+      CONTEXT_GAP_PRIORITY_ORDER[left.priority] - CONTEXT_GAP_PRIORITY_ORDER[right.priority]
     if (priorityDelta !== 0) return priorityDelta
     const sectionDelta = left.section.localeCompare(right.section)
     if (sectionDelta !== 0) return sectionDelta
@@ -305,12 +321,16 @@ function sortPrepContextGaps(contextGaps: PrepContextGap[] | undefined): PrepCon
 }
 
 function countPrepContextGapSections(contextGaps: PrepContextGap[] | undefined): number {
-  return new Set((contextGaps ?? []).map((gap) => gap.section.trim().toLowerCase()).filter(Boolean)).size
+  return new Set((contextGaps ?? []).map((gap) => gap.section.trim().toLowerCase()).filter(Boolean))
+    .size
 }
 
 function prefersLongFormGapAnswer(gap: PrepContextGap): boolean {
   const question = gap.question.trim().toLowerCase()
-  return question.length > 120 || /(describe|story|example|details|context|explain|walk|why|how)/.test(question)
+  return (
+    question.length > 120 ||
+    /(describe|story|example|details|context|explain|walk|why|how)/.test(question)
+  )
 }
 
 function buildPrepContextGapKey(gap: PrepContextGap): string {
@@ -322,9 +342,13 @@ function buildPrepContextGapKey(gap: PrepContextGap): string {
   ].join('::')
 }
 
-function sortPrepContractViolations(violations: PrepContractViolation[] | undefined): PrepContractViolation[] {
+function sortPrepContractViolations(
+  violations: PrepContractViolation[] | undefined,
+): PrepContractViolation[] {
   return [...(violations ?? [])].sort((left, right) => {
-    const severityDelta = CONTRACT_VIOLATION_SEVERITY_ORDER[left.severity] - CONTRACT_VIOLATION_SEVERITY_ORDER[right.severity]
+    const severityDelta =
+      CONTRACT_VIOLATION_SEVERITY_ORDER[left.severity] -
+      CONTRACT_VIOLATION_SEVERITY_ORDER[right.severity]
     if (severityDelta !== 0) return severityDelta
     const fieldDelta = left.field.localeCompare(right.field)
     if (fieldDelta !== 0) return fieldDelta
@@ -334,7 +358,10 @@ function sortPrepContractViolations(violations: PrepContractViolation[] | undefi
   })
 }
 
-function resolvePipelineJdAnalysis(entry: PipelineEntry | null, analyses: JDAnalysis[]): JDAnalysis | null {
+function resolvePipelineJdAnalysis(
+  entry: PipelineEntry | null,
+  analyses: JDAnalysis[],
+): JDAnalysis | null {
   if (!entry) return null
   if (entry.jdAnalysisId) {
     const referencedAnalysis = analyses.find(
@@ -369,11 +396,15 @@ function resolvePrepGenerationContext(
 ): { jdAnalysis: JDAnalysis | null; error: string | null } {
   if (!entry) return { jdAnalysis: null, error: 'Choose a pipeline entry before generating prep.' }
   if (!entry.jobDescription.trim()) {
-    return { jdAnalysis: null, error: 'The selected pipeline entry does not have a job description yet.' }
+    return {
+      jdAnalysis: null,
+      error: 'The selected pipeline entry does not have a job description yet.',
+    }
   }
 
   const jdAnalysis = resolvePipelineJdAnalysis(entry, analyses)
-  if (!jdAnalysis) return { jdAnalysis: null, error: 'Analyze this pipeline JD before generating prep.' }
+  if (!jdAnalysis)
+    return { jdAnalysis: null, error: 'Analyze this pipeline JD before generating prep.' }
 
   const drift = getJdAnalysisDriftStatus(jdAnalysis, {
     jobDescription: entry.jobDescription,
@@ -424,7 +455,9 @@ function PrepGuidanceEditorSection({
   children,
 }: PrepGuidanceEditorSectionProps) {
   return (
-    <section className={`prep-section prep-guidance-section ${isOpen ? 'prep-guidance-section-open' : ''}`}>
+    <section
+      className={`prep-section prep-guidance-section ${isOpen ? 'prep-guidance-section-open' : ''}`}
+    >
       <div className="prep-section-header prep-section-header-collapsible">
         <button
           type="button"
@@ -467,7 +500,9 @@ const DEFAULT_EDIT_GROUP_OPEN = {
 
 type EditGroupOpenState = typeof DEFAULT_EDIT_GROUP_OPEN
 
-function createDefaultEditGroupOpen(overrides: Partial<EditGroupOpenState> = {}): EditGroupOpenState {
+function createDefaultEditGroupOpen(
+  overrides: Partial<EditGroupOpenState> = {},
+): EditGroupOpenState {
   return {
     ...DEFAULT_EDIT_GROUP_OPEN,
     ...overrides,
@@ -484,7 +519,6 @@ export function PrepPage() {
   const [query, setQuery] = useState(search.q ?? '')
   const [category, setCategory] = useState<PrepCategory | 'all'>('all')
   const [vectorFilter, setVectorFilter] = useState(search.vector ?? '')
-  const [generationSource, setGenerationSource] = useState<'match' | 'pipeline'>(currentReport ? 'match' : 'pipeline')
   const [selectedEntryId, setSelectedEntryId] = useState<string>('')
   const [selectedVectorId, setSelectedVectorId] = useState(search.vector ?? '')
   const [companyResearchDraft, setCompanyResearchDraft] = useState('')
@@ -497,12 +531,16 @@ export function PrepPage() {
   const [gapDraftAnswers, setGapDraftAnswers] = useState<Record<string, string>>({})
   const [expandedLibraryGroups, setExpandedLibraryGroups] = useState<Record<string, boolean>>({})
   const [collapsedLibraryGroups, setCollapsedLibraryGroups] = useState<Record<string, boolean>>({})
-  const [editGroupOpen, setEditGroupOpen] = useState<EditGroupOpenState>(() => createDefaultEditGroupOpen())
+  const [editGroupOpen, setEditGroupOpen] = useState<EditGroupOpenState>(() =>
+    createDefaultEditGroupOpen(),
+  )
   const [isDebriefEditorOpen, setIsDebriefEditorOpen] = useState(false)
   const [debriefMode, setDebriefMode] = useState<'quick' | 'card-review'>('quick')
   const [showMoreDebriefFields, setShowMoreDebriefFields] = useState(false)
   const [pendingFocusTarget, setPendingFocusTarget] = useState<'companyResearch' | null>(null)
-  const [debriefDraft, setDebriefDraft] = useState<PrepDebriefDraft>(() => buildPrepDebriefDraft(null, undefined))
+  const [debriefDraft, setDebriefDraft] = useState<PrepDebriefDraft>(() =>
+    buildPrepDebriefDraft(null, undefined),
+  )
   const previousCategoryCountRef = useRef(0)
   const previousContextGapSignatureRef = useRef('')
   const editGroupOpenByDeckRef = useRef<Record<string, EditGroupOpenState>>({})
@@ -532,10 +570,6 @@ export function PrepPage() {
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const resumeData = useResumeStore((state) => state.data)
-  const matchMaterial = useMemo(
-    () => (currentReport ? createMatchMaterialContext(resumeData, currentReport) : null),
-    [currentReport, resumeData],
-  )
   const activeDeck = useMemo(
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [decks, activeDeckId],
@@ -552,42 +586,56 @@ export function PrepPage() {
     },
     [activeDeckId],
   )
-  const toggleEditGroupOpen = useCallback((key: keyof EditGroupOpenState) => {
-    updateEditGroupOpen((current) => ({
-      ...current,
-      [key]: !current[key],
-    }))
-  }, [updateEditGroupOpen])
-  const activeDeckRoundNumber = activeDeck?.roundNumber ?? (activeDeck?.pipelineEntryId ? 1 : undefined)
+  const toggleEditGroupOpen = useCallback(
+    (key: keyof EditGroupOpenState) => {
+      updateEditGroupOpen((current) => ({
+        ...current,
+        [key]: !current[key],
+      }))
+    },
+    [updateEditGroupOpen],
+  )
+  const activeDeckRoundNumber =
+    activeDeck?.roundNumber ?? (activeDeck?.pipelineEntryId ? 1 : undefined)
   const activeDeckContractViolations = useMemo(
     () => sortPrepContractViolations(activeDeck?.contractViolations),
     [activeDeck?.contractViolations],
   )
   const activeDeckContractViolationCounts = useMemo(
     () => ({
-      error: activeDeckContractViolations.filter((violation) => violation.severity === 'error').length,
-      warning: activeDeckContractViolations.filter((violation) => violation.severity === 'warning').length,
+      error: activeDeckContractViolations.filter((violation) => violation.severity === 'error')
+        .length,
+      warning: activeDeckContractViolations.filter((violation) => violation.severity === 'warning')
+        .length,
     }),
     [activeDeckContractViolations],
   )
   const hasPipelineIntelContractViolation = useMemo(
-    () => Boolean(activeDeck?.pipelineEntryId) && activeDeckContractViolations.some((violation) => violation.kind === 'missing-intel'),
+    () =>
+      Boolean(activeDeck?.pipelineEntryId) &&
+      activeDeckContractViolations.some((violation) => violation.kind === 'missing-intel'),
     [activeDeck?.pipelineEntryId, activeDeckContractViolations],
   )
   const hasManualIntelContractViolation = useMemo(
-    () => !activeDeck?.pipelineEntryId && activeDeckContractViolations.some((violation) => violation.kind === 'missing-intel'),
+    () =>
+      !activeDeck?.pipelineEntryId &&
+      activeDeckContractViolations.some((violation) => violation.kind === 'missing-intel'),
     [activeDeck?.pipelineEntryId, activeDeckContractViolations],
   )
   const activeDeckRoundDebrief = useMemo(
-    () => activeDeckRoundNumber
-      ? activeDeck?.roundDebriefs?.find((item) => item.round === activeDeckRoundNumber)
-      : undefined,
+    () =>
+      activeDeckRoundNumber
+        ? activeDeck?.roundDebriefs?.find((item) => item.round === activeDeckRoundNumber)
+        : undefined,
     [activeDeck?.roundDebriefs, activeDeckRoundNumber],
   )
   const relatedRoundDecks = useMemo(
-    () => activeDeck?.pipelineEntryId
-      ? sortPrepRoundDecks(decks.filter((deck) => deck.pipelineEntryId === activeDeck.pipelineEntryId))
-      : [],
+    () =>
+      activeDeck?.pipelineEntryId
+        ? sortPrepRoundDecks(
+            decks.filter((deck) => deck.pipelineEntryId === activeDeck.pipelineEntryId),
+          )
+        : [],
     [activeDeck?.pipelineEntryId, decks],
   )
   const previousRoundDeck = useMemo(() => {
@@ -598,30 +646,34 @@ export function PrepPage() {
     return candidates.length > 0 ? candidates[candidates.length - 1] : null
   }, [activeDeck, activeDeckRoundNumber, relatedRoundDecks])
   const isRoundNumberLocked = useMemo(
-    () => Boolean(activeDeck?.pipelineEntryId) ||
+    () =>
+      Boolean(activeDeck?.pipelineEntryId) ||
       Boolean(activeDeck?.roundDebriefs?.length) ||
       Boolean(activeDeck?.cards.some((card) => (card.perRoundState?.length ?? 0) > 0)),
     [activeDeck?.cards, activeDeck?.pipelineEntryId, activeDeck?.roundDebriefs?.length],
   )
-  const getPipelineRoundGenerationContext = useCallback((pipelineEntryId?: string | null) => {
-    if (!pipelineEntryId) {
-      return {
-        nextRoundNumber: undefined as number | undefined,
-        previousDeck: null as PrepDeck | null,
-        carriedRoundDebriefs: undefined as PrepRoundDebrief[] | undefined,
+  const getPipelineRoundGenerationContext = useCallback(
+    (pipelineEntryId?: string | null) => {
+      if (!pipelineEntryId) {
+        return {
+          nextRoundNumber: undefined as number | undefined,
+          previousDeck: null as PrepDeck | null,
+          carriedRoundDebriefs: undefined as PrepRoundDebrief[] | undefined,
+        }
       }
-    }
 
-    const relatedDecks = sortPrepRoundDecks(
-      decks.filter((deck) => deck.pipelineEntryId === pipelineEntryId),
-    )
-    const previousDeck = relatedDecks.length > 0 ? relatedDecks[relatedDecks.length - 1] : null
-    return {
-      nextRoundNumber: previousDeck ? (previousDeck.roundNumber ?? 1) + 1 : 1,
-      previousDeck,
-      carriedRoundDebriefs: collectPrepRoundDebriefHistory(decks, pipelineEntryId),
-    }
-  }, [decks])
+      const relatedDecks = sortPrepRoundDecks(
+        decks.filter((deck) => deck.pipelineEntryId === pipelineEntryId),
+      )
+      const previousDeck = relatedDecks.length > 0 ? relatedDecks[relatedDecks.length - 1] : null
+      return {
+        nextRoundNumber: previousDeck ? (previousDeck.roundNumber ?? 1) + 1 : 1,
+        previousDeck,
+        carriedRoundDebriefs: collectPrepRoundDebriefHistory(decks, pipelineEntryId),
+      }
+    },
+    [decks],
+  )
   const deckLibrary = useMemo(
     () => [...decks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [decks],
@@ -654,9 +706,11 @@ export function PrepPage() {
   }, [deckLibrary])
 
   const activeLibraryGroupKey = useMemo(
-    () => activeDeck?.id
-      ? groupedLibrary.find((group) => group.decks.some((deck) => deck.id === activeDeck.id))?.companyKey ?? null
-      : null,
+    () =>
+      activeDeck?.id
+        ? (groupedLibrary.find((group) => group.decks.some((deck) => deck.id === activeDeck.id))
+            ?.companyKey ?? null)
+        : null,
     [activeDeck?.id, groupedLibrary],
   )
 
@@ -669,23 +723,22 @@ export function PrepPage() {
   useEffect(() => {
     // Keep the active deck visible when the user switches to a deck in a collapsed company group.
     if (!activeLibraryGroupKey) return
-    setCollapsedLibraryGroups((current) => (
+    setCollapsedLibraryGroups((current) =>
       current[activeLibraryGroupKey]
         ? {
             ...current,
             [activeLibraryGroupKey]: false,
           }
-        : current
-    ))
+        : current,
+    )
   }, [activeLibraryGroupKey])
 
-  const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
-    [],
-  )
+  const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
 
   const candidateEntries = useMemo(() => {
-    const byStatus = [...pipelineEntries].sort((left, right) => right.lastAction.localeCompare(left.lastAction))
+    const byStatus = [...pipelineEntries].sort((left, right) =>
+      right.lastAction.localeCompare(left.lastAction),
+    )
     if (!vectorFilter) return byStatus
     return byStatus.filter((entry) => entry.vectorId === vectorFilter)
   }, [pipelineEntries, vectorFilter])
@@ -700,12 +753,6 @@ export function PrepPage() {
     }
   }, [candidateEntries, search.vector, selectedEntryId])
 
-  useEffect(() => {
-    if (!currentReport && generationSource === 'match') {
-      setGenerationSource('pipeline')
-    }
-  }, [currentReport, generationSource])
-
   const selectedEntry = useMemo(
     () => pipelineEntries.find((entry) => entry.id === selectedEntryId) ?? null,
     [pipelineEntries, selectedEntryId],
@@ -717,12 +764,6 @@ export function PrepPage() {
       setSelectedEntryId('')
     }
   }, [selectedEntry, selectedEntryId])
-
-  useEffect(() => {
-    if (generationSource !== 'match' || !matchMaterial) return
-    setSelectedVectorId(matchMaterial.vector.id)
-    setCompanyResearchDraft((current) => current || matchMaterial.briefingNotes)
-  }, [generationSource, matchMaterial])
 
   const filteredCards = useMemo(() => {
     const cards = activeDeck?.cards ?? []
@@ -766,17 +807,19 @@ export function PrepPage() {
     return result
   }, [activeDeck?.cards, category, query, search.skills, vectorFilter])
   const linkedPipelineEntry = useMemo(
-    () => activeDeck?.pipelineEntryId ? pipelineEntries.find((entry) => entry.id === activeDeck.pipelineEntryId) ?? null : null,
+    () =>
+      activeDeck?.pipelineEntryId
+        ? (pipelineEntries.find((entry) => entry.id === activeDeck.pipelineEntryId) ?? null)
+        : null,
     [activeDeck?.pipelineEntryId, pipelineEntries],
   )
   const roundTypeOptions = useMemo(() => {
     const sourceOptions = linkedPipelineEntry?.format.length
       ? linkedPipelineEntry.format
       : [...INTERVIEW_FORMAT_VALUES]
-    return [...new Set([
-      ...(activeDeck?.roundType ? [activeDeck.roundType] : []),
-      ...sourceOptions,
-    ])]
+    return [
+      ...new Set([...(activeDeck?.roundType ? [activeDeck.roundType] : []), ...sourceOptions]),
+    ]
   }, [activeDeck?.roundType, linkedPipelineEntry])
   const activeDeckCategories = useMemo(
     () => [...new Set((activeDeck?.cards ?? []).map((card) => card.category))],
@@ -799,15 +842,17 @@ export function PrepPage() {
     [activeDeckContextGaps],
   )
   const answeredGapCount = useMemo(
-    () => activeDeckContextGaps.filter((gap) => activeDeck?.contextGapAnswers?.[gap.id]?.trim()).length,
+    () =>
+      activeDeckContextGaps.filter((gap) => activeDeck?.contextGapAnswers?.[gap.id]?.trim()).length,
     [activeDeck?.contextGapAnswers, activeDeckContextGaps],
   )
   const hasIdentityGapAnswers = useMemo(
     () =>
-      activeDeckContextGaps.some((gap) => (
-        gap.feedbackTarget?.startsWith('identity.') &&
-        Boolean(activeDeck?.contextGapAnswers?.[gap.id]?.trim())
-      )),
+      activeDeckContextGaps.some(
+        (gap) =>
+          gap.feedbackTarget?.startsWith('identity.') &&
+          Boolean(activeDeck?.contextGapAnswers?.[gap.id]?.trim()),
+      ),
     [activeDeck?.contextGapAnswers, activeDeckContextGaps],
   )
   const activeGap = activeDeckContextGaps[gapStepIndex] ?? null
@@ -839,7 +884,7 @@ export function PrepPage() {
   useEffect(() => {
     // Reset gap-modal state when switching between decks so draft answers never bleed across prep sets.
     const currentDeck = activeDeckId
-      ? usePrepStore.getState().decks.find((deck) => deck.id === activeDeckId) ?? null
+      ? (usePrepStore.getState().decks.find((deck) => deck.id === activeDeckId) ?? null)
       : null
     setGapStepIndex(0)
     setGapDraftAnswers({})
@@ -882,7 +927,9 @@ export function PrepPage() {
         }
         importDecks(result.decks)
         if (result.skipped > 0) {
-          window.alert(`Imported ${result.decks.length} deck(s). ${result.skipped} records were skipped.`)
+          window.alert(
+            `Imported ${result.decks.length} deck(s). ${result.skipped} records were skipped.`,
+          )
         }
       })
       event.target.value = ''
@@ -901,42 +948,83 @@ export function PrepPage() {
   }, [exportDecks])
 
   const handleCreateBlankDeck = useCallback(() => {
-    const pipelineRoundContext =
-      generationSource === 'pipeline'
-        ? getPipelineRoundGenerationContext(selectedEntry?.id ?? null)
-        : { nextRoundNumber: undefined, carriedRoundDebriefs: undefined }
-    const vectorId =
-      generationSource === 'match'
-        ? (matchMaterial?.vector.id ?? activeDeck?.vectorId ?? '')
-        : (selectedVectorId || activeDeck?.vectorId || '')
-    const title = generationSource === 'match' && matchMaterial
-      ? `${matchMaterial.company} ${matchMaterial.role} Interview Prep`
-      : selectedEntry != null
+    const pipelineRoundContext = selectedEntry
+      ? getPipelineRoundGenerationContext(selectedEntry.id)
+      : { nextRoundNumber: undefined, carriedRoundDebriefs: undefined }
+    const vectorId = selectedVectorId || activeDeck?.vectorId || ''
+    const title =
+      selectedEntry != null
         ? `${selectedEntry.company} ${selectedEntry.role} Interview Prep`
         : 'Interview Prep'
     createDeck({
       title,
-      company:
-        generationSource === 'match'
-          ? (matchMaterial?.company ?? activeDeck?.company ?? '')
-          : (selectedEntry?.company ?? activeDeck?.company ?? ''),
-      role:
-        generationSource === 'match'
-          ? (matchMaterial?.role ?? activeDeck?.role ?? '')
-          : (selectedEntry?.role ?? activeDeck?.role ?? ''),
+      company: selectedEntry?.company ?? activeDeck?.company ?? '',
+      role: selectedEntry?.role ?? activeDeck?.role ?? '',
       vectorId,
-      pipelineEntryId: generationSource === 'pipeline' ? selectedEntry?.id ?? null : null,
-      companyUrl: generationSource === 'pipeline' ? selectedEntry?.url || undefined : undefined,
-      skillMatch: generationSource === 'match' ? matchMaterial?.skillMatch : selectedEntry?.skillMatch || undefined,
-      positioning: generationSource === 'match' ? matchMaterial?.positioning : selectedEntry?.positioning || undefined,
-      notes: generationSource === 'match' ? matchMaterial?.notes : selectedEntry?.notes || undefined,
+      pipelineEntryId: selectedEntry?.id ?? null,
+      companyUrl: selectedEntry?.url || undefined,
+      skillMatch: selectedEntry?.skillMatch || undefined,
+      positioning: selectedEntry?.positioning || undefined,
+      notes: selectedEntry?.notes || undefined,
       companyResearch: companyResearchDraft || undefined,
-      jobDescription: generationSource === 'match' ? matchMaterial?.jobDescription : selectedEntry?.jobDescription || undefined,
-      roundNumber: generationSource === 'pipeline' ? pipelineRoundContext.nextRoundNumber : undefined,
-      roundDebriefs: generationSource === 'pipeline' ? pipelineRoundContext.carriedRoundDebriefs : undefined,
+      jobDescription: selectedEntry?.jobDescription || undefined,
+      roundNumber: pipelineRoundContext.nextRoundNumber,
+      roundDebriefs: pipelineRoundContext.carriedRoundDebriefs,
       cards: [],
     })
-  }, [activeDeck?.company, activeDeck?.role, activeDeck?.vectorId, companyResearchDraft, createDeck, generationSource, getPipelineRoundGenerationContext, matchMaterial, selectedEntry, selectedVectorId])
+  }, [
+    activeDeck?.company,
+    activeDeck?.role,
+    activeDeck?.vectorId,
+    companyResearchDraft,
+    createDeck,
+    getPipelineRoundGenerationContext,
+    selectedEntry,
+    selectedVectorId,
+  ])
+
+  const handleLinkActiveDeckToSelectedEntry = useCallback(() => {
+    if (!activeDeck) return
+    if (!selectedEntry) {
+      setGenerationError('Choose a pipeline entry before linking this prep set.')
+      setIsGenerateDrawerOpen(true)
+      return
+    }
+
+    const freshJdAnalyses = useJDAnalysisStore.getState().analyses
+    const generationContext = resolvePrepGenerationContext(
+      selectedEntry,
+      Array.isArray(freshJdAnalyses) ? freshJdAnalyses : [],
+      currentIdentity,
+    )
+    if (generationContext.error || !generationContext.jdAnalysis) {
+      setGenerationError(generationContext.error ?? 'Analyze this pipeline JD before linking prep.')
+      setIsGenerateDrawerOpen(true)
+      return
+    }
+
+    const jdAnalysis = generationContext.jdAnalysis
+    updateDeck(activeDeck.id, {
+      title: `${selectedEntry.company} ${selectedEntry.role} Interview Prep`,
+      pipelineEntryId: selectedEntry.id,
+      company: selectedEntry.company,
+      role: selectedEntry.role,
+      vectorId: selectedEntry.vectorId || activeDeck.vectorId,
+      companyUrl: selectedEntry.url || activeDeck.companyUrl,
+      skillMatch: selectedEntry.skillMatch || activeDeck.skillMatch,
+      positioning: selectedEntry.positioning || activeDeck.positioning,
+      notes: selectedEntry.notes || activeDeck.notes,
+      jobDescription: selectedEntry.jobDescription || activeDeck.jobDescription,
+      jdAnalysisId: jdAnalysis.id,
+      jdAnalysisGeneratedAt: jdAnalysis.generatedAt,
+      jdAnalysisModelVersion: jdAnalysis.modelVersion,
+      jdTextHash: jdAnalysis.jdTextHash,
+    })
+    setSelectedVectorId(selectedEntry.vectorId || activeDeck.vectorId || '')
+    setCompanyResearchDraft(buildPrepCompanyResearchNotes(selectedEntry))
+    setGenerationError(null)
+    setIsGenerateDrawerOpen(true)
+  }, [activeDeck, currentIdentity, selectedEntry, updateDeck])
 
   const handleGenerate = useCallback(async () => {
     if (!aiEndpoint) {
@@ -949,93 +1037,6 @@ export function PrepPage() {
 
     try {
       const freshResumeData = useResumeStore.getState().data
-      const activeMatchMaterial =
-        generationSource === 'match' && currentReport
-          ? createMatchMaterialContext(freshResumeData, currentReport)
-          : null
-
-      if (generationSource === 'match') {
-        if (!activeMatchMaterial) {
-          setGenerationError('Generate a Phase 1 match report before generating prep.')
-          return
-        }
-        const activeMatchJDAnalysis = useMatchStore.getState().currentJDAnalysis
-        if (!activeMatchJDAnalysis) {
-          setGenerationError('Generate a Phase 1 JD analysis before generating prep.')
-          return
-        }
-        const matchDrift = getJdAnalysisDriftStatus(activeMatchJDAnalysis, {
-          jobDescription: activeMatchMaterial.jobDescription,
-          identityVersion: resolvePrepGenerationIdentityVersion(activeMatchJDAnalysis, currentIdentity),
-        })
-        if (matchDrift.stale) {
-          const reasonText = formatJdAnalysisDriftReason(matchDrift.reasons)
-          setGenerationError(
-            reasonText
-              ? 'Refresh JD analysis before generating prep (' + reasonText + ').'
-              : 'Refresh JD analysis before generating prep.',
-          )
-          return
-        }
-
-        const prepIdentityContext = currentIdentity
-          ? buildPrepIdentityContext(currentIdentity, activeMatchMaterial.vector.id, activeMatchMaterial.vector.label)
-          : undefined
-
-        const result = await generateInterviewPrep(aiEndpoint, {
-          company: activeMatchMaterial.company,
-          role: activeMatchMaterial.role,
-          vectorId: activeMatchMaterial.vector.id,
-          vectorLabel: activeMatchMaterial.vector.label,
-          skillMatch: activeMatchMaterial.skillMatch,
-          positioning: activeMatchMaterial.positioning,
-          notes: activeMatchMaterial.notes,
-          companyResearch: companyResearchDraft || undefined,
-          jobDescription: activeMatchMaterial.jobDescription,
-          jdAnalysis: activeMatchJDAnalysis,
-          identityContext: prepIdentityContext,
-          resumeContext: {
-            candidate: freshResumeData.meta,
-            vector: activeMatchMaterial.vector,
-            assembled: activeMatchMaterial.assembled,
-          },
-        })
-
-        createDeck({
-          title: result.deckTitle,
-          company: activeMatchMaterial.company,
-          role: activeMatchMaterial.role,
-          vectorId: activeMatchMaterial.vector.id,
-          pipelineEntryId: null,
-          rules: result.rules,
-          donts: result.donts,
-          questionsToAsk: result.questionsToAsk,
-          numbersToKnow: result.numbersToKnow,
-          stackAlignment: result.stackAlignment,
-          categoryGuidance: result.categoryGuidance,
-          contextGaps: result.contextGaps,
-          contractViolations: result.contractViolations,
-          skillMatch: activeMatchMaterial.skillMatch,
-          positioning: activeMatchMaterial.positioning,
-          notes: activeMatchMaterial.notes,
-          companyResearch: result.companyResearchSummary || companyResearchDraft || undefined,
-          jobDescription: activeMatchMaterial.jobDescription,
-          jdAnalysisId: activeMatchJDAnalysis.id,
-          jdAnalysisGeneratedAt: activeMatchJDAnalysis.generatedAt,
-          jdAnalysisModelVersion: activeMatchJDAnalysis.modelVersion,
-          jdTextHash: activeMatchJDAnalysis.jdTextHash,
-          generatedAt: new Date().toISOString(),
-          cards: result.cards.map((card) => ({
-            ...card,
-            company: activeMatchMaterial.company,
-            role: activeMatchMaterial.role,
-            vectorId: activeMatchMaterial.vector.id,
-            pipelineEntryId: null,
-            source: 'ai',
-          })),
-        })
-        return
-      }
 
       if (!selectedEntry) {
         setGenerationError('Choose a pipeline entry before generating prep.')
@@ -1048,16 +1049,19 @@ export function PrepPage() {
         currentIdentity,
       )
       if (generationContext.error || !generationContext.jdAnalysis) {
-        setGenerationError(generationContext.error ?? 'Analyze this pipeline JD before generating prep.')
+        setGenerationError(
+          generationContext.error ?? 'Analyze this pipeline JD before generating prep.',
+        )
         return
       }
       const jdAnalysis = generationContext.jdAnalysis
 
       const vector = selectedVectorId
-        ? freshResumeData.vectors.find((item) => item.id === selectedVectorId) ?? null
+        ? (freshResumeData.vectors.find((item) => item.id === selectedVectorId) ?? null)
         : null
       const pipelineRoundContext = getPipelineRoundGenerationContext(selectedEntry.id)
-      const selectedRoundType = selectedEntry.format.length === 1 ? selectedEntry.format[0] : undefined
+      const selectedRoundType =
+        selectedEntry.format.length === 1 ? selectedEntry.format[0] : undefined
       const prepIdentityContext = currentIdentity
         ? buildPrepIdentityContext(currentIdentity, vector?.id, vector?.label)
         : undefined
@@ -1098,9 +1102,10 @@ export function PrepPage() {
       })
 
       createDeck({
-        title: pipelineRoundContext.nextRoundNumber && pipelineRoundContext.nextRoundNumber > 1
-          ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(pipelineRoundContext.nextRoundNumber)}`
-          : result.deckTitle,
+        title:
+          pipelineRoundContext.nextRoundNumber && pipelineRoundContext.nextRoundNumber > 1
+            ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(pipelineRoundContext.nextRoundNumber)}`
+            : result.deckTitle,
         company: selectedEntry.company,
         role: selectedEntry.role,
         vectorId: vector?.id,
@@ -1141,33 +1146,24 @@ export function PrepPage() {
     } finally {
       setIsGenerating(false)
     }
-  }, [aiEndpoint, companyResearchDraft, createDeck, currentIdentity, currentReport, generationSource, getPipelineRoundGenerationContext, selectedEntry, selectedVectorId])
-
-  const handleGenerationSourceChange = useCallback((nextSource: 'match' | 'pipeline') => {
-    setGenerationSource(nextSource)
-    setGenerationError(null)
-    if (nextSource === 'match' && matchMaterial) {
-      setSelectedVectorId(matchMaterial.vector.id)
-      setCompanyResearchDraft(matchMaterial.briefingNotes)
-      return
-    }
-
-    if (nextSource === 'pipeline' && selectedEntry) {
-      setSelectedVectorId(selectedEntry.vectorId ?? '')
-      setCompanyResearchDraft(buildPrepCompanyResearchNotes(selectedEntry))
-    }
-  }, [matchMaterial, selectedEntry])
+  }, [
+    aiEndpoint,
+    companyResearchDraft,
+    createDeck,
+    currentIdentity,
+    getPipelineRoundGenerationContext,
+    selectedEntry,
+    selectedVectorId,
+  ])
 
   const handleAddCard = useCallback(() => {
     if (!activeDeck) return
     addCard(activeDeck.id, {
       category: 'behavioral',
       title: 'New Prep Card',
-      tags: [
-        activeDeck.company,
-        activeDeck.role,
-        activeDeck.vectorId,
-      ].filter((tag): tag is string => Boolean(tag)),
+      tags: [activeDeck.company, activeDeck.role, activeDeck.vectorId].filter(
+        (tag): tag is string => Boolean(tag),
+      ),
       company: activeDeck.company || undefined,
       role: activeDeck.role || undefined,
       vectorId: activeDeck.vectorId || undefined,
@@ -1182,7 +1178,9 @@ export function PrepPage() {
       updateCard(
         activeDeck.id,
         cardId,
-        currentCard?.source === 'ai' && patch.source === undefined && shouldPromotePrepCardToManual(patch)
+        currentCard?.source === 'ai' &&
+          patch.source === undefined &&
+          shouldPromotePrepCardToManual(patch)
           ? { ...patch, source: 'manual' as const }
           : patch,
       )
@@ -1222,7 +1220,11 @@ export function PrepPage() {
   }, [setActiveMode, updateEditGroupOpen])
 
   useEffect(() => {
-    if (pendingFocusTarget !== 'companyResearch' || activeMode !== 'edit' || !editGroupOpen.sourceMaterial) {
+    if (
+      pendingFocusTarget !== 'companyResearch' ||
+      activeMode !== 'edit' ||
+      !editGroupOpen.sourceMaterial
+    ) {
       return
     }
     const field = companyResearchFieldRef.current
@@ -1271,7 +1273,7 @@ export function PrepPage() {
       if (!activeDeck) return
       const currentItems = activeDeck[field] ?? []
       updateActiveDeck({
-        [field]: currentItems.map((item, itemIndex) => itemIndex === index ? value : item),
+        [field]: currentItems.map((item, itemIndex) => (itemIndex === index ? value : item)),
       })
     },
     [activeDeck, updateActiveDeck],
@@ -1281,9 +1283,9 @@ export function PrepPage() {
       if (!activeDeck) return
       const currentItems = activeDeck.questionsToAsk ?? []
       updateActiveDeck({
-        questionsToAsk: currentItems.map((item, itemIndex) => (
-          itemIndex === index ? { ...item, ...patch } : item
-        )),
+        questionsToAsk: currentItems.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, ...patch } : item,
+        ),
       })
     },
     [activeDeck, updateActiveDeck],
@@ -1303,18 +1305,21 @@ export function PrepPage() {
       },
     }))
   }, [])
-  const updateDebriefCardState = useCallback((cardId: string, patch: Partial<{ status: PrepCardRoundStatus; notes: string }>) => {
-    setDebriefDraft((current) => ({
-      ...current,
-      cardStates: {
-        ...current.cardStates,
-        [cardId]: {
-          status: patch.status ?? current.cardStates[cardId]?.status ?? 'untested',
-          notes: patch.notes ?? current.cardStates[cardId]?.notes ?? '',
+  const updateDebriefCardState = useCallback(
+    (cardId: string, patch: Partial<{ status: PrepCardRoundStatus; notes: string }>) => {
+      setDebriefDraft((current) => ({
+        ...current,
+        cardStates: {
+          ...current.cardStates,
+          [cardId]: {
+            status: patch.status ?? current.cardStates[cardId]?.status ?? 'untested',
+            notes: patch.notes ?? current.cardStates[cardId]?.notes ?? '',
+          },
         },
-      },
-    }))
-  }, [])
+      }))
+    },
+    [],
+  )
   const handleSaveDebrief = useCallback(() => {
     if (!activeDeck || !activeDeckRoundNumber) return
 
@@ -1331,9 +1336,7 @@ export function PrepPage() {
         ...(debriefDraft.intel.topChallenge.trim()
           ? { topChallenge: debriefDraft.intel.topChallenge.trim() }
           : {}),
-        ...(debriefDraft.intel.volume.trim()
-          ? { volume: debriefDraft.intel.volume.trim() }
-          : {}),
+        ...(debriefDraft.intel.volume.trim() ? { volume: debriefDraft.intel.volume.trim() } : {}),
         ...(debriefDraft.intel.securityPosture.trim()
           ? { securityPosture: debriefDraft.intel.securityPosture.trim() }
           : {}),
@@ -1354,12 +1357,11 @@ export function PrepPage() {
     }
 
     const nextRoundDebriefs = [
-      ...(collectPrepRoundDebriefHistory(
-        usePrepStore.getState().decks,
-        activeDeck.pipelineEntryId,
-      ) ?? activeDeck.roundDebriefs ?? []).filter(
-        (item) => item.round !== activeDeckRoundNumber,
-      ),
+      ...(
+        collectPrepRoundDebriefHistory(usePrepStore.getState().decks, activeDeck.pipelineEntryId) ??
+        activeDeck.roundDebriefs ??
+        []
+      ).filter((item) => item.round !== activeDeckRoundNumber),
       nextDebrief,
     ].sort((left, right) => left.round - right.round)
 
@@ -1368,7 +1370,9 @@ export function PrepPage() {
       activeDeck.id,
       activeDeck.cards.map((card) => {
         const draftState = debriefDraft.cardStates[card.id]
-        const nextStates = [...(card.perRoundState ?? []).filter((item) => item.round !== activeDeckRoundNumber)]
+        const nextStates = [
+          ...(card.perRoundState ?? []).filter((item) => item.round !== activeDeckRoundNumber),
+        ]
         if (draftState && (draftState.status !== 'untested' || draftState.notes.trim())) {
           nextStates.push({
             round: activeDeckRoundNumber,
@@ -1378,7 +1382,10 @@ export function PrepPage() {
         }
         return {
           ...card,
-          perRoundState: nextStates.length > 0 ? nextStates.sort((left, right) => left.round - right.round) : undefined,
+          perRoundState:
+            nextStates.length > 0
+              ? nextStates.sort((left, right) => left.round - right.round)
+              : undefined,
         }
       }),
     )
@@ -1386,9 +1393,7 @@ export function PrepPage() {
   }, [activeDeck, activeDeckRoundNumber, debriefDraft, replaceDeckCards, updateDeck])
   const handleCopyPreviousRoundCards = useCallback(() => {
     if (!activeDeck || !previousRoundDeck) return
-    const existingTitles = new Set(
-      activeDeck.cards.map((card) => card.title.trim().toLowerCase()),
-    )
+    const existingTitles = new Set(activeDeck.cards.map((card) => card.title.trim().toLowerCase()))
     const cardsToCopy = previousRoundDeck.cards.filter(
       (card) => !existingTitles.has(card.title.trim().toLowerCase()),
     )
@@ -1426,26 +1431,34 @@ export function PrepPage() {
       modalReturnFocusRef.current = document.activeElement
     }
     setGapDraftAnswers(activeDeck.contextGapAnswers ?? {})
-    const firstUnansweredIndex = activeDeckContextGaps.findIndex((gap) => !(activeDeck.contextGapAnswers?.[gap.id]?.trim()))
+    const firstUnansweredIndex = activeDeckContextGaps.findIndex(
+      (gap) => !activeDeck.contextGapAnswers?.[gap.id]?.trim(),
+    )
     setGapStepIndex(firstUnansweredIndex >= 0 ? firstUnansweredIndex : 0)
     setIsGapModalOpen(true)
   }, [activeDeck, activeDeckContextGaps])
-  const persistGapAnswers = useCallback((answers: Record<string, string>) => {
-    if (!activeDeck) return
-    updateDeck(activeDeck.id, { contextGapAnswers: answers })
-  }, [activeDeck, updateDeck])
+  const persistGapAnswers = useCallback(
+    (answers: Record<string, string>) => {
+      if (!activeDeck) return
+      updateDeck(activeDeck.id, { contextGapAnswers: answers })
+    },
+    [activeDeck, updateDeck],
+  )
   const closeContextGapModal = useCallback(() => {
     persistGapAnswers(gapDraftAnswers)
     setIsGapModalOpen(false)
   }, [gapDraftAnswers, persistGapAnswers])
-  const advanceGapStep = useCallback((nextIndex: number, answers: Record<string, string>) => {
-    persistGapAnswers(answers)
-    if (nextIndex >= activeDeckContextGaps.length) {
-      setIsGapModalOpen(false)
-      return
-    }
-    setGapStepIndex(nextIndex)
-  }, [activeDeckContextGaps.length, persistGapAnswers])
+  const advanceGapStep = useCallback(
+    (nextIndex: number, answers: Record<string, string>) => {
+      persistGapAnswers(answers)
+      if (nextIndex >= activeDeckContextGaps.length) {
+        setIsGapModalOpen(false)
+        return
+      }
+      setGapStepIndex(nextIndex)
+    },
+    [activeDeckContextGaps.length, persistGapAnswers],
+  )
   const handleGapAnswerSubmit = useCallback(() => {
     if (!activeGap) return
     const normalizedAnswer = (gapDraftAnswers[activeGap.id] ?? '').trim()
@@ -1485,12 +1498,15 @@ export function PrepPage() {
     }
     return draft
   }, [activeDeck, currentIdentity])
-  const applyIdentityGapDraft = useCallback((draft: NonNullable<ReturnType<typeof buildCurrentIdentityGapDraft>>) => {
-    setGenerationError(null)
-    setIsIdentityDraftConfirmOpen(false)
-    useIdentityStore.getState().setDraft(draft)
-    void navigate({ to: '/identity' })
-  }, [navigate])
+  const applyIdentityGapDraft = useCallback(
+    (draft: NonNullable<ReturnType<typeof buildCurrentIdentityGapDraft>>) => {
+      setGenerationError(null)
+      setIsIdentityDraftConfirmOpen(false)
+      useIdentityStore.getState().setDraft(draft)
+      void navigate({ to: '/identity' })
+    },
+    [navigate],
+  )
   const handleQueueIdentityDraft = useCallback(() => {
     const draft = buildCurrentIdentityGapDraft()
     if (!draft) return
@@ -1525,9 +1541,14 @@ export function PrepPage() {
     }
 
     const getFocusableElements = () =>
-      Array.from(activeModalCard.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true')
+      Array.from(
+        activeModalCard.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter(
+        (element) =>
+          !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true',
+      )
 
     const focusInitialElement = () => {
       if (isGapModalOpen && gapAnswerFieldRef.current) {
@@ -1562,7 +1583,8 @@ export function PrepPage() {
 
       const firstFocusable = focusable[0]
       const lastFocusable = focusable[focusable.length - 1]
-      const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const activeElement =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null
 
       if (!activeElement || !activeModalCard.contains(activeElement)) {
         event.preventDefault()
@@ -1602,7 +1624,8 @@ export function PrepPage() {
       previousContextGapSignatureRef.current = activeDeckContextGapSignature
       return
     }
-    const contextGapSignatureChanged = previousContextGapSignatureRef.current !== activeDeckContextGapSignature
+    const contextGapSignatureChanged =
+      previousContextGapSignatureRef.current !== activeDeckContextGapSignature
     previousContextGapSignatureRef.current = activeDeckContextGapSignature
     if (contextGapSignatureChanged && Object.keys(gapDraftAnswers).length > 0) {
       persistGapAnswers(gapDraftAnswers)
@@ -1614,7 +1637,14 @@ export function PrepPage() {
     if (gapStepIndex >= activeDeckContextGaps.length) {
       setGapStepIndex(Math.max(0, activeDeckContextGaps.length - 1))
     }
-  }, [activeDeckContextGapSignature, activeDeckContextGaps.length, gapDraftAnswers, gapStepIndex, isGapModalOpen, persistGapAnswers])
+  }, [
+    activeDeckContextGapSignature,
+    activeDeckContextGaps.length,
+    gapDraftAnswers,
+    gapStepIndex,
+    isGapModalOpen,
+    persistGapAnswers,
+  ])
   const handleRegenerateWithGapAnswers = useCallback(async () => {
     if (!activeDeck) return
     if (!aiEndpoint) {
@@ -1641,56 +1671,48 @@ export function PrepPage() {
       return
     }
     const vector = latestDeck.vectorId
-      ? freshResumeData.vectors.find((entry) => entry.id === latestDeck.vectorId) ?? null
+      ? (freshResumeData.vectors.find((entry) => entry.id === latestDeck.vectorId) ?? null)
       : null
     const linkedPipelineEntry = latestDeck.pipelineEntryId
-      ? usePipelineStore.getState().entries.find((entry) => entry.id === latestDeck.pipelineEntryId) ?? null
+      ? (usePipelineStore
+          .getState()
+          .entries.find((entry) => entry.id === latestDeck.pipelineEntryId) ?? null)
       : null
+    if (!latestDeck.pipelineEntryId) {
+      setGenerationError(UNLINKED_REGENERATION_ERROR)
+      return
+    }
+    if (!linkedPipelineEntry) {
+      setGenerationError(STALE_PIPELINE_LINK_ERROR)
+      return
+    }
     const freshJdAnalyses = useJDAnalysisStore.getState().analyses
-    const pipelineGenerationContext = latestDeck.pipelineEntryId
-      ? resolvePrepGenerationContext(
-          linkedPipelineEntry,
-          Array.isArray(freshJdAnalyses) ? freshJdAnalyses : [],
-          currentIdentity,
-        )
-      : { jdAnalysis: null, error: null }
-    const matchJDAnalysis = !latestDeck.pipelineEntryId
-      ? useMatchStore.getState().currentJDAnalysis
-      : null
-    const jdAnalysis = latestDeck.pipelineEntryId
-      ? pipelineGenerationContext.jdAnalysis
-      : matchJDAnalysis
+    const pipelineGenerationContext = resolvePrepGenerationContext(
+      linkedPipelineEntry,
+      Array.isArray(freshJdAnalyses) ? freshJdAnalyses : [],
+      currentIdentity,
+    )
+    const jdAnalysis = pipelineGenerationContext.jdAnalysis
     if (pipelineGenerationContext.error || !jdAnalysis) {
       setGenerationError(
-        pipelineGenerationContext.error
-          ?? 'Promote this job to Pipeline and analyze its JD before regenerating prep.',
+        pipelineGenerationContext.error ?? 'Analyze this pipeline JD before regenerating prep.',
       )
       return
     }
-    const effectiveJobDescription = linkedPipelineEntry?.jobDescription.trim() || latestJobDescription
-    if (!latestDeck.pipelineEntryId && matchJDAnalysis) {
-      const matchDrift = getJdAnalysisDriftStatus(matchJDAnalysis, {
-        jobDescription: effectiveJobDescription,
-        identityVersion: resolvePrepGenerationIdentityVersion(matchJDAnalysis, currentIdentity),
-      })
-      if (matchDrift.stale) {
-        const reasonText = formatJdAnalysisDriftReason(matchDrift.reasons)
-        setGenerationError(
-          reasonText
-            ? 'Promote this job to Pipeline and refresh JD analysis before regenerating prep (' + reasonText + ').'
-            : 'Promote this job to Pipeline and refresh JD analysis before regenerating prep.',
+    const effectiveJobDescription =
+      linkedPipelineEntry?.jobDescription.trim() || latestJobDescription
+    const latestRoundDecks = sortPrepRoundDecks(
+      usePrepStore
+        .getState()
+        .decks.filter((deck) => deck.pipelineEntryId === latestDeck.pipelineEntryId),
+    )
+    const latestPreviousRoundDeck =
+      latestRoundDecks
+        .filter(
+          (deck) =>
+            deck.id !== latestDeck.id && (deck.roundNumber ?? 1) < (latestDeck.roundNumber ?? 1),
         )
-        return
-      }
-    }
-    const latestRoundDecks = latestDeck.pipelineEntryId
-      ? sortPrepRoundDecks(
-        usePrepStore.getState().decks.filter((deck) => deck.pipelineEntryId === latestDeck.pipelineEntryId),
-      )
-      : []
-    const latestPreviousRoundDeck = latestRoundDecks.filter(
-      (deck) => deck.id !== latestDeck.id && (deck.roundNumber ?? 1) < (latestDeck.roundNumber ?? 1),
-    ).slice(-1)[0] ?? null
+        .slice(-1)[0] ?? null
 
     setGenerationError(null)
     setIsGenerating(true)
@@ -1746,9 +1768,10 @@ export function PrepPage() {
       })
 
       updateDeck(latestDeck.id, {
-        title: latestDeck.roundNumber && latestDeck.roundNumber > 1
-          ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(latestDeck.roundNumber)}`
-          : result.deckTitle,
+        title:
+          latestDeck.roundNumber && latestDeck.roundNumber > 1
+            ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(latestDeck.roundNumber)}`
+            : result.deckTitle,
         rules: result.rules,
         donts: result.donts,
         questionsToAsk: result.questionsToAsk,
@@ -1760,13 +1783,17 @@ export function PrepPage() {
         contextGapAnswers: (() => {
           const previousAnswers = latestDeck.contextGapAnswers ?? {}
           const previousGaps = latestDeck.contextGaps ?? []
-          const previousGapKeys = new Map(previousGaps.map((gap) => [buildPrepContextGapKey(gap), gap.id]))
+          const previousGapKeys = new Map(
+            previousGaps.map((gap) => [buildPrepContextGapKey(gap), gap.id]),
+          )
           const carriedAnswers = Object.fromEntries(
             (result.contextGaps ?? []).flatMap((gap) => {
               const directAnswer = previousAnswers[gap.id]?.trim()
               if (directAnswer) return [[gap.id, directAnswer]]
               const previousGapId = previousGapKeys.get(buildPrepContextGapKey(gap))
-              const previousAnswer = previousGapId ? previousAnswers[previousGapId]?.trim() : undefined
+              const previousAnswer = previousGapId
+                ? previousAnswers[previousGapId]?.trim()
+                : undefined
               return previousAnswer ? [[gap.id, previousAnswer]] : []
             }),
           )
@@ -1798,7 +1825,15 @@ export function PrepPage() {
     } finally {
       setIsGenerating(false)
     }
-  }, [activeDeck, aiEndpoint, currentIdentity, gapDraftAnswers, persistGapAnswers, replaceDeckCards, updateDeck])
+  }, [
+    activeDeck,
+    aiEndpoint,
+    currentIdentity,
+    gapDraftAnswers,
+    persistGapAnswers,
+    replaceDeckCards,
+    updateDeck,
+  ])
 
   return (
     <div className="prep-page">
@@ -1806,7 +1841,8 @@ export function PrepPage() {
         <div className="prep-header-titles">
           <h1>Interview Prep</h1>
           <p className="prep-header-copy">
-            Build one prep deck, then switch between editing, homework rehearsal, and a live interview cheatsheet from the same source.
+            Build one prep deck, then switch between editing, homework rehearsal, and a live
+            interview cheatsheet from the same source.
           </p>
         </div>
 
@@ -1826,12 +1862,22 @@ export function PrepPage() {
             <Upload size={16} />
             Import
           </button>
-          <input ref={importRef} type="file" accept=".json" className="import-file-input" onChange={handleImport} />
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json"
+            className="import-file-input"
+            onChange={handleImport}
+          />
           <button className="prep-btn" onClick={handleExport}>
             <Download size={16} />
             Export
           </button>
-          <button className="prep-btn prep-btn-danger" onClick={handleDeleteDeck} disabled={!activeDeck}>
+          <button
+            className="prep-btn prep-btn-danger"
+            onClick={handleDeleteDeck}
+            disabled={!activeDeck}
+          >
             <Trash2 size={16} />
             Delete Set
           </button>
@@ -1896,7 +1942,10 @@ export function PrepPage() {
           <div className="prep-panel-header">
             <div>
               <h2>Prep Library</h2>
-              <p>Interview prep sets organized by company. Select a set to load it into the workspace.</p>
+              <p>
+                Interview prep sets organized by company. Select a set to load it into the
+                workspace.
+              </p>
             </div>
             <span className="prep-mode-chip">{deckLibrary.length} saved</span>
           </div>
@@ -1929,17 +1978,34 @@ export function PrepPage() {
                       }
                     >
                       <span className="prep-library-group-heading">
-                        <span id={groupLabelId} className="prep-library-group-label">{group.company}</span>
-                        {' '}
-                        <span className="prep-library-group-count" aria-hidden="true">{group.decks.length} {group.decks.length === 1 ? 'set' : 'sets'}</span>
+                        <span id={groupLabelId} className="prep-library-group-label">
+                          {group.company}
+                        </span>{' '}
+                        <span className="prep-library-group-count" aria-hidden="true">
+                          {group.decks.length} {group.decks.length === 1 ? 'set' : 'sets'}
+                        </span>
                       </span>
-                      {isCollapsed
-                        ? <ChevronRight className="prep-library-group-chevron" size={16} aria-hidden="true" />
-                        : <ChevronDown className="prep-library-group-chevron" size={16} aria-hidden="true" />}
+                      {isCollapsed ? (
+                        <ChevronRight
+                          className="prep-library-group-chevron"
+                          size={16}
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <ChevronDown
+                          className="prep-library-group-chevron"
+                          size={16}
+                          aria-hidden="true"
+                        />
+                      )}
                     </button>
                   </h3>
                   <div id={groupRegionId} hidden={isCollapsed}>
-                    <div className="prep-library-group-decks" role="list" aria-label={`${group.company} prep sets`}>
+                    <div
+                      className="prep-library-group-decks"
+                      role="list"
+                      aria-label={`${group.company} prep sets`}
+                    >
                       {visibleDecks.map((deck, index) => {
                         const isActive = deck.id === activeDeckId
                         const isNextUp = index === 0
@@ -1964,7 +2030,11 @@ export function PrepPage() {
                                     <span className="prep-library-card-badge prep-library-card-badge-round">
                                       {formatPrepRoundTypeLabel(deck.roundType)}
                                     </span>
-                                    {isNextUp ? <span className="prep-library-card-badge prep-library-card-badge-next-up">Next Up</span> : null}
+                                    {isNextUp ? (
+                                      <span className="prep-library-card-badge prep-library-card-badge-next-up">
+                                        Next Up
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                                 {isActive ? <span className="prep-mode-chip">Active</span> : null}
@@ -1983,9 +2053,11 @@ export function PrepPage() {
                       <button
                         type="button"
                         className="prep-library-group-more"
-                        aria-label={expandedLibraryGroups[group.companyKey]
-                          ? `Show less prep sets for ${group.company}`
-                          : `Show ${hiddenCount} more prep sets for ${group.company}`}
+                        aria-label={
+                          expandedLibraryGroups[group.companyKey]
+                            ? `Show less prep sets for ${group.company}`
+                            : `Show ${hiddenCount} more prep sets for ${group.company}`
+                        }
                         onClick={() =>
                           setExpandedLibraryGroups((current) => ({
                             ...current,
@@ -1993,7 +2065,9 @@ export function PrepPage() {
                           }))
                         }
                       >
-                        {expandedLibraryGroups[group.companyKey] ? 'Show less' : `${hiddenCount} more`}
+                        {expandedLibraryGroups[group.companyKey]
+                          ? 'Show less'
+                          : `${hiddenCount} more`}
                       </button>
                     ) : null}
                   </div>
@@ -2027,7 +2101,8 @@ export function PrepPage() {
               <div>
                 <h2>Generate Prep</h2>
                 <p>
-                  Match mode uses the current Phase 1 report. Pipeline mode remains available for older opportunities and manual research notes.
+                  AI prep generates from Pipeline entries to keep JD analysis canonical. Promote a
+                  Match report first, or start a blank manual set.
                 </p>
               </div>
               <button
@@ -2041,122 +2116,102 @@ export function PrepPage() {
             </header>
 
             <div className="prep-generate-drawer-body">
-        <div className="prep-generator-grid">
-          {currentReport && (
-            <fieldset className="prep-field prep-field-span-2 prep-fieldset">
-              <legend className="prep-field-label">Source</legend>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className={`prep-btn ${generationSource === 'match' ? 'prep-btn-primary' : ''}`}
-                  onClick={() => handleGenerationSourceChange('match')}
-                  aria-pressed={generationSource === 'match'}
-                >
-                  Current Match Report
-                </button>
-                <button
-                  type="button"
-                  className={`prep-btn ${generationSource === 'pipeline' ? 'prep-btn-primary' : ''}`}
-                  onClick={() => handleGenerationSourceChange('pipeline')}
-                  aria-pressed={generationSource === 'pipeline'}
-                >
-                  Pipeline Entry
-                </button>
-              </div>
-            </fieldset>
-          )}
+              <div className="prep-generator-grid">
+                {currentReport ? (
+                  <div className="prep-context-card prep-field-span-2">
+                    <div className="prep-context-row">
+                      <strong>Current Match Report</strong>
+                      <span>{currentReport.company || 'Unknown company'}</span>
+                      <span>{currentReport.role || 'Unspecified role'}</span>
+                    </div>
+                    <div className="prep-context-meta">
+                      <span>
+                        Open Match and click Save to Pipeline before generating job-specific prep.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="prep-btn"
+                      onClick={() => void navigate({ to: '/match' })}
+                    >
+                      Open Match
+                    </button>
+                  </div>
+                ) : null}
 
-          {generationSource === 'match' && matchMaterial ? (
-            <div className="prep-context-card prep-field-span-2">
-              <div className="prep-context-row">
-                <strong>{matchMaterial.company}</strong>
-                <span>{matchMaterial.role}</span>
-                <span>Match {Math.round(matchMaterial.matchScore * 100)}%</span>
-              </div>
-              <div className="prep-context-meta">
-                <span>Vector: {matchMaterial.vector.label}</span>
-                <span>Skills: {matchMaterial.skillMatch || 'n/a'}</span>
-                <span>Gap focus: {matchMaterial.gapFocus.join(', ') || 'n/a'}</span>
-              </div>
-              <details className="prep-context-details">
-                <summary>Match report preview</summary>
-                <div className="prep-context-body">{matchMaterial.jobDescription}</div>
-              </details>
-            </div>
-          ) : (
-            <>
-              <label className="prep-field">
-                <span className="prep-field-label">Pipeline entry</span>
-                <select
-                  className="prep-input"
-                  value={selectedEntryId}
-                  onChange={(event) => {
-                    const nextEntry = pipelineEntries.find((entry) => entry.id === event.target.value) ?? null
-                    setSelectedEntryId(event.target.value)
-                    setSelectedVectorId(nextEntry?.vectorId ?? '')
-                    setCompanyResearchDraft(
-                      nextEntry ? buildPrepCompanyResearchNotes(nextEntry) : '',
-                    )
-                  }}
-                >
-                  <option value="">Select an entry</option>
-                  {candidateEntries.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.company} - {entry.role}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="prep-field">
+                  <span className="prep-field-label">Pipeline entry (required)</span>
+                  <select
+                    className="prep-input"
+                    value={selectedEntryId}
+                    required
+                    aria-required="true"
+                    onChange={(event) => {
+                      const nextEntry =
+                        pipelineEntries.find((entry) => entry.id === event.target.value) ?? null
+                      setSelectedEntryId(event.target.value)
+                      setSelectedVectorId(nextEntry?.vectorId ?? '')
+                      setCompanyResearchDraft(
+                        nextEntry ? buildPrepCompanyResearchNotes(nextEntry) : '',
+                      )
+                    }}
+                  >
+                    <option value="">Select an entry</option>
+                    {candidateEntries.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.company} - {entry.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="prep-field">
-                <span className="prep-field-label">Vector (optional)</span>
-                <select
-                  className="prep-input"
-                  value={selectedVectorId}
-                  onChange={(event) => setSelectedVectorId(event.target.value)}
-                >
-                  <option value="">No vector</option>
-                  {resumeData.vectors.map((vector) => (
-                    <option key={vector.id} value={vector.id}>
-                      {vector.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
+                <label className="prep-field">
+                  <span className="prep-field-label">Vector (optional)</span>
+                  <select
+                    className="prep-input"
+                    value={selectedVectorId}
+                    onChange={(event) => setSelectedVectorId(event.target.value)}
+                  >
+                    <option value="">No vector</option>
+                    {resumeData.vectors.map((vector) => (
+                      <option key={vector.id} value={vector.id}>
+                        {vector.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-          <label className="prep-field prep-field-span-2">
-            <span className="prep-field-label">Additional notes</span>
-            <textarea
-              className="prep-textarea prep-textarea-lg"
-              value={companyResearchDraft}
-              onChange={(event) => setCompanyResearchDraft(event.target.value)}
-              placeholder="Paste company research, interviewer notes, earnings-call notes, product context, or any talking points you want the model to incorporate."
-            />
-          </label>
+                <label className="prep-field prep-field-span-2">
+                  <span className="prep-field-label">Additional notes</span>
+                  <textarea
+                    className="prep-textarea prep-textarea-lg"
+                    value={companyResearchDraft}
+                    onChange={(event) => setCompanyResearchDraft(event.target.value)}
+                    placeholder="Paste company research, interviewer notes, earnings-call notes, product context, or any talking points you want the model to incorporate."
+                  />
+                </label>
 
-          {generationSource === 'pipeline' && selectedEntry && (
-            <div className="prep-context-card prep-field-span-2">
-              <div className="prep-context-row">
-                <strong>{selectedEntry.company}</strong>
-                <span>{selectedEntry.role}</span>
-                <span>{selectedEntry.status}</span>
+                {selectedEntry && (
+                  <div className="prep-context-card prep-field-span-2">
+                    <div className="prep-context-row">
+                      <strong>{selectedEntry.company}</strong>
+                      <span>{selectedEntry.role}</span>
+                      <span>{selectedEntry.status}</span>
+                    </div>
+                    <div className="prep-context-meta">
+                      <span>Vector: {selectedEntry.vectorId ?? 'none'}</span>
+                      <span>Skills: {selectedEntry.skillMatch || 'n/a'}</span>
+                      <span>URL: {selectedEntry.url || 'n/a'}</span>
+                    </div>
+                    {selectedEntry.jobDescription && (
+                      <details className="prep-context-details">
+                        <summary>Job description preview</summary>
+                        <div className="prep-context-body">{selectedEntry.jobDescription}</div>
+                      </details>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="prep-context-meta">
-                <span>Vector: {selectedEntry.vectorId ?? 'none'}</span>
-                <span>Skills: {selectedEntry.skillMatch || 'n/a'}</span>
-                <span>URL: {selectedEntry.url || 'n/a'}</span>
-              </div>
-              {selectedEntry.jobDescription && (
-                <details className="prep-context-details">
-                  <summary>Job description preview</summary>
-                  <div className="prep-context-body">{selectedEntry.jobDescription}</div>
-                </details>
-              )}
-            </div>
-          )}
-        </div>
             </div>
 
             <footer className="prep-generate-drawer-footer">
@@ -2183,12 +2238,21 @@ export function PrepPage() {
                     void handleGenerate()
                     setIsGenerateDrawerOpen(false)
                   }}
-                  disabled={isGenerating}
+                  disabled={isGenerating || !selectedEntry}
                   aria-busy={isGenerating}
+                  aria-describedby={!selectedEntry ? 'prep-generate-entry-hint' : undefined}
+                  title={
+                    !selectedEntry ? 'Select a Pipeline entry to enable AI generation.' : undefined
+                  }
                 >
                   <Sparkles size={16} />
                   {isGenerating ? 'Generating...' : 'Generate with AI'}
                 </button>
+                {!selectedEntry ? (
+                  <p id="prep-generate-entry-hint" className="prep-field-hint">
+                    Select a Pipeline entry to enable AI generation.
+                  </p>
+                ) : null}
               </div>
             </footer>
           </aside>
@@ -2198,74 +2262,100 @@ export function PrepPage() {
       {/* Page-level banners — visible regardless of drawer state so the
           user sees generation errors / contract violations after the
           drawer auto-closes on submit. */}
-      {generationError && <div className="prep-error-banner">{generationError}</div>}
+      {generationError && (
+        <div className="prep-error-banner">
+          <span>{generationError}</span>
+          {generationError === UNLINKED_REGENERATION_ERROR ||
+          generationError === STALE_PIPELINE_LINK_ERROR ? (
+            <div className="prep-error-actions">
+              {selectedEntry ? (
+                <button
+                  type="button"
+                  className="prep-btn"
+                  onClick={handleLinkActiveDeckToSelectedEntry}
+                >
+                  Link to {selectedEntry.company} - {selectedEntry.role}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="prep-btn"
+                onClick={() => setIsGenerateDrawerOpen(true)}
+              >
+                Open Generate
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
       {activeDeck && activeDeckContractViolations.length > 0 ? (
         <div
           className={`prep-contract-banner prep-contract-banner-${activeDeckContractViolationCounts.error > 0 ? 'error' : 'warning'}`}
           role={activeDeckContractViolationCounts.error > 0 ? 'alert' : 'status'}
           aria-live={activeDeckContractViolationCounts.error > 0 ? 'assertive' : 'polite'}
         >
-            <div className="prep-contract-copy">
-              <strong>
-                Contract validation flagged {activeDeckContractViolations.length} issue{activeDeckContractViolations.length === 1 ? '' : 's'} in this prep set.
-              </strong>
-              <p>
-                {activeDeckContractViolationCounts.error > 0
-                  ? `${activeDeckContractViolationCounts.error} error${activeDeckContractViolationCounts.error === 1 ? '' : 's'} need a cleaner generation pass before relying on this deck.`
-                  : 'The current deck passed hard checks but still has softer coaching warnings.'}
-                {activeDeckContractViolationCounts.warning > 0
-                  ? ` ${activeDeckContractViolationCounts.warning} warning${activeDeckContractViolationCounts.warning === 1 ? ' remains.' : ' remain.'}`
+          <div className="prep-contract-copy">
+            <strong>
+              Contract validation flagged {activeDeckContractViolations.length} issue
+              {activeDeckContractViolations.length === 1 ? '' : 's'} in this prep set.
+            </strong>
+            <p>
+              {activeDeckContractViolationCounts.error > 0
+                ? `${activeDeckContractViolationCounts.error} error${activeDeckContractViolationCounts.error === 1 ? '' : 's'} need a cleaner generation pass before relying on this deck.`
+                : 'The current deck passed hard checks but still has softer coaching warnings.'}
+              {activeDeckContractViolationCounts.warning > 0
+                ? ` ${activeDeckContractViolationCounts.warning} warning${activeDeckContractViolationCounts.warning === 1 ? ' remains.' : ' remain.'}`
+                : ''}{' '}
+              Re-generating will refresh AI-authored cards only.
+              {hasPipelineIntelContractViolation
+                ? ' If the missing intel is about interviewers or named people, refresh the linked pipeline entry before trying again.'
+                : hasManualIntelContractViolation
+                  ? ' If the missing intel is about named people or company context, focus the research notes before trying again.'
                   : ''}
-                {' '}Re-generating will refresh AI-authored cards only.
-                {hasPipelineIntelContractViolation
-                  ? ' If the missing intel is about interviewers or named people, refresh the linked pipeline entry before trying again.'
-                  : hasManualIntelContractViolation
-                    ? ' If the missing intel is about named people or company context, focus the research notes before trying again.'
-                    : ''}
-              </p>
-              <ul className="prep-contract-list">
-                {activeDeckContractViolations.slice(0, 4).map((violation, index) => (
-                  <li key={`${violation.cardId ?? 'deck'}:${violation.field}:${violation.kind}:${index}`} className="prep-contract-item">
-                    <span className={`prep-contract-pill prep-contract-pill-${violation.severity}`}>
-                      {violation.severity === 'error' ? 'Error' : 'Warning'}
-                    </span>
-                    <span>{violation.message}</span>
-                  </li>
-                ))}
-              </ul>
-              {activeDeckContractViolations.length > 4 ? (
-                <div className="prep-contract-more">
-                  +{activeDeckContractViolations.length - 4} more validation note{activeDeckContractViolations.length - 4 === 1 ? '' : 's'} on this deck.
-                </div>
-              ) : null}
-            </div>
-            <div className="prep-contract-actions">
+            </p>
+            <ul className="prep-contract-list">
+              {activeDeckContractViolations.slice(0, 4).map((violation, index) => (
+                <li
+                  key={`${violation.cardId ?? 'deck'}:${violation.field}:${violation.kind}:${index}`}
+                  className="prep-contract-item"
+                >
+                  <span className={`prep-contract-pill prep-contract-pill-${violation.severity}`}>
+                    {violation.severity === 'error' ? 'Error' : 'Warning'}
+                  </span>
+                  <span>{violation.message}</span>
+                </li>
+              ))}
+            </ul>
+            {activeDeckContractViolations.length > 4 ? (
+              <div className="prep-contract-more">
+                +{activeDeckContractViolations.length - 4} more validation note
+                {activeDeckContractViolations.length - 4 === 1 ? '' : 's'} on this deck.
+              </div>
+            ) : null}
+          </div>
+          <div className="prep-contract-actions">
+            <button
+              type="button"
+              className="prep-btn prep-btn-primary"
+              onClick={() => void handleRegenerateWithGapAnswers()}
+              disabled={isGenerating || isGapModalOpen}
+            >
+              {isGenerating ? 'Refreshing…' : 'Re-generate prep'}
+            </button>
+            {hasPipelineIntelContractViolation ? (
               <button
                 type="button"
-                className="prep-btn prep-btn-primary"
-                onClick={() => void handleRegenerateWithGapAnswers()}
-                disabled={isGenerating || isGapModalOpen}
+                className="prep-btn"
+                onClick={() => void navigate({ to: '/pipeline' })}
               >
-                {isGenerating ? 'Refreshing…' : 'Re-generate prep'}
+                Open Pipeline
               </button>
-              {hasPipelineIntelContractViolation ? (
-                <button
-                  type="button"
-                  className="prep-btn"
-                  onClick={() => void navigate({ to: '/pipeline' })}
-                >
-                  Open Pipeline
-                </button>
-              ) : hasManualIntelContractViolation ? (
-                <button
-                  type="button"
-                  className="prep-btn"
-                  onClick={focusSourceMaterial}
-                >
-                  Edit research notes
-                </button>
-              ) : null}
-            </div>
+            ) : hasManualIntelContractViolation ? (
+              <button type="button" className="prep-btn" onClick={focusSourceMaterial}>
+                Edit research notes
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -2282,7 +2372,9 @@ export function PrepPage() {
             rules={activeDeck.rules}
             studyProgress={activeDeck.studyProgress}
             onExit={() => setActiveMode('edit')}
-            onRecordReview={(cardId, confidence) => recordCardReview(activeDeck.id, cardId, confidence)}
+            onRecordReview={(cardId, confidence) =>
+              recordCardReview(activeDeck.id, cardId, confidence)
+            }
           />
         </section>
       ) : null}
@@ -2298,13 +2390,18 @@ export function PrepPage() {
             <div className="prep-panel-header">
               <div>
                 <h2>Active Prep Set</h2>
-                <p>Edit the generated deck, keep adding cards, and tailor the narratives before switching into homework or live mode.</p>
+                <p>
+                  Edit the generated deck, keep adding cards, and tailor the narratives before
+                  switching into homework or live mode.
+                </p>
               </div>
               <div className="prep-edit-active-set-meta">
                 <span className="prep-mode-chip">{activeDeck.cards.length} cards</span>
                 <span className="prep-mode-chip">{activeDeck.vectorId || 'No vector'}</span>
                 {activeDeckRoundNumber ? (
-                  <span className="prep-mode-chip">{formatPrepRoundNumberLabel(activeDeckRoundNumber)}</span>
+                  <span className="prep-mode-chip">
+                    {formatPrepRoundNumberLabel(activeDeckRoundNumber)}
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -2313,17 +2410,28 @@ export function PrepPage() {
               <div className="prep-context-gap-banner" role="status">
                 <div className="prep-context-gap-copy">
                   <strong>
-                    This prep set is missing context that would improve {activeDeckGapSectionCount} section{activeDeckGapSectionCount === 1 ? '' : 's'}.
+                    This prep set is missing context that would improve {activeDeckGapSectionCount}{' '}
+                    section{activeDeckGapSectionCount === 1 ? '' : 's'}.
                   </strong>
                   <p>
-                    {answeredGapCount} of {activeDeckContextGaps.length} prompt{activeDeckContextGaps.length === 1 ? '' : 's'} answered.
-                    {currentIdentity ? ' Queue identity-facing answers upstream when they belong in the identity model.' : ' Load an identity model to queue upstream answers.'}
-                    {hasPipelineContextGap ? ' Some missing answers belong in pipeline research, so refresh the pipeline entry before regenerating if the interviewer/company intel is thin.' : ''}
-                    {' '}Re-generating refreshes AI-authored cards and may reset rehearsal progress for cards the model replaces.
+                    {answeredGapCount} of {activeDeckContextGaps.length} prompt
+                    {activeDeckContextGaps.length === 1 ? '' : 's'} answered.
+                    {currentIdentity
+                      ? ' Queue identity-facing answers upstream when they belong in the identity model.'
+                      : ' Load an identity model to queue upstream answers.'}
+                    {hasPipelineContextGap
+                      ? ' Some missing answers belong in pipeline research, so refresh the pipeline entry before regenerating if the interviewer/company intel is thin.'
+                      : ''}{' '}
+                    Re-generating refreshes AI-authored cards and may reset rehearsal progress for
+                    cards the model replaces.
                   </p>
                 </div>
                 <div className="prep-context-gap-actions">
-                  <button type="button" className="prep-btn prep-btn-primary" onClick={openContextGapModal}>
+                  <button
+                    type="button"
+                    className="prep-btn prep-btn-primary"
+                    onClick={openContextGapModal}
+                  >
                     Fill in the gaps
                   </button>
                   <button
@@ -2360,7 +2468,10 @@ export function PrepPage() {
                 <div className="prep-edit-group-header">
                   <div>
                     <h3>Deck Basics</h3>
-                    <p>Keep the title, company, role, and vector tidy so the rest of the workspace stays anchored to the same story.</p>
+                    <p>
+                      Keep the title, company, role, and vector tidy so the rest of the workspace
+                      stays anchored to the same story.
+                    </p>
                   </div>
                   <span className="prep-mode-chip">Core Setup</span>
                 </div>
@@ -2368,19 +2479,37 @@ export function PrepPage() {
                 <div className="prep-generator-grid">
                   <label className="prep-field">
                     <span className="prep-field-label">Title</span>
-                    <input className="prep-input" value={activeDeck.title} onChange={(event) => updateActiveDeck({ title: event.target.value })} />
+                    <input
+                      className="prep-input"
+                      value={activeDeck.title}
+                      onChange={(event) => updateActiveDeck({ title: event.target.value })}
+                    />
                   </label>
                   <label className="prep-field">
                     <span className="prep-field-label">Company</span>
-                    <input className="prep-input" value={activeDeck.company} onChange={(event) => updateActiveDeck({ company: event.target.value })} />
+                    <input
+                      className="prep-input"
+                      value={activeDeck.company}
+                      onChange={(event) => updateActiveDeck({ company: event.target.value })}
+                    />
                   </label>
                   <label className="prep-field">
                     <span className="prep-field-label">Role</span>
-                    <input className="prep-input" value={activeDeck.role} onChange={(event) => updateActiveDeck({ role: event.target.value })} />
+                    <input
+                      className="prep-input"
+                      value={activeDeck.role}
+                      onChange={(event) => updateActiveDeck({ role: event.target.value })}
+                    />
                   </label>
                   <label className="prep-field">
                     <span className="prep-field-label">Vector (optional)</span>
-                    <select className="prep-input" value={activeDeck.vectorId ?? ''} onChange={(event) => updateActiveDeck({ vectorId: event.target.value || undefined })}>
+                    <select
+                      className="prep-input"
+                      value={activeDeck.vectorId ?? ''}
+                      onChange={(event) =>
+                        updateActiveDeck({ vectorId: event.target.value || undefined })
+                      }
+                    >
                       <option value="">No vector</option>
                       {resumeData.vectors.map((vector) => (
                         <option key={vector.id} value={vector.id}>
@@ -2397,8 +2526,10 @@ export function PrepPage() {
                       onChange={(event) => {
                         const nextRoundType = event.target.value.trim()
                         updateActiveDeck({
-                          roundType: INTERVIEW_FORMAT_VALUES.includes(nextRoundType as InterviewFormat)
-                            ? nextRoundType as InterviewFormat
+                          roundType: INTERVIEW_FORMAT_VALUES.includes(
+                            nextRoundType as InterviewFormat,
+                          )
+                            ? (nextRoundType as InterviewFormat)
                             : undefined,
                         })
                       }}
@@ -2422,9 +2553,10 @@ export function PrepPage() {
                       onChange={(event) => {
                         const nextValue = Number(event.target.value)
                         updateActiveDeck({
-                          roundNumber: Number.isFinite(nextValue) && nextValue > 0
-                            ? Math.round(nextValue)
-                            : undefined,
+                          roundNumber:
+                            Number.isFinite(nextValue) && nextValue > 0
+                              ? Math.round(nextValue)
+                              : undefined,
                         })
                       }}
                     />
@@ -2437,7 +2569,10 @@ export function PrepPage() {
                   <div className="prep-edit-group-header">
                     <div>
                       <h3>Round Timeline</h3>
-                      <p>Decks linked to the same pipeline entry stay grouped here so you can jump between rounds and carry prep forward.</p>
+                      <p>
+                        Decks linked to the same pipeline entry stay grouped here so you can jump
+                        between rounds and carry prep forward.
+                      </p>
                     </div>
                     <span className="prep-mode-chip">{relatedRoundDecks.length} rounds</span>
                   </div>
@@ -2454,7 +2589,9 @@ export function PrepPage() {
                           onClick={() => setActiveDeck(deck.id)}
                         >
                           <span>{formatPrepRoundNumberLabel(roundNumber)}</span>
-                          <small>{deck.roundType ? formatPrepRoundTypeLabel(deck.roundType) : 'General'}</small>
+                          <small>
+                            {deck.roundType ? formatPrepRoundTypeLabel(deck.roundType) : 'General'}
+                          </small>
                         </button>
                       )
                     })}
@@ -2483,7 +2620,10 @@ export function PrepPage() {
                   <div className="prep-edit-group-header">
                     <div>
                       <h3>Round Debrief</h3>
-                      <p>Capture what the team cared about, then mark which cards worked, fumbled, or need another pass before the next round.</p>
+                      <p>
+                        Capture what the team cared about, then mark which cards worked, fumbled, or
+                        need another pass before the next round.
+                      </p>
                     </div>
                     <div className="prep-round-debrief-actions">
                       <span className="prep-mode-chip">
@@ -2516,14 +2656,25 @@ export function PrepPage() {
                       <div className="prep-round-summary-meta">
                         <span>{formatPrepRoundNumberLabel(activeDeckRoundNumber)}</span>
                         <span>{activeDeckRoundDebrief.date}</span>
-                        <span>{parsePrepListDraft(formatPrepListDraft(activeDeckRoundDebrief.questionsAsked)).length} questions captured</span>
+                        <span>
+                          {
+                            parsePrepListDraft(
+                              formatPrepListDraft(activeDeckRoundDebrief.questionsAsked),
+                            ).length
+                          }{' '}
+                          questions captured
+                        </span>
                       </div>
                     </div>
                   ) : null}
 
                   {isDebriefEditorOpen ? (
                     <div className="prep-round-debrief-editor">
-                      <div className="prep-round-mode-tabs" role="group" aria-label="Debrief capture modes">
+                      <div
+                        className="prep-round-mode-tabs"
+                        role="group"
+                        aria-label="Debrief capture modes"
+                      >
                         <button
                           type="button"
                           className={`prep-mode-tab ${debriefMode === 'quick' ? 'prep-mode-tab-active' : ''}`}
@@ -2551,7 +2702,12 @@ export function PrepPage() {
                                 className="prep-input"
                                 type="date"
                                 value={debriefDraft.date}
-                                onChange={(event) => setDebriefDraft((current) => ({ ...current, date: event.target.value }))}
+                                onChange={(event) =>
+                                  setDebriefDraft((current) => ({
+                                    ...current,
+                                    date: event.target.value,
+                                  }))
+                                }
                               />
                             </label>
                           </div>
@@ -2563,7 +2719,9 @@ export function PrepPage() {
                                 <textarea
                                   className="prep-textarea"
                                   value={debriefDraft.intel[field.key] ?? ''}
-                                  onChange={(event) => updateDebriefIntelField(field.key, event.target.value)}
+                                  onChange={(event) =>
+                                    updateDebriefIntelField(field.key, event.target.value)
+                                  }
                                   placeholder={field.placeholder}
                                 />
                               </label>
@@ -2587,7 +2745,9 @@ export function PrepPage() {
                                 <textarea
                                   className="prep-textarea"
                                   value={debriefDraft.intel.redFlags ?? ''}
-                                  onChange={(event) => updateDebriefIntelField('redFlags', event.target.value)}
+                                  onChange={(event) =>
+                                    updateDebriefIntelField('redFlags', event.target.value)
+                                  }
                                   placeholder="One signal per line"
                                 />
                               </label>
@@ -2596,7 +2756,12 @@ export function PrepPage() {
                                 <textarea
                                   className="prep-textarea"
                                   value={debriefDraft.other}
-                                  onChange={(event) => setDebriefDraft((current) => ({ ...current, other: event.target.value }))}
+                                  onChange={(event) =>
+                                    setDebriefDraft((current) => ({
+                                      ...current,
+                                      other: event.target.value,
+                                    }))
+                                  }
                                   placeholder="key: value"
                                 />
                               </label>
@@ -2609,7 +2774,12 @@ export function PrepPage() {
                               <textarea
                                 className="prep-textarea"
                                 value={debriefDraft.questionsAsked}
-                                onChange={(event) => setDebriefDraft((current) => ({ ...current, questionsAsked: event.target.value }))}
+                                onChange={(event) =>
+                                  setDebriefDraft((current) => ({
+                                    ...current,
+                                    questionsAsked: event.target.value,
+                                  }))
+                                }
                                 placeholder="One question per line"
                               />
                             </label>
@@ -2618,7 +2788,12 @@ export function PrepPage() {
                               <textarea
                                 className="prep-textarea"
                                 value={debriefDraft.surprises}
-                                onChange={(event) => setDebriefDraft((current) => ({ ...current, surprises: event.target.value }))}
+                                onChange={(event) =>
+                                  setDebriefDraft((current) => ({
+                                    ...current,
+                                    surprises: event.target.value,
+                                  }))
+                                }
                                 placeholder="What caught you off guard?"
                               />
                             </label>
@@ -2627,7 +2802,12 @@ export function PrepPage() {
                               <textarea
                                 className="prep-textarea"
                                 value={debriefDraft.newIntel}
-                                onChange={(event) => setDebriefDraft((current) => ({ ...current, newIntel: event.target.value }))}
+                                onChange={(event) =>
+                                  setDebriefDraft((current) => ({
+                                    ...current,
+                                    newIntel: event.target.value,
+                                  }))
+                                }
                                 placeholder="What changed your read of the role?"
                               />
                             </label>
@@ -2636,7 +2816,12 @@ export function PrepPage() {
                               <textarea
                                 className="prep-textarea"
                                 value={debriefDraft.notes}
-                                onChange={(event) => setDebriefDraft((current) => ({ ...current, notes: event.target.value }))}
+                                onChange={(event) =>
+                                  setDebriefDraft((current) => ({
+                                    ...current,
+                                    notes: event.target.value,
+                                  }))
+                                }
                                 placeholder="Anything you want the next round to remember?"
                               />
                             </label>
@@ -2662,11 +2847,19 @@ export function PrepPage() {
                                       className="prep-input"
                                       aria-label={`${card.title} round status`}
                                       value={currentState.status}
-                                      onChange={(event) => updateDebriefCardState(card.id, { status: event.target.value as PrepCardRoundStatus })}
+                                      onChange={(event) =>
+                                        updateDebriefCardState(card.id, {
+                                          status: event.target.value as PrepCardRoundStatus,
+                                        })
+                                      }
                                     >
-                                      {Object.entries(PREP_CARD_ROUND_STATUS_LABELS).map(([status, label]) => (
-                                        <option key={status} value={status}>{label}</option>
-                                      ))}
+                                      {Object.entries(PREP_CARD_ROUND_STATUS_LABELS).map(
+                                        ([status, label]) => (
+                                          <option key={status} value={status}>
+                                            {label}
+                                          </option>
+                                        ),
+                                      )}
                                     </select>
                                   </label>
                                   <label className="prep-field">
@@ -2675,7 +2868,11 @@ export function PrepPage() {
                                       className="prep-textarea"
                                       aria-label={`${card.title} round notes`}
                                       value={currentState.notes}
-                                      onChange={(event) => updateDebriefCardState(card.id, { notes: event.target.value })}
+                                      onChange={(event) =>
+                                        updateDebriefCardState(card.id, {
+                                          notes: event.target.value,
+                                        })
+                                      }
                                       placeholder="What should the next round remember about this answer?"
                                     />
                                   </label>
@@ -2687,10 +2884,18 @@ export function PrepPage() {
                       )}
 
                       <div className="prep-round-debrief-footer">
-                        <button type="button" className="prep-btn" onClick={() => setIsDebriefEditorOpen(false)}>
+                        <button
+                          type="button"
+                          className="prep-btn"
+                          onClick={() => setIsDebriefEditorOpen(false)}
+                        >
                           Cancel
                         </button>
-                        <button type="button" className="prep-btn prep-btn-primary" onClick={handleSaveDebrief}>
+                        <button
+                          type="button"
+                          className="prep-btn prep-btn-primary"
+                          onClick={handleSaveDebrief}
+                        >
                           Save Debrief
                         </button>
                       </div>
@@ -2713,7 +2918,9 @@ export function PrepPage() {
                 <summary className="prep-edit-group-summary">
                   <div className="prep-edit-group-copy">
                     <span className="prep-edit-group-title">Live Guidance</span>
-                    <span className="prep-edit-group-subtitle">Tune the quick-hit reminders and ask-back prompts for the live cheatsheet.</span>
+                    <span className="prep-edit-group-subtitle">
+                      Tune the quick-hit reminders and ask-back prompts for the live cheatsheet.
+                    </span>
                   </div>
                   <span className="prep-mode-chip">Guidance</span>
                 </summary>
@@ -2726,28 +2933,34 @@ export function PrepPage() {
                     editorId="prep-live-rules-editor"
                     isOpen={editGroupOpen.liveRules}
                     onToggle={() => toggleEditGroupOpen('liveRules')}
-                    actions={(
+                    actions={
                       <button
                         className="prep-link-btn"
                         type="button"
-                        onClick={() => updateActiveDeck({ rules: [...(activeDeck.rules ?? []), ''] })}
+                        onClick={() =>
+                          updateActiveDeck({ rules: [...(activeDeck.rules ?? []), ''] })
+                        }
                       >
                         <Plus size={14} />
                         Add Rule
                       </button>
-                    )}
+                    }
                   >
                     {(activeDeck.rules ?? []).length > 0 ? (
                       <ol className="prep-guidance-list" role="list">
                         {(activeDeck.rules ?? []).map((entry, index) => (
                           <li key={`rule-${index}`} className="prep-guidance-list-item">
-                            <span className="prep-guidance-index" aria-hidden="true">{index + 1}</span>
+                            <span className="prep-guidance-index" aria-hidden="true">
+                              {index + 1}
+                            </span>
                             <label className="prep-field prep-guidance-field">
                               <input
                                 className="prep-input"
                                 aria-label={`Rule ${index + 1}`}
                                 value={entry}
-                                onChange={(event) => updateActiveDeckListItem('rules', index, event.target.value)}
+                                onChange={(event) =>
+                                  updateActiveDeckListItem('rules', index, event.target.value)
+                                }
                                 placeholder="Use a short imperative one-liner."
                               />
                             </label>
@@ -2756,7 +2969,9 @@ export function PrepPage() {
                               type="button"
                               onClick={() =>
                                 updateActiveDeck({
-                                  rules: (activeDeck.rules ?? []).filter((_, itemIndex) => itemIndex !== index),
+                                  rules: (activeDeck.rules ?? []).filter(
+                                    (_, itemIndex) => itemIndex !== index,
+                                  ),
                                 })
                               }
                               title="Remove rule"
@@ -2778,28 +2993,34 @@ export function PrepPage() {
                     editorId="prep-live-donts-editor"
                     isOpen={editGroupOpen.liveDonts}
                     onToggle={() => toggleEditGroupOpen('liveDonts')}
-                    actions={(
+                    actions={
                       <button
                         className="prep-link-btn"
                         type="button"
-                        onClick={() => updateActiveDeck({ donts: [...(activeDeck.donts ?? []), ''] })}
+                        onClick={() =>
+                          updateActiveDeck({ donts: [...(activeDeck.donts ?? []), ''] })
+                        }
                       >
                         <Plus size={14} />
                         Add Don't
                       </button>
-                    )}
+                    }
                   >
                     {(activeDeck.donts ?? []).length > 0 ? (
                       <ol className="prep-guidance-list" role="list">
                         {(activeDeck.donts ?? []).map((entry, index) => (
                           <li key={`dont-${index}`} className="prep-guidance-list-item">
-                            <span className="prep-guidance-index" aria-hidden="true">{index + 1}</span>
+                            <span className="prep-guidance-index" aria-hidden="true">
+                              {index + 1}
+                            </span>
                             <label className="prep-field prep-guidance-field">
                               <input
                                 className="prep-input"
                                 aria-label={`Don't ${index + 1}`}
                                 value={entry}
-                                onChange={(event) => updateActiveDeckListItem('donts', index, event.target.value)}
+                                onChange={(event) =>
+                                  updateActiveDeckListItem('donts', index, event.target.value)
+                                }
                                 placeholder="What should the candidate avoid?"
                               />
                             </label>
@@ -2808,7 +3029,9 @@ export function PrepPage() {
                               type="button"
                               onClick={() =>
                                 updateActiveDeck({
-                                  donts: (activeDeck.donts ?? []).filter((_, itemIndex) => itemIndex !== index),
+                                  donts: (activeDeck.donts ?? []).filter(
+                                    (_, itemIndex) => itemIndex !== index,
+                                  ),
                                 })
                               }
                               title="Remove don't"
@@ -2830,20 +3053,23 @@ export function PrepPage() {
                     editorId="prep-live-questions-editor"
                     isOpen={editGroupOpen.liveQuestions}
                     onToggle={() => toggleEditGroupOpen('liveQuestions')}
-                    actions={(
+                    actions={
                       <button
                         className="prep-link-btn"
                         type="button"
                         onClick={() =>
                           updateActiveDeck({
-                            questionsToAsk: [...(activeDeck.questionsToAsk ?? []), { question: '', context: '' }],
+                            questionsToAsk: [
+                              ...(activeDeck.questionsToAsk ?? []),
+                              { question: '', context: '' },
+                            ],
                           })
                         }
                       >
                         <Plus size={14} />
                         Add Question
                       </button>
-                    )}
+                    }
                   >
                     {(activeDeck.questionsToAsk ?? []).length > 0 ? (
                       (activeDeck.questionsToAsk ?? []).map((entry, index) => (
@@ -2855,7 +3081,9 @@ export function PrepPage() {
                                 className="prep-input"
                                 aria-label={`Question to ask ${index + 1}`}
                                 value={entry.question}
-                                onChange={(event) => updateQuestionToAsk(index, { question: event.target.value })}
+                                onChange={(event) =>
+                                  updateQuestionToAsk(index, { question: event.target.value })
+                                }
                                 placeholder="What do you want to ask?"
                               />
                             </label>
@@ -2865,7 +3093,9 @@ export function PrepPage() {
                                 className="prep-input"
                                 aria-label={`Question context ${index + 1}`}
                                 value={entry.context}
-                                onChange={(event) => updateQuestionToAsk(index, { context: event.target.value })}
+                                onChange={(event) =>
+                                  updateQuestionToAsk(index, { context: event.target.value })
+                                }
                                 placeholder="Why does this question matter?"
                               />
                             </label>
@@ -2875,7 +3105,9 @@ export function PrepPage() {
                             type="button"
                             onClick={() =>
                               updateActiveDeck({
-                                questionsToAsk: (activeDeck.questionsToAsk ?? []).filter((_, itemIndex) => itemIndex !== index),
+                                questionsToAsk: (activeDeck.questionsToAsk ?? []).filter(
+                                  (_, itemIndex) => itemIndex !== index,
+                                ),
                               })
                             }
                             title="Remove question"
@@ -2903,9 +3135,13 @@ export function PrepPage() {
                     <summary className="prep-edit-group-summary">
                       <div className="prep-edit-group-copy">
                         <span className="prep-edit-group-title">Category Guidance</span>
-                        <span className="prep-edit-group-subtitle">Optional coaching notes for the live section headers.</span>
+                        <span className="prep-edit-group-subtitle">
+                          Optional coaching notes for the live section headers.
+                        </span>
                       </div>
-                      <span className="prep-mode-chip">{activeDeckCategories.length} categories</span>
+                      <span className="prep-mode-chip">
+                        {activeDeckCategories.length} categories
+                      </span>
                     </summary>
 
                     <div className="prep-edit-group-body">
@@ -2913,18 +3149,24 @@ export function PrepPage() {
                         <div className="prep-generator-grid">
                           {activeDeckCategories.map((prepCategory) => (
                             <label key={prepCategory} className="prep-field prep-field-span-2">
-                              <span className="prep-field-label">{formatPrepCategoryLabel(prepCategory)} guidance</span>
+                              <span className="prep-field-label">
+                                {formatPrepCategoryLabel(prepCategory)} guidance
+                              </span>
                               <textarea
                                 className="prep-textarea"
                                 value={activeDeck.categoryGuidance?.[prepCategory] ?? ''}
-                                onChange={(event) => updateCategoryGuidance(prepCategory, event.target.value)}
+                                onChange={(event) =>
+                                  updateCategoryGuidance(prepCategory, event.target.value)
+                                }
                                 placeholder={`Optional guidance for the ${formatPrepCategoryLabel(prepCategory).toLowerCase()} section.`}
                               />
                             </label>
                           ))}
                         </div>
                       ) : (
-                        <div className="prep-section-empty">Add cards to unlock category-specific guidance.</div>
+                        <div className="prep-section-empty">
+                          Add cards to unlock category-specific guidance.
+                        </div>
                       )}
                     </div>
                   </details>
@@ -2945,7 +3187,10 @@ export function PrepPage() {
                 <summary className="prep-edit-group-summary">
                   <div className="prep-edit-group-copy">
                     <span className="prep-edit-group-title">Source Material</span>
-                    <span className="prep-edit-group-subtitle">Collapse the long-form research and job description when you want a cleaner editing view.</span>
+                    <span className="prep-edit-group-subtitle">
+                      Collapse the long-form research and job description when you want a cleaner
+                      editing view.
+                    </span>
                   </div>
                   <span className="prep-mode-chip">Reference</span>
                 </summary>
@@ -2958,7 +3203,9 @@ export function PrepPage() {
                         ref={companyResearchFieldRef}
                         className="prep-textarea"
                         value={activeDeck.companyResearch ?? ''}
-                        onChange={(event) => updateActiveDeck({ companyResearch: event.target.value })}
+                        onChange={(event) =>
+                          updateActiveDeck({ companyResearch: event.target.value })
+                        }
                         placeholder="Editable summary of what matters about the company and role."
                       />
                     </label>
@@ -2967,7 +3214,9 @@ export function PrepPage() {
                       <textarea
                         className="prep-textarea prep-textarea-lg"
                         value={activeDeck.jobDescription ?? ''}
-                        onChange={(event) => updateActiveDeck({ jobDescription: event.target.value })}
+                        onChange={(event) =>
+                          updateActiveDeck({ jobDescription: event.target.value })
+                        }
                       />
                     </label>
                   </div>
@@ -2980,7 +3229,10 @@ export function PrepPage() {
             <div className="prep-edit-card-stage-header">
               <div>
                 <h2>Card Library</h2>
-                <p>Filter down to the cards you want to work on, then open the grouped editor inside each card.</p>
+                <p>
+                  Filter down to the cards you want to work on, then open the grouped editor inside
+                  each card.
+                </p>
               </div>
               <span className="prep-mode-chip">
                 {filteredCards.length === activeDeck.cards.length
@@ -3004,7 +3256,10 @@ export function PrepPage() {
             <div className="prep-edit-card-stage-header">
               <div>
                 <h2>Editable Cards</h2>
-                <p>Lead with the tight story first, then expand supporting material only when you need it.</p>
+                <p>
+                  Lead with the tight story first, then expand supporting material only when you
+                  need it.
+                </p>
               </div>
             </div>
 
@@ -3020,7 +3275,9 @@ export function PrepPage() {
             ) : (
               <div className="prep-empty prep-edit-empty-state">
                 <h2>No cards match your filters</h2>
-                <p>Adjust the filters above or add a new card to keep building out this prep set.</p>
+                <p>
+                  Adjust the filters above or add a new card to keep building out this prep set.
+                </p>
               </div>
             )}
           </section>
@@ -3034,9 +3291,16 @@ export function PrepPage() {
         >
           <div className="prep-empty">
             <h2>No prep sets yet</h2>
-            <p>Generate a prep set from a pipeline entry or start a blank one. Once created, every card is fully editable.</p>
+            <p>
+              Generate a prep set from a pipeline entry or start a blank one. Once created, every
+              card is fully editable.
+            </p>
             <div className="prep-empty-actions">
-              <button className="prep-btn prep-btn-primary" onClick={() => void handleGenerate()} disabled={isGenerating}>
+              <button
+                className="prep-btn prep-btn-primary"
+                onClick={() => void handleGenerate()}
+                disabled={isGenerating}
+              >
                 <Sparkles size={16} />
                 Generate Prep Set
               </button>
@@ -3067,10 +3331,13 @@ export function PrepPage() {
               <div>
                 <h2 id="prep-context-gap-title">Fill in the context gaps</h2>
                 <p>
-                  Step {gapStepIndex + 1} of {activeDeckContextGaps.length}. We’ll save each answer back onto this prep set and queue identity-facing answers separately.
+                  Step {gapStepIndex + 1} of {activeDeckContextGaps.length}. We’ll save each answer
+                  back onto this prep set and queue identity-facing answers separately.
                 </p>
               </div>
-              <span className={`prep-context-gap-priority prep-context-gap-priority-${activeGap.priority}`}>
+              <span
+                className={`prep-context-gap-priority prep-context-gap-priority-${activeGap.priority}`}
+              >
                 {CONTEXT_GAP_PRIORITY_LABELS[activeGap.priority]}
               </span>
             </div>
@@ -3078,7 +3345,9 @@ export function PrepPage() {
             <div className="prep-context-gap-step">
               <div className="prep-context-gap-step-meta">
                 <span className="prep-mode-chip">{activeGap.section}</span>
-                {activeGap.feedbackTarget ? <span className="prep-mode-chip">{activeGap.feedbackTarget}</span> : null}
+                {activeGap.feedbackTarget ? (
+                  <span className="prep-mode-chip">{activeGap.feedbackTarget}</span>
+                ) : null}
               </div>
 
               <div className="prep-context-gap-question">{activeGap.question}</div>
@@ -3094,10 +3363,12 @@ export function PrepPage() {
                     }}
                     className="prep-textarea prep-textarea-lg"
                     value={gapDraftAnswers[activeGap.id] ?? ''}
-                    onChange={(event) => setGapDraftAnswers((current) => ({
-                      ...current,
-                      [activeGap.id]: event.target.value,
-                    }))}
+                    onChange={(event) =>
+                      setGapDraftAnswers((current) => ({
+                        ...current,
+                        [activeGap.id]: event.target.value,
+                      }))
+                    }
                     placeholder="Add the missing detail that would make this section accurate and specific."
                   />
                 ) : (
@@ -3108,10 +3379,12 @@ export function PrepPage() {
                     }}
                     className="prep-input"
                     value={gapDraftAnswers[activeGap.id] ?? ''}
-                    onChange={(event) => setGapDraftAnswers((current) => ({
-                      ...current,
-                      [activeGap.id]: event.target.value,
-                    }))}
+                    onChange={(event) =>
+                      setGapDraftAnswers((current) => ({
+                        ...current,
+                        [activeGap.id]: event.target.value,
+                      }))
+                    }
                     placeholder="Add the missing detail."
                   />
                 )}
@@ -3142,7 +3415,9 @@ export function PrepPage() {
                 type="button"
                 className="prep-btn prep-btn-primary"
                 onClick={handleGapAnswerSubmit}
-                disabled={activeGap.priority === 'required' && !(gapDraftAnswers[activeGap.id] ?? '').trim()}
+                disabled={
+                  activeGap.priority === 'required' && !(gapDraftAnswers[activeGap.id] ?? '').trim()
+                }
               >
                 {gapStepIndex === activeDeckContextGaps.length - 1 ? 'Save answers' : 'Next'}
               </button>
@@ -3168,7 +3443,8 @@ export function PrepPage() {
               <div>
                 <h2 id="prep-identity-draft-confirm-title">Replace the current identity draft?</h2>
                 <p>
-                  This will swap the in-progress identity draft with the prep context answers you just queued for review.
+                  This will swap the in-progress identity draft with the prep context answers you
+                  just queued for review.
                 </p>
               </div>
               <span className="prep-context-gap-priority prep-context-gap-priority-recommended">
@@ -3177,7 +3453,9 @@ export function PrepPage() {
             </div>
 
             <div className="prep-context-gap-step">
-              <div className="prep-context-gap-question">Replace the current draft with the prep-derived follow-up questions?</div>
+              <div className="prep-context-gap-question">
+                Replace the current draft with the prep-derived follow-up questions?
+              </div>
               <p className="prep-context-gap-why">
                 We keep the identity changes as a draft until you review them on the Identity page.
               </p>
@@ -3186,10 +3464,18 @@ export function PrepPage() {
             {generationError ? <div className="prep-error-banner">{generationError}</div> : null}
 
             <div className="prep-context-gap-modal-actions">
-              <button type="button" className="prep-btn" onClick={() => setIsIdentityDraftConfirmOpen(false)}>
+              <button
+                type="button"
+                className="prep-btn"
+                onClick={() => setIsIdentityDraftConfirmOpen(false)}
+              >
                 Cancel
               </button>
-              <button type="button" className="prep-btn prep-btn-primary" onClick={handleConfirmIdentityDraftReplace}>
+              <button
+                type="button"
+                className="prep-btn prep-btn-primary"
+                onClick={handleConfirmIdentityDraftReplace}
+              >
                 Replace draft
               </button>
             </div>
