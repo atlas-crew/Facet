@@ -6,6 +6,7 @@ import type {
   IdentityExtractionDraft,
   ResumeScanResult,
 } from "../../types/identity";
+import { AiWorkingStatus } from "../../components/AiWorkingStatus";
 import { ScannedIdentityEditor } from "./ScannedIdentityEditor";
 import { SOURCE_MATERIAL_SAMPLES } from "./sampleSourceMaterial";
 
@@ -186,6 +187,13 @@ export function ExtractionAgentCard({
         accept="application/pdf,.pdf"
         className="sr-only"
         onChange={(event) => void onUploadChange(event)}
+      />
+
+      <AiWorkingStatus
+        active={isGenerating}
+        label="Generating identity draft"
+        caption="AI is extracting roles, bullets, skills, projects, and follow-up questions from the source material."
+        expectedDurationMs={90000}
       />
 
       {intakeMode === "upload" ? (

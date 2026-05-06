@@ -490,6 +490,12 @@ describe("IdentityPage", () => {
       expect(
         screen.getByText("Generating a draft from your source material."),
       ).toBeTruthy();
+      expect(screen.getByText(/Generating identity draft/)).toBeTruthy();
+      expect(
+        screen.getByText(
+          "AI is extracting roles, bullets, skills, projects, and follow-up questions from the source material.",
+        ),
+      ).toBeTruthy();
     });
 
     unmount();
