@@ -4,10 +4,12 @@ title: 'Phase 5: emit asserted audience tags from JdMatchExtraction LLM prompt'
 status: To Do
 assignee: []
 created_date: '2026-05-06 07:33'
+updated_date: '2026-05-06 20:29'
 labels:
   - audience-tagging
   - ai
   - phase-5
+milestone: m-28
 dependencies: []
 references:
   - src/utils/jobMatch.ts

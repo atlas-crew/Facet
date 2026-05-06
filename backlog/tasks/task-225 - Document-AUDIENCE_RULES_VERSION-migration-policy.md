@@ -4,9 +4,11 @@ title: Document AUDIENCE_RULES_VERSION migration policy
 status: To Do
 assignee: []
 created_date: '2026-05-06 07:33'
+updated_date: '2026-05-06 20:29'
 labels:
   - audience-tagging
   - documentation
+milestone: m-28
 dependencies: []
 references:
   - src/utils/audienceRules.ts

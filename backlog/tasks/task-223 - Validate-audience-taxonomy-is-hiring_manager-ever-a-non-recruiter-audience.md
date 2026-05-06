@@ -4,9 +4,11 @@ title: 'Validate audience taxonomy: is hiring_manager ever a non-recruiter audie
 status: To Do
 assignee: []
 created_date: '2026-05-06 07:33'
+updated_date: '2026-05-06 20:29'
 labels:
   - audience-tagging
   - design
+milestone: m-28
 dependencies: []
 references:
   - src/types/audience.ts
