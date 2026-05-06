@@ -2,11 +2,11 @@
 
 Facet has several kinds of sample data. They look similar in the tree, but they are meant for different jobs:
 
-| Lane                    | Used by                                                  | Where it lives                                                          | How to use it                                                                  |
-| ----------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| In-app sample data      | Product walkthroughs and manual QA                       | `src/store/defaultData.ts`, `src/routes/pipeline/samplePipelineData.ts` | Click the relevant **Load Sample Data** action in the running app.             |
-| Dev-only source samples | Identity extraction smoke tests during local development | `src/routes/identity/sampleSourceMaterial.ts`                           | Run the dev server, open Identity, and pick a sample from **Load dev sample**. |
-| Test fixtures           | Vitest and Playwright coverage                           | `src/test/fixtures/`, `tests/hosted/fixtures.ts`, `tests/fixtures/`     | Import them from tests or builders; they are not product import files.         |
+| Lane                    | Used by                                                  | Where it lives                                                          | How to use it                                                                                                  |
+| ----------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| In-app sample data      | Product walkthroughs and manual QA                       | `src/store/defaultData.ts`, `src/routes/pipeline/samplePipelineData.ts` | Click the relevant **Load Sample Data** action in the running app.                                             |
+| Dev-only source samples | Identity extraction smoke tests during local development | `src/routes/identity/sampleSourceMaterial.ts`                           | Run the dev server, open Identity Workbench, switch to paste mode, and pick a sample from **Load dev sample**. |
+| Test fixtures           | Vitest and Playwright coverage                           | `src/test/fixtures/`, `tests/hosted/fixtures.ts`, `tests/fixtures/`     | Import them from tests or builders; they are not product import files.                                         |
 
 All sample data must stay fictional. Do not add real candidates, real job-search targets, private compensation notes, secrets, or customer data.
 
@@ -40,12 +40,14 @@ Important behavior:
 
 ### Identity
 
-Identity has a dev-only **Load dev sample** dropdown in the extraction card. It is backed by `SOURCE_MATERIAL_SAMPLES` in `src/routes/identity/sampleSourceMaterial.ts`.
+Identity has a dev-only **Load dev sample** dropdown in the Workbench's **Source Intake** card. It is backed by `SOURCE_MATERIAL_SAMPLES` in `src/routes/identity/sampleSourceMaterial.ts`.
 
 Use it to paste realistic source material into the Identity extraction flow without keeping real resumes in the repo.
 
 Important behavior:
 
+- `/identity` opens the Identity Map. Click **Import from resume** or **Start from a resume** to open `/identity/workbench`.
+- The Source Intake card defaults to upload mode. Click **Paste Source Text** to reveal the sample dropdown.
 - The dropdown appears only under `import.meta.env.DEV`, so it is hidden in production builds.
 - Selecting a sample only fills the source-material textarea.
 - Running extraction after that still follows the normal AI/proxy path.
@@ -145,7 +147,7 @@ Then use:
 
 - Build empty state -> **Load Sample Data** for the default resume.
 - Pipeline empty state -> **Load Sample Data** for job-search entries.
-- Identity -> source-material extraction card -> **Load dev sample** for dev-only extraction inputs.
+- Identity Map -> **Import from resume** or **Start from a resume** -> **Paste Source Text** -> **Load dev sample** for dev-only extraction inputs.
 
 For fixture validation:
 

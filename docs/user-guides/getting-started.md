@@ -43,7 +43,7 @@ Facet includes a few fictional samples for first-run exploration:
 
 - **Build**: if the workspace is empty, click **Load Sample Data** to load the default resume model with vectors, roles, bullets, and theme settings.
 - **Pipeline**: if there are no tracked opportunities, click **Load Sample Data** to add fictional job-search entries.
-- **Identity**: when running the dev server, the extraction card includes a **Load dev sample** dropdown that fills the source-material textarea with fictional resume or bio text.
+- **Identity**: when running the dev server, open the Identity Map, choose **Import from resume** or **Start from a resume**, switch **Source Intake** to **Paste Source Text**, then use **Load dev sample** to fill the textarea with fictional resume or bio text.
 
 Developer fixtures live separately under `src/test/fixtures/` and `tests/`. Those are imported by tests, not loaded through the product import dialogs. See [Sample Data and Fixtures](../development/sample-data-and-fixtures.md) for the full map.
 

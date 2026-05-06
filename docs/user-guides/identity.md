@@ -41,17 +41,19 @@ Once your identity model is populated and validated, every other Facet workspace
 
 ## Workspace Layout
 
-The Identity workspace is organized as a responsive card grid with four primary sections:
+The Identity sidebar item opens the Identity Map at `/identity`. The extraction and JSON review flow lives in the Identity Workbench at `/identity/workbench`, which you can open from the Map with **Import from resume** or **Start from a resume**.
 
-| Card | Purpose |
-| --- | --- |
-| **Extraction Agent** | Upload or paste source material, add correction notes, trigger AI extraction |
-| **Identity Model Builder** | Edit the structured identity JSON, validate, apply, push to Build |
-| **Bullet Confidence** | View confidence scores and tags for extracted bullets |
-| **Draft Summary** | Read AI-generated summaries and follow-up questions about your draft |
+The Identity Workbench is organized as a responsive card grid with four primary sections:
+
+| Card                       | Purpose                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| **Source Intake**          | Upload or paste source material, add correction notes, trigger AI extraction |
+| **Identity Model Builder** | Edit the structured identity JSON, validate, apply, push to Build            |
+| **Bullet Confidence**      | View confidence scores and tags for extracted bullets                        |
+| **Draft Summary**          | Read AI-generated summaries and follow-up questions about your draft         |
 
 ![Identity workspace layout showing the four card sections](screenshots/identity-workspace-layout.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -84,13 +86,14 @@ You can enter this workflow at any point. If you already have an `identity.json`
 The fastest way to populate your identity is to upload an existing resume.
 
 1. Navigate to the **Identity** workspace using the sidebar.
-2. In the **Extraction Agent** card, confirm the intake mode is set to **Upload** (the default).
-3. Drag and drop your PDF onto the upload zone, or click the zone to open a file picker.
-4. Facet extracts text from the PDF locally in your browser — the file is not sent to any server.
-5. Once extraction completes, the raw text appears in the source panel and AI processing begins automatically.
+2. On the Identity Map, click **Import from resume** or **Start from a resume** to open the Workbench.
+3. In the **Source Intake** card, confirm the intake mode is set to **Upload Resume** (the default).
+4. Drag and drop your PDF onto the upload zone, or click the zone to open a file picker.
+5. Facet extracts text from the PDF locally in your browser — the file is not sent to any server.
+6. Once extraction completes, the raw text appears in the source panel and AI processing begins automatically.
 
-![Extraction Agent card with upload zone](screenshots/identity-upload-zone.png)
-*Screenshot to be added*
+![Source Intake card with upload zone](screenshots/identity-upload-zone.png)
+_Screenshot to be added_
 
 **Supported formats:** PDF files only. The scanner uses `pdfjs-dist` to extract text locally. Scanned-image PDFs (without embedded text) will produce empty or poor results — use the paste mode instead.
 
@@ -107,13 +110,16 @@ The fastest way to populate your identity is to upload an existing resume.
 
 If you do not have a PDF, or if your PDF contains scanned images, use paste mode.
 
-1. In the **Extraction Agent** card, switch the intake mode from **Upload** to **Paste**.
-2. A text area appears. Paste your resume content, LinkedIn profile text, or any career narrative.
-3. Optionally add **correction notes** in the notes input — these guide the AI on what to emphasize, fix, or restructure (more on this below).
-4. Click the generate button to trigger AI extraction.
-5. The structured draft appears in the Identity Model Builder card.
+1. Open the Identity Workbench from the Identity Map with **Import from resume** or **Start from a resume**.
+2. In the **Source Intake** card, switch the intake mode from **Upload Resume** to **Paste Source Text**.
+3. A text area appears. Paste your resume content, LinkedIn profile text, or any career narrative.
+4. Optionally add **correction notes** in the notes input — these guide the AI on what to emphasize, fix, or restructure (more on this below).
+5. Click the generate button to trigger AI extraction.
+6. The structured draft appears in the Identity Model Builder card.
 
 Paste mode accepts any freeform text. The AI is instructed to identify roles, companies, dates, accomplishments, skills, and education from whatever you provide.
+
+When running the dev server, paste mode also shows a **Load dev sample** dropdown above the textarea. The dropdown is hidden in production builds.
 
 ---
 
@@ -146,14 +152,14 @@ After extraction, the **Identity Model Builder** card displays the structured dr
 
 The identity model contains these top-level sections:
 
-| Section | Contents |
-| --- | --- |
-| `roles` | Array of positions with company, title, dates, and bullet arrays |
-| `bullets` | Individual accomplishments/responsibilities nested under roles |
-| `skills` | Skills grouped by category |
-| `projects` | Side projects, open-source work, or notable initiatives |
-| `education` | Degrees, certifications, relevant coursework |
-| `summary` | Professional summary or headline text |
+| Section     | Contents                                                         |
+| ----------- | ---------------------------------------------------------------- |
+| `roles`     | Array of positions with company, title, dates, and bullet arrays |
+| `bullets`   | Individual accomplishments/responsibilities nested under roles   |
+| `skills`    | Skills grouped by category                                       |
+| `projects`  | Side projects, open-source work, or notable initiatives          |
+| `education` | Degrees, certifications, relevant coursework                     |
+| `summary`   | Professional summary or headline text                            |
 
 The JSON editor provides real-time editing. You can:
 
@@ -164,7 +170,7 @@ The JSON editor provides real-time editing. You can:
 - **Correct** dates, titles, or company names
 
 ![Identity Model Builder with JSON editor](screenshots/identity-model-builder.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -178,13 +184,13 @@ The **Bullet Confidence** card displays confidence metadata for each extracted b
 Use confidence scores to prioritize your review effort. Low-confidence bullets are the ones most likely to need editing or deepening.
 
 ![Bullet Confidence card showing scores and tags](screenshots/identity-bullet-confidence.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
 ## Deepening Bullets
 
-Extracted bullets are often thin — they capture *what* you did but miss *how* and *why it mattered*. Bullet deepening uses AI to enrich bullets with additional context.
+Extracted bullets are often thin — they capture _what_ you did but miss _how_ and _why it mattered_. Bullet deepening uses AI to enrich bullets with additional context.
 
 ### Single-Bullet Deepen
 
@@ -212,7 +218,7 @@ To deepen all bullets at once:
 Bulk deepen is useful after initial extraction when you want to enrich the entire identity model before pushing to Build. Individual deepen is better for targeted refinement after reviewing confidence scores.
 
 ![Bullet Deepen Panel with progress indicator](screenshots/identity-bullet-deepen.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -240,10 +246,10 @@ If auto-repair succeeds, the corrected draft replaces the invalid one. If it fai
 
 Once your draft is validated, you apply it to the identity model. The **Identity Model Builder** card offers two apply modes:
 
-| Mode | Behavior |
-| --- | --- |
-| **Merge** | Adds new entries from the draft to the existing identity model. Existing entries (matched by ID) are preserved. Use this when iterating — you keep what you have and layer in new extractions. |
-| **Replace** | Overwrites the entire identity model with the draft. Use this for a fresh start or when the draft represents a complete rewrite. |
+| Mode        | Behavior                                                                                                                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Merge**   | Adds new entries from the draft to the existing identity model. Existing entries (matched by ID) are preserved. Use this when iterating — you keep what you have and layer in new extractions. |
+| **Replace** | Overwrites the entire identity model with the draft. Use this for a fresh start or when the draft represents a complete rewrite.                                                               |
 
 Choose the appropriate mode and click **Apply**. The identity model in the builder updates immediately.
 
