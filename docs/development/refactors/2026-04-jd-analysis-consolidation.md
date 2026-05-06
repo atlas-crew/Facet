@@ -3,8 +3,9 @@
 > Workstream: Pipeline / JD Match / Build / Cross-workspace foundation
 > Scope: Audit + canonical JDAnalysis entity + JD Match migration + Build migration
 > Estimated effort: 4-6 days post-audit
-> Status: Workstreams 1-4 shipped. Canonical JDAnalysis, JD Match migration,
-> and Build migration landed; Interview Prep remains the deferred duplicate.
+> Status: Workstreams 1-5 shipped. Canonical JDAnalysis, JD Match migration,
+> Build migration, and Interview Prep migration have all landed. No
+> remaining duplicates: every consumer reads canonical JDAnalysis.
 > Replaces (temporarily): cover letter refactor work — see
 > `2026-04-resume-letter-architecture.md` which depends on this work
 > Architecture references:
@@ -12,10 +13,13 @@
 > `docs/architecture/identity-canonical-data.md`
 >
 > **Audit findings (2026-04-29):** Build has its own JD analyzer
-> (`jdAnalyzer.ts`) that wasn't in original scope. Build migration is
-> now in scope because leaving it as a duplicate defeats the consolidation
-> purpose. Interview Prep migration remains deferred. See
-> `Workstream 4` and answers to audit questions for details.
+> (`jdAnalyzer.ts` — retired by this refactor's Workstream 4) that wasn't
+> in original scope. Build migration was added to scope because leaving
+> it as a duplicate defeats the consolidation purpose. Interview Prep
+> migration was originally deferred but subsequently picked up and
+> shipped (commit `44ca083`); see Workstream 5 below for the as-shipped
+> details. See `Workstream 4` and answers to audit questions for the
+> Build details.
 
 ---
 
@@ -29,9 +33,9 @@ downstream projections. JDAnalysis consumers also follow
 claims are referenced from identity, while job-specific positioning remains
 artifact-context editorial.
 
-JD analysis is currently duplicated across workspaces. The audit found
-**four** distinct implementations: JD Match (`jobMatch.ts`, the most
-mature), Build (`jdAnalyzer.ts`, single Haiku pass), Interview Prep
+JD analysis was duplicated across workspaces at audit time. The audit
+found **four** distinct implementations: JD Match (`jobMatch.ts`, the
+most mature), Build (`jdAnalyzer.ts` — since retired), Interview Prep
 (embedded in `prepGenerator.ts`'s deck generation), and ad-hoc JD
 consumption in cover letter generation. Each implementation uses
 different prompts, fields, models (Sonnet vs Haiku), truncation
@@ -502,11 +506,16 @@ JDAnalysis. It can proceed once Workstream 2 lands.
    canonical JDAnalysis through BuildProjection, `jdAnalyzer.ts` is retired,
    and job-specific resume generation requires a Pipeline entry with
    canonical analysis.
-5. **Interview Prep migration remains deferred.** Prep still runs its own
-   embedded JD analysis and is the known remaining duplicate for a follow-up
-   workstream.
-6. **Cover letter workstream is unblocked.** Letter generation should consume
-   canonical JDAnalysis rather than creating a separate JD analysis pass.
+5. ~~Interview Prep migration (Workstream 5)~~ — **SHIPPED** (commit
+   `44ca083`). `PrepGenerationRequest` now takes a canonical `JDAnalysis`;
+   Prep formats it for the deck-generation prompt via
+   `formatJdAnalysisForPrompt` and pins drift markers (`jdAnalysisId`,
+   `jdAnalysisGeneratedAt`, `jdAnalysisModelVersion`, `jdTextHash`) on
+   each generated deck. No embedded analyzer remains in the prep
+   generator.
+6. **Cover letter workstream is unblocked.** Letter generation consumes
+   canonical JDAnalysis through `CoverLetterJDAnalysisContext` rather
+   than running a separate JD analysis pass.
 
 ---
 
@@ -524,5 +533,6 @@ Cover letter follow-up requirements:
 - No JD analysis logic in the letter generator itself
 
 The cover letter refactor is unblocked and owned by the separate
-resume-letter architecture workstream. Interview Prep remains the only
-documented in-scope duplicate left for a later migration.
+resume-letter architecture workstream. Interview Prep, originally the
+last documented duplicate, has since migrated (Workstream 5 above) and
+is no longer outstanding.
