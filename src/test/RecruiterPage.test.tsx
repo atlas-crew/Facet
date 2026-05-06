@@ -194,7 +194,7 @@ describe('RecruiterPage', () => {
     render(<RecruiterPage />)
 
     expect(
-      screen.getByText('Run JD analysis on a pipeline entry before creating a recruiter card.'),
+      screen.getByText('Run a JD match (Match workspace) or pipeline JD analysis to populate a recruiter card.'),
     ).toBeTruthy()
     expect(screen.getByText('Generate from JD Analysis')).toHaveProperty('disabled', true)
   })

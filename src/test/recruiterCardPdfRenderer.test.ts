@@ -123,4 +123,37 @@ describe('recruiterCardPdfRenderer', () => {
     const low = JSON.parse(snippetInstances[0]?.lastPdfArgs?.inputs?.data ?? '{}') as { matchScorePct: number }
     expect(low.matchScorePct).toBe(0)
   })
+
+  it('renders legacy cards missing post-Phase-6 fields as blanks, not errors', async () => {
+    // Cards hydrated from a workspace snapshot taken before Phase 6 will be
+    // missing matchScoreMethodology and actionCta (and may still carry
+    // dropped fields). The renderer must default missing strings to ''
+    // and missing arrays to [] so the Typst template doesn't trip over
+    // dict-key-not-found access. JSON.stringify drops undefined keys, so
+    // without the defaults, dataPayload would lack those fields entirely.
+    const { renderRecruiterCardAsPdf } = await loadRenderer()
+    const legacyCard = {
+      id: 'legacy-1',
+      generatedAt: '2026-04-01T00:00:00.000Z',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      candidateName: 'Jane Example',
+      candidateTitle: 'Senior Platform Engineer',
+      matchScore: 0.7,
+      summary: 'Legacy summary.',
+      recruiterHook: 'Legacy hook.',
+      suggestedIntro: 'Legacy intro.',
+      topReasons: ['Reason'],
+      proofPoints: ['Proof'],
+      skillHighlights: ['Skill'],
+      likelyConcerns: [],
+    } as unknown as RecruiterCard
+
+    await renderRecruiterCardAsPdf(legacyCard)
+
+    const data = JSON.parse(snippetInstances[0]?.lastPdfArgs?.inputs?.data ?? '{}') as Record<string, unknown>
+    expect(data.matchScoreMethodology).toBe('')
+    expect(data.actionCta).toBe('')
+    expect(data.topReasons).toEqual(['Reason'])
+  })
 })

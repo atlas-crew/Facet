@@ -88,7 +88,7 @@ export function RecruiterPage() {
     !currentIdentity
       ? 'Apply an identity model before generating a recruiter card.'
       : !currentJDAnalysis
-        ? 'Run JD analysis on a pipeline entry before creating a recruiter card.'
+        ? 'Run a JD match (Match workspace) or pipeline JD analysis to populate a recruiter card.'
         : null
 
   const handleCreateBlankCard = () => {
