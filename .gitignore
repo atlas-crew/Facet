@@ -188,6 +188,7 @@ tests/hosted/.auth/
 .vercel
 .playwright-mcp/
 *.png
+!brand/**/*.png
 .playwright-mcp/
 .playwright-cli/
 .claude/tour-state.json
