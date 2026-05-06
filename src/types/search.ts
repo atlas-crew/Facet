@@ -130,6 +130,29 @@ export interface SearchResultCompanyIntel {
   openRoleCount?: number
 }
 
+export const CITATION_TYPE_VALUES = [
+  'careers',
+  'public',
+  'review',
+  'index',
+  'github',
+  'news',
+  'other',
+] as const
+
+export type CitationType = (typeof CITATION_TYPE_VALUES)[number]
+
+export interface Citation {
+  /** Marker id used by prose as [cite:<id>]. */
+  id: string
+  /** Human-readable source label, e.g. "PostHog" or "Built In". */
+  source: string
+  url?: string
+  type?: CitationType
+  /** Optional note about which factual claim this citation supports. */
+  claim?: string
+}
+
 export interface SearchResultEntry {
   id: string
   tier: 1 | 2 | 3
@@ -143,6 +166,8 @@ export interface SearchResultEntry {
   risks: string[]
   estimatedComp?: string
   source: string
+  /** Claim-level citations referenced by [cite:<id>] markers in this result's prose. */
+  citations?: Citation[]
 
   /** "Why this candidate wins here" narrative from deep research. */
   candidateEdge?: string
@@ -303,6 +328,7 @@ export interface SearchRunNarrative {
   rejectedCandidates?: SearchRejectedCandidate[]
   nextSteps?: string[]
   references?: SearchNarrativeReference[]
+  citations?: Citation[]
 }
 
 // ── Search Thesis ──────────────────────────────────────────────

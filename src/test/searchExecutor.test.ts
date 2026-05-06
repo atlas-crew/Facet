@@ -20,6 +20,7 @@ import {
   validateApplicationPlanAgainstTimeline,
   validateNarrativeCandidateEdges,
 } from '../utils/searchExecutor'
+import { stripUnresolvedCitationMarkers } from '../utils/searchCitations'
 
 const baseProfile: SearchProfile = {
   id: 'sprof-1',
@@ -232,6 +233,164 @@ describe('searchExecutor', () => {
       'Own product analytics infrastructure and improve developer platform reliability.',
     )
     expect(results[0]?.jobDescriptionSourceUrl).toBe('https://posthog.com/careers/platform')
+  })
+
+  it('normalizes resolved citation markers and citation metadata', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'PostHog',
+            title: 'Platform Engineer',
+            url: 'https://posthog.com/careers',
+            matchScore: 95,
+            matchReason: 'Paid SuperDay process [cite:posthog-careers].',
+            vectorAlignment: 'Builder-friendly interview loop [cite:posthog-careers].',
+            risks: [],
+            source: 'web',
+            candidateEdge:
+              'The candidate has shipped platform tooling at staff scope. PostHog uses a project-based SuperDay, so the evidence maps to the hiring signal [cite:posthog-careers].',
+            citations: [
+              {
+                id: 'posthog-careers',
+                source: 'PostHog',
+                url: 'https://posthog.com/careers',
+                type: 'careers',
+                claim: 'Project-based interview process',
+              },
+            ],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.matchReason).toContain('[cite:posthog-careers]')
+    expect(results[0]?.candidateEdge).toContain('[cite:posthog-careers]')
+    expect(results[0]?.citations).toEqual([
+      {
+        id: 'posthog-careers',
+        source: 'PostHog',
+        url: 'https://posthog.com/careers',
+        type: 'careers',
+        claim: 'Project-based interview process',
+      },
+    ])
+  })
+
+  it('drops unresolved citation markers while preserving resolved ones', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'MixedCo',
+            title: 'Staff Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 90,
+            matchReason: 'Verified claim [cite:known]. Unsupported claim [cite:missing].',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            candidateEdge:
+              'Known process evidence is cited [cite:known]. The missing marker should be removed [cite:missing].',
+            citations: [{ id: 'known', source: 'Known Source' }],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.matchReason).toBe('Verified claim [cite:known]. Unsupported claim.')
+    expect(results[0]?.candidateEdge).toBe(
+      'Known process evidence is cited [cite:known]. The missing marker should be removed.',
+    )
+  })
+
+  it('normalizes orphaned citations without inventing markers', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'OrphanCo',
+            title: 'Infrastructure Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 80,
+            matchReason: 'No inline marker here.',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            citations: [{ id: 'unused', source: 'Unused Source', type: 'index' }],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.matchReason).toBe('No inline marker here.')
+    expect(results[0]?.citations).toEqual([{ id: 'unused', source: 'Unused Source', type: 'index' }])
+  })
+
+  it('strips citation markers when citations are empty or invalid', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'NoCiteCo',
+            title: 'Backend Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 70,
+            matchReason: 'Unsupported source [cite:nope].',
+            vectorAlignment: 'backend [cite:nope].',
+            risks: [],
+            source: 'web',
+            candidateEdge: 'This has no citation array [cite:nope]. It should still render cleanly.',
+            citations: [{ id: '', source: 'Missing id' }],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.matchReason).toBe('Unsupported source.')
+    expect(results[0]?.vectorAlignment).toBe('backend.')
+    expect(results[0]?.candidateEdge).toBe(
+      'This has no citation array. It should still render cleanly.',
+    )
+    expect(results[0]?.citations).toBeUndefined()
+  })
+
+  it('preserves paragraph breaks when unresolved citation markers are stripped', () => {
+    expect(
+      stripUnresolvedCitationMarkers('First paragraph [cite:missing].\n\nSecond paragraph.', []),
+    ).toBe('First paragraph.\n\nSecond paragraph.')
+  })
+
+  it('drops unsafe citation urls during normalization', () => {
+    const results = normalizeResults(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'SafeLinks',
+            title: 'Backend Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 70,
+            matchReason: 'Verified source [cite:safe].',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+            citations: [{ id: 'safe', source: 'Safe Source', url: 'javascript:alert(1)' }],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.citations).toEqual([{ id: 'safe', source: 'Safe Source' }])
   })
 
   it('omits enriched fields when absent from AI response', () => {
@@ -649,6 +808,19 @@ describe('normalizeRunNarrative', () => {
     const result = normalizeRunNarrative(payload)
     expect(result.narrative).toBeUndefined()
     expect(result.violations).toContain('narrative.competitiveMoat: missing or empty')
+  })
+
+  it('returns undefined narrative with a violation when required text strips to empty', () => {
+    const result = normalizeRunNarrative({
+      ...validNarrativePayload(),
+      executiveSummary: '[cite:missing]',
+      citations: [],
+    })
+
+    expect(result.narrative).toBeUndefined()
+    expect(result.violations).toContain(
+      'narrative.executiveSummary: empty after stripping unresolved citation markers',
+    )
   })
 
   it('flags short required fields but still returns the narrative', () => {

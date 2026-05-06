@@ -30,6 +30,7 @@ import {
 } from '../../types/artifactMeta'
 import type { ProfessionalIdentityV3, ProfessionalSkillDepth } from '../../identity/schema'
 import type {
+  Citation,
   DeepResearchIdentityEvidence,
   ResearchJob,
   ResearchUsageSnapshot,
@@ -52,6 +53,8 @@ import {
   hydrateSearchRunFromResearchJob,
   streamDeepResearchJob,
 } from '../../utils/deepSearchClient'
+import type { CitationRenderMode } from '../../utils/searchCitations'
+import { getReferencedCitations, splitTextByCitationMarkers } from '../../utils/searchCitations'
 import {
   generateSearchThesisFromIdentity,
   validateSearchThesis,
@@ -250,6 +253,99 @@ const buildSkillDepthMutation = (
 
 const formatOptionalCount = (count: number, singular: string, plural: string): string | undefined =>
   count > 0 ? formatCount(count, singular, plural) : undefined
+
+const CitationText = ({
+  text,
+  citations,
+  mode = 'inline',
+  footnoteIdPrefix = 'citation',
+}: {
+  text: string
+  citations?: readonly Citation[]
+  mode?: CitationRenderMode
+  footnoteIdPrefix?: string
+}) => {
+  if (!citations || citations.length === 0 || !text.includes('[cite:')) {
+    return <>{text}</>
+  }
+
+  const citationById = new Map(
+    citations.map((citation, index) => [citation.id, { citation, index }]),
+  )
+
+  return (
+    <>
+      {splitTextByCitationMarkers(text).map((part, index) => {
+        if (part.type === 'text') {
+          return <span key={'text-' + String(index)}>{part.text}</span>
+        }
+        const match = citationById.get(part.id)
+        if (!match) {
+          return (
+            <span
+              key={'citation-unresolved-' + part.id + '-' + String(index)}
+              className="research-citation-unresolved"
+              title={'Unresolved citation: ' + part.id}
+            >
+              [?]
+            </span>
+          )
+        }
+        const title = match.citation.claim ?? match.citation.url ?? match.citation.source
+        return mode === 'footnote' ? (
+          <a
+            key={'citation-' + part.id + '-' + String(index)}
+            className="research-citation-footnote-ref"
+            href={'#' + footnoteIdPrefix + '-' + match.citation.id}
+            title={title}
+          >
+            <sup>{match.index + 1}</sup>
+          </a>
+        ) : (
+          <span
+            key={'citation-' + part.id + '-' + String(index)}
+            className="research-citation-badge"
+            title={title}
+          >
+            {match.citation.source}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+const CitationFootnotes = ({
+  citations,
+  idPrefix = 'citation',
+  headingLevel = 'h5',
+}: {
+  citations: readonly Citation[]
+  idPrefix?: string
+  headingLevel?: 'h4' | 'h5' | 'h6'
+}) => {
+  if (citations.length === 0) return null
+  const Heading = headingLevel
+  return (
+    <div className="research-citation-footnotes">
+      <Heading>Sources</Heading>
+      <ol>
+        {citations.map((citation) => (
+          <li key={citation.id} id={idPrefix + '-' + citation.id}>
+            {citation.url ? (
+              <a href={citation.url} target="_blank" rel="noreferrer">
+                {citation.source}
+              </a>
+            ) : (
+              <span>{citation.source}</span>
+            )}
+            {citation.claim ? <span>{' - ' + citation.claim}</span> : null}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
 
 const getStalenessDecisionLabel = (decision?: StalenessReviewDecision): string => {
   if (decision === 'accepted') return 'Accepted current artifact'
@@ -3665,21 +3761,55 @@ export function ResearchPage() {
                   {activeRun.narrative ? (
                     <section className="research-narrative" aria-label="Search narrative">
                       <h3>Run Narrative</h3>
-                      <p>{activeRun.narrative.executiveSummary}</p>
+                      <p>
+                        <CitationText
+                          text={activeRun.narrative.executiveSummary}
+                          citations={activeRun.narrative.citations}
+                        />
+                      </p>
                       <div className="research-narrative-grid">
                         <div>
                           <strong>Competitive moat</strong>
-                          <p>{activeRun.narrative.competitiveMoat}</p>
+                          <p>
+                            <CitationText
+                              text={activeRun.narrative.competitiveMoat}
+                              citations={activeRun.narrative.citations}
+                            />
+                          </p>
                         </div>
                         <div>
                           <strong>Selection methodology</strong>
-                          <p>{activeRun.narrative.selectionMethodology}</p>
+                          <p>
+                            <CitationText
+                              text={activeRun.narrative.selectionMethodology}
+                              citations={activeRun.narrative.citations}
+                            />
+                          </p>
                         </div>
                         <div>
                           <strong>Market context</strong>
-                          <p>{activeRun.narrative.marketContext}</p>
+                          <p>
+                            <CitationText
+                              text={activeRun.narrative.marketContext}
+                              citations={activeRun.narrative.citations}
+                            />
+                          </p>
                         </div>
                       </div>
+                      <CitationFootnotes
+                        citations={getReferencedCitations(
+                          [
+                            activeRun.narrative.executiveSummary,
+                            activeRun.narrative.competitiveMoat,
+                            activeRun.narrative.selectionMethodology,
+                            activeRun.narrative.marketContext,
+                            activeRun.narrative.landscapeTrends,
+                          ],
+                          activeRun.narrative.citations ?? [],
+                        )}
+                        idPrefix="narrative-citation"
+                        headingLevel="h4"
+                      />
                     </section>
                   ) : null}
 
@@ -3722,6 +3852,11 @@ export function ResearchPage() {
                             const feedbackBadge = feedbackByResultId.get(result.id) ?? null
                             const isFeedbackOpen =
                               feedbackPanel?.resultId === result.id
+                            const resultCitations = result.citations ?? []
+                            const resultFootnoteCitations = getReferencedCitations(
+                              [result.matchReason, result.vectorAlignment, result.candidateEdge],
+                              resultCitations,
+                            )
 
                             return (
                               <article key={result.id} className="research-result-card">
@@ -3744,17 +3879,38 @@ export function ResearchPage() {
                                   <span>{result.source}</span>
                                 </div>
 
-                                <p className="research-result-copy">{result.matchReason}</p>
+                                <p className="research-result-copy">
+                                  <CitationText
+                                    text={result.matchReason}
+                                    citations={resultFootnoteCitations}
+                                    mode="footnote"
+                                    footnoteIdPrefix={'citation-' + result.id}
+                                  />
+                                </p>
 
                                 <div className="research-result-block">
                                   <strong>Vector alignment</strong>
-                                  <p>{result.vectorAlignment || 'No vector note returned.'}</p>
+                                  <p>
+                                    <CitationText
+                                      text={result.vectorAlignment || 'No vector note returned.'}
+                                      citations={resultFootnoteCitations}
+                                      mode="footnote"
+                                      footnoteIdPrefix={'citation-' + result.id}
+                                    />
+                                  </p>
                                 </div>
 
                                 {result.candidateEdge ? (
                                   <div className="research-result-block">
                                     <strong>Candidate edge</strong>
-                                    <p>{result.candidateEdge}</p>
+                                    <p>
+                                      <CitationText
+                                        text={result.candidateEdge}
+                                        citations={resultFootnoteCitations}
+                                        mode="footnote"
+                                        footnoteIdPrefix={'citation-' + result.id}
+                                      />
+                                    </p>
                                   </div>
                                 ) : null}
 
@@ -3787,6 +3943,12 @@ export function ResearchPage() {
                                     </p>
                                   </div>
                                 ) : null}
+
+                                <CitationFootnotes
+                                  citations={resultFootnoteCitations}
+                                  idPrefix={'citation-' + result.id}
+                                  headingLevel="h5"
+                                />
 
                                 <div className="research-result-block">
                                   <strong>Risks</strong>

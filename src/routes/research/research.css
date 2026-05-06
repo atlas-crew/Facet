@@ -645,6 +645,64 @@
   margin: 0;
 }
 
+.research-citation-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: baseline;
+}
+
+.research-citation-footnote-ref {
+  margin-left: 2px;
+  color: var(--accent-primary);
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.research-citation-unresolved {
+  display: inline-flex;
+  margin-left: 4px;
+  color: var(--error);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.research-citation-footnotes {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.research-citation-footnotes h4,
+.research-citation-footnotes h5,
+.research-citation-footnotes h6 {
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.research-citation-footnotes ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.research-citation-footnotes li + li {
+  margin-top: 4px;
+}
+
+.research-citation-footnotes a {
+  color: var(--accent-primary);
+}
+
 .research-result-feedback {
   display: flex;
   flex-direction: column;

@@ -1,4 +1,5 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
+import { CITATION_TYPE_VALUES } from '../types/search'
 import type {
   DeepResearchIdentityEvidence,
   ResearchJob,
@@ -26,7 +27,10 @@ export const DEEP_RESEARCH_OUTPUT_CONTRACT = [
   'Each result must include candidateEdge as 2-4 sentences using candidate fact + company fact + interpretation.',
   'Each result should include interviewProcess, companyIntel, signalGroup, and advantageMatch when evidence is available.',
   'Each result may include jobDescription only when raw job posting text is directly available from a cited/source page; include jobDescriptionSourceUrl with the same-origin source URL and do not infer or synthesize a JD.',
-  'Every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding must use [cite:<id>] markers resolving to citations/references.',
+  'Every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding must use [cite:<id>] markers resolving to a Citation in result.citations[] or narrative.citations[].',
+  'Citation objects must include id, source, optional url, optional type (' +
+    CITATION_TYPE_VALUES.join('|') +
+    '), and optional claim. Do not leave unresolved [cite:<id>] markers in prose.',
   'Do not collapse reasoning into fragments. Fields labeled narrative or summary expect prose. Fields labeled edge or reason expect 2-4 sentences. If you cannot cite a factual claim, do not claim it.',
 ].join('\n')
 

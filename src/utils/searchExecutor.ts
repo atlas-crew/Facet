@@ -2,6 +2,7 @@ import type {
   ApplicationPlan,
   ApplicationPlanPhase,
   ApplicationPlanTask,
+  Citation,
   SearchNarrativeLaneSummary,
   SearchNarrativeReference,
   SearchObjectiveRecommendation,
@@ -22,6 +23,7 @@ import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
 import { createId } from './idUtils'
 import { normalizeJobDescriptionSourceUrl, normalizeJobDescriptionText } from './jobDescriptionText'
+import { normalizeCitations, stripUnresolvedCitationMarkers } from './searchCitations'
 import type { FacetAiFeatureKey } from '../types/hosted'
 
 const REQUEST_TIMEOUT_MS = 120000
@@ -240,6 +242,12 @@ function normalizeCompanyIntel(value: unknown): SearchResultCompanyIntel | undef
   }
 }
 
+const cleanCitedText = (value: unknown, citations: readonly Citation[]): string | undefined => {
+  if (!isString(value)) return undefined
+  const cleaned = stripUnresolvedCitationMarkers(value.trim(), citations)
+  return cleaned || undefined
+}
+
 // ── Run-Level Narrative Normalization ────────────────────────────────────────
 //
 // Contract thresholds. Picked as weak-signal checks: long enough to catch fragment
@@ -428,6 +436,7 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
   }
 
   const record = value as Record<string, unknown>
+  const citations = normalizeCitations(record.citations)
   const readRequired = (
     key: 'competitiveMoat' | 'selectionMethodology' | 'marketContext' | 'executiveSummary',
   ): string | null => {
@@ -436,7 +445,12 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
       violations.push(`narrative.${key}: missing or empty`)
       return null
     }
-    return raw.trim()
+    const cleaned = stripUnresolvedCitationMarkers(raw.trim(), citations)
+    if (!cleaned) {
+      violations.push(`narrative.${key}: empty after stripping unresolved citation markers`)
+      return null
+    }
+    return cleaned
   }
 
   const competitiveMoat = readRequired('competitiveMoat')
@@ -465,7 +479,7 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
   }
 
   const landscapeTrends = isNonEmptyString(record.landscapeTrends)
-    ? record.landscapeTrends.trim()
+    ? stripUnresolvedCitationMarkers(record.landscapeTrends.trim(), citations)
     : undefined
 
   const scoringRubric =
@@ -525,6 +539,7 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
     ...(rejectedCandidates && rejectedCandidates.length > 0 ? { rejectedCandidates } : {}),
     ...(nextSteps && nextSteps.length > 0 ? { nextSteps } : {}),
     ...(references && references.length > 0 ? { references } : {}),
+    ...(citations.length > 0 ? { citations } : {}),
   }
 
   return { narrative, violations }
@@ -636,6 +651,10 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
       const jobDescription = jobDescriptionSourceUrl
         ? normalizeJobDescriptionText(item.jobDescription) || undefined
         : undefined
+      const citations = normalizeCitations(item.citations)
+      const matchReason = cleanCitedText(item.matchReason, citations) ?? ''
+      const vectorAlignment = cleanCitedText(item.vectorAlignment, citations) ?? ''
+      const candidateEdge = cleanCitedText(item.candidateEdge, citations)
 
       return [
         {
@@ -646,8 +665,8 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
           url,
           location: isString(item.location) ? item.location.trim() : undefined,
           matchScore: clampMatchScore(item.matchScore),
-          matchReason: isString(item.matchReason) ? item.matchReason.trim() : '',
-          vectorAlignment: isString(item.vectorAlignment) ? item.vectorAlignment.trim() : '',
+          matchReason,
+          vectorAlignment,
           risks: Array.isArray(item.risks)
             ? item.risks
                 .filter(isString)
@@ -656,9 +675,8 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
             : [],
           estimatedComp: isString(item.estimatedComp) ? item.estimatedComp.trim() : undefined,
           source: isString(item.source) ? item.source.trim() : 'web_search',
-          candidateEdge: isString(item.candidateEdge)
-            ? item.candidateEdge.trim() || undefined
-            : undefined,
+          ...(citations.length > 0 ? { citations } : {}),
+          ...(candidateEdge ? { candidateEdge } : {}),
           interviewProcess: normalizeInterviewProcess(item.interviewProcess),
           companyIntel: normalizeCompanyIntel(item.companyIntel),
           signalGroup: isString(item.signalGroup)
@@ -727,6 +745,8 @@ Search targets:
 - Tier 1 should be near-perfect matches.
 - Tier 2 should be strong but slightly less aligned.
 - Tier 3 should be interesting stretch or adjacent roles.
+- Attribute every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding with [cite:<id>] markers.
+- Each [cite:<id>] marker must resolve to an entry in the result's citations array. Do not make factual claims you cannot cite.
 
 Wrap your final JSON output with <result> and </result> tags on their own lines.
 Any reasoning, narrative, or prose may appear outside these tags — parsers look
@@ -750,8 +770,10 @@ Return JSON only (inside the tags) with this schema:
       "vectorAlignment": "string",
       "risks": ["string"],
       "estimatedComp": "optional string",
+      "candidateEdge": "optional 2-4 sentence narrative using candidate fact + company fact + interpretation with [cite:<id>] markers for factual company claims",
       "jobDescription": "optional raw job posting text; include only when directly available from a source, never inferred",
       "jobDescriptionSourceUrl": "optional same-origin source URL required when jobDescription is present",
+      "citations": [{ "id": "source slug matching [cite:<id>]", "source": "string", "url": "optional string", "type": "careers|public|review|index|github|news|other", "claim": "optional supported claim" }],
       "source": "string"
     }
   ]

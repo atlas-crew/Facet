@@ -2266,7 +2266,16 @@ describe('ResearchPage', () => {
           competitiveMoat: 'The candidate has a durable platform moat with production evidence.',
           selectionMethodology: 'The search filtered for senior platform roles with strong backend overlap.',
           marketContext: 'Platform hiring remains active in companies investing in internal leverage.',
-          executiveSummary: 'NewCo is the best current fit because the role needs principal-level backend platform ownership and the candidate evidence maps cleanly to that scope.',
+          executiveSummary: 'NewCo is the best current fit because the role needs principal-level backend platform ownership and the candidate evidence maps cleanly to that scope [cite:market-report].',
+          citations: [
+            {
+              id: 'market-report',
+              source: 'Market Report',
+              url: 'https://example.com/market',
+              type: 'news',
+              claim: 'Platform hiring remains active',
+            },
+          ],
         },
         contractViolations: ['candidateEdge for NewCo is shorter than expected.'],
         results: [
@@ -2277,11 +2286,20 @@ describe('ResearchPage', () => {
             title: 'Principal Engineer',
             url: 'https://example.com/jobs/new',
             matchScore: 95,
-            matchReason: 'Very strong match',
+            matchReason: 'Very strong match [cite:newco-careers]',
             vectorAlignment: 'backend',
             risks: [],
             source: 'greenhouse',
-            candidateEdge: 'The candidate has shipped backend platforms at staff scope. NewCo needs principal-level platform ownership, so the evidence maps directly to the role.',
+            candidateEdge: 'The candidate has shipped backend platforms at staff scope. NewCo needs principal-level platform ownership, so the evidence maps directly to the role [cite:newco-careers].',
+            citations: [
+              {
+                id: 'newco-careers',
+                source: 'NewCo Careers',
+                url: 'https://example.com/jobs/new',
+                type: 'careers',
+                claim: 'Principal platform ownership role',
+              },
+            ],
             companyIntel: {
               stage: 'Series B',
               aiCulture: 'AI-native engineering workflows',
@@ -2312,6 +2330,8 @@ describe('ResearchPage', () => {
     expect(useSearchStore.getState().runs.at(-1)?.results[0]?.company).toBe('NewCo')
     expect(screen.getByText('The candidate has a durable platform moat with production evidence.')).toBeTruthy()
     expect(screen.getByText(/shipped backend platforms at staff scope/)).toBeTruthy()
+    expect(screen.getAllByText('Market Report').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('NewCo Careers').length).toBeGreaterThan(0)
     expect(screen.getByText('Series B · AI-native engineering workflows · Remote-first')).toBeTruthy()
     expect(screen.getByText('Architecture screen and work sample · 3 weeks')).toBeTruthy()
     expect(screen.getByText('candidateEdge for NewCo is shorter than expected.')).toBeTruthy()

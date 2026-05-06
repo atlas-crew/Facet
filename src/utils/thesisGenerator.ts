@@ -418,6 +418,7 @@ export async function generateSearchThesisFromIdentity(
     'Generate a SearchThesis from the supplied full identity model. Use archetype, arc, profiles, PAIO evidence, skills, calibration notes, matching preferences, conditions, search vectors, and open questions. Do not reduce the input to a flat skill list.',
     '',
     'Use Opus-level reasoning. The thesis is the user decision artifact before an expensive deep-research job.',
+    'Do not introduce uncited external factual claims. If you include factual claims from supplied reference material, mark them with [cite:<id>] and ensure downstream deep-research prompts can resolve that id to a Citation with id, source, optional url/type/claim.',
     '',
     'Per-search overrides (`searchOverrides`): infer plausible per-search values from identity context and the chosen lanes. These are starting points the user will correct, NOT static placeholders. Better to make a confident guess that teaches the user what the field means than to leave fields blank. Concrete > abstract: prefer "$240k base / $340k total" over "competitive comp"; prefer "Tampa Bay (Remote-friendly)" over "Remote".',
     '',
