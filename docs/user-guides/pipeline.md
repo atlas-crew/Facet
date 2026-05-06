@@ -32,7 +32,7 @@ The Pipeline workspace lives at `/pipeline` and is accessible from the icon side
 4. **Pipeline Table** -- the main list of entries with expandable rows
 
 ![Pipeline workspace layout](screenshots/pipeline-workspace.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -70,12 +70,12 @@ When you have a job description copied to your clipboard, the Paste JD flow extr
 
 Tiers let you prioritize opportunities by how much effort they deserve. Every entry is assigned one of four tiers:
 
-| Tier | Intent | When to Use |
-|------|--------|-------------|
-| **Tier 1** | Top priority | Dream roles that justify full customization -- tailored resume, cover letter, deep prep |
-| **Tier 2** | Strong interest | Good fits worth solid effort but not full bespoke treatment |
-| **Tier 3** | Opportunistic | Worth applying to but only with minimal extra work |
-| **Watch** | Monitoring | Interesting companies or roles you are not ready to pursue yet |
+| Tier       | Intent          | When to Use                                                                             |
+| ---------- | --------------- | --------------------------------------------------------------------------------------- |
+| **Tier 1** | Top priority    | Dream roles that justify full customization -- tailored resume, cover letter, deep prep |
+| **Tier 2** | Strong interest | Good fits worth solid effort but not full bespoke treatment                             |
+| **Tier 3** | Opportunistic   | Worth applying to but only with minimal extra work                                      |
+| **Watch**  | Monitoring      | Interesting companies or roles you are not ready to pursue yet                          |
 
 Tiers affect how you allocate your time. A Tier 1 entry might warrant launching Match analysis, writing a targeted cover letter in Letters, and building interview prep cards, while a Tier 3 entry might only need a quick resume export.
 
@@ -89,17 +89,17 @@ Each entry carries a status that reflects where it stands in the application lif
 
 The available statuses are:
 
-| Status | Meaning |
-|--------|---------|
-| **Saved** | Captured but not yet acted on |
-| **Applied** | Application submitted |
-| **Screening** | Initial recruiter screen scheduled or completed |
-| **Interviewing** | Active interview loop |
-| **Offer** | Offer received |
-| **Accepted** | Offer accepted |
-| **Rejected** | Rejected at any stage |
-| **Withdrawn** | You withdrew your application |
-| **Ghosted** | No response after a reasonable period |
+| Status           | Meaning                                         |
+| ---------------- | ----------------------------------------------- |
+| **Saved**        | Captured but not yet acted on                   |
+| **Applied**      | Application submitted                           |
+| **Screening**    | Initial recruiter screen scheduled or completed |
+| **Interviewing** | Active interview loop                           |
+| **Offer**        | Offer received                                  |
+| **Accepted**     | Offer accepted                                  |
+| **Rejected**     | Rejected at any stage                           |
+| **Withdrawn**    | You withdrew your application                   |
+| **Ghosted**      | No response after a reasonable period           |
 
 The typical lifecycle flows through these statuses:
 
@@ -157,7 +157,7 @@ Choose a sort field from the dropdown. Available sort options include:
 - **Status** (by lifecycle stage)
 
 ![Filter and sort bar](screenshots/pipeline-filter-bar.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -191,11 +191,11 @@ The status badge on each row is interactive. Click it to cycle through statuses 
 
 Each row includes action buttons that launch directly into other workspaces with the entry's context pre-loaded:
 
-| Button | Target Workspace | What Happens |
-|--------|------------------|--------------|
-| **Analyze** | Match | Opens Match with the entry's JD for analysis |
-| **Prep** | Prep | Opens Prep with the entry's company and role pre-filled |
-| **Build** | Build | Opens Build with the entry's linked vector selected |
+| Button      | Target Workspace | What Happens                                            |
+| ----------- | ---------------- | ------------------------------------------------------- |
+| **Analyze** | Match            | Opens Match with the entry's JD for analysis            |
+| **Prep**    | Prep             | Opens Prep with the entry's company and role pre-filled |
+| **Build**   | Build            | Opens Build with the entry's linked vector selected     |
 
 These launchers eliminate context-switching. Instead of navigating to another workspace and manually selecting the right context, you jump straight there from the entry.
 
@@ -231,13 +231,13 @@ Click the **Export** button in the header. Facet downloads a JSON file containin
 
 Click the **Import** button in the header to open the import modal. Three import sources are available:
 
-| Source | Description |
-|--------|-------------|
-| **JSON File** | Upload a previously exported JSON file. Entries are merged by ID -- existing entries are preserved, new entries are added. |
+| Source                  | Description                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| **JSON File**           | Upload a previously exported JSON file. The imported file replaces the current Pipeline entry list.       |
 | **Legacy localStorage** | Migrate pipeline data from an older version of Facet that stored data under a different localStorage key. |
-| **Sample Data** | Load a set of example entries to explore the workspace before adding your own data. |
+| **Sample Data**         | Load a set of example entries to explore the workspace before adding your own data.                       |
 
-> **Tip:** Import is additive. It never overwrites or removes existing entries. If an imported entry shares an ID with an existing one, the existing entry takes precedence.
+> **Tip:** Export before importing if you need to keep the current Pipeline entries. Pipeline import replaces the current entry list.
 
 ---
 
@@ -251,7 +251,7 @@ Click the **Analytics** button in the header to open the analytics overlay. The 
 These charts help you spot imbalances. For example, if most entries are Tier 3, you may want to invest more time sourcing higher-quality targets. If a large cluster sits at "Applied" with few advancing to "Screening," it may be time to revisit your resume positioning.
 
 ![Analytics overlay](screenshots/pipeline-analytics.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 

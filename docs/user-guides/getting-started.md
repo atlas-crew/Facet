@@ -37,6 +37,18 @@ For full project details, see the [README](../../README.md).
 
 ---
 
+## Try the Sample Data
+
+Facet includes a few fictional samples for first-run exploration:
+
+- **Build**: if the workspace is empty, click **Load Sample Data** to load the default resume model with vectors, roles, bullets, and theme settings.
+- **Pipeline**: if there are no tracked opportunities, click **Load Sample Data** to add fictional job-search entries.
+- **Identity**: when running the dev server, the extraction card includes a **Load dev sample** dropdown that fills the source-material textarea with fictional resume or bio text.
+
+Developer fixtures live separately under `src/test/fixtures/` and `tests/`. Those are imported by tests, not loaded through the product import dialogs. See [Sample Data and Fixtures](../development/sample-data-and-fixtures.md) for the full map.
+
+---
+
 ## Interface Overview
 
 Facet uses a route-based workspace with a persistent sidebar for the main surfaces:
@@ -109,7 +121,7 @@ component library, component cards, design tab, live preview, status bar, and th
 download button.
 
 ![Tour button location](screenshots/tour-button.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -169,7 +181,7 @@ panel header to save your resume as a PDF file. You can also use the keyboard sh
 below.
 
 ![Download button](screenshots/download-button.png)
-*Screenshot to be added*
+_Screenshot to be added_
 
 ---
 
@@ -188,13 +200,13 @@ between machines:
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `1` - `9` | Select vector 1 through 9 |
-| `0` | Select All view |
-| `Command+I` | Import configuration |
-| `Command+E` | Export configuration |
-| `Command+P` | Download PDF |
+| Shortcut    | Action                    |
+| ----------- | ------------------------- |
+| `1` - `9`   | Select vector 1 through 9 |
+| `0`         | Select All view           |
+| `Command+I` | Import configuration      |
+| `Command+E` | Export configuration      |
+| `Command+P` | Download PDF              |
 
 ---
 
