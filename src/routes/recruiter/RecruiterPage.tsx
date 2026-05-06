@@ -181,6 +181,7 @@ export function RecruiterPage() {
               className="recruiter-btn recruiter-btn-primary"
               onClick={handleGenerate}
               disabled={!currentIdentity || !currentJDAnalysis}
+              title={helperMessage ?? undefined}
             >
               Generate from JD Analysis
             </button>
