@@ -141,6 +141,121 @@ SKILLS
 TypeScript, Node.js, PostgreSQL, Git
 `
 
+const seniorBackendResume = `PRIYA NAND
+priya.nand@example.com | (555) 010-8842 | Austin, TX
+linkedin.com/in/priya-nand | github.com/priyanand-systems
+
+SUMMARY
+Senior backend engineer with 12 years building distributed services,
+data platforms, and reliability programs for product organizations
+scaling from early revenue to multi-region operations. Strongest in
+Go, Python, PostgreSQL, Kafka, and AWS. Known for turning ambiguous
+platform problems into boring, well-owned systems.
+
+EXPERIENCE
+Senior Backend Engineer | Meridian Ledger | Apr 2021 – Present
+• Led the redesign of the ledger posting service from synchronous
+  writes to an event-sourced pipeline, increasing sustained posting
+  throughput from 1.8K to 14K transactions/sec while preserving
+  auditability and exactly-once reconciliation semantics.
+• Built the service ownership model for 27 backend services: SLOs,
+  runbooks, escalation policies, dependency maps, and quarterly
+  reliability reviews. Critical incident volume dropped 42% over
+  three quarters.
+• Designed the migration plan from a single-region PostgreSQL cluster
+  to active-passive regional failover. Ran two full production
+  failover exercises with less than 7 minutes of write downtime.
+• Mentored six mid-level engineers through design reviews, incident
+  analysis, and promotion packets; three were promoted within 18 months.
+
+Backend Engineer | OrbitWorks | Jun 2016 – Mar 2021
+• Owned the billing orchestration service used by every product line,
+  processing ~$80M in annualized subscription volume with idempotent
+  retries, dead-letter recovery, and backfill tooling.
+• Replaced a nightly batch fulfillment workflow with streaming
+  workers backed by Kafka, reducing customer-visible entitlement
+  delays from hours to under 90 seconds.
+• Introduced contract testing for partner APIs after a breaking
+  schema change caused a two-day incident; prevented five later
+  regressions before deploy.
+
+Software Engineer | Blue Anvil Analytics | Aug 2012 – May 2016
+• Built Python ingestion services for high-volume customer telemetry,
+  including schema normalization, deduplication, and replay tooling.
+• Partnered with data science to productionize scoring jobs that
+  moved from notebooks to scheduled, observable pipelines.
+
+SKILLS
+Languages: Go, Python, TypeScript, SQL
+Data: PostgreSQL, Kafka, Redis, Snowflake
+Infrastructure: AWS, Terraform, Kubernetes, Docker
+Practices: Event sourcing, SLOs, incident response, design reviews
+
+EDUCATION
+B.S. Computer Science, University of Texas at Austin, 2012
+`
+
+const staffInfrastructureResume = `MATEO RIVAS
+mateo.rivas@example.com | Seattle, WA | linkedin.com/in/mateo-rivas
+
+STAFF SOFTWARE ENGINEER - INFRASTRUCTURE AND DEVELOPER EXPERIENCE
+
+I build the connective tissue that lets product teams ship safely:
+deployment systems, observability strategy, platform APIs, and the
+social contracts that keep them usable after launch.
+
+EXPERIENCE
+
+Staff Software Engineer | Kiteframe Systems | Jan 2022 – Present
+Scope: technical lead for the 11-person Infrastructure Enablement group
+supporting 140 product engineers across payments, messaging, and data
+workflows.
+
+- Drove the two-year migration from hand-managed Kubernetes manifests to
+  a paved-road deployment platform with service templates, policy checks,
+  and automated rollback. Weekly deploys grew from ~280 to ~1,900 while
+  change-failure rate fell from 18% to 6%.
+- Created the architecture review process for cross-service changes:
+  lightweight RFCs, dependency-risk scoring, and explicit owner handoffs.
+  Reduced review cycle time from a median of 12 days to 4 without
+  dropping reliability checks.
+- Designed the internal control plane API used by product teams to
+  provision queues, secrets, service identities, and dashboards from a
+  single declarative spec.
+- Led the post-incident program after a multi-region outage. Rebuilt the
+  escalation path, added synthetic dependency checks, and moved the
+  company from incident writeups to tracked remediation plans.
+
+Senior Platform Engineer | Harbor Relay | Sep 2017 – Dec 2021
+- Built the first company-wide observability baseline: OpenTelemetry
+  tracing, golden-signal dashboards, and log correlation across 60+
+  services.
+- Reworked CI for a 900-package monorepo, reducing median validation
+  time from 52 minutes to 11 through test partitioning, remote caching,
+  and ownership-aware change detection.
+- Partnered with security engineering to move service-to-service auth
+  from shared tokens to workload identity with gradual rollout and
+  compatibility shims.
+
+Software Engineer | North Pier Robotics | Jul 2013 – Aug 2017
+- Developed Python and C++ services for fleet telemetry ingestion,
+  command dispatch, and operator-facing diagnostics.
+- Built simulation replay tooling that let engineers reproduce field
+  failures from sensor logs instead of relying on manual bug reports.
+
+TECHNICAL DEPTH
+Kubernetes, Go, Python, TypeScript, Terraform, OpenTelemetry, Buildkite,
+PostgreSQL, Redis, Linux, distributed tracing, CI/CD architecture,
+developer platforms, reliability programs
+
+LEADERSHIP
+Staff-level design reviews, mentorship, incident leadership, platform
+roadmapping, cross-functional planning with security and product teams
+
+EDUCATION
+B.S. Computer Engineering, University of Washington
+`
+
 const careerChangerNarrative = `For sixteen years before I wrote a line of production code, I was a
 labor and delivery nurse — eight at a teaching hospital in Boston,
 eight at a county hospital in Oakland. I left clinical practice in
@@ -201,6 +316,20 @@ export const SOURCE_MATERIAL_SAMPLES: SourceMaterialSample[] = [
     description:
       'One short role, no measurable outcomes, generic verbs. Tests whether the extractor hallucinates impact when the source has none.',
     text: sparseJuniorResume,
+  },
+  {
+    id: 'senior-backend-resume',
+    label: 'Senior backend resume',
+    description:
+      'Senior engineer with multi-role backend ownership, reliability work, mentoring, and concrete system metrics. Good primary sample for senior-engineer extraction.',
+    text: seniorBackendResume,
+  },
+  {
+    id: 'staff-infrastructure-resume',
+    label: 'Staff infrastructure resume',
+    description:
+      'Staff/principal-style infrastructure resume with scope, platform strategy, architecture process, and cross-team leadership signals.',
+    text: staffInfrastructureResume,
   },
   {
     id: 'career-changer-narrative',
