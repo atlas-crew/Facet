@@ -360,6 +360,67 @@ describe("IdentityPage", () => {
     );
   });
 
+  it("keeps low-risk extraction repairs out of the visible warning banner", async () => {
+    const quietWarnings = [
+      "Repaired minor JSON syntax issues in the AI response before validation.",
+      "Added missing generator_rules object with empty defaults for AI extraction output.",
+      "Added missing projects array for AI extraction output.",
+      "Added missing education array for AI extraction output.",
+      "Added missing search_vectors array for AI extraction output.",
+      "Added missing awareness object with empty open_questions for AI extraction output.",
+      "Added missing roles[1].bullets[1].technologies array for AI extraction output.",
+      "Added missing roles[1].bullets[1].tags array for AI extraction output.",
+    ];
+    identityExtractionMocks.generateIdentityDraftMock.mockResolvedValue({
+      generatedAt: "2026-04-05T00:00:00.000Z",
+      summary: "Generated from scan.",
+      followUpQuestions: [],
+      identity: cloneIdentityFixture(),
+      bullets: [],
+      warnings: [
+        ...quietWarnings,
+        "Preserved 1 scanned role omitted from AI extraction output.",
+      ],
+    });
+
+    const { container } = render(<IdentityPage />);
+    uploadPdf(container);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alex Example")).toBeTruthy();
+    });
+
+    fireEvent.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Generate Draft",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Preserved 1 scanned role omitted/i),
+      ).toBeTruthy();
+    });
+
+    expect(
+      screen.queryByText(/Repaired minor JSON syntax issues in the AI response/i),
+    ).toBeNull();
+    expect(screen.queryByText(/Added missing generator_rules object/i)).toBeNull();
+    expect(screen.queryByText(/Added missing projects array/i)).toBeNull();
+    expect(screen.queryByText(/Added missing education array/i)).toBeNull();
+    expect(screen.queryByText(/Added missing search_vectors array/i)).toBeNull();
+    expect(screen.queryByText(/Added missing awareness object/i)).toBeNull();
+    expect(
+      screen.queryByText(/roles\[1\]\.bullets\[1\]\.technologies array/i),
+    ).toBeNull();
+    expect(
+      screen.queryByText(/roles\[1\]\.bullets\[1\]\.tags array/i),
+    ).toBeNull();
+    expect(useIdentityStore.getState().draft?.warnings).toEqual(
+      expect.arrayContaining(quietWarnings),
+    );
+  });
+
   it("opens the file chooser immediately when Upload Resume is clicked from paste mode", () => {
     const inputClickMock = vi
       .spyOn(HTMLInputElement.prototype, "click")

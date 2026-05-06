@@ -356,6 +356,22 @@ const parseDraftDocument = (
   }
 }
 
+const quietExtractionRepairWarnings: RegExp[] = [
+  /^Repaired minor JSON syntax issues in the AI response before validation\.$/,
+  /^Added missing generator_rules object with empty defaults for AI extraction output\.$/,
+  /^Added missing projects array for AI extraction output\.$/,
+  /^Added missing education array for AI extraction output\.$/,
+  /^Added missing search_vectors array for AI extraction output\.$/,
+  /^Added missing awareness object with empty open_questions for AI extraction output\.$/,
+  /^Added missing roles\[\d+\]\.bullets\[\d+\]\.technologies array for AI extraction output\.$/,
+  /^Added missing roles\[\d+\]\.bullets\[\d+\]\.tags array for AI extraction output\.$/,
+]
+
+const getDisplayDraftWarnings = (warnings: string[]): string[] =>
+  warnings.filter(
+    (warning) => !quietExtractionRepairWarnings.some((pattern) => pattern.test(warning)),
+  )
+
 const recalculateScanCounts = (
   identity: ProfessionalIdentityV3,
   progress: ResumeScanProgress,
@@ -697,7 +713,7 @@ export const useIdentityStore = create<IdentityState>()(
               identity,
             },
             draftDocument: formatIdentityDocument(identity),
-            warnings: draft.warnings,
+            warnings: getDisplayDraftWarnings(draft.warnings),
             lastError: null,
             changelog: appendChangelog(
               state.changelog,
