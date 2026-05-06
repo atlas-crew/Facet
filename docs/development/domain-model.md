@@ -50,11 +50,27 @@ When adding a new template, implement the `ResumeTemplate` interface and registe
 
 ## Routing & App Shell
 
-The app uses **TanStack Router** (code-based routing) with three routes:
+The app uses **TanStack Router** (code-based routing). The current route surface:
 
-- `/build` — Resume assembly workspace (the original Facet SPA).
-- `/pipeline` — Job search pipeline tracker (in development).
-- `/prep` — Interview prep reference cards (in development).
+**Job search workflow**
+
+- `/identity` — Identity model workspace (Phase 0; feeds every other workspace).
+- `/research` — AI-driven opportunity discovery; bulk-imports to Pipeline.
+- `/pipeline` — Central tracker for every job opportunity.
+- `/match` — Match analysis: identity vs. JD; produces match reports.
+- `/build` — Identity-first resume assembly workspace (the original Facet SPA).
+- `/letters` — Cover letter drafting from match reports / pipeline entries.
+- `/linkedin` — LinkedIn profile content generator.
+- `/recruiter` — One-page recruiter pitch cards.
+- `/prep` (and `/prep/live`) — Interview prep decks; live cheatsheet during interviews.
+- `/debrief` — Post-interview capture and pattern surfacing.
+
+**Account & infrastructure**
+
+- `/home` — Dashboard hub.
+- `/account` — Account settings, hosted entitlements, AI access status.
+- `/help` — In-app help docs.
+- `/legal` — Terms and privacy.
 
 The root route renders `AppShell` (`src/components/AppShell.tsx`) which provides:
 
