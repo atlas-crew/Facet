@@ -1,11 +1,11 @@
 ---
 id: TASK-210
 title: Polish Letters workspace UX with Facet workspace patterns
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-04 01:56'
-updated_date: '2026-05-04 02:16'
+updated_date: '2026-05-06 20:36'
 labels:
   - feature
 dependencies: []
@@ -53,6 +53,8 @@ Receipts:
 - npx tsc --noEmit -p tsconfig.app.json: FAIL on unrelated src/routes/prep/PrepPage.tsx missing createDeck and setActiveDeck.
 - pnpm build: FAIL on same unrelated PrepPage errors.
 - Independent source review artifacts: .agents/reviews/review-20260503-220432.md, review-20260503-220647.md, review-20260503-220934.md, review-20260503-221256.md. Final actionable UX/correctness findings were remediated by replacing hash anchors with scroll buttons, removing disclosure remounts, and returning to page-level scrolling.
+
+2026-05-06 closure: All 4 ACs satisfied; focused LettersPage tests passed (54 tests); scoped ESLint clean; browser smoke verified nav, padding, disclosure, status states. DoD #3 and #6 unchecked because of the same unrelated PrepPage baseline blocker. Final Summary already recorded. Closing as Done.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

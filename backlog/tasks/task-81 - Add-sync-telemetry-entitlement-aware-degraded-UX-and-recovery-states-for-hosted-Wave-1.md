@@ -3,10 +3,10 @@ id: TASK-81
 title: >-
   Add sync telemetry, entitlement-aware degraded UX, and recovery states for
   hosted Wave 1
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-12 16:07'
-updated_date: '2026-03-14 04:43'
+updated_date: '2026-05-06 20:42'
 labels:
   - feature
   - persistence
@@ -46,6 +46,8 @@ Once hosted persistence and AI paywalls exist, the app needs credible runtime st
 2026-03-14: Starting implementation after checkpointing TASK-80 in commit `0c7a5c1`. Scoping the existing sync/error/entitlement surfaces to land the first production-grade hosted recovery/degraded UX slice.
 
 2026-03-14: Added typed hosted API error parsing across account and persistence clients, mapped network failures to `offline`, and taught AppShell to distinguish hosted auth expiry, billing-state bootstrap failures, and offline sync from generic hosted errors. Recovery actions now include session refresh, retry, workspace management, and non-destructive backup fallback. Verification: targeted eslint, `npm run typecheck`, `npm run test -- src/test/persistenceRuntime.test.ts src/test/facetServer.test.ts src/test/hostedWorkspaceStore.test.ts src/test/hostedAppStore.test.ts src/test/HostedWorkspaceDialog.test.tsx src/test/AppShell.test.tsx src/test/remotePersistenceBackend.test.ts`, `npm run build`, and `git diff --check` all pass.
+
+2026-05-06 closure (Wave 1 consolidation): Implementation shipped per 2026-03-14 notes — typed hosted API error parsing, network-failure offline mapping, AppShell distinguishing hosted auth expiry / billing-bootstrap failure / offline sync from generic errors, and recovery actions covering session refresh, retry, workspace management, and non-destructive backup fallback. ACs were never formally ticked by the original agent; rather than self-tick after the fact, this task closes Done and AC verification (sync states, entitlement failure distinction, recovery paths) is rolled into TASK-84 as the staging-validation pass. Avoids re-doing verification once with no users and once again at launch.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

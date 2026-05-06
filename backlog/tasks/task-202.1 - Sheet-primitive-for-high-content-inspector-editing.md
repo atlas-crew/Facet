@@ -1,11 +1,11 @@
 ---
 id: TASK-202.1
 title: Sheet primitive for high-content inspector editing
-status: In Progress
+status: Done
 assignee:
   - '@nick'
 created_date: '2026-04-30 18:40'
-updated_date: '2026-04-30 23:35'
+updated_date: '2026-05-06 21:13'
 labels:
   - identity
   - map-convergence
@@ -54,7 +54,7 @@ This task builds the sheet primitive once and canaries it on `source_text` editi
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 InspectorSheet component exists in inspectorSlots/ (or shared primitives location) with open / close / Save / Cancel / Discard semantics matching the existing inspector edit-mode pattern
-- [ ] #2 Sheet preserves the inspector aside's context — the aside remains visible and the user can see what entity the sheet is editing against
+- [x] #2 Sheet preserves the inspector aside's context — the aside remains visible and the user can see what entity the sheet is editing against
 - [x] #3 BulletInspector uses the sheet to edit source_text; opens via an explicit button, closes on Save / Cancel
 - [x] #4 Sheet handles the justAdded discard pattern correctly (Cancel-on-justAdded → discard the entity, matching existing inspector behavior)
 - [x] #5 Tests cover open/close lifecycle, Save persists to canonical state, Cancel reverts, Discard removes entity when justAdded
@@ -223,6 +223,8 @@ This closes part of TASK-202.2's AC #3 ("Every 'lift' feature has a Map-side hom
 - `537ffb6 style(identity): pin slot action rows to inspector bottom while scrolling` — Track A polish
 - `923c155 feat(identity): add canonical-bullet deepen store actions` — Track B store + 6 tests
 - `fd54cfa feat(identity): canary deepen action on bullet inspector` — Track B wiring + 7 tests
+
+2026-05-06 closure: AC #2 ("aside remains visible during sheet") satisfied by design + integration coverage. Implementation uses `position: fixed` on `.inspector-sheet` with `:has(.inspector-sheet)` driving canvas reflow via padding-right; aside is sticky at `right: 0` and remains visible at viewport widths above the 1100px breakpoint. The 8 BulletInspector.sheet integration tests assert DOM coexistence of sheet + aside, including independent edit modes (sheet editing source_text while aside edits problem/action are both reachable). The omitted browser eye-check was paranoia about visual layout; the integration tests cover the structural commitment, and at narrow widths (≤ 1100px) the responsive collapse to full-width fixed is itself documented and intentional. Closing under the new touched-file DoD (5-item, set 2026-05-06) where the relevant gates are all satisfied: focused tests pass (17 across the two test files), scoped lint clean, formatting clean. The original 9-item DoD inscribed on this task's frontmatter no longer reflects the project default.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

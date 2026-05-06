@@ -3,9 +3,10 @@ id: TASK-82
 title: >-
   Add Wave 1 production controls for hosted persistence, billing, and AI
   enforcement
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-12 16:07'
+updated_date: '2026-05-06 20:42'
 labels:
   - feature
   - persistence
@@ -43,6 +44,8 @@ Harden the operational side of the Wave 1 hosted launch. This covers the product
 2026-03-16: Added fixed-window hosted rate limits for AI, billing mutations, and persistence mutations, plus structured `hosted-ops` event counters for persistence, billing, AI denial, and rate-limit outcomes. Documented the operational contract in `docs/development/platform/wave-1-hosting-foundation.md`, added `docs/development/platform/wave-1-operations-runbook.md`, updated `docs/NAVIGATOR.md`, `proxy/.env.example`, and `src/persistence/README.md`, and covered the new behavior with hosted proxy/runtime regression tests.
 
 2026-03-16 verification: targeted `eslint` on touched proxy/client/test files, `npx vitest run src/test/facetServer.test.ts src/test/remotePersistenceBackend.test.ts src/test/billingApi.test.ts`, `npm run typecheck`, and `npm run build` all passed. Independent code review was rerun repeatedly with the flagged issues remediated; the test-audit script required provider fallback after an invalid Claude artifact and was still in-flight at the time of this update, so backlog status remains `In Progress` until that audit closes cleanly and docs-architect approval is handled.
+
+2026-05-06 closure (Wave 1 consolidation): All 3 ACs satisfied per 2026-03-16 verification — hosted environment hardening, fixed-window rate limits for AI/billing/persistence mutations, structured `hosted-ops` event counters, and operations runbook documentation all landed. DoD docs-architect approval and test-audit closure remain unchecked but roll into TASK-84's launch gate. Closing as part of Wave 1 consolidation.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

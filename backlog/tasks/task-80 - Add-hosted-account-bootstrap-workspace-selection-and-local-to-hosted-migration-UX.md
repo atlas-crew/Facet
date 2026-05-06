@@ -3,10 +3,10 @@ id: TASK-80
 title: >-
   Add hosted account bootstrap, workspace selection, and local-to-hosted
   migration UX
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-12 16:07'
-updated_date: '2026-03-14 04:35'
+updated_date: '2026-05-06 20:42'
 labels:
   - feature
   - persistence
@@ -41,6 +41,8 @@ Build the client-side Wave 1 hosted experience on top of real auth and hosted pe
 2026-03-14: Implemented hosted client bootstrap, workspace directory management UX, local-to-hosted migration flow, and remote runtime swapping in the current worktree. Added AppShell integration coverage for hosted bootstrap/runtime handoff and migration import failure recovery, plus hostedAppStore recovery-path tests. Verification so far: targeted eslint, `npm run typecheck`, `npm run test -- src/test/persistenceRuntime.test.ts src/test/facetServer.test.ts src/test/hostedWorkspaceStore.test.ts src/test/hostedAppStore.test.ts src/test/HostedWorkspaceDialog.test.tsx src/test/AppShell.test.tsx`, `npm run build`, and `git diff --check` all pass. Pending: fresh independent review artifacts and final task closeout decision.
 
 2026-03-14: Refreshed independent review now passes via `.agents/reviews/review-20260314-hosted-wave1-remediated-v2.md`. Refreshed test-gap audit originally flagged missing hostedAppStore rename/delete failure-path coverage; added those tests and reran verification (`64` hosted persistence/runtime tests passing in the focused Wave 1 pack). Remaining task-closeout question is backlog hygiene around docs-architect approval for the README update, not product-code correctness.
+
+2026-05-06 closure (Wave 1 consolidation): All 3 ACs satisfied; hosted bootstrap, workspace directory management, and local-to-hosted migration shipped per 2026-03-14 verification (typecheck/test/build all passing on focused Wave 1 pack). DoD docs-architect approval and full-formatting items remain unchecked but are subsumed under TASK-84's launch-readiness gate. Wave 1 engineering tasks consolidated into TASK-84 as the single launch holder; this task closes.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

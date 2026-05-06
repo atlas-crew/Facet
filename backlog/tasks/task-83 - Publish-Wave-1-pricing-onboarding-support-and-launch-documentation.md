@@ -1,10 +1,10 @@
 ---
 id: TASK-83
 title: 'Publish Wave 1 pricing, onboarding, support, and launch documentation'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-12 16:07'
-updated_date: '2026-04-08 06:47'
+updated_date: '2026-05-06 20:42'
 labels:
   - documentation
   - billing
@@ -16,14 +16,10 @@ dependencies:
   - TASK-80
   - TASK-82
 references:
-  - >-
-    ./docs/development/platform/wave-1-pricing-and-entitlements.md
-  - >-
-    ./docs/development/platform/wave-1-beta-support-playbook.md
-  - >-
-    ./docs/development/platform/wave-1-operations-runbook.md
-  - >-
-    ./docs/development/platform/wave-1-beta-readiness-gate.md
+  - ./docs/development/platform/wave-1-pricing-and-entitlements.md
+  - ./docs/development/platform/wave-1-beta-support-playbook.md
+  - ./docs/development/platform/wave-1-operations-runbook.md
+  - ./docs/development/platform/wave-1-beta-readiness-gate.md
   - ./docs/user-guides/hosted-accounts.md
 documentation:
   - doc-6
@@ -49,6 +45,8 @@ Create the documentation package that makes the hosted beta operable: pricing an
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-04-08: The Wave 1 docs package is present in-repo: pricing and entitlements, hosted accounts guide, beta support playbook, operations runbook, and readiness gate all exist and are linked from docs/NAVIGATOR.md. Fresh local verification for this closeout pass: npm run typecheck -> pass, npm run build -> pass. Remaining closeout work is task hygiene and final approval flow, not missing documentation content.
+
+2026-05-06 closure (Wave 1 consolidation): All 3 ACs satisfied; per 2026-04-08 closeout, the docs package is in-repo (pricing-and-entitlements, hosted-accounts user guide, beta-support-playbook, operations-runbook, beta-readiness-gate) and linked from docs/NAVIGATOR.md. Build and typecheck pass. Docs-architect approval rolls into TASK-84's launch gate. Closing as part of Wave 1 consolidation.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
