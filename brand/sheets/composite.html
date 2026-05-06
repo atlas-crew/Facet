@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Composite Reference Sheets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   Shared composite chrome
+   ───────────────────────────────────────────────────────────── */
+.composite {
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+  font-family: 'DM Sans', sans-serif;
+  display: flex; flex-direction: column;
+}
+.composite::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.4;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+}
+.composite::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 50%,
+    rgba(108,184,232,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.composite-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 32px 48px 20px;
+  position: relative; z-index: 1;
+  border-bottom: 1px solid #1a1e28;
+}
+.composite-brand {
+  display: flex; align-items: center; gap: 12px;
+}
+.composite-brand .brand-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 26px;
+  color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+.composite-title-block {
+  display: flex; flex-direction: column;
+  align-items: flex-end; gap: 4px;
+}
+.composite-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 3px; text-transform: uppercase;
+  font-weight: 500;
+}
+.composite-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #6b7a8d;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+
+.composite-body {
+  flex: 1;
+  padding: 32px 48px;
+  position: relative; z-index: 1;
+  display: grid;
+  gap: 24px;
+}
+
+.composite-footer {
+  padding: 12px 48px 18px;
+  position: relative; z-index: 1;
+  border-top: 1px solid #1a1e28;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.composite-footer .path {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #6b7a8d;
+  letter-spacing: 1.5px;
+}
+.composite-footer .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #5ba4d9;
+  letter-spacing: 1.5px;
+}
+
+.thumb {
+  display: flex; flex-direction: column;
+  gap: 8px;
+}
+.thumb img {
+  display: block;
+  width: 100%; height: auto;
+  border-radius: 4px;
+  border: 1px solid rgba(91,164,217,0.20);
+  background: #0e1117;
+  object-fit: contain;
+  aspect-ratio: var(--ar, auto);
+}
+.thumb .caption {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #8b97a8;
+  letter-spacing: 1.5px;
+  display: flex; justify-content: space-between;
+}
+.thumb .caption .name {
+  color: #c0c8d4;
+}
+.thumb .caption .dim {
+  color: #6b7a8d;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Per-category dimensions and layouts
+   ───────────────────────────────────────────────────────────── */
+
+/* BANNERS — 6 variants, 1200×630 → 2 cols × 3 rows */
+#composite-banners { width: 1280px; height: 1280px; }
+#composite-banners .composite-body {
+  grid-template-columns: repeat(2, 1fr);
+}
+#composite-banners .thumb img { aspect-ratio: 1200/630; }
+
+/* CONCEPTS — 14 variants, 1200×630 → 3 cols × 5 rows */
+#composite-concepts { width: 1700px; height: 1850px; }
+#composite-concepts .composite-body {
+  grid-template-columns: repeat(3, 1fr);
+}
+#composite-concepts .thumb img { aspect-ratio: 1200/630; }
+
+/* MANIFESTO — 2 variants, 1080×1350 → 2 cols side-by-side */
+#composite-manifesto { width: 1300px; height: 1100px; }
+#composite-manifesto .composite-body {
+  grid-template-columns: repeat(2, 1fr);
+}
+#composite-manifesto .thumb img { aspect-ratio: 1080/1350; }
+
+/* METHOD — 2 variants, 1600×900 → 1 col × 2 rows (wide aspect, stacked for detail) */
+#composite-method { width: 1700px; height: 2200px; }
+#composite-method .composite-body {
+  grid-template-columns: 1fr;
+}
+#composite-method .thumb img { aspect-ratio: 1600/900; }
+
+/* README — 2 variants, 1280×640 → 1 col × 2 rows (2:1 banner stacked) */
+#composite-readme { width: 1400px; height: 1450px; }
+#composite-readme .composite-body {
+  grid-template-columns: 1fr;
+}
+#composite-readme .thumb img { aspect-ratio: 1280/640; }
+
+/* SOCIAL — 6 variants, mixed sizes → custom flow */
+#composite-social { width: 1400px; height: 2100px; }
+#composite-social .composite-body {
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-flow: row dense;
+}
+#composite-social .thumb-og img { aspect-ratio: 1200/630; }
+#composite-social .thumb-twitter { grid-column: span 2; }
+#composite-social .thumb-twitter img { aspect-ratio: 1500/500; }
+#composite-social .thumb-github { grid-column: span 2; }
+#composite-social .thumb-github img { aspect-ratio: 1280/320; }
+#composite-social .thumb-square img { aspect-ratio: 1; }
+
+/* EMAIL — 2 variants, 1200×400 → 1 col × 2 rows */
+#composite-email { width: 1300px; height: 1100px; }
+#composite-email .composite-body {
+  grid-template-columns: 1fr;
+}
+#composite-email .thumb img { aspect-ratio: 1200/400; }
+
+/* CAROUSEL — 10 variants, 1080×1350 → 5 cols × 2 rows */
+#composite-carousel { width: 2000px; height: 1280px; }
+#composite-carousel .composite-body {
+  grid-template-columns: repeat(5, 1fr);
+}
+#composite-carousel .thumb img { aspect-ratio: 1080/1350; }
+
+/* STORY — 2 variants, 1080×1920 → 2 cols side-by-side */
+#composite-story { width: 1100px; height: 1100px; }
+#composite-story .composite-body {
+  grid-template-columns: repeat(2, 1fr);
+}
+#composite-story .thumb img { aspect-ratio: 1080/1920; }
+
+/* PRINCIPLE — 6 variants, 1080×1080 → 3 cols × 2 rows */
+#composite-principle { width: 1700px; height: 1300px; }
+#composite-principle .composite-body {
+  grid-template-columns: repeat(3, 1fr);
+}
+#composite-principle .thumb img { aspect-ratio: 1; }
+
+/* PROMO — 2 variants, 1200×630 → 1 col × 2 rows (better detail) */
+#composite-promo { width: 1300px; height: 1500px; }
+#composite-promo .composite-body {
+  grid-template-columns: 1fr;
+}
+#composite-promo .thumb img { aspect-ratio: 1200/630; }
+
+/* REFERENCE — 2 lockup variants → 2 cols side-by-side */
+#composite-reference { width: 1400px; height: 900px; }
+#composite-reference .composite-body {
+  grid-template-columns: repeat(2, 1fr);
+}
+#composite-reference .thumb img { aspect-ratio: 1200/630; }
+</style>
+</head>
+<body>
+
+<!--
+  Composite reference sheets · per-category overview "contact sheets".
+  Each composite is a smaller-scale grid showing every variant in that
+  category, with a caption identifying the canonical filename. Useful
+  as a brand-library-at-a-glance reference, share artifact, README image.
+
+  Composites embed <img src="../exports/{cat}/{file}.webp"> — so they
+  depend on the WebP exports already existing. Render order matters:
+  brand-banners/social/concepts/etc must run BEFORE brand-composites.
+
+  Render via: just brand-composites
+  Output:     brand/exports/composite/facet-composite-{category}.webp
+-->
+
+<!-- ─── BANNERS ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-banners · 1280×1280</div>
+  <div id="composite-banners" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Banners · 6 variants</span>
+        <span class="composite-meta">Hero pieces · 1200×630 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/banners/facet-hero-bold-dark.webp" alt=""><span class="caption"><span class="name">hero-bold-dark</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/banners/facet-hero-bold-light.webp" alt=""><span class="caption"><span class="name">hero-bold-light</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/banners/facet-hero-atmospheric-dark.webp" alt=""><span class="caption"><span class="name">hero-atmospheric-dark</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/banners/facet-hero-atmospheric-light.webp" alt=""><span class="caption"><span class="name">hero-atmospheric-light</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/banners/facet-hero-editorial-dark.webp" alt=""><span class="caption"><span class="name">hero-editorial-dark</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/banners/facet-hero-editorial-light.webp" alt=""><span class="caption"><span class="name">hero-editorial-light</span><span class="dim">1200×630</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/banners/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── CONCEPTS ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-concepts · 1700×1500</div>
+  <div id="composite-concepts" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Concepts · 14 variants</span>
+        <span class="composite-meta">Thesis-led concept sheets · 1200×630 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/concepts/facet-system-dark.webp" alt=""><span class="caption"><span class="name">system-dark</span><span class="dim">Career OS</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-system-light.webp" alt=""><span class="caption"><span class="name">system-light</span><span class="dim">Career OS</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-identity-dark.webp" alt=""><span class="caption"><span class="name">identity-dark</span><span class="dim">Identity Model</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-identity-light.webp" alt=""><span class="caption"><span class="name">identity-light</span><span class="dim">Identity Model</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-extraction-dark.webp" alt=""><span class="caption"><span class="name">extraction-dark</span><span class="dim">Extraction</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-extraction-light.webp" alt=""><span class="caption"><span class="name">extraction-light</span><span class="dim">Extraction</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-iterative-dark.webp" alt=""><span class="caption"><span class="name">iterative-dark</span><span class="dim">Iterative</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-iterative-light.webp" alt=""><span class="caption"><span class="name">iterative-light</span><span class="dim">Iterative</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-vectors-dark.webp" alt=""><span class="caption"><span class="name">vectors-dark</span><span class="dim">Vectors</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-vectors-light.webp" alt=""><span class="caption"><span class="name">vectors-light</span><span class="dim">Vectors</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-episodic-dark.webp" alt=""><span class="caption"><span class="name">episodic-dark</span><span class="dim">Episodic</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-episodic-light.webp" alt=""><span class="caption"><span class="name">episodic-light</span><span class="dim">Episodic</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-substrate-dark.webp" alt=""><span class="caption"><span class="name">substrate-dark</span><span class="dim">Substrate</span></span></div>
+      <div class="thumb"><img src="../exports/concepts/facet-substrate-light.webp" alt=""><span class="caption"><span class="name">substrate-light</span><span class="dim">Substrate</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/concepts/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── SOCIAL ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-social · 1400×1900</div>
+  <div id="composite-social" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Social · 6 variants</span>
+        <span class="composite-meta">Channel-specific assets · mixed sizes</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb thumb-og"><img src="../exports/social/facet-og-image-dark.webp" alt=""><span class="caption"><span class="name">og-image-dark</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb thumb-og"><img src="../exports/social/facet-og-image-light.webp" alt=""><span class="caption"><span class="name">og-image-light</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb thumb-twitter"><img src="../exports/social/facet-twitter-banner.webp" alt=""><span class="caption"><span class="name">twitter-banner</span><span class="dim">1500×500</span></span></div>
+      <div class="thumb thumb-github"><img src="../exports/social/facet-github-banner.webp" alt=""><span class="caption"><span class="name">github-banner</span><span class="dim">1280×320</span></span></div>
+      <div class="thumb thumb-square"><img src="../exports/social/facet-square-dark.webp" alt=""><span class="caption"><span class="name">square-dark</span><span class="dim">1080×1080</span></span></div>
+      <div class="thumb thumb-square"><img src="../exports/social/facet-square-light.webp" alt=""><span class="caption"><span class="name">square-light</span><span class="dim">1080×1080</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/social/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── EMAIL ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-email · 1300×1100</div>
+  <div id="composite-email" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Email · 2 variants</span>
+        <span class="composite-meta">Newsletter masthead · 1200×400 (display 600×200)</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/email/facet-email-header-dark.webp" alt=""><span class="caption"><span class="name">email-header-dark</span><span class="dim">1200×400</span></span></div>
+      <div class="thumb"><img src="../exports/email/facet-email-header-light.webp" alt=""><span class="caption"><span class="name">email-header-light</span><span class="dim">1200×400</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/email/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── CAROUSEL ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-carousel · 2000×1280</div>
+  <div id="composite-carousel" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Carousel · 10 variants (5 slides × dark/light)</span>
+        <span class="composite-meta">LinkedIn / IG portrait deck · 1080×1350 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-1.webp" alt=""><span class="caption"><span class="name">carousel-1</span><span class="dim">Intro</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-2.webp" alt=""><span class="caption"><span class="name">carousel-2</span><span class="dim">The Model</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-3.webp" alt=""><span class="caption"><span class="name">carousel-3</span><span class="dim">The Faces</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-4.webp" alt=""><span class="caption"><span class="name">carousel-4</span><span class="dim">Refinement</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-5.webp" alt=""><span class="caption"><span class="name">carousel-5</span><span class="dim">Close</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-1-light.webp" alt=""><span class="caption"><span class="name">carousel-1-light</span><span class="dim">Intro</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-2-light.webp" alt=""><span class="caption"><span class="name">carousel-2-light</span><span class="dim">The Model</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-3-light.webp" alt=""><span class="caption"><span class="name">carousel-3-light</span><span class="dim">The Faces</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-4-light.webp" alt=""><span class="caption"><span class="name">carousel-4-light</span><span class="dim">Refinement</span></span></div>
+      <div class="thumb"><img src="../exports/carousel/facet-carousel-5-light.webp" alt=""><span class="caption"><span class="name">carousel-5-light</span><span class="dim">Close</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/carousel/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── STORY ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-story · 1100×1100</div>
+  <div id="composite-story" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Story · 2 variants</span>
+        <span class="composite-meta">IG Stories / Snap vertical · 1080×1920</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/story/facet-story-dark.webp" alt=""><span class="caption"><span class="name">story-dark</span><span class="dim">1080×1920</span></span></div>
+      <div class="thumb"><img src="../exports/story/facet-story-light.webp" alt=""><span class="caption"><span class="name">story-light</span><span class="dim">1080×1920</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/story/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── PRINCIPLE ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-principle · 1700×1300</div>
+  <div id="composite-principle" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Principle · 6 variants</span>
+        <span class="composite-meta">Repostable quote cards · 1080×1080 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/principle/facet-principle-tagline.webp" alt=""><span class="caption"><span class="name">principle-tagline</span><span class="dim">Promise</span></span></div>
+      <div class="thumb"><img src="../exports/principle/facet-principle-method.webp" alt=""><span class="caption"><span class="name">principle-method</span><span class="dim">Method</span></span></div>
+      <div class="thumb"><img src="../exports/principle/facet-principle-thesis.webp" alt=""><span class="caption"><span class="name">principle-thesis</span><span class="dim">Thesis</span></span></div>
+      <div class="thumb"><img src="../exports/principle/facet-principle-tagline-light.webp" alt=""><span class="caption"><span class="name">principle-tagline-light</span><span class="dim">Promise</span></span></div>
+      <div class="thumb"><img src="../exports/principle/facet-principle-method-light.webp" alt=""><span class="caption"><span class="name">principle-method-light</span><span class="dim">Method</span></span></div>
+      <div class="thumb"><img src="../exports/principle/facet-principle-thesis-light.webp" alt=""><span class="caption"><span class="name">principle-thesis-light</span><span class="dim">Thesis</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/principle/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── MANIFESTO ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-manifesto · 1300×1100</div>
+  <div id="composite-manifesto" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Manifesto · 2 variants</span>
+        <span class="composite-meta">Anti-positioning portrait card · 1080×1350 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/manifesto/facet-manifesto-dark.webp" alt=""><span class="caption"><span class="name">manifesto-dark</span><span class="dim">What Facet isn't</span></span></div>
+      <div class="thumb"><img src="../exports/manifesto/facet-manifesto-light.webp" alt=""><span class="caption"><span class="name">manifesto-light</span><span class="dim">What Facet isn't</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/manifesto/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── METHOD ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-method · 1700×2200</div>
+  <div id="composite-method" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Method · 2 variants</span>
+        <span class="composite-meta">Methodology one-pager · 1600×900 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/method/facet-method-dark.webp" alt=""><span class="caption"><span class="name">method-dark</span><span class="dim">The cycle, expanded</span></span></div>
+      <div class="thumb"><img src="../exports/method/facet-method-light.webp" alt=""><span class="caption"><span class="name">method-light</span><span class="dim">The cycle, expanded</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/method/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── README ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-readme · 1400×1450</div>
+  <div id="composite-readme" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">README · 2 variants</span>
+        <span class="composite-meta">GitHub repo banner · 1280×640 each</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/readme/facet-readme-dark.webp" alt=""><span class="caption"><span class="name">readme-dark</span><span class="dim">Asymmetric mark/copy</span></span></div>
+      <div class="thumb"><img src="../exports/readme/facet-readme-light.webp" alt=""><span class="caption"><span class="name">readme-light</span><span class="dim">Asymmetric mark/copy</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/readme/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── PROMO ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-promo · 1300×1500</div>
+  <div id="composite-promo" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Promo · 2 variants</span>
+        <span class="composite-meta">Launch banner · 1200×630</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/promo/facet-promo-dark.webp" alt=""><span class="caption"><span class="name">promo-dark</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/promo/facet-promo-light.webp" alt=""><span class="caption"><span class="name">promo-light</span><span class="dim">1200×630</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/promo/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ─── REFERENCE ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#composite-reference · 1400×900</div>
+  <div id="composite-reference" class="composite">
+    <header class="composite-header">
+      <div class="composite-brand">
+        <svg width="22" height="32" viewBox="0 0 22 32" fill="none">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+        </svg>
+        <span class="brand-text">Facet</span>
+      </div>
+      <div class="composite-title-block">
+        <span class="composite-title">Reference · Lockup specimens</span>
+        <span class="composite-meta">brand-refcard available separately at variable height</span>
+      </div>
+    </header>
+    <div class="composite-body">
+      <div class="thumb"><img src="../exports/reference/facet-lockups-dark.webp" alt=""><span class="caption"><span class="name">lockups-dark</span><span class="dim">1200×630</span></span></div>
+      <div class="thumb"><img src="../exports/reference/facet-lockups-light.webp" alt=""><span class="caption"><span class="name">lockups-light</span><span class="dim">1200×630</span></span></div>
+    </div>
+    <footer class="composite-footer">
+      <span class="path">brand/exports/reference/</span>
+      <span class="url">myfacets.cv</span>
+    </footer>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #composite-banners isolates that composite for screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Methodology One-Pager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #method-dark  ·  1600×900  ·  Methodology one-pager (dark)
+   ───────────────────────────────────────────────────────────── */
+#method-dark {
+  width: 1600px; height: 900px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#method-dark::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+#method-dark::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%,
+    rgba(108,184,232,0.10) 0%, rgba(45,106,150,0.04) 40%, transparent 70%);
+  pointer-events: none;
+}
+#method-dark .frame {
+  position: relative; height: 100%;
+  padding: 56px 80px 48px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#method-dark .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 32px;
+}
+#method-dark .lockup { display: flex; align-items: center; gap: 14px; }
+#method-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#method-dark .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#method-dark .title-block { margin-bottom: 40px; }
+#method-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 12px; opacity: 0.65;
+}
+#method-dark .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 64px;
+  color: #e8ecf2; letter-spacing: -0.7px;
+  line-height: 1;
+}
+#method-dark .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+
+#method-dark .phases {
+  display: grid;
+  grid-template-columns: 1fr 28px 1fr 28px 1fr;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 32px;
+}
+#method-dark .arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 32px;
+  color: #5ba4d9; opacity: 0.6;
+}
+#method-dark .phase {
+  border: 1px solid rgba(108,184,232,0.20);
+  border-radius: 6px;
+  padding: 24px 28px;
+  background: linear-gradient(180deg,
+    rgba(108,184,232,0.05) 0%,
+    rgba(108,184,232,0.01) 100%);
+  display: flex; flex-direction: column;
+  gap: 14px;
+}
+#method-dark .phase-head {
+  display: flex; align-items: baseline; gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(108,184,232,0.15);
+}
+#method-dark .phase-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #5ba4d9;
+  letter-spacing: 2px; opacity: 0.7;
+}
+#method-dark .phase-name {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300; font-size: 28px;
+  color: #e8ecf2; letter-spacing: -0.3px;
+}
+#method-dark .phase-tag {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #8b97a8;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  opacity: 0.7;
+}
+#method-dark .steps {
+  display: flex; flex-direction: column;
+  gap: 8px;
+}
+#method-dark .step {
+  display: flex; align-items: baseline; gap: 12px;
+}
+#method-dark .step-bullet {
+  width: 6px; height: 6px;
+  border-radius: 1px;
+  background: #5ba4d9;
+  opacity: 0.7;
+  flex-shrink: 0;
+  transform: rotate(45deg) translateY(2px);
+}
+#method-dark .step-text {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400; font-size: 16px;
+  color: #c0c8d4; line-height: 1.4;
+}
+#method-dark .step-text .dim {
+  color: #8b97a8; font-weight: 300;
+}
+
+#method-dark .feedback {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px;
+  padding: 16px 0;
+  margin-bottom: 24px;
+}
+#method-dark .feedback-rule {
+  flex: 0 0 80px; height: 1px;
+  background: linear-gradient(90deg, rgba(108,184,232,0) 0%, rgba(108,184,232,0.4) 100%);
+}
+#method-dark .feedback-rule.right {
+  background: linear-gradient(90deg, rgba(108,184,232,0.4) 0%, rgba(108,184,232,0) 100%);
+}
+#method-dark .feedback-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2.5px; text-transform: uppercase;
+}
+#method-dark .feedback-text .arrow-loop {
+  font-size: 16px; margin-right: 6px;
+  display: inline-block;
+}
+
+#method-dark .callout {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-size: 22px;
+  color: #6cb8e8; opacity: 0.85;
+  text-align: center;
+  letter-spacing: 0.3px;
+  margin-bottom: 28px;
+}
+
+#method-dark .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #1a1e28;
+}
+#method-dark .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #6b7a8d;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+#method-dark .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #method-light  ·  1600×900  ·  Methodology one-pager (light)
+   ───────────────────────────────────────────────────────────── */
+#method-light {
+  width: 1600px; height: 900px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#method-light::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+#method-light::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%,
+    rgba(45,106,150,0.08) 0%, rgba(45,106,150,0.03) 40%, transparent 70%);
+  pointer-events: none;
+}
+#method-light .frame {
+  position: relative; height: 100%;
+  padding: 56px 80px 48px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#method-light .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 32px;
+}
+#method-light .lockup { display: flex; align-items: center; gap: 14px; }
+#method-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #0f172a;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#method-light .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.7;
+}
+#method-light .title-block { margin-bottom: 40px; }
+#method-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 12px; opacity: 0.7;
+}
+#method-light .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 64px;
+  color: #0f172a; letter-spacing: -0.7px;
+  line-height: 1;
+}
+#method-light .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+
+#method-light .phases {
+  display: grid;
+  grid-template-columns: 1fr 28px 1fr 28px 1fr;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 32px;
+}
+#method-light .arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 32px;
+  color: #2d6a96; opacity: 0.6;
+}
+#method-light .phase {
+  border: 1px solid rgba(45,106,150,0.20);
+  border-radius: 6px;
+  padding: 24px 28px;
+  background: linear-gradient(180deg,
+    rgba(45,106,150,0.05) 0%,
+    rgba(45,106,150,0.01) 100%);
+  display: flex; flex-direction: column;
+  gap: 14px;
+}
+#method-light .phase-head {
+  display: flex; align-items: baseline; gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(45,106,150,0.15);
+}
+#method-light .phase-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 2px; opacity: 0.75;
+}
+#method-light .phase-name {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300; font-size: 28px;
+  color: #0f172a; letter-spacing: -0.3px;
+}
+#method-light .phase-tag {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #475569;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  opacity: 0.75;
+}
+#method-light .steps {
+  display: flex; flex-direction: column;
+  gap: 8px;
+}
+#method-light .step {
+  display: flex; align-items: baseline; gap: 12px;
+}
+#method-light .step-bullet {
+  width: 6px; height: 6px;
+  border-radius: 1px;
+  background: #2d6a96;
+  opacity: 0.7;
+  flex-shrink: 0;
+  transform: rotate(45deg) translateY(2px);
+}
+#method-light .step-text {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400; font-size: 16px;
+  color: #334155; line-height: 1.4;
+}
+#method-light .step-text .dim {
+  color: #64748b; font-weight: 300;
+}
+
+#method-light .feedback {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px;
+  padding: 16px 0;
+  margin-bottom: 24px;
+}
+#method-light .feedback-rule {
+  flex: 0 0 80px; height: 1px;
+  background: linear-gradient(90deg, rgba(45,106,150,0) 0%, rgba(45,106,150,0.4) 100%);
+}
+#method-light .feedback-rule.right {
+  background: linear-gradient(90deg, rgba(45,106,150,0.4) 0%, rgba(45,106,150,0) 100%);
+}
+#method-light .feedback-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+}
+#method-light .feedback-text .arrow-loop {
+  font-size: 16px; margin-right: 6px;
+  display: inline-block;
+}
+
+#method-light .callout {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-size: 22px;
+  color: #2d6a96; opacity: 0.85;
+  text-align: center;
+  letter-spacing: 0.3px;
+  margin-bottom: 28px;
+}
+
+#method-light .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+#method-light .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+#method-light .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2px;
+}
+</style>
+</head>
+<body>
+
+<!--
+  Method sheet · 1600×900 widescreen one-pager. Compresses the full
+  Facet method into a single shareable visual: 3 phases (Build · Search ·
+  Interview) each with sub-steps, plus a feedback loop showing how
+  Debrief sharpens the Build phase. Use as blog header, landing-page
+  methodology section, README inset, deck cover.
+
+  Step labels track product modules. If module taxonomy changes
+  (Pipeline → Track, Build → Resume), update the step list to match
+  COPY.md. Phase tags use the canonical product nav grouping
+  (Foundation · Apply · Interview).
+-->
+
+<!-- ─── METHOD · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#method-dark · 1600×900</div>
+  <div id="method-dark">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="30" height="44" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">The method · 01</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">How Facet works</div>
+        <h1 class="title">The <em>cycle</em>, expanded.</h1>
+      </div>
+
+      <div class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <span class="phase-num">01</span>
+            <span class="phase-name">Build</span>
+            <span class="phase-tag">Foundation</span>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Extract identity <span class="dim">— from raw signal</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Refine <span class="dim">— in iterative passes</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Substrate <span class="dim">— problems, solutions, metrics, technologies, background, narrative</span></span></div>
+          </div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-head">
+            <span class="phase-num">02</span>
+            <span class="phase-name">Search</span>
+            <span class="phase-tag">Apply</span>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Match <span class="dim">— JD against identity</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Recut <span class="dim">— resume, letter, LinkedIn, recruiter card</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Apply <span class="dim">— deliberate, not bulk</span></span></div>
+          </div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-head">
+            <span class="phase-num">03</span>
+            <span class="phase-name">Interview</span>
+            <span class="phase-tag">Interview</span>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Prep <span class="dim">— questions, drills, rehearsal</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Live <span class="dim">— open notebook, not a teleprompter</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Debrief <span class="dim">— evidence, not anecdote</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feedback">
+        <span class="feedback-rule"></span>
+        <span class="feedback-text"><span class="arrow-loop">↺</span>Debrief sharpens the model</span>
+        <span class="feedback-rule right"></span>
+      </div>
+
+      <p class="callout">Every cycle is a deeper version of you.</p>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── METHOD · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#method-light · 1600×900</div>
+  <div id="method-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="30" height="44" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">The method · 01</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">How Facet works</div>
+        <h1 class="title">The <em>cycle</em>, expanded.</h1>
+      </div>
+
+      <div class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <span class="phase-num">01</span>
+            <span class="phase-name">Build</span>
+            <span class="phase-tag">Foundation</span>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Extract identity <span class="dim">— from raw signal</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Refine <span class="dim">— in iterative passes</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Substrate <span class="dim">— problems, solutions, metrics, technologies, background, narrative</span></span></div>
+          </div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-head">
+            <span class="phase-num">02</span>
+            <span class="phase-name">Search</span>
+            <span class="phase-tag">Apply</span>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Match <span class="dim">— JD against identity</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Recut <span class="dim">— resume, letter, LinkedIn, recruiter card</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Apply <span class="dim">— deliberate, not bulk</span></span></div>
+          </div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-head">
+            <span class="phase-num">03</span>
+            <span class="phase-name">Interview</span>
+            <span class="phase-tag">Interview</span>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Prep <span class="dim">— questions, drills, rehearsal</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Live <span class="dim">— open notebook, not a teleprompter</span></span></div>
+            <div class="step"><span class="step-bullet"></span><span class="step-text">Debrief <span class="dim">— evidence, not anecdote</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feedback">
+        <span class="feedback-rule"></span>
+        <span class="feedback-text"><span class="arrow-loop">↺</span>Debrief sharpens the model</span>
+        <span class="feedback-rule right"></span>
+      </div>
+
+      <p class="callout">Every cycle is a deeper version of you.</p>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

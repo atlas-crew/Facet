@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — The Substrate Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #substrate-dark  ·  1200×630  ·  The model substrate (dark)
+   ───────────────────────────────────────────────────────────── */
+#substrate-dark {
+  width: 1200px; height: 630px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#substrate-dark::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#substrate-dark::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 70% at 50% 60%,
+    rgba(108,184,232,0.08) 0%, rgba(45,106,150,0.03) 40%, transparent 70%);
+  pointer-events: none;
+}
+#substrate-dark .frame {
+  position: relative; height: 100%;
+  padding: 44px 64px 36px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#substrate-dark .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px;
+}
+#substrate-dark .lockup { display: flex; align-items: center; gap: 12px; }
+#substrate-dark .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 30px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#substrate-dark .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#substrate-dark .title-block { margin-bottom: 28px; }
+#substrate-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 10px; opacity: 0.65;
+}
+#substrate-dark .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 56px;
+  color: #e8ecf2; letter-spacing: -0.6px;
+  line-height: 1;
+}
+#substrate-dark .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#substrate-dark .rows {
+  flex: 1;
+  display: flex; flex-direction: column;
+  gap: 10px;
+}
+#substrate-dark .row {
+  display: grid;
+  grid-template-columns: 36px 300px 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 18px 14px 14px;
+  border: 1px solid rgba(108,184,232,0.18);
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    rgba(108,184,232,0.04) 0%,
+    rgba(108,184,232,0.01) 70%,
+    transparent 100%);
+}
+#substrate-dark .row-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2px;
+  opacity: 0.7;
+}
+#substrate-dark .row-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #8b97a8;
+  letter-spacing: 2px; text-transform: uppercase;
+  line-height: 1.5;
+}
+#substrate-dark .row-pair {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300; font-size: 28px;
+  color: #e8ecf2; letter-spacing: -0.2px;
+  line-height: 1;
+}
+#substrate-dark .row-pair .sep {
+  color: #5ba4d9; margin: 0 14px; opacity: 0.7;
+}
+#substrate-dark .callout {
+  margin-top: 14px;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-size: 18px;
+  color: #6cb8e8; opacity: 0.85;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+#substrate-dark .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #1a1e28;
+}
+#substrate-dark .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #6b7a8d;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+#substrate-dark .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #substrate-light  ·  1200×630  ·  The model substrate (light)
+   ───────────────────────────────────────────────────────────── */
+#substrate-light {
+  width: 1200px; height: 630px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#substrate-light::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.6;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#substrate-light::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 70% at 50% 60%,
+    rgba(45,106,150,0.06) 0%, rgba(45,106,150,0.02) 40%, transparent 70%);
+  pointer-events: none;
+}
+#substrate-light .frame {
+  position: relative; height: 100%;
+  padding: 44px 64px 36px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+#substrate-light .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px;
+}
+#substrate-light .lockup { display: flex; align-items: center; gap: 12px; }
+#substrate-light .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 30px; color: #0f172a;
+  letter-spacing: 1.5px; line-height: 1;
+}
+#substrate-light .header-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.7;
+}
+#substrate-light .title-block { margin-bottom: 28px; }
+#substrate-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 10px; opacity: 0.7;
+}
+#substrate-light .title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 56px;
+  color: #0f172a; letter-spacing: -0.6px;
+  line-height: 1;
+}
+#substrate-light .title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+#substrate-light .rows {
+  flex: 1;
+  display: flex; flex-direction: column;
+  gap: 10px;
+}
+#substrate-light .row {
+  display: grid;
+  grid-template-columns: 36px 300px 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 18px 14px 14px;
+  border: 1px solid rgba(45,106,150,0.18);
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    rgba(45,106,150,0.04) 0%,
+    rgba(45,106,150,0.01) 70%,
+    transparent 100%);
+}
+#substrate-light .row-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2px;
+  opacity: 0.75;
+}
+#substrate-light .row-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: #475569;
+  letter-spacing: 2px; text-transform: uppercase;
+  line-height: 1.5;
+}
+#substrate-light .row-pair {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300; font-size: 28px;
+  color: #0f172a; letter-spacing: -0.2px;
+  line-height: 1;
+}
+#substrate-light .row-pair .sep {
+  color: #2d6a96; margin: 0 14px; opacity: 0.7;
+}
+#substrate-light .callout {
+  margin-top: 14px;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-size: 18px;
+  color: #2d6a96; opacity: 0.85;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+#substrate-light .footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+#substrate-light .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #94a3b8;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+#substrate-light .url {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2px;
+}
+</style>
+</head>
+<body>
+
+<!--
+  Substrate sheet · 1200×630 concept poster making the "model substrate"
+  claim visual. Three numbered rows expose the canonical 6-item model
+  substrate paired by relationship (problems↔solutions, metrics↔technologies,
+  background↔narrative). Anchors the carousel-slide-2 phrase
+  "this is the part most tools skip" with a structured visual proof.
+
+  Pairs reproduce the COPY.md substrate definition verbatim — keep this
+  sheet, COPY.md "Identity model substrate", and carousel slide 2 in sync.
+-->
+
+<!-- ─── SUBSTRATE · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#substrate-dark · 1200×630</div>
+  <div id="substrate-dark">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">Manifesto · 01</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">What's in the model</div>
+        <h1 class="title">The <em>substrate</em>.</h1>
+      </div>
+
+      <div class="rows">
+        <div class="row">
+          <span class="row-num">01</span>
+          <span class="row-eyebrow">What you've solved</span>
+          <span class="row-pair">Problems<span class="sep">·</span>Solutions</span>
+        </div>
+        <div class="row">
+          <span class="row-num">02</span>
+          <span class="row-eyebrow">What you've measured · used</span>
+          <span class="row-pair">Metrics<span class="sep">·</span>Technologies</span>
+        </div>
+        <div class="row">
+          <span class="row-num">03</span>
+          <span class="row-eyebrow">Raw context · synthesized story</span>
+          <span class="row-pair">Background<span class="sep">·</span>Narrative</span>
+        </div>
+      </div>
+
+      <div class="callout">This is the part most tools skip.</div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SUBSTRATE · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#substrate-light · 1200×630</div>
+  <div id="substrate-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="28" height="41" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="header-meta">Manifesto · 01</div>
+      </div>
+
+      <div class="title-block">
+        <div class="eyebrow">What's in the model</div>
+        <h1 class="title">The <em>substrate</em>.</h1>
+      </div>
+
+      <div class="rows">
+        <div class="row">
+          <span class="row-num">01</span>
+          <span class="row-eyebrow">What you've solved</span>
+          <span class="row-pair">Problems<span class="sep">·</span>Solutions</span>
+        </div>
+        <div class="row">
+          <span class="row-num">02</span>
+          <span class="row-eyebrow">What you've measured · used</span>
+          <span class="row-pair">Metrics<span class="sep">·</span>Technologies</span>
+        </div>
+        <div class="row">
+          <span class="row-num">03</span>
+          <span class="row-eyebrow">Raw context · synthesized story</span>
+          <span class="row-pair">Background<span class="sep">·</span>Narrative</span>
+        </div>
+      </div>
+
+      <div class="callout">This is the part most tools skip.</div>
+
+      <div class="footer">
+        <div class="tagline">Same diamond · Different face</div>
+        <div class="url">myfacets.cv</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

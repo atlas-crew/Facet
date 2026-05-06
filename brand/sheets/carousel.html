@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — Carousel (diamond-centric)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+/* Render mode */
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   Shared slide chrome (applies to all 5 slides)
+   ───────────────────────────────────────────────────────────── */
+.slide {
+  width: 1080px; height: 1350px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+  font-family: 'DM Sans', sans-serif;
+}
+.slide::before {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+.slide::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%,
+    rgba(108,184,232,0.08) 0%, rgba(45,106,150,0.03) 35%, transparent 70%);
+  pointer-events: none;
+}
+.slide .frame {
+  position: relative; height: 100%;
+  padding: 80px;
+  display: flex; flex-direction: column;
+  z-index: 1;
+}
+.slide .header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 32px;
+}
+.slide .lockup { display: flex; align-items: center; gap: 12px; }
+.slide .lockup svg { display: block; }
+.slide .lockup-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 32px; color: #e8ecf2;
+  letter-spacing: 1.5px; line-height: 1;
+}
+.slide .indicator { display: flex; align-items: center; gap: 8px; }
+.slide .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(91,164,217,0.45);
+}
+.slide .dot.filled { background: #6cb8e8; }
+
+.slide .body {
+  flex: 1;
+  display: flex; flex-direction: column;
+}
+.slide .slide-title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 84px;
+  color: #e8ecf2;
+  line-height: 0.95;
+  letter-spacing: -1px;
+}
+.slide .slide-title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+.slide .slide-sub {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300; font-size: 24px;
+  color: #c0c8d4;
+  line-height: 1.45;
+  margin-top: 14px;
+  max-width: 760px;
+}
+.slide .slide-sub em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+
+.slide .footer {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-top: 32px;
+}
+.slide .footer-left {
+  font-family: 'DM Mono', monospace;
+  font-size: 22px; color: #6cb8e8;
+  line-height: 1;
+}
+.slide .footer-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px; color: #6b7a8d;
+  letter-spacing: 1.5px;
+  line-height: 1.5;
+  text-align: right;
+}
+.slide .footer-right .url { color: #5ba4d9; }
+
+/* ─────────────────────────────────────────────────────────────
+   #carousel-1 — Intro · gem-centered
+   ───────────────────────────────────────────────────────────── */
+#carousel-1 .body, #carousel-1-light .body {
+  align-items: center; justify-content: center;
+  gap: 56px;
+  text-align: center;
+}
+#carousel-1 .gem-wrap, #carousel-1-light .gem-wrap {
+  filter: drop-shadow(0 0 60px rgba(108,184,232,0.25))
+          drop-shadow(0 0 140px rgba(108,184,232,0.10));
+  margin-top: -60px;
+}
+#carousel-1 .title, #carousel-1-light .title {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 92px;
+  color: #e8ecf2;
+  line-height: 1.0;
+  letter-spacing: -0.5px;
+  text-align: center;
+}
+#carousel-1 .title .line-2, #carousel-1-light .title .line-2 {
+  color: #6cb8e8;
+  font-style: italic;
+  display: block;
+}
+#carousel-1 .subtitle, #carousel-1-light .subtitle {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  opacity: 0.75;
+  margin-top: 8px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #carousel-2 — The Model · gem-left, substrate list right
+   ───────────────────────────────────────────────────────────── */
+#carousel-2 .body, #carousel-2-light .body {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 48px;
+  align-items: center;
+}
+#carousel-2 .gem-area, #carousel-2-light .gem-area {
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 50px rgba(108,184,232,0.20))
+          drop-shadow(0 0 120px rgba(108,184,232,0.08));
+}
+#carousel-2 .right-col, #carousel-2-light .right-col {
+  display: flex; flex-direction: column;
+  gap: 32px;
+}
+#carousel-2 .substrate-list, #carousel-2-light .substrate-list {
+  display: flex; flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+#carousel-2 .substrate-item, #carousel-2-light .substrate-item {
+  display: flex; align-items: center;
+  gap: 16px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  font-size: 36px;
+  color: #e8ecf2;
+  letter-spacing: -0.3px;
+}
+#carousel-2 .substrate-rule, #carousel-2-light .substrate-rule {
+  width: 28px; height: 1px;
+  background: #5ba4d9;
+  flex-shrink: 0;
+}
+#carousel-2 .callout, #carousel-2-light .callout {
+  margin-top: 20px;
+  padding: 14px 18px;
+  border-left: 2px solid #5ba4d9;
+  background: linear-gradient(90deg, rgba(45,106,150,0.10) 0%, transparent 100%);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  font-size: 20px;
+  color: #c0c8d4;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #carousel-3 — The Faces · orbital diagram
+   ───────────────────────────────────────────────────────────── */
+#carousel-3 .title-block, #carousel-3-light .title-block {
+  margin-bottom: 24px;
+}
+#carousel-3 .orbital, #carousel-3-light .orbital {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  min-height: 720px;
+}
+#carousel-3 .orbital-svg, #carousel-3-light .orbital-svg {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+#carousel-3 .orbital-gem, #carousel-3-light .orbital-gem {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 40px rgba(108,184,232,0.25))
+          drop-shadow(0 0 100px rgba(108,184,232,0.10));
+  z-index: 2;
+}
+#carousel-3 .face, #carousel-3-light .face {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: linear-gradient(180deg, rgba(18,21,28,0.92) 0%, rgba(14,17,23,0.92) 100%);
+  border: 1px solid rgba(91,164,217,0.35);
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 18px;
+  color: #6cb8e8;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 1;
+  font-weight: 500;
+}
+#carousel-3 .face::before, #carousel-3-light .face::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, #6cb8e8, #5ba4d9);
+}
+#carousel-3 .face-resume   , #carousel-3-light .face-resume    { left: 50%; top: 8%; }
+#carousel-3 .face-cover    , #carousel-3-light .face-cover     { left: 88%; top: 28%; }
+#carousel-3 .face-linkedin , #carousel-3-light .face-linkedin  { left: 88%; top: 70%; }
+#carousel-3 .face-drills   , #carousel-3-light .face-drills    { left: 50%; top: 92%; }
+#carousel-3 .face-live     , #carousel-3-light .face-live      { left: 12%; top: 70%; }
+#carousel-3 .face-recruiter, #carousel-3-light .face-recruiter { left: 12%; top: 28%; }
+
+/* ─────────────────────────────────────────────────────────────
+   #carousel-4 — The Refinement · debrief flowing IN
+   ───────────────────────────────────────────────────────────── */
+#carousel-4 .title-block, #carousel-4-light .title-block { margin-bottom: 32px; }
+#carousel-4 .refinement-area, #carousel-4-light .refinement-area {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 56px;
+  align-items: center;
+  position: relative;
+}
+#carousel-4 .refinement-arrow, #carousel-4-light .refinement-arrow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+#carousel-4 .refinement-steps, #carousel-4-light .refinement-steps {
+  display: flex; flex-direction: column;
+  gap: 18px;
+}
+#carousel-4 .step, #carousel-4-light .step {
+  display: flex; align-items: baseline;
+  gap: 18px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  font-size: 32px;
+  color: #e8ecf2;
+  letter-spacing: -0.3px;
+}
+#carousel-4 .step-num, #carousel-4-light .step-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px; color: #5ba4d9;
+  letter-spacing: 1.5px;
+  font-weight: 500;
+}
+#carousel-4 .step-arrow, #carousel-4-light .step-arrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 24px; color: #6cb8e8;
+  margin-left: 6px;
+}
+#carousel-4 .step:last-child .step-arrow, #carousel-4-light .step:last-child .step-arrow {
+  color: #7ac4f0;
+}
+#carousel-4 .step-detail, #carousel-4-light .step-detail {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #6b7a8d;
+  font-style: italic;
+  letter-spacing: 0;
+  margin-left: 8px;
+}
+#carousel-4 .gem-area, #carousel-4-light .gem-area {
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 50px rgba(108,184,232,0.30))
+          drop-shadow(0 0 130px rgba(108,184,232,0.12));
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #carousel-5 — Close · illuminated gem
+   ───────────────────────────────────────────────────────────── */
+#carousel-5 .body, #carousel-5-light .body {
+  align-items: center; justify-content: center;
+  gap: 48px;
+  text-align: center;
+}
+#carousel-5 .gem-wrap, #carousel-5-light .gem-wrap {
+  filter: drop-shadow(0 0 80px rgba(108,184,232,0.40))
+          drop-shadow(0 0 180px rgba(108,184,232,0.18))
+          drop-shadow(0 0 280px rgba(108,184,232,0.08));
+  margin-top: -40px;
+}
+#carousel-5 .close-title, #carousel-5-light .close-title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 96px;
+  color: #e8ecf2;
+  line-height: 0.95;
+  letter-spacing: -1px;
+  text-align: center;
+}
+#carousel-5 .close-title em, #carousel-5-light .close-title em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#carousel-5 .trust, #carousel-5-light .trust {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Light theme — overrides on .slide.theme-light
+   ───────────────────────────────────────────────────────────── */
+.slide.theme-light { background: #f8fafc; }
+.slide.theme-light::before {
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  opacity: 0.5;
+}
+.slide.theme-light::after {
+  background: radial-gradient(ellipse 60% 50% at 50% 50%,
+    rgba(45,106,150,0.07) 0%, rgba(45,106,150,0.03) 35%, transparent 70%);
+}
+.slide.theme-light .lockup-text { color: #0f172a; }
+.slide.theme-light .dot { background: rgba(45,106,150,0.4); }
+.slide.theme-light .dot.filled { background: #2d6a96; }
+.slide.theme-light .footer-left { color: #2d6a96; }
+.slide.theme-light .footer-right { color: #94a3b8; }
+.slide.theme-light .footer-right .url { color: #2d6a96; }
+.slide.theme-light .slide-title { color: #0f172a; }
+.slide.theme-light .slide-title em { color: #2d6a96; }
+.slide.theme-light .slide-sub { color: #475569; }
+.slide.theme-light .slide-sub em { color: #2d6a96; }
+
+/* Slide-specific light overrides */
+#carousel-1-light .title { color: #0f172a; }
+#carousel-1-light .title .line-2 { color: #2d6a96; }
+#carousel-1-light .subtitle { color: #2d6a96; }
+
+#carousel-2-light .substrate-item { color: #0f172a; }
+#carousel-2-light .substrate-rule { background: #2d6a96; }
+#carousel-2-light .callout {
+  border-left-color: #2d6a96;
+  background: linear-gradient(90deg, rgba(45,106,150,0.06) 0%, transparent 100%);
+  color: #475569;
+}
+
+#carousel-3-light .face {
+  background: #ffffff;
+  border-color: rgba(45,106,150,0.4);
+  color: #2d6a96;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+}
+#carousel-3-light .face::before {
+  background: linear-gradient(90deg, #2d6a96, #1e5a82);
+}
+
+#carousel-4-light .step { color: #0f172a; }
+#carousel-4-light .step-num { color: #2d6a96; }
+#carousel-4-light .step-arrow { color: #2d6a96; }
+#carousel-4-light .step:last-child .step-arrow { color: #1e5a82; }
+#carousel-4-light .step-detail { color: #94a3b8; }
+
+#carousel-5-light .gem-wrap {
+  filter: drop-shadow(0 12px 60px rgba(45,106,150,0.25))
+          drop-shadow(0 0 160px rgba(45,106,150,0.12));
+}
+#carousel-5-light .close-title { color: #0f172a; }
+#carousel-5-light .close-title em { color: #2d6a96; }
+#carousel-5-light .trust { color: #2d6a96; opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<!--
+  Carousel · diamond-centric (5 slides × dark+light at 1080×1350).
+
+  Narrative: instead of a horizontal Search→Track→Prep workflow, the
+  carousel tells the differentiation story — the model is the center,
+  views radiate outward, refinement flows back in. Each slide is a
+  facet of "same diamond, different face":
+
+    1. Intro       — gem-centered. "Same diamond. Different face."
+    2. The Model   — what's IN the diamond (substrate)
+    3. The Faces   — orbital views OUT of the diamond
+    4. Refinement  — debrief flowing INTO the diamond
+    5. Close       — diamond illuminated. "Build it once. Recut forever."
+
+  No tracker tool can draw this carousel because none of them have a
+  center. The orbital diagram on slide 3 is the visual signature.
+-->
+
+<!-- ═════════════════════ DARK VARIANTS ═════════════════════ -->
+
+<!-- ─── SLIDE 1 · INTRO ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-1 · 1080×1350 · Intro</div>
+  <div id="carousel-1" class="slide">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="gem-wrap">
+          <svg width="240" height="349" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.55"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+        <div>
+          <div class="title">Same diamond.<span class="line-2">Different face.</span></div>
+          <div class="subtitle">How Facet works</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">◆</span>
+        <div class="footer-right">
+          A deep model of you<br>
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 2 · THE MODEL ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-2 · 1080×1350 · The Model</div>
+  <div id="carousel-2" class="slide">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="gem-area">
+          <svg width="220" height="320" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.55"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+        <div class="right-col">
+          <div>
+            <h1 class="slide-title">The <em>Model</em></h1>
+            <p class="slide-sub">The substrate.</p>
+          </div>
+          <div class="substrate-list">
+            <div class="substrate-item"><span class="substrate-rule"></span>Problems</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Solutions</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Metrics</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Technologies</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Background</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Narrative</div>
+          </div>
+          <p class="callout">This is the part most tools skip.</p>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">→</span>
+        <div class="footer-right">
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 3 · THE FACES ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-3 · 1080×1350 · The Faces</div>
+  <div id="carousel-3" class="slide">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="title-block">
+          <h1 class="slide-title">The <em>Faces</em></h1>
+          <p class="slide-sub">Same model, <em>recut for what each moment needs</em>.</p>
+        </div>
+
+        <div class="orbital">
+          <!-- Connector lines from gem center to each face label -->
+          <svg class="orbital-svg" viewBox="0 0 920 720" preserveAspectRatio="none" fill="none">
+            <line x1="460" y1="360" x2="460" y2="60"  stroke="#5ba4d9" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+            <line x1="460" y1="360" x2="810" y2="200" stroke="#5ba4d9" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+            <line x1="460" y1="360" x2="810" y2="500" stroke="#5ba4d9" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+            <line x1="460" y1="360" x2="460" y2="660" stroke="#5ba4d9" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+            <line x1="460" y1="360" x2="110" y2="500" stroke="#5ba4d9" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+            <line x1="460" y1="360" x2="110" y2="200" stroke="#5ba4d9" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+          </svg>
+
+          <div class="orbital-gem">
+            <svg width="180" height="262" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+              <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.30"/>
+              <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+              <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+              <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.55"/>
+              <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.3"/>
+            </svg>
+          </div>
+
+          <div class="face face-resume">Resume</div>
+          <div class="face face-cover">Cover Letter</div>
+          <div class="face face-linkedin">LinkedIn</div>
+          <div class="face face-drills">Drills</div>
+          <div class="face face-live">Live</div>
+          <div class="face face-recruiter">Recruiter Card</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">→</span>
+        <div class="footer-right">
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 4 · THE REFINEMENT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-4 · 1080×1350 · The Refinement</div>
+  <div id="carousel-4" class="slide">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="title-block">
+          <h1 class="slide-title">The <em>Refinement</em></h1>
+          <p class="slide-sub"><em>Every interview makes the model sharper.</em></p>
+        </div>
+
+        <div class="refinement-area">
+          <div class="refinement-steps">
+            <div class="step"><span class="step-num">01</span>Capture<span class="step-detail">— what was said, before it fades</span></div>
+            <div class="step"><span class="step-num">02</span>Structure<span class="step-detail">— as evidence, not anecdote</span></div>
+            <div class="step"><span class="step-num">03</span>Apply<span class="step-arrow">↻</span><span class="step-detail">— back into the model</span></div>
+          </div>
+          <div class="gem-area">
+            <svg width="220" height="320" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+              <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.32"/>
+              <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+              <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+              <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.6"/>
+              <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.35"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">↻</span>
+        <div class="footer-right">
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 5 · CLOSE ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-5 · 1080×1350 · Close</div>
+  <div id="carousel-5" class="slide">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="gem-wrap">
+          <svg width="280" height="407" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#7ac4f0"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#a3d4f5" opacity="0.40"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#3d88b8"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#5ba4d9"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#a3d4f5" stroke-width="0.5" opacity="0.7"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#a3d4f5" stroke-width="0.35" opacity="0.4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="close-title">Build it once.<br><em>Recut</em> forever.</div>
+        </div>
+        <div class="trust">Open-source · Your data, never ours</div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">◆</span>
+        <div class="footer-right">
+          A deep model of you<br>
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ LIGHT VARIANTS ═════════════════════ -->
+<!-- Light variants share structure with dark (above); CSS overrides flip
+     palette via .slide.theme-light. The lockup gem and orbital/center gem
+     SVGs use light-bg fills (#2d6a96/#1e5a82). -->
+
+<!-- ─── SLIDE 1 LIGHT · INTRO ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-1-light · 1080×1350 · Intro</div>
+  <div id="carousel-1-light" class="slide theme-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body" style="align-items: center; justify-content: center; gap: 56px; text-align: center;">
+        <div style="filter: drop-shadow(0 12px 50px rgba(45,106,150,0.18)) drop-shadow(0 0 120px rgba(45,106,150,0.10)); margin-top: -60px;">
+          <svg width="240" height="349" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.55"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+        <div>
+          <div class="title" style="font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; font-size: 92px; line-height: 1.0; letter-spacing: -0.5px; text-align: center;">Same diamond.<span class="line-2" style="display: block; font-style: italic;">Different face.</span></div>
+          <div class="subtitle" style="font-family: 'DM Mono', monospace; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.75; margin-top: 8px;">How Facet works</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">◆</span>
+        <div class="footer-right">
+          A deep model of you<br>
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 2 LIGHT · THE MODEL ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-2-light · 1080×1350 · The Model</div>
+  <div id="carousel-2-light" class="slide theme-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body" style="display: grid; grid-template-columns: 320px 1fr; gap: 48px; align-items: center;">
+        <div style="display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 8px 40px rgba(45,106,150,0.18)) drop-shadow(0 0 100px rgba(45,106,150,0.08));">
+          <svg width="220" height="320" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.30"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.55"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.3"/>
+          </svg>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 32px;">
+          <div>
+            <h1 class="slide-title">The <em>Model</em></h1>
+            <p class="slide-sub">The substrate.</p>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 8px;">
+            <div class="substrate-item"><span class="substrate-rule"></span>Problems</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Solutions</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Metrics</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Technologies</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Background</div>
+            <div class="substrate-item"><span class="substrate-rule"></span>Narrative</div>
+          </div>
+          <p class="callout">This is the part most tools skip.</p>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">→</span>
+        <div class="footer-right">
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 3 LIGHT · THE FACES ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-3-light · 1080×1350 · The Faces</div>
+  <div id="carousel-3-light" class="slide theme-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="title-block">
+          <h1 class="slide-title">The <em>Faces</em></h1>
+          <p class="slide-sub">Same model, <em>recut for what each moment needs</em>.</p>
+        </div>
+
+        <div class="orbital">
+          <svg class="orbital-svg" viewBox="0 0 920 720" preserveAspectRatio="none" fill="none">
+            <line x1="460" y1="360" x2="460" y2="60"  stroke="#2d6a96" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+            <line x1="460" y1="360" x2="810" y2="200" stroke="#2d6a96" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+            <line x1="460" y1="360" x2="810" y2="500" stroke="#2d6a96" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+            <line x1="460" y1="360" x2="460" y2="660" stroke="#2d6a96" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+            <line x1="460" y1="360" x2="110" y2="500" stroke="#2d6a96" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+            <line x1="460" y1="360" x2="110" y2="200" stroke="#2d6a96" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+          </svg>
+
+          <div class="orbital-gem">
+            <svg width="180" height="262" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+              <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.30"/>
+              <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+              <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+              <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.55"/>
+              <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.3"/>
+            </svg>
+          </div>
+
+          <div class="face face-resume">Resume</div>
+          <div class="face face-cover">Cover Letter</div>
+          <div class="face face-linkedin">LinkedIn</div>
+          <div class="face face-drills">Drills</div>
+          <div class="face face-live">Live</div>
+          <div class="face face-recruiter">Recruiter Card</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">→</span>
+        <div class="footer-right">
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 4 LIGHT · THE REFINEMENT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-4-light · 1080×1350 · The Refinement</div>
+  <div id="carousel-4-light" class="slide theme-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></div>
+      </div>
+
+      <div class="body">
+        <div class="title-block">
+          <h1 class="slide-title">The <em>Refinement</em></h1>
+          <p class="slide-sub"><em>Every interview makes the model sharper.</em></p>
+        </div>
+
+        <div class="refinement-area">
+          <div class="refinement-steps">
+            <div class="step"><span class="step-num">01</span>Capture<span class="step-detail">— what was said, before it fades</span></div>
+            <div class="step"><span class="step-num">02</span>Structure<span class="step-detail">— as evidence, not anecdote</span></div>
+            <div class="step"><span class="step-num">03</span>Apply<span class="step-arrow">↻</span><span class="step-detail">— back into the model</span></div>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 8px 40px rgba(45,106,150,0.20)) drop-shadow(0 0 110px rgba(45,106,150,0.10));">
+            <svg width="220" height="320" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+              <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.32"/>
+              <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+              <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+              <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.6"/>
+              <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.35"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">↻</span>
+        <div class="footer-right">
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SLIDE 5 LIGHT · CLOSE ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#carousel-5-light · 1080×1350 · Close</div>
+  <div id="carousel-5-light" class="slide theme-light">
+    <div class="frame">
+      <div class="header">
+        <div class="lockup">
+          <svg width="32" height="46" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.25"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.5"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.25"/>
+          </svg>
+          <span class="lockup-text">Facet</span>
+        </div>
+        <div class="indicator"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span></div>
+      </div>
+
+      <div class="body" style="align-items: center; justify-content: center; gap: 48px; text-align: center;">
+        <div class="gem-wrap" style="margin-top: -40px;">
+          <svg width="280" height="407" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+            <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.40"/>
+            <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+            <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+            <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.7"/>
+            <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="close-title">Build it once.<br><em>Recut</em> forever.</div>
+        </div>
+        <div class="trust">Open-source · Your data, never ours</div>
+      </div>
+
+      <div class="footer">
+        <span class="footer-left">◆</span>
+        <div class="footer-right">
+          A deep model of you<br>
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Render mode: hash like #carousel-1 isolates that slide for Playwright screenshot.
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>

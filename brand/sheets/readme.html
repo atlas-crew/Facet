@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facet — README Hero Banner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1d24;
+  font-family: 'DM Sans', sans-serif;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+.sheet-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1px solid rgba(108, 184, 232, 0.3);
+  border-radius: 4px;
+  background: rgba(10, 12, 16, 0.5);
+  margin-bottom: 12px;
+}
+.sheet-item { display: flex; flex-direction: column; align-items: center; }
+
+body.render { padding: 0; gap: 0; background: #0a0c10; }
+body.render .sheet-label { display: none; }
+body.render .sheet-item { margin: 0; }
+body.render .sheet-item.hidden { display: none; }
+
+/* ─────────────────────────────────────────────────────────────
+   #readme-dark  ·  1280×640  ·  GitHub README hero (dark)
+   ───────────────────────────────────────────────────────────── */
+#readme-dark {
+  width: 1280px; height: 640px;
+  background: #0a0c10;
+  position: relative; overflow: hidden;
+}
+#readme-dark::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 80% at 25% 50%,
+    rgba(108,184,232,0.15) 0%, rgba(45,106,150,0.05) 40%, transparent 70%);
+  pointer-events: none;
+}
+#readme-dark::after {
+  content: ''; position: absolute; inset: 0; opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(108,184,232,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,184,232,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+#readme-dark .frame {
+  position: relative; height: 100%;
+  padding: 72px 80px;
+  display: grid;
+  grid-template-columns: 460px 1fr;
+  gap: 64px;
+  align-items: center;
+  z-index: 1;
+}
+#readme-dark .left {
+  display: flex; flex-direction: column;
+  align-items: flex-start; gap: 28px;
+  position: relative;
+}
+#readme-dark .gem-large {
+  filter: drop-shadow(0 6px 18px rgba(108,184,232,0.25));
+}
+#readme-dark .wordmark {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 88px;
+  color: #e8ecf2; letter-spacing: 2.5px;
+  line-height: 1;
+}
+#readme-dark .badge-row {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.75;
+}
+#readme-dark .badge-row .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #6cb8e8;
+  box-shadow: 0 0 6px rgba(108,184,232,0.5);
+}
+
+#readme-dark .right {
+  display: flex; flex-direction: column;
+  gap: 24px;
+  border-left: 1px solid rgba(108,184,232,0.18);
+  padding-left: 56px;
+}
+#readme-dark .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #5ba4d9;
+  letter-spacing: 3px; text-transform: uppercase;
+  opacity: 0.65;
+}
+#readme-dark .headline {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 50px;
+  color: #e8ecf2; letter-spacing: -0.6px;
+  line-height: 1.05;
+}
+#readme-dark .headline em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #6cb8e8;
+}
+#readme-dark .trust-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(108,184,232,0.12);
+}
+#readme-dark .trust {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #6cb8e8;
+  letter-spacing: 2px; text-transform: uppercase;
+  opacity: 0.85;
+}
+#readme-dark .trust .sep { opacity: 0.5; margin: 0 6px; }
+#readme-dark .url {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #5ba4d9;
+  letter-spacing: 2px;
+  opacity: 0.85;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   #readme-light  ·  1280×640  ·  GitHub README hero (light)
+   ───────────────────────────────────────────────────────────── */
+#readme-light {
+  width: 1280px; height: 640px;
+  background: #f8fafc;
+  position: relative; overflow: hidden;
+}
+#readme-light::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 80% at 25% 50%,
+    rgba(45,106,150,0.10) 0%, rgba(45,106,150,0.04) 40%, transparent 70%);
+  pointer-events: none;
+}
+#readme-light::after {
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(45,106,150,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,106,150,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+#readme-light .frame {
+  position: relative; height: 100%;
+  padding: 72px 80px;
+  display: grid;
+  grid-template-columns: 460px 1fr;
+  gap: 64px;
+  align-items: center;
+  z-index: 1;
+}
+#readme-light .left {
+  display: flex; flex-direction: column;
+  align-items: flex-start; gap: 28px;
+  position: relative;
+}
+#readme-light .gem-large {
+  filter: drop-shadow(0 6px 14px rgba(45,106,150,0.2));
+}
+#readme-light .wordmark {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400; font-size: 88px;
+  color: #0f172a; letter-spacing: 2.5px;
+  line-height: 1;
+}
+#readme-light .badge-row {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  opacity: 0.8;
+}
+#readme-light .badge-row .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #2d6a96;
+  box-shadow: 0 0 6px rgba(45,106,150,0.4);
+}
+
+#readme-light .right {
+  display: flex; flex-direction: column;
+  gap: 24px;
+  border-left: 1px solid rgba(45,106,150,0.20);
+  padding-left: 56px;
+}
+#readme-light .eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: #2d6a96;
+  letter-spacing: 3px; text-transform: uppercase;
+  opacity: 0.7;
+}
+#readme-light .headline {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 50px;
+  color: #0f172a; letter-spacing: -0.6px;
+  line-height: 1.05;
+}
+#readme-light .headline em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic; font-weight: 400;
+  color: #2d6a96;
+}
+#readme-light .trust-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(45,106,150,0.15);
+}
+#readme-light .trust {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 2px; text-transform: uppercase;
+  opacity: 0.9;
+}
+#readme-light .trust .sep { opacity: 0.5; margin: 0 6px; }
+#readme-light .url {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #2d6a96;
+  letter-spacing: 2px;
+  opacity: 0.9;
+}
+</style>
+</head>
+<body>
+
+<!--
+  README hero · 1280×640 (2:1) banner sized for GitHub repo README
+  top-of-page placement. Asymmetric layout: large gem mark + wordmark
+  on left, locked hero copy + trust line on right, divided by a thin
+  vertical rule. Differentiates from og-image (centered, symmetric)
+  while staying within brand grammar.
+
+  Use as: GitHub README image, top of project landing page, deck
+  cover slide. The 2:1 aspect renders cleanly in markdown without
+  dominating the README's content.
+-->
+
+<!-- ─── README · DARK ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#readme-dark · 1280×640</div>
+  <div id="readme-dark">
+    <div class="frame">
+      <div class="left">
+        <svg class="gem-large" width="120" height="174" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#6cb8e8"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#7ac4f0" opacity="0.3"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#4a94c8"/>
+          <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#7ac4f0" stroke-width="0.5" opacity="0.6"/>
+          <line x1="11" y1="2" x2="11" y2="31" stroke="#7ac4f0" stroke-width="0.35" opacity="0.3"/>
+        </svg>
+        <span class="wordmark">Facet</span>
+        <div class="badge-row">
+          <span class="dot"></span>
+          <span>Open source</span>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="eyebrow">A career operating system</div>
+        <h1 class="headline">A deep model of you, professionally.<br><em>Recut for every opportunity.</em></h1>
+        <div class="trust-row">
+          <span class="trust">Open-source<span class="sep">·</span>Your data, never ours</span>
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── README · LIGHT ─── -->
+<div class="sheet-item">
+  <div class="sheet-label">#readme-light · 1280×640</div>
+  <div id="readme-light">
+    <div class="frame">
+      <div class="left">
+        <svg class="gem-large" width="120" height="174" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2 H16 L20 9 H2 Z" fill="#2d6a96"/>
+          <path d="M8 3.5 H14 L16.5 8 H5.5 Z" fill="#5ba4d9" opacity="0.3"/>
+          <path d="M2 9 L11 31 L11 9 Z" fill="#1e5a82"/>
+          <path d="M20 9 L11 31 L11 9 Z" fill="#2d6a96"/>
+          <line x1="1.5" y1="9" x2="20.5" y2="9" stroke="#5ba4d9" stroke-width="0.5" opacity="0.6"/>
+          <line x1="11" y1="2" x2="11" y2="31" stroke="#5ba4d9" stroke-width="0.35" opacity="0.3"/>
+        </svg>
+        <span class="wordmark">Facet</span>
+        <div class="badge-row">
+          <span class="dot"></span>
+          <span>Open source</span>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="eyebrow">A career operating system</div>
+        <h1 class="headline">A deep model of you, professionally.<br><em>Recut for every opportunity.</em></h1>
+        <div class="trust-row">
+          <span class="trust">Open-source<span class="sep">·</span>Your data, never ours</span>
+          <span class="url">myfacets.cv</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.body.classList.add('render');
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const targetItem = target.closest('.sheet-item');
+    document.querySelectorAll('.sheet-item').forEach(item => {
+      if (item !== targetItem) item.classList.add('hidden');
+    });
+  })();
+</script>
+
+</body>
+</html>
