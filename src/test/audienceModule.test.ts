@@ -189,6 +189,25 @@ describe('audienceRules — applyRulesBasedAudiences', () => {
     expect(second).toBe(analysis)
   })
 
+  it('re-applies when version matches but TaggedNote fields are still string[] (TASK-226)', () => {
+    // Reproducer: a JDAnalysis can be stamped at the current rules version
+    // and still carry legacy string[] notes if a sanitize path trimmed
+    // strings before the rules engine ran. Stamp-only checking would
+    // short-circuit here and leak the type lie. The shape-aware guard must
+    // detect the mismatch and re-apply rules.
+    const stale = {
+      ...applyRulesBasedAudiences(baseAnalysis()),
+      // Type lie: claim current version, but warnings is string[].
+      warnings: ['legacy string'] as unknown as TaggedNote[],
+    }
+
+    const refreshed = applyRulesBasedAudiences(stale as JDAnalysisLike)
+
+    expect(refreshed.warnings).toEqual([
+      { text: 'legacy string', audiences: { inferred: ['internal'], asserted: null } },
+    ])
+  })
+
   it('re-applies rules when audienceRulesVersion is missing or stale', () => {
     const stale = { ...applyRulesBasedAudiences(baseAnalysis()), audienceRulesVersion: 'audience-rules.v0' }
     const refreshed = applyRulesBasedAudiences(stale as JDAnalysisLike)

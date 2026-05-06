@@ -474,7 +474,6 @@ describe('JDAnalysis canonical helpers', () => {
         analyses: [
           {
             ...analysis,
-            audienceRulesVersion: 'audience-rules.legacy',
             warnings: [' keep ', 42, ''] as unknown as TaggedNote[],
           },
         ],

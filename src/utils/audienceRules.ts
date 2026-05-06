@@ -1,8 +1,9 @@
-import type {
-  AudienceAssignment,
-  AudienceTag,
-  AudienceTagged,
-  TaggedNote,
+import {
+  type AudienceAssignment,
+  type AudienceTag,
+  type AudienceTagged,
+  type TaggedNote,
+  hasAudiences,
 } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type {
@@ -212,10 +213,30 @@ export interface JDAnalysisLike extends Omit<
   warnings: TaggedNote[] | string[]
 }
 
+// Runtime shape check for TaggedNote arrays. The version stamp alone isn't
+// enough to skip re-tagging: a JDAnalysis can be stamped at the current
+// rules version but still carry legacy `string[]` notes if a sanitize path
+// trimmed strings before the rules engine ran (TASK-226). Verifying actual
+// shape closes that hole.
+const isTaggedNoteArray = (value: unknown): value is TaggedNote[] => {
+  if (!Array.isArray(value)) return false
+  return value.every(
+    (entry) => hasAudiences(entry) && typeof (entry as { text?: unknown }).text === 'string',
+  )
+}
+
 export const applyRulesBasedAudiences = (input: JDAnalysisLike): JDAnalysis => {
-  // Idempotency guard: if the input is already at the current rules version,
-  // return as-is (cast to JDAnalysis since the discriminator already passed).
-  if (input.audienceRulesVersion === AUDIENCE_RULES_VERSION) {
+  // Idempotency guard: skip the re-apply only when both the stamp matches
+  // AND every TaggedNote field is properly shaped. Stamp-only checking has
+  // been a silent type-contract violation (see TASK-226) — the shape check
+  // is the actual proof that the rules engine has run on this record.
+  if (
+    input.audienceRulesVersion === AUDIENCE_RULES_VERSION &&
+    isTaggedNoteArray(input.warnings) &&
+    isTaggedNoteArray(input.strengthsToLead) &&
+    isTaggedNoteArray(input.gapFocus) &&
+    isTaggedNoteArray(input.positioningRecommendations)
+  ) {
     return input as JDAnalysis
   }
 
