@@ -71,17 +71,30 @@ own JD analysis.
 
 ### Prep
 
-Interview prep generation. Currently has its own per-deck JD analysis
-embedded in the prep generator; migration to canonical `JDAnalysis` is
-deferred. Prep continues to consume the JD text and identity directly
-until that migration lands.
+Interview prep generation, launched from a pipeline entry. Prep consumes
+the canonical `JDAnalysis` attached to the entry — `PrepGenerationRequest`
+takes a `JDAnalysis` and pins its drift markers (`jdAnalysisId`,
+`jdTextHash`, `modelVersion`) on the resulting deck. Prep does not run
+its own JD analysis pass. Identity is consumed by reference via
+`buildPrepIdentityContext`, used to constrain the LLM rather than to
+re-derive candidate-only fields.
 
 ### Research
 
-Pipeline-entry enrichment service. Fetches company info, hiring signals,
-research sources. Writes results back to the pipeline entry. Research is
-distinct from `JDAnalysis` — research is target-company information;
-analysis is candidate-vs-JD matching.
+Two related flows live under the Research surface:
+
+- **Discovery** — the Research page itself. Reads identity to drive
+  search-profile generation (`adaptIdentityToSearchProfile`,
+  `inferSearchProfileFromIdentity`) and thesis validation, and *writes
+  back* to identity via `saveSkillEnrichment` and `updateCurrentMatching`
+  when search outcomes refine skill or matching state. Research is
+  therefore the only non-Identity-page workspace that mutates the
+  identity store. Discovery sits upstream of Pipeline — it produces
+  opportunities that get promoted into pipeline entries.
+- **Pipeline-entry enrichment** — fetches company info, hiring signals,
+  research sources for an existing entry, writing results back to that
+  entry. Distinct from `JDAnalysis`: research is target-company
+  information; analysis is candidate-vs-JD matching.
 
 ## Generation Variant Model
 
