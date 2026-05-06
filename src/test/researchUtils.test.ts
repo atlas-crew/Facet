@@ -84,7 +84,15 @@ describe('researchUtils', () => {
   it('normalizes comma-separated tag input', () => {
     expect(splitTags('')).toEqual([])
     expect(splitTags('alpha,, beta, ,gamma')).toEqual(['alpha', 'beta', 'gamma'])
+    expect(splitTags('single-value')).toEqual(['single-value'])
+    expect(splitTags('   ,   ,  ')).toEqual([])
     expect(joinTags(['alpha', 'beta'])).toBe('alpha, beta')
+    expect(joinTags([])).toBe('')
+    expect(splitTags(joinTags(['cafe', 'naive', 'platform security']))).toEqual([
+      'cafe',
+      'naive',
+      'platform security',
+    ])
   })
 
   it('builds an empty profile shape with the provided resume version', () => {
@@ -113,6 +121,11 @@ describe('researchUtils', () => {
       },
       inferredFromResumeVersion: 7,
     })
+    expect(emptyProfile(0).inferredFromResumeVersion).toBe(0)
+    expect(emptyProfile(-1).inferredFromResumeVersion).toBe(-1)
+    expect(emptyProfile(Number.MAX_SAFE_INTEGER).inferredFromResumeVersion).toBe(
+      Number.MAX_SAFE_INTEGER,
+    )
   })
 
   it('upserts vector configs and keeps them sorted by priority', () => {
@@ -152,6 +165,61 @@ describe('researchUtils', () => {
 
     const appended = upsertVectorConfig(updated, 'new-vector', {})
     expect(appended.find((vector) => vector.vectorId === 'new-vector')?.priority).toBe(3)
+
+    const tiedPriority = upsertVectorConfig(
+      [
+        {
+          vectorId: 'alpha',
+          priority: 1,
+          description: '',
+          targetRoleTitles: [],
+          searchKeywords: [],
+        },
+        {
+          vectorId: 'beta',
+          priority: 1,
+          description: '',
+          targetRoleTitles: [],
+          searchKeywords: [],
+        },
+      ],
+      'gamma',
+      { priority: 1 },
+    )
+    expect(tiedPriority.map((vector) => vector.vectorId)).toEqual(['alpha', 'beta', 'gamma'])
+  })
+
+  it('upserts vector configs without mutating existing entries', () => {
+    const original = [
+      {
+        vectorId: 'backend',
+        priority: 2,
+        description: 'Backend systems',
+        targetRoleTitles: ['Staff Backend Engineer'],
+        searchKeywords: ['backend'],
+      },
+      {
+        vectorId: 'platform',
+        priority: 1,
+        description: 'Platform systems',
+        targetRoleTitles: ['Staff Platform Engineer'],
+        searchKeywords: ['platform'],
+      },
+    ]
+    const snapshot = structuredClone(original)
+
+    const updated = upsertVectorConfig(original, 'backend', {
+      priority: 3,
+      searchKeywords: ['distributed systems'],
+    })
+
+    expect(original).toEqual(snapshot)
+    expect(updated).not.toBe(original)
+    expect(updated.find((vector) => vector.vectorId === 'backend')).toMatchObject({
+      priority: 3,
+      searchKeywords: ['distributed systems'],
+    })
+    expect(original[0]).toEqual(snapshot[0])
   })
 
   it('builds a request draft from the top two priority vectors', () => {
@@ -170,8 +238,13 @@ describe('researchUtils', () => {
       ...baseProfile,
       vectors: [baseProfile.vectors[0]!],
     }
+    const emptyVectorProfile: SearchProfile = {
+      ...baseProfile,
+      vectors: [],
+    }
     const originalOrder = baseProfile.vectors.map((vector) => vector.vectorId)
     expect(buildRequestDraft(singleVectorProfile).focusVectors).toEqual(['platform'])
+    expect(buildRequestDraft(emptyVectorProfile).focusVectors).toEqual([])
     expect(baseProfile.vectors.map((vector) => vector.vectorId)).toEqual(originalOrder)
   })
 
@@ -187,6 +260,7 @@ describe('researchUtils', () => {
 
     expect(draftFromThesis.salaryAnchorOverride).toBe('$340k total')
     expect(draftFromThesis.companySizeOverride).toBe('growth')
+    expect(draftFromThesis).not.toHaveProperty('locations')
 
     // When the override compensation is empty/whitespace, fall back to profile.
     const draftWithEmptyOverride = buildRequestDraft(baseProfile, {
@@ -214,19 +288,61 @@ describe('researchUtils', () => {
     expect(grouped.tier1).toHaveLength(1)
     expect(grouped.tier2).toHaveLength(1)
     expect(grouped.tier3).toHaveLength(1)
+    expect(groupByTier([])).toEqual({ tier1: [], tier2: [], tier3: [] })
+    expect(
+      groupByTier([
+        { ...searchResult, id: 'tier-0', tier: 0 as unknown as SearchResultEntry['tier'] },
+        { ...searchResult, id: 'tier-negative', tier: -1 as unknown as SearchResultEntry['tier'] },
+        { ...searchResult, id: 'tier-float', tier: 1.5 as unknown as SearchResultEntry['tier'] },
+        {
+          ...searchResult,
+          id: 'tier-nan',
+          tier: Number.NaN as unknown as SearchResultEntry['tier'],
+        },
+        { ...searchResult, id: 'tier-4', tier: 4 as unknown as SearchResultEntry['tier'] },
+        { ...searchResult, id: 'tier-valid', tier: 3 },
+      ]),
+    ).toEqual({
+      tier1: [],
+      tier2: [],
+      tier3: [{ ...searchResult, id: 'tier-valid', tier: 3 }],
+    })
+    const results: SearchResultEntry[] = [
+      { ...searchResult, id: 'stable-tier-1', tier: 1 },
+      { ...searchResult, id: 'stable-tier-2', tier: 2 },
+    ]
+    const resultsSnapshot = structuredClone(results)
+    groupByTier(results)
+    expect(results).toEqual(resultsSnapshot)
 
     const clamped = normalizeMaxResults(maxResults, 'tier1', '0')
     expect(clamped.tier1).toBe(1)
     expect(clamped.tier2).toBe(10)
     expect(clamped.tier3).toBe(15)
+    expect(normalizeMaxResults(maxResults, 'tier1', '2.9').tier1).toBe(2)
     expect(normalizeMaxResults(maxResults, 'tier2', '-5').tier2).toBe(1)
     expect(normalizeMaxResults(maxResults, 'tier3', 'abc').tier3).toBe(15)
+    expect(normalizeMaxResults(maxResults, 'tier1', '').tier1).toBe(5)
+    expect(normalizeMaxResults(maxResults, 'tier2', '   ').tier2).toBe(10)
+    expect(normalizeMaxResults(maxResults, 'tier1', '9999999').tier1).toBe(9999999)
+    expect(normalizeMaxResults(maxResults, 'tier2', '1e9').tier2).toBe(1)
+
+    const maxResultsSnapshot = structuredClone(maxResults)
+    const adjusted = normalizeMaxResults(maxResults, 'tier3', '12')
+    expect(maxResults).toEqual(maxResultsSnapshot)
+    expect(adjusted).not.toBe(maxResults)
+    expect(adjusted.tier3).toBe(12)
   })
 
   it('maps search results into pipeline drafts and rejects unsupported tiers', () => {
     expect(toPipelineTier(1)).toBe('1')
     expect(toPipelineTier(2)).toBe('2')
     expect(toPipelineTier(3)).toBe('3')
+    expect(toPipelineTier(0)).toBeNull()
+    expect(toPipelineTier(-1)).toBeNull()
+    expect(toPipelineTier(1.5)).toBeNull()
+    expect(toPipelineTier(Number.NaN)).toBeNull()
+    expect(toPipelineTier(Number.POSITIVE_INFINITY)).toBeNull()
     expect(toPipelineTier(4)).toBeNull()
 
     expect(createPipelineEntryDraft(searchResult, 'backend')).toEqual({
@@ -309,6 +425,78 @@ describe('researchUtils', () => {
 
     expect(
       createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription: 'Same-origin job text should be retained.',
+          jobDescriptionSourceUrl: 'HTTPS://example.com/jobs/1?utm=search#details',
+        },
+        'backend',
+      ),
+    ).toMatchObject({
+      jobDescription: 'Same-origin job text should be retained.',
+      jobDescriptionSourceUrl: 'https://example.com/jobs/1?utm=search#details',
+    })
+    expect(
+      createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription: 'Different paths on the same origin are accepted as provenance.',
+          jobDescriptionSourceUrl: 'https://example.com/jobs/12',
+        },
+        'backend',
+      )?.jobDescription,
+    ).toBe('Different paths on the same origin are accepted as provenance.')
+    expect(
+      createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription: 'Protocol mismatch should be dropped.',
+          jobDescriptionSourceUrl: 'http://example.com/jobs/1',
+        },
+        'backend',
+      )?.jobDescription,
+    ).toBe('')
+    for (const sourceUrl of [
+      'not a url',
+      '',
+      'javascript:alert(1)',
+      'data:text/plain,foo',
+      '//example.com/jobs/1',
+    ]) {
+      const draft = createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription: 'Malformed provenance should be dropped without throwing.',
+          jobDescriptionSourceUrl: sourceUrl,
+        },
+        'backend',
+      )
+      expect(draft?.jobDescription).toBe('')
+      expect(draft?.jobDescriptionSourceUrl).toBeNull()
+    }
+    expect(
+      createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription: 'Default https port should match provenance.',
+          jobDescriptionSourceUrl: 'https://example.com:443/jobs/1',
+        },
+        'backend',
+      )?.jobDescription,
+    ).toBe('Default https port should match provenance.')
+    expect(
+      createPipelineEntryDraft(
+        {
+          ...searchResult,
+          jobDescription: 'Credentials in source URL should not change origin provenance.',
+          jobDescriptionSourceUrl: 'https://user:pw@example.com/jobs/1',
+        },
+        'backend',
+      )?.jobDescription,
+    ).toBe('Credentials in source URL should not change origin provenance.')
+
+    expect(
+      createPipelineEntryDraft(
         { ...searchResult, tier: 4 as unknown as SearchResultEntry['tier'] },
         'backend',
       ),
@@ -327,6 +515,90 @@ describe('researchUtils', () => {
         searchQueries: ['Acme staff engineer remote'],
       },
     })
+    expect(
+      createPipelineEntryDraft({ ...searchResult, source: 'lever', risks: [] }, 'backend')?.research
+        ?.sources[1]?.label,
+    ).toBe('Search result via lever')
+
+    const multiRiskDraft = createPipelineEntryDraft(
+      {
+        ...searchResult,
+        risks: ['Smaller team', 'Heavy on-call rotation', 'Comp band unclear'],
+      },
+      'backend',
+    )
+    expect(multiRiskDraft?.notes).toContain(
+      'Risks:\n- Smaller team\n- Heavy on-call rotation\n- Comp band unclear',
+    )
+
+    const partialIntelDraft = createPipelineEntryDraft(
+      {
+        ...searchResult,
+        companyIntel: {
+          stage: 'seed',
+          aiCulture: '',
+          remotePolicy: '',
+        },
+        risks: [],
+      },
+      'backend',
+    )
+    expect(partialIntelDraft?.notes).toBe('Stage: seed')
+    expect(partialIntelDraft?.notes).not.toContain('AI culture:')
+    expect(partialIntelDraft?.notes).not.toContain('Remote policy:')
+    expect(partialIntelDraft?.notes).not.toContain('Open roles:')
+
+    const zeroOpenRolesDraft = createPipelineEntryDraft(
+      {
+        ...searchResult,
+        companyIntel: {
+          stage: '',
+          aiCulture: '',
+          remotePolicy: '',
+          openRoleCount: 0,
+        },
+        risks: [],
+      },
+      'backend',
+    )
+    expect(zeroOpenRolesDraft?.notes).toBe('')
+
+    expect(
+      createPipelineEntryDraft(
+        { ...searchResult, matchReason: '', risks: ['Comp unclear'] },
+        'backend',
+      )?.research?.summary,
+    ).toBe('Risks: Comp unclear')
+  })
+
+  it('maps search results into pipeline drafts without mutating the source result', () => {
+    const enriched: SearchResultEntry = {
+      ...searchResult,
+      risks: ['Heavy on-call rotation'],
+      companyIntel: {
+        stage: 'series B',
+        aiCulture: 'AI-augmented dev workflow',
+        remotePolicy: 'fully remote',
+        openRoleCount: 4,
+      },
+      interviewProcess: {
+        format: 'take-home + system design',
+        builderFriendly: true,
+        aiToolsAllowed: true,
+        estimatedTimeline: '3 weeks',
+      },
+    }
+    const risksRef = enriched.risks
+    const intelRef = enriched.companyIntel
+    const processRef = enriched.interviewProcess
+    const snapshot = structuredClone(enriched)
+
+    createPipelineEntryDraft(enriched, 'backend')
+
+    expect(enriched).toEqual(snapshot)
+    expect(enriched.risks).toBe(risksRef)
+    expect(enriched.companyIntel).toBe(intelRef)
+    expect(enriched.interviewProcess).toBe(processRef)
   })
 
   it('parses interviewProcess.format phrases into the strict InterviewFormat enum', () => {
@@ -349,12 +621,37 @@ describe('researchUtils', () => {
       'exec',
       'presentation',
     ])
+    expect(parseInterviewFormatPhrases('System Design + LEETCODE')).toEqual([
+      'system-design',
+      'leetcode',
+    ])
+    expect(parseInterviewFormatPhrases('system design + system design')).toEqual(['system-design'])
+    expect(parseInterviewFormatPhrases('system design; leetcode and onsite coding')).toEqual([
+      'system-design',
+      'live-coding',
+      'leetcode',
+    ])
     expect(parseInterviewFormatPhrases('mystery process')).toEqual([])
     expect(parseInterviewFormatPhrases('')).toEqual([])
   })
 
   it('builds interview process signals from enriched fields', () => {
     expect(buildInterviewProcessSignals(undefined)).toEqual([])
+    expect(
+      buildInterviewProcessSignals({
+        format: '',
+        builderFriendly: false,
+        aiToolsAllowed: false,
+      }),
+    ).toEqual([])
+    expect(
+      buildInterviewProcessSignals({
+        format: '   ',
+        builderFriendly: false,
+        aiToolsAllowed: false,
+        estimatedTimeline: '   ',
+      }),
+    ).toEqual([])
     expect(
       buildInterviewProcessSignals({
         format: 'system design',
@@ -370,6 +667,13 @@ describe('researchUtils', () => {
         aiToolsAllowed: true,
       }),
     ).toEqual(['AI tools allowed during interviews'])
+    expect(
+      buildInterviewProcessSignals({
+        format: '',
+        builderFriendly: true,
+        aiToolsAllowed: true,
+      }),
+    ).toEqual(['Builder-friendly process', 'AI tools allowed during interviews'])
   })
 
   it('maps enriched search result fields onto the pipeline draft', () => {
