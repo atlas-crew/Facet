@@ -9,14 +9,13 @@ export interface RecruiterCard {
   candidateName: string
   candidateTitle: string
   matchScore: number
+  matchScoreMethodology: string
   summary: string
   recruiterHook: string
   suggestedIntro: string
   topReasons: string[]
   proofPoints: string[]
   skillHighlights: string[]
-  positioningAngles: string[]
   likelyConcerns: string[]
-  gapBridges: string[]
-  notes: string
+  actionCta: string
 }

@@ -776,6 +776,13 @@ export const getThemeFontFiles = (theme: Pick<ResumeTheme, 'fontBody' | 'fontHea
   return Array.from(new Set(files))
 }
 
+// Font set for Facet-branded artifacts (recruiter cards, etc.) that always
+// render in the Facet UI typography regardless of the candidate's resume theme.
+export const getFacetBrandFontFiles = (): string[] => [
+  ...(THEME_FONT_FILES['DM Sans'] ?? []),
+  ...(THEME_FONT_FILES['DM Mono'] ?? []),
+]
+
 export const resolveTheme = (theme: ResumeThemeState | undefined): ResumeTheme => {
   const normalized = normalizeThemeState(theme)
   const preset = THEME_PRESETS[normalized.preset]

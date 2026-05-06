@@ -46,3 +46,9 @@ export const buildCoverLetterPdfFileName = (label: string): string =>
 
 export const buildCoverLetterDocxFileName = (label: string): string =>
   buildCoverLetterFileName(label, 'docx')
+
+export const buildRecruiterCardPdfFileName = (company: string, role: string): string => {
+  const companyPart = slugPart(company || 'Company')
+  const rolePart = slugPart(role || 'Role')
+  return `${companyPart}_${rolePart}_RecruiterCard.pdf`
+}

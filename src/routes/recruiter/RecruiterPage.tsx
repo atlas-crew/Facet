@@ -1,14 +1,17 @@
-import { useMemo } from 'react'
-import { Download, Plus, Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { FileDown, FileText, Plus, Trash2 } from 'lucide-react'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
 import { useRecruiterStore } from '../../store/recruiterStore'
 import type { RecruiterCard } from '../../types/recruiter'
+import { downloadBlob } from '../../utils/downloadBlob'
 import { createId } from '../../utils/idUtils'
+import { buildRecruiterCardPdfFileName } from '../../utils/pdfFormatting'
 import { createRecruiterCard } from '../../utils/recruiterCardGenerator'
+import { renderRecruiterCardAsPdf } from '../../utils/recruiterCardPdfRenderer'
 import './recruiter.css'
 
-const downloadCard = (card: RecruiterCard) => {
+const downloadCardAsText = (card: RecruiterCard) => {
   const content = [
     `# ${card.company} - ${card.role}`,
     '',
@@ -31,26 +34,17 @@ const downloadCard = (card: RecruiterCard) => {
     'Skill Highlights',
     ...card.skillHighlights.map((entry) => '- ' + entry),
     '',
-    'Positioning Angles',
-    ...card.positioningAngles.map((entry) => '- ' + entry),
-    '',
     'Likely Concerns',
     ...card.likelyConcerns.map((entry) => '- ' + entry),
     '',
-    'Gap Bridges',
-    ...card.gapBridges.map((entry) => '- ' + entry),
+    'Action / CTA',
+    card.actionCta,
     '',
-    'Notes',
-    card.notes,
+    `(${card.matchScoreMethodology})`,
   ].join('\n')
 
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'recruiter-card.txt'
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, 'recruiter-card.txt')
 }
 
 const joinLines = (value: string[]): string => value.join('\n')
@@ -59,7 +53,7 @@ const splitLines = (value: string): string[] =>
 
 export function RecruiterPage() {
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
-  const currentReport = useMatchStore((state) => state.currentReport)
+  const currentJDAnalysis = useMatchStore((state) => state.currentJDAnalysis)
   const {
     cards,
     selectedCardId,
@@ -69,42 +63,57 @@ export function RecruiterPage() {
     setSelectedCardId,
   } = useRecruiterStore()
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+
   const activeCard = useMemo(
     () => cards.find((card) => card.id === (selectedCardId ?? cards[0]?.id)) ?? null,
     [cards, selectedCardId],
   )
 
+  const handleDownloadPdf = async (card: RecruiterCard) => {
+    setIsExportingPdf(true)
+    setExportError(null)
+    try {
+      const { blob } = await renderRecruiterCardAsPdf(card)
+      downloadBlob(blob, buildRecruiterCardPdfFileName(card.company, card.role))
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Recruiter card PDF export failed.')
+    } finally {
+      setIsExportingPdf(false)
+    }
+  }
+
   const helperMessage =
     !currentIdentity
       ? 'Apply an identity model before generating a recruiter card.'
-      : !currentReport
-        ? 'Generate a Phase 1 match report before creating a recruiter card.'
+      : !currentJDAnalysis
+        ? 'Run JD analysis on a pipeline entry before creating a recruiter card.'
         : null
 
   const handleCreateBlankCard = () => {
     addCard({
       id: createId('recruiter-card'),
       generatedAt: new Date().toISOString(),
-      company: currentReport?.company ?? 'Target Company',
-      role: currentReport?.role ?? 'Target Role',
+      company: currentJDAnalysis?.company ?? 'Target Company',
+      role: currentJDAnalysis?.role ?? 'Target Role',
       candidateName: currentIdentity?.identity.display_name ?? currentIdentity?.identity.name ?? '',
-      candidateTitle: currentIdentity?.identity.title ?? currentReport?.role ?? '',
-      matchScore: currentReport?.matchScore ?? 0,
-      summary: currentReport?.summary ?? '',
+      candidateTitle: currentIdentity?.identity.title ?? currentJDAnalysis?.role ?? '',
+      matchScore: currentJDAnalysis?.fitScore ?? 0,
+      matchScoreMethodology: '',
+      summary: currentJDAnalysis?.summary ?? '',
       recruiterHook: '',
       suggestedIntro: '',
       topReasons: [],
       proofPoints: [],
       skillHighlights: [],
-      positioningAngles: [],
       likelyConcerns: [],
-      gapBridges: [],
-      notes: '',
+      actionCta: '',
     })
   }
 
   const handleGenerate = () => {
-    if (!currentIdentity || !currentReport) {
+    if (!currentIdentity || !currentJDAnalysis) {
       return
     }
 
@@ -112,7 +121,7 @@ export function RecruiterPage() {
       createRecruiterCard({
         id: createId('recruiter-card'),
         identity: currentIdentity,
-        report: currentReport,
+        jdAnalysis: currentJDAnalysis,
       }),
     )
   }
@@ -171,17 +180,17 @@ export function RecruiterPage() {
               type="button"
               className="recruiter-btn recruiter-btn-primary"
               onClick={handleGenerate}
-              disabled={!currentIdentity || !currentReport}
+              disabled={!currentIdentity || !currentJDAnalysis}
             >
-              Generate from Match
+              Generate from JD Analysis
             </button>
           </div>
 
-          {currentReport ? (
+          {currentJDAnalysis ? (
             <div className="recruiter-context-card">
-              <span>{currentReport.company} - {currentReport.role}</span>
-              <span>Match {Math.round(currentReport.matchScore * 100)}%</span>
-              <span>{currentReport.topSkills.slice(0, 3).map((entry) => entry.label).join(', ')}</span>
+              <span>{currentJDAnalysis.company} - {currentJDAnalysis.role}</span>
+              <span>Match {Math.round(currentJDAnalysis.fitScore * 100)}%</span>
+              <span>{currentJDAnalysis.skillMatches.slice(0, 3).map((entry) => entry.skillName).join(', ')}</span>
             </div>
           ) : null}
 
@@ -195,11 +204,27 @@ export function RecruiterPage() {
                 <h2>Active Card</h2>
                 <p>Edit the generated recruiter-facing summary before sharing it.</p>
               </div>
-              <button type="button" className="recruiter-btn" onClick={() => downloadCard(activeCard)}>
-                <Download size={16} />
-                Export
-              </button>
+              <div className="recruiter-export-actions">
+                <button
+                  type="button"
+                  className="recruiter-btn recruiter-btn-primary"
+                  onClick={() => void handleDownloadPdf(activeCard)}
+                  disabled={isExportingPdf}
+                >
+                  <FileDown size={16} />
+                  {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
+                </button>
+                <button
+                  type="button"
+                  className="recruiter-btn"
+                  onClick={() => downloadCardAsText(activeCard)}
+                >
+                  <FileText size={16} />
+                  Export TXT
+                </button>
+              </div>
             </div>
+            {exportError && <p className="recruiter-export-error">{exportError}</p>}
 
             <div className="recruiter-grid">
               <label className="recruiter-field recruiter-field-span">
@@ -283,14 +308,6 @@ export function RecruiterPage() {
                 />
               </label>
               <label className="recruiter-field">
-                <span className="recruiter-label">Positioning angles</span>
-                <textarea
-                  className="recruiter-textarea"
-                  value={joinLines(activeCard.positioningAngles)}
-                  onChange={(event) => updateCard(activeCard.id, { positioningAngles: splitLines(event.target.value) })}
-                />
-              </label>
-              <label className="recruiter-field">
                 <span className="recruiter-label">Likely concerns</span>
                 <textarea
                   className="recruiter-textarea"
@@ -298,20 +315,12 @@ export function RecruiterPage() {
                   onChange={(event) => updateCard(activeCard.id, { likelyConcerns: splitLines(event.target.value) })}
                 />
               </label>
-              <label className="recruiter-field">
-                <span className="recruiter-label">Gap bridges</span>
+              <label className="recruiter-field recruiter-field-span">
+                <span className="recruiter-label">Action / CTA</span>
                 <textarea
                   className="recruiter-textarea"
-                  value={joinLines(activeCard.gapBridges)}
-                  onChange={(event) => updateCard(activeCard.id, { gapBridges: splitLines(event.target.value) })}
-                />
-              </label>
-              <label className="recruiter-field recruiter-field-span">
-                <span className="recruiter-label">Notes</span>
-                <textarea
-                  className="recruiter-textarea recruiter-textarea-lg"
-                  value={activeCard.notes}
-                  onChange={(event) => updateCard(activeCard.id, { notes: event.target.value })}
+                  value={activeCard.actionCta}
+                  onChange={(event) => updateCard(activeCard.id, { actionCta: event.target.value })}
                 />
               </label>
             </div>
@@ -319,7 +328,7 @@ export function RecruiterPage() {
         ) : (
           <section className="recruiter-empty">
             <h2>No recruiter card yet</h2>
-            <p>Generate one from the active match report or create a blank card to edit manually.</p>
+            <p>Generate one from the active JD analysis or create a blank card to edit manually.</p>
           </section>
         )}
       </main>
