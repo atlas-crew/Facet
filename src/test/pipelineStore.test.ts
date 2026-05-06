@@ -144,6 +144,7 @@ describe('pipelineStore', () => {
           jdTextHash: 'abc',
           identityVersion: 1,
           modelVersion: 'test',
+          audienceRulesVersion: 'audience-rules.v1',
           generatedAt: '2026-04-14T12:00:00.000Z',
           updatedAt: '2026-04-14T12:00:00.000Z',
           warnings: [],

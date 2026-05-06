@@ -27,6 +27,7 @@ const analysisFixture: JDAnalysis = {
   jdTextHash: 'abc123',
   identityVersion: 3,
   modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-30T12:00:00.000Z',
   updatedAt: '2026-04-30T12:00:00.000Z',
   warnings: [],

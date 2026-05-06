@@ -1,5 +1,7 @@
 import { create } from 'zustand'
+import type { TaggedNote } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
+import { applyRulesBasedAudiences, type JDAnalysisLike } from '../utils/audienceRules'
 
 interface JDAnalysisState {
   analyses: JDAnalysis[]
@@ -10,15 +12,32 @@ interface JDAnalysisState {
   findByPipelineEntry: (pipelineEntryId: string) => JDAnalysis | null
 }
 
-const sanitizeAnalysis = (analysis: JDAnalysis): JDAnalysis => ({
-  ...analysis,
-  warnings: Array.isArray(analysis.warnings)
-    ? analysis.warnings
-        .filter((warning): warning is string => typeof warning === 'string')
-        .map((warning) => warning.trim())
-        .filter(Boolean)
-    : [],
-})
+const trimWarningNotes = (warnings: unknown): TaggedNote[] | string[] => {
+  if (!Array.isArray(warnings)) return []
+  return warnings
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim()
+      if (entry && typeof entry === 'object' && 'text' in entry && typeof (entry as { text: unknown }).text === 'string') {
+        return { ...(entry as TaggedNote), text: (entry as TaggedNote).text.trim() }
+      }
+      return ''
+    })
+    .filter((entry): entry is string | TaggedNote =>
+      typeof entry === 'string' ? entry.length > 0 : entry.text.length > 0,
+    ) as TaggedNote[] | string[]
+}
+
+const sanitizeAnalysis = (analysis: JDAnalysis): JDAnalysis => {
+  // Trim warning text (strings or TaggedNote.text), then route through the
+  // audience rules engine. The engine is idempotent on same-version input,
+  // so this is cheap when nothing has changed and self-healing when the
+  // rules version has bumped or the persisted record predates tagging.
+  const trimmed: JDAnalysisLike = {
+    ...analysis,
+    warnings: trimWarningNotes(analysis.warnings),
+  }
+  return applyRulesBasedAudiences(trimmed)
+}
 
 export const migrateJDAnalysisState = (persistedState: unknown): Pick<JDAnalysisState, 'analyses'> => {
   const state =

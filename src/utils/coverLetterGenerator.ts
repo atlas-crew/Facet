@@ -1,6 +1,7 @@
 import type { CoverLetterParagraph } from '../types/coverLetter'
 import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type { ResumeMeta } from '../types'
+import { notesText } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
@@ -307,12 +308,12 @@ function formatJdAnalysisForPrompt(analysis: CoverLetterJDAnalysisContext | unde
     'Requirement coverage: ' + Math.round(analysis.requirementCoverageScore * 100) + '%',
     'Requirements:\n' + (requirements.length > 0 ? requirements.join('\n') : 'None provided'),
     'Skill matches:\n' + (skillMatches.length > 0 ? skillMatches.join('\n') : 'None provided'),
-    'Strengths to lead:\n' + formatStringList(analysis.strengthsToLead, MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
+    'Strengths to lead:\n' + formatStringList(notesText(analysis.strengthsToLead), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
     'Advantages:\n' + (advantages.length > 0 ? advantages.join('\n') : 'None provided'),
     'Gaps:\n' + (gaps.length > 0 ? gaps.join('\n') : 'None provided'),
-    'Gap focus:\n' + formatStringList(analysis.gapFocus, MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
+    'Gap focus:\n' + formatStringList(notesText(analysis.gapFocus), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
     'Watch-outs:\n' + (watchOuts.length > 0 ? watchOuts.join('\n') : 'None provided'),
-    'Positioning recommendations:\n' + formatStringList(analysis.positioningRecommendations, MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
+    'Positioning recommendations:\n' + formatStringList(notesText(analysis.positioningRecommendations), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
     'Matched requirement ids: ' + (truncateList(analysis.matchedRequirementIds, MAX_JD_ANALYSIS_IDS).join(', ') || 'None provided'),
     'Matched keywords: ' + (truncateList(analysis.matchedKeywords, MAX_JD_ANALYSIS_KEYWORDS).join(', ') || 'None provided'),
   ].join('\n\n')

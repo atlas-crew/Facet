@@ -36,7 +36,7 @@ const buildMatchVectorLabel = (report: MatchReport): string => {
 }
 
 const buildTargetLineText = (report: MatchReport): string =>
-  report.role.trim() || report.positioningRecommendations[0]?.trim() || 'Target Role'
+  report.role.trim() || report.positioningRecommendations[0]?.text.trim() || 'Target Role'
 
 const upsertVector = (vectors: ResumeVector[], nextVector: ResumeVector): ResumeVector[] => {
   const existingIndex = vectors.findIndex((vector) => vector.id === nextVector.id)

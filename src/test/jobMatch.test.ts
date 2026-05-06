@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProfessionalIdentityV3 } from '../identity/schema'
+import { untagged, untaggedNote } from '../types/audience'
 import {
   adaptVectorAwareMatchToReport,
   analyzeIdentityJobMatch,
@@ -200,40 +201,40 @@ const buildExtraction = () => ({
   company: 'Atlas',
   role: 'Staff Platform Engineer',
   requirements: [
-    {
+    untagged({
       id: 'platform-delivery',
       label: 'Platform delivery',
       priority: 'core' as const,
       evidence: 'Own Kubernetes and Terraform-backed delivery systems.',
       tags: ['platform', 'kubernetes', 'infrastructure'],
       keywords: ['Kubernetes', 'Terraform'],
-    },
-    {
+    }),
+    untagged({
       id: 'linux-debugging',
       label: 'Linux debugging',
       priority: 'important' as const,
       evidence: 'Debug Linux and kernel-adjacent production issues.',
       tags: ['linux', 'debugging', 'systems'],
       keywords: ['Linux', 'kernel'],
-    },
-    {
+    }),
+    untagged({
       id: 'ai-systems',
       label: 'AI systems',
       priority: 'supporting' as const,
       evidence: 'Some AI platform exposure is preferred.',
       tags: ['ai', 'machine-learning'],
       keywords: ['AI'],
-    },
+    }),
   ],
   advantageHypotheses: [
-    {
+    untagged({
       id: 'platform-systems-bridge',
       claim: 'You have evidence for both platform delivery and Linux debugging, which is a strong combination for this role.',
       requirementIds: ['platform-delivery', 'linux-debugging'],
-    },
+    }),
   ],
-  positioningRecommendations: ['Lead with the on-prem platform migration and the Linux stabilization story.'],
-  gapFocus: ['Do not over-claim AI depth.'],
+  positioningRecommendations: [untaggedNote('Lead with the on-prem platform migration and the Linux stabilization story.')],
+  gapFocus: [untaggedNote('Do not over-claim AI depth.')],
   warnings: [],
 })
 
@@ -399,7 +400,7 @@ describe('jobMatch', () => {
     expect(prepared.wordCount).toBe(1205)
     expect(prepared.content.split(/\s+/)).toHaveLength(1200)
     expect(prepared.truncated).toBe(true)
-    expect(report.warnings.some((warning) => warning.includes('Job description exceeded 1200 words'))).toBe(
+    expect(report.warnings.some((warning) => warning.text.includes('Job description exceeded 1200 words'))).toBe(
       true,
     )
   })
@@ -564,7 +565,7 @@ describe('jobMatch', () => {
       prepared: buildPrepared('Need platform ownership, Linux debugging, and Terraform delivery.'),
       extraction: buildExtraction(),
       matchedVectors: [
-        {
+        untagged({
           vectorId: 'platform-lead',
           title: 'Platform lead',
           priority: 'high',
@@ -572,10 +573,10 @@ describe('jobMatch', () => {
           evidence: ['Own Kubernetes and Terraform-backed delivery systems.'],
           thesisApplies: true,
           thesisFitExplanation: 'Strong ownership fit.',
-        },
+        }),
       ],
       skillMatches: [
-        {
+        untagged({
           skillName: 'Kubernetes',
           jdRequirement: 'Own Kubernetes delivery systems.',
           requirementStrength: 'required',
@@ -583,16 +584,16 @@ describe('jobMatch', () => {
           userPositioning: 'Lead with Kubernetes platform migration stories.',
           matchQuality: 'strong',
           presentationGuidance: 'Lead with Kubernetes platform migration stories.',
-        },
+        }),
       ],
       hardFilter: { filterOut: false, reason: null, watchOuts: [], triggeredAvoid: [], warnings: [] },
       triggeredPrioritize: [
-        {
+        untagged({
           filterId: 'platform-ownership',
           label: 'Platform ownership',
           weight: 'high',
           jdEvidence: 'Own platform architecture and delivery systems.',
-        },
+        }),
       ],
       triggeredAvoid: [],
       relevantAwareness: [],
@@ -617,13 +618,13 @@ describe('jobMatch', () => {
         filterOut: true,
         reason: 'JD appears to match the work-model hard-no preference.',
         watchOuts: [
-          {
+          untagged({
             type: 'filter_risk',
             referenceId: 'work-model-hard-no',
             description: 'JD appears to match the work-model hard-no preference.',
             severity: 'hard',
             suggestedAction: 'Skip unless the work model can be negotiated.',
-          },
+          }),
         ],
         triggeredAvoid: [],
         warnings: ['Work model hard-no triggered a hard filter.'],
@@ -652,7 +653,7 @@ describe('jobMatch', () => {
       extraction: buildExtraction(),
       matchedVectors: [],
       skillMatches: [
-        {
+        untagged({
           skillName: 'Kubernetes',
           jdRequirement: 'Own Kubernetes delivery systems.',
           requirementStrength: 'required',
@@ -660,8 +661,8 @@ describe('jobMatch', () => {
           userPositioning: 'Lead with Kubernetes platform migration stories.',
           matchQuality: 'strong',
           presentationGuidance: 'Lead with Kubernetes platform migration stories.',
-        },
-        {
+        }),
+        untagged({
           skillName: 'Linux',
           jdRequirement: 'Debug Linux systems.',
           requirementStrength: 'required',
@@ -669,16 +670,16 @@ describe('jobMatch', () => {
           userPositioning: '',
           matchQuality: 'strong',
           presentationGuidance: 'Lead with Linux debugging examples.',
-        },
+        }),
       ],
       hardFilter: { filterOut: false, reason: null, watchOuts: [], triggeredAvoid: [], warnings: [] },
       triggeredPrioritize: [
-        {
+        untagged({
           filterId: 'platform-ownership',
           label: 'Platform ownership',
           weight: 'high',
           jdEvidence: 'Own platform architecture and delivery systems.',
-        },
+        }),
       ],
       triggeredAvoid: [],
       relevantAwareness: [],
@@ -696,7 +697,7 @@ describe('jobMatch', () => {
       prepared: buildPrepared('Need platform ownership, Linux debugging, and Terraform delivery.'),
       extraction: buildExtraction(),
       matchedVectors: [
-        {
+        untagged({
           vectorId: 'platform-lead',
           title: 'Platform lead',
           priority: 'high',
@@ -704,10 +705,10 @@ describe('jobMatch', () => {
           evidence: ['Own Kubernetes and Terraform-backed delivery systems.'],
           thesisApplies: true,
           thesisFitExplanation: 'Strong ownership fit.',
-        },
+        }),
       ],
       skillMatches: [
-        {
+        untagged({
           skillName: 'Kubernetes',
           jdRequirement: 'Own Kubernetes delivery systems.',
           requirementStrength: 'required',
@@ -715,19 +716,19 @@ describe('jobMatch', () => {
           userPositioning: 'Lead with Kubernetes platform migration stories.',
           matchQuality: 'strong',
           presentationGuidance: 'Lead with Kubernetes platform migration stories.',
-        },
+        }),
       ],
       hardFilter: { filterOut: false, reason: null, watchOuts: [], triggeredAvoid: [], warnings: [] },
       triggeredPrioritize: [],
       triggeredAvoid: [],
       relevantAwareness: [
-        {
+        untagged({
           awarenessId: 'ai-depth',
           topic: 'AI depth',
           severity: 'medium',
           appliesBecause: 'The JD asks for some AI platform depth.',
           action: 'Do not over-claim AI depth.',
-        },
+        }),
       ],
       rationale: 'Strong platform angle with a modest AI caution.',
       warnings: ['No search vectors defined.'],
@@ -960,10 +961,10 @@ describe('jobMatch', () => {
 
     expect(result.analysis.matchedVectors).toEqual([])
     expect(result.analysis.skillMatches.length).toBeGreaterThan(0)
-    expect(result.analysis.warnings.some((warning) => warning.includes('Vector matching pass failed'))).toBe(true)
-    expect(result.analysis.warnings.some((warning) => warning.includes('Skill matching pass failed'))).toBe(true)
-    expect(result.analysis.warnings.some((warning) => warning.includes('Filter and awareness pass failed'))).toBe(true)
-    expect(result.analysis.warnings.some((warning) => warning.includes('Rationale generation failed'))).toBe(true)
+    expect(result.analysis.warnings.some((warning) => warning.text.includes('Vector matching pass failed'))).toBe(true)
+    expect(result.analysis.warnings.some((warning) => warning.text.includes('Skill matching pass failed'))).toBe(true)
+    expect(result.analysis.warnings.some((warning) => warning.text.includes('Filter and awareness pass failed'))).toBe(true)
+    expect(result.analysis.warnings.some((warning) => warning.text.includes('Rationale generation failed'))).toBe(true)
   })
 
   it('rejects when extraction retries are exhausted by an invalid schema response', async () => {

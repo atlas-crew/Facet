@@ -10,6 +10,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 import type { JDAnalysis } from '../types/jdAnalysis'
+import { untagged, untaggedNote } from '../types/audience'
 import type { PipelineEntry } from '../types/pipeline'
 
 const {
@@ -140,6 +141,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   jdTextHash: 'abc123',
   identityVersion: 1,
   modelVersion: 'jd-analysis.v1.test',
+  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-18T12:00:00.000Z',
   updatedAt: '2026-04-18T12:00:00.000Z',
   warnings: [],
@@ -157,7 +159,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   oneLineSummary: 'Lead with platform outcomes.',
   rationale: 'Start with Platform and keep Backend as a supporting lane.',
   matchedVectors: [
-    {
+    untagged({
       vectorId: 'platform',
       title: 'Platform / DevEx',
       priority: 'high',
@@ -165,8 +167,8 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
       evidence: ['Platform-minded engineer.'],
       thesisApplies: true,
       thesisFitExplanation: 'Platform delivery is central.',
-    },
-    {
+    }),
+    untagged({
       vectorId: 'backend',
       title: 'Backend Engineering',
       priority: 'medium',
@@ -174,7 +176,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
       evidence: ['Backend systems.'],
       thesisApplies: true,
       thesisFitExplanation: 'Backend depth supports the platform story.',
-    },
+    }),
   ],
   primaryVectorId: 'platform',
   skillMatches: [],
@@ -194,7 +196,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   triggeredPrioritize: [],
   triggeredAvoid: [],
   relevantAwareness: [],
-  positioningRecommendations: ['Lead with platform outcomes.'],
+  positioningRecommendations: [untaggedNote('Lead with platform outcomes.')],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: [],
   matchedKeywords: ['TypeScript'],
@@ -655,13 +657,13 @@ describe('BuildPage', () => {
   it('keeps JD analysis separate from assembly suggestions until the vector plan is confirmed', async () => {
     seedPipelineHandoff({
       gaps: [
-        {
+        untagged({
           requirementId: 'req-rust',
           label: 'Rust',
           severity: 'low',
           reason: 'Rust evidence is light.',
           tags: ['rust'],
-        },
+        }),
       ],
     })
 

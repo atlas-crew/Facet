@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultResumeData } from '../store/defaultData'
 import type { MatchReport } from '../types/match'
+import { untagged, untaggedNote } from '../types/audience'
 import { applyMatchReportToResumeData, buildMatchVectorId } from '../utils/matchAssembler'
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -15,7 +16,7 @@ const reportFixture: MatchReport = {
   matchScore: 0.81,
   requirements: [],
   topBullets: [
-    {
+    untagged({
       kind: 'bullet',
       id: 'acme-b2',
       label: 'Latency optimization',
@@ -26,8 +27,8 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['latency'],
       matchedRequirementIds: ['req-1'],
       score: 0.92,
-    },
-    {
+    }),
+    untagged({
       kind: 'bullet',
       id: 'acme-b1',
       label: 'Order pipeline',
@@ -38,10 +39,10 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['pipeline'],
       matchedRequirementIds: ['req-1'],
       score: 0.88,
-    },
+    }),
   ],
   topSkills: [
-    {
+    untagged({
       kind: 'skill',
       id: 'skill-aws',
       label: 'AWS',
@@ -52,8 +53,8 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['AWS'],
       matchedRequirementIds: ['req-1'],
       score: 0.95,
-    },
-    {
+    }),
+    untagged({
       kind: 'skill',
       id: 'skill-go',
       label: 'Go',
@@ -64,10 +65,10 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['Go'],
       matchedRequirementIds: ['req-2'],
       score: 0.82,
-    },
+    }),
   ],
   topProjects: [
-    {
+    untagged({
       kind: 'project',
       id: 'project-1',
       label: 'OpenThing',
@@ -78,10 +79,10 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['distributed'],
       matchedRequirementIds: ['req-1'],
       score: 0.79,
-    },
+    }),
   ],
   topProfiles: [
-    {
+    untagged({
       kind: 'profile',
       id: 'profile-backend',
       label: 'Backend profile',
@@ -92,12 +93,12 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['systems'],
       matchedRequirementIds: ['req-1'],
       score: 0.77,
-    },
+    }),
   ],
   topPhilosophy: [],
   gaps: [],
   advantages: [],
-  positioningRecommendations: ['Lead with platform migration and reliability stories.'],
+  positioningRecommendations: [untaggedNote('Lead with platform migration and reliability stories.')],
   gapFocus: [],
   warnings: [],
 }
@@ -156,7 +157,7 @@ describe('matchAssembler', () => {
       company: '',
       role: '',
       topSkills: [
-        {
+        untagged({
           kind: 'skill',
           id: 'skill-ml',
           label: 'Machine Learning',
@@ -167,7 +168,7 @@ describe('matchAssembler', () => {
           matchedKeywords: ['ML'],
           matchedRequirementIds: ['req-3'],
           score: 0.6,
-        },
+        }),
       ],
     }
 
@@ -189,7 +190,7 @@ describe('matchAssembler', () => {
       ...reportFixture,
       topBullets: [
         ...reportFixture.topBullets,
-        {
+        untagged({
           kind: 'bullet',
           id: 'missing-bullet',
           label: 'Missing bullet',
@@ -200,12 +201,12 @@ describe('matchAssembler', () => {
           matchedKeywords: [],
           matchedRequirementIds: [],
           score: 0.4,
-        },
+        }),
       ],
       topProfiles: [],
       topProjects: [
         ...reportFixture.topProjects,
-        {
+        untagged({
           kind: 'project',
           id: 'missing-project',
           label: 'Missing project',
@@ -216,7 +217,7 @@ describe('matchAssembler', () => {
           matchedKeywords: [],
           matchedRequirementIds: [],
           score: 0.3,
-        },
+        }),
       ],
     }
 

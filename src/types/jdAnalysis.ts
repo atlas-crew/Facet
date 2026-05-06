@@ -1,3 +1,4 @@
+import type { TaggedNote } from './audience'
 import type {
   AvoidTrigger,
   FilterTrigger,
@@ -31,9 +32,13 @@ export interface JDAnalysis {
   jdTextHash: string
   identityVersion: number
   modelVersion: string
+  // Stamp for the audience-rules engine (src/utils/audienceRules.ts).
+  // Mismatch on hydration triggers re-application; LLM-asserted tags are
+  // preserved across rules-version bumps.
+  audienceRulesVersion: string
   generatedAt: string
   updatedAt: string
-  warnings: string[]
+  warnings: TaggedNote[]
 
   company: string
   role: string
@@ -55,18 +60,18 @@ export interface JDAnalysis {
   skillMatches: SkillMatch[]
   evidenceMapping: JdAnalysisEvidenceMapping
 
-  strengthsToLead: string[]
+  strengthsToLead: TaggedNote[]
   advantages: MatchAdvantage[]
   advantageHypotheses: JdMatchExtraction['advantageHypotheses']
   gaps: MatchGap[]
-  gapFocus: string[]
+  gapFocus: TaggedNote[]
   watchOuts: WatchOut[]
 
   triggeredPrioritize: FilterTrigger[]
   triggeredAvoid: AvoidTrigger[]
   relevantAwareness: RelevantAwareness[]
 
-  positioningRecommendations: string[]
+  positioningRecommendations: TaggedNote[]
   requirementCoverageScore: number
   matchedRequirementIds: string[]
   matchedKeywords: string[]

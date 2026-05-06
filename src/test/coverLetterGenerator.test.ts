@@ -3,6 +3,7 @@ import { generateCoverLetter, refineCoverLetterParagraph } from '../utils/coverL
 import { defaultResumeData } from '../store/defaultData'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { JsonExtractionError } from '../utils/llmProxy'
+import { untagged, untaggedNote } from '../types/audience'
 
 describe('coverLetterGenerator', () => {
   beforeEach(() => {
@@ -180,7 +181,7 @@ describe('coverLetterGenerator', () => {
         oneLineSummary: 'Strong platform match.',
         rationale: 'Candidate evidence maps to backend platform ownership.',
         requirements: [
-          {
+          untagged({
             id: 'req-platform',
             label: 'Platform reliability ownership',
             priority: 'core',
@@ -190,10 +191,10 @@ describe('coverLetterGenerator', () => {
             coverageScore: 0.92,
             matchedAssetCount: 4,
             matchedTags: ['platform'],
-          },
+          }),
         ],
         skillMatches: [
-          {
+          untagged({
             skillName: 'Distributed systems',
             jdRequirement: 'Reliability ownership',
             requirementStrength: 'required',
@@ -201,14 +202,14 @@ describe('coverLetterGenerator', () => {
             userPositioning: 'Lead with reliability systems.',
             matchQuality: 'strong',
             presentationGuidance: 'Use concrete platform evidence.',
-          },
+          }),
         ],
-        strengthsToLead: ['Backend platform reliability'],
-        advantages: [{ id: 'adv-1', claim: 'Can own distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] }],
+        strengthsToLead: [untaggedNote('Backend platform reliability')],
+        advantages: [untagged({ id: 'adv-1', claim: 'Can own distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] })],
         gaps: [],
-        gapFocus: ['Do not over-index on frontend work.'],
+        gapFocus: [untaggedNote('Do not over-index on frontend work.')],
         watchOuts: [],
-        positioningRecommendations: ['Lead with reliability outcomes.'],
+        positioningRecommendations: [untaggedNote('Lead with reliability outcomes.')],
         requirementCoverageScore: 0.92,
         matchedRequirementIds: ['req-platform'],
         matchedKeywords: ['distributed systems', 'reliability'],

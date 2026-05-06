@@ -14,6 +14,7 @@ import { hashJobDescriptionText } from '../utils/jdAnalysis'
 import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
 import type { MatchReport } from '../types/match'
 import type { PrepDeck } from '../types/prep'
+import { untagged, untaggedNote } from '../types/audience'
 
 const navigateMock = vi.fn()
 
@@ -25,6 +26,7 @@ const createJdAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   jdTextHash: hashJobDescriptionText(defaultJobDescription),
   identityVersion: 0,
   modelVersion: JD_ANALYSIS_MODEL_VERSION,
+  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-20T12:00:00.000Z',
   updatedAt: '2026-04-20T12:00:00.000Z',
   warnings: [],
@@ -51,7 +53,7 @@ const createJdAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: ['Distributed systems'],
+  strengthsToLead: [untaggedNote('Distributed systems')],
   advantages: [],
   advantageHypotheses: [],
   gaps: [],
@@ -60,7 +62,7 @@ const createJdAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   triggeredPrioritize: [],
   triggeredAvoid: [],
   relevantAwareness: [],
-  positioningRecommendations: ['Lead with platform reliability.'],
+  positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: [],
   matchedKeywords: ['distributed systems', 'platform tooling'],
@@ -695,7 +697,7 @@ describe('PrepPage', () => {
       matchScore: 0.84,
       requirements: [],
       topBullets: [
-        {
+        untagged({
           kind: 'bullet',
           id: 'acme-b1',
           label: 'Order pipeline',
@@ -706,10 +708,10 @@ describe('PrepPage', () => {
           matchedKeywords: ['platform'],
           matchedRequirementIds: ['req-1'],
           score: 0.9,
-        },
+        }),
       ],
       topSkills: [
-        {
+        untagged({
           kind: 'skill',
           id: 'skill-1',
           label: 'AWS',
@@ -720,11 +722,11 @@ describe('PrepPage', () => {
           matchedKeywords: ['AWS'],
           matchedRequirementIds: ['req-1'],
           score: 0.8,
-        },
+        }),
       ],
       topProjects: [],
       topProfiles: [
-        {
+        untagged({
           kind: 'profile',
           id: 'profile-backend',
           label: 'Backend profile',
@@ -735,12 +737,12 @@ describe('PrepPage', () => {
           matchedKeywords: ['systems'],
           matchedRequirementIds: ['req-1'],
           score: 0.7,
-        },
+        }),
       ],
       topPhilosophy: [],
       gaps: [],
       advantages: [],
-      positioningRecommendations: ['Lead with platform reliability.'],
+      positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
       gapFocus: [],
       warnings: [],
     }

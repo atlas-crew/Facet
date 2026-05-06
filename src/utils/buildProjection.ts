@@ -1,4 +1,5 @@
 import type { JdAnalysisResult, JdBulletAdjustment, ResumeData } from '../types'
+import { notesText } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchAssetScore } from '../types/match'
 
@@ -53,7 +54,7 @@ const resolveSuggestedVectorIds = (analysis: JDAnalysis, data: ResumeData, prima
 
 const buildSkillGaps = (analysis: JDAnalysis): string[] =>
   dedupe([
-    ...analysis.gapFocus,
+    ...notesText(analysis.gapFocus),
     ...analysis.gaps.map((gap) => gap.label || gap.reason),
     ...analysis.skillMatches
       .filter((skill) => skill.matchQuality === 'weak')
@@ -85,8 +86,9 @@ export const buildProjectionFromJDAnalysis = (
 ): JdAnalysisResult => {
   const primaryVectorId = resolvePrimaryVectorId(analysis, data)
   const suggestedVectorIds = resolveSuggestedVectorIds(analysis, data, primaryVectorId)
+  const positioningTexts = notesText(analysis.positioningRecommendations)
   const positioningNote =
-    joinSentences(analysis.positioningRecommendations) ||
+    joinSentences(positioningTexts) ||
     analysis.rationale ||
     analysis.oneLineSummary ||
     analysis.summary
@@ -95,7 +97,7 @@ export const buildProjectionFromJDAnalysis = (
     primary_vector: primaryVectorId,
     suggested_vectors: suggestedVectorIds,
     bullet_adjustments: mapBulletAdjustments(analysis, data),
-    suggested_target_line: analysis.positioningRecommendations[0] ?? analysis.oneLineSummary,
+    suggested_target_line: positioningTexts[0] ?? analysis.oneLineSummary,
     skill_gaps: buildSkillGaps(analysis),
     matched_keywords: analysis.matchedKeywords,
     suggested_variables: buildSuggestedVariables(analysis),

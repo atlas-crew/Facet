@@ -8,6 +8,7 @@ import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useUiStore } from '../store/uiStore'
+import { untagged, untaggedNote } from '../types/audience'
 import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 
@@ -74,9 +75,10 @@ const jdAnalysisFixture: JDAnalysis = {
   jdTextHash: hashJobDescriptionText(analyzedJobDescription),
   identityVersion: 1,
   modelVersion: JD_ANALYSIS_MODEL_VERSION,
+  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-14T12:00:00.000Z',
   updatedAt: '2026-04-14T12:00:00.000Z',
-  warnings: ['Review the Kubernetes requirement before applying.'],
+  warnings: [untaggedNote('Review the Kubernetes requirement before applying.')],
   company: 'Acme Corp',
   role: 'Staff Platform Engineer',
   summary: 'Platform reliability role.',
@@ -91,7 +93,7 @@ const jdAnalysisFixture: JDAnalysis = {
   oneLineSummary: 'Lead with platform reliability.',
   rationale: 'Strong platform match.',
   matchedVectors: [
-    {
+    untagged({
       vectorId: 'backend',
       title: 'Backend Platform',
       priority: 'high',
@@ -99,7 +101,7 @@ const jdAnalysisFixture: JDAnalysis = {
       evidence: ['Platform reliability leadership'],
       thesisApplies: true,
       thesisFitExplanation: 'The role emphasizes platform reliability.',
-    },
+    }),
   ],
   primaryVectorId: 'backend',
   skillMatches: [],
@@ -110,24 +112,24 @@ const jdAnalysisFixture: JDAnalysis = {
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: ['Reliability leadership'],
+  strengthsToLead: [untaggedNote('Reliability leadership')],
   advantages: [],
   advantageHypotheses: [],
   gaps: [
-    {
+    untagged({
       requirementId: 'req-1',
       label: 'Kubernetes',
       severity: 'medium',
       reason: 'JD mentions Kubernetes ownership.',
       tags: ['platform'],
-    },
+    }),
   ],
   gapFocus: [],
   watchOuts: [],
   triggeredPrioritize: [],
   triggeredAvoid: [],
   relevantAwareness: [],
-  positioningRecommendations: ['Lead with platform reliability.'],
+  positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: [],
   matchedKeywords: ['platform'],

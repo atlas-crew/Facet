@@ -97,7 +97,10 @@ export function PipelineJDAnalysisPanel({ panelId, state, titleId }: PipelineJDA
         />
         <AnalysisList
           title="Strengths to lead"
-          items={[...analysis.strengthsToLead, ...analysis.positioningRecommendations]}
+          items={[
+            ...analysis.strengthsToLead.map((note) => note.text),
+            ...analysis.positioningRecommendations.map((note) => note.text),
+          ]}
           empty="No strengths saved."
         />
         <AnalysisList
@@ -110,7 +113,7 @@ export function PipelineJDAnalysisPanel({ panelId, state, titleId }: PipelineJDA
         />
         <AnalysisList
           title="Warnings"
-          items={analysis.warnings}
+          items={analysis.warnings.map((note) => note.text)}
           empty="No warnings."
         />
       </div>

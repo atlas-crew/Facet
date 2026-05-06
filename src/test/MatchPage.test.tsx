@@ -10,6 +10,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { resolveStorage } from '../store/storage'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchHistoryEntry, MatchReport, VectorAwareMatchResult } from '../types/match'
+import { untagged, untaggedNote } from '../types/audience'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
@@ -28,7 +29,7 @@ const reportFixture: MatchReport = {
   jobDescription: 'Own platform delivery and Linux debugging.',
   matchScore: 0.82,
   requirements: [
-    {
+    untagged({
       id: 'platform-delivery',
       label: 'Platform delivery',
       priority: 'core',
@@ -38,10 +39,10 @@ const reportFixture: MatchReport = {
       coverageScore: 0.9,
       matchedAssetCount: 3,
       matchedTags: ['platform'],
-    },
+    }),
   ],
   topBullets: [
-    {
+    untagged({
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration',
@@ -52,7 +53,7 @@ const reportFixture: MatchReport = {
       matchedKeywords: ['platform'],
       matchedRequirementIds: ['platform-delivery'],
       score: 0.92,
-    },
+    }),
   ],
   topSkills: [],
   topProjects: [],
@@ -60,9 +61,9 @@ const reportFixture: MatchReport = {
   topPhilosophy: [],
   gaps: [],
   advantages: [],
-  positioningRecommendations: ['Lead with platform migration stories.'],
-  gapFocus: ['Do not over-claim AI depth.'],
-  warnings: ['No search vectors defined.'],
+  positioningRecommendations: [untaggedNote('Lead with platform migration stories.')],
+  gapFocus: [untaggedNote('Do not over-claim AI depth.')],
+  warnings: [untaggedNote('No search vectors defined.')],
 }
 
 const analysisFixture: VectorAwareMatchResult = {
@@ -77,7 +78,7 @@ const analysisFixture: VectorAwareMatchResult = {
   confidence: 'high',
   oneLineSummary: 'Strong match - Platform lead',
   matchedVectors: [
-    {
+    untagged({
       vectorId: 'platform-lead',
       title: 'Platform lead',
       priority: 'high',
@@ -85,11 +86,11 @@ const analysisFixture: VectorAwareMatchResult = {
       evidence: ['Own platform delivery systems.'],
       thesisApplies: true,
       thesisFitExplanation: 'The JD centers platform ownership.',
-    },
+    }),
   ],
   primaryVectorId: 'platform-lead',
   skillMatches: [
-    {
+    untagged({
       skillName: 'Kubernetes',
       jdRequirement: 'Own Kubernetes-backed platform delivery.',
       requirementStrength: 'required',
@@ -97,39 +98,39 @@ const analysisFixture: VectorAwareMatchResult = {
       userPositioning: 'Lead with Kubernetes platform migration stories.',
       matchQuality: 'strong',
       presentationGuidance: 'Lead with Kubernetes platform migration stories.',
-    },
+    }),
   ],
-  strengthsToLead: ['Kubernetes'],
+  strengthsToLead: [untaggedNote('Kubernetes')],
   watchOuts: [
-    {
+    untagged({
       type: 'awareness_item',
       referenceId: 'ai-depth',
       description: 'Some AI platform depth is requested.',
       severity: 'soft',
       suggestedAction: 'Do not over-claim AI depth.',
-    },
+    }),
   ],
   triggeredPrioritize: [
-    {
+    untagged({
       filterId: 'platform-ownership',
       label: 'Platform ownership',
       weight: 'high',
       jdEvidence: 'Own platform architecture and delivery systems.',
-    },
+    }),
   ],
   triggeredAvoid: [],
   relevantAwareness: [
-    {
+    untagged({
       awarenessId: 'ai-depth',
       topic: 'AI depth',
       severity: 'medium',
       appliesBecause: 'Some AI platform depth is requested.',
       action: 'Do not over-claim AI depth.',
-    },
+    }),
   ],
   recommendation: 'apply',
   rationale: 'Strong platform fit with a modest AI caution.',
-  warnings: ['No search vectors defined.'],
+  warnings: [untaggedNote('No search vectors defined.')],
 }
 
 const jdAnalysisFixture: JDAnalysis = {
@@ -138,9 +139,10 @@ const jdAnalysisFixture: JDAnalysis = {
   jdTextHash: hashJobDescriptionText(reportFixture.jobDescription),
   identityVersion: 3,
   modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-08T00:00:00.000Z',
   updatedAt: '2026-04-08T00:00:00.000Z',
-  warnings: ['No search vectors defined.'],
+  warnings: [untaggedNote('No search vectors defined.')],
   company: 'Atlas',
   role: 'Staff Platform Engineer',
   summary: reportFixture.summary,
@@ -164,11 +166,11 @@ const jdAnalysisFixture: JDAnalysis = {
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: ['Kubernetes'],
+  strengthsToLead: [untaggedNote('Kubernetes')],
   advantages: [],
   advantageHypotheses: [],
   gaps: [],
-  gapFocus: ['Do not over-claim AI depth.'],
+  gapFocus: [untaggedNote('Do not over-claim AI depth.')],
   watchOuts: analysisFixture.watchOuts,
   triggeredPrioritize: analysisFixture.triggeredPrioritize,
   triggeredAvoid: [],
@@ -366,7 +368,7 @@ describe('MatchPage', () => {
     fireEvent.click(screen.getByText('Skill matches'))
     expect(vectorNestedSections[1]?.open).toBe(true)
 
-    useMatchStore.setState({ warnings: ['Updated warning after nested section opened.'] })
+    useMatchStore.setState({ warnings: [untaggedNote('Updated warning after nested section opened.')] })
     rerender(<MatchPage />)
 
     expect(

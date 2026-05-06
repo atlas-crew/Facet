@@ -1,3 +1,5 @@
+import type { AudienceTagged, TaggedNote } from './audience'
+
 export type MatchRequirementPriority = 'core' | 'important' | 'supporting'
 
 export type MatchAssetKind = 'bullet' | 'skill' | 'project' | 'profile' | 'philosophy'
@@ -20,7 +22,7 @@ export type WatchOutType = 'avoid_skill' | 'filter_risk' | 'awareness_item' | 'c
 
 export type WatchOutSeverity = 'hard' | 'soft'
 
-export interface MatchRequirement {
+export interface MatchRequirement extends AudienceTagged {
   id: string
   label: string
   priority: MatchRequirementPriority
@@ -29,13 +31,13 @@ export interface MatchRequirement {
   keywords: string[]
 }
 
-export interface MatchAdvantageHypothesis {
+export interface MatchAdvantageHypothesis extends AudienceTagged {
   id: string
   claim: string
   requirementIds: string[]
 }
 
-export interface MatchedVector {
+export interface MatchedVector extends AudienceTagged {
   vectorId: string
   title: string
   priority: 'high' | 'medium' | 'low'
@@ -45,7 +47,7 @@ export interface MatchedVector {
   thesisFitExplanation: string
 }
 
-export interface SkillMatch {
+export interface SkillMatch extends AudienceTagged {
   skillName: string
   jdRequirement: string
   requirementStrength: SkillRequirementStrength
@@ -55,21 +57,21 @@ export interface SkillMatch {
   presentationGuidance: string
 }
 
-export interface FilterTrigger {
+export interface FilterTrigger extends AudienceTagged {
   filterId: string
   label: string
   weight: 'high' | 'medium' | 'low'
   jdEvidence: string
 }
 
-export interface AvoidTrigger {
+export interface AvoidTrigger extends AudienceTagged {
   filterId: string
   label: string
   severity: 'hard' | 'soft'
   jdEvidence: string
 }
 
-export interface RelevantAwareness {
+export interface RelevantAwareness extends AudienceTagged {
   awarenessId: string
   topic: string
   severity: 'high' | 'medium' | 'low'
@@ -77,7 +79,7 @@ export interface RelevantAwareness {
   action: string
 }
 
-export interface WatchOut {
+export interface WatchOut extends AudienceTagged {
   type: WatchOutType
   referenceId: string
   description: string
@@ -99,23 +101,25 @@ export interface VectorAwareMatchResult {
   matchedVectors: MatchedVector[]
   primaryVectorId: string | null
   skillMatches: SkillMatch[]
-  strengthsToLead: string[]
+  strengthsToLead: TaggedNote[]
   watchOuts: WatchOut[]
   triggeredPrioritize: FilterTrigger[]
   triggeredAvoid: AvoidTrigger[]
   relevantAwareness: RelevantAwareness[]
   recommendation: MatchRecommendation
   rationale: string
-  warnings: string[]
+  warnings: TaggedNote[]
 }
 
+// MatchRequirementCoverage extends MatchRequirement which already extends
+// AudienceTagged — no additional mixin needed.
 export interface MatchRequirementCoverage extends MatchRequirement {
   coverageScore: number
   matchedAssetCount: number
   matchedTags: string[]
 }
 
-export interface MatchAssetScore {
+export interface MatchAssetScore extends AudienceTagged {
   kind: MatchAssetKind
   id: string
   label: string
@@ -128,7 +132,7 @@ export interface MatchAssetScore {
   score: number
 }
 
-export interface MatchGap {
+export interface MatchGap extends AudienceTagged {
   requirementId: string
   label: string
   severity: MatchGapSeverity
@@ -136,7 +140,7 @@ export interface MatchGap {
   tags: string[]
 }
 
-export interface MatchAdvantage {
+export interface MatchAdvantage extends AudienceTagged {
   id: string
   claim: string
   requirementIds: string[]
@@ -149,9 +153,9 @@ export interface JdMatchExtraction {
   role: string
   requirements: MatchRequirement[]
   advantageHypotheses: MatchAdvantageHypothesis[]
-  positioningRecommendations: string[]
-  gapFocus: string[]
-  warnings: string[]
+  positioningRecommendations: TaggedNote[]
+  gapFocus: TaggedNote[]
+  warnings: TaggedNote[]
 }
 
 export interface PreparedMatchJobDescription {
@@ -176,9 +180,9 @@ export interface MatchReport {
   topPhilosophy: MatchAssetScore[]
   gaps: MatchGap[]
   advantages: MatchAdvantage[]
-  positioningRecommendations: string[]
-  gapFocus: string[]
-  warnings: string[]
+  positioningRecommendations: TaggedNote[]
+  gapFocus: TaggedNote[]
+  warnings: TaggedNote[]
 }
 
 export interface MatchHistoryEntry {

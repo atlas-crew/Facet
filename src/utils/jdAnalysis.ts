@@ -1,9 +1,11 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
+import { type TaggedNote, untaggedNote } from '../types/audience'
 import type { JDAnalysis, JDAnalysisDriftStatus } from '../types/jdAnalysis'
 import { JD_ANALYSIS_MODEL_VERSION } from '../types/jdAnalysis'
 import type { JdMatchExtraction, MatchReport, VectorAwareMatchResult } from '../types/match'
+import { applyRulesBasedAudiences, type JDAnalysisLike } from './audienceRules'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from './jobMatch'
 
 export interface AnalyzePipelineJdOptions {
@@ -86,6 +88,32 @@ const deriveMatchedKeywords = (report: MatchReport): string[] => {
 
 export const sanitizeJDAnalysisWarnings = (warnings: unknown): string[] => dedupe(textList(warnings))
 
+const dedupeNotes = (entries: Array<TaggedNote | string>): TaggedNote[] => {
+  const seen = new Set<string>()
+  const out: TaggedNote[] = []
+  for (const entry of entries) {
+    const note = typeof entry === 'string' ? untaggedNote(entry.trim()) : entry
+    const key = note.text.trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(note)
+  }
+  return out
+}
+
+const sanitizeWarningNotes = (warnings: unknown): TaggedNote[] => {
+  if (!Array.isArray(warnings)) return []
+  return warnings
+    .map((entry): TaggedNote | null => {
+      if (typeof entry === 'string') return untaggedNote(entry.trim())
+      if (entry && typeof entry === 'object' && typeof (entry as { text?: unknown }).text === 'string') {
+        return entry as TaggedNote
+      }
+      return null
+    })
+    .filter((entry): entry is TaggedNote => entry !== null && entry.text.length > 0)
+}
+
 export const createJdAnalysisFromMatchArtifacts = ({
   pipelineEntryId,
   jobDescription,
@@ -112,7 +140,11 @@ export const createJdAnalysisFromMatchArtifacts = ({
   const topProfiles = list(report.topProfiles)
   const topPhilosophy = list(report.topPhilosophy)
 
-  return {
+  // Build the JDAnalysisLike (untagged-or-partially-tagged) and pipe through
+  // the rules engine. applyRulesBasedAudiences stamps audienceRulesVersion,
+  // promotes 'unclassified' insights to their proper rules-based audiences,
+  // and preserves any LLM-asserted tags carried in from upstream extraction.
+  const draft: JDAnalysisLike = {
     id: analysis.id,
     pipelineEntryId,
     jdTextHash: hashJobDescriptionText(jobDescription),
@@ -120,9 +152,9 @@ export const createJdAnalysisFromMatchArtifacts = ({
     modelVersion,
     generatedAt: analysis.generatedAt,
     updatedAt: now,
-    warnings: dedupe([
-      ...sanitizeJDAnalysisWarnings(analysis.warnings),
-      ...sanitizeJDAnalysisWarnings(report.warnings),
+    warnings: dedupeNotes([
+      ...sanitizeWarningNotes(analysis.warnings),
+      ...sanitizeWarningNotes(report.warnings),
     ]),
 
     company: report.company || analysis.company || '',
@@ -167,6 +199,8 @@ export const createJdAnalysisFromMatchArtifacts = ({
     matchedRequirementIds: deriveMatchedRequirementIds(report),
     matchedKeywords: deriveMatchedKeywords(report),
   }
+
+  return applyRulesBasedAudiences(draft)
 }
 
 export const analyzePipelineJobDescription = async ({

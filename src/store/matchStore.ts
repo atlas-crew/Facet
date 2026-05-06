@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { type TaggedNote, untaggedNote } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchHistoryEntry, MatchReport, VectorAwareMatchResult } from '../types/match'
 import { createMatchHistoryEntry } from '../utils/jobMatch'
@@ -10,7 +11,7 @@ interface MatchState {
   currentJDAnalysis: JDAnalysis | null
   currentAnalysis: VectorAwareMatchResult | null
   currentReport: MatchReport | null
-  warnings: string[]
+  warnings: TaggedNote[]
   history: MatchHistoryEntry[]
   setJobDescription: (value: string) => void
   setResults: (analysis: VectorAwareMatchResult, report: MatchReport, jdAnalysis?: JDAnalysis | null) => void
@@ -40,8 +41,16 @@ export const migrateMatchWorkspaceState = (
     version >= 2
       ? ((state.currentAnalysis as VectorAwareMatchResult | null | undefined) ?? null)
       : null
-  const warnings = Array.isArray(state.warnings)
-    ? state.warnings.filter((entry): entry is string => typeof entry === 'string')
+  const warnings: TaggedNote[] = Array.isArray(state.warnings)
+    ? state.warnings
+        .map((entry): TaggedNote | null => {
+          if (typeof entry === 'string') return untaggedNote(entry)
+          if (entry && typeof entry === 'object' && typeof (entry as { text?: unknown }).text === 'string') {
+            return entry as TaggedNote
+          }
+          return null
+        })
+        .filter((entry): entry is TaggedNote => entry !== null)
     : []
   const history = Array.isArray(state.history)
     ? state.history.filter((entry): entry is MatchHistoryEntry => typeof entry === 'object' && entry !== null)

@@ -12,6 +12,7 @@ import { resolveStorage } from '../store/storage'
 import { defaultResumeData } from '../store/defaultData'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import { JD_ANALYSIS_MODEL_VERSION } from '../types/jdAnalysis'
+import { untagged, untaggedNote } from '../types/audience'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { stripResumeVectorContext } from '../utils/coverLetterContext'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
@@ -41,6 +42,7 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     jdTextHash: hashJobDescriptionText(PIPELINE_JOB_DESCRIPTION),
     identityVersion: 7,
     modelVersion: JD_ANALYSIS_MODEL_VERSION,
+    audienceRulesVersion: 'audience-rules.v1',
     generatedAt: '2026-03-09T00:00:00.000Z',
     updatedAt: '2026-03-09T00:00:00.000Z',
     warnings: [],
@@ -51,7 +53,7 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     jobDescriptionWordCount: 6,
     jobDescriptionTruncated: false,
     requirements: [
-      {
+      untagged({
         id: 'req-platform',
         label: 'Platform reliability ownership',
         priority: 'core',
@@ -61,7 +63,7 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
         coverageScore: 0.86,
         matchedAssetCount: 3,
         matchedTags: ['platform'],
-      },
+      }),
     ],
     overallFit: 'strong',
     fitScore: 86,
@@ -72,7 +74,7 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     matchedVectors: [],
     primaryVectorId: 'backend',
     skillMatches: [
-      {
+      untagged({
         skillName: 'Distributed systems',
         jdRequirement: 'Build distributed systems',
         requirementStrength: 'required',
@@ -80,7 +82,7 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
         userPositioning: 'Lead with backend reliability systems.',
         matchQuality: 'strong',
         presentationGuidance: 'Use concrete backend platform evidence.',
-      },
+      }),
     ],
     evidenceMapping: {
       topBullets: [],
@@ -89,16 +91,16 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
       topProfiles: [],
       topPhilosophy: [],
     },
-    strengthsToLead: ['Backend platform reliability'],
-    advantages: [{ id: 'adv-1', claim: 'Owns distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] }],
-    advantageHypotheses: [{ id: 'hyp-1', claim: 'Can stabilize developer platforms.', requirementIds: ['req-platform'] }],
+    strengthsToLead: [untaggedNote('Backend platform reliability')],
+    advantages: [untagged({ id: 'adv-1', claim: 'Owns distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] })],
+    advantageHypotheses: [untagged({ id: 'hyp-1', claim: 'Can stabilize developer platforms.', requirementIds: ['req-platform'] })],
     gaps: [],
-    gapFocus: ['Keep the letter concise on frontend depth.'],
+    gapFocus: [untaggedNote('Keep the letter concise on frontend depth.')],
     watchOuts: [],
     triggeredPrioritize: [],
     triggeredAvoid: [],
     relevantAwareness: [],
-    positioningRecommendations: ['Lead with platform reliability outcomes.'],
+    positioningRecommendations: [untaggedNote('Lead with platform reliability outcomes.')],
     requirementCoverageScore: 0.86,
     matchedRequirementIds: ['req-platform'],
     matchedKeywords: ['distributed systems', 'platform tooling'],

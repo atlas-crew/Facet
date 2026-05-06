@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ResumeData } from '../types'
 import type { JDAnalysis } from '../types/jdAnalysis'
+import { untagged, untaggedNote } from '../types/audience'
 import { buildProjectionFromJDAnalysis } from '../utils/buildProjection'
 
 const resumeData: ResumeData = {
@@ -51,6 +52,7 @@ const jdAnalysis: JDAnalysis = {
   jdTextHash: 'abc123',
   identityVersion: 7,
   modelVersion: 'jd-analysis.v1.test',
+  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-30T12:00:00.000Z',
   updatedAt: '2026-04-30T12:00:00.000Z',
   warnings: [],
@@ -68,7 +70,7 @@ const jdAnalysis: JDAnalysis = {
   oneLineSummary: 'Lead with platform delivery.',
   rationale: 'Platform evidence is the strongest match.',
   matchedVectors: [
-    {
+    untagged({
       vectorId: 'platform',
       title: 'Platform / DevEx',
       priority: 'high',
@@ -76,8 +78,8 @@ const jdAnalysis: JDAnalysis = {
       evidence: ['Own deployment platforms.'],
       thesisApplies: true,
       thesisFitExplanation: 'The role asks for platform ownership.',
-    },
-    {
+    }),
+    untagged({
       vectorId: 'missing-vector',
       title: 'Missing',
       priority: 'low',
@@ -85,11 +87,11 @@ const jdAnalysis: JDAnalysis = {
       evidence: [],
       thesisApplies: false,
       thesisFitExplanation: '',
-    },
+    }),
   ],
   primaryVectorId: 'platform',
   skillMatches: [
-    {
+    untagged({
       skillName: 'Kubernetes',
       jdRequirement: 'Own deployment platforms.',
       requirementStrength: 'required',
@@ -97,8 +99,8 @@ const jdAnalysis: JDAnalysis = {
       userPositioning: 'Lead with Kubernetes work.',
       matchQuality: 'strong',
       presentationGuidance: 'Mention Kubernetes early.',
-    },
-    {
+    }),
+    untagged({
       skillName: 'Terraform',
       jdRequirement: 'Own infrastructure as code.',
       requirementStrength: 'preferred',
@@ -106,11 +108,11 @@ const jdAnalysis: JDAnalysis = {
       userPositioning: 'Add only if true.',
       matchQuality: 'weak',
       presentationGuidance: 'Treat as a gap.',
-    },
+    }),
   ],
   evidenceMapping: {
     topBullets: [
-      {
+      untagged({
         kind: 'bullet',
         id: 'bullet-1',
         label: 'Kubernetes deployment tooling',
@@ -121,8 +123,8 @@ const jdAnalysis: JDAnalysis = {
         matchedKeywords: ['Kubernetes'],
         matchedRequirementIds: ['req-1'],
         score: 0.92,
-      },
-      {
+      }),
+      untagged({
         kind: 'bullet',
         id: 'unknown-bullet',
         label: 'Unknown',
@@ -133,31 +135,31 @@ const jdAnalysis: JDAnalysis = {
         matchedKeywords: [],
         matchedRequirementIds: [],
         score: 0.6,
-      },
+      }),
     ],
     topSkills: [],
     topProjects: [],
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: ['Kubernetes'],
+  strengthsToLead: [untaggedNote('Kubernetes')],
   advantages: [],
   advantageHypotheses: [],
   gaps: [
-    {
+    untagged({
       requirementId: 'req-2',
       label: 'Terraform',
       severity: 'medium',
       reason: 'Terraform evidence is light.',
       tags: ['terraform'],
-    },
+    }),
   ],
-  gapFocus: ['Infrastructure as code'],
+  gapFocus: [untaggedNote('Infrastructure as code')],
   watchOuts: [],
   triggeredPrioritize: [],
   triggeredAvoid: [],
   relevantAwareness: [],
-  positioningRecommendations: ['Lead with platform delivery.', 'Tie Kubernetes to developer velocity.'],
+  positioningRecommendations: [untaggedNote('Lead with platform delivery.'), untaggedNote('Tie Kubernetes to developer velocity.')],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: ['req-1'],
   matchedKeywords: ['Kubernetes', 'platform'],

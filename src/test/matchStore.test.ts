@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { migrateMatchWorkspaceState } from '../store/matchStore'
 import type { MatchReport } from '../types/match'
+import { untaggedNote } from '../types/audience'
 
 const legacyReport: MatchReport = {
   generatedAt: '2026-04-08T00:00:00.000Z',
@@ -20,7 +21,7 @@ const legacyReport: MatchReport = {
   advantages: [],
   positioningRecommendations: [],
   gapFocus: [],
-  warnings: ['legacy warning'],
+  warnings: [untaggedNote('legacy warning')],
 }
 
 describe('matchStore migration', () => {
@@ -39,6 +40,6 @@ describe('matchStore migration', () => {
     expect(migrated.currentReport).toEqual(legacyReport)
     expect(migrated.currentJDAnalysis).toBeNull()
     expect(migrated.currentAnalysis).toBeNull()
-    expect(migrated.warnings).toEqual(['legacy warning'])
+    expect(migrated.warnings).toEqual([untaggedNote('legacy warning')])
   })
 })

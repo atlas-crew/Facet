@@ -10,6 +10,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { resolveStorage } from '../store/storage'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import type { MatchReport } from '../types/match'
+import { untagged, untaggedNote } from '../types/audience'
 
 const navigateMock = vi.fn(async () => undefined)
 
@@ -27,7 +28,7 @@ const matchReport: MatchReport = {
   matchScore: 0.84,
   requirements: [],
   topBullets: [
-    {
+    untagged({
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration story',
@@ -38,7 +39,7 @@ const matchReport: MatchReport = {
       matchedKeywords: ['platform'],
       matchedRequirementIds: ['req-1'],
       score: 0.92,
-    },
+    }),
   ],
   topSkills: [],
   topProjects: [],
@@ -46,7 +47,7 @@ const matchReport: MatchReport = {
   topPhilosophy: [],
   gaps: [],
   advantages: [],
-  positioningRecommendations: ['Lead with platform migration.'],
+  positioningRecommendations: [untaggedNote('Lead with platform migration.')],
   gapFocus: [],
   warnings: [],
 }

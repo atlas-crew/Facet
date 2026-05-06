@@ -328,7 +328,7 @@ export function MatchPage() {
       presetId: null,
       resumeVariant: '',
       resumeGeneration: null,
-      positioning: currentReport.positioningRecommendations[0] ?? currentJDAnalysis.oneLineSummary ?? '',
+      positioning: currentReport.positioningRecommendations[0]?.text ?? currentJDAnalysis.oneLineSummary ?? '',
       skillMatch: currentJDAnalysis.matchedKeywords.slice(0, 8).join(', '),
       nextStep: 'Review JD analysis and decide whether to apply.',
       notes: currentReport.summary,
@@ -683,7 +683,7 @@ export function MatchPage() {
                 {warnings.map((warning, index) => (
                   <div key={`warning-${index}`} className="match-warning-item">
                     <AlertTriangle size={14} />
-                    <span>{warning}</span>
+                    <span>{warning.text}</span>
                   </div>
                 ))}
               </div>
@@ -841,7 +841,7 @@ export function MatchPage() {
                   <h3>Positioning recommendations</h3>
                   <ul className="match-list">
                     {currentReport.positioningRecommendations.map((entry, index) => (
-                      <li key={`positioning-${index}`}>{entry}</li>
+                      <li key={`positioning-${index}`}>{entry.text}</li>
                     ))}
                   </ul>
                 </div>
@@ -852,7 +852,7 @@ export function MatchPage() {
                   <h3>Gap focus</h3>
                   <ul className="match-list">
                     {currentReport.gapFocus.map((entry, index) => (
-                      <li key={`gap-focus-${index}`}>{entry}</li>
+                      <li key={`gap-focus-${index}`}>{entry.text}</li>
                     ))}
                   </ul>
                 </div>

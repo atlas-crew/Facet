@@ -3,6 +3,8 @@ import { migrateJDAnalysisState, useJDAnalysisStore } from '../store/jdAnalysisS
 import { usePipelineStore } from '../store/pipelineStore'
 import type { JdMatchExtraction, MatchReport, VectorAwareMatchResult } from '../types/match'
 import type { PipelineEntry } from '../types/pipeline'
+import type { TaggedNote } from '../types/audience'
+import { untagged, untaggedNote } from '../types/audience'
 import {
   createJdAnalysisFromMatchArtifacts,
   analyzePipelineJobDescription,
@@ -24,7 +26,7 @@ const baseAnalysis: VectorAwareMatchResult = {
   confidence: 'high',
   oneLineSummary: 'Strong platform fit.',
   matchedVectors: [
-    {
+    untagged({
       vectorId: 'platform-lead',
       title: 'Platform lead',
       priority: 'high',
@@ -32,11 +34,11 @@ const baseAnalysis: VectorAwareMatchResult = {
       evidence: ['Own Kubernetes delivery systems.'],
       thesisApplies: true,
       thesisFitExplanation: 'The JD centers platform ownership.',
-    },
+    }),
   ],
   primaryVectorId: 'platform-lead',
   skillMatches: [
-    {
+    untagged({
       skillName: 'Kubernetes',
       jdRequirement: 'Own Kubernetes delivery systems.',
       requirementStrength: 'required',
@@ -44,17 +46,17 @@ const baseAnalysis: VectorAwareMatchResult = {
       userPositioning: 'Lead with platform migration evidence.',
       matchQuality: 'strong',
       presentationGuidance: 'Lead with Kubernetes platform migration evidence.',
-    },
+    }),
   ],
-  strengthsToLead: ['Kubernetes'],
+  strengthsToLead: [untaggedNote('Kubernetes')],
   watchOuts: [],
   triggeredPrioritize: [
-    {
+    untagged({
       filterId: 'platform-ownership',
       label: 'Platform ownership',
       weight: 'high',
       jdEvidence: 'Own Kubernetes delivery systems.',
-    },
+    }),
   ],
   triggeredAvoid: [],
   relevantAwareness: [],
@@ -72,7 +74,7 @@ const baseReport: MatchReport = {
   jobDescription: 'Own Kubernetes delivery systems.',
   matchScore: 0.86,
   requirements: [
-    {
+    untagged({
       id: 'platform-delivery',
       label: 'Platform delivery',
       priority: 'core',
@@ -82,10 +84,10 @@ const baseReport: MatchReport = {
       coverageScore: 0.9,
       matchedAssetCount: 2,
       matchedTags: ['platform', 'kubernetes'],
-    },
+    }),
   ],
   topBullets: [
-    {
+    untagged({
       kind: 'bullet',
       id: 'bullet-1',
       label: 'Platform migration',
@@ -96,7 +98,7 @@ const baseReport: MatchReport = {
       matchedKeywords: ['Kubernetes'],
       matchedRequirementIds: ['platform-delivery'],
       score: 0.92,
-    },
+    }),
   ],
   topSkills: [],
   topProjects: [],
@@ -104,14 +106,14 @@ const baseReport: MatchReport = {
   topPhilosophy: [],
   gaps: [],
   advantages: [
-    {
+    untagged({
       id: 'platform-ownership',
       claim: 'The identity has direct platform ownership evidence.',
       requirementIds: ['platform-delivery'],
       evidence: [],
-    },
+    }),
   ],
-  positioningRecommendations: ['Lead with platform ownership.'],
+  positioningRecommendations: [untaggedNote('Lead with platform ownership.')],
   gapFocus: [],
   warnings: [],
 }
@@ -122,13 +124,13 @@ const baseExtraction: JdMatchExtraction = {
   role: 'Staff Platform Engineer',
   requirements: baseReport.requirements,
   advantageHypotheses: [
-    {
+    untagged({
       id: 'platform-ownership',
       claim: 'The identity has direct platform ownership evidence.',
       requirementIds: ['platform-delivery'],
-    },
+    }),
   ],
-  positioningRecommendations: ['Lead with platform ownership.'],
+  positioningRecommendations: [untaggedNote('Lead with platform ownership.')],
   gapFocus: [],
   warnings: [],
 }
@@ -445,7 +447,7 @@ describe('JDAnalysis canonical helpers', () => {
       useJDAnalysisStore.getState().setAnalyses([
         {
           ...analysis,
-          warnings: warnings as string[],
+          warnings: warnings as TaggedNote[],
         },
       ])
       expect(useJDAnalysisStore.getState().analyses[0]?.warnings).toEqual([])
@@ -472,11 +474,12 @@ describe('JDAnalysis canonical helpers', () => {
         analyses: [
           {
             ...analysis,
-            warnings: [' keep ', 42, ''] as unknown as string[],
+            audienceRulesVersion: 'audience-rules.legacy',
+            warnings: [' keep ', 42, ''] as unknown as TaggedNote[],
           },
         ],
       }).analyses[0]?.warnings,
-    ).toEqual(['keep'])
+    ).toEqual([{ text: 'keep', audiences: { inferred: ['internal'], asserted: null } }])
   })
 
   it('removes canonical analysis when a pipeline entry is deleted', () => {

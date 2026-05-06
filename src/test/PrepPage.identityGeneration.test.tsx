@@ -14,6 +14,7 @@ import { useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 import type { JDAnalysis } from '../types/jdAnalysis'
+import { untaggedNote } from '../types/audience'
 
 const navigateMock = vi.fn()
 
@@ -129,6 +130,7 @@ function createTestJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     jdTextHash: hashJobDescriptionText(jobDescription),
     identityVersion: 0,
     modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+    audienceRulesVersion: 'audience-rules.v1',
     generatedAt: '2026-04-20T12:00:00.000Z',
     updatedAt: '2026-04-20T12:00:00.000Z',
     warnings: [],
@@ -155,7 +157,7 @@ function createTestJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
       topProfiles: [],
       topPhilosophy: [],
     },
-    strengthsToLead: ['Distributed systems'],
+    strengthsToLead: [untaggedNote('Distributed systems')],
     advantages: [],
     advantageHypotheses: [],
     gaps: [],
@@ -164,7 +166,7 @@ function createTestJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     triggeredPrioritize: [],
     triggeredAvoid: [],
     relevantAwareness: [],
-    positioningRecommendations: ['Lead with platform reliability.'],
+    positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
     requirementCoverageScore: 0.8,
     matchedRequirementIds: [],
     matchedKeywords: ['distributed systems', 'platform tooling'],
