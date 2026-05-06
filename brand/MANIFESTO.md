@@ -82,6 +82,8 @@ The career-search runs in bursts. The pricing should too.
 
 The episodic structure also kills a perverse incentive. If we charged monthly, we'd be quietly rooting for your search to take longer. Aligning revenue with active search duration means we want you to find the right role as fast as possible and come back later for the next one. That's the right alignment for a tool that's supposed to help you.
 
+For the numbers, the refund terms, and the alignment-vs-subscription comparison, see [`PRICING.md`](PRICING.md).
+
 ## Your data, your model
 
 The model belongs to you. We mean it structurally, not as marketing.

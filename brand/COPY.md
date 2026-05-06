@@ -4,6 +4,10 @@ Canonical taglines, hero copy, brand vocabulary, concept names, and the
 phrases worth lifting elsewhere. Companion to [`BRAND.md`](BRAND.md)
 (which handles marks, colors, typography). This doc handles language.
 
+For the long-form positioning argument that uses these phrases in
+context, see [`MANIFESTO.md`](MANIFESTO.md). Public URL pending
+(`myfacets.cv/manifesto`).
+
 ---
 
 ## At a glance
@@ -305,10 +309,16 @@ Pairs naturally:
 The pairs aren't exposed in product UI but help the substrate feel
 structured rather than enumerated when you list them in copy.
 
-> **Sync note:** This 6-item list and the carousel slide 2 substrate list
-> are kept in sync. If you change the items, update both. If asked
-> "which is canonical?" — the model is canonical; the carousel slide
-> follows.
+> **Sync note:** This 6-item list, the carousel slide 2 substrate
+> list, and `substrate.html` are kept in sync. If you change the items,
+> update all three. If asked "which is canonical?" — the model is
+> canonical; brand sheets follow.
+
+The substrate has its own dedicated concept sheet at
+[`brand/sheets/substrate.html`](sheets/substrate.html) — a 1200×630
+poster that visualizes the three pairs as numbered rows. Use it when a
+text list won't carry the structural claim alone (landing-page hero,
+methodology section, share asset).
 
 ---
 
@@ -388,8 +398,12 @@ than here, because they're more specialized than language guidance:
 |---|---|---|
 | Anti-auto-apply positioning | [`MANIFESTO.md`](MANIFESTO.md) | "We don't play that game" stance bundle — why Facet doesn't auto-apply, why Live mode is a view not a cheatsheet, what category Facet is opting out of |
 | Live mode framing | [`MANIFESTO.md`](MANIFESTO.md) | The view-not-cheatsheet defense — addresses the "is this cheating" question directly; complements the orbital-as-architecture framing in the carousel |
-| Pricing language | `PRICING.md` *(planned)* | $299 / 90-day pass / 12-month window terminology, refund and pause language |
-| Refund / pause | `PRICING.md` *(planned)* | 14-day refund window, pause-and-resume terms, what makes the model different from subscription |
+| Reusable founder/company bios | [`BIOS.md`](BIOS.md) | 50w / 100w / 250w founder bio; 50w / 100w / 250w company boilerplate; Twitter / LinkedIn / GitHub / BlueSky social profile bios — all calibrated to the locked vocabulary |
+| Predictable Q&A | [`FAQ.md`](FAQ.md) | Canonical answers to the 10 questions that come up across blog posts, support replies, sales, and social — keeps answers consistent rather than drifting per surface |
+| Term definitions | [`GLOSSARY.md`](GLOSSARY.md) | Concise definitions of `recut`, `model`, `face` / `cut`, `substrate`, `vector`, `pass`, `search loop` (retired), `Career Operating System` — with usage examples and don't-substitute notes |
+| Tone by surface | [`TONE.md`](TONE.md) | How to write for support reply, release note, tweet, blog post intro, email subject line — register pressure plus good vs avoid pattern-matching examples |
+| Pricing language | [`PRICING.md`](PRICING.md) | $299 / 90-day pass / 12-month window terminology, the episodic-pass argument grounded in numbers |
+| Refund / pause | [`PRICING.md`](PRICING.md) | 7-day refund window, pause-via-12-month-window mechanics, what makes the model different from subscription |
 
 If you're writing copy that references any of the above and the
 target doc doesn't exist yet, **default to silence rather than
@@ -412,6 +426,9 @@ update. Sources of truth are the HTML sheets in `brand/sheets/`.
 - `story.html` — tagline (dark/light) — *but rendered as the hero, not subtitle, here*
 - `principle.html` — tagline card quote
 - `carousel.html` — slide 1 title (dark/light)
+- `substrate.html` — footer tagline line (dark/light)
+- `method.html` — footer tagline line (dark/light)
+- `manifesto.html` — footer tagline line (dark/light)
 
 ### Hero copy (`A deep model of you... Recut for every opportunity`)
 
@@ -421,12 +438,16 @@ update. Sources of truth are the HTML sheets in `brand/sheets/`.
 - `story.html` — pitch (dark/light)
 - `square.html` — pitch (dark/light)
 - `principle.html` — thesis card quote (dark/light)
+- `manifesto.html` — close section after the negation list (dark/light)
+- `readme.html` — headline copy on the right column (dark/light)
 
 ### Trust line (`Open-source · Your data, never ours`)
 
 - `banners.html` — bold variant footer line
 - `editorial.html` — attribution-text accent
 - `social.html` — og-image tagline (dark/light)
+- `manifesto.html` — trust slot below the hero close (dark/light)
+- `readme.html` — trust row in the right column (dark/light)
 - `square.html` — footer composition
 - `email.html` — trust accent (dark/light)
 - `story.html` — trust line (dark/light)
@@ -448,6 +469,49 @@ update. Sources of truth are the HTML sheets in `brand/sheets/`.
 - `carousel.html` slide 2 callout → "This is the part most tools skip."
 - `carousel.html` slide 4 step 02 → "as evidence, not anecdote"
 - `carousel.html` slide 5 close → "Build it once. *Recut* forever."
+
+### Methodology and surface sheets
+
+Two surfaces serve specific contexts beyond the concept / manifesto split:
+
+- `method.html` (1600×900 widescreen, dark/light) → "The cycle,
+  expanded." Three phases (Build · Search · Interview) with sub-step
+  lists, a feedback line ("Debrief sharpens the model"), and the
+  closing callout "Every cycle is a deeper version of you." Header
+  label: `The Method · 01`. Use as blog header, landing-page method
+  section, README inset, deck cover. The 16:9 aspect renders cleanly
+  in those contexts where 1200×630 OG dimensions feel cramped.
+- `readme.html` (1280×640 2:1 banner, dark/light) → asymmetric layout:
+  large gem + "Facet" wordmark + "Open source" pill on the left;
+  vertical rule; locked hero + trust line + url on the right. No
+  manifesto/method header pill — this surface is meant to be the
+  silent banner that anchors a GitHub README without competing for
+  attention. Use as repo top-of-page hero, project landing page hero,
+  partnership deck cover.
+
+### Manifesto-territory sheets
+
+These two sheets pair as the manifesto-territory anchor: substrate
+*shows what's in the model*, manifesto *shows what Facet opts out of*.
+Together they replace text-only positioning with visual proof.
+
+- `substrate.html` (1200×630, dark/light) → "The substrate" + the 6-item
+  pair structure + "This is the part most tools skip" callout.
+  Header label: `Manifesto · 01`.
+- `manifesto.html` (1080×1350 portrait, dark/light) → "What Facet
+  *isn't*" + 5 numbered negations + the locked hero turn. Header
+  label: `Manifesto · 02`. The visual entry point to the long-form
+  argument in [`MANIFESTO.md`](MANIFESTO.md) — anti-auto-apply,
+  Live-as-open-notebook, episodic pricing, and the data-ownership
+  promise.
+
+> **Public URL pending.** [`MANIFESTO.md`](MANIFESTO.md) is the
+> source-of-truth document, but the public landing-page URL where the
+> manifesto will live (likely `myfacets.cv/manifesto`) doesn't exist
+> yet. Brand assets that point to it should hold off until the page
+> ships — a 404 from a screenshot-shared asset is worse than no link.
+> When the URL goes live, update `manifesto.html` (and any future
+> share-card CTAs) to link there.
 
 ---
 
