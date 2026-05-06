@@ -32,7 +32,7 @@ const seedIdentityWithMatchRule = () => {
           id: 'rule-avoid-1',
           label: 'Pure management tracks',
           description: 'Roles where IC time is below 30%.',
-          weight: 'high',
+          severity: 'hard',
         },
       ],
     },
