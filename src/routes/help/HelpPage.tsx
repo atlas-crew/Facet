@@ -15,6 +15,7 @@ import identityMd from '../../../docs/user-guides/identity.md?raw'
 // Match
 import matchMd from '../../../docs/user-guides/match.md?raw'
 // Build
+import buildMd from '../../../docs/user-guides/build.md?raw'
 import vectorsMd from '../../../docs/user-guides/vectors.md?raw'
 import componentsMd from '../../../docs/user-guides/components.md?raw'
 import prioritiesMd from '../../../docs/user-guides/priorities-and-overrides.md?raw'
@@ -74,6 +75,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     label: 'Build',
     guides: [
+      { slug: 'build', title: 'Build Workspace', file: buildMd },
       { slug: 'vectors', title: 'Vectors', file: vectorsMd },
       { slug: 'components', title: 'Components', file: componentsMd },
       { slug: 'priorities-and-overrides', title: 'Priorities & Overrides', file: prioritiesMd },
