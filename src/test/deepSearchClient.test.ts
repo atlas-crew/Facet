@@ -37,15 +37,6 @@ const baseProfile: SearchProfile = {
       positioning: 'Use as a security-platform differentiator.',
     },
   ],
-  vectors: [
-    {
-      vectorId: 'security-platform',
-      priority: 1,
-      description: 'Security platform builders',
-      targetRoleTitles: ['Staff Security Platform Engineer'],
-      searchKeywords: ['WAF', 'edge security'],
-    },
-  ],
   workSummary: [{ title: 'Platform', summary: 'Owned platform systems.' }],
   openQuestions: ['Which companies allow AI tools?'],
   constraints: { compensation: '$250k', locations: ['Remote'], clearance: '', companySize: '' },

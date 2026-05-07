@@ -6,7 +6,6 @@ import type {
   SearchSkillDepth,
   SearchWorkSummaryEntry,
   SkillCatalogEntry,
-  VectorSearchConfig,
 } from '../types/search'
 import { createId } from './idUtils'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
@@ -18,7 +17,7 @@ export { JsonExtractionError }
 
 type InferredSearchProfile = Pick<
   SearchProfile,
-  'skills' | 'vectors' | 'workSummary' | 'openQuestions'
+  'skills' | 'workSummary' | 'openQuestions'
 >
 
 type IdentitySearchEnhancement = Pick<SearchProfile, 'workSummary' | 'openQuestions'>
@@ -96,41 +95,6 @@ function normalizeSkills(value: unknown): SkillCatalogEntry[] {
   })
 }
 
-function normalizeVectors(value: unknown, resumeData: ResumeData): VectorSearchConfig[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  const validVectorIds = new Set(resumeData.vectors.map((vector) => vector.id))
-
-  return value.flatMap((vector, index) => {
-    if (!vector || typeof vector !== 'object') {
-      return []
-    }
-
-    const record = vector as Record<string, unknown>
-    const vectorId = isString(record.vectorId) ? record.vectorId.trim() : ''
-    if (!vectorId || !validVectorIds.has(vectorId)) {
-      return []
-    }
-
-    const priority =
-      typeof record.priority === 'number' && Number.isFinite(record.priority)
-        ? Math.max(1, Math.round(record.priority))
-        : index + 1
-
-    return [
-      {
-        vectorId,
-        priority,
-        description: isString(record.description) ? record.description.trim() : '',
-        targetRoleTitles: normalizeStringArray(record.targetRoleTitles),
-        searchKeywords: normalizeStringArray(record.searchKeywords),
-      },
-    ]
-  })
-}
-
 function normalizeWorkSummary(value: unknown): SearchWorkSummaryEntry[] {
   if (!Array.isArray(value)) {
     return []
@@ -157,12 +121,15 @@ function normalizeWorkSummary(value: unknown): SearchWorkSummaryEntry[] {
   })
 }
 
+// Assembly vector scaffolding appears throughout resume components; profile inference ignores it.
+const omitResumeVectorFields = (key: string, value: unknown) =>
+  key === 'vectors' ? undefined : value
+
 export function buildInferencePrompt(resumeData: ResumeData): string {
   return `Resume data:
 ${JSON.stringify(
     {
       meta: resumeData.meta,
-      vectors: resumeData.vectors,
       target_lines: resumeData.target_lines,
       profiles: resumeData.profiles,
       skill_groups: resumeData.skill_groups,
@@ -171,22 +138,18 @@ ${JSON.stringify(
       education: resumeData.education,
       certifications: resumeData.certifications,
     },
-    null,
+    omitResumeVectorFields,
     2,
   )}
 
 Return JSON only.`
 }
 
-export function normalizeInferredProfile(
-  payload: unknown,
-  resumeData: ResumeData,
-): InferredSearchProfile {
+export function normalizeInferredProfile(payload: unknown): InferredSearchProfile {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
 
   return {
     skills: normalizeSkills(record.skills),
-    vectors: normalizeVectors(record.vectors, resumeData),
     workSummary: normalizeWorkSummary(record.workSummary),
     openQuestions: normalizeStringArray(record.openQuestions),
   }
@@ -231,7 +194,7 @@ export async function inferSearchProfile(
   endpoint: string,
 ): Promise<InferredSearchProfile> {
   const systemPrompt = `You are a career positioning strategist helping a candidate search for strong-fit jobs. Return JSON only.
-Infer a durable search profile from the candidate's resume data. Extract the skills that matter for job search, estimate proficiency depth, define vector-specific search strategies, summarize relevant work history, and surface open questions that would improve search precision.
+Infer a durable search profile from the candidate's resume data. Extract the skills that matter for job search, estimate proficiency depth, summarize relevant work history, and surface open questions that would improve search precision.
 Be concrete, concise, and truthful to the provided source material. Do not invent employers, credentials, or clearance.
 
 Response schema:
@@ -243,15 +206,6 @@ Response schema:
       "depth": "expert|strong|working|basic|avoid",
       "context": "optional string",
       "positioning": "optional string"
-    }
-  ],
-  "vectors": [
-    {
-      "vectorId": "string",
-      "priority": 1,
-      "description": "string",
-      "targetRoleTitles": ["string"],
-      "searchKeywords": ["string"]
     }
   ],
   "workSummary": [
@@ -270,7 +224,7 @@ Response schema:
   })
 
   try {
-    return normalizeInferredProfile(JSON.parse(extractJsonBlock(rawResponse)), resumeData)
+    return normalizeInferredProfile(JSON.parse(extractJsonBlock(rawResponse)))
   } catch (error) {
     if (error instanceof JsonExtractionError) {
       throw error

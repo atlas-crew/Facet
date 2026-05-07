@@ -12,7 +12,6 @@ import type {
   SearchThesis,
   SearchThesisSignal,
   SkillCatalogEntry,
-  VectorSearchConfig,
 } from '../types/search'
 import { EMPTY_SEARCH_INSTANCE_OVERRIDES } from '../types/search'
 import { createId } from '../utils/idUtils'
@@ -29,6 +28,11 @@ import {
 
 type SearchProfileInput = Omit<SearchProfile, 'id' | 'inferredAt'> &
   Partial<Pick<SearchProfile, 'id' | 'inferredAt'>>
+
+/** Accepts pre-Phase-C persisted snapshots that still carry profile.vectors so hydration can strip it. */
+type LegacySearchProfileInput = SearchProfileInput & {
+  vectors?: unknown
+}
 
 type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt' | 'focusLanes' | 'focusVectors'> &
   Partial<Pick<SearchRequest, 'id' | 'createdAt' | 'focusLanes' | 'focusVectors'>>
@@ -69,7 +73,6 @@ interface SearchState {
 
   setProfile: (profile: SearchProfileInput) => SearchProfile
   updateProfileSkills: (skills: SkillCatalogEntry[]) => void
-  updateProfileVectors: (vectors: VectorSearchConfig[]) => void
   updateProfileConstraints: (constraints: SearchProfileConstraints) => void
   updateProfileFilters: (filters: SearchProfileFilters) => void
   updateProfileInterviewPrefs: (prefs: SearchInterviewPrefs) => void
@@ -131,14 +134,20 @@ const hydrateConstraints = (constraints: SearchProfileConstraints): SearchProfil
   employmentTypes: constraints.employmentTypes ?? [],
 })
 
-const hydrateProfile = (profile: SearchProfileInput): SearchProfile => ({
-  ...profile,
-  constraints: hydrateConstraints(profile.constraints),
-  source: profile.source ?? { kind: 'resume', label: 'Resume fallback' },
-  id: profile.id ?? createId('sprof'),
-  inferredAt: profile.inferredAt ?? now(),
-  durableMeta: ensureDurableMetadata(profile.durableMeta, profile.inferredAt ?? now()),
-})
+const hydrateProfile = (profile: LegacySearchProfileInput): SearchProfile => {
+  const { vectors: _legacyVectors, ...profileWithoutLegacyVectors } = profile
+  return {
+    ...profileWithoutLegacyVectors,
+    constraints: hydrateConstraints(profileWithoutLegacyVectors.constraints),
+    source: profileWithoutLegacyVectors.source ?? { kind: 'resume', label: 'Resume fallback' },
+    id: profileWithoutLegacyVectors.id ?? createId('sprof'),
+    inferredAt: profileWithoutLegacyVectors.inferredAt ?? now(),
+    durableMeta: ensureDurableMetadata(
+      profileWithoutLegacyVectors.durableMeta,
+      profileWithoutLegacyVectors.inferredAt ?? now(),
+    ),
+  }
+}
 
 const hydrateRequest = (request: SearchRequestInput): SearchRequest => ({
   ...request,
@@ -313,7 +322,7 @@ export const migrateSearchState = (persistedState: unknown) => {
   const state =
     typeof persistedState === 'object' && persistedState !== null
       ? (persistedState as {
-          profile?: SearchProfile | null
+          profile?: LegacySearchProfileInput | null
           requests?: SearchRequest[]
           runs?: SearchRun[]
           theses?: SearchThesis[]
@@ -337,7 +346,6 @@ export const migrateSearchState = (persistedState: unknown) => {
       : null
 
   return {
-    ...state,
     profile: state?.profile ? hydrateProfile(state.profile) : null,
     requests: Array.isArray(state?.requests)
       ? state.requests.map((request) => hydrateRequest(request))
@@ -379,20 +387,6 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
             profile: {
               ...state.profile,
               skills,
-              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-            },
-          }
-        : state,
-    )
-  },
-
-  updateProfileVectors: (vectors) => {
-    set((state) =>
-      state.profile
-        ? {
-            profile: {
-              ...state.profile,
-              vectors,
               durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
             },
           }

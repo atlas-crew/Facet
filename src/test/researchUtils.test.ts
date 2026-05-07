@@ -16,7 +16,6 @@ import {
   parseInterviewFormatPhrases,
   splitTags,
   toPipelineTier,
-  upsertVectorConfig,
 } from '../routes/research/researchUtils'
 
 const baseProfile: SearchProfile = {
@@ -24,29 +23,6 @@ const baseProfile: SearchProfile = {
   inferredAt: '2026-03-10T10:00:00.000Z',
   inferredFromResumeVersion: 4,
   skills: [],
-  vectors: [
-    {
-      vectorId: 'platform',
-      priority: 3,
-      description: 'Platform',
-      targetRoleTitles: ['Platform Lead'],
-      searchKeywords: ['platform'],
-    },
-    {
-      vectorId: 'backend',
-      priority: 1,
-      description: 'Backend',
-      targetRoleTitles: ['Staff Backend Engineer'],
-      searchKeywords: ['backend'],
-    },
-    {
-      vectorId: 'security',
-      priority: 2,
-      description: 'Security',
-      targetRoleTitles: ['Security Engineer'],
-      searchKeywords: ['security'],
-    },
-  ],
   workSummary: [],
   openQuestions: [],
   constraints: {
@@ -120,7 +96,6 @@ describe('researchUtils', () => {
   it('builds an empty profile shape with the provided resume version', () => {
     expect(emptyProfile(7)).toEqual({
       skills: [],
-      vectors: [],
       workSummary: [],
       openQuestions: [],
       source: {
@@ -150,100 +125,6 @@ describe('researchUtils', () => {
     )
   })
 
-  it('upserts vector configs and keeps them sorted by priority', () => {
-    const inserted = upsertVectorConfig([], 'backend', { priority: 2, description: 'Backend' })
-    expect(inserted).toHaveLength(1)
-    expect(inserted[0]?.vectorId).toBe('backend')
-
-    const updated = upsertVectorConfig(
-      [
-        {
-          vectorId: 'platform',
-          priority: 3,
-          description: '',
-          targetRoleTitles: [],
-          searchKeywords: [],
-        },
-        {
-          vectorId: 'backend',
-          priority: 2,
-          description: '',
-          targetRoleTitles: [],
-          searchKeywords: [],
-        },
-      ],
-      'platform',
-      { priority: 1, searchKeywords: ['internal tools'] },
-    )
-
-    expect(updated.map((vector) => vector.vectorId)).toEqual(['platform', 'backend'])
-    expect(updated[0]?.searchKeywords).toEqual(['internal tools'])
-
-    const preservedId = upsertVectorConfig(updated, 'backend', {
-      vectorId: 'should-not-win' as never,
-      priority: 5,
-    })
-    expect(preservedId.find((vector) => vector.priority === 5)?.vectorId).toBe('backend')
-
-    const appended = upsertVectorConfig(updated, 'new-vector', {})
-    expect(appended.find((vector) => vector.vectorId === 'new-vector')?.priority).toBe(3)
-
-    const tiedPriority = upsertVectorConfig(
-      [
-        {
-          vectorId: 'alpha',
-          priority: 1,
-          description: '',
-          targetRoleTitles: [],
-          searchKeywords: [],
-        },
-        {
-          vectorId: 'beta',
-          priority: 1,
-          description: '',
-          targetRoleTitles: [],
-          searchKeywords: [],
-        },
-      ],
-      'gamma',
-      { priority: 1 },
-    )
-    expect(tiedPriority.map((vector) => vector.vectorId)).toEqual(['alpha', 'beta', 'gamma'])
-  })
-
-  it('upserts vector configs without mutating existing entries', () => {
-    const original = [
-      {
-        vectorId: 'backend',
-        priority: 2,
-        description: 'Backend systems',
-        targetRoleTitles: ['Staff Backend Engineer'],
-        searchKeywords: ['backend'],
-      },
-      {
-        vectorId: 'platform',
-        priority: 1,
-        description: 'Platform systems',
-        targetRoleTitles: ['Staff Platform Engineer'],
-        searchKeywords: ['platform'],
-      },
-    ]
-    const snapshot = structuredClone(original)
-
-    const updated = upsertVectorConfig(original, 'backend', {
-      priority: 3,
-      searchKeywords: ['distributed systems'],
-    })
-
-    expect(original).toEqual(snapshot)
-    expect(updated).not.toBe(original)
-    expect(updated.find((vector) => vector.vectorId === 'backend')).toMatchObject({
-      priority: 3,
-      searchKeywords: ['distributed systems'],
-    })
-    expect(original[0]).toEqual(snapshot[0])
-  })
-
   it('builds a request draft from thesis lanes', () => {
     expect(buildRequestDraft(baseProfile, baseThesis)).toEqual({
       focusLanes: ['backend-lane', 'security-lane'],
@@ -256,22 +137,10 @@ describe('researchUtils', () => {
     })
 
     expect(buildRequestDraft(null).focusLanes).toEqual([])
-
-    const singleVectorProfile: SearchProfile = {
-      ...baseProfile,
-      vectors: [baseProfile.vectors[0]!],
-    }
-    const emptyVectorProfile: SearchProfile = {
-      ...baseProfile,
-      vectors: [],
-    }
-    const originalOrder = baseProfile.vectors.map((vector) => vector.vectorId)
-    expect(buildRequestDraft(singleVectorProfile).focusLanes).toEqual([])
-    expect(buildRequestDraft(emptyVectorProfile, baseThesis).focusLanes).toEqual([
+    expect(buildRequestDraft(baseProfile, baseThesis).focusLanes).toEqual([
       'backend-lane',
       'security-lane',
     ])
-    expect(baseProfile.vectors.map((vector) => vector.vectorId)).toEqual(originalOrder)
   })
 
   it('prefers thesis searchOverrides over profile constraints when building a request draft', () => {

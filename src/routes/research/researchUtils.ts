@@ -11,7 +11,6 @@ import type {
   SearchResultEntry,
   SearchResultInterviewProcess,
   SearchThesis,
-  VectorSearchConfig,
 } from '../../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../../types/search'
 import { createSeededPipelineResearchSnapshot } from '../../utils/pipelineResearch'
@@ -34,7 +33,6 @@ export function emptyProfile(resumeVersion: number): Omit<SearchProfile, 'id' | 
       label: 'Resume fallback',
     },
     skills: [],
-    vectors: [],
     workSummary: [],
     openQuestions: [],
     constraints: {
@@ -55,26 +53,8 @@ export function emptyProfile(resumeVersion: number): Omit<SearchProfile, 'id' | 
   }
 }
 
-export function upsertVectorConfig(
-  existing: VectorSearchConfig[],
-  vectorId: string,
-  patch: Partial<VectorSearchConfig>,
-): VectorSearchConfig[] {
-  const current = existing.find((vector) => vector.vectorId === vectorId) ?? {
-    vectorId,
-    priority: existing.length + 1,
-    description: '',
-    targetRoleTitles: [],
-    searchKeywords: [],
-  }
-
-  const next = { ...current, ...patch, vectorId }
-  const others = existing.filter((vector) => vector.vectorId !== vectorId)
-  return [...others, next].sort((left, right) => left.priority - right.priority)
-}
-
 export function buildRequestDraft(
-  profile: Pick<SearchProfile, 'vectors' | 'constraints'> | null,
+  profile: Pick<SearchProfile, 'constraints'> | null,
   thesis?: Pick<SearchThesis, 'searchLanes' | 'searchOverrides'> | null,
 ): Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'> {
   const focusLanes = thesis?.searchLanes.map((lane) => lane.id).filter(Boolean) ?? []

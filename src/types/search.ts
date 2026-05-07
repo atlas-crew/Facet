@@ -131,14 +131,6 @@ export interface SkillCatalogEntry {
   positioning?: string
 }
 
-export interface VectorSearchConfig {
-  vectorId: string
-  priority: number
-  description: string
-  targetRoleTitles: string[]
-  searchKeywords: string[]
-}
-
 export interface SearchWorkSummaryEntry {
   title: string
   summary: string
@@ -171,7 +163,6 @@ export interface SearchProfile {
   durableMeta?: DurableMetadata
   source?: SearchProfileSource
   skills: SkillCatalogEntry[]
-  vectors: VectorSearchConfig[]
   workSummary: SearchWorkSummaryEntry[]
   openQuestions: string[]
   constraints: SearchProfileConstraints

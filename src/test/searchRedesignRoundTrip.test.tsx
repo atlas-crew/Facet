@@ -356,15 +356,6 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
         inferredAt: '2026-03-10T10:00:00.000Z',
         inferredFromResumeVersion: 1,
         skills: [],
-        vectors: [
-          {
-            vectorId: 'backend',
-            priority: 1,
-            description: 'Platform-heavy backend roles',
-            targetRoleTitles: ['Staff Engineer'],
-            searchKeywords: ['distributed systems'],
-          },
-        ],
         workSummary: [],
         openQuestions: [],
         constraints: {

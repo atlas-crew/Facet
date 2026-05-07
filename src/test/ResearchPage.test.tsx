@@ -272,15 +272,6 @@ describe('ResearchPage', () => {
         inferredAt: '2026-03-10T10:00:00.000Z',
         inferredFromResumeVersion: 1,
         skills: [],
-        vectors: [
-          {
-            vectorId: 'backend',
-            priority: 1,
-            description: 'Platform-heavy backend roles',
-            targetRoleTitles: ['Staff Engineer'],
-            searchKeywords: ['distributed systems'],
-          },
-        ],
         workSummary: [],
         openQuestions: [],
         constraints: {
@@ -344,15 +335,6 @@ describe('ResearchPage', () => {
 
     mockInferSearchProfile.mockResolvedValue({
       skills: [{ id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' }],
-      vectors: [
-        {
-          vectorId: 'backend',
-          priority: 1,
-          description: 'Core backend roles',
-          targetRoleTitles: ['Staff Engineer'],
-          searchKeywords: ['distributed systems'],
-        },
-      ],
       workSummary: [],
       openQuestions: [],
     })
@@ -2270,7 +2252,7 @@ describe('ResearchPage', () => {
       expect(useSearchStore.getState().profile?.source?.kind).toBe('resume')
     })
 
-    expect(useSearchStore.getState().profile?.vectors).toEqual(resumeProfile?.vectors)
+    expect(useSearchStore.getState().profile).not.toHaveProperty('vectors')
     expect(useSearchStore.getState().profile?.constraints).toMatchObject({
       ...resumeProfile?.constraints,
       industriesToAvoid: [],
@@ -2710,7 +2692,6 @@ describe('ResearchPage', () => {
 
     resolveInference?.({
       skills: [],
-      vectors: [],
       workSummary: [],
       openQuestions: [],
     })

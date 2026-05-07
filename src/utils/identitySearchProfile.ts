@@ -7,7 +7,6 @@ import type {
   SearchSkillDepth,
   SearchWorkSummaryEntry,
   SkillCatalogEntry,
-  VectorSearchConfig,
 } from '../types/search'
 
 const CATEGORY_HINTS: Array<{
@@ -294,15 +293,6 @@ const buildSkills = (identity: ProfessionalIdentityV3): SkillCatalogEntry[] =>
     })),
   )
 
-const buildVectors = (identity: ProfessionalIdentityV3): VectorSearchConfig[] =>
-  (identity.search_vectors ?? []).map((vector, index) => ({
-    vectorId: vector.id,
-    priority: index + 1,
-    description: vector.subtitle?.trim() || vector.thesis.trim(),
-    targetRoleTitles: vector.target_roles,
-    searchKeywords: [...vector.keywords.primary, ...vector.keywords.secondary],
-  }))
-
 const buildWorkSummary = (identity: ProfessionalIdentityV3): SearchWorkSummaryEntry[] => {
   const profileSummaries = identity.profiles.map((profile) => ({
     title: profile.tags[0] || 'Profile',
@@ -342,7 +332,6 @@ export const adaptIdentityToSearchProfile = (
     label: identity.identity.display_name?.trim() || identity.identity.name,
   },
   skills: buildSkills(identity),
-  vectors: buildVectors(identity),
   workSummary: options.workSummary ?? buildWorkSummary(identity),
   openQuestions: options.openQuestions ?? buildOpenQuestions(identity),
   constraints: buildConstraints(identity),

@@ -14,9 +14,14 @@ describe('searchProfileInference', () => {
   })
 
   it('builds a prompt from core resume sections', () => {
-    const prompt = buildInferencePrompt(defaultResumeData)
+    const resumeData = structuredClone(defaultResumeData)
+    resumeData.roles[0]!.vectors = { legacy_vector_marker: 'include' }
+    resumeData.roles[0]!.bullets[0]!.vectors = { legacy_bullet_vector_marker: 'include' }
+    const prompt = buildInferencePrompt(resumeData)
 
-    expect(prompt).toContain('"vectors"')
+    expect(prompt).not.toContain('"vectors"')
+    expect(prompt).not.toContain('legacy_vector_marker')
+    expect(prompt).not.toContain('legacy_bullet_vector_marker')
     expect(prompt).toContain('"roles"')
     expect(prompt).toContain('Jane Smith')
   })
@@ -37,37 +42,17 @@ describe('searchProfileInference', () => {
             depth: 'legendary',
           },
         ],
-        vectors: [
-          {
-            vectorId: 'backend',
-            priority: 1,
-            description: 'Core backend roles',
-            targetRoleTitles: ['Staff Engineer'],
-            searchKeywords: ['distributed systems'],
-          },
-          {
-            vectorId: 'unknown-vector',
-            priority: 2,
-            description: 'Should be discarded',
-            targetRoleTitles: ['Unknown'],
-            searchKeywords: ['unknown'],
-          },
-        ],
+        vectors: [{ vectorId: 'legacy-backend' }],
         workSummary: [
           { title: 'Recent scope', summary: 'Led platform and backend initiatives.' },
           '',
         ],
         openQuestions: ['Remote preference?', '', 'Willing to travel?'],
-      },
-      defaultResumeData,
-    )
+      })
 
     expect(normalized.skills).toHaveLength(1)
     expect(normalized.skills[0]?.id).toMatch(/^skl-/)
     expect(normalized.skills[0]?.name).toBe('TypeScript')
-
-    expect(normalized.vectors).toHaveLength(1)
-    expect(normalized.vectors[0]?.vectorId).toBe('backend')
 
     expect(normalized.workSummary).toHaveLength(1)
     expect(normalized.openQuestions).toEqual(['Remote preference?', 'Willing to travel?'])
@@ -83,24 +68,12 @@ describe('searchProfileInference', () => {
             depth: 'working',
           },
         ],
-        vectors: [
-          {
-            vectorId: 'backend',
-            priority: 'not-a-number',
-            description: 'Fallback priority',
-            targetRoleTitles: 'not-an-array',
-            searchKeywords: null,
-          },
-        ],
+        vectors: 'legacy-not-an-array',
         workSummary: ['Led platform migrations'],
         openQuestions: null,
-      },
-      defaultResumeData,
-    )
+      })
 
     expect(normalized.skills[0]?.category).toBe('other')
-    expect(normalized.vectors[0]?.priority).toBe(1)
-    expect(normalized.vectors[0]?.targetRoleTitles).toEqual([])
     expect(normalized.workSummary).toEqual([
       { title: 'Career Summary', summary: 'Led platform migrations' },
     ])
@@ -116,7 +89,7 @@ describe('searchProfileInference', () => {
             message: {
               content: JSON.stringify({
                 skills: [{ name: 'TypeScript', category: 'backend', depth: 'strong' }],
-                vectors: [{ vectorId: 'backend', priority: 1, description: 'Core roles', targetRoleTitles: [], searchKeywords: [] }],
+                vectors: [{ vectorId: 'legacy-backend' }],
                 workSummary: [{ title: 'Recent scope', summary: 'Built backend systems.' }],
                 openQuestions: ['Open to hybrid?'],
               }),
@@ -128,11 +101,14 @@ describe('searchProfileInference', () => {
 
     const inferred = await inferSearchProfile(defaultResumeData, 'https://ai.example/proxy')
     expect(inferred.skills).toHaveLength(1)
-    expect(inferred.vectors[0]?.vectorId).toBe('backend')
+    expect(Object.keys(inferred)).not.toContain('vectors')
     expect(inferred.openQuestions).toEqual(['Open to hybrid?'])
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual(
+    const requestBody = JSON.parse((init as RequestInit).body as string) as { system?: string }
+    expect(requestBody.system).not.toContain('"vectors"')
+    expect(requestBody.system).not.toContain('"vectorId"')
+    expect(requestBody).toEqual(
       expect.objectContaining({
         feature: 'research.profile-inference',
       }),
@@ -171,7 +147,7 @@ describe('searchProfileInference', () => {
         choices: [
           {
             message: {
-              content: '{"skills":[],"vectors":[],"workSummary":[],"openQuestions":[]}',
+              content: '{"skills":[],"vectors":[{"vectorId":"legacy"}],"workSummary":[],"openQuestions":[]}',
             },
           },
         ],

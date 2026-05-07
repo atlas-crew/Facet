@@ -82,7 +82,6 @@ describe('searchStore', () => {
   it('sets and updates the profile', () => {
     const profile = useSearchStore.getState().setProfile({
       skills: [],
-      vectors: [],
       workSummary: [],
       openQuestions: [],
       constraints: {
@@ -112,15 +111,6 @@ describe('searchStore', () => {
         depth: 'strong',
       },
     ])
-    useSearchStore.getState().updateProfileVectors([
-      {
-        vectorId: 'backend',
-        priority: 1,
-        description: 'Platform-heavy backend roles',
-        targetRoleTitles: ['Staff Engineer'],
-        searchKeywords: ['distributed systems'],
-      },
-    ])
     useSearchStore.getState().updateProfileConstraints({
       compensation: '$250k',
       locations: ['Remote'],
@@ -138,12 +128,11 @@ describe('searchStore', () => {
 
     const updated = useSearchStore.getState().profile
     expect(updated?.skills).toHaveLength(1)
-    expect(updated?.vectors[0]?.vectorId).toBe('backend')
     expect(updated?.constraints.compensation).toBe('$250k')
     expect(updated?.filters.prioritize).toEqual(['platform'])
     expect(updated?.interviewPrefs.strongFit).toEqual(['staff scope'])
     expect(updated?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
-    expect(updated?.durableMeta?.revision).toBe(5)
+    expect(updated?.durableMeta?.revision).toBe(4)
   })
 
   it('adds, updates, and deletes requests', () => {
@@ -499,15 +488,6 @@ describe('searchStore', () => {
       .updateProfileSkills([
         { id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' },
       ])
-    useSearchStore.getState().updateProfileVectors([
-      {
-        vectorId: 'backend',
-        priority: 1,
-        description: '',
-        targetRoleTitles: [],
-        searchKeywords: [],
-      },
-    ])
     useSearchStore
       .getState()
       .updateProfileConstraints({ compensation: '', locations: [], clearance: '', companySize: '' })
@@ -517,7 +497,6 @@ describe('searchStore', () => {
 
     useSearchStore.getState().setProfile({
       skills: [],
-      vectors: [],
       workSummary: [],
       openQuestions: [],
       constraints: { compensation: '', locations: [], clearance: '', companySize: '' },
@@ -670,7 +649,7 @@ describe('searchStore', () => {
       profile: {
         id: 'legacy-profile',
         skills: [],
-        vectors: [],
+        vectors: [{ vectorId: 'legacy-backend' }],
         workSummary: [],
         openQuestions: [],
         constraints: { compensation: '', locations: [], clearance: '', companySize: '' },
@@ -713,6 +692,7 @@ describe('searchStore', () => {
     expect(migrated.profile?.constraints.remotePolicies).toEqual([])
     expect(migrated.profile?.constraints.remotePolicyNote).toBe('')
     expect(migrated.profile?.constraints.employmentTypes).toEqual([])
+    expect(migrated.profile).not.toHaveProperty('vectors')
 
     expect(migrateSearchState('bad-state')).toEqual({
       profile: null,
@@ -826,7 +806,6 @@ describe('searchStore', () => {
       profile: {
         id: 'profile-with-banks',
         skills: [],
-        vectors: [],
         workSummary: [],
         openQuestions: [],
         constraints: {

@@ -475,21 +475,22 @@ function ResearchJobElapsedTimer({
   return <>{formatElapsedTime(elapsedMs)}</>
 }
 
-const serializeIdentityProfile = (profile: {
-  inferredFromResumeVersion: number
-  skills: SearchProfile['skills']
-  vectors: SearchProfile['vectors']
-  workSummary: SearchProfile['workSummary']
-  openQuestions: SearchProfile['openQuestions']
-  constraints: SearchProfile['constraints']
-  filters: SearchProfile['filters']
-  interviewPrefs: SearchProfile['interviewPrefs']
-  source?: SearchProfile['source']
-}) =>
+type SerializableIdentityProfile = Pick<
+  SearchProfile,
+  | 'inferredFromResumeVersion'
+  | 'skills'
+  | 'workSummary'
+  | 'openQuestions'
+  | 'constraints'
+  | 'filters'
+  | 'interviewPrefs'
+  | 'source'
+>
+
+const serializeIdentityProfile = (profile: SerializableIdentityProfile) =>
   JSON.stringify({
     inferredFromResumeVersion: profile.inferredFromResumeVersion,
     skills: profile.skills,
-    vectors: profile.vectors,
     workSummary: profile.workSummary,
     openQuestions: profile.openQuestions,
     constraints: profile.constraints,
@@ -506,7 +507,7 @@ const getReadinessCopy = ({
   resumeVersion,
   isSearching,
 }: {
-  effectiveProfile: Pick<SearchProfile, 'source' | 'vectors' | 'inferredFromResumeVersion'> | null
+  effectiveProfile: Pick<SearchProfile, 'source' | 'inferredFromResumeVersion'> | null
   currentIdentity: ReturnType<typeof useIdentityStore.getState>['currentIdentity']
   isIdentitySource: boolean
   profileIsStale: boolean
@@ -521,8 +522,8 @@ const getReadinessCopy = ({
         ? 'Build a research profile from your identity model before you search.'
         : 'Build a search profile from your resume before you launch a run.',
       detail: currentIdentity
-        ? 'Facet can pull skills, vectors, and constraints straight from Identity so Research starts from the same strategy model.'
-        : 'Facet will infer skills, vectors, and open questions from your resume so you can review them before running search.',
+        ? 'Facet can pull skills, constraints, and strategy signals straight from Identity so Research starts from the same strategy model.'
+        : 'Facet will infer skills, work history, and open questions from your resume so you can review them before running search.',
       primaryActionLabel: currentIdentity
         ? 'Build Profile from Identity'
         : 'Build Profile from Resume',
@@ -535,7 +536,7 @@ const getReadinessCopy = ({
       freshnessLabel: 'Ready',
       headline: 'Your search profile is being driven by the identity model.',
       detail:
-        'Update strategic fields in Identity when you want to change vectors, awareness items, or filtering defaults.',
+        'Update strategic fields in Identity when you want to change search lanes, awareness items, or filtering defaults.',
       primaryActionLabel: isSearching ? 'Running Search…' : 'Run Search',
     }
   }
@@ -891,19 +892,14 @@ export function ResearchPage() {
   const primaryActionBusy = !effectiveProfile ? isInferring : isSearching
   const budgetBadgeCopy = useMemo(() => getBudgetBadgeCopy(researchUsage), [researchUsage])
 
-  const vectorOptions = useMemo(() => {
-    if (isIdentitySource) {
-      return (effectiveProfile?.vectors ?? []).map((vector) => ({
-        id: vector.vectorId,
-        label: vector.description || vector.targetRoleTitles[0] || vector.vectorId,
-      }))
-    }
-
-    return resumeData.vectors.map((vector) => ({
-      id: vector.id,
-      label: vector.label,
-    }))
-  }, [effectiveProfile?.vectors, isIdentitySource, resumeData.vectors])
+  const vectorOptions = useMemo(
+    () =>
+      resumeData.vectors.map((vector) => ({
+        id: vector.id,
+        label: vector.label,
+      })),
+    [resumeData.vectors],
+  )
   const laneOptions = useMemo(
     () =>
       activeThesis?.searchLanes.map((lane) => ({
@@ -2582,8 +2578,8 @@ export function ResearchPage() {
             <dd>{readinessCopy.freshnessLabel}</dd>
           </div>
           <div className="research-readiness-stat">
-            <dt className="research-readiness-label">Search angles</dt>
-            <dd>{effectiveProfile?.vectors.length ?? 0}</dd>
+            <dt className="research-readiness-label">Search lanes</dt>
+            <dd>{activeThesis?.searchLanes.length ?? 0}</dd>
           </div>
           <div className="research-readiness-stat">
             <dt className="research-readiness-label">Latest run</dt>

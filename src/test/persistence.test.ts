@@ -266,7 +266,6 @@ describe('persistence foundation', () => {
       profile: {
         id: 'sprof-1',
         skills: [],
-        vectors: [],
         workSummary: [],
         openQuestions: [],
         constraints: {
@@ -642,7 +641,6 @@ describe('persistence foundation', () => {
     snapshot.artifacts.research.payload.profile = {
       id: 'profile-1',
       skills: [],
-      vectors: [],
       workSummary: [],
       openQuestions: [],
       constraints: {

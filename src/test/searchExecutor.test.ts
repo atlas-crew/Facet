@@ -30,15 +30,6 @@ const baseProfile: SearchProfile = {
     { id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' },
     { id: 'skl-2', name: 'On-call', category: 'other', depth: 'avoid' },
   ],
-  vectors: [
-    {
-      vectorId: 'backend',
-      priority: 1,
-      description: 'Backend and platform roles',
-      targetRoleTitles: ['Staff Engineer'],
-      searchKeywords: ['distributed systems'],
-    },
-  ],
   workSummary: [{ title: 'Recent scope', summary: 'Built backend and platform systems.' }],
   openQuestions: [],
   constraints: {
@@ -758,22 +749,23 @@ describe('searchExecutor', () => {
     expect(results[0]?.companyIntel).toBeUndefined()
   })
 
-  it('builds prompts with focused vectors and without avoid-depth skills', () => {
+  it('builds prompts with search inputs and without avoid-depth skills or profile vectors', () => {
     const prompt = buildSearchPrompt(baseProfile, baseRequest)
 
-    expect(prompt).toContain('"vectorId": "backend"')
+    expect(prompt).toContain('"focusVectors": [')
     expect(prompt).toContain('"name": "TypeScript"')
     expect(prompt).toContain('"jobDescription": "optional raw job posting text')
     expect(prompt).toContain(
       '"jobDescriptionSourceUrl": "optional same-origin source URL required when jobDescription is present"',
     )
     expect(prompt).not.toContain('"name": "On-call"')
+    expect(prompt).not.toContain('"vectorId": "backend"')
 
     const promptWithAllVectors = buildSearchPrompt(baseProfile, {
       ...baseRequest,
       focusVectors: [],
     })
-    expect(promptWithAllVectors).toContain('"vectorId": "backend"')
+    expect(promptWithAllVectors).not.toContain('"vectorId": "backend"')
   })
 
   it('executes search, extracts search logs, and returns token usage', async () => {

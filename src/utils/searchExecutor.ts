@@ -809,18 +809,12 @@ export function buildSearchPrompt(profile: SearchProfile, request: SearchRequest
       positioning: skill.positioning,
     }))
 
-  const activeVectors =
-    request.focusVectors.length > 0
-      ? profile.vectors.filter((vector) => request.focusVectors.includes(vector.vectorId))
-      : profile.vectors
-
   return `Find high-fit job opportunities for this candidate. Use web search to inspect active roles on major boards and company career pages.
 
 Candidate profile:
 ${JSON.stringify(
   {
     skills: prioritizedSkills,
-    vectors: activeVectors,
     workSummary: profile.workSummary,
     openQuestions: profile.openQuestions,
     constraints: profile.constraints,
@@ -886,7 +880,7 @@ export async function executeSearch(
   contractViolations: string[]
 }> {
   const systemPrompt = `You are a strategic executive recruiter and job-search operator. Use web search actively, evaluate fit rigorously, and return JSON only.
-Prioritize roles that match the candidate's vectors, seniority, and search constraints. Be realistic about fit, call out risks, and avoid duplicate listings.`
+Prioritize roles that match the candidate's active thesis lanes, seniority, skills, and search constraints. Be realistic about fit, call out risks, and avoid duplicate listings.`
 
   const execution = await callSearchProxy(
     endpoint,
