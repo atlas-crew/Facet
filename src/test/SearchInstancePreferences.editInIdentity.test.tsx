@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SearchInstancePreferences } from '../routes/research/searchWorkspaceComponents'
 
 afterEach(() => {
@@ -9,7 +9,12 @@ afterEach(() => {
 })
 
 const baseIdentity: React.ComponentProps<typeof SearchInstancePreferences>['identityBase'] = {
-  constraints: { compensation: '$220k base', locations: ['Denver'], clearance: '', companySize: '' },
+  constraints: {
+    compensation: '$220k base',
+    locations: ['Denver'],
+    clearance: '',
+    companySize: '',
+  },
   filters: { prioritize: [], avoid: [] },
   interviewPrefs: { strongFit: [], redFlags: [] },
 }
@@ -22,6 +27,7 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         identityBase={baseIdentity}
         activeThesis={null}
         onUpdateOverrides={() => {}}
+        onUpdateThesisSignals={() => {}}
         onNavigateToIdentity={onNavigateToIdentity}
       />,
     )
@@ -44,6 +50,7 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         identityBase={baseIdentity}
         activeThesis={null}
         onUpdateOverrides={() => {}}
+        onUpdateThesisSignals={() => {}}
         onNavigateToIdentity={onNavigateToIdentity}
       />,
     )
@@ -53,5 +60,42 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
     expect(button.getAttribute('type')).toBe('button')
     button.click()
     expect(onNavigateToIdentity).toHaveBeenCalledTimes(1)
+  })
+
+  it('deduplicates edited thesis signal labels while preserving existing severity', () => {
+    const onUpdateThesisSignals = vi.fn()
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={{
+          id: 'sthesis-preferences',
+          createdAt: '2026-04-01T00:00:00.000Z',
+          updatedAt: '2026-04-01T00:00:00.000Z',
+          narrative: '',
+          competitiveMoat: '',
+          unfairAdvantages: [],
+          searchLanes: [],
+          interviewStrategy: '',
+          lookFor: [],
+          avoid: [{ id: 'ssig-avoid-hard', label: 'Pure Cluster Admin', severity: 'hard' }],
+          keywordCombinations: [],
+          skillDepthMap: [],
+          source: 'generated',
+          identityVersion: 1,
+          feedbackIncorporated: [],
+        }}
+        onUpdateOverrides={() => {}}
+        onUpdateThesisSignals={onUpdateThesisSignals}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Avoid'), {
+      target: { value: 'Pure Admin Updated, PURE ADMIN UPDATED' },
+    })
+
+    expect(onUpdateThesisSignals).toHaveBeenCalledWith({
+      avoid: [{ id: 'ssig-avoid-hard', label: 'Pure Admin Updated', severity: 'hard' }],
+    })
   })
 })

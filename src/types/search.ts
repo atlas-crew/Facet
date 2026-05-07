@@ -443,10 +443,13 @@ export interface SearchLane {
   targetSignals: string[]
 }
 
-export interface SearchThesisAvoid {
+export type SearchThesisSignalSeverity = 'hard' | 'soft' | 'conditional'
+
+export interface SearchThesisSignal {
+  id: string
   label: string
-  /** Qualifying condition: "building around k8s is fine, being a k8s admin is not". */
   condition?: string
+  severity: SearchThesisSignalSeverity
 }
 
 export interface SearchTimeline {
@@ -485,7 +488,6 @@ export interface SearchSkillDepthEntry {
  */
 export interface SearchInstanceOverrides {
   constraints: SearchProfileConstraints
-  filters: SearchProfileFilters
   interviewPrefs: SearchInterviewPrefs
   /** Skill ids hidden from this search only — does not remove from identity. */
   hiddenSkillIds: string[]
@@ -519,9 +521,9 @@ export interface SearchThesis {
   /** Connects candidate archetype to interview format advantage. */
   interviewStrategy: string
   /** Signals to look for in target companies. */
-  lookFor: string[]
+  lookFor: SearchThesisSignal[]
   /** What to avoid, with qualifying conditions. */
-  avoid: SearchThesisAvoid[]
+  avoid: SearchThesisSignal[]
 
   /** Search urgency and timeline constraints. */
   timeline?: SearchTimeline
@@ -768,10 +770,6 @@ export const EMPTY_SEARCH_INSTANCE_OVERRIDES: SearchInstanceOverrides = {
     remotePolicies: [],
     remotePolicyNote: '',
     employmentTypes: [],
-  },
-  filters: {
-    prioritize: [],
-    avoid: [],
   },
   interviewPrefs: {
     strongFit: [],

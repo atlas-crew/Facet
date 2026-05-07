@@ -3,8 +3,10 @@ import type {
   SearchCompanySize,
   SearchInstanceOverrides,
   SearchThesis,
+  SearchThesisSignal,
   SkillCatalogEntry,
 } from '../../types/search'
+import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
 import { joinTags, splitTags } from './researchUtils'
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
@@ -57,7 +59,10 @@ export function SearchThesisWorkspace({
         : 'Regenerate Thesis'
 
   return (
-    <section className="research-card research-thesis-workspace" aria-label="Search thesis workspace">
+    <section
+      className="research-card research-thesis-workspace"
+      aria-label="Search thesis workspace"
+    >
       <div className="research-card-header">
         <div>
           <h2>Search Thesis</h2>
@@ -261,12 +266,21 @@ export function SearchSkillsTable({
 
 interface SearchInstancePreferencesProps {
   identityBase: {
-    constraints: { compensation: string; locations: string[]; clearance: string; companySize: SearchCompanySize | '' }
+    constraints: {
+      compensation: string
+      locations: string[]
+      clearance: string
+      companySize: SearchCompanySize | ''
+    }
     filters: { prioritize: string[]; avoid: string[] }
     interviewPrefs: { strongFit: string[]; redFlags: string[] }
   }
   activeThesis: SearchThesis | null
   onUpdateOverrides: (patch: Partial<SearchInstanceOverrides>) => void
+  onUpdateThesisSignals: (patch: {
+    lookFor?: SearchThesisSignal[]
+    avoid?: SearchThesisSignal[]
+  }) => void
   onNavigateToIdentity: () => void
 }
 
@@ -274,19 +288,27 @@ export function SearchInstancePreferences({
   identityBase,
   activeThesis,
   onUpdateOverrides,
+  onUpdateThesisSignals,
   onNavigateToIdentity,
 }: SearchInstancePreferencesProps) {
   const overrides = activeThesis?.searchOverrides
   const effectiveOverrides = overrides ?? {
     constraints: identityBase.constraints,
-    filters: identityBase.filters,
     interviewPrefs: identityBase.interviewPrefs,
     hiddenSkillIds: [],
   }
+  // SearchInstanceOverrides intentionally carries no filters: migration folds
+  // legacy prioritize/avoid filters into canonical thesis signals before render.
+  const effectiveFilters = activeThesis
+    ? {
+        prioritize: activeThesis.lookFor.map((signal) => signal.label),
+        avoid: activeThesis.avoid.map((signal) => signal.label),
+      }
+    : identityBase.filters
 
   const companySizeLabel =
-    COMPANY_SIZE_OPTIONS.find((option) => option.value === identityBase.constraints.companySize)?.label ??
-    'No preference'
+    COMPANY_SIZE_OPTIONS.find((option) => option.value === identityBase.constraints.companySize)
+      ?.label ?? 'No preference'
 
   return (
     <section
@@ -319,19 +341,25 @@ export function SearchInstancePreferences({
           <dl className="research-preferences-readout">
             <div>
               <dt>Compensation anchor</dt>
-              <dd>{identityBase.constraints.compensation || <span className="research-muted">—</span>}</dd>
+              <dd>
+                {identityBase.constraints.compensation || <span className="research-muted">—</span>}
+              </dd>
             </div>
             <div>
               <dt>Preferred locations</dt>
               <dd>
-                {identityBase.constraints.locations.length > 0
-                  ? identityBase.constraints.locations.join(', ')
-                  : <span className="research-muted">—</span>}
+                {identityBase.constraints.locations.length > 0 ? (
+                  identityBase.constraints.locations.join(', ')
+                ) : (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
             <div>
               <dt>Clearance</dt>
-              <dd>{identityBase.constraints.clearance || <span className="research-muted">—</span>}</dd>
+              <dd>
+                {identityBase.constraints.clearance || <span className="research-muted">—</span>}
+              </dd>
             </div>
             <div>
               <dt>Preferred company size</dt>
@@ -340,33 +368,41 @@ export function SearchInstancePreferences({
             <div>
               <dt>Prioritize</dt>
               <dd>
-                {identityBase.filters.prioritize.length > 0
-                  ? identityBase.filters.prioritize.join(', ')
-                  : <span className="research-muted">—</span>}
+                {identityBase.filters.prioritize.length > 0 ? (
+                  identityBase.filters.prioritize.join(', ')
+                ) : (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
             <div>
               <dt>Avoid</dt>
               <dd>
-                {identityBase.filters.avoid.length > 0
-                  ? identityBase.filters.avoid.join(', ')
-                  : <span className="research-muted">—</span>}
+                {identityBase.filters.avoid.length > 0 ? (
+                  identityBase.filters.avoid.join(', ')
+                ) : (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
             <div>
               <dt>Strong fit signals</dt>
               <dd>
-                {identityBase.interviewPrefs.strongFit.length > 0
-                  ? identityBase.interviewPrefs.strongFit.join(', ')
-                  : <span className="research-muted">—</span>}
+                {identityBase.interviewPrefs.strongFit.length > 0 ? (
+                  identityBase.interviewPrefs.strongFit.join(', ')
+                ) : (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
             <div>
               <dt>Red flags</dt>
               <dd>
-                {identityBase.interviewPrefs.redFlags.length > 0
-                  ? identityBase.interviewPrefs.redFlags.join(', ')
-                  : <span className="research-muted">—</span>}
+                {identityBase.interviewPrefs.redFlags.length > 0 ? (
+                  identityBase.interviewPrefs.redFlags.join(', ')
+                ) : (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
           </dl>
@@ -375,9 +411,7 @@ export function SearchInstancePreferences({
         <div className="research-preferences-overrides" aria-label="This search">
           <div className="research-preferences-overrides-header">
             <h3 className="research-subtitle">This Search</h3>
-            {activeThesis ? (
-              <span className="research-pill">Inferred</span>
-            ) : null}
+            {activeThesis ? <span className="research-pill">Inferred</span> : null}
           </div>
           <fieldset className="research-fieldset" disabled={!activeThesis}>
             <div className="research-form-grid">
@@ -458,15 +492,16 @@ export function SearchInstancePreferences({
                 <span>Prioritize</span>
                 <input
                   className="research-input"
-                  value={joinTags(effectiveOverrides.filters.prioritize)}
-                  onChange={(event) =>
-                    onUpdateOverrides({
-                      filters: {
-                        ...effectiveOverrides.filters,
-                        prioritize: splitTags(event.target.value),
-                      },
+                  value={joinTags(effectiveFilters.prioritize)}
+                  onChange={(event) => {
+                    if (!activeThesis) return
+                    onUpdateThesisSignals({
+                      lookFor: reconcileThesisSignalsFromLabels(
+                        activeThesis.lookFor,
+                        splitTags(event.target.value),
+                      ),
                     })
-                  }
+                  }}
                   placeholder="Platform ownership, staff scope"
                 />
               </label>
@@ -475,15 +510,16 @@ export function SearchInstancePreferences({
                 <span>Avoid</span>
                 <input
                   className="research-input"
-                  value={joinTags(effectiveOverrides.filters.avoid)}
-                  onChange={(event) =>
-                    onUpdateOverrides({
-                      filters: {
-                        ...effectiveOverrides.filters,
-                        avoid: splitTags(event.target.value),
-                      },
+                  value={joinTags(effectiveFilters.avoid)}
+                  onChange={(event) => {
+                    if (!activeThesis) return
+                    onUpdateThesisSignals({
+                      avoid: reconcileThesisSignalsFromLabels(
+                        activeThesis.avoid,
+                        splitTags(event.target.value),
+                      ),
                     })
-                  }
+                  }}
                   placeholder="Ad tech, crypto volatility"
                 />
               </label>

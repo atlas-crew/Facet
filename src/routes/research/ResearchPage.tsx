@@ -39,6 +39,7 @@ import type {
   SearchRequest,
   SearchResultEntry,
   SearchThesis,
+  SearchThesisSignal,
 } from '../../types/search'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -55,10 +56,8 @@ import {
 } from '../../utils/deepSearchClient'
 import type { CitationRenderMode } from '../../utils/searchCitations'
 import { getReferencedCitations, splitTextByCitationMarkers } from '../../utils/searchCitations'
-import {
-  generateSearchThesisFromIdentity,
-  validateSearchThesis,
-} from '../../utils/thesisGenerator'
+import { generateSearchThesisFromIdentity, validateSearchThesis } from '../../utils/thesisGenerator'
+import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
 import {
   inferSearchProfile,
   inferSearchProfileFromIdentity,
@@ -121,6 +120,14 @@ type ResultFeedbackBadge = {
   rating: 'up' | 'down'
   applied: boolean
 }
+
+const thesisSignalLabels = (signals: readonly SearchThesisSignal[] | undefined): string[] =>
+  (signals ?? []).map((signal) => signal.label)
+
+// Legacy persisted string/object signal shapes are normalized in migrateSearchState
+// before the route reads theses; route helpers operate only on canonical signals.
+const thesisSignalText = (signals: readonly SearchThesisSignal[] | undefined): string =>
+  thesisSignalLabels(signals).join(', ')
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
   { value: '', label: 'No preference' },
@@ -192,7 +199,9 @@ const formatCostCents = (cents: number | null | undefined): string => {
   }).format(cents / 100)
 }
 
-const getBudgetBadgeCopy = (usage: ResearchUsageSnapshot | null): {
+const getBudgetBadgeCopy = (
+  usage: ResearchUsageSnapshot | null,
+): {
   label: string
   detail: string
 } => {
@@ -241,18 +250,18 @@ const collectThesisIdentityFieldDependencies = (
   return fields.size > 0 ? Array.from(fields) : undefined
 }
 
-const buildSkillDepthMutation = (
-  skillName: string,
-  fromRevision: number,
-): IdentityMutation => ({
+const buildSkillDepthMutation = (skillName: string, fromRevision: number): IdentityMutation => ({
   label: skillName + ' depth correction',
   fields: buildSkillIdentityFields(skillName),
   fromRevision,
   toRevision: fromRevision + 1,
 })
 
-const formatOptionalCount = (count: number, singular: string, plural: string): string | undefined =>
-  count > 0 ? formatCount(count, singular, plural) : undefined
+const formatOptionalCount = (
+  count: number,
+  singular: string,
+  plural: string,
+): string | undefined => (count > 0 ? formatCount(count, singular, plural) : undefined)
 
 const CitationText = ({
   text,
@@ -461,10 +470,7 @@ function ResearchJobElapsedTimer({
     return () => window.clearInterval(interval)
   }, [active, startedAt])
 
-  const elapsedMs =
-    active && startedAt
-      ? nowMs - Date.parse(startedAt)
-      : fallbackElapsedMs ?? 0
+  const elapsedMs = active && startedAt ? nowMs - Date.parse(startedAt) : (fallbackElapsedMs ?? 0)
   return <>{formatElapsedTime(elapsedMs)}</>
 }
 
@@ -516,7 +522,9 @@ const getReadinessCopy = ({
       detail: currentIdentity
         ? 'Facet can pull skills, vectors, and constraints straight from Identity so Research starts from the same strategy model.'
         : 'Facet will infer skills, vectors, and open questions from your resume so you can review them before running search.',
-      primaryActionLabel: currentIdentity ? 'Build Profile from Identity' : 'Build Profile from Resume',
+      primaryActionLabel: currentIdentity
+        ? 'Build Profile from Identity'
+        : 'Build Profile from Resume',
     }
   }
 
@@ -613,16 +621,17 @@ export function ResearchPage() {
   const [directiveDraft, setDirectiveDraft] = useState('')
   const [pendingSkillWriteback, setPendingSkillWriteback] =
     useState<PendingThesisSkillWriteback | null>(null)
-  const [latestIdentityImpact, setLatestIdentityImpact] =
-    useState<DownstreamImpact | null>(null)
-  const [stalenessReviewImpact, setStalenessReviewImpact] =
-    useState<DownstreamImpact | null>(null)
-  const [stalenessReviewIdentityRevision, setStalenessReviewIdentityRevision] =
-    useState<number | null>(null)
-  const [refreshingStalenessArtifactKey, setRefreshingStalenessArtifactKey] =
-    useState<string | null>(null)
-  const [refreshedStalenessArtifactKeys, setRefreshedStalenessArtifactKeys] =
-    useState<Record<string, boolean>>({})
+  const [latestIdentityImpact, setLatestIdentityImpact] = useState<DownstreamImpact | null>(null)
+  const [stalenessReviewImpact, setStalenessReviewImpact] = useState<DownstreamImpact | null>(null)
+  const [stalenessReviewIdentityRevision, setStalenessReviewIdentityRevision] = useState<
+    number | null
+  >(null)
+  const [refreshingStalenessArtifactKey, setRefreshingStalenessArtifactKey] = useState<
+    string | null
+  >(null)
+  const [refreshedStalenessArtifactKeys, setRefreshedStalenessArtifactKeys] = useState<
+    Record<string, boolean>
+  >({})
   const [thesisContractViolations, setThesisContractViolations] = useState<string[]>([])
   const [observedResearchJob, setObservedResearchJob] = useState<ResearchJob | null>(null)
   const [researchJobEvents, setResearchJobEvents] = useState<ResearchJobEventLogEntry[]>([])
@@ -648,9 +657,7 @@ export function ResearchPage() {
   const refreshingStalenessArtifactKeyRef = useRef<string | null>(null)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
-  const currentIdentityRevision = currentIdentity
-    ? currentIdentity.model_revision ?? 0
-    : null
+  const currentIdentityRevision = currentIdentity ? (currentIdentity.model_revision ?? 0) : null
   const resetStalenessReview = useCallback(() => {
     setStalenessReviewImpact(null)
     setStalenessReviewIdentityRevision(null)
@@ -661,44 +668,49 @@ export function ResearchPage() {
     () => theses.find((thesis) => thesis.id === activeThesisId) ?? null,
     [activeThesisId, theses],
   )
-  const downstreamImpactArtifacts = useMemo<ImpactArtifactInput[]>(() => [
-    ...theses.map((thesis) => ({
-      artifactType: 'thesis' as const,
-      artifactId: thesis.id,
-      label: thesis.id === activeThesis?.id ? 'Active search thesis' : 'Saved search thesis',
-      identityVersion: thesis.identityVersion,
-      identityFields: thesis.identityFields,
-      detail: formatOptionalCount(
-        thesis.skillDepthMap.length,
-        'skill depth signal',
-        'skill depth signals',
-      ),
-    })).filter((artifact) => artifact.artifactId !== activeThesis?.id),
-    ...runs.map((run) => ({
-      artifactType: 'run' as const,
-      artifactId: run.id,
-      label: 'Search run',
-      identityVersion: run.identityVersion,
-      identityFields: run.identityFields,
-      detail: formatOptionalCount(run.results.length, 'search result', 'search results'),
-    })),
-    ...prepDecks.map((deck) => ({
-      artifactType: 'prep-deck' as const,
-      artifactId: deck.id,
-      label: (deck.company || deck.title || 'Untitled') + ' prep deck',
-      identityVersion: deck.identityVersion,
-      identityFields: deck.identityFields,
-      detail: formatOptionalCount(deck.cards.length, 'prep card', 'prep cards'),
-    })),
-    ...coverLetterTemplates.map((template) => ({
-      artifactType: 'cover-letter' as const,
-      artifactId: template.id,
-      label: (template.name.trim() || 'Untitled') + ' cover letter',
-      identityVersion: template.identityVersion,
-      identityFields: template.identityFields,
-      detail: formatOptionalCount(template.paragraphs.length, 'paragraph', 'paragraphs'),
-    })),
-  ], [activeThesis?.id, coverLetterTemplates, prepDecks, runs, theses])
+  const downstreamImpactArtifacts = useMemo<ImpactArtifactInput[]>(
+    () => [
+      ...theses
+        .map((thesis) => ({
+          artifactType: 'thesis' as const,
+          artifactId: thesis.id,
+          label: thesis.id === activeThesis?.id ? 'Active search thesis' : 'Saved search thesis',
+          identityVersion: thesis.identityVersion,
+          identityFields: thesis.identityFields,
+          detail: formatOptionalCount(
+            thesis.skillDepthMap.length,
+            'skill depth signal',
+            'skill depth signals',
+          ),
+        }))
+        .filter((artifact) => artifact.artifactId !== activeThesis?.id),
+      ...runs.map((run) => ({
+        artifactType: 'run' as const,
+        artifactId: run.id,
+        label: 'Search run',
+        identityVersion: run.identityVersion,
+        identityFields: run.identityFields,
+        detail: formatOptionalCount(run.results.length, 'search result', 'search results'),
+      })),
+      ...prepDecks.map((deck) => ({
+        artifactType: 'prep-deck' as const,
+        artifactId: deck.id,
+        label: (deck.company || deck.title || 'Untitled') + ' prep deck',
+        identityVersion: deck.identityVersion,
+        identityFields: deck.identityFields,
+        detail: formatOptionalCount(deck.cards.length, 'prep card', 'prep cards'),
+      })),
+      ...coverLetterTemplates.map((template) => ({
+        artifactType: 'cover-letter' as const,
+        artifactId: template.id,
+        label: (template.name.trim() || 'Untitled') + ' cover letter',
+        identityVersion: template.identityVersion,
+        identityFields: template.identityFields,
+        detail: formatOptionalCount(template.paragraphs.length, 'paragraph', 'paragraphs'),
+      })),
+    ],
+    [activeThesis?.id, coverLetterTemplates, prepDecks, runs, theses],
+  )
   const pendingIdentityImpact = useMemo<DownstreamImpact | null>(() => {
     if (!pendingSkillWriteback) return null
     return describeImpact(
@@ -754,15 +766,11 @@ export function ResearchPage() {
     setThesisNotice(
       'Identity changed after batch review opened. Saved artifact decisions remain recorded; generate a new impact notice to review the latest artifact state.',
     )
-  }, [
-    currentIdentityRevision,
-    resetStalenessReview,
-    stalenessReviewIdentityRevision,
-  ])
+  }, [currentIdentityRevision, resetStalenessReview, stalenessReviewIdentityRevision])
   const thesisLookForPreview = useMemo(
     () =>
       thesisLookForText === thesisLookForBaselineText
-        ? thesisDraft?.lookFor ?? []
+        ? thesisSignalLabels(thesisDraft?.lookFor)
         : splitTags(thesisLookForText),
     [thesisDraft?.lookFor, thesisLookForBaselineText, thesisLookForText],
   )
@@ -778,12 +786,9 @@ export function ResearchPage() {
     [thesisDraft?.searchLanes],
   )
   const pendingSkillWritebackEntry = pendingSkillWriteback
-    ? thesisDraft?.skillDepthMap[pendingSkillWriteback.skillIndex] ?? null
+    ? (thesisDraft?.skillDepthMap[pendingSkillWriteback.skillIndex] ?? null)
     : null
-  const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl),
-    [],
-  )
+  const aiEndpoint = useMemo(() => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl), [])
 
   const identityDerivedProfile = useMemo(
     () =>
@@ -797,7 +802,7 @@ export function ResearchPage() {
     [currentIdentity, profile, resumeData.version],
   )
 
-  const effectiveProfile = currentIdentity ? identityDerivedProfile : profile ?? null
+  const effectiveProfile = currentIdentity ? identityDerivedProfile : (profile ?? null)
   const profileSourceKind = profile?.source?.kind ?? null
   const identityProfileKey = useMemo(() => {
     if (profileSourceKind !== 'identity' || !profile) {
@@ -822,12 +827,11 @@ export function ResearchPage() {
     !currentIdentity &&
     effectiveProfile != null &&
     effectiveProfile.inferredFromResumeVersion !== resumeData.version
-  const thesisIsStale =
-    Boolean(
-      currentIdentity &&
-      activeThesis &&
-      currentIdentity.model_revision > activeThesis.identityVersion,
-    )
+  const thesisIsStale = Boolean(
+    currentIdentity &&
+    activeThesis &&
+    currentIdentity.model_revision > activeThesis.identityVersion,
+  )
 
   const sortedRuns = useMemo(
     () => [...runs].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
@@ -844,7 +848,7 @@ export function ResearchPage() {
     [requests],
   )
 
-  const activeRequest = activeRun ? requestById.get(activeRun.requestId) ?? null : null
+  const activeRequest = activeRun ? (requestById.get(activeRun.requestId) ?? null) : null
   const latestRunResultCount = activeRun?.results.length ?? 0
   const readinessCopy = getReadinessCopy({
     effectiveProfile,
@@ -873,16 +877,19 @@ export function ResearchPage() {
 
   const closedPipelineCompanies = useMemo(
     () =>
-      [...new Set(
-        pipelineEntries
-          .filter((entry) =>
-            entry.status === 'rejected' ||
-            entry.status === 'withdrawn' ||
-            entry.status === 'closed',
-          )
-          .map((entry) => entry.company.trim())
-          .filter(Boolean),
-      )].sort((left, right) => left.localeCompare(right)),
+      [
+        ...new Set(
+          pipelineEntries
+            .filter(
+              (entry) =>
+                entry.status === 'rejected' ||
+                entry.status === 'withdrawn' ||
+                entry.status === 'closed',
+            )
+            .map((entry) => entry.company.trim())
+            .filter(Boolean),
+        ),
+      ].sort((left, right) => left.localeCompare(right)),
     [pipelineEntries],
   )
 
@@ -905,7 +912,7 @@ export function ResearchPage() {
   }, [effectiveProfile, activeThesis])
 
   useEffect(() => {
-    const lookForText = activeThesis ? activeThesis.lookFor.join(', ') : ''
+    const lookForText = activeThesis ? thesisSignalText(activeThesis.lookFor) : ''
     setThesisDraft(activeThesis ? structuredClone(activeThesis) : null)
     setThesisLookForText(lookForText)
     setThesisLookForBaselineText(lookForText)
@@ -1027,89 +1034,96 @@ export function ResearchPage() {
     }
   }, [])
 
-  const applyResearchJobUpdate = useCallback((job: ResearchJob) => {
-    setObservedResearchJob(job)
-    updateActiveResearchJob({
-      status: job.status,
-      startedAt: job.startedAt,
-      lastObservedAt: new Date().toISOString(),
-    })
+  const applyResearchJobUpdate = useCallback(
+    (job: ResearchJob) => {
+      setObservedResearchJob(job)
+      updateActiveResearchJob({
+        status: job.status,
+        startedAt: job.startedAt,
+        lastObservedAt: new Date().toISOString(),
+      })
 
-    if (activeResearchJob?.runId) {
-      const runPatch = hydrateSearchRunFromResearchJob(job)
-      updateRun(activeResearchJob.runId, runPatch)
-      if (runPatch.contractViolations?.length) {
-        console.warn('[research] deep research contract violations', runPatch.contractViolations)
-      }
-    }
-
-    if (job.status === 'completed') {
-      notifyResearchComplete(job)
-    }
-
-    if (TERMINAL_RESEARCH_JOB_STATUSES.has(job.status)) {
-      clearPollTimer()
-      closeResearchEventSource()
-      clearActiveResearchJob(job.id)
-      setIsSearching(false)
-      void refreshResearchUsage()
-    } else {
-      setIsSearching(true)
-    }
-  }, [
-    activeResearchJob?.runId,
-    clearActiveResearchJob,
-    clearPollTimer,
-    closeResearchEventSource,
-    notifyResearchComplete,
-    refreshResearchUsage,
-    updateActiveResearchJob,
-    updateRun,
-  ])
-
-  const openResearchEventSource = useCallback((jobId: string) => {
-    if (
-      document.visibilityState === 'hidden' ||
-      eventSourceRef.current
-    ) {
-      return
-    }
-
-    const appendEvent = (text: string) => {
-      researchJobEventIdRef.current += 1
-      setResearchJobEvents((current) => [
-        ...current.slice(-7),
-        { id: researchJobEventIdRef.current, text },
-      ])
-    }
-
-    eventSourceRef.current = streamDeepResearchJob(aiEndpoint, jobId, {
-      onEvent: (event) => {
-        if (event.type === 'thinking') {
-          appendEvent('Thinking: ' + event.data)
-        } else if (event.type === 'search_query') {
-          appendEvent('Search: ' + event.data)
-        } else if (event.type === 'finding') {
-          appendEvent('Finding: ' + event.data)
-        } else if (event.type === 'status') {
-          appendEvent('Status: ' + event.data)
-        } else if (event.type === 'complete') {
-          void fetchDeepResearchJob(aiEndpoint, jobId)
-            .then(applyResearchJobUpdate)
-            .catch((error) => {
-              setPageError(error instanceof Error ? error.message : 'Failed to refresh completed research job.')
-            })
+      if (activeResearchJob?.runId) {
+        const runPatch = hydrateSearchRunFromResearchJob(job)
+        updateRun(activeResearchJob.runId, runPatch)
+        if (runPatch.contractViolations?.length) {
+          console.warn('[research] deep research contract violations', runPatch.contractViolations)
         }
-      },
-      onError: () => {
+      }
+
+      if (job.status === 'completed') {
+        notifyResearchComplete(job)
+      }
+
+      if (TERMINAL_RESEARCH_JOB_STATUSES.has(job.status)) {
+        clearPollTimer()
         closeResearchEventSource()
-      },
-      onClose: () => {
-        closeResearchEventSource()
-      },
-    })
-    setResearchJobTransport('sse')
-  }, [aiEndpoint, applyResearchJobUpdate, closeResearchEventSource])
+        clearActiveResearchJob(job.id)
+        setIsSearching(false)
+        void refreshResearchUsage()
+      } else {
+        setIsSearching(true)
+      }
+    },
+    [
+      activeResearchJob?.runId,
+      clearActiveResearchJob,
+      clearPollTimer,
+      closeResearchEventSource,
+      notifyResearchComplete,
+      refreshResearchUsage,
+      updateActiveResearchJob,
+      updateRun,
+    ],
+  )
+
+  const openResearchEventSource = useCallback(
+    (jobId: string) => {
+      if (document.visibilityState === 'hidden' || eventSourceRef.current) {
+        return
+      }
+
+      const appendEvent = (text: string) => {
+        researchJobEventIdRef.current += 1
+        setResearchJobEvents((current) => [
+          ...current.slice(-7),
+          { id: researchJobEventIdRef.current, text },
+        ])
+      }
+
+      eventSourceRef.current = streamDeepResearchJob(aiEndpoint, jobId, {
+        onEvent: (event) => {
+          if (event.type === 'thinking') {
+            appendEvent('Thinking: ' + event.data)
+          } else if (event.type === 'search_query') {
+            appendEvent('Search: ' + event.data)
+          } else if (event.type === 'finding') {
+            appendEvent('Finding: ' + event.data)
+          } else if (event.type === 'status') {
+            appendEvent('Status: ' + event.data)
+          } else if (event.type === 'complete') {
+            void fetchDeepResearchJob(aiEndpoint, jobId)
+              .then(applyResearchJobUpdate)
+              .catch((error) => {
+                setPageError(
+                  error instanceof Error
+                    ? error.message
+                    : 'Failed to refresh completed research job.',
+                )
+              })
+          }
+        },
+        onError: () => {
+          closeResearchEventSource()
+        },
+        onClose: () => {
+          closeResearchEventSource()
+        },
+      })
+      setResearchJobTransport('sse')
+    },
+    [aiEndpoint, applyResearchJobUpdate, closeResearchEventSource],
+  )
 
   const startDeepResearchRun = async ({
     request,
@@ -1257,10 +1271,7 @@ export function ResearchPage() {
     setActiveTab(RESEARCH_TABS[nextIndex] ?? current)
   }
 
-  const handleTabKeyDown = (
-    current: ResearchTab,
-    event: KeyboardEvent<HTMLButtonElement>,
-  ) => {
+  const handleTabKeyDown = (current: ResearchTab, event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowRight') {
       event.preventDefault()
       setTabByOffset(current, 1)
@@ -1317,7 +1328,11 @@ export function ResearchPage() {
   }
 
   const handleGenerateThesis = async (
-    options: { userCorrections?: string; customDirective?: string; switchToSearchTab?: boolean } = {},
+    options: {
+      userCorrections?: string
+      customDirective?: string
+      switchToSearchTab?: boolean
+    } = {},
   ) => {
     if (!currentIdentity) {
       setPageError('Generate a thesis from the Identity model before running thesis-driven search.')
@@ -1361,7 +1376,7 @@ export function ResearchPage() {
       if (saved.feedbackIncorporated.length > 0) {
         markFeedbackReflectedInThesis(saved.feedbackIncorporated, saved.id)
       }
-      const lookForText = saved.lookFor.join(', ')
+      const lookForText = thesisSignalText(saved.lookFor)
       setActiveThesis(saved.id)
       setThesisDraft(structuredClone(saved))
       setThesisLookForText(lookForText)
@@ -1386,10 +1401,7 @@ export function ResearchPage() {
     setThesisDraftIsDirty(true)
   }
 
-  const updateThesisLane = (
-    index: number,
-    patch: Partial<SearchThesis['searchLanes'][number]>,
-  ) => {
+  const updateThesisLane = (index: number, patch: Partial<SearchThesis['searchLanes'][number]>) => {
     setThesisDraft((current) =>
       current
         ? {
@@ -1450,12 +1462,12 @@ export function ResearchPage() {
       setThesisNotice(
         removedKeywordCount > 0
           ? 'Removed the lane. Dropped ' +
-            formatCount(
-              removedKeywordCount,
-              'linked keyword combination',
-              'linked keyword combinations',
-            ) +
-            '.'
+              formatCount(
+                removedKeywordCount,
+                'linked keyword combination',
+                'linked keyword combinations',
+              ) +
+              '.'
           : 'Removed the lane.',
       )
       return {
@@ -1467,17 +1479,15 @@ export function ResearchPage() {
     setThesisDraftIsDirty(true)
   }
 
-  const updateThesisAvoid = (
-    index: number,
-    patch: Partial<SearchThesis['avoid'][number]>,
-  ) => {
+  const updateThesisAvoid = (index: number, patch: Partial<SearchThesis['avoid'][number]>) => {
     setThesisDraft((current) =>
       current
         ? {
             ...current,
-            avoid: current.avoid.map((entry, entryIndex) =>
-              entryIndex === index ? { ...entry, ...patch } : entry,
-            ),
+            avoid: current.avoid.map((entry, entryIndex) => {
+              if (entryIndex !== index) return entry
+              return { ...entry, ...patch }
+            }),
           }
         : current,
     )
@@ -1539,7 +1549,15 @@ export function ResearchPage() {
       current
         ? {
             ...current,
-            avoid: [...current.avoid, { label: 'New avoid signal', condition: '' }],
+            avoid: [
+              ...current.avoid,
+              {
+                id: createId('ssig'),
+                label: 'New avoid signal',
+                condition: '',
+                severity: 'soft',
+              },
+            ],
           }
         : current,
     )
@@ -1686,7 +1704,9 @@ export function ResearchPage() {
       reason: artifact.reason || 'Reviewed from batch staleness panel.',
     } satisfies ArtifactStalenessReview)
     if (!review) {
-      setThesisNotice('Could not save the staleness review decision. Try reopening the batch review.')
+      setThesisNotice(
+        'Could not save the staleness review decision. Try reopening the batch review.',
+      )
       return
     }
 
@@ -1724,7 +1744,9 @@ export function ResearchPage() {
     artifactKey: string,
   ) => {
     if (refreshingStalenessArtifactKeyRef.current !== null) {
-      setThesisNotice('A thesis refresh is already running. Wait for it to finish before starting another.')
+      setThesisNotice(
+        'A thesis refresh is already running. Wait for it to finish before starting another.',
+      )
       return
     }
 
@@ -1807,7 +1829,9 @@ export function ResearchPage() {
         stalenessReview: undefined,
       })
       if (!saved) {
-        setPageError(`${artifact.label} could not be refreshed. Reopen the batch review and try again.`)
+        setPageError(
+          `${artifact.label} could not be refreshed. Reopen the batch review and try again.`,
+        )
         return
       }
 
@@ -1830,7 +1854,7 @@ export function ResearchPage() {
       }
 
       if (activeThesisIdBeforeSave === targetThesis.id) {
-        const lookForText = saved.lookFor.join(', ')
+        const lookForText = thesisSignalText(saved.lookFor)
         setThesisDraft(structuredClone(saved))
         setThesisLookForText(lookForText)
         setThesisLookForBaselineText(lookForText)
@@ -1963,10 +1987,7 @@ export function ResearchPage() {
         ? ' ' + impact.summary
         : ' No downstream artifacts referenced this skill.'
     setThesisNotice(
-      'Updated Identity skill "' +
-        target.skillName +
-        '" from thesis calibration.' +
-        impactNotice,
+      'Updated Identity skill "' + target.skillName + '" from thesis calibration.' + impactNotice,
     )
   }
 
@@ -2051,7 +2072,7 @@ export function ResearchPage() {
       const strategyImpact =
         patch.strategyImpact !== undefined
           ? patch.strategyImpact
-          : priorTimeline?.strategyImpact ?? ''
+          : (priorTimeline?.strategyImpact ?? '')
       const timeline: NonNullable<SearchThesis['timeline']> = {
         urgency: finalUrgency,
         strategyImpact,
@@ -2066,7 +2087,7 @@ export function ResearchPage() {
 
   const handleDiscardThesisDraft = () => {
     if (!activeThesis) return
-    const lookForText = activeThesis.lookFor.join(', ')
+    const lookForText = thesisSignalText(activeThesis.lookFor)
     setThesisDraft(structuredClone(activeThesis))
     setThesisLookForText(lookForText)
     setThesisLookForBaselineText(lookForText)
@@ -2091,11 +2112,8 @@ export function ResearchPage() {
     )
     if (invalidKeywords.length > 0) {
       setPageError(
-        formatCount(
-          invalidKeywords.length,
-          'keyword combination is',
-          'keyword combinations are',
-        ) + ' linked to a removed lane. Choose a current search lane before saving.',
+        formatCount(invalidKeywords.length, 'keyword combination is', 'keyword combinations are') +
+          ' linked to a removed lane. Choose a current search lane before saving.',
       )
       return
     }
@@ -2109,7 +2127,7 @@ export function ResearchPage() {
       lookFor:
         thesisLookForText === thesisLookForBaselineText
           ? thesisDraft.lookFor
-          : splitTags(thesisLookForText),
+          : reconcileThesisSignalsFromLabels(thesisDraft.lookFor, splitTags(thesisLookForText)),
       timeline: normalizeEditableTimeline(thesisDraft.timeline),
       identityFields: collectThesisIdentityFieldDependencies(thesisDraft),
     }
@@ -2124,8 +2142,8 @@ export function ResearchPage() {
       markFeedbackReflectedInThesis(saved.feedbackIncorporated, saved.id)
     }
     setThesisDraft(structuredClone(saved))
-    setThesisLookForText(saved.lookFor.join(', '))
-    setThesisLookForBaselineText(saved.lookFor.join(', '))
+    setThesisLookForText(thesisSignalText(saved.lookFor))
+    setThesisLookForBaselineText(thesisSignalText(saved.lookFor))
     setThesisDraftIsDirty(false)
     setThesisContractViolations(validateSearchThesis(saved, currentIdentity))
     setPendingSkillWriteback(null)
@@ -2173,13 +2191,12 @@ export function ResearchPage() {
           request,
           identity: currentIdentity,
         })
-      const thesisSnapshotWithDependencies =
-        thesisSnapshot.identityFields
-          ? thesisSnapshot
-          : {
-              ...thesisSnapshot,
-              identityFields: collectThesisIdentityFieldDependencies(thesisSnapshot),
-            }
+      const thesisSnapshotWithDependencies = thesisSnapshot.identityFields
+        ? thesisSnapshot
+        : {
+            ...thesisSnapshot,
+            identityFields: collectThesisIdentityFieldDependencies(thesisSnapshot),
+          }
       await startDeepResearchRun({
         request,
         thesisSnapshot: thesisSnapshotWithDependencies,
@@ -2238,10 +2255,7 @@ export function ResearchPage() {
     }
   }
 
-  const openFeedbackPanel = (
-    entry: SearchResultEntry,
-    rating: 'up' | 'down',
-  ) => {
+  const openFeedbackPanel = (entry: SearchResultEntry, rating: 'up' | 'down') => {
     setFeedbackError(null)
     setFeedbackPanel({
       resultId: entry.id,
@@ -2274,7 +2288,9 @@ export function ResearchPage() {
         return
       }
       if (!feedbackPanel.avoidLabel.trim()) {
-        setFeedbackError('Add an avoid label (company, signal, or attribute) before applying writeback.')
+        setFeedbackError(
+          'Add an avoid label (company, signal, or attribute) before applying writeback.',
+        )
         return
       }
     }
@@ -2308,7 +2324,9 @@ export function ResearchPage() {
           id: createId('match-avoid'),
           label: feedbackPanel.avoidLabel.trim(),
           description: trimmedReason || 'Added from search result feedback.',
-          severity: feedbackPanel.avoidCondition.trim() ? 'conditional' as const : 'soft' as const,
+          severity: feedbackPanel.avoidCondition.trim()
+            ? ('conditional' as const)
+            : ('soft' as const),
           ...(feedbackPanel.avoidCondition.trim()
             ? { condition: feedbackPanel.avoidCondition.trim() }
             : {}),
@@ -2375,8 +2393,8 @@ export function ResearchPage() {
           <p className="research-eyebrow">Deep Job Research</p>
           <h1>Research</h1>
           <p className="research-copy">
-            Build a search profile from your identity model or resume, launch targeted
-            AI-assisted searches, and push the best matches into your pipeline.
+            Build a search profile from your identity model or resume, launch targeted AI-assisted
+            searches, and push the best matches into your pipeline.
           </p>
         </div>
         <div className="research-header-actions">
@@ -2396,11 +2414,7 @@ export function ResearchPage() {
             {effectiveProfile ? <Search size={16} /> : <Sparkles size={16} />}
             {readinessCopy.primaryActionLabel}
           </button>
-          <button
-            type="button"
-            className="research-btn"
-            onClick={() => setActiveTab('profile')}
-          >
+          <button type="button" className="research-btn" onClick={() => setActiveTab('profile')}>
             Review Profile
           </button>
           {effectiveProfile ? (
@@ -2419,11 +2433,7 @@ export function ResearchPage() {
             </button>
           ) : null}
           {effectiveProfile && !currentIdentity ? (
-            <button
-              type="button"
-              className="research-btn"
-              onClick={() => clearProfile()}
-            >
+            <button type="button" className="research-btn" onClick={() => clearProfile()}>
               <RefreshCcw size={16} />
               Clear Profile
             </button>
@@ -2439,9 +2449,10 @@ export function ResearchPage() {
           </div>
           <AiActivityIndicator
             active={isInferring || isSearching}
-            label={isSearching
-              ? 'AI is searching the web and ranking results.'
-              : 'AI is refreshing your research profile.'
+            label={
+              isSearching
+                ? 'AI is searching the web and ranking results.'
+                : 'AI is refreshing your research profile.'
             }
           />
         </div>
@@ -2502,61 +2513,72 @@ export function ResearchPage() {
         aria-labelledby="research-tab-profile"
         hidden={activeTab !== 'profile'}
       >
-          {!effectiveProfile ? (
-            <div className="research-empty">
-              <h2>No search profile yet</h2>
-              <p>
-                {currentIdentity
-                  ? 'Apply or import an identity model to bootstrap research from identity-backed search data.'
-                  : 'Use your resume data to infer skills, vector search strategies, work summaries, and open questions you may want to refine before searching.'}
-              </p>
-            </div>
-          ) : (
-            <>
-              <SearchThesisWorkspace
-                activeThesis={activeThesis}
-                isGeneratingThesis={isGeneratingThesis}
-                isSearching={isSearching}
-                hasIdentity={Boolean(currentIdentity)}
-                correctionsDraft={correctionsDraft}
-                onCorrectionsChange={setCorrectionsDraft}
-                directiveDraft={directiveDraft}
-                onDirectiveChange={setDirectiveDraft}
-                onRegenerate={() =>
-                  void handleGenerateThesis({
-                    userCorrections: correctionsDraft,
-                    customDirective: directiveDraft,
+        {!effectiveProfile ? (
+          <div className="research-empty">
+            <h2>No search profile yet</h2>
+            <p>
+              {currentIdentity
+                ? 'Apply or import an identity model to bootstrap research from identity-backed search data.'
+                : 'Use your resume data to infer skills, vector search strategies, work summaries, and open questions you may want to refine before searching.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            <SearchThesisWorkspace
+              activeThesis={activeThesis}
+              isGeneratingThesis={isGeneratingThesis}
+              isSearching={isSearching}
+              hasIdentity={Boolean(currentIdentity)}
+              correctionsDraft={correctionsDraft}
+              onCorrectionsChange={setCorrectionsDraft}
+              directiveDraft={directiveDraft}
+              onDirectiveChange={setDirectiveDraft}
+              onRegenerate={() =>
+                void handleGenerateThesis({
+                  userCorrections: correctionsDraft,
+                  customDirective: directiveDraft,
+                })
+              }
+            />
+
+            <div className="research-grid research-grid-two">
+              <SearchSkillsTable
+                skills={effectiveProfile.skills}
+                hiddenSkillIds={activeThesis?.searchOverrides?.hiddenSkillIds ?? []}
+                hasActiveThesis={Boolean(activeThesis)}
+                onToggleHidden={(skillId) => {
+                  if (!activeThesis) return
+                  toggleThesisHiddenSkill(activeThesis.id, skillId)
+                }}
+              />
+              <SearchInstancePreferences
+                identityBase={effectiveProfile}
+                activeThesis={thesisDraft ?? activeThesis}
+                onUpdateOverrides={(patch) => {
+                  if (!activeThesis) return
+                  updateThesisOverrides(activeThesis.id, patch)
+                }}
+                onUpdateThesisSignals={(patch) => {
+                  updateThesisDraft({
+                    ...(patch.lookFor ? { lookFor: patch.lookFor } : {}),
+                    ...(patch.avoid ? { avoid: patch.avoid } : {}),
+                  })
+                  if (patch.lookFor) {
+                    const lookForText = thesisSignalText(patch.lookFor)
+                    setThesisLookForText(lookForText)
+                    setThesisLookForBaselineText(lookForText)
+                  }
+                }}
+                onNavigateToIdentity={() =>
+                  void navigate({
+                    to: '/identity',
+                    search: { focus: 'preferences', return: '/research' },
                   })
                 }
               />
-
-              <div className="research-grid research-grid-two">
-                <SearchSkillsTable
-                  skills={effectiveProfile.skills}
-                  hiddenSkillIds={activeThesis?.searchOverrides?.hiddenSkillIds ?? []}
-                  hasActiveThesis={Boolean(activeThesis)}
-                  onToggleHidden={(skillId) => {
-                    if (!activeThesis) return
-                    toggleThesisHiddenSkill(activeThesis.id, skillId)
-                  }}
-                />
-                <SearchInstancePreferences
-                  identityBase={effectiveProfile}
-                  activeThesis={activeThesis}
-                  onUpdateOverrides={(patch) => {
-                    if (!activeThesis) return
-                    updateThesisOverrides(activeThesis.id, patch)
-                  }}
-                  onNavigateToIdentity={() =>
-                    void navigate({
-                      to: '/identity',
-                      search: { focus: 'preferences', return: '/research' },
-                    })
-                  }
-                />
-              </div>
-            </>
-          )}
+            </div>
+          </>
+        )}
       </section>
 
       <section
@@ -2566,601 +2588,601 @@ export function ResearchPage() {
         aria-labelledby="research-tab-search"
         hidden={activeTab !== 'search'}
       >
-          <div className="research-grid research-grid-two">
-            <section className="research-card research-field-span research-thesis-card">
-              <div className="research-card-header">
-                <div>
-                  <p className="research-eyebrow">Phase 1</p>
-                  <h2>Search Thesis</h2>
-                  <p>
-                    Generate a strategy thesis from Identity, review the structured lanes, then
-                    use the saved thesis as the preserved input for deep research.
-                  </p>
-                </div>
-                <div className="research-header-actions">
+        <div className="research-grid research-grid-two">
+          <section className="research-card research-field-span research-thesis-card">
+            <div className="research-card-header">
+              <div>
+                <p className="research-eyebrow">Phase 1</p>
+                <h2>Search Thesis</h2>
+                <p>
+                  Generate a strategy thesis from Identity, review the structured lanes, then use
+                  the saved thesis as the preserved input for deep research.
+                </p>
+              </div>
+              <div className="research-header-actions">
+                <button
+                  type="button"
+                  className="research-btn"
+                  onClick={() => void handleGenerateThesis({ switchToSearchTab: true })}
+                  disabled={
+                    !currentIdentity || isGeneratingThesis || isSearching || thesisDraftIsDirty
+                  }
+                  aria-busy={isGeneratingThesis}
+                >
+                  <Sparkles size={16} />
+                  {isGeneratingThesis
+                    ? 'Generating thesis…'
+                    : activeThesis
+                      ? 'Regenerate Thesis'
+                      : 'Generate Thesis'}
+                </button>
+                <button
+                  type="button"
+                  className="research-btn research-btn-primary"
+                  onClick={handleSaveThesisDraft}
+                  disabled={!thesisDraft || !activeThesis || isGeneratingThesis || isSearching}
+                >
+                  Save thesis edits
+                </button>
+                <button
+                  type="button"
+                  className="research-btn"
+                  onClick={handleDiscardThesisDraft}
+                  disabled={
+                    !activeThesis || !thesisDraftIsDirty || isGeneratingThesis || isSearching
+                  }
+                >
+                  Discard edits
+                </button>
+              </div>
+            </div>
+
+            {!currentIdentity ? (
+              <p className="research-muted">
+                Identity model required for AI thesis generation. Resume-backed search can still
+                launch with a deterministic fallback thesis.
+              </p>
+            ) : null}
+
+            {thesisIsStale ? (
+              <div className="research-warning" role="status">
+                <strong>Thesis may be stale</strong>
+                <p>
+                  This thesis was generated from identity v{activeThesis?.identityVersion}; the
+                  current identity model is v{currentIdentity?.model_revision}.
+                </p>
+              </div>
+            ) : null}
+
+            {thesisDraftIsDirty ? (
+              <p className="research-muted">
+                Save thesis edits before regenerating so local changes are not lost.
+              </p>
+            ) : null}
+
+            {thesisNotice ? (
+              <div className="research-warning" role="status">
+                {thesisNotice}
+              </div>
+            ) : null}
+
+            {latestIdentityImpact && latestIdentityImpact.totalCount > 0 ? (
+              <div className="research-confirm" role="status">
+                <strong>Downstream impact queued</strong>
+                <p>{latestIdentityImpact.summary}</p>
+                <ul className="research-list">
+                  {latestIdentityImpact.artifactsAffected.slice(0, 4).map((artifact) => (
+                    <li key={artifact.artifactType + '-' + artifact.artifactId}>
+                      {artifact.label}: {artifact.reason}
+                    </li>
+                  ))}
+                  {latestIdentityImpact.artifactsAffected.length > 4 ? (
+                    <li>
+                      +{' '}
+                      {formatCount(
+                        latestIdentityImpact.artifactsAffected.length - 4,
+                        'more impacted artifact',
+                        'more impacted artifacts',
+                      )}
+                    </li>
+                  ) : null}
+                </ul>
+                <div className="research-thesis-actions">
                   <button
                     type="button"
                     className="research-btn"
-                    onClick={() => void handleGenerateThesis({ switchToSearchTab: true })}
-                    disabled={!currentIdentity || isGeneratingThesis || isSearching || thesisDraftIsDirty}
-                    aria-busy={isGeneratingThesis}
+                    onClick={() => handleOpenStalenessReview(latestIdentityImpact)}
                   >
-                    <Sparkles size={16} />
-                    {isGeneratingThesis
-                      ? 'Generating thesis…'
-                      : activeThesis
-                        ? 'Regenerate Thesis'
-                        : 'Generate Thesis'}
-                  </button>
-                  <button
-                    type="button"
-                    className="research-btn research-btn-primary"
-                    onClick={handleSaveThesisDraft}
-                    disabled={!thesisDraft || !activeThesis || isGeneratingThesis || isSearching}
-                  >
-                    Save thesis edits
+                    Review impacted artifacts
                   </button>
                   <button
                     type="button"
                     className="research-btn"
-                    onClick={handleDiscardThesisDraft}
-                    disabled={!activeThesis || !thesisDraftIsDirty || isGeneratingThesis || isSearching}
+                    onClick={() => setLatestIdentityImpact(null)}
                   >
-                    Discard edits
+                    Dismiss impact notice
                   </button>
                 </div>
               </div>
+            ) : null}
 
-              {!currentIdentity ? (
-                <p className="research-muted">
-                  Identity model required for AI thesis generation. Resume-backed search can
-                  still launch with a deterministic fallback thesis.
+            {stalenessReviewImpact && stalenessReviewImpact.totalCount > 0 ? (
+              <div
+                className="research-confirm"
+                role="region"
+                aria-labelledby="staleness-review-title"
+              >
+                <strong id="staleness-review-title">Batch staleness review</strong>
+                <p>
+                  {stalenessReviewImpact.summary} Review each artifact now. Artifact-specific thesis
+                  refresh is available; run, prep, and cover-letter refresh generators are still
+                  pending.
                 </p>
-              ) : null}
-
-              {thesisIsStale ? (
-                <div className="research-warning" role="status">
-                  <strong>Thesis may be stale</strong>
-                  <p>
-                    This thesis was generated from identity v{activeThesis?.identityVersion};
-                    the current identity model is v{currentIdentity?.model_revision}.
-                  </p>
-                </div>
-              ) : null}
-
-              {thesisDraftIsDirty ? (
-                <p className="research-muted">
-                  Save thesis edits before regenerating so local changes are not lost.
+                <p>
+                  Choices are saved on each reviewed artifact. Refreshing a thesis regenerates it
+                  against the latest Identity context and records it as reviewed.
                 </p>
-              ) : null}
-
-              {thesisNotice ? (
-                <div className="research-warning" role="status">
-                  {thesisNotice}
-                </div>
-              ) : null}
-
-              {latestIdentityImpact && latestIdentityImpact.totalCount > 0 ? (
-                <div className="research-confirm" role="status">
-                  <strong>Downstream impact queued</strong>
-                  <p>{latestIdentityImpact.summary}</p>
-                  <ul className="research-list">
-                    {latestIdentityImpact.artifactsAffected.slice(0, 4).map((artifact) => (
-                      <li key={artifact.artifactType + '-' + artifact.artifactId}>
-                        {artifact.label}: {artifact.reason}
-                      </li>
-                    ))}
-                    {latestIdentityImpact.artifactsAffected.length > 4 ? (
-                      <li>
-                        +{' '}
-                        {formatCount(
-                          latestIdentityImpact.artifactsAffected.length - 4,
-                          'more impacted artifact',
-                          'more impacted artifacts',
-                        )}
-                      </li>
-                    ) : null}
-                  </ul>
-                  <div className="research-thesis-actions">
-                    <button
-                      type="button"
-                      className="research-btn"
-                      onClick={() => handleOpenStalenessReview(latestIdentityImpact)}
-                    >
-                      Review impacted artifacts
-                    </button>
-                    <button
-                      type="button"
-                      className="research-btn"
-                      onClick={() => setLatestIdentityImpact(null)}
-                    >
-                      Dismiss impact notice
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {stalenessReviewImpact && stalenessReviewImpact.totalCount > 0 ? (
-                <div
-                  className="research-confirm"
-                  role="region"
-                  aria-labelledby="staleness-review-title"
-                >
-                  <strong id="staleness-review-title">Batch staleness review</strong>
-                  <p>
-                    {stalenessReviewImpact.summary} Review each artifact now. Artifact-specific
-                    thesis refresh is available; run, prep, and cover-letter refresh generators
-                    are still pending.
-                  </p>
-                  <p>
-                    Choices are saved on each reviewed artifact. Refreshing a thesis regenerates
-                    it against the latest Identity context and records it as reviewed.
-                  </p>
-                  <ul className="research-list">
-                    {stalenessReviewImpact.artifactsAffected.map((artifact, index) => {
-                      const artifactKey = getStalenessArtifactKey(
-                        artifact,
-                        stalenessReviewImpact.mutation,
-                      )
-                      const key = getStalenessReviewKey(
-                        artifact,
-                        index,
-                        stalenessReviewImpact.mutation,
-                      )
-                      const decision = getPersistedStalenessDecision(artifact)
-                      const wasRefreshed = Boolean(refreshedStalenessArtifactKeys[artifactKey])
-                      const isRefreshSupported = artifact.artifactType === 'thesis'
-                      const isRefreshing = refreshingStalenessArtifactKey === artifactKey
-                      const isRefreshDisabled =
-                        !isRefreshSupported || refreshingStalenessArtifactKey !== null
-                      const refreshButtonLabel = !isRefreshSupported
-                        ? 'Refresh pending'
-                        : isRefreshing
-                          ? 'Refreshing thesis...'
-                          : 'Refresh thesis'
-                      return (
-                        <li key={key}>
-                          <strong>{artifact.label}</strong>: {artifact.reason}{' '}
-                          <span className="research-muted" role="status" aria-live="polite">
-                            Status:{' '}
-                            {wasRefreshed
-                              ? 'Refreshed with latest Identity'
-                              : getStalenessDecisionLabel(decision)}
-                            .
-                          </span>
-                          <div
-                            className="research-thesis-actions"
-                            role="group"
-                            aria-label={'Staleness decision for ' + artifact.label}
-                          >
-                            <button
-                              type="button"
-                              className="research-btn"
-                              aria-label={'Refresh ' + artifact.label + ' with latest Identity'}
-                              disabled={isRefreshDisabled}
-                              onClick={() =>
-                                void handleRefreshStalenessArtifact(artifact, artifactKey)
-                              }
-                            >
-                              {refreshButtonLabel}
-                            </button>
-                            <button
-                              type="button"
-                              className="research-btn"
-                              aria-label={'Save accept current artifact for ' + artifact.label}
-                              disabled={wasRefreshed}
-                              onClick={() =>
-                                handleStalenessReviewDecision(artifact, 'accepted')
-                              }
-                            >
-                              Save accept current
-                            </button>
-                            <button
-                              type="button"
-                              className="research-btn"
-                              aria-label={'Save not stale decision for ' + artifact.label}
-                              disabled={wasRefreshed}
-                              onClick={() =>
-                                handleStalenessReviewDecision(artifact, 'rejected')
-                              }
-                            >
-                              Save not stale
-                            </button>
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                  <div className="research-thesis-actions">
-                    <button
-                      type="button"
-                      className="research-btn"
-                      onClick={() => {
-                        const decisionCount = stalenessReviewImpact.artifactsAffected.filter(
-                          (artifact) => getPersistedStalenessDecision(artifact),
-                        ).length
-                        resetStalenessReview()
-                        if (decisionCount > 0) {
-                          setThesisNotice(
-                            'Closed batch review. Decisions were saved on reviewed artifacts.',
-                          )
-                        }
-                      }}
-                    >
-                      Close batch review
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {pendingSkillWriteback ? (
-                <div
-                  className="research-confirm"
-                  role="region"
-                  aria-labelledby="identity-writeback-title"
-                >
-                  <strong id="identity-writeback-title">Confirm Identity writeback</strong>
-                  <p>
-                    This will update your identity model and move it from v
-                    {pendingSkillWriteback.identityRevision} to v
-                    {pendingSkillWriteback.identityRevision + 1}.{' '}
-                    {pendingIdentityImpact?.summary ??
-                      'No downstream artifacts are expected to need review.'}
-                  </p>
-                  <ul className="research-list">
-                    <li>
-                      Skill: {pendingSkillWriteback.target.skillName} (
-                      {pendingSkillWriteback.target.groupLabel})
-                    </li>
-                    <li>Depth: {pendingSkillWritebackEntry?.depth ?? 'Unavailable'}</li>
-                    <li>Context and positioning will be copied from this thesis calibration.</li>
-                    {pendingIdentityImpact?.artifactsAffected.slice(0, 4).map((artifact) => (
-                      <li key={artifact.artifactType + '-' + artifact.artifactId}>
-                        {artifact.label}: {artifact.reason}
-                      </li>
-                    ))}
-                    {pendingIdentityImpact && pendingIdentityImpact.artifactsAffected.length > 4 ? (
-                      <li>
-                        +{' '}
-                        {formatCount(
-                          pendingIdentityImpact.artifactsAffected.length - 4,
-                          'more impacted artifact',
-                          'more impacted artifacts',
-                        )}
-                      </li>
-                    ) : null}
-                  </ul>
-                  <div className="research-thesis-actions">
-                    <button
-                      type="button"
-                      className="research-btn research-btn-primary"
-                      onClick={handleConfirmSkillDepthWriteback}
-                    >
-                      Apply to Identity
-                    </button>
-                    <button
-                      type="button"
-                      className="research-btn"
-                      onClick={handleCancelSkillDepthWriteback}
-                    >
-                      Cancel Identity writeback
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {thesisContractViolations.length > 0 ? (
-                <div className="research-warning" role="status">
-                  <strong>Thesis quality warnings</strong>
-                  <ul className="research-list">
-                    {thesisContractViolations.map((violation) => (
-                      <li key={violation}>{violation}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {!thesisDraft ? (
-                <div className="research-empty">
-                  <h2>No thesis reviewed yet</h2>
-                  <p>
-                    Generate a thesis to expose the strategic narrative, search lanes,
-                    avoid list, and skill-depth calibration before deep research starts.
-                  </p>
-                </div>
-              ) : (
-                <div className="research-stack">
-                  <div className="research-form-grid">
-                    <label className="research-field research-field-span">
-                      <span>Strategic narrative</span>
-                      <textarea
-                        className="research-textarea"
-                        rows={7}
-                        aria-label="Thesis narrative"
-                        value={thesisDraft.narrative}
-                        onChange={(event) => updateThesisDraft({ narrative: event.target.value })}
-                      />
-                    </label>
-
-                    <label className="research-field research-field-span">
-                      <span>Competitive moat</span>
-                      <textarea
-                        className="research-textarea"
-                        rows={3}
-                        aria-label="Competitive moat"
-                        value={thesisDraft.competitiveMoat}
-                        onChange={(event) =>
-                          updateThesisDraft({ competitiveMoat: event.target.value })
-                        }
-                      />
-                    </label>
-
-                    <label className="research-field research-field-span">
-                      <span>Interview strategy</span>
-                      <textarea
-                        className="research-textarea"
-                        rows={3}
-                        aria-label="Interview strategy"
-                        value={thesisDraft.interviewStrategy}
-                        onChange={(event) =>
-                          updateThesisDraft({ interviewStrategy: event.target.value })
-                        }
-                      />
-                    </label>
-
-                    <label className="research-field research-field-span">
-                      <span>Look-for signals</span>
-                      <input
-                        className="research-input"
-                        aria-label="Look-for signals"
-                        value={thesisLookForText}
-                        onChange={(event) => {
-                          const lookForText = event.target.value
-                          setThesisLookForText(lookForText)
-                          setThesisDraftIsDirty(true)
-                        }}
-                      />
-                      <span className="research-muted">
-                        {thesisLookForPreviewLabel}
-                        {thesisLookForPreview.length > 0
-                          ? thesisLookForPreview.join(', ')
-                          : 'No look-for signals'}
-                      </span>
-                    </label>
-
-                    <label className="research-field">
-                      <span>Timeline urgency</span>
-                      <select
-                        className="research-select"
-                        aria-label="Timeline urgency"
-                        value={thesisDraft.timeline?.urgency ?? ''}
-                        onChange={(event) =>
-                          updateThesisTimeline({
-                            urgency: event.target.value as ThesisUrgency | '',
-                          })
-                        }
-                      >
-                        <option value="">No timeline</option>
-                        {THESIS_URGENCY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="research-field">
-                      <span>Timeline deadline</span>
-                      <input
-                        className="research-input"
-                        aria-label="Timeline deadline"
-                        value={thesisDraft.timeline?.deadline ?? ''}
-                        onChange={(event) => updateThesisTimeline({ deadline: event.target.value })}
-                        disabled={!thesisDraft.timeline?.urgency}
-                      />
-                    </label>
-
-                    <label className="research-field research-field-span">
-                      <span>Timeline strategy impact</span>
-                      <textarea
-                        className={
-                          thesisTimelineStrategyMissing
-                            ? 'research-textarea research-input-invalid'
-                            : 'research-textarea'
-                        }
-                        rows={2}
-                        aria-label="Timeline strategy impact"
-                        aria-invalid={thesisTimelineStrategyMissing ? 'true' : undefined}
-                        aria-describedby={
-                          thesisTimelineStrategyMissing
-                            ? 'thesis-timeline-strategy-impact-error'
-                            : undefined
-                        }
-                        value={thesisDraft.timeline?.strategyImpact ?? ''}
-                        onChange={(event) =>
-                          updateThesisTimeline({ strategyImpact: event.target.value })
-                        }
-                        disabled={!thesisDraft.timeline?.urgency}
-                      />
-                      {thesisTimelineStrategyMissing ? (
-                        <span
-                          id="thesis-timeline-strategy-impact-error"
-                          className="research-field-hint research-field-hint-error"
-                        >
-                          Add strategy impact before saving this timeline.
+                <ul className="research-list">
+                  {stalenessReviewImpact.artifactsAffected.map((artifact, index) => {
+                    const artifactKey = getStalenessArtifactKey(
+                      artifact,
+                      stalenessReviewImpact.mutation,
+                    )
+                    const key = getStalenessReviewKey(
+                      artifact,
+                      index,
+                      stalenessReviewImpact.mutation,
+                    )
+                    const decision = getPersistedStalenessDecision(artifact)
+                    const wasRefreshed = Boolean(refreshedStalenessArtifactKeys[artifactKey])
+                    const isRefreshSupported = artifact.artifactType === 'thesis'
+                    const isRefreshing = refreshingStalenessArtifactKey === artifactKey
+                    const isRefreshDisabled =
+                      !isRefreshSupported || refreshingStalenessArtifactKey !== null
+                    const refreshButtonLabel = !isRefreshSupported
+                      ? 'Refresh pending'
+                      : isRefreshing
+                        ? 'Refreshing thesis...'
+                        : 'Refresh thesis'
+                    return (
+                      <li key={key}>
+                        <strong>{artifact.label}</strong>: {artifact.reason}{' '}
+                        <span className="research-muted" role="status" aria-live="polite">
+                          Status:{' '}
+                          {wasRefreshed
+                            ? 'Refreshed with latest Identity'
+                            : getStalenessDecisionLabel(decision)}
+                          .
                         </span>
-                      ) : null}
-                    </label>
-                  </div>
+                        <div
+                          className="research-thesis-actions"
+                          role="group"
+                          aria-label={'Staleness decision for ' + artifact.label}
+                        >
+                          <button
+                            type="button"
+                            className="research-btn"
+                            aria-label={'Refresh ' + artifact.label + ' with latest Identity'}
+                            disabled={isRefreshDisabled}
+                            onClick={() =>
+                              void handleRefreshStalenessArtifact(artifact, artifactKey)
+                            }
+                          >
+                            {refreshButtonLabel}
+                          </button>
+                          <button
+                            type="button"
+                            className="research-btn"
+                            aria-label={'Save accept current artifact for ' + artifact.label}
+                            disabled={wasRefreshed}
+                            onClick={() => handleStalenessReviewDecision(artifact, 'accepted')}
+                          >
+                            Save accept current
+                          </button>
+                          <button
+                            type="button"
+                            className="research-btn"
+                            aria-label={'Save not stale decision for ' + artifact.label}
+                            disabled={wasRefreshed}
+                            onClick={() => handleStalenessReviewDecision(artifact, 'rejected')}
+                          >
+                            Save not stale
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="research-thesis-actions">
+                  <button
+                    type="button"
+                    className="research-btn"
+                    onClick={() => {
+                      const decisionCount = stalenessReviewImpact.artifactsAffected.filter(
+                        (artifact) => getPersistedStalenessDecision(artifact),
+                      ).length
+                      resetStalenessReview()
+                      if (decisionCount > 0) {
+                        setThesisNotice(
+                          'Closed batch review. Decisions were saved on reviewed artifacts.',
+                        )
+                      }
+                    }}
+                  >
+                    Close batch review
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
-                  <section className="research-stack" aria-label="Thesis unfair advantages">
-                    <div className="research-vector-card-header">
-                      <h3 className="research-subtitle">Unfair advantages</h3>
-                      <button type="button" className="research-btn" onClick={addThesisAdvantage}>
-                        Add advantage
-                      </button>
-                    </div>
-                    {thesisDraft.unfairAdvantages.length === 0 ? (
-                      <p className="research-muted">No advantage cards yet.</p>
-                    ) : (
-                      thesisDraft.unfairAdvantages.map((advantage, index) => (
-                        <div key={advantage.id} className="research-thesis-editor-card">
-                          <div className="research-form-grid">
-                            <label className="research-field">
-                              <span>Combination</span>
-                              <input
-                                className="research-input"
-                                aria-label={`Advantage ${index + 1} combination`}
-                                value={advantage.combination}
-                                onChange={(event) =>
-                                  updateThesisAdvantage(index, { combination: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field research-field-span">
-                              <span>Target company profile</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={2}
-                                aria-label={`Advantage ${index + 1} target company profile`}
-                                value={advantage.targetCompanyProfile}
-                                onChange={(event) =>
-                                  updateThesisAdvantage(index, {
-                                    targetCompanyProfile: event.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                          </div>
+            {pendingSkillWriteback ? (
+              <div
+                className="research-confirm"
+                role="region"
+                aria-labelledby="identity-writeback-title"
+              >
+                <strong id="identity-writeback-title">Confirm Identity writeback</strong>
+                <p>
+                  This will update your identity model and move it from v
+                  {pendingSkillWriteback.identityRevision} to v
+                  {pendingSkillWriteback.identityRevision + 1}.{' '}
+                  {pendingIdentityImpact?.summary ??
+                    'No downstream artifacts are expected to need review.'}
+                </p>
+                <ul className="research-list">
+                  <li>
+                    Skill: {pendingSkillWriteback.target.skillName} (
+                    {pendingSkillWriteback.target.groupLabel})
+                  </li>
+                  <li>Depth: {pendingSkillWritebackEntry?.depth ?? 'Unavailable'}</li>
+                  <li>Context and positioning will be copied from this thesis calibration.</li>
+                  {pendingIdentityImpact?.artifactsAffected.slice(0, 4).map((artifact) => (
+                    <li key={artifact.artifactType + '-' + artifact.artifactId}>
+                      {artifact.label}: {artifact.reason}
+                    </li>
+                  ))}
+                  {pendingIdentityImpact && pendingIdentityImpact.artifactsAffected.length > 4 ? (
+                    <li>
+                      +{' '}
+                      {formatCount(
+                        pendingIdentityImpact.artifactsAffected.length - 4,
+                        'more impacted artifact',
+                        'more impacted artifacts',
+                      )}
+                    </li>
+                  ) : null}
+                </ul>
+                <div className="research-thesis-actions">
+                  <button
+                    type="button"
+                    className="research-btn research-btn-primary"
+                    onClick={handleConfirmSkillDepthWriteback}
+                  >
+                    Apply to Identity
+                  </button>
+                  <button
+                    type="button"
+                    className="research-btn"
+                    onClick={handleCancelSkillDepthWriteback}
+                  >
+                    Cancel Identity writeback
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {thesisContractViolations.length > 0 ? (
+              <div className="research-warning" role="status">
+                <strong>Thesis quality warnings</strong>
+                <ul className="research-list">
+                  {thesisContractViolations.map((violation) => (
+                    <li key={violation}>{violation}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {!thesisDraft ? (
+              <div className="research-empty">
+                <h2>No thesis reviewed yet</h2>
+                <p>
+                  Generate a thesis to expose the strategic narrative, search lanes, avoid list, and
+                  skill-depth calibration before deep research starts.
+                </p>
+              </div>
+            ) : (
+              <div className="research-stack">
+                <div className="research-form-grid">
+                  <label className="research-field research-field-span">
+                    <span>Strategic narrative</span>
+                    <textarea
+                      className="research-textarea"
+                      rows={7}
+                      aria-label="Thesis narrative"
+                      value={thesisDraft.narrative}
+                      onChange={(event) => updateThesisDraft({ narrative: event.target.value })}
+                    />
+                  </label>
+
+                  <label className="research-field research-field-span">
+                    <span>Competitive moat</span>
+                    <textarea
+                      className="research-textarea"
+                      rows={3}
+                      aria-label="Competitive moat"
+                      value={thesisDraft.competitiveMoat}
+                      onChange={(event) =>
+                        updateThesisDraft({ competitiveMoat: event.target.value })
+                      }
+                    />
+                  </label>
+
+                  <label className="research-field research-field-span">
+                    <span>Interview strategy</span>
+                    <textarea
+                      className="research-textarea"
+                      rows={3}
+                      aria-label="Interview strategy"
+                      value={thesisDraft.interviewStrategy}
+                      onChange={(event) =>
+                        updateThesisDraft({ interviewStrategy: event.target.value })
+                      }
+                    />
+                  </label>
+
+                  <label className="research-field research-field-span">
+                    <span>Look-for signals</span>
+                    <input
+                      className="research-input"
+                      aria-label="Look-for signals"
+                      value={thesisLookForText}
+                      onChange={(event) => {
+                        const lookForText = event.target.value
+                        setThesisLookForText(lookForText)
+                        setThesisDraftIsDirty(true)
+                      }}
+                    />
+                    <span className="research-muted">
+                      {thesisLookForPreviewLabel}
+                      {thesisLookForPreview.length > 0
+                        ? thesisLookForPreview.join(', ')
+                        : 'No look-for signals'}
+                    </span>
+                  </label>
+
+                  <label className="research-field">
+                    <span>Timeline urgency</span>
+                    <select
+                      className="research-select"
+                      aria-label="Timeline urgency"
+                      value={thesisDraft.timeline?.urgency ?? ''}
+                      onChange={(event) =>
+                        updateThesisTimeline({
+                          urgency: event.target.value as ThesisUrgency | '',
+                        })
+                      }
+                    >
+                      <option value="">No timeline</option>
+                      {THESIS_URGENCY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="research-field">
+                    <span>Timeline deadline</span>
+                    <input
+                      className="research-input"
+                      aria-label="Timeline deadline"
+                      value={thesisDraft.timeline?.deadline ?? ''}
+                      onChange={(event) => updateThesisTimeline({ deadline: event.target.value })}
+                      disabled={!thesisDraft.timeline?.urgency}
+                    />
+                  </label>
+
+                  <label className="research-field research-field-span">
+                    <span>Timeline strategy impact</span>
+                    <textarea
+                      className={
+                        thesisTimelineStrategyMissing
+                          ? 'research-textarea research-input-invalid'
+                          : 'research-textarea'
+                      }
+                      rows={2}
+                      aria-label="Timeline strategy impact"
+                      aria-invalid={thesisTimelineStrategyMissing ? 'true' : undefined}
+                      aria-describedby={
+                        thesisTimelineStrategyMissing
+                          ? 'thesis-timeline-strategy-impact-error'
+                          : undefined
+                      }
+                      value={thesisDraft.timeline?.strategyImpact ?? ''}
+                      onChange={(event) =>
+                        updateThesisTimeline({ strategyImpact: event.target.value })
+                      }
+                      disabled={!thesisDraft.timeline?.urgency}
+                    />
+                    {thesisTimelineStrategyMissing ? (
+                      <span
+                        id="thesis-timeline-strategy-impact-error"
+                        className="research-field-hint research-field-hint-error"
+                      >
+                        Add strategy impact before saving this timeline.
+                      </span>
+                    ) : null}
+                  </label>
+                </div>
+
+                <section className="research-stack" aria-label="Thesis unfair advantages">
+                  <div className="research-vector-card-header">
+                    <h3 className="research-subtitle">Unfair advantages</h3>
+                    <button type="button" className="research-btn" onClick={addThesisAdvantage}>
+                      Add advantage
+                    </button>
+                  </div>
+                  {thesisDraft.unfairAdvantages.length === 0 ? (
+                    <p className="research-muted">No advantage cards yet.</p>
+                  ) : (
+                    thesisDraft.unfairAdvantages.map((advantage, index) => (
+                      <div key={advantage.id} className="research-thesis-editor-card">
+                        <div className="research-form-grid">
+                          <label className="research-field">
+                            <span>Combination</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Advantage ${index + 1} combination`}
+                              value={advantage.combination}
+                              onChange={(event) =>
+                                updateThesisAdvantage(index, { combination: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field research-field-span">
+                            <span>Target company profile</span>
+                            <textarea
+                              className="research-textarea"
+                              rows={2}
+                              aria-label={`Advantage ${index + 1} target company profile`}
+                              value={advantage.targetCompanyProfile}
+                              onChange={(event) =>
+                                updateThesisAdvantage(index, {
+                                  targetCompanyProfile: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          className="research-btn research-btn-danger"
+                          onClick={() => removeThesisAdvantage(index)}
+                        >
+                          Remove advantage
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </section>
+
+                <section className="research-stack" aria-label="Thesis search lanes">
+                  <div className="research-vector-card-header">
+                    <h3 className="research-subtitle">Search lanes</h3>
+                    <button type="button" className="research-btn" onClick={addThesisLane}>
+                      Add lane
+                    </button>
+                  </div>
+                  {thesisDraft.searchLanes.length === 0 ? (
+                    <p className="research-muted">No lanes yet.</p>
+                  ) : (
+                    thesisDraft.searchLanes.map((lane, index) => (
+                      <div key={lane.id} className="research-thesis-editor-card">
+                        <div className="research-form-grid">
+                          <label className="research-field">
+                            <span>Lane title</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Lane ${index + 1} title`}
+                              value={lane.title}
+                              onChange={(event) =>
+                                updateThesisLane(index, { title: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field">
+                            <span>Target signals</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Lane ${index + 1} target signals`}
+                              value={lane.targetSignals.join(', ')}
+                              onChange={(event) =>
+                                updateThesisLane(index, {
+                                  targetSignals: splitTags(event.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="research-field research-field-span">
+                            <span>Rationale</span>
+                            <textarea
+                              className="research-textarea"
+                              rows={3}
+                              aria-label={`Lane ${index + 1} rationale`}
+                              value={lane.rationale}
+                              onChange={(event) =>
+                                updateThesisLane(index, { rationale: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field research-field-span">
+                            <span>Competitive context</span>
+                            <textarea
+                              className="research-textarea"
+                              rows={2}
+                              aria-label={`Lane ${index + 1} competitive context`}
+                              value={lane.competitiveContext ?? ''}
+                              onChange={(event) =>
+                                updateThesisLane(index, { competitiveContext: event.target.value })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="research-thesis-actions">
+                          <button
+                            type="button"
+                            className="research-btn"
+                            onClick={() => moveThesisLane(index, -1)}
+                            disabled={index === 0}
+                          >
+                            Move lane up
+                          </button>
+                          <button
+                            type="button"
+                            className="research-btn"
+                            onClick={() => moveThesisLane(index, 1)}
+                            disabled={index === thesisDraft.searchLanes.length - 1}
+                          >
+                            Move lane down
+                          </button>
                           <button
                             type="button"
                             className="research-btn research-btn-danger"
-                            onClick={() => removeThesisAdvantage(index)}
+                            onClick={() => removeThesisLane(index)}
                           >
-                            Remove advantage
+                            Remove lane
                           </button>
                         </div>
-                      ))
-                    )}
-                  </section>
+                      </div>
+                    ))
+                  )}
+                </section>
 
-                  <section className="research-stack" aria-label="Thesis search lanes">
-                    <div className="research-vector-card-header">
-                      <h3 className="research-subtitle">Search lanes</h3>
-                      <button type="button" className="research-btn" onClick={addThesisLane}>
-                        Add lane
-                      </button>
-                    </div>
-                    {thesisDraft.searchLanes.length === 0 ? (
-                      <p className="research-muted">No lanes yet.</p>
-                    ) : (
-                      thesisDraft.searchLanes.map((lane, index) => (
-                        <div key={lane.id} className="research-thesis-editor-card">
-                          <div className="research-form-grid">
-                            <label className="research-field">
-                              <span>Lane title</span>
-                              <input
-                                className="research-input"
-                                aria-label={`Lane ${index + 1} title`}
-                                value={lane.title}
-                                onChange={(event) =>
-                                  updateThesisLane(index, { title: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field">
-                              <span>Target signals</span>
-                              <input
-                                className="research-input"
-                                aria-label={`Lane ${index + 1} target signals`}
-                                value={lane.targetSignals.join(', ')}
-                                onChange={(event) =>
-                                  updateThesisLane(index, {
-                                    targetSignals: splitTags(event.target.value),
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="research-field research-field-span">
-                              <span>Rationale</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={3}
-                                aria-label={`Lane ${index + 1} rationale`}
-                                value={lane.rationale}
-                                onChange={(event) =>
-                                  updateThesisLane(index, { rationale: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field research-field-span">
-                              <span>Competitive context</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={2}
-                                aria-label={`Lane ${index + 1} competitive context`}
-                                value={lane.competitiveContext ?? ''}
-                                onChange={(event) =>
-                                  updateThesisLane(index, { competitiveContext: event.target.value })
-                                }
-                              />
-                            </label>
-                          </div>
-                          <div className="research-thesis-actions">
-                            <button
-                              type="button"
-                              className="research-btn"
-                              onClick={() => moveThesisLane(index, -1)}
-                              disabled={index === 0}
-                            >
-                              Move lane up
-                            </button>
-                            <button
-                              type="button"
-                              className="research-btn"
-                              onClick={() => moveThesisLane(index, 1)}
-                              disabled={index === thesisDraft.searchLanes.length - 1}
-                            >
-                              Move lane down
-                            </button>
-                            <button
-                              type="button"
-                              className="research-btn research-btn-danger"
-                              onClick={() => removeThesisLane(index)}
-                            >
-                              Remove lane
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </section>
-
-                  <section className="research-stack" aria-label="Thesis keyword combinations">
-                    <div className="research-vector-card-header">
-                      <h3 className="research-subtitle">Keyword combinations</h3>
-                      <button
-                        type="button"
-                        className="research-btn"
-                        onClick={addThesisKeywordCombination}
-                        disabled={thesisDraft.searchLanes.length === 0}
-                      >
-                        Add keyword
-                      </button>
-                    </div>
-                    {thesisDraft.keywordCombinations.length === 0 ? (
-                      <p className="research-muted">No keyword combinations yet.</p>
-                    ) : (
-                      thesisDraft.keywordCombinations.map((entry, index) => {
-                        const laneIsInvalid = !entry.lane || !thesisLaneIds.has(entry.lane)
-                        const laneErrorId = laneIsInvalid
-                          ? 'thesis-keyword-lane-error-' + entry.id
-                          : undefined
-                        return (
-                          <div
-                            key={entry.id}
-                            className="research-thesis-row research-thesis-keyword-row"
-                          >
+                <section className="research-stack" aria-label="Thesis keyword combinations">
+                  <div className="research-vector-card-header">
+                    <h3 className="research-subtitle">Keyword combinations</h3>
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={addThesisKeywordCombination}
+                      disabled={thesisDraft.searchLanes.length === 0}
+                    >
+                      Add keyword
+                    </button>
+                  </div>
+                  {thesisDraft.keywordCombinations.length === 0 ? (
+                    <p className="research-muted">No keyword combinations yet.</p>
+                  ) : (
+                    thesisDraft.keywordCombinations.map((entry, index) => {
+                      const laneIsInvalid = !entry.lane || !thesisLaneIds.has(entry.lane)
+                      const laneErrorId = laneIsInvalid
+                        ? 'thesis-keyword-lane-error-' + entry.id
+                        : undefined
+                      return (
+                        <div
+                          key={entry.id}
+                          className="research-thesis-row research-thesis-keyword-row"
+                        >
                           <label className="research-field">
                             <span>Query</span>
                             <input
@@ -3236,374 +3258,390 @@ export function ResearchPage() {
                           >
                             Remove keyword
                           </button>
-                          </div>
-                        )
-                      })
-                    )}
-                  </section>
-
-                  <section className="research-stack" aria-label="Thesis avoid list">
-                    <div className="research-vector-card-header">
-                      <h3 className="research-subtitle">Avoid and qualifying conditions</h3>
-                      <button type="button" className="research-btn" onClick={addThesisAvoid}>
-                        Add avoid signal
-                      </button>
-                    </div>
-                    {thesisDraft.avoid.length === 0 ? (
-                      <p className="research-muted">No avoid signals yet.</p>
-                    ) : (
-                      thesisDraft.avoid.map((entry, index) => (
-                        <div key={`${entry.label}-${index}`} className="research-thesis-row">
-                          <label className="research-field">
-                            <span>Avoid</span>
-                            <input
-                              className="research-input"
-                              aria-label={`Avoid ${index + 1} label`}
-                              value={entry.label}
-                              onChange={(event) =>
-                                updateThesisAvoid(index, { label: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field">
-                            <span>Condition</span>
-                            <input
-                              className="research-input"
-                              aria-label={`Avoid ${index + 1} condition`}
-                              value={entry.condition ?? ''}
-                              onChange={(event) =>
-                                updateThesisAvoid(index, { condition: event.target.value })
-                              }
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            className="research-btn research-btn-danger"
-                            onClick={() => removeThesisAvoid(index)}
-                          >
-                            Remove
-                          </button>
                         </div>
-                      ))
-                    )}
-                  </section>
+                      )
+                    })
+                  )}
+                </section>
 
-                  <section className="research-stack" aria-label="Thesis skill depth map">
-                    <h3 className="research-subtitle">Skill-depth calibration</h3>
-                    {thesisDraft.skillDepthMap.length === 0 ? (
-                      <p className="research-muted">No skill-depth entries yet.</p>
-                    ) : (
-                      thesisDraft.skillDepthMap.map((entry, index) => (
-                        <div key={`${entry.skill}-${index}`} className="research-thesis-editor-card">
-                          <div className="research-form-grid">
-                            <label className="research-field">
-                              <span>Skill</span>
-                              <input
-                                className="research-input"
-                                aria-label={`Skill depth ${index + 1} skill`}
-                                value={entry.skill}
-                                onChange={(event) =>
-                                  updateThesisSkillDepth(index, { skill: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field">
-                              <span>Depth</span>
-                              <input
-                                className="research-input"
-                                aria-label={`Skill depth ${index + 1} depth`}
-                                value={entry.depth}
-                                onChange={(event) =>
-                                  updateThesisSkillDepth(index, { depth: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field research-field-span">
-                              <span>Context</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={2}
-                                aria-label={`Skill depth ${index + 1} context`}
-                                value={entry.context}
-                                onChange={(event) =>
-                                  updateThesisSkillDepth(index, { context: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field research-field-span">
-                              <span>Search signal</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={2}
-                                aria-label={`Skill depth ${index + 1} search signal`}
-                                value={entry.searchSignal}
-                                onChange={(event) =>
-                                  updateThesisSkillDepth(index, { searchSignal: event.target.value })
-                                }
-                              />
-                            </label>
-                            <label className="research-field research-field-span">
-                              <span>Calibration</span>
-                              <textarea
-                                className="research-textarea"
-                                rows={2}
-                                aria-label={`Skill depth ${index + 1} calibration`}
-                                value={entry.calibration ?? ''}
-                                onChange={(event) =>
-                                  updateThesisSkillDepth(index, { calibration: event.target.value })
-                                }
-                              />
-                            </label>
-                          </div>
-                          <div className="research-thesis-actions">
-                            <button
-                              type="button"
-                              className="research-btn"
-                              onClick={() => handleRequestSkillDepthWriteback(index)}
-                              disabled={!currentIdentity}
-                              aria-label={`Write skill depth ${index + 1} back to Identity`}
-                            >
-                              Write back to Identity
-                            </button>
-                            <span className="research-muted">
-                              Updates this Identity skill as depthSource='corrected' and bumps model revision.
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </section>
-                </div>
-              )}
-            </section>
-
-            <section className="research-card">
-              <div className="research-card-header">
-                <div>
-                  <h2>Search Launcher</h2>
-                  <p>Choose vectors, overrides, and result quotas for the next run.</p>
-                </div>
-                <div className="research-launch-actions">
-                  <button
-                    type="button"
-                    className="research-btn ai-working-button"
-                    onClick={() => void handleLaunchSearch()}
-                    disabled={isSearching}
-                    aria-busy={isSearching}
-                  >
-                    <Search size={16} />
-                    {isSearching ? 'Searching…' : 'Launch Search'}
-                  </button>
-                  <p className="research-cost-preview">
-                    Est. run: {formatCostCents(researchUsage?.estimate.runCostCents)}
-                    {researchUsage?.budget.enforced
-                      ? ' · ' + formatCostCents(researchUsage.budget.remainingCents) + ' left'
-                      : ' · no ceiling set'}
-                  </p>
-                </div>
-                <AiActivityIndicator
-                  active={isSearching}
-                  label="AI is searching the web and ranking results."
-                />
-              </div>
-
-              {researchBudgetNotice ? (
-                <div className="research-warning" role="status">
-                  <strong>Deep research budget</strong>
-                  <p>{researchBudgetNotice}</p>
-                </div>
-              ) : null}
-
-              {!effectiveProfile ? (
-                <p className="research-muted">Create a profile before launching search.</p>
-              ) : (
-                <div className="research-form-grid">
-                  <fieldset className="research-fieldset research-field research-field-span">
-                    <legend>Focus vectors</legend>
-                    <div className="research-checkbox-grid">
-                      {vectorOptions.map((vector) => (
-                        <label key={vector.id} className="research-checkbox">
+                <section className="research-stack" aria-label="Thesis avoid list">
+                  <div className="research-vector-card-header">
+                    <h3 className="research-subtitle">Avoid and qualifying conditions</h3>
+                    <button type="button" className="research-btn" onClick={addThesisAvoid}>
+                      Add avoid signal
+                    </button>
+                  </div>
+                  {thesisDraft.avoid.length === 0 ? (
+                    <p className="research-muted">No avoid signals yet.</p>
+                  ) : (
+                    thesisDraft.avoid.map((entry, index) => (
+                      <div key={entry.id} className="research-thesis-row">
+                        <label className="research-field">
+                          <span>Avoid</span>
                           <input
-                            type="checkbox"
-                            checked={requestDraft.focusVectors.includes(vector.id)}
+                            className="research-input"
+                            aria-label={`Avoid ${index + 1} label`}
+                            value={entry.label}
                             onChange={(event) =>
-                              setRequestDraft((current) => ({
-                                ...current,
-                                focusVectors: event.target.checked
-                                  ? [...current.focusVectors, vector.id]
-                                  : current.focusVectors.filter((item) => item !== vector.id),
-                              }))
+                              updateThesisAvoid(index, { label: event.target.value })
                             }
                           />
-                          <span>{vector.label}</span>
                         </label>
-                      ))}
-                    </div>
-                  </fieldset>
+                        <label className="research-field">
+                          <span>Condition</span>
+                          <input
+                            className="research-input"
+                            aria-label={`Avoid ${index + 1} condition`}
+                            value={entry.condition ?? ''}
+                            onChange={(event) =>
+                              updateThesisAvoid(index, { condition: event.target.value })
+                            }
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="research-btn research-btn-danger"
+                          onClick={() => removeThesisAvoid(index)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </section>
 
-                  <label className="research-field">
-                    <span>Company size override</span>
-                    <select
-                      className="research-select"
-                      value={requestDraft.companySizeOverride}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          companySizeOverride: event.target.value as SearchCompanySize | '',
-                        }))
-                      }
-                    >
-                      {COMPANY_SIZE_OPTIONS.map((option) => (
-                        <option key={option.value || 'none'} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <section className="research-stack" aria-label="Thesis skill depth map">
+                  <h3 className="research-subtitle">Skill-depth calibration</h3>
+                  {thesisDraft.skillDepthMap.length === 0 ? (
+                    <p className="research-muted">No skill-depth entries yet.</p>
+                  ) : (
+                    thesisDraft.skillDepthMap.map((entry, index) => (
+                      <div key={`${entry.skill}-${index}`} className="research-thesis-editor-card">
+                        <div className="research-form-grid">
+                          <label className="research-field">
+                            <span>Skill</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Skill depth ${index + 1} skill`}
+                              value={entry.skill}
+                              onChange={(event) =>
+                                updateThesisSkillDepth(index, { skill: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field">
+                            <span>Depth</span>
+                            <input
+                              className="research-input"
+                              aria-label={`Skill depth ${index + 1} depth`}
+                              value={entry.depth}
+                              onChange={(event) =>
+                                updateThesisSkillDepth(index, { depth: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field research-field-span">
+                            <span>Context</span>
+                            <textarea
+                              className="research-textarea"
+                              rows={2}
+                              aria-label={`Skill depth ${index + 1} context`}
+                              value={entry.context}
+                              onChange={(event) =>
+                                updateThesisSkillDepth(index, { context: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field research-field-span">
+                            <span>Search signal</span>
+                            <textarea
+                              className="research-textarea"
+                              rows={2}
+                              aria-label={`Skill depth ${index + 1} search signal`}
+                              value={entry.searchSignal}
+                              onChange={(event) =>
+                                updateThesisSkillDepth(index, { searchSignal: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="research-field research-field-span">
+                            <span>Calibration</span>
+                            <textarea
+                              className="research-textarea"
+                              rows={2}
+                              aria-label={`Skill depth ${index + 1} calibration`}
+                              value={entry.calibration ?? ''}
+                              onChange={(event) =>
+                                updateThesisSkillDepth(index, { calibration: event.target.value })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="research-thesis-actions">
+                          <button
+                            type="button"
+                            className="research-btn"
+                            onClick={() => handleRequestSkillDepthWriteback(index)}
+                            disabled={!currentIdentity}
+                            aria-label={`Write skill depth ${index + 1} back to Identity`}
+                          >
+                            Write back to Identity
+                          </button>
+                          <span className="research-muted">
+                            Updates this Identity skill as depthSource='corrected' and bumps model
+                            revision.
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </section>
+              </div>
+            )}
+          </section>
 
-                  <label className="research-field">
-                    <span>Salary anchor override</span>
-                    <input
-                      className="research-input"
-                      value={requestDraft.salaryAnchorOverride}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          salaryAnchorOverride: event.target.value,
-                        }))
-                      }
-                      placeholder="$230k base / $330k total"
-                    />
-                  </label>
+          <section className="research-card">
+            <div className="research-card-header">
+              <div>
+                <h2>Search Launcher</h2>
+                <p>Choose vectors, overrides, and result quotas for the next run.</p>
+              </div>
+              <div className="research-launch-actions">
+                <button
+                  type="button"
+                  className="research-btn ai-working-button"
+                  onClick={() => void handleLaunchSearch()}
+                  disabled={isSearching}
+                  aria-busy={isSearching}
+                >
+                  <Search size={16} />
+                  {isSearching ? 'Searching…' : 'Launch Search'}
+                </button>
+                <p className="research-cost-preview">
+                  Est. run: {formatCostCents(researchUsage?.estimate.runCostCents)}
+                  {researchUsage?.budget.enforced
+                    ? ' · ' + formatCostCents(researchUsage.budget.remainingCents) + ' left'
+                    : ' · no ceiling set'}
+                </p>
+              </div>
+              <AiActivityIndicator
+                active={isSearching}
+                label="AI is searching the web and ranking results."
+              />
+            </div>
 
-                  <label className="research-field research-field-span">
-                    <span>Custom keywords</span>
-                    <input
-                      className="research-input"
-                      value={requestDraft.customKeywords}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          customKeywords: event.target.value,
-                        }))
-                      }
-                      placeholder="staff platform, developer productivity, internal tools"
-                    />
-                  </label>
+            {researchBudgetNotice ? (
+              <div className="research-warning" role="status">
+                <strong>Deep research budget</strong>
+                <p>{researchBudgetNotice}</p>
+              </div>
+            ) : null}
 
-                  <label className="research-checkbox research-checkbox-inline">
-                    <input
-                      type="checkbox"
-                      checked={requestDraft.geoExpand}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          geoExpand: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>Expand geography beyond preferred locations when fit is otherwise strong</span>
-                  </label>
+            {!effectiveProfile ? (
+              <p className="research-muted">Create a profile before launching search.</p>
+            ) : (
+              <div className="research-form-grid">
+                <fieldset className="research-fieldset research-field research-field-span">
+                  <legend>Focus vectors</legend>
+                  <div className="research-checkbox-grid">
+                    {vectorOptions.map((vector) => (
+                      <label key={vector.id} className="research-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={requestDraft.focusVectors.includes(vector.id)}
+                          onChange={(event) =>
+                            setRequestDraft((current) => ({
+                              ...current,
+                              focusVectors: event.target.checked
+                                ? [...current.focusVectors, vector.id]
+                                : current.focusVectors.filter((item) => item !== vector.id),
+                            }))
+                          }
+                        />
+                        <span>{vector.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
 
-                  <label className="research-field">
-                    <span>Tier 1 max</span>
-                    <input
-                      className="research-input"
-                      type="number"
-                      min="1"
-                      value={requestDraft.maxResults.tier1}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          maxResults: normalizeMaxResults(current.maxResults, 'tier1', event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
+                <label className="research-field">
+                  <span>Company size override</span>
+                  <select
+                    className="research-select"
+                    value={requestDraft.companySizeOverride}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        companySizeOverride: event.target.value as SearchCompanySize | '',
+                      }))
+                    }
+                  >
+                    {COMPANY_SIZE_OPTIONS.map((option) => (
+                      <option key={option.value || 'none'} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                  <label className="research-field">
-                    <span>Tier 2 max</span>
-                    <input
-                      className="research-input"
-                      type="number"
-                      min="1"
-                      value={requestDraft.maxResults.tier2}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          maxResults: normalizeMaxResults(current.maxResults, 'tier2', event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
+                <label className="research-field">
+                  <span>Salary anchor override</span>
+                  <input
+                    className="research-input"
+                    value={requestDraft.salaryAnchorOverride}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        salaryAnchorOverride: event.target.value,
+                      }))
+                    }
+                    placeholder="$230k base / $330k total"
+                  />
+                </label>
 
-                  <label className="research-field">
-                    <span>Tier 3 max</span>
-                    <input
-                      className="research-input"
-                      type="number"
-                      min="1"
-                      value={requestDraft.maxResults.tier3}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          maxResults: normalizeMaxResults(current.maxResults, 'tier3', event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              )}
-            </section>
+                <label className="research-field research-field-span">
+                  <span>Custom keywords</span>
+                  <input
+                    className="research-input"
+                    value={requestDraft.customKeywords}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        customKeywords: event.target.value,
+                      }))
+                    }
+                    placeholder="staff platform, developer productivity, internal tools"
+                  />
+                </label>
 
-            <section className="research-card">
-              <div className="research-card-header">
-                <div>
-                  <h2>Search Context</h2>
-                  <p>These exclusions come straight from your pipeline history.</p>
-                </div>
+                <label className="research-checkbox research-checkbox-inline">
+                  <input
+                    type="checkbox"
+                    checked={requestDraft.geoExpand}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        geoExpand: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    Expand geography beyond preferred locations when fit is otherwise strong
+                  </span>
+                </label>
+
+                <label className="research-field">
+                  <span>Tier 1 max</span>
+                  <input
+                    className="research-input"
+                    type="number"
+                    min="1"
+                    value={requestDraft.maxResults.tier1}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        maxResults: normalizeMaxResults(
+                          current.maxResults,
+                          'tier1',
+                          event.target.value,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="research-field">
+                  <span>Tier 2 max</span>
+                  <input
+                    className="research-input"
+                    type="number"
+                    min="1"
+                    value={requestDraft.maxResults.tier2}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        maxResults: normalizeMaxResults(
+                          current.maxResults,
+                          'tier2',
+                          event.target.value,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="research-field">
+                  <span>Tier 3 max</span>
+                  <input
+                    className="research-input"
+                    type="number"
+                    min="1"
+                    value={requestDraft.maxResults.tier3}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        maxResults: normalizeMaxResults(
+                          current.maxResults,
+                          'tier3',
+                          event.target.value,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+            )}
+          </section>
+
+          <section className="research-card">
+            <div className="research-card-header">
+              <div>
+                <h2>Search Context</h2>
+                <p>These exclusions come straight from your pipeline history.</p>
+              </div>
+            </div>
+
+            <div className="research-stack">
+              <div>
+                <h3 className="research-subtitle">Auto-excluded companies</h3>
+                {closedPipelineCompanies.length === 0 ? (
+                  <p className="research-muted">No rejected, withdrawn, or closed companies yet.</p>
+                ) : (
+                  <div className="research-chip-list">
+                    {closedPipelineCompanies.map((company) => (
+                      <span key={company} className="research-chip">
+                        {company}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="research-stack">
-                <div>
-                  <h3 className="research-subtitle">Auto-excluded companies</h3>
-                  {closedPipelineCompanies.length === 0 ? (
-                    <p className="research-muted">No rejected, withdrawn, or closed companies yet.</p>
-                  ) : (
-                    <div className="research-chip-list">
-                      {closedPipelineCompanies.map((company) => (
-                        <span key={company} className="research-chip">
-                          {company}
-                        </span>
+              <div>
+                <h3 className="research-subtitle">Most recent requests</h3>
+                {requests.length === 0 ? (
+                  <p className="research-muted">No searches launched yet.</p>
+                ) : (
+                  <ul className="research-list">
+                    {requests
+                      .slice()
+                      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+                      .slice(0, 5)
+                      .map((request) => (
+                        <li key={request.id}>
+                          {new Date(request.createdAt).toLocaleString()} ·{' '}
+                          {request.focusVectors.length > 0
+                            ? request.focusVectors.join(', ')
+                            : 'All vectors'}{' '}
+                          · {request.customKeywords || 'No extra keywords'}
+                        </li>
                       ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="research-subtitle">Most recent requests</h3>
-                  {requests.length === 0 ? (
-                    <p className="research-muted">No searches launched yet.</p>
-                  ) : (
-                    <ul className="research-list">
-                      {requests
-                        .slice()
-                        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-                        .slice(0, 5)
-                        .map((request) => (
-                          <li key={request.id}>
-                            {new Date(request.createdAt).toLocaleString()} ·{' '}
-                            {request.focusVectors.length > 0
-                              ? request.focusVectors.join(', ')
-                              : 'All vectors'} · {request.customKeywords || 'No extra keywords'}
-                          </li>
-                        ))}
-                    </ul>
-                  )}
-                </div>
+                  </ul>
+                )}
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section
@@ -3613,545 +3651,562 @@ export function ResearchPage() {
         aria-labelledby="research-tab-results"
         hidden={activeTab !== 'results'}
       >
-          <div className="research-grid research-grid-results">
-            <section className="research-card">
-              <div className="research-card-header">
-                <div>
-                  <h2>Results Viewer</h2>
-                  <p>Review search runs, inspect the search log, and push strong matches into the pipeline.</p>
-                </div>
-                {sortedRuns.length > 0 ? (
-                  <select
-                    className="research-select"
-                    aria-label="Select search run"
-                    value={activeRun?.id ?? ''}
-                    onChange={(event) => setActiveRunId(event.target.value)}
-                  >
-                    {sortedRuns.map((run) => (
-                      <option key={run.id} value={run.id}>
-                        {new Date(run.createdAt).toLocaleString()} · {run.status}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
+        <div className="research-grid research-grid-results">
+          <section className="research-card">
+            <div className="research-card-header">
+              <div>
+                <h2>Results Viewer</h2>
+                <p>
+                  Review search runs, inspect the search log, and push strong matches into the
+                  pipeline.
+                </p>
               </div>
+              {sortedRuns.length > 0 ? (
+                <select
+                  className="research-select"
+                  aria-label="Select search run"
+                  value={activeRun?.id ?? ''}
+                  onChange={(event) => setActiveRunId(event.target.value)}
+                >
+                  {sortedRuns.map((run) => (
+                    <option key={run.id} value={run.id}>
+                      {new Date(run.createdAt).toLocaleString()} · {run.status}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </div>
 
-              {!activeRun ? (
-                <div className="research-empty">
-                  <h2>No runs yet</h2>
-                  <p>Launch a search to populate tiered results and search logs here.</p>
-                </div>
-              ) : (
-                <div className="research-stack">
-                  <div className="research-run-summary">
-                    <span className={`research-status research-status-${activeRun.status}`}>
-                      {activeRun.status}
+            {!activeRun ? (
+              <div className="research-empty">
+                <h2>No runs yet</h2>
+                <p>Launch a search to populate tiered results and search logs here.</p>
+              </div>
+            ) : (
+              <div className="research-stack">
+                <div className="research-run-summary">
+                  <span className={`research-status research-status-${activeRun.status}`}>
+                    {activeRun.status}
+                  </span>
+                  {activeRequest ? (
+                    <span className="research-muted">
+                      Focus:{' '}
+                      {activeRequest.focusVectors.length > 0
+                        ? activeRequest.focusVectors.join(', ')
+                        : 'All vectors'}
                     </span>
-                    {activeRequest ? (
-                      <span className="research-muted">
-                        Focus: {activeRequest.focusVectors.length > 0 ? activeRequest.focusVectors.join(', ') : 'All vectors'}
-                      </span>
-                    ) : null}
-                    {activeRun.tokenUsage ? (
-                      <span className="research-muted">
-                        Tokens: {activeRun.tokenUsage.totalTokens}
-                      </span>
+                  ) : null}
+                  {activeRun.tokenUsage ? (
+                    <span className="research-muted">
+                      Tokens: {activeRun.tokenUsage.totalTokens}
+                    </span>
+                  ) : null}
+                </div>
+
+                {activeRun.error ? (
+                  <div className="research-alert" role="alert">
+                    <p>{activeRun.error}</p>
+                    {activeRun.thesisSnapshot ? (
+                      <button
+                        type="button"
+                        className="research-btn"
+                        onClick={() => void handleRetryActiveRun()}
+                        disabled={isSearching}
+                      >
+                        Retry preserved thesis
+                      </button>
                     ) : null}
                   </div>
+                ) : null}
 
-                  {activeRun.error ? (
-                    <div className="research-alert" role="alert">
-                      <p>{activeRun.error}</p>
-                      {activeRun.thesisSnapshot ? (
-                        <button
-                          type="button"
-                          className="research-btn"
-                          onClick={() => void handleRetryActiveRun()}
-                          disabled={isSearching}
-                        >
-                          Retry preserved thesis
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {visibleResearchJob ? (
-                    <section className="research-job-progress" aria-label="Deep research progress">
-                      <div className="research-job-progress-main">
-                        <div>
-                          <p className="research-eyebrow">Async Deep Research</p>
-                          <h3>{visibleJobProgress?.phase ?? visibleResearchJob.status}</h3>
-                          <p className="research-muted">
-                            Typical 10-20 min. This job keeps running server-side if the tab closes.
-                          </p>
-                        </div>
-                        <AiActivityIndicator
-                          active={!TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status)}
-                          label="Deep research job is running server-side."
-                        />
+                {visibleResearchJob ? (
+                  <section className="research-job-progress" aria-label="Deep research progress">
+                    <div className="research-job-progress-main">
+                      <div>
+                        <p className="research-eyebrow">Async Deep Research</p>
+                        <h3>{visibleJobProgress?.phase ?? visibleResearchJob.status}</h3>
+                        <p className="research-muted">
+                          Typical 10-20 min. This job keeps running server-side if the tab closes.
+                        </p>
                       </div>
-                      <dl className="research-job-stats">
-                        <div>
-                          <dt>Elapsed</dt>
-                          <dd>
-                            <ResearchJobElapsedTimer
-                              startedAt={visibleJobStartedAt}
-                              fallbackElapsedMs={visibleJobElapsedMs}
-                              active={visibleJobIsActive}
-                            />
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Transport</dt>
-                          <dd>{researchJobTransport === 'sse' ? 'Live stream + polling' : 'Polling'}</dd>
-                        </div>
-                        <div>
-                          <dt>Queries</dt>
-                          <dd>{visibleJobProgress?.searchQueries.length ?? activeRun.searchLog.length}</dd>
-                        </div>
-                        <div>
-                          <dt>Findings</dt>
-                          <dd>{visibleJobProgress?.findingsCount ?? activeRun.results.length}</dd>
-                        </div>
-                      </dl>
-                      {researchJobEvents.length > 0 ? (
-                        <ul className="research-list">
-                          {researchJobEvents.map((event) => (
-                            <li key={event.id}>{event.text}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {!TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status) ? (
-                        <button
-                          type="button"
-                          className="research-btn research-btn-danger"
-                          onClick={() => void handleCancelActiveJob()}
-                        >
-                          Cancel deep research
-                        </button>
-                      ) : null}
-                    </section>
-                  ) : null}
-
-                  {activeRunContractViolations.length > 0 ? (
-                    <div className="research-warning" role="status">
-                      <strong>Output quality warnings</strong>
-                      <p>
-                        Some deep research fields came back shorter than the contract expects.
-                        You can review the result or regenerate from the preserved thesis.
-                      </p>
-                      <ul className="research-list">
-                        {activeRunContractViolations.map((violation) => (
-                          <li key={violation}>{violation}</li>
-                        ))}
-                      </ul>
-                      {activeRun.thesisSnapshot ? (
-                        <button
-                          type="button"
-                          className="research-btn"
-                          onClick={() => void handleRetryActiveRun()}
-                          disabled={isSearching}
-                        >
-                          Regenerate from preserved thesis
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {activeRun.narrative ? (
-                    <section className="research-narrative" aria-label="Search narrative">
-                      <h3>Run Narrative</h3>
-                      <p>
-                        <CitationText
-                          text={activeRun.narrative.executiveSummary}
-                          citations={activeRun.narrative.citations}
-                        />
-                      </p>
-                      <div className="research-narrative-grid">
-                        <div>
-                          <strong>Competitive moat</strong>
-                          <p>
-                            <CitationText
-                              text={activeRun.narrative.competitiveMoat}
-                              citations={activeRun.narrative.citations}
-                            />
-                          </p>
-                        </div>
-                        <div>
-                          <strong>Selection methodology</strong>
-                          <p>
-                            <CitationText
-                              text={activeRun.narrative.selectionMethodology}
-                              citations={activeRun.narrative.citations}
-                            />
-                          </p>
-                        </div>
-                        <div>
-                          <strong>Market context</strong>
-                          <p>
-                            <CitationText
-                              text={activeRun.narrative.marketContext}
-                              citations={activeRun.narrative.citations}
-                            />
-                          </p>
-                        </div>
-                      </div>
-                      <CitationFootnotes
-                        citations={getReferencedCitations(
-                          [
-                            activeRun.narrative.executiveSummary,
-                            activeRun.narrative.competitiveMoat,
-                            activeRun.narrative.selectionMethodology,
-                            activeRun.narrative.marketContext,
-                            activeRun.narrative.landscapeTrends,
-                          ],
-                          activeRun.narrative.citations ?? [],
-                        )}
-                        idPrefix="narrative-citation"
-                        headingLevel="h4"
+                      <AiActivityIndicator
+                        active={!TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status)}
+                        label="Deep research job is running server-side."
                       />
-                    </section>
-                  ) : null}
-
-                  <details className="research-log">
-                    <summary>Search log ({activeRun.searchLog.length})</summary>
-                    {activeRun.searchLog.length === 0 ? (
-                      <p className="research-muted">No query log was returned for this run.</p>
-                    ) : (
+                    </div>
+                    <dl className="research-job-stats">
+                      <div>
+                        <dt>Elapsed</dt>
+                        <dd>
+                          <ResearchJobElapsedTimer
+                            startedAt={visibleJobStartedAt}
+                            fallbackElapsedMs={visibleJobElapsedMs}
+                            active={visibleJobIsActive}
+                          />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Transport</dt>
+                        <dd>
+                          {researchJobTransport === 'sse' ? 'Live stream + polling' : 'Polling'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Queries</dt>
+                        <dd>
+                          {visibleJobProgress?.searchQueries.length ?? activeRun.searchLog.length}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Findings</dt>
+                        <dd>{visibleJobProgress?.findingsCount ?? activeRun.results.length}</dd>
+                      </div>
+                    </dl>
+                    {researchJobEvents.length > 0 ? (
                       <ul className="research-list">
-                        {activeRun.searchLog.map((item, index) => (
-                          <li key={`search-log-${index}`}>{item}</li>
+                        {researchJobEvents.map((event) => (
+                          <li key={event.id}>{event.text}</li>
                         ))}
                       </ul>
-                    )}
-                  </details>
+                    ) : null}
+                    {!TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status) ? (
+                      <button
+                        type="button"
+                        className="research-btn research-btn-danger"
+                        onClick={() => void handleCancelActiveJob()}
+                      >
+                        Cancel deep research
+                      </button>
+                    ) : null}
+                  </section>
+                ) : null}
 
-                  {([
+                {activeRunContractViolations.length > 0 ? (
+                  <div className="research-warning" role="status">
+                    <strong>Output quality warnings</strong>
+                    <p>
+                      Some deep research fields came back shorter than the contract expects. You can
+                      review the result or regenerate from the preserved thesis.
+                    </p>
+                    <ul className="research-list">
+                      {activeRunContractViolations.map((violation) => (
+                        <li key={violation}>{violation}</li>
+                      ))}
+                    </ul>
+                    {activeRun.thesisSnapshot ? (
+                      <button
+                        type="button"
+                        className="research-btn"
+                        onClick={() => void handleRetryActiveRun()}
+                        disabled={isSearching}
+                      >
+                        Regenerate from preserved thesis
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {activeRun.narrative ? (
+                  <section className="research-narrative" aria-label="Search narrative">
+                    <h3>Run Narrative</h3>
+                    <p>
+                      <CitationText
+                        text={activeRun.narrative.executiveSummary}
+                        citations={activeRun.narrative.citations}
+                      />
+                    </p>
+                    <div className="research-narrative-grid">
+                      <div>
+                        <strong>Competitive moat</strong>
+                        <p>
+                          <CitationText
+                            text={activeRun.narrative.competitiveMoat}
+                            citations={activeRun.narrative.citations}
+                          />
+                        </p>
+                      </div>
+                      <div>
+                        <strong>Selection methodology</strong>
+                        <p>
+                          <CitationText
+                            text={activeRun.narrative.selectionMethodology}
+                            citations={activeRun.narrative.citations}
+                          />
+                        </p>
+                      </div>
+                      <div>
+                        <strong>Market context</strong>
+                        <p>
+                          <CitationText
+                            text={activeRun.narrative.marketContext}
+                            citations={activeRun.narrative.citations}
+                          />
+                        </p>
+                      </div>
+                    </div>
+                    <CitationFootnotes
+                      citations={getReferencedCitations(
+                        [
+                          activeRun.narrative.executiveSummary,
+                          activeRun.narrative.competitiveMoat,
+                          activeRun.narrative.selectionMethodology,
+                          activeRun.narrative.marketContext,
+                          activeRun.narrative.landscapeTrends,
+                        ],
+                        activeRun.narrative.citations ?? [],
+                      )}
+                      idPrefix="narrative-citation"
+                      headingLevel="h4"
+                    />
+                  </section>
+                ) : null}
+
+                <details className="research-log">
+                  <summary>Search log ({activeRun.searchLog.length})</summary>
+                  {activeRun.searchLog.length === 0 ? (
+                    <p className="research-muted">No query log was returned for this run.</p>
+                  ) : (
+                    <ul className="research-list">
+                      {activeRun.searchLog.map((item, index) => (
+                        <li key={`search-log-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  )}
+                </details>
+
+                {(
+                  [
                     { key: 'tier1', label: 'Tier 1', items: groupedResults.tier1 },
                     { key: 'tier2', label: 'Tier 2', items: groupedResults.tier2 },
                     { key: 'tier3', label: 'Tier 3', items: groupedResults.tier3 },
-                  ] as const).map((group) => (
-                    <div key={group.key} className="research-tier-section">
-                      <div className="research-tier-header">
-                        <h3>{group.label}</h3>
-                        <span className={`research-tier-badge research-tier-badge-${group.key}`}>
-                          {group.items.length}
-                        </span>
-                      </div>
+                  ] as const
+                ).map((group) => (
+                  <div key={group.key} className="research-tier-section">
+                    <div className="research-tier-header">
+                      <h3>{group.label}</h3>
+                      <span className={`research-tier-badge research-tier-badge-${group.key}`}>
+                        {group.items.length}
+                      </span>
+                    </div>
 
-                      {group.items.length === 0 ? (
-                        <p className="research-muted">No matches in this tier.</p>
-                      ) : (
-                        <div className="research-result-list">
-                          {group.items.map((result) => {
-                            const selectedVector =
-                              resultVectorSelections[result.id] ??
-                              activeRequest?.focusVectors[0] ??
-                              vectorOptions[0]?.id ??
-                              ''
-                            const feedbackBadge = feedbackByResultId.get(result.id) ?? null
-                            const isFeedbackOpen =
-                              feedbackPanel?.resultId === result.id
-                            const resultCitations = result.citations ?? []
-                            const resultFootnoteCitations = getReferencedCitations(
-                              [result.matchReason, result.vectorAlignment, result.candidateEdge],
-                              resultCitations,
-                            )
+                    {group.items.length === 0 ? (
+                      <p className="research-muted">No matches in this tier.</p>
+                    ) : (
+                      <div className="research-result-list">
+                        {group.items.map((result) => {
+                          const selectedVector =
+                            resultVectorSelections[result.id] ??
+                            activeRequest?.focusVectors[0] ??
+                            vectorOptions[0]?.id ??
+                            ''
+                          const feedbackBadge = feedbackByResultId.get(result.id) ?? null
+                          const isFeedbackOpen = feedbackPanel?.resultId === result.id
+                          const resultCitations = result.citations ?? []
+                          const resultFootnoteCitations = getReferencedCitations(
+                            [result.matchReason, result.vectorAlignment, result.candidateEdge],
+                            resultCitations,
+                          )
 
-                            return (
-                              <article key={result.id} className="research-result-card">
-                                <div className="research-result-header">
-                                  <div>
-                                    <h4>{result.company}</h4>
-                                    <p>{result.title}</p>
-                                  </div>
-                                  <span
-                                    className="research-score"
-                                    aria-label={`Match score: ${result.matchScore}`}
-                                  >
-                                    {result.matchScore}
-                                  </span>
+                          return (
+                            <article key={result.id} className="research-result-card">
+                              <div className="research-result-header">
+                                <div>
+                                  <h4>{result.company}</h4>
+                                  <p>{result.title}</p>
                                 </div>
+                                <span
+                                  className="research-score"
+                                  aria-label={`Match score: ${result.matchScore}`}
+                                >
+                                  {result.matchScore}
+                                </span>
+                              </div>
 
-                                <div className="research-result-meta">
-                                  {result.location ? <span>{result.location}</span> : null}
-                                  {result.estimatedComp ? <span>{result.estimatedComp}</span> : null}
-                                  <span>{result.source}</span>
-                                </div>
+                              <div className="research-result-meta">
+                                {result.location ? <span>{result.location}</span> : null}
+                                {result.estimatedComp ? <span>{result.estimatedComp}</span> : null}
+                                <span>{result.source}</span>
+                              </div>
 
-                                <p className="research-result-copy">
+                              <p className="research-result-copy">
+                                <CitationText
+                                  text={result.matchReason}
+                                  citations={resultFootnoteCitations}
+                                  mode="footnote"
+                                  footnoteIdPrefix={'citation-' + result.id}
+                                />
+                              </p>
+
+                              <div className="research-result-block">
+                                <strong>Vector alignment</strong>
+                                <p>
                                   <CitationText
-                                    text={result.matchReason}
+                                    text={result.vectorAlignment || 'No vector note returned.'}
                                     citations={resultFootnoteCitations}
                                     mode="footnote"
                                     footnoteIdPrefix={'citation-' + result.id}
                                   />
                                 </p>
+                              </div>
 
+                              {result.candidateEdge ? (
                                 <div className="research-result-block">
-                                  <strong>Vector alignment</strong>
+                                  <strong>Candidate edge</strong>
                                   <p>
                                     <CitationText
-                                      text={result.vectorAlignment || 'No vector note returned.'}
+                                      text={result.candidateEdge}
                                       citations={resultFootnoteCitations}
                                       mode="footnote"
                                       footnoteIdPrefix={'citation-' + result.id}
                                     />
                                   </p>
                                 </div>
+                              ) : null}
 
-                                {result.candidateEdge ? (
-                                  <div className="research-result-block">
-                                    <strong>Candidate edge</strong>
-                                    <p>
-                                      <CitationText
-                                        text={result.candidateEdge}
-                                        citations={resultFootnoteCitations}
-                                        mode="footnote"
-                                        footnoteIdPrefix={'citation-' + result.id}
-                                      />
-                                    </p>
-                                  </div>
-                                ) : null}
-
-                                {result.signalGroup || result.advantageMatch ? (
-                                  <div className="research-result-meta">
-                                    {result.signalGroup ? <span>{result.signalGroup}</span> : null}
-                                    {result.advantageMatch ? <span>{result.advantageMatch}</span> : null}
-                                  </div>
-                                ) : null}
-
-                                {result.companyIntel ? (
-                                  <div className="research-result-block">
-                                    <strong>Company intelligence</strong>
-                                    <p>
-                                      {[result.companyIntel.stage, result.companyIntel.aiCulture, result.companyIntel.remotePolicy]
-                                        .filter(Boolean)
-                                        .join(' · ')}
-                                    </p>
-                                  </div>
-                                ) : null}
-
-                                {result.interviewProcess ? (
-                                  <div className="research-result-block">
-                                    <strong>Interview process</strong>
-                                    <p>
-                                      {result.interviewProcess.format}
-                                      {result.interviewProcess.estimatedTimeline
-                                        ? ' · ' + result.interviewProcess.estimatedTimeline
-                                        : ''}
-                                    </p>
-                                  </div>
-                                ) : null}
-
-                                <CitationFootnotes
-                                  citations={resultFootnoteCitations}
-                                  idPrefix={'citation-' + result.id}
-                                  headingLevel="h5"
-                                />
-
-                                <div className="research-result-block">
-                                  <strong>Risks</strong>
-                                  {result.risks.length === 0 ? (
-                                    <p>None surfaced.</p>
-                                  ) : (
-                                    <ul className="research-list">
-                                      {result.risks.map((risk, index) => (
-                                        <li key={`${result.id}-risk-${index}`}>{risk}</li>
-                                      ))}
-                                    </ul>
-                                  )}
+                              {result.signalGroup || result.advantageMatch ? (
+                                <div className="research-result-meta">
+                                  {result.signalGroup ? <span>{result.signalGroup}</span> : null}
+                                  {result.advantageMatch ? (
+                                    <span>{result.advantageMatch}</span>
+                                  ) : null}
                                 </div>
+                              ) : null}
 
-                                <div
-                                  className="research-result-feedback"
-                                  data-testid={`result-feedback-${result.id}`}
-                                >
-                                  <div className="research-result-feedback-bar">
-                                    <span className="research-result-feedback-label">
-                                      How did this match feel?
+                              {result.companyIntel ? (
+                                <div className="research-result-block">
+                                  <strong>Company intelligence</strong>
+                                  <p>
+                                    {[
+                                      result.companyIntel.stage,
+                                      result.companyIntel.aiCulture,
+                                      result.companyIntel.remotePolicy,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ')}
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              {result.interviewProcess ? (
+                                <div className="research-result-block">
+                                  <strong>Interview process</strong>
+                                  <p>
+                                    {result.interviewProcess.format}
+                                    {result.interviewProcess.estimatedTimeline
+                                      ? ' · ' + result.interviewProcess.estimatedTimeline
+                                      : ''}
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              <CitationFootnotes
+                                citations={resultFootnoteCitations}
+                                idPrefix={'citation-' + result.id}
+                                headingLevel="h5"
+                              />
+
+                              <div className="research-result-block">
+                                <strong>Risks</strong>
+                                {result.risks.length === 0 ? (
+                                  <p>None surfaced.</p>
+                                ) : (
+                                  <ul className="research-list">
+                                    {result.risks.map((risk, index) => (
+                                      <li key={`${result.id}-risk-${index}`}>{risk}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+
+                              <div
+                                className="research-result-feedback"
+                                data-testid={`result-feedback-${result.id}`}
+                              >
+                                <div className="research-result-feedback-bar">
+                                  <span className="research-result-feedback-label">
+                                    How did this match feel?
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className={`research-btn research-feedback-btn${
+                                      feedbackBadge?.rating === 'up'
+                                        ? ' research-feedback-btn-active-up'
+                                        : ''
+                                    }`}
+                                    aria-label={`Mark ${result.company} match as good`}
+                                    aria-pressed={feedbackBadge?.rating === 'up'}
+                                    onClick={() => openFeedbackPanel(result, 'up')}
+                                  >
+                                    <ThumbsUp size={14} />
+                                    <span>Good fit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`research-btn research-feedback-btn${
+                                      feedbackBadge?.rating === 'down'
+                                        ? ' research-feedback-btn-active-down'
+                                        : ''
+                                    }`}
+                                    aria-label={`Mark ${result.company} match as wrong`}
+                                    aria-pressed={feedbackBadge?.rating === 'down'}
+                                    onClick={() => openFeedbackPanel(result, 'down')}
+                                  >
+                                    <ThumbsDown size={14} />
+                                    <span>Wrong fit</span>
+                                  </button>
+                                  {feedbackBadge?.applied ? (
+                                    <span
+                                      className="research-pill research-feedback-applied"
+                                      title="This feedback has been written back to your Identity model."
+                                    >
+                                      Applied
                                     </span>
-                                    <button
-                                      type="button"
-                                      className={`research-btn research-feedback-btn${
-                                        feedbackBadge?.rating === 'up'
-                                          ? ' research-feedback-btn-active-up'
-                                          : ''
-                                      }`}
-                                      aria-label={`Mark ${result.company} match as good`}
-                                      aria-pressed={feedbackBadge?.rating === 'up'}
-                                      onClick={() => openFeedbackPanel(result, 'up')}
-                                    >
-                                      <ThumbsUp size={14} />
-                                      <span>Good fit</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`research-btn research-feedback-btn${
-                                        feedbackBadge?.rating === 'down'
-                                          ? ' research-feedback-btn-active-down'
-                                          : ''
-                                      }`}
-                                      aria-label={`Mark ${result.company} match as wrong`}
-                                      aria-pressed={feedbackBadge?.rating === 'down'}
-                                      onClick={() => openFeedbackPanel(result, 'down')}
-                                    >
-                                      <ThumbsDown size={14} />
-                                      <span>Wrong fit</span>
-                                    </button>
-                                    {feedbackBadge?.applied ? (
-                                      <span
-                                        className="research-pill research-feedback-applied"
-                                        title="This feedback has been written back to your Identity model."
-                                      >
-                                        Applied
-                                      </span>
-                                    ) : null}
-                                  </div>
-
-                                  {isFeedbackOpen && feedbackPanel ? (
-                                    <div className="research-result-feedback-panel">
-                                      <label className="research-result-feedback-field">
-                                        <span>
-                                          {feedbackPanel.rating === 'up'
-                                            ? 'What worked? (optional)'
-                                            : 'What was wrong? (optional)'}
-                                        </span>
-                                        <textarea
-                                          rows={2}
-                                          value={feedbackPanel.reason}
-                                          onChange={(event) =>
-                                            updateFeedbackPanel({ reason: event.target.value })
-                                          }
-                                          placeholder={
-                                            feedbackPanel.rating === 'up'
-                                              ? 'e.g., interview process matches my preference'
-                                              : 'e.g., they require deep K8s admin experience'
-                                          }
-                                        />
-                                      </label>
-                                      {feedbackPanel.rating === 'down' ? (
-                                        <div className="research-result-feedback-avoid">
-                                          <label className="research-result-feedback-checkbox">
-                                            <input
-                                              type="checkbox"
-                                              checked={feedbackPanel.addToAvoid}
-                                              onChange={(event) =>
-                                                updateFeedbackPanel({
-                                                  addToAvoid: event.target.checked,
-                                                })
-                                              }
-                                            />
-                                            <span>
-                                              Add to Identity avoid list (writes back to your
-                                              Identity model)
-                                            </span>
-                                          </label>
-                                          {feedbackPanel.addToAvoid ? (
-                                            <div className="research-result-feedback-avoid-fields">
-                                              <label className="research-result-feedback-field">
-                                                <span>Avoid label</span>
-                                                <input
-                                                  type="text"
-                                                  value={feedbackPanel.avoidLabel}
-                                                  onChange={(event) =>
-                                                    updateFeedbackPanel({
-                                                      avoidLabel: event.target.value,
-                                                    })
-                                                  }
-                                                  placeholder="e.g., K8s admin role"
-                                                />
-                                              </label>
-                                              <label className="research-result-feedback-field">
-                                                <span>Qualifying condition (optional)</span>
-                                                <input
-                                                  type="text"
-                                                  value={feedbackPanel.avoidCondition}
-                                                  onChange={(event) =>
-                                                    updateFeedbackPanel({
-                                                      avoidCondition: event.target.value,
-                                                    })
-                                                  }
-                                                  placeholder='e.g., "building around K8s is fine"'
-                                                />
-                                              </label>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      ) : null}
-                                      {feedbackError ? (
-                                        <p className="research-error" role="alert">
-                                          {feedbackError}
-                                        </p>
-                                      ) : null}
-                                      <div className="research-result-feedback-actions">
-                                        <button
-                                          type="button"
-                                          className="research-btn"
-                                          onClick={closeFeedbackPanel}
-                                        >
-                                          <X size={14} />
-                                          Cancel
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="research-btn research-btn-primary"
-                                          onClick={submitFeedback}
-                                        >
-                                          Save feedback
-                                        </button>
-                                      </div>
-                                    </div>
                                   ) : null}
                                 </div>
 
-                                <div className="research-result-actions">
-                                  <a
-                                    className="research-btn"
-                                    href={result.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label="Open Listing (opens in new tab)"
-                                  >
-                                    <BriefcaseBusiness size={16} />
-                                    Open Listing
-                                  </a>
-                                  <select
-                                    className="research-select"
-                                    value={selectedVector}
-                                    onChange={(event) =>
-                                      setResultVectorSelections((current) => ({
-                                        ...current,
-                                        [result.id]: event.target.value,
-                                      }))
-                                    }
-                                  >
-                                    {vectorOptions.map((vector) => (
-                                      <option key={vector.id} value={vector.id}>
-                                        {vector.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    type="button"
-                                    className="research-btn research-btn-primary"
-                                    onClick={() => handlePushToPipeline(result, selectedVector)}
-                                  >
-                                    <ArrowRight size={16} />
-                                    Add to Pipeline
-                                  </button>
-                                </div>
-                              </article>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
+                                {isFeedbackOpen && feedbackPanel ? (
+                                  <div className="research-result-feedback-panel">
+                                    <label className="research-result-feedback-field">
+                                      <span>
+                                        {feedbackPanel.rating === 'up'
+                                          ? 'What worked? (optional)'
+                                          : 'What was wrong? (optional)'}
+                                      </span>
+                                      <textarea
+                                        rows={2}
+                                        value={feedbackPanel.reason}
+                                        onChange={(event) =>
+                                          updateFeedbackPanel({ reason: event.target.value })
+                                        }
+                                        placeholder={
+                                          feedbackPanel.rating === 'up'
+                                            ? 'e.g., interview process matches my preference'
+                                            : 'e.g., they require deep K8s admin experience'
+                                        }
+                                      />
+                                    </label>
+                                    {feedbackPanel.rating === 'down' ? (
+                                      <div className="research-result-feedback-avoid">
+                                        <label className="research-result-feedback-checkbox">
+                                          <input
+                                            type="checkbox"
+                                            checked={feedbackPanel.addToAvoid}
+                                            onChange={(event) =>
+                                              updateFeedbackPanel({
+                                                addToAvoid: event.target.checked,
+                                              })
+                                            }
+                                          />
+                                          <span>
+                                            Add to Identity avoid list (writes back to your Identity
+                                            model)
+                                          </span>
+                                        </label>
+                                        {feedbackPanel.addToAvoid ? (
+                                          <div className="research-result-feedback-avoid-fields">
+                                            <label className="research-result-feedback-field">
+                                              <span>Avoid label</span>
+                                              <input
+                                                type="text"
+                                                value={feedbackPanel.avoidLabel}
+                                                onChange={(event) =>
+                                                  updateFeedbackPanel({
+                                                    avoidLabel: event.target.value,
+                                                  })
+                                                }
+                                                placeholder="e.g., K8s admin role"
+                                              />
+                                            </label>
+                                            <label className="research-result-feedback-field">
+                                              <span>Qualifying condition (optional)</span>
+                                              <input
+                                                type="text"
+                                                value={feedbackPanel.avoidCondition}
+                                                onChange={(event) =>
+                                                  updateFeedbackPanel({
+                                                    avoidCondition: event.target.value,
+                                                  })
+                                                }
+                                                placeholder='e.g., "building around K8s is fine"'
+                                              />
+                                            </label>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                    {feedbackError ? (
+                                      <p className="research-error" role="alert">
+                                        {feedbackError}
+                                      </p>
+                                    ) : null}
+                                    <div className="research-result-feedback-actions">
+                                      <button
+                                        type="button"
+                                        className="research-btn"
+                                        onClick={closeFeedbackPanel}
+                                      >
+                                        <X size={14} />
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="research-btn research-btn-primary"
+                                        onClick={submitFeedback}
+                                      >
+                                        Save feedback
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div className="research-result-actions">
+                                <a
+                                  className="research-btn"
+                                  href={result.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label="Open Listing (opens in new tab)"
+                                >
+                                  <BriefcaseBusiness size={16} />
+                                  Open Listing
+                                </a>
+                                <select
+                                  className="research-select"
+                                  value={selectedVector}
+                                  onChange={(event) =>
+                                    setResultVectorSelections((current) => ({
+                                      ...current,
+                                      [result.id]: event.target.value,
+                                    }))
+                                  }
+                                >
+                                  {vectorOptions.map((vector) => (
+                                    <option key={vector.id} value={vector.id}>
+                                      {vector.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="research-btn research-btn-primary"
+                                  onClick={() => handlePushToPipeline(result, selectedVector)}
+                                >
+                                  <ArrowRight size={16} />
+                                  Add to Pipeline
+                                </button>
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </section>
     </div>
   )

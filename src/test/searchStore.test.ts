@@ -1,41 +1,70 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { migrateSearchState, useSearchStore } from '../store/searchStore'
-import type { SearchThesis } from '../types/search'
+import type { SearchThesis, SearchThesisSignal } from '../types/search'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
-const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
-  id: 'sthesis-1',
-  createdAt: '2026-04-20T10:00:00.000Z',
-  updatedAt: '2026-04-20T10:00:00.000Z',
-  narrative: 'A saved thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
-  competitiveMoat: 'A specific platform moat with strong identity evidence.',
-  unfairAdvantages: [],
-  searchLanes: [
-    {
-      id: 'lane-1',
-      title: 'Platform modernization',
-      rationale:
-        'This lane targets strategic platform migration work. It matches the candidate evidence well.',
-      targetSignals: ['platform modernization'],
-    },
-  ],
-  interviewStrategy: 'Anchor on deployment architecture.',
-  lookFor: ['platform modernization'],
-  avoid: [],
-  keywordCombinations: [],
-  skillDepthMap: [
-    {
-      skill: 'Kubernetes',
-      depth: 'strong',
-      context: 'Specific customer deployment evidence from the identity model.',
-      searchSignal: 'Strong match signal.',
-    },
-  ],
-  source: 'generated',
-  identityVersion: 1,
-  feedbackIncorporated: [],
-  ...overrides,
-})
+type TestThesisSignalInput = string | Partial<SearchThesisSignal>
+type SearchThesisTestOverrides = Partial<Omit<SearchThesis, 'lookFor' | 'avoid'>> & {
+  lookFor?: TestThesisSignalInput[]
+  avoid?: TestThesisSignalInput[]
+}
+
+const normalizeTestSignals = (
+  signals: readonly TestThesisSignalInput[] | undefined,
+): SearchThesisSignal[] =>
+  (signals ?? []).flatMap<SearchThesisSignal>((signal, index) => {
+    if (typeof signal === 'string') {
+      return signal.trim()
+        ? [{ id: `ssig-test-${index}`, label: signal.trim(), severity: 'soft' }]
+        : []
+    }
+    if (!signal.label?.trim()) return []
+    return [
+      {
+        ...signal,
+        id: signal.id ?? `ssig-test-${index}`,
+        label: signal.label.trim(),
+        severity: signal.severity ?? (signal.condition ? 'conditional' : 'soft'),
+      },
+    ]
+  })
+
+const buildSearchThesis = (overrides: SearchThesisTestOverrides = {}): SearchThesis => {
+  const { lookFor, avoid, ...rest } = overrides
+  return {
+    id: 'sthesis-1',
+    createdAt: '2026-04-20T10:00:00.000Z',
+    updatedAt: '2026-04-20T10:00:00.000Z',
+    narrative: 'A saved thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+    competitiveMoat: 'A specific platform moat with strong identity evidence.',
+    unfairAdvantages: [],
+    searchLanes: [
+      {
+        id: 'lane-1',
+        title: 'Platform modernization',
+        rationale:
+          'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+        targetSignals: ['platform modernization'],
+      },
+    ],
+    interviewStrategy: 'Anchor on deployment architecture.',
+    lookFor: normalizeTestSignals(lookFor ?? ['platform modernization']),
+    avoid: normalizeTestSignals(avoid),
+    keywordCombinations: [],
+    skillDepthMap: [
+      {
+        skill: 'Kubernetes',
+        depth: 'strong',
+        context: 'Specific customer deployment evidence from the identity model.',
+        searchSignal: 'Strong match signal.',
+      },
+    ],
+    source: 'generated',
+    identityVersion: 1,
+    feedbackIncorporated: [],
+    ...rest,
+  }
+}
 
 describe('searchStore', () => {
   beforeEach(() => {
@@ -595,14 +624,15 @@ describe('searchStore', () => {
         companySize: 'mid-market',
         remotePolicyNote: 'Distributed team with quarterly retreats',
       },
-      filters: { prioritize: ['platform leverage'], avoid: ['ad tech'] },
     })
 
     expect(updated?.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
     expect(updated?.searchOverrides?.constraints.remotePolicyNote).toBe(
       'Distributed team with quarterly retreats',
     )
-    expect(updated?.searchOverrides?.filters.prioritize).toEqual(['platform leverage'])
+    expect(updated?.searchOverrides).not.toHaveProperty('filters')
+    expect(updated?.lookFor.map((signal) => signal.label)).toEqual(['platform modernization'])
+    expect(updated?.avoid).toEqual([])
     expect(updated?.searchOverrides?.interviewPrefs.strongFit).toEqual([])
     expect(updated?.searchOverrides?.hiddenSkillIds).toEqual([])
     expect(updated?.source).toBe('user-edited')
@@ -824,6 +854,135 @@ describe('searchStore', () => {
       remotePolicyNote: 'Open to distributed teams',
       employmentTypes: ['w2-fulltime'],
     })
+  })
+
+  it('migrates legacy thesis filters into canonical signal entries idempotently', () => {
+    const legacyThesis = {
+      ...buildSearchThesis({ id: 'sthesis-legacy-filter-migration' }),
+      lookFor: [
+        'Platform leverage',
+        null,
+        'Developer productivity',
+        '',
+        '   ',
+      ] as unknown as string[],
+      avoid: [
+        {
+          label: 'Pure Kubernetes administration',
+          condition: 'Building around Kubernetes is fine.',
+        },
+        null,
+        undefined,
+      ],
+      searchOverrides: {
+        constraints: {
+          compensation: '$240k base',
+          locations: ['Remote US'],
+          clearance: '',
+          companySize: 'growth',
+        },
+        filters: {
+          prioritize: ['platform leverage', '', '   ', null, { label: 'Nope' }, 'AI infrastructure'],
+          avoid: ['pure kubernetes administration', '\n', undefined, false, 'Crypto volatility'],
+        },
+        interviewPrefs: {
+          strongFit: ['systems design'],
+          redFlags: ['trivia-heavy loop'],
+        },
+        hiddenSkillIds: ['skl-rust'],
+      },
+    }
+
+    const migrated = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [legacyThesis],
+      activeThesisId: legacyThesis.id,
+    }).theses[0]
+
+    expect(migrated?.lookFor.map((signal) => signal.label)).toEqual([
+      'Platform leverage',
+      'Developer productivity',
+      'AI infrastructure',
+    ])
+    expect(migrated?.lookFor.every((signal) => signal.id.startsWith('ssig-'))).toBe(true)
+    expect(migrated?.lookFor.every((signal) => signal.severity === 'soft')).toBe(true)
+    expect(migrated?.avoid).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Pure Kubernetes administration',
+          condition: 'Building around Kubernetes is fine.',
+          severity: 'conditional',
+        }),
+        expect.objectContaining({
+          label: 'Crypto volatility',
+          severity: 'soft',
+        }),
+      ]),
+    )
+    expect(migrated?.searchOverrides).not.toHaveProperty('filters')
+    expect(migrated?.searchOverrides?.constraints.compensation).toBe('$240k base')
+    expect(migrated?.searchOverrides?.interviewPrefs.strongFit).toEqual(['systems design'])
+    expect(migrated?.searchOverrides?.hiddenSkillIds).toEqual(['skl-rust'])
+
+    const remigrated = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: migrated ? [migrated] : [],
+      activeThesisId: migrated?.id,
+    }).theses[0]
+
+    expect(remigrated?.lookFor).toEqual(migrated?.lookFor)
+    expect(remigrated?.avoid).toEqual(migrated?.avoid)
+    expect(remigrated?.searchOverrides).not.toHaveProperty('filters')
+  })
+
+  it('leaves already-migrated thesis signals unchanged', () => {
+    const alreadyMigrated = buildSearchThesis({
+      id: 'sthesis-already-migrated',
+      lookFor: [{ id: 'ssig-look-for-existing', label: 'Platform leverage', severity: 'soft' }],
+      avoid: [
+        {
+          id: 'ssig-avoid-existing',
+          label: 'Pure Kubernetes administration',
+          condition: 'Only if admin is the whole role.',
+          severity: 'conditional',
+        },
+        {
+          id: 'ssig-avoid-hard-existing',
+          label: 'Gambling platforms',
+          condition: 'Even when platform scope is strong.',
+          severity: 'hard',
+        },
+      ],
+      searchOverrides: {
+        constraints: {
+          compensation: '$240k base',
+          locations: ['Remote US'],
+          clearance: '',
+          companySize: 'growth',
+        },
+        interviewPrefs: {
+          strongFit: ['systems design'],
+          redFlags: [],
+        },
+        hiddenSkillIds: [],
+      },
+    })
+
+    const migrated = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [alreadyMigrated],
+      activeThesisId: alreadyMigrated.id,
+    }).theses[0]
+
+    expect(migrated?.lookFor).toEqual(alreadyMigrated.lookFor)
+    expect(migrated?.avoid).toEqual(alreadyMigrated.avoid)
+    expect(migrated?.searchOverrides).not.toHaveProperty('filters')
   })
 
   it('tracks active async research job metadata for reload rejoin', () => {

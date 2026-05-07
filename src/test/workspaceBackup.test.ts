@@ -50,7 +50,7 @@ const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis 
     },
   ],
   interviewStrategy: 'Anchor on platform tradeoffs.',
-  lookFor: ['platform modernization'],
+  lookFor: [{ id: 'ssig-backup-look-for', label: 'platform modernization', severity: 'soft' }],
   avoid: [],
   keywordCombinations: [],
   skillDepthMap: [
@@ -80,10 +80,7 @@ describe('workspace backup bundle', () => {
     const snapshot = backupSnapshot()
 
     const encrypted = await createEncryptedWorkspaceBackup(snapshot, 'super-secret-passphrase')
-    const restored = await decryptEncryptedWorkspaceBackup(
-      encrypted,
-      'super-secret-passphrase',
-    )
+    const restored = await decryptEncryptedWorkspaceBackup(encrypted, 'super-secret-passphrase')
 
     expect(restored).toEqual(snapshot)
   })
@@ -93,9 +90,9 @@ describe('workspace backup bundle', () => {
 
     const encrypted = await createEncryptedWorkspaceBackup(snapshot, 'super-secret-passphrase')
 
-    await expect(
-      decryptEncryptedWorkspaceBackup(encrypted, 'wrong-passphrase'),
-    ).rejects.toThrow(/incorrect or the backup file is corrupted/i)
+    await expect(decryptEncryptedWorkspaceBackup(encrypted, 'wrong-passphrase')).rejects.toThrow(
+      /incorrect or the backup file is corrupted/i,
+    )
 
     await expect(
       decryptEncryptedWorkspaceBackup('{ "format": "not-facet" }', 'super-secret-passphrase'),
@@ -104,10 +101,7 @@ describe('workspace backup bundle', () => {
 
   it('enforces trimmed passphrase minimums and preserves trimmed equivalence', async () => {
     const snapshot = backupSnapshot()
-    const encrypted = await createEncryptedWorkspaceBackup(
-      snapshot,
-      'super-secret-passphrase',
-    )
+    const encrypted = await createEncryptedWorkspaceBackup(snapshot, 'super-secret-passphrase')
 
     await expect(createEncryptedWorkspaceBackup(snapshot, ' short ')).rejects.toThrow(
       /at least 12 characters/i,
@@ -119,16 +113,19 @@ describe('workspace backup bundle', () => {
       /at least 12 characters/i,
     )
 
-    const paddedEncrypted = await createEncryptedWorkspaceBackup(snapshot, '  super-secret-passphrase  ')
+    const paddedEncrypted = await createEncryptedWorkspaceBackup(
+      snapshot,
+      '  super-secret-passphrase  ',
+    )
     await expect(
       decryptEncryptedWorkspaceBackup(paddedEncrypted, 'super-secret-passphrase'),
     ).resolves.toEqual(snapshot)
   })
 
   it('rejects malformed backup envelopes and invalid decrypted snapshots explicitly', async () => {
-    await expect(decryptEncryptedWorkspaceBackup('not json', 'super-secret-passphrase')).rejects.toThrow(
-      /not valid json/i,
-    )
+    await expect(
+      decryptEncryptedWorkspaceBackup('not json', 'super-secret-passphrase'),
+    ).rejects.toThrow(/not valid json/i)
     await expect(decryptEncryptedWorkspaceBackup('[]', 'super-secret-passphrase')).rejects.toThrow(
       /not a valid encrypted facet backup/i,
     )
@@ -153,8 +150,9 @@ describe('workspace backup bundle', () => {
     vi.stubGlobal('crypto', {
       ...originalCrypto,
       subtle: {
-        decrypt: vi.fn(async () =>
-          new TextEncoder().encode(JSON.stringify({ snapshot: { snapshotVersion: 999 } })).buffer,
+        decrypt: vi.fn(
+          async () =>
+            new TextEncoder().encode(JSON.stringify({ snapshot: { snapshotVersion: 999 } })).buffer,
         ),
         deriveKey: originalSubtle.deriveKey.bind(originalSubtle),
         importKey: originalSubtle.importKey.bind(originalSubtle),
@@ -239,10 +237,7 @@ describe('workspace backup bundle', () => {
     )
 
     await expect(
-      decryptEncryptedWorkspaceBackup(
-        JSON.stringify(envelope),
-        'super-secret-passphrase',
-      ),
+      decryptEncryptedWorkspaceBackup(JSON.stringify(envelope), 'super-secret-passphrase'),
     ).rejects.toThrow(/incorrect or the backup file is corrupted/i)
   })
 
@@ -594,17 +589,19 @@ describe('workspace backup merge helpers', () => {
 
     current.artifacts.research.payload.activeResearchJob = currentJob
     imported.artifacts.research.payload.activeResearchJob = importedJob
-    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toEqual(
-      currentJob,
-    )
+    expect(
+      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob,
+    ).toEqual(currentJob)
 
     current.artifacts.research.payload.activeResearchJob = null
-    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toEqual(
-      importedJob,
-    )
+    expect(
+      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob,
+    ).toEqual(importedJob)
 
     imported.artifacts.research.payload.activeResearchJob = null
-    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob).toBeNull()
+    expect(
+      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeResearchJob,
+    ).toBeNull()
   })
 
   it('merges search theses additively and preserves the current active thesis', () => {
@@ -645,9 +642,9 @@ describe('workspace backup merge helpers', () => {
     expect(merged.artifacts.research.payload.activeThesisId).toBe('sthesis-current')
 
     current.artifacts.research.payload.activeThesisId = 'missing-thesis'
-    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeThesisId).toBe(
-      'sthesis-imported',
-    )
+    expect(
+      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.activeThesisId,
+    ).toBe('sthesis-imported')
   })
 
   it('keeps the newest thesis copy when import snapshots collide by id', () => {
@@ -685,8 +682,9 @@ describe('workspace backup merge helpers', () => {
       exportedAt: '2026-03-11T13:00:00.000Z',
     })
 
-    expect(mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.theses?.[0]?.narrative)
-      .toBe('Imported newer thesis.\n\nSecond paragraph.\n\nThird paragraph.')
+    expect(
+      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.theses?.[0]?.narrative,
+    ).toBe('Imported newer thesis.\n\nSecond paragraph.\n\nThird paragraph.')
   })
 
   it('scopes imported snapshots to the active workspace id', () => {
@@ -811,9 +809,7 @@ describe('workspace backup merge helpers', () => {
         [baseEvent({ id: 'sfe-1' })],
         [baseEvent({ id: 'sfe-1' }), baseEvent({ id: 'sfe-2' })],
       )
-      const ids = (merged.artifacts.research.payload.feedbackEvents ?? [])
-        .map((e) => e.id)
-        .sort()
+      const ids = (merged.artifacts.research.payload.feedbackEvents ?? []).map((e) => e.id).sort()
       expect(ids).toEqual(['sfe-1', 'sfe-2'])
     })
 

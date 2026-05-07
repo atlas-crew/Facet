@@ -1,13 +1,23 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
+import {
+  EMPLOYMENT_TYPE_BANK,
+  FUNDING_STAGE_BANK,
+  INDUSTRY_BANK,
+  REMOTE_POLICY_BANK,
+} from '../types/search'
 import type {
   SearchCompanySize,
+  SearchEmploymentType,
   SearchFeedbackEvent,
+  SearchFundingStage,
+  SearchIndustry,
   SearchInstanceOverrides,
   SearchKeywordCombination,
   SearchLane,
+  SearchRemotePolicy,
   SearchSkillDepthEntry,
   SearchThesis,
-  SearchThesisAvoid,
+  SearchThesisSignal,
   SearchTimeline,
   SearchUnfairAdvantage,
 } from '../types/search'
@@ -35,26 +45,43 @@ const VALID_URGENCY = new Set(['critical', 'active', 'exploratory'])
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const normalizeString = (value: unknown): string =>
-  isString(value) ? value.trim() : ''
+const normalizeString = (value: unknown): string => (isString(value) ? value.trim() : '')
 
 const normalizeStringArray = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value
-        .map(normalizeString)
-        .filter(Boolean)
-    : []
+  Array.isArray(value) ? value.map(normalizeString).filter(Boolean) : []
+
+const normalizeEnumArray = <TValue extends string>(
+  value: unknown,
+  allowedValues: readonly TValue[],
+): TValue[] => {
+  const allowed = new Set<string>(allowedValues)
+  return normalizeStringArray(value).filter((entry): entry is TValue => allowed.has(entry))
+}
+
+const formatAllowedValues = (values: readonly string[]): string => values.join(' | ')
+
+const normalizeSignalKey = (value: string): string => value.trim().toLowerCase()
+
+const isSignalSeverity = (value: unknown): value is SearchThesisSignal['severity'] =>
+  value === 'hard' || value === 'soft' || value === 'conditional'
 
 const sentenceCount = (value: string): number =>
-  value.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean).length
+  value
+    .split(/[.!?]+/)
+    .map((part) => part.trim())
+    .filter(Boolean).length
 
 const paragraphCount = (value: string): number =>
-  value.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean).length
+  value
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean).length
 
-const normalizeSkillKey = (value: string): string =>
-  value.trim().toLowerCase().replace(/\s+/g, ' ')
+const normalizeSkillKey = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ')
 
-const identitySkillEntries = (identity: ProfessionalIdentityV3): Array<{
+const identitySkillEntries = (
+  identity: ProfessionalIdentityV3,
+): Array<{
   name: string
   aliases: string[]
 }> =>
@@ -66,9 +93,7 @@ const identitySkillEntries = (identity: ProfessionalIdentityV3): Array<{
         if (!name) return []
         const rawAliases = (item as unknown as { aliases?: unknown }).aliases
         const aliases = Array.isArray(rawAliases)
-          ? rawAliases
-              .map((alias) => (isString(alias) ? alias.trim() : ''))
-              .filter(Boolean)
+          ? rawAliases.map((alias) => (isString(alias) ? alias.trim() : '')).filter(Boolean)
           : []
         return [{ name, aliases }]
       }),
@@ -124,22 +149,20 @@ export function buildThesisGenerationPrompt(
 ): string {
   const sections: string[] = [
     'Professional identity model:',
-    JSON.stringify(
-      {
-        identity: identity.identity,
-        self_model: identity.self_model,
-        preferences: identity.preferences,
-        skills: identity.skills,
-        profiles: identity.profiles,
-        roles: identity.roles,
-        projects: identity.projects,
-        education: identity.education,
-        generator_rules: identity.generator_rules,
-        search_vectors: identity.search_vectors,
-        awareness: identity.awareness,
-        model_revision: identity.model_revision,
-      },
-    ),
+    JSON.stringify({
+      identity: identity.identity,
+      self_model: identity.self_model,
+      preferences: identity.preferences,
+      skills: identity.skills,
+      profiles: identity.profiles,
+      roles: identity.roles,
+      projects: identity.projects,
+      education: identity.education,
+      generator_rules: identity.generator_rules,
+      search_vectors: identity.search_vectors,
+      awareness: identity.awareness,
+      model_revision: identity.model_revision,
+    }),
     '',
     'Previously applied feedback not yet reflected in the current thesis:',
     JSON.stringify(feedbackEvents),
@@ -178,7 +201,13 @@ const normalizeUnfairAdvantages = (value: unknown): SearchUnfairAdvantage[] =>
         const combination = normalizeString(entry.combination)
         const targetCompanyProfile = normalizeString(entry.targetCompanyProfile)
         return combination && targetCompanyProfile
-          ? [{ id: normalizeString(entry.id) || createId('sadv'), combination, targetCompanyProfile }]
+          ? [
+              {
+                id: normalizeString(entry.id) || createId('sadv'),
+                combination,
+                targetCompanyProfile,
+              },
+            ]
           : []
       })
     : []
@@ -191,37 +220,102 @@ const normalizeSearchLanes = (value: unknown): SearchLane[] =>
         const rationale = normalizeString(entry.rationale)
         if (!title || !rationale) return []
         const targetSignals = normalizeStringArray(entry.targetSignals)
-        return [{
-          id: normalizeString(entry.id) || createId('slane'),
-          title,
-          rationale,
-          ...(normalizeString(entry.competitiveContext)
-            ? { competitiveContext: normalizeString(entry.competitiveContext) }
-            : {}),
-          targetSignals: targetSignals.length > 0
-            ? targetSignals
-            : [title || 'Lane ' + String(index + 1)],
-        }]
+        return [
+          {
+            id: normalizeString(entry.id) || createId('slane'),
+            title,
+            rationale,
+            ...(normalizeString(entry.competitiveContext)
+              ? { competitiveContext: normalizeString(entry.competitiveContext) }
+              : {}),
+            targetSignals:
+              targetSignals.length > 0 ? targetSignals : [title || 'Lane ' + String(index + 1)],
+          },
+        ]
       })
     : []
 
-const normalizeAvoid = (value: unknown): SearchThesisAvoid[] =>
-  Array.isArray(value)
-    ? value.flatMap((entry) => {
-        if (isString(entry)) {
-          const label = entry.trim()
-          return label ? [{ label }] : []
-        }
-        if (!isRecord(entry)) return []
-        const label = normalizeString(entry.label)
-        return label
-          ? [{
+const appendUniqueSignals = (
+  signals: SearchThesisSignal[],
+  legacyLabels: readonly string[],
+): SearchThesisSignal[] => {
+  if (legacyLabels.length === 0) return signals
+  const seen = new Set(signals.map((signal) => normalizeSignalKey(signal.label)))
+  const next = [...signals]
+  legacyLabels.forEach((legacyLabel) => {
+    const label = legacyLabel.trim()
+    const key = normalizeSignalKey(label)
+    if (!label || seen.has(key)) return
+    seen.add(key)
+    next.push({ id: createId('ssig'), label, severity: 'soft' })
+  })
+  return next
+}
+
+const normalizeLookFor = (
+  value: unknown,
+  legacyPrioritize: readonly string[] = [],
+): SearchThesisSignal[] =>
+  appendUniqueSignals(
+    Array.isArray(value)
+      ? value.flatMap((entry) => {
+          if (isString(entry)) {
+            const label = entry.trim()
+            return label ? [{ id: createId('ssig'), label, severity: 'soft' as const }] : []
+          }
+          if (!isRecord(entry)) return []
+          const label = normalizeString(entry.label)
+          const condition = normalizeString(entry.condition)
+          if (!label) return []
+          return [
+            {
+              id: normalizeString(entry.id) || createId('ssig'),
               label,
-              ...(normalizeString(entry.condition) ? { condition: normalizeString(entry.condition) } : {}),
-            }]
-          : []
-      })
-    : []
+              ...(condition ? { condition } : {}),
+              severity: isSignalSeverity(entry.severity)
+                ? entry.severity
+                : condition
+                  ? 'conditional'
+                  : 'soft',
+            },
+          ]
+        })
+      : [],
+    legacyPrioritize,
+  )
+
+const normalizeAvoid = (
+  value: unknown,
+  legacyAvoid: readonly string[] = [],
+): SearchThesisSignal[] =>
+  appendUniqueSignals(
+    Array.isArray(value)
+      ? value.flatMap((entry) => {
+          if (isString(entry)) {
+            const label = entry.trim()
+            return label ? [{ id: createId('ssig'), label, severity: 'soft' as const }] : []
+          }
+          if (!isRecord(entry)) return []
+          const label = normalizeString(entry.label)
+          const condition = normalizeString(entry.condition)
+          return label
+            ? [
+                {
+                  id: normalizeString(entry.id) || createId('ssig'),
+                  label,
+                  ...(condition ? { condition } : {}),
+                  severity: isSignalSeverity(entry.severity)
+                    ? entry.severity
+                    : condition
+                      ? 'conditional'
+                      : 'soft',
+                },
+              ]
+            : []
+        })
+      : [],
+    legacyAvoid,
+  )
 
 const normalizeTimeline = (value: unknown): SearchTimeline | undefined => {
   if (!isRecord(value)) return undefined
@@ -237,7 +331,10 @@ const normalizeTimeline = (value: unknown): SearchTimeline | undefined => {
   }
 }
 
-const normalizeKeywordCombinations = (value: unknown, fallbackLaneId: string): SearchKeywordCombination[] =>
+const normalizeKeywordCombinations = (
+  value: unknown,
+  fallbackLaneId: string,
+): SearchKeywordCombination[] =>
   Array.isArray(value)
     ? value.flatMap((entry) => {
         if (!isRecord(entry)) return []
@@ -246,19 +343,20 @@ const normalizeKeywordCombinations = (value: unknown, fallbackLaneId: string): S
         const noiseLevel = VALID_NOISE_LEVELS.has(entry.noiseLevel as string)
           ? (entry.noiseLevel as SearchKeywordCombination['noiseLevel'])
           : 'medium'
-        return [{
-          id: normalizeString(entry.id) || createId('skwd'),
-          query,
-          lane: normalizeString(entry.lane) || fallbackLaneId,
-          noiseLevel,
-        }]
+        return [
+          {
+            id: normalizeString(entry.id) || createId('skwd'),
+            query,
+            lane: normalizeString(entry.lane) || fallbackLaneId,
+            noiseLevel,
+          },
+        ]
       })
     : []
 
 const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined => {
   if (!isRecord(value)) return undefined
   const constraintsRecord = isRecord(value.constraints) ? value.constraints : {}
-  const filtersRecord = isRecord(value.filters) ? value.filters : {}
   const interviewRecord = isRecord(value.interviewPrefs) ? value.interviewPrefs : {}
   const companySizeRaw = normalizeString(constraintsRecord.companySize)
   const companySize = VALID_COMPANY_SIZES.has(companySizeRaw as SearchCompanySize)
@@ -270,16 +368,39 @@ const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined
       locations: normalizeStringArray(constraintsRecord.locations),
       clearance: normalizeString(constraintsRecord.clearance),
       companySize,
-    },
-    filters: {
-      prioritize: normalizeStringArray(filtersRecord.prioritize),
-      avoid: normalizeStringArray(filtersRecord.avoid),
+      industriesToAvoid: normalizeEnumArray<SearchIndustry>(
+        constraintsRecord.industriesToAvoid,
+        INDUSTRY_BANK,
+      ),
+      fundingStagesAcceptable: normalizeEnumArray<SearchFundingStage>(
+        constraintsRecord.fundingStagesAcceptable,
+        FUNDING_STAGE_BANK,
+      ),
+      remotePolicies: normalizeEnumArray<SearchRemotePolicy>(
+        constraintsRecord.remotePolicies,
+        REMOTE_POLICY_BANK,
+      ),
+      remotePolicyNote: normalizeString(constraintsRecord.remotePolicyNote),
+      employmentTypes: normalizeEnumArray<SearchEmploymentType>(
+        constraintsRecord.employmentTypes,
+        EMPLOYMENT_TYPE_BANK,
+      ),
     },
     interviewPrefs: {
       strongFit: normalizeStringArray(interviewRecord.strongFit),
       redFlags: normalizeStringArray(interviewRecord.redFlags),
     },
     hiddenSkillIds: normalizeStringArray(value.hiddenSkillIds),
+  }
+}
+
+const normalizeLegacyOverrideFilters = (
+  value: unknown,
+): { prioritize: string[]; avoid: string[] } => {
+  if (!isRecord(value) || !isRecord(value.filters)) return { prioritize: [], avoid: [] }
+  return {
+    prioritize: normalizeStringArray(value.filters.prioritize),
+    avoid: normalizeStringArray(value.filters.avoid),
   }
 }
 
@@ -334,10 +455,12 @@ export function normalizeGeneratedSearchThesis(
   const lanes = normalizeSearchLanes(record.searchLanes)
   const fallbackLaneId = lanes[0]?.id ?? 'general-fit'
   const timeline = normalizeTimeline(record.timeline)
+  const legacyFilters = normalizeLegacyOverrideFilters(record.searchOverrides)
   const overrides = normalizeOverrides(record.searchOverrides)
   const feedbackEventIds = new Set(feedbackEvents.map((event) => event.id))
-  const feedbackIncorporated = normalizeStringArray(record.feedbackIncorporated)
-    .filter((id) => feedbackEventIds.has(id))
+  const feedbackIncorporated = normalizeStringArray(record.feedbackIncorporated).filter((id) =>
+    feedbackEventIds.has(id),
+  )
   const directiveTrimmed = context.customDirective?.trim()
   return {
     id: normalizeString(record.id) || createId('sthesis'),
@@ -348,8 +471,8 @@ export function normalizeGeneratedSearchThesis(
     unfairAdvantages: normalizeUnfairAdvantages(record.unfairAdvantages),
     searchLanes: lanes,
     interviewStrategy: normalizeString(record.interviewStrategy),
-    lookFor: normalizeStringArray(record.lookFor),
-    avoid: normalizeAvoid(record.avoid),
+    lookFor: normalizeLookFor(record.lookFor, legacyFilters.prioritize),
+    avoid: normalizeAvoid(record.avoid, legacyFilters.avoid),
     ...(timeline ? { timeline } : {}),
     keywordCombinations: normalizeKeywordCombinations(record.keywordCombinations, fallbackLaneId),
     skillDepthMap: normalizeSkillDepthMap(record.skillDepthMap, identity),
@@ -357,10 +480,7 @@ export function normalizeGeneratedSearchThesis(
     ...(directiveTrimmed ? { customDirective: directiveTrimmed } : {}),
     source: 'generated',
     identityVersion: Math.max(0, Math.floor(identity.model_revision ?? 0)),
-    feedbackIncorporated:
-      feedbackIncorporated.length > 0
-        ? feedbackIncorporated
-        : [],
+    feedbackIncorporated: feedbackIncorporated.length > 0 ? feedbackIncorporated : [],
   }
 }
 
@@ -380,7 +500,11 @@ export function validateSearchThesis(
   }
   thesis.searchLanes.forEach((lane, index) => {
     if (sentenceCount(lane.rationale) < 2) {
-      violations.push('searchLanes[' + String(index) + '].rationale: expected prose rationale with at least 2 sentences')
+      violations.push(
+        'searchLanes[' +
+          String(index) +
+          '].rationale: expected prose rationale with at least 2 sentences',
+      )
     }
   })
   if (thesis.skillDepthMap.length === 0) {
@@ -388,15 +512,18 @@ export function validateSearchThesis(
   }
   thesis.skillDepthMap.forEach((entry, index) => {
     if (sentenceCount(entry.context) < 1 || entry.context.length < 30) {
-      violations.push('skillDepthMap[' + String(index) + '].context: expected specific PAIO evidence context')
+      violations.push(
+        'skillDepthMap[' + String(index) + '].context: expected specific PAIO evidence context',
+      )
     }
   })
 
   if (identity) {
     const covered = new Set(thesis.skillDepthMap.map((entry) => normalizeSkillKey(entry.skill)))
     const missing = identitySkillEntries(identity)
-      .filter((entry) =>
-        ![entry.name, ...entry.aliases].some((skill) => covered.has(normalizeSkillKey(skill))),
+      .filter(
+        (entry) =>
+          ![entry.name, ...entry.aliases].some((skill) => covered.has(normalizeSkillKey(skill))),
       )
       .map((entry) => entry.name)
     if (missing.length > 0) {
@@ -427,11 +554,16 @@ export async function generateSearchThesisFromIdentity(
     '- `unfairAdvantages[].depth` is duplicate. Express depth through the `combination` phrase itself ("Production Kubernetes + product-aware platform judgment") rather than a separate depth field.',
     '',
     'Editorial fields with guardrails (LLM generates per-thesis but stays grounded):',
-    '- `interviewStrategy`: search-tailored emphasis for THIS specific role/lane — what to lead with in this search\'s interview process. Do NOT restate the candidate\'s general prep approach (which lives on `identity.self_model.interview_style.prep_strategy`).',
+    "- `interviewStrategy`: search-tailored emphasis for THIS specific role/lane — what to lead with in this search's interview process. Do NOT restate the candidate's general prep approach (which lives on `identity.self_model.interview_style.prep_strategy`).",
     '- `skillDepthMap[].calibration`: per-thesis honest framing ("not a K8s admin; building around it is fine"). Cite identity calibration_notes; do not invent new claims about the candidate.',
     '',
     'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction — it represents intent the identity model does not encode.',
     'If user corrections are provided, weave them into the new thesis without quoting them verbatim, and update overrides to reflect them.',
+    'Use only these bank values in searchOverrides constraint arrays:',
+    '- industriesToAvoid: ' + formatAllowedValues(INDUSTRY_BANK),
+    '- fundingStagesAcceptable: ' + formatAllowedValues(FUNDING_STAGE_BANK),
+    '- remotePolicies: ' + formatAllowedValues(REMOTE_POLICY_BANK),
+    '- employmentTypes: ' + formatAllowedValues(EMPLOYMENT_TYPE_BANK),
     '',
     'Response schema:',
     '{',
@@ -440,14 +572,13 @@ export async function generateSearchThesisFromIdentity(
     '  "unfairAdvantages": [{ "combination": "string", "targetCompanyProfile": "string" }],',
     '  "searchLanes": [{ "id": "optional", "title": "string", "rationale": "2+ sentence prose", "competitiveContext": "optional prose", "targetSignals": ["string"] }],',
     '  "interviewStrategy": "string",',
-    '  "lookFor": ["string"],',
-    '  "avoid": [{ "label": "string", "condition": "optional qualifier" }],',
+    '  "lookFor": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }],',
+    '  "avoid": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }],',
     '  "timeline": { "urgency": "critical|active|exploratory", "deadline": "optional ISO date", "strategyImpact": "string" },',
     '  "keywordCombinations": [{ "query": "string", "lane": "lane id", "noiseLevel": "low|medium|high" }],',
     '  "skillDepthMap": [{ "skill": "string (must match an identity skill name)", "calibration": "optional honest framing per this search" }],',
     '  "searchOverrides": {',
-    '    "constraints": { "compensation": "string", "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|" },',
-    '    "filters": { "prioritize": ["string"], "avoid": ["string"] },',
+    '    "constraints": { "compensation": "string", "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|", "industriesToAvoid": ["string"], "fundingStagesAcceptable": ["string"], "remotePolicies": ["string"], "remotePolicyNote": "string", "employmentTypes": ["string"] },',
     '    "interviewPrefs": { "strongFit": ["string"], "redFlags": ["string"] },',
     '    "hiddenSkillIds": []',
     '  },',
@@ -457,6 +588,8 @@ export async function generateSearchThesisFromIdentity(
     'Contract:',
     '- narrative must be 3-5 paragraphs, not bullets.',
     '- every lane rationale must be prose, not fragments.',
+    '- use lookFor/avoid for search-stage signals; do not emit duplicate searchOverrides.filters.',
+    '- signal severity is hard for non-negotiable constraints, conditional when a qualifier matters, and soft for preferences.',
     '- cover every user skill unless the identity explicitly marks it irrelevant or avoid (emit each as a `skillDepthMap` entry; depth/context/searchSignal will be sourced from identity).',
     '- searchOverrides values must be concrete and tailored to the chosen lanes; leave hiddenSkillIds empty unless the lane choice clearly excludes a skill.',
   ].join('\n')
@@ -472,25 +605,17 @@ export async function generateSearchThesisFromIdentity(
     )
   }
 
-  const rawResponse = await callLlmProxy(
-    endpoint,
-    systemPrompt,
-    userPrompt,
-    {
-      feature: 'research.thesis',
-      model: 'opus',
-      timeoutMs: THESIS_GENERATION_TIMEOUT_MS,
-      maxTokens: THESIS_GENERATION_MAX_TOKENS,
-      thinkingBudget: THESIS_GENERATION_THINKING_BUDGET,
-    },
-  )
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+    feature: 'research.thesis',
+    model: 'opus',
+    timeoutMs: THESIS_GENERATION_TIMEOUT_MS,
+    maxTokens: THESIS_GENERATION_MAX_TOKENS,
+    thinkingBudget: THESIS_GENERATION_THINKING_BUDGET,
+  })
 
   try {
     const json = extractJsonBlock(rawResponse)
-    const parsed = parseJsonWithRepair<unknown>(
-      json,
-      'Generated search thesis response',
-    ).data
+    const parsed = parseJsonWithRepair<unknown>(json, 'Generated search thesis response').data
     const thesis = normalizeGeneratedSearchThesis(
       parsed,
       identity,
@@ -504,9 +629,12 @@ export async function generateSearchThesisFromIdentity(
     }
   } catch (error) {
     if (error instanceof JsonExtractionError) {
-      throw new Error('Generated search thesis response was malformed. Try regenerating the thesis.', {
-        cause: error,
-      })
+      throw new Error(
+        'Generated search thesis response was malformed. Try regenerating the thesis.',
+        {
+          cause: error,
+        },
+      )
     }
     throw error instanceof Error ? error : new Error('Failed to parse generated search thesis.')
   }

@@ -10,6 +10,7 @@ import type {
   SearchRun,
   ActiveResearchJobState,
   SearchThesis,
+  SearchThesisSignal,
   SkillCatalogEntry,
   VectorSearchConfig,
 } from '../types/search'
@@ -35,8 +36,24 @@ type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt'> &
 type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt'> &
   Partial<Pick<SearchRun, 'id' | 'createdAt'>>
 
-type SearchThesisInput = Omit<SearchThesis, 'id' | 'createdAt' | 'updatedAt'> &
-  Partial<Pick<SearchThesis, 'id' | 'createdAt' | 'updatedAt'>>
+type LegacySearchThesisSignalInput = string | Partial<SearchThesisSignal>
+
+type LegacySearchThesisAvoidInput = string | Partial<SearchThesisSignal>
+
+/** Legacy persisted snapshots may still carry filters; new code must write canonical signals. */
+type SearchInstanceOverridesInput = SearchInstanceOverrides & {
+  filters?: { prioritize?: unknown; avoid?: unknown }
+}
+
+type SearchThesisInput = Omit<
+  SearchThesis,
+  'id' | 'createdAt' | 'updatedAt' | 'lookFor' | 'avoid' | 'searchOverrides'
+> &
+  Partial<Pick<SearchThesis, 'id' | 'createdAt' | 'updatedAt'>> & {
+    lookFor?: LegacySearchThesisSignalInput[]
+    avoid?: LegacySearchThesisAvoidInput[]
+    searchOverrides?: SearchInstanceOverridesInput
+  }
 
 /** Caller supplies every feedback-event field except the store-generated id and timestamp. */
 export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt'>
@@ -138,8 +155,102 @@ const hydrateRun = (run: SearchRunInput): SearchRun => ({
   durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
 })
 
+const normalizeSignalKey = (label: string) => label.trim().toLowerCase()
+
+const trimSignalLabel = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
+
+const isSignalSeverity = (value: unknown): value is SearchThesisSignal['severity'] =>
+  value === 'hard' || value === 'soft' || value === 'conditional'
+
+const normalizeLookForSignal = (
+  entry: LegacySearchThesisSignalInput | null | undefined,
+): SearchThesisSignal | null => {
+  if (typeof entry === 'string') {
+    const label = trimSignalLabel(entry)
+    return label ? { id: createId('ssig'), label, severity: 'soft' } : null
+  }
+  if (!entry || typeof entry !== 'object') return null
+
+  const label = trimSignalLabel(entry.label)
+  if (!label) return null
+  const condition = trimSignalLabel(entry.condition)
+  return {
+    id: entry.id ?? createId('ssig'),
+    label,
+    ...(condition ? { condition } : {}),
+    severity: isSignalSeverity(entry.severity)
+      ? entry.severity
+      : condition
+        ? 'conditional'
+        : 'soft',
+  }
+}
+
+const normalizeAvoidSignal = (
+  entry: LegacySearchThesisAvoidInput | null | undefined,
+): SearchThesisSignal | null => {
+  if (typeof entry === 'string') {
+    const label = trimSignalLabel(entry)
+    return label ? { id: createId('ssig'), label, severity: 'soft' } : null
+  }
+  if (!entry || typeof entry !== 'object') return null
+
+  const label = trimSignalLabel(entry.label)
+  if (!label) return null
+  const condition = trimSignalLabel(entry.condition)
+  return {
+    id: entry.id ?? createId('ssig'),
+    label,
+    ...(condition ? { condition } : {}),
+    severity: isSignalSeverity(entry.severity)
+      ? entry.severity
+      : condition
+        ? 'conditional'
+        : 'soft',
+  }
+}
+
+const appendUniqueSignals = (
+  canonical: SearchThesisSignal[],
+  legacyLabels: unknown,
+): SearchThesisSignal[] => {
+  if (!Array.isArray(legacyLabels) || legacyLabels.length === 0) return canonical
+  const seen = new Set(canonical.map((entry) => normalizeSignalKey(entry.label)))
+  const next = [...canonical]
+  legacyLabels.forEach((legacyLabel) => {
+    const label = trimSignalLabel(legacyLabel)
+    const key = normalizeSignalKey(label)
+    if (!label || seen.has(key)) return
+    seen.add(key)
+    next.push({
+      id: createId('ssig'),
+      label,
+      severity: 'soft',
+    })
+  })
+  return next
+}
+
+const normalizeLookForSignals = (
+  lookFor: LegacySearchThesisSignalInput[] | undefined,
+  legacyPrioritize: unknown,
+): SearchThesisSignal[] =>
+  appendUniqueSignals(
+    (lookFor ?? []).flatMap((entry) => normalizeLookForSignal(entry) ?? []),
+    legacyPrioritize,
+  )
+
+const normalizeAvoidSignals = (
+  avoid: LegacySearchThesisAvoidInput[] | undefined,
+  legacyAvoid: unknown,
+): SearchThesisSignal[] =>
+  appendUniqueSignals(
+    (avoid ?? []).flatMap((entry) => normalizeAvoidSignal(entry) ?? []),
+    legacyAvoid,
+  )
+
 const hydrateOverrides = (
-  overrides: SearchInstanceOverrides | undefined,
+  overrides: SearchInstanceOverridesInput | undefined,
 ): SearchInstanceOverrides | undefined => {
   if (!overrides) return undefined
   return {
@@ -155,11 +266,6 @@ const hydrateOverrides = (
       remotePolicyNote: overrides.constraints?.remotePolicyNote ?? '',
       employmentTypes: overrides.constraints?.employmentTypes ?? [],
     },
-    filters: {
-      ...overrides.filters,
-      prioritize: overrides.filters?.prioritize ?? [],
-      avoid: overrides.filters?.avoid ?? [],
-    },
     interviewPrefs: {
       ...overrides.interviewPrefs,
       strongFit: overrides.interviewPrefs?.strongFit ?? [],
@@ -171,6 +277,9 @@ const hydrateOverrides = (
 
 const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
   const createdAt = thesis.createdAt ?? now()
+  // Pull deprecated searchOverrides.filters into canonical thesis signals once.
+  // hydrateOverrides intentionally drops filters so repeated hydration is a no-op.
+  const legacyFilters = thesis.searchOverrides?.filters
   const hydratedOverrides = hydrateOverrides(thesis.searchOverrides)
   return {
     ...thesis,
@@ -182,8 +291,8 @@ const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
     })),
     searchLanes: thesis.searchLanes ?? [],
     interviewStrategy: thesis.interviewStrategy ?? '',
-    lookFor: thesis.lookFor ?? [],
-    avoid: thesis.avoid ?? [],
+    lookFor: normalizeLookForSignals(thesis.lookFor, legacyFilters?.prioritize),
+    avoid: normalizeAvoidSignals(thesis.avoid, legacyFilters?.avoid),
     keywordCombinations: (thesis.keywordCombinations ?? []).map((keyword) => ({
       ...keyword,
       id: keyword.id ?? createId('skwd'),
@@ -496,7 +605,6 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
     const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
     const nextOverrides: SearchInstanceOverrides = {
       constraints: { ...current.constraints, ...(patch.constraints ?? {}) },
-      filters: { ...current.filters, ...(patch.filters ?? {}) },
       interviewPrefs: { ...current.interviewPrefs, ...(patch.interviewPrefs ?? {}) },
       hiddenSkillIds: patch.hiddenSkillIds ?? current.hiddenSkillIds,
     }

@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { DeepResearchStreamHandlers } from '../utils/deepSearchClient'
-import type { ResearchJob, SearchThesis } from '../types/search'
+import type { ResearchJob, SearchThesis, SearchThesisSignal } from '../types/search'
 import { defaultResumeData } from '../store/defaultData'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useIdentityStore } from '../store/identityStore'
@@ -88,24 +88,55 @@ vi.mock('../utils/thesisGenerator', async () => {
   }
 })
 
-const buildTestThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
-  id: 'thesis-1',
-  createdAt: '2026-03-10T10:00:00.000Z',
-  updatedAt: '2026-03-10T10:00:00.000Z',
-  narrative: 'A default test thesis.',
-  competitiveMoat: 'Default moat.',
-  unfairAdvantages: [],
-  searchLanes: [],
-  interviewStrategy: 'Default strategy.',
-  lookFor: [],
-  avoid: [],
-  keywordCombinations: [],
-  skillDepthMap: [{ skill: 'TypeScript', depth: 'strong', context: 'Test', searchSignal: 'Test' }],
-  source: 'generated',
-  identityVersion: 0,
-  feedbackIncorporated: [],
-  ...overrides,
-})
+type TestThesisSignalInput = string | Partial<SearchThesisSignal>
+type TestThesisOverrides = Partial<Omit<SearchThesis, 'lookFor' | 'avoid'>> & {
+  lookFor?: TestThesisSignalInput[]
+  avoid?: TestThesisSignalInput[]
+}
+
+const normalizeTestSignals = (
+  signals: readonly TestThesisSignalInput[] | undefined,
+): SearchThesisSignal[] =>
+  (signals ?? []).flatMap<SearchThesisSignal>((signal, index) => {
+    if (typeof signal === 'string') {
+      return signal.trim()
+        ? [{ id: `ssig-test-${index}`, label: signal.trim(), severity: 'soft' }]
+        : []
+    }
+    if (!signal.label?.trim()) return []
+    return [
+      {
+        ...signal,
+        id: signal.id ?? `ssig-test-${index}`,
+        label: signal.label.trim(),
+        severity: signal.severity ?? (signal.condition ? 'conditional' : 'soft'),
+      },
+    ]
+  })
+
+const buildTestThesis = (overrides: TestThesisOverrides = {}): SearchThesis => {
+  const { lookFor, avoid, ...rest } = overrides
+  return {
+    id: 'thesis-1',
+    createdAt: '2026-03-10T10:00:00.000Z',
+    updatedAt: '2026-03-10T10:00:00.000Z',
+    narrative: 'A default test thesis.',
+    competitiveMoat: 'Default moat.',
+    unfairAdvantages: [],
+    searchLanes: [],
+    interviewStrategy: 'Default strategy.',
+    lookFor: normalizeTestSignals(lookFor),
+    avoid: normalizeTestSignals(avoid),
+    keywordCombinations: [],
+    skillDepthMap: [
+      { skill: 'TypeScript', depth: 'strong', context: 'Test', searchSignal: 'Test' },
+    ],
+    source: 'generated',
+    identityVersion: 0,
+    feedbackIncorporated: [],
+    ...rest,
+  }
+}
 
 const buildResearchJob = (overrides: Partial<ResearchJob> = {}): ResearchJob => {
   const thesisSnapshot = overrides.thesisSnapshot ?? buildTestThesis()
@@ -204,6 +235,9 @@ describe('ResearchPage', () => {
     })
 
     useCoverLetterStore.setState({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
       templates: [],
     })
 
@@ -544,7 +578,10 @@ describe('ResearchPage', () => {
         expect.objectContaining({ combination: 'Deployment architecture plus product judgment' }),
       ],
       interviewStrategy: 'Open with tradeoffs, then map evidence to platform leverage.',
-      lookFor: ['platform modernization', 'internal developer leverage'],
+      lookFor: [
+        expect.objectContaining({ label: 'platform modernization' }),
+        expect.objectContaining({ label: 'internal developer leverage' }),
+      ],
       timeline: expect.objectContaining({
         urgency: 'critical',
         deadline: '2026-06-01',
@@ -589,13 +626,18 @@ describe('ResearchPage', () => {
       title: 'Platform story',
       category: 'technical',
     })
-    useCoverLetterStore.getState().addTemplate({
+    useCoverLetterStore.getState().createLetter({
       id: 'letter-1',
-      name: 'Acme',
-      header: '',
-      greeting: '',
-      paragraphs: [],
-      signOff: '',
+      content: {
+        name: 'Acme',
+        header: '',
+        greeting: '',
+        paragraphs: [],
+        signOff: '',
+      },
+      pipelineEntryId: 'pipeline-acme',
+      sourceResumeId: 'resume-acme',
+      sourceResumeHash: 'hash-acme',
       identityVersion: 2,
     })
     const thesis = buildTestThesis({
@@ -826,7 +868,7 @@ describe('ResearchPage', () => {
       id: savedThesisId,
       identityVersion: 3,
       narrative: 'Refreshed thesis with current Kubernetes depth correction.',
-      lookFor: ['latest platform signal'],
+      lookFor: [expect.objectContaining({ label: 'latest platform signal' })],
     })
     expect(refreshedThesis?.stalenessReview).toMatchObject({
       decision: 'accepted-current',
@@ -1395,16 +1437,14 @@ describe('ResearchPage', () => {
       theses: [
         buildTestThesis({
           id: 'thesis-with-overrides',
+          lookFor: ['platform leverage'],
+          avoid: ['ad tech'],
           searchOverrides: {
             constraints: {
               compensation: '$340k total',
               locations: ['Tampa Bay'],
               clearance: 'None',
               companySize: 'growth',
-            },
-            filters: {
-              prioritize: ['platform leverage'],
-              avoid: ['ad tech'],
             },
             interviewPrefs: {
               strongFit: ['take-home portfolio'],
@@ -1438,10 +1478,6 @@ describe('ResearchPage', () => {
         locations: ['Tampa Bay'],
         clearance: 'None',
         companySize: 'growth',
-      },
-      filters: {
-        prioritize: ['platform leverage'],
-        avoid: ['ad tech'],
       },
       interviewPrefs: {
         strongFit: ['take-home portfolio'],
@@ -1964,10 +2000,87 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
     await waitFor(() => {
-      expect(useSearchStore.getState().theses[0]?.lookFor).toEqual([
+      expect(useSearchStore.getState().theses[0]?.lookFor.map((signal) => signal.label)).toEqual([
         'k8s, observability',
         'developer platform',
       ])
+    })
+  })
+
+  it('preserves existing thesis signal metadata when editing prioritize labels', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-prioritize-metadata',
+      lookFor: [
+        {
+          id: 'ssig-platform-existing',
+          label: 'platform modernization',
+          condition: 'only with product ownership',
+          severity: 'hard',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Prioritize'), {
+      target: { value: 'platform modernization, PLATFORM MODERNIZATION, developer leverage' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().theses[0]?.lookFor).toEqual([
+        expect.objectContaining({
+          id: 'ssig-platform-existing',
+          label: 'platform modernization',
+          condition: 'only with product ownership',
+          severity: 'hard',
+        }),
+        expect.objectContaining({
+          label: 'developer leverage',
+          severity: 'soft',
+        }),
+      ])
+    })
+  })
+
+  it('adds avoid signals in canonical signal shape from the thesis editor', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-add-avoid-signal',
+      avoid: [],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add avoid signal' }))
+    fireEvent.change(screen.getByLabelText('Avoid 1 label'), {
+      target: { value: 'Defense-only platforms' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      const added = useSearchStore.getState().theses[0]?.avoid[0]
+      expect(added).toEqual(
+        expect.objectContaining({
+          label: 'Defense-only platforms',
+          condition: '',
+          severity: 'soft',
+        }),
+      )
+      expect(added?.id).toMatch(/^ssig-/)
     })
   })
 

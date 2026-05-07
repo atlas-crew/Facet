@@ -306,7 +306,9 @@ describe('persistence foundation', () => {
             },
           ],
           interviewStrategy: 'Anchor on platform tradeoffs.',
-          lookFor: ['platform modernization'],
+          lookFor: [
+            { id: 'ssig-persist-look-for', label: 'platform modernization', severity: 'soft' },
+          ],
           avoid: [],
           keywordCombinations: [],
           skillDepthMap: [
@@ -715,37 +717,283 @@ describe('persistence foundation', () => {
     expect(useSearchStore.getState().activeResearchJob?.status).toBe('running')
 
     useSearchStore.setState({ activeResearchJob: null })
-    resolveStorage().setItem('facet-search-data', JSON.stringify({
-      state: {
-        profile: null,
-        requests: [],
-        runs: [],
-        feedbackEvents: [],
-        activeResearchJob,
-      },
-      version: 0,
-    }))
+    resolveStorage().setItem(
+      'facet-search-data',
+      JSON.stringify({
+        state: {
+          profile: null,
+          requests: [],
+          runs: [],
+          feedbackEvents: [],
+          activeResearchJob,
+        },
+        version: 0,
+      }),
+    )
 
     expect(hydrateStoresFromLegacyStorage()).toBe(true)
     expect(useSearchStore.getState().activeResearchJob).toEqual(activeResearchJob)
   })
 
-  it('documents that legacy cover letter templates are discarded during hydration', () => {
-    resolveStorage().setItem('facet-cover-letter-data', JSON.stringify({
+  it('migrates legacy search thesis filters to canonical signals during hydration', () => {
+    resolveStorage().setItem(
+      'facet-search-data',
+      JSON.stringify({
+        state: {
+          profile: null,
+          requests: [],
+          runs: [],
+          feedbackEvents: [],
+          theses: [
+            {
+              id: 'legacy-thesis-filters',
+              createdAt: '2026-03-11T12:00:00.000Z',
+              updatedAt: '2026-03-11T12:00:00.000Z',
+              narrative: 'Legacy thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+              competitiveMoat: 'A specific platform moat with clear evidence.',
+              unfairAdvantages: [],
+              searchLanes: [],
+              interviewStrategy: 'Anchor on platform tradeoffs.',
+              lookFor: ['platform modernization'],
+              avoid: [{ label: 'pure admin', condition: 'unless adjacent to platform' }],
+              keywordCombinations: [],
+              skillDepthMap: [],
+              source: 'generated',
+              identityVersion: 1,
+              feedbackIncorporated: [],
+              searchOverrides: {
+                constraints: {
+                  compensation: '',
+                  locations: [],
+                  clearance: '',
+                  companySize: '',
+                },
+                filters: {
+                  prioritize: ['developer leverage'],
+                  avoid: ['ad tech'],
+                },
+                interviewPrefs: {
+                  strongFit: [],
+                  redFlags: [],
+                },
+                hiddenSkillIds: [],
+              },
+            },
+          ],
+          activeThesisId: 'legacy-thesis-filters',
+        },
+        version: 7,
+      }),
+    )
+
+    expect(hydrateStoresFromLegacyStorage()).toBe(true)
+    expect(useSearchStore.getState().theses[0]?.lookFor).toEqual([
+      expect.objectContaining({ label: 'platform modernization', severity: 'soft' }),
+      expect.objectContaining({ label: 'developer leverage', severity: 'soft' }),
+    ])
+    expect(useSearchStore.getState().theses[0]?.avoid).toEqual([
+      expect.objectContaining({
+        label: 'pure admin',
+        condition: 'unless adjacent to platform',
+        severity: 'conditional',
+      }),
+      expect.objectContaining({ label: 'ad tech', severity: 'soft' }),
+    ])
+    expect(useSearchStore.getState().theses[0]?.searchOverrides).not.toHaveProperty('filters')
+  })
+
+  it('leaves legacy search storage untouched during direct hydration', () => {
+    const storage = resolveStorage()
+    const legacySearchValue = JSON.stringify({
       state: {
-        templates: [
+        profile: null,
+        requests: [],
+        runs: [],
+        feedbackEvents: [],
+        theses: [
           {
-            id: 'legacy-template',
-            name: 'Legacy Letter',
-            header: 'Header',
-            greeting: 'Hello',
-            paragraphs: [],
-            signOff: 'Thanks',
+            id: 'legacy-thesis-direct',
+            createdAt: '2026-03-11T12:00:00.000Z',
+            updatedAt: '2026-03-11T12:00:00.000Z',
+            narrative: 'Legacy thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+            competitiveMoat: 'A specific platform moat with clear evidence.',
+            unfairAdvantages: [],
+            searchLanes: [],
+            interviewStrategy: 'Anchor on platform tradeoffs.',
+            lookFor: [],
+            avoid: [],
+            keywordCombinations: [],
+            skillDepthMap: [],
+            source: 'generated',
+            identityVersion: 1,
+            feedbackIncorporated: [],
+            searchOverrides: {
+              constraints: {
+                compensation: '',
+                locations: [],
+                clearance: '',
+                companySize: '',
+              },
+              filters: {
+                prioritize: ['developer leverage'],
+                avoid: [],
+              },
+              interviewPrefs: {
+                strongFit: [],
+                redFlags: [],
+              },
+              hiddenSkillIds: [],
+            },
           },
         ],
       },
-      version: 0,
-    }))
+      version: 7,
+    })
+    storage.setItem('facet-search-data', legacySearchValue)
+    const setItemSpy = vi.spyOn(storage, 'setItem')
+
+    expect(hydrateStoresFromLegacyStorage()).toBe(true)
+    expect(setItemSpy.mock.calls.some(([key]) => key === 'facet-search-data')).toBe(false)
+    expect(storage.getItem('facet-search-data')).toBe(legacySearchValue)
+    expect(useSearchStore.getState().theses[0]?.lookFor).toEqual([
+      expect.objectContaining({ label: 'developer leverage', severity: 'soft' }),
+    ])
+    expect(useSearchStore.getState().theses[0]?.searchOverrides).not.toHaveProperty('filters')
+    setItemSpy.mockRestore()
+  })
+
+  it('normalizes legacy research filters when applying workspace snapshots', () => {
+    const snapshot = buildWorkspaceSnapshot()
+    const legacyThesis = {
+      id: 'legacy-snapshot-thesis',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:00:00.000Z',
+      narrative: 'Legacy thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+      competitiveMoat: 'A specific platform moat with clear evidence.',
+      unfairAdvantages: [],
+      searchLanes: [],
+      interviewStrategy: 'Anchor on platform tradeoffs.',
+      lookFor: ['platform modernization'],
+      avoid: [],
+      keywordCombinations: [],
+      skillDepthMap: [],
+      source: 'generated',
+      identityVersion: 1,
+      feedbackIncorporated: [],
+      searchOverrides: {
+        constraints: {
+          compensation: '',
+          locations: [],
+          clearance: '',
+          companySize: '',
+        },
+        filters: {
+          prioritize: ['developer leverage'],
+          avoid: ['pure admin'],
+        },
+        interviewPrefs: {
+          strongFit: [],
+          redFlags: [],
+        },
+        hiddenSkillIds: [],
+      },
+    }
+
+    const legacySnapshot = {
+      ...snapshot,
+      artifacts: {
+        ...snapshot.artifacts,
+        research: {
+          ...snapshot.artifacts.research,
+          payload: {
+            ...snapshot.artifacts.research.payload,
+            theses: [legacyThesis],
+            activeThesisId: legacyThesis.id,
+          },
+        },
+      },
+    } as unknown as typeof snapshot
+
+    applyWorkspaceSnapshotToStores(legacySnapshot)
+
+    expect(useSearchStore.getState().activeThesisId).toBe('legacy-snapshot-thesis')
+    expect(useSearchStore.getState().theses[0]?.lookFor.map((signal) => signal.label)).toEqual([
+      'platform modernization',
+      'developer leverage',
+    ])
+    expect(useSearchStore.getState().theses[0]?.avoid).toEqual([
+      expect.objectContaining({ label: 'pure admin', severity: 'soft' }),
+    ])
+    expect(useSearchStore.getState().theses[0]?.searchOverrides).not.toHaveProperty('filters')
+  })
+
+  it('preserves canonical research signal ids when applying workspace snapshots', () => {
+    const snapshot = buildWorkspaceSnapshot()
+    const canonicalThesis = {
+      id: 'canonical-snapshot-thesis',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:00:00.000Z',
+      narrative: 'Canonical thesis.\n\nSecond paragraph.\n\nThird paragraph.',
+      competitiveMoat: 'A specific platform moat with clear evidence.',
+      unfairAdvantages: [],
+      searchLanes: [],
+      interviewStrategy: 'Anchor on platform tradeoffs.',
+      lookFor: [
+        { id: 'ssig-canonical-look', label: 'platform modernization', severity: 'hard' as const },
+      ],
+      avoid: [
+        {
+          id: 'ssig-canonical-avoid',
+          label: 'pure admin',
+          condition: 'unless adjacent to platform',
+          severity: 'conditional' as const,
+        },
+      ],
+      keywordCombinations: [],
+      skillDepthMap: [],
+      source: 'generated' as const,
+      identityVersion: 1,
+      feedbackIncorporated: [],
+    }
+
+    applyWorkspaceSnapshotToStores({
+      ...snapshot,
+      artifacts: {
+        ...snapshot.artifacts,
+        research: {
+          ...snapshot.artifacts.research,
+          payload: {
+            ...snapshot.artifacts.research.payload,
+            theses: [canonicalThesis],
+            activeThesisId: canonicalThesis.id,
+          },
+        },
+      },
+    })
+
+    expect(useSearchStore.getState().theses[0]?.lookFor[0]).toEqual(canonicalThesis.lookFor[0])
+    expect(useSearchStore.getState().theses[0]?.avoid[0]).toEqual(canonicalThesis.avoid[0])
+  })
+
+  it('documents that legacy cover letter templates are discarded during hydration', () => {
+    resolveStorage().setItem(
+      'facet-cover-letter-data',
+      JSON.stringify({
+        state: {
+          templates: [
+            {
+              id: 'legacy-template',
+              name: 'Legacy Letter',
+              header: 'Header',
+              greeting: 'Hello',
+              paragraphs: [],
+              signOff: 'Thanks',
+            },
+          ],
+        },
+        version: 0,
+      }),
+    )
 
     expect(hydrateStoresFromLegacyStorage()).toBe(true)
     expect(useCoverLetterStore.getState()).toMatchObject({
@@ -975,25 +1223,19 @@ describe('persistence foundation', () => {
     expect(unchanged).not.toBe(snapshot)
 
     expect(() =>
-      applyWorkspacePatch(
-        snapshot,
-        {
-          artifacts: {
-            bogus: { revision: 1 },
-          } as never,
-        },
-      ),
+      applyWorkspacePatch(snapshot, {
+        artifacts: {
+          bogus: { revision: 1 },
+        } as never,
+      }),
     ).toThrow(/Unknown artifact type/)
 
     expect(() =>
-      applyWorkspacePatch(
-        snapshot,
-        {
-          artifacts: {
-            resume: 42 as never,
-          },
+      applyWorkspacePatch(snapshot, {
+        artifacts: {
+          resume: 42 as never,
         },
-      ),
+      }),
     ).toThrow(/Artifact patch must be an object/)
 
     const withNullArtifactPatch = applyWorkspacePatch(snapshot, {
@@ -1178,10 +1420,7 @@ describe('persistence foundation', () => {
     expect(validationCoordinator.getStatus().phase).toBe('idle')
 
     await expect(
-      mergeCoordinator.importWorkspaceSnapshot(
-        imported,
-        { mode: 'merge' },
-      ),
+      mergeCoordinator.importWorkspaceSnapshot(imported, { mode: 'merge' }),
     ).rejects.toThrow(/Merge import requires mergeImportedSnapshot/)
   })
 
@@ -1437,7 +1676,9 @@ describe('persistence foundation', () => {
               letters: [
                 {
                   ...validCoverLetter,
-                  paragraphs: [{ id: 'paragraph-1', text: 'I can help.', vectors: { backend: 'strong' } }],
+                  paragraphs: [
+                    { id: 'paragraph-1', text: 'I can help.', vectors: { backend: 'strong' } },
+                  ],
                 },
               ],
               snapshots: [],
@@ -1675,9 +1916,9 @@ describe('persistence foundation', () => {
     })
 
     const legacySnapshot = buildWorkspaceSnapshot()
-    delete ((legacySnapshot.artifacts as unknown) as { recruiter?: unknown }).recruiter
-    delete ((legacySnapshot.artifacts as unknown) as { linkedin?: unknown }).linkedin
-    delete ((legacySnapshot.artifacts as unknown) as { debrief?: unknown }).debrief
+    delete (legacySnapshot.artifacts as unknown as { recruiter?: unknown }).recruiter
+    delete (legacySnapshot.artifacts as unknown as { linkedin?: unknown }).linkedin
+    delete (legacySnapshot.artifacts as unknown as { debrief?: unknown }).debrief
 
     const saved = await coordinator.importWorkspaceSnapshot(legacySnapshot as typeof legacySnapshot)
 

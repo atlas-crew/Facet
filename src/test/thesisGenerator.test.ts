@@ -3,6 +3,7 @@ import type { SearchFeedbackEvent } from '../types/search'
 import {
   buildThesisGenerationPrompt,
   generateSearchThesisFromIdentity,
+  normalizeGeneratedSearchThesis,
   validateSearchThesis,
 } from '../utils/thesisGenerator'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
@@ -103,12 +104,14 @@ describe('thesisGenerator', () => {
               targetSignals: ['on-prem delivery', 'installability'],
             },
           ],
-          interviewStrategy: 'Anchor on deployment architecture tradeoffs and product delivery outcomes.',
+          interviewStrategy:
+            'Anchor on deployment architecture tradeoffs and product delivery outcomes.',
           lookFor: ['platform modernization', 'developer leverage'],
           avoid: [
             {
               label: 'Pure Kubernetes administration',
-              condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.',
+              condition:
+                'Building around Kubernetes is fine; owning clusters as the whole job is not.',
             },
           ],
           keywordCombinations: [
@@ -122,7 +125,8 @@ describe('thesisGenerator', () => {
             {
               skill: 'Kubernetes',
               depth: 'strong',
-              context: 'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths.',
+              context:
+                'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths.',
               searchSignal: 'Use as a strong match signal for deployment architecture roles.',
             },
           ],
@@ -149,6 +153,11 @@ describe('thesisGenerator', () => {
         timeoutMs: 90000,
       }),
     )
+    const systemPrompt = mockCallLlmProxy.mock.calls[0]?.[1]
+    expect(systemPrompt).toContain('industriesToAvoid: adtech')
+    expect(systemPrompt).toContain('fundingStagesAcceptable: bootstrapped')
+    expect(systemPrompt).toContain('remotePolicies: remote-only')
+    expect(systemPrompt).toContain('employmentTypes: w2-fulltime')
     expect(result.thesis).toMatchObject({
       id: 'sthesis-generated',
       identityVersion: 7,
@@ -220,6 +229,11 @@ describe('thesisGenerator', () => {
               locations: ['Tampa Bay'],
               clearance: 'None',
               companySize: 'growth',
+              industriesToAvoid: ['adtech', 'invalid-industry'],
+              fundingStagesAcceptable: ['series-a', 'invalid-stage'],
+              remotePolicies: ['remote-only', 'invalid-policy'],
+              remotePolicyNote: 'Remote-first outside Tampa Bay.',
+              employmentTypes: ['w2-fulltime', 'invalid-type'],
             },
             filters: {
               prioritize: ['platform leverage'],
@@ -245,39 +259,218 @@ describe('thesisGenerator', () => {
 
     expect(result.thesis.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
     expect(result.thesis.searchOverrides?.constraints.companySize).toBe('growth')
-    expect(result.thesis.searchOverrides?.filters.prioritize).toEqual(['platform leverage'])
+    expect(result.thesis.searchOverrides?.constraints.industriesToAvoid).toEqual(['adtech'])
+    expect(result.thesis.searchOverrides?.constraints.fundingStagesAcceptable).toEqual([
+      'series-a',
+    ])
+    expect(result.thesis.searchOverrides?.constraints.remotePolicies).toEqual(['remote-only'])
+    expect(result.thesis.searchOverrides?.constraints.remotePolicyNote).toBe(
+      'Remote-first outside Tampa Bay.',
+    )
+    expect(result.thesis.searchOverrides?.constraints.employmentTypes).toEqual(['w2-fulltime'])
+    expect(result.thesis.searchOverrides).not.toHaveProperty('filters')
+    expect(result.thesis.lookFor.map((signal) => signal.label)).toContain('platform leverage')
+    expect(result.thesis.avoid).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'pure cluster admin',
+          severity: 'soft',
+        }),
+      ]),
+    )
     expect(result.thesis.searchOverrides?.interviewPrefs.strongFit).toEqual(['take-home portfolio'])
     expect(result.thesis.customDirective).toBe(
       'Adjacent CTO roles at platform-modernization startups.',
     )
   })
 
+  it('normalizes generated thesis signal severities', () => {
+    const identity = cloneIdentityFixture()
+    const thesis = normalizeGeneratedSearchThesis(
+      {
+        narrative,
+        competitiveMoat:
+          'Kubernetes delivery depth combined with product-aware platform strategy.',
+        unfairAdvantages: [
+          {
+            combination: 'Kubernetes delivery plus product judgment',
+            targetCompanyProfile: 'Platform modernization teams',
+          },
+        ],
+        searchLanes: [
+          {
+            id: 'lane-modernization',
+            title: 'Platform modernization',
+            rationale:
+              'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+            targetSignals: ['platform modernization'],
+          },
+        ],
+        interviewStrategy: 'Anchor on deployment architecture tradeoffs.',
+        lookFor: [
+          { id: 'ssig-existing-look', label: 'Stable look-for signal', severity: 'hard' },
+          { label: 'Hard signal', severity: 'hard' },
+          { label: 'Conditional signal', condition: 'when ownership is real' },
+          'Soft signal',
+          { label: 'Invalid severity', severity: 'critical' },
+        ],
+        avoid: [
+          { id: 'ssig-existing-avoid', label: 'Stable avoid signal', severity: 'hard' },
+          { label: 'Hard avoid', severity: 'hard', condition: 'even with platform scope' },
+          { label: 'Conditional avoid', condition: 'unless adjacent to product work' },
+          'Soft avoid',
+          { label: 'Invalid avoid', severity: 'critical', condition: 'with a qualifier' },
+        ],
+        keywordCombinations: [],
+        skillDepthMap: [{ skill: 'Kubernetes', calibration: 'Use as platform evidence.' }],
+      },
+      identity,
+    )
+
+    expect(thesis.lookFor.map(({ label, severity }) => ({ label, severity }))).toEqual([
+      { label: 'Stable look-for signal', severity: 'hard' },
+      { label: 'Hard signal', severity: 'hard' },
+      { label: 'Conditional signal', severity: 'conditional' },
+      { label: 'Soft signal', severity: 'soft' },
+      { label: 'Invalid severity', severity: 'soft' },
+    ])
+    expect(thesis.avoid.map(({ label, severity }) => ({ label, severity }))).toEqual([
+      { label: 'Stable avoid signal', severity: 'hard' },
+      { label: 'Hard avoid', severity: 'hard' },
+      { label: 'Conditional avoid', severity: 'conditional' },
+      { label: 'Soft avoid', severity: 'soft' },
+      { label: 'Invalid avoid', severity: 'conditional' },
+    ])
+    expect(thesis.lookFor[0]?.id).toBe('ssig-existing-look')
+    expect(thesis.avoid[0]?.id).toBe('ssig-existing-avoid')
+    expect(thesis.lookFor[1]?.id).toMatch(/^ssig-/)
+    expect(thesis.avoid[1]?.id).toMatch(/^ssig-/)
+  })
+
+  it('promotes legacy-only override filters into canonical thesis signals', () => {
+    const identity = cloneIdentityFixture()
+    const thesis = normalizeGeneratedSearchThesis(
+      {
+        narrative,
+        competitiveMoat:
+          'Kubernetes delivery depth combined with product-aware platform strategy.',
+        unfairAdvantages: [
+          {
+            combination: 'Kubernetes delivery plus product judgment',
+            targetCompanyProfile: 'Platform modernization teams',
+          },
+        ],
+        searchLanes: [
+          {
+            id: 'lane-modernization',
+            title: 'Platform modernization',
+            rationale:
+              'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+            targetSignals: ['platform modernization'],
+          },
+        ],
+        interviewStrategy: 'Anchor on deployment architecture tradeoffs.',
+        keywordCombinations: [],
+        skillDepthMap: [{ skill: 'Kubernetes', calibration: 'Use as platform evidence.' }],
+        searchOverrides: {
+          constraints: {},
+          filters: {
+            prioritize: ['', '   ', 'Platform Leverage', 'platform leverage'],
+            avoid: ['pure cluster admin', 'PURE CLUSTER ADMIN', '  '],
+          },
+          interviewPrefs: {},
+          hiddenSkillIds: [],
+        },
+      },
+      identity,
+    )
+
+    expect(thesis.searchOverrides).not.toHaveProperty('filters')
+    expect(thesis.lookFor.map(({ label, severity }) => ({ label, severity }))).toEqual([
+      { label: 'Platform Leverage', severity: 'soft' },
+    ])
+    expect(thesis.avoid.map(({ label, severity }) => ({ label, severity }))).toEqual([
+      { label: 'pure cluster admin', severity: 'soft' },
+    ])
+  })
+
+  it('deduplicates legacy filters against generated thesis signals', () => {
+    const identity = cloneIdentityFixture()
+    const thesis = normalizeGeneratedSearchThesis(
+      {
+        narrative,
+        competitiveMoat:
+          'Kubernetes delivery depth combined with product-aware platform strategy.',
+        unfairAdvantages: [
+          {
+            combination: 'Kubernetes delivery plus product judgment',
+            targetCompanyProfile: 'Platform modernization teams',
+          },
+        ],
+        searchLanes: [
+          {
+            id: 'lane-modernization',
+            title: 'Platform modernization',
+            rationale:
+              'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+            targetSignals: ['platform modernization'],
+          },
+        ],
+        interviewStrategy: 'Anchor on deployment architecture tradeoffs.',
+        lookFor: [{ label: 'Platform Leverage', severity: 'hard' }],
+        avoid: [{ label: 'Pure Cluster Admin', severity: 'hard' }],
+        keywordCombinations: [],
+        skillDepthMap: [{ skill: 'Kubernetes', calibration: 'Use as platform evidence.' }],
+        searchOverrides: {
+          constraints: {},
+          filters: {
+            prioritize: ['platform leverage', 'PLATFORM LEVERAGE'],
+            avoid: ['pure cluster admin', 'PURE CLUSTER ADMIN'],
+          },
+          interviewPrefs: {},
+          hiddenSkillIds: [],
+        },
+      },
+      identity,
+    )
+
+    expect(thesis.lookFor.map(({ label, severity }) => ({ label, severity }))).toEqual([
+      { label: 'Platform Leverage', severity: 'hard' },
+    ])
+    expect(thesis.avoid.map(({ label, severity }) => ({ label, severity }))).toEqual([
+      { label: 'Pure Cluster Admin', severity: 'hard' },
+    ])
+  })
+
   it('validates narrative, lane rationale, and identity skill coverage', () => {
     const identity = cloneIdentityFixture()
-    const violations = validateSearchThesis({
-      id: 'sthesis-short',
-      createdAt: '2026-04-20T10:00:00.000Z',
-      updatedAt: '2026-04-20T10:00:00.000Z',
-      narrative: 'Too short.',
-      competitiveMoat: 'Thin.',
-      unfairAdvantages: [],
-      searchLanes: [
-        {
-          id: 'lane-1',
-          title: 'Generic lane',
-          rationale: 'One sentence only.',
-          targetSignals: [],
-        },
-      ],
-      interviewStrategy: '',
-      lookFor: [],
-      avoid: [],
-      keywordCombinations: [],
-      skillDepthMap: [],
-      source: 'generated',
-      identityVersion: 0,
-      feedbackIncorporated: [],
-    }, identity)
+    const violations = validateSearchThesis(
+      {
+        id: 'sthesis-short',
+        createdAt: '2026-04-20T10:00:00.000Z',
+        updatedAt: '2026-04-20T10:00:00.000Z',
+        narrative: 'Too short.',
+        competitiveMoat: 'Thin.',
+        unfairAdvantages: [],
+        searchLanes: [
+          {
+            id: 'lane-1',
+            title: 'Generic lane',
+            rationale: 'One sentence only.',
+            targetSignals: [],
+          },
+        ],
+        interviewStrategy: '',
+        lookFor: [],
+        avoid: [],
+        keywordCombinations: [],
+        skillDepthMap: [],
+        source: 'generated',
+        identityVersion: 0,
+        feedbackIncorporated: [],
+      },
+      identity,
+    )
 
     expect(violations).toEqual(
       expect.arrayContaining([

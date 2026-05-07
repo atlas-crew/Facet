@@ -1,39 +1,15 @@
 import { defaultResumeData } from '../store/defaultData'
-import {
-  useCoverLetterStore,
-} from '../store/coverLetterStore'
+import { useCoverLetterStore } from '../store/coverLetterStore'
 import { normalizeCoverLetterWorkspacePayload } from '../utils/coverLetterEntities'
-import {
-  migrateDebriefState,
-  useDebriefStore,
-} from '../store/debriefStore'
-import {
-  migrateLinkedInState,
-  useLinkedInStore,
-} from '../store/linkedinStore'
-import {
-  migratePipelineState,
-  usePipelineStore,
-} from '../store/pipelineStore'
-import {
-  migrateJDAnalysisState,
-  useJDAnalysisStore,
-} from '../store/jdAnalysisStore'
-import {
-  migratePrepState,
-  usePrepStore,
-} from '../store/prepStore'
+import { migrateDebriefState, useDebriefStore } from '../store/debriefStore'
+import { migrateLinkedInState, useLinkedInStore } from '../store/linkedinStore'
+import { migratePipelineState, usePipelineStore } from '../store/pipelineStore'
+import { migrateJDAnalysisState, useJDAnalysisStore } from '../store/jdAnalysisStore'
+import { migratePrepState, usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
-import {
-  normalizeResumeWorkspaceData,
-  resumeMigration,
-  useResumeStore,
-} from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, resumeMigration, useResumeStore } from '../store/resumeStore'
 import { normalizeResumeWorkspacePayload } from '../utils/resumeEntities'
-import {
-  migrateSearchState,
-  useSearchStore,
-} from '../store/searchStore'
+import { migrateSearchState, useSearchStore } from '../store/searchStore'
 import type { SearchProfile } from '../types/search'
 import { resolveStorage } from '../store/storage'
 import { useUiStore } from '../store/uiStore'
@@ -114,17 +90,18 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     ...state,
     decks: prepDecks,
     activeDeckId:
-      prepDecks.find((deck) => deck.id === state.activeDeckId)?.id ??
-      prepDecks[0]?.id ??
-      null,
+      prepDecks.find((deck) => deck.id === state.activeDeckId)?.id ?? prepDecks[0]?.id ?? null,
   }))
 
-  useCoverLetterStore.getState().importWorkspaceData(
-    normalizeCoverLetterWorkspacePayload(snapshot.artifacts.coverLetters.payload),
-  )
+  useCoverLetterStore
+    .getState()
+    .importWorkspaceData(
+      normalizeCoverLetterWorkspacePayload(snapshot.artifacts.coverLetters.payload),
+    )
 
-  const linkedInDrafts =
-    cloneValue(snapshot.artifacts.linkedin.payload.drafts) as LinkedInProfileDraft[]
+  const linkedInDrafts = cloneValue(
+    snapshot.artifacts.linkedin.payload.drafts,
+  ) as LinkedInProfileDraft[]
   useLinkedInStore.setState((state) => ({
     ...state,
     drafts: linkedInDrafts,
@@ -134,8 +111,7 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       null,
   }))
 
-  const recruiterCards =
-    cloneValue(snapshot.artifacts.recruiter.payload.cards) as RecruiterCard[]
+  const recruiterCards = cloneValue(snapshot.artifacts.recruiter.payload.cards) as RecruiterCard[]
   useRecruiterStore.setState((state) => ({
     ...state,
     cards: recruiterCards,
@@ -145,8 +121,9 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       null,
   }))
 
-  const debriefSessions =
-    cloneValue(snapshot.artifacts.debrief.payload.sessions) as DebriefSession[]
+  const debriefSessions = cloneValue(
+    snapshot.artifacts.debrief.payload.sessions,
+  ) as DebriefSession[]
   useDebriefStore.setState((state) => ({
     ...state,
     sessions: debriefSessions,
@@ -156,29 +133,28 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       null,
   }))
 
-  const researchTheses = cloneValue(snapshot.artifacts.research.payload.theses ?? [])
+  // migrateSearchState is version-agnostic and idempotent; applying it here keeps
+  // workspace/import payloads aligned with direct legacy Zustand hydration.
+  const migratedResearch = migrateSearchState(snapshot.artifacts.research.payload)
+  const researchTheses = cloneValue(migratedResearch.theses ?? [])
   const activeThesisId =
-    snapshot.artifacts.research.payload.activeThesisId &&
-    researchTheses.some((thesis) => thesis.id === snapshot.artifacts.research.payload.activeThesisId)
-      ? snapshot.artifacts.research.payload.activeThesisId
+    migratedResearch.activeThesisId &&
+    researchTheses.some((thesis) => thesis.id === migratedResearch.activeThesisId)
+      ? migratedResearch.activeThesisId
       : null
 
   useSearchStore.setState({
-    profile: persistedResearchProfile(cloneValue(snapshot.artifacts.research.payload.profile)),
-    requests: cloneValue(snapshot.artifacts.research.payload.requests),
-    runs: cloneValue(snapshot.artifacts.research.payload.runs),
+    profile: persistedResearchProfile(cloneValue(migratedResearch.profile)),
+    requests: cloneValue(migratedResearch.requests),
+    runs: cloneValue(migratedResearch.runs),
     theses: researchTheses,
     activeThesisId,
-    feedbackEvents: cloneValue(
-      snapshot.artifacts.research.payload.feedbackEvents ?? [],
-    ),
-    activeResearchJob: cloneValue(snapshot.artifacts.research.payload.activeResearchJob ?? null),
+    feedbackEvents: cloneValue(migratedResearch.feedbackEvents),
+    activeResearchJob: cloneValue(migratedResearch.activeResearchJob),
   })
 }
 
-export const applyLocalPreferencesSnapshotToStores = (
-  snapshot: FacetLocalPreferencesSnapshot,
-) => {
+export const applyLocalPreferencesSnapshotToStores = (snapshot: FacetLocalPreferencesSnapshot) => {
   useUiStore.setState((state) => ({
     ...state,
     selectedVector: snapshot.ui.selectedVector,
@@ -233,13 +209,13 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
 
   const hasLegacyData = Boolean(
     resumeEnvelope ||
-      pipelineEnvelope ||
-      prepEnvelope ||
-      coverLetterEnvelope ||
-      linkedInEnvelope ||
-      debriefEnvelope ||
-      searchEnvelope ||
-      uiEnvelope,
+    pipelineEnvelope ||
+    prepEnvelope ||
+    coverLetterEnvelope ||
+    linkedInEnvelope ||
+    debriefEnvelope ||
+    searchEnvelope ||
+    uiEnvelope,
   )
 
   if (!hasLegacyData) {
@@ -289,28 +265,20 @@ export const hydrateStoresFromLegacyStorage = (): boolean => {
   usePrepStore.setState((state) => ({
     ...state,
     decks: cloneValue(migratedPrep.decks ?? []),
-    activeDeckId:
-      migratedPrep.activeDeckId ??
-      migratedPrep.decks?.[0]?.id ??
-      null,
+    activeDeckId: migratedPrep.activeDeckId ?? migratedPrep.decks?.[0]?.id ?? null,
   }))
 
   useLinkedInStore.setState((state) => ({
     ...state,
     drafts: cloneValue(migratedLinkedIn.drafts ?? []),
-    selectedDraftId:
-      migratedLinkedIn.selectedDraftId ??
-      migratedLinkedIn.drafts?.[0]?.id ??
-      null,
+    selectedDraftId: migratedLinkedIn.selectedDraftId ?? migratedLinkedIn.drafts?.[0]?.id ?? null,
   }))
 
   useDebriefStore.setState((state) => ({
     ...state,
     sessions: cloneValue(migratedDebrief.sessions ?? []),
     selectedSessionId:
-      migratedDebrief.selectedSessionId ??
-      migratedDebrief.sessions?.[0]?.id ??
-      null,
+      migratedDebrief.selectedSessionId ?? migratedDebrief.sessions?.[0]?.id ?? null,
   }))
 
   const researchTheses = cloneValue(migratedSearch.theses ?? [])

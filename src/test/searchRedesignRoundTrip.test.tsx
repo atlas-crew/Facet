@@ -20,7 +20,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ResearchJob, SearchResultEntry, SearchThesis } from '../types/search'
+import type {
+  ResearchJob,
+  SearchResultEntry,
+  SearchThesis,
+  SearchThesisSignal,
+} from '../types/search'
 import { defaultResumeData } from '../store/defaultData'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useIdentityStore } from '../store/identityStore'
@@ -54,9 +59,8 @@ const {
 }))
 
 vi.mock('@tanstack/react-router', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-router')>(
-    '@tanstack/react-router',
-  )
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -111,61 +115,92 @@ const NARRATIVE_PARAGRAPHS = [
   'The strongest lanes are platform modernization and developer-productivity infrastructure. Both lanes let the candidate use depth in Kubernetes while keeping the search calibrated toward systems ownership, architecture judgment, and cross-functional delivery.',
 ]
 
-const buildRoundTripThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
-  id: 'thesis-rt-initial',
-  createdAt: '2026-03-10T10:00:00.000Z',
-  updatedAt: '2026-03-10T10:00:00.000Z',
-  narrative: NARRATIVE_PARAGRAPHS.join('\n\n'),
-  competitiveMoat:
-    'Production Kubernetes delivery paired with product-aware platform judgment and evidence of making complex deployment constraints legible.',
-  unfairAdvantages: [
-    {
-      id: 'sadv-rt',
-      combination: 'Kubernetes delivery plus product judgment',
-      targetCompanyProfile: 'Platform teams modernizing deployment paths',
-    },
-  ],
-  searchLanes: [
-    {
-      id: 'lane-platform',
-      title: 'Platform modernization',
-      rationale:
-        'This lane targets companies whose deployment model is becoming strategically important. It is strong because the candidate can connect infrastructure implementation to product delivery outcomes.',
-      competitiveContext:
-        'Look for teams modernizing delivery without hiring for narrow cluster operations.',
-      targetSignals: ['platform modernization', 'developer leverage'],
-    },
-  ],
-  interviewStrategy: 'Lead with deployment architecture tradeoffs and product delivery outcomes.',
-  lookFor: ['platform modernization', 'developer leverage'],
-  avoid: [
-    {
-      label: 'Pure Kubernetes administration',
-      condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.',
-    },
-  ],
-  keywordCombinations: [
-    {
-      id: 'skwd-rt',
-      query: '"platform modernization" Kubernetes',
-      lane: 'lane-platform',
-      noiseLevel: 'low',
-    },
-  ],
-  skillDepthMap: [
-    {
-      skill: 'Kubernetes',
-      depth: 'strong',
-      context:
-        'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths over multiple quarters.',
-      searchSignal: 'Strong match signal for platform modernization roles.',
-    },
-  ],
-  source: 'generated',
-  identityVersion: 0,
-  feedbackIncorporated: [],
-  ...overrides,
-})
+type RoundTripThesisSignalInput = string | Partial<SearchThesisSignal>
+type RoundTripThesisOverrides = Partial<Omit<SearchThesis, 'lookFor' | 'avoid'>> & {
+  lookFor?: RoundTripThesisSignalInput[]
+  avoid?: RoundTripThesisSignalInput[]
+}
+
+const normalizeRoundTripSignals = (
+  signals: readonly RoundTripThesisSignalInput[] | undefined,
+): SearchThesisSignal[] =>
+  (signals ?? []).flatMap<SearchThesisSignal>((signal, index) => {
+    if (typeof signal === 'string') {
+      return signal.trim()
+        ? [{ id: `ssig-rt-${index}`, label: signal.trim(), severity: 'soft' }]
+        : []
+    }
+    if (!signal.label?.trim()) return []
+    return [
+      {
+        ...signal,
+        id: signal.id ?? `ssig-rt-${index}`,
+        label: signal.label.trim(),
+        severity: signal.severity ?? (signal.condition ? 'conditional' : 'soft'),
+      },
+    ]
+  })
+
+const buildRoundTripThesis = (overrides: RoundTripThesisOverrides = {}): SearchThesis => {
+  const { lookFor, avoid, ...rest } = overrides
+  return {
+    id: 'thesis-rt-initial',
+    createdAt: '2026-03-10T10:00:00.000Z',
+    updatedAt: '2026-03-10T10:00:00.000Z',
+    narrative: NARRATIVE_PARAGRAPHS.join('\n\n'),
+    competitiveMoat:
+      'Production Kubernetes delivery paired with product-aware platform judgment and evidence of making complex deployment constraints legible.',
+    unfairAdvantages: [
+      {
+        id: 'sadv-rt',
+        combination: 'Kubernetes delivery plus product judgment',
+        targetCompanyProfile: 'Platform teams modernizing deployment paths',
+      },
+    ],
+    searchLanes: [
+      {
+        id: 'lane-platform',
+        title: 'Platform modernization',
+        rationale:
+          'This lane targets companies whose deployment model is becoming strategically important. It is strong because the candidate can connect infrastructure implementation to product delivery outcomes.',
+        competitiveContext:
+          'Look for teams modernizing delivery without hiring for narrow cluster operations.',
+        targetSignals: ['platform modernization', 'developer leverage'],
+      },
+    ],
+    interviewStrategy: 'Lead with deployment architecture tradeoffs and product delivery outcomes.',
+    lookFor: normalizeRoundTripSignals(lookFor ?? ['platform modernization', 'developer leverage']),
+    avoid: normalizeRoundTripSignals(
+      avoid ?? [
+        {
+          label: 'Pure Kubernetes administration',
+          condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.',
+        },
+      ],
+    ),
+    keywordCombinations: [
+      {
+        id: 'skwd-rt',
+        query: '"platform modernization" Kubernetes',
+        lane: 'lane-platform',
+        noiseLevel: 'low',
+      },
+    ],
+    skillDepthMap: [
+      {
+        skill: 'Kubernetes',
+        depth: 'strong',
+        context:
+          'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths over multiple quarters.',
+        searchSignal: 'Strong match signal for platform modernization roles.',
+      },
+    ],
+    source: 'generated',
+    identityVersion: 0,
+    feedbackIncorporated: [],
+    ...rest,
+  }
+}
 
 const buildEnrichedRoundTripResult = (): SearchResultEntry => ({
   id: 'sres-rt-1',
@@ -183,7 +218,7 @@ const buildEnrichedRoundTripResult = (): SearchResultEntry => ({
   estimatedComp: '$260k-$310k',
   source: 'greenhouse',
   candidateEdge:
-    'Built fleet-managed eBPF agents at A10 — direct prior-art for managing the lifecycle of platform agents at Acme. The candidate has shipped customer-facing deployment paths that look almost identical to Acme\'s control-plane modernization. That overlap turns the platform team\'s open problem into the candidate\'s past resume work.',
+    "Built fleet-managed eBPF agents at A10 — direct prior-art for managing the lifecycle of platform agents at Acme. The candidate has shipped customer-facing deployment paths that look almost identical to Acme's control-plane modernization. That overlap turns the platform team's open problem into the candidate's past resume work.",
   interviewProcess: {
     format: 'take-home + system design + behavioral panel',
     builderFriendly: true,
@@ -215,7 +250,11 @@ const buildRoundTripResearchJob = (overrides: Partial<ResearchJob> = {}): Resear
     startedAt: '2026-03-10T10:06:30.000Z',
     completedAt: '2026-03-10T10:18:00.000Z',
     ttlAt: '2026-04-10T10:06:00.000Z',
-    progress: { phase: 'completed', elapsedMs: 690_000, searchQueries: ['"platform modernization" Kubernetes'] },
+    progress: {
+      phase: 'completed',
+      elapsedMs: 690_000,
+      searchQueries: ['"platform modernization" Kubernetes'],
+    },
     result: {
       narrative: {
         competitiveMoat:
@@ -228,7 +267,9 @@ const buildRoundTripResearchJob = (overrides: Partial<ResearchJob> = {}): Resear
           'Acme leads the shortlist; deployment architecture and platform modernization signals all align.',
         landscapeTrends:
           'AI-augmented dev workflows are becoming a baseline expectation at platform teams in this stage band.',
-        surprises: ['Acme\'s founder-led engineering blog explicitly calls out platform-judgment hires.'],
+        surprises: [
+          "Acme's founder-led engineering blog explicitly calls out platform-judgment hires.",
+        ],
         rejectedCandidates: [
           { company: 'Initech', reason: 'Cluster-admin scope; not a builder-friendly fit.' },
         ],
@@ -295,6 +336,9 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
     })
 
     useCoverLetterStore.setState({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
       templates: [],
     })
 
@@ -491,11 +535,10 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
     // must (a) create a SearchFeedbackEvent, (b) append a MatchingAvoid to the
     // identity model, (c) bump model_revision, and (d) flip appliedToIdentity
     // to true with appliedAtVersion equal to the new revision.
-    const previousRevision =
-      useIdentityStore.getState().currentIdentity?.model_revision ?? 0
+    const previousRevision = useIdentityStore.getState().currentIdentity?.model_revision ?? 0
     fireEvent.click(screen.getByRole('button', { name: /Mark Acme Corp match as wrong/i }))
     fireEvent.change(screen.getByPlaceholderText(/deep K8s admin experience/i), {
-      target: { value: 'They\'re hiring a cluster admin, not a platform owner.' },
+      target: { value: "They're hiring a cluster admin, not a platform owner." },
     })
     fireEvent.click(screen.getByLabelText(/Add to Identity avoid list/i))
     fireEvent.change(screen.getByPlaceholderText(/K8s admin role/i), {
@@ -557,8 +600,6 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
     // call to getUnreflectedFeedback against this thesis returns nothing.
     const finalFeedbackState = useSearchStore.getState().feedbackEvents[0]!
     expect(finalFeedbackState.reflectedInThesisId).toBe('thesis-rt-regen')
-    expect(
-      useSearchStore.getState().getUnreflectedFeedback(regeneratedThesis?.id),
-    ).toEqual([])
+    expect(useSearchStore.getState().getUnreflectedFeedback(regeneratedThesis?.id)).toEqual([])
   }, 30_000)
 })

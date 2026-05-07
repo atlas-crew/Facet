@@ -399,11 +399,14 @@ export function buildDeepResearchThesisSnapshot({
       profile.interviewPrefs.strongFit[0] ??
       identity?.self_model.interview_style.prep_strategy ??
       'Prefer evidence-backed work sample and architecture conversations over trivia-heavy screening.',
-    lookFor: [
-      ...profile.filters.prioritize,
-      ...safeLanes.flatMap((lane) => lane.targetSignals),
-    ].slice(0, 16),
-    avoid: profile.filters.avoid.map((label) => ({ label })),
+    lookFor: [...profile.filters.prioritize, ...safeLanes.flatMap((lane) => lane.targetSignals)]
+      .slice(0, 16)
+      .map((label) => ({ id: createId('ssig'), label, severity: 'soft' })),
+    avoid: profile.filters.avoid.map((label) => ({
+      id: createId('ssig'),
+      label,
+      severity: 'soft',
+    })),
     keywordCombinations,
     skillDepthMap: safeSkillDepthMap,
     source: 'generated',
