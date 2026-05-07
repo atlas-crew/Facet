@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:04'
-updated_date: '2026-04-28 18:41'
+updated_date: '2026-05-07 21:36'
 labels:
   - shepherding
   - staleness
@@ -60,7 +60,7 @@ This is the mechanism that makes corrections feel like progress — the user see
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Generated artifacts record the identity model version they were created from
+- [x] #1 Generated artifacts record the identity model version they were created from
 - [ ] #2 When identity model changes, stale artifacts are identified by version comparison
 - [x] #3 Non-blocking notification surfaces stale artifact count
 - [ ] #4 User can review stale artifacts with diff showing what changed and why
@@ -80,6 +80,16 @@ Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMet
 2026-04-28: Added persisted artifact staleness review decisions for TASK-158 batch review. Run, search thesis, prep deck, and cover-letter artifacts now preserve sanitized stalenessReview metadata with decision, reviewed identity revision, artifact identity revision at review, mutation label/fields/revisions, and reason. Batch review decisions save to the owning artifact stores; row status is derived from persisted artifact metadata, guarded by matching mutation fingerprint, and stale/missing artifacts show failure notices instead of optimistic local-only success. Identity-version updates clear stale review metadata only when the artifact advances past the saved review, while explicit fresh review patches are preserved. Refresh generators remain disabled/pending for AC #6. Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMeta.test.ts src/test/searchStore.test.ts (105 passed); npm run typecheck (passed); touched-file npx eslint for staleness files/tests (passed); npm run build (passed). Independent review: .agents/reviews/review-20260428-113339.md PASS WITH ISSUES, P0/P1=0 with remaining P2/P3 refactor/perf notes. Test audit: .agents/reviews/test-audit-20260428-114245.md identified one ArtifactMeta P1 branch, fixed by not-stale coverage; .agents/reviews/test-audit-20260428-114636.md identified one SearchStore P1 unknown-id branch, fixed by explicit false/no-mutation test. Broad src/test audit was intentionally size-guarded at 2238 KB > 488 KB; stderr /tmp/task158-audit2-err.HnqEKW.
 
 2026-04-28: Added the first artifact-specific refresh path for TASK-158 batch staleness review: stale saved search theses can now be regenerated from the latest Identity context directly from the batch review. Refresh persists an accepted-current staleness review marker on the regenerated thesis, keeps the previous/current active thesis selection stable, serializes refreshes, and discards generated results if Identity, review context, target artifact presence, or active thesis dirty state changes mid-flight. Non-thesis run/prep/cover-letter refresh remains visibly pending. Coverage added for successful saved-thesis refresh, durable reviewed marker, active dirty-draft blocking, duplicate-refresh serialization, generator failure recovery, and mid-refresh Identity drift discard. Verification: npx vitest run src/test/ResearchPage.test.tsx (69 passed); npm run typecheck (passed); npx eslint src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx (passed); npm run build (passed); npm run test (134 files/1677 tests passed). Review receipts: code review cycles in .agents/reviews/review-20260428-142908.md and .agents/reviews/review-20260428-143207.md drove async guard fixes; test audit .agents/reviews/test-audit-20260428-143639.md identified refresh-guard coverage gaps, with P1 reachable gaps remediated in ResearchPage tests.
+
+2026-05-07 AC #1 closure: Audited all four generated-artifact paths for identityVersion stamping at creation time:
+- Thesis: stamped automatically in thesisGenerator.ts:482 from `identity.model_revision`.
+- Run: stamped from `thesisSnapshot.identityVersion` in deepSearchClient.ts:196.
+- Cover letter: stamped via `resolveLetterIdentityVersion(identity, resume)` helper in LettersPage.tsx:510.
+- Prep deck (AI-generated): MISSING — fixed by adding `identityVersion: currentIdentity?.model_revision` to the createDeck call in PrepPage.tsx:1135 (the AI generation path; the manual blank-deck path at PrepPage.tsx:959 is intentionally not stamped because no generation has happened yet).
+
+Regression coverage in src/test/PrepPage.identityGeneration.test.tsx: bumped the fixture's model_revision and the JD analysis fixture's identityVersion from 0 to 3 (matched, so the drift gate doesn't trip), and added an assertion that the AI-generated deck stamps `identityVersion === 3`. Verified the test fails (`expected undefined to be 3`) when the stamping line is removed, confirming it catches regressions mechanically.
+
+Verification: npm run typecheck PASS; npx vitest run src/test/PrepPage.identityGeneration.test.tsx PASS (8/8). Closing AC #1; remaining outstanding ACs (#2, #4, #6, #8) tracked separately.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

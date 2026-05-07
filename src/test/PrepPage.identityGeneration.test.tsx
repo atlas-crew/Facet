@@ -26,7 +26,7 @@ vi.mock('@tanstack/react-router', () => ({
 const prepIdentityFixture: ProfessionalIdentityV3 = {
   version: 3,
   schema_revision: '3.1',
-  model_revision: 0,
+  model_revision: 3,
   identity: {
     name: 'Alex Example',
     email: 'alex@example.com',
@@ -128,7 +128,7 @@ function createTestJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     id: 'jd-analysis-1',
     pipelineEntryId: 'pipe-1',
     jdTextHash: hashJobDescriptionText(jobDescription),
-    identityVersion: 0,
+    identityVersion: 3,
     modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
     audienceRulesVersion: 'audience-rules.v1',
     generatedAt: '2026-04-20T12:00:00.000Z',
@@ -366,6 +366,7 @@ describe('PrepPage identity generation', () => {
       company: [expect.objectContaining({ value: '3', label: 'Core platform bets' })],
     })
     expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
+    expect(generatedDeck.identityVersion).toBe(3)
   })
 
   it('confirms before replacing an existing identity draft', async () => {

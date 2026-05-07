@@ -1132,6 +1132,7 @@ export function PrepPage() {
         jdAnalysisModelVersion: jdAnalysis.modelVersion,
         jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
+        identityVersion: currentIdentity?.model_revision,
         cards: result.cards.map((card) => ({
           ...card,
           company: selectedEntry.company,
