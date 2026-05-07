@@ -183,6 +183,86 @@ When the audience taxonomy itself changes (e.g., dropping
 superset), the bump becomes a structural change and may need migration
 logic that isn't just "re-apply rules."
 
+## Taxonomy validation: `hiring_manager` vs `recruiter`
+
+The `AudienceTag` union has both `'recruiter'` and `'hiring_manager'`
+as separate audiences. TASK-223 audited whether the split carries
+information or whether it is over-engineering.
+
+### Audit findings (2026-05-07)
+
+In the current rules engine, **`hiring_manager` is a strict subset of
+`recruiter`** — every item tagged `hiring_manager` is also tagged
+`recruiter`, but not vice versa. The asymmetry comes from two sources:
+
+**One default treats them differently:**
+
+| Default | Recruiter | Hiring manager |
+|---|---|---|
+| `requirements` | ✓ | ✓ |
+| `skill matches` | ✓ | ✓ |
+| `evidence` (top bullets / projects / etc.) | ✓ | ✓ |
+| `advantages` | ✓ | ✓ |
+| `strength notes` | ✓ | ✓ |
+| **`positioning recommendations`** | ✓ | — |
+| (gap focus, warnings, watch outs, etc.) | — | — |
+
+Positioning recommendations go to recruiter alone — they are pitch-
+playbook content (how to advocate for this candidate) that an HM
+neither needs nor benefits from.
+
+**Three enrichment hooks promote to `recruiter` but NOT `hiring_manager`:**
+
+- High-severity gaps → recruiter (so recruiter can position around them)
+- High-severity relevant awareness → recruiter (same reason)
+- Hard avoid triggers → recruiter (filter-out signals; recruiter
+  shouldn't pitch this opportunity)
+
+The pattern: recruiter, as the candidate's advocate inside the company,
+needs the full picture including risks. HM, as the eventual reader, sees
+only the substantive case.
+
+### Decision: keep the split
+
+The two audiences are currently informationally redundant for items
+that touch both — `projectForAudience(jd, 'hiring_manager')` returns
+a strict subset of `projectForAudience(jd, 'recruiter')` content. But
+the asymmetry encodes real editorial intent that downstream artifacts
+depend on:
+
+- **Cover letters** address hiring managers, not recruiters. They
+  should pull substantive content only — no pitch playbook, no
+  risk warnings. The `'hiring_manager'` projection is correct here.
+- **Recruiter cards** address recruiters. They want the full pitch:
+  substantive content + positioning recommendations + risk awareness.
+  The `'recruiter'` projection picks up the strict superset.
+
+Collapsing the two now would force a re-introduction when richer
+HM-vs-recruiter differentiation lands. The natural path to richer
+differentiation is TASK-222 (Phase 5 LLM) — let the LLM assert
+HM-only tags for HM-specific content (team-fit signals, technical-depth
+questions, role-design reasoning) where the rules engine can't
+distinguish.
+
+**Status:** the split stays. The audit doesn't trigger an
+`AUDIENCE_RULES_VERSION` bump, fixture migration, or type change.
+
+### When to revisit
+
+Re-open this question if any of these become true:
+
+1. Phase 5 (TASK-222) ships and the LLM consistently asserts the same
+   audience set for both — at that point the split is also
+   informationally collapsed in practice, not just in the rules
+   defaults.
+2. A new artifact ships that projects for HM and the projection
+   produces empty content because no items are HM-specific. That's
+   the signal that the rules need to surface HM-only content (e.g.,
+   technical-fit notes that go to HM but not recruiter).
+3. The taxonomy expands to `panel` or `peer` and the question becomes
+   "do we need three or four audiences," which is a different design
+   question than "do we need two."
+
 ## Cross-references
 
 - Type definitions: `src/types/audience.ts`
