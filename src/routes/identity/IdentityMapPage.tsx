@@ -67,9 +67,12 @@ export function IdentityMapPage() {
     if (parsed && isMapSelectionValid(parsed, identity)) {
       setMapSelection(parsed)
       skipNextReverseRef.current = true
-      setStaleNotice(null) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredSelRef so no cascade
+      // No `setStaleNotice(null)` here. A clear from this path would clobber a
+      // notice set by the focus effect on the same render (the symmetric of the
+      // bug fixed in TASK-218). Notices are cleared explicitly by the user via
+      // the Dismiss button instead.
     } else {
-      setStaleNotice(buildStaleSelectionNotice(parsed))
+      setStaleNotice(buildStaleSelectionNotice(parsed)) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredSelRef so no cascade
       // Drop the now-stale `sel` param so refresh doesn't re-fire the bad link.
       // Per TASK-217 Decision 5, intra-Identity URL writes use replace: true.
       void navigate({
@@ -129,9 +132,11 @@ export function IdentityMapPage() {
       const layer = getBandDataLayerForFocus(validatedFocus)
       const element = document.querySelector<HTMLElement>(`[data-layer="${layer}"]`)
       element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      setStaleNotice(null) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredFocusRef so no cascade
+      // No `setStaleNotice(null)` here. A clear from this path would clobber a
+      // notice set by the sel effect on the same render (TASK-218). Notices are
+      // cleared explicitly by the user via the Dismiss button instead.
     } else {
-      setStaleNotice(buildStaleSelectionNotice(null))
+      setStaleNotice(buildStaleSelectionNotice(null)) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredFocusRef so no cascade
       void navigate({
         to: '/identity',
         search: (prev) => ({ ...prev, focus: undefined }),

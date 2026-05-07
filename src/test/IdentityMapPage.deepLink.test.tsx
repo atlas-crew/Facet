@@ -414,3 +414,53 @@ describe('IdentityMapPage focus extension (?focus=<band>)', () => {
     })
   })
 })
+
+describe('IdentityMapPage sel/focus stale-notice interaction (TASK-218)', () => {
+  it('preserves sel-stale notice when focus is valid', async () => {
+    // Bug scenario: ?sel=<invalid>&focus=<valid>. The sel forward effect sets
+    // a stale notice; before the fix, the focus effect's setStaleNotice(null)
+    // clobbered it on the same render. The notice should remain visible so
+    // the user understands why their selection was dropped.
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({
+      sel: 'match-rule:prioritize:rule-does-not-exist',
+      focus: 'preferences',
+    })
+
+    render(<IdentityMapPage />)
+
+    await waitFor(() => {
+      const notice = screen.queryByRole('status')
+      expect(notice).not.toBeNull()
+      expect(notice?.textContent ?? '').toContain(
+        "That match rule isn't there anymore",
+      )
+    })
+    // Focus path still scrolls the band into view.
+    const scrollFn = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    expect(scrollFn).toHaveBeenCalled()
+  })
+
+  it('preserves focus-stale notice when sel is valid', async () => {
+    // Symmetric bug scenario: ?sel=<valid>&focus=<invalid>. The focus effect
+    // sets a stale notice; before the fix, the sel forward effect's
+    // setStaleNotice(null) clobbered it on the same render.
+    seedIdentityWithMatchRule()
+    mockUseSearch.mockReturnValue({
+      sel: 'match-rule:prioritize:rule-prio-1',
+      focus: 'not-a-band',
+    })
+
+    render(<IdentityMapPage />)
+
+    await waitFor(() => {
+      const notice = screen.queryByRole('status')
+      expect(notice).not.toBeNull()
+      expect(notice?.textContent ?? '').toContain(
+        "That link target isn't there anymore",
+      )
+    })
+    // Sel path still dispatches the selection.
+    expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
+  })
+})
