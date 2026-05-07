@@ -158,12 +158,39 @@ describe('thesisGenerator', () => {
     expect(systemPrompt).toContain('fundingStagesAcceptable: bootstrapped')
     expect(systemPrompt).toContain('remotePolicies: remote-only')
     expect(systemPrompt).toContain('employmentTypes: w2-fulltime')
+    const responseSchemaBlock = String(systemPrompt).slice(
+      String(systemPrompt).indexOf('Response schema:'),
+      String(systemPrompt).indexOf('Contract:'),
+    )
+    expect(responseSchemaBlock).toContain(
+      '"lookFor": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }]',
+    )
+    expect(responseSchemaBlock).toContain(
+      '"avoid": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }]',
+    )
+    expect(responseSchemaBlock).not.toContain('"filters"')
+    expect(responseSchemaBlock).not.toContain('prioritize')
+    expect(responseSchemaBlock).not.toContain('searchOverrides.filters')
+    expect(systemPrompt).toContain('do not emit duplicate searchOverrides.filters')
     expect(result.thesis).toMatchObject({
       id: 'sthesis-generated',
       identityVersion: 7,
       source: 'generated',
       feedbackIncorporated: ['fb-1'],
     })
+    expect(result.thesis.lookFor).toEqual([
+      expect.objectContaining({ label: 'platform modernization', severity: 'soft' }),
+      expect.objectContaining({ label: 'developer leverage', severity: 'soft' }),
+    ])
+    expect(result.thesis.avoid).toEqual([
+      expect.objectContaining({
+        label: 'Pure Kubernetes administration',
+        condition:
+          'Building around Kubernetes is fine; owning clusters as the whole job is not.',
+        severity: 'conditional',
+      }),
+    ])
+    expect(result.thesis.searchOverrides).toBeUndefined()
     expect(result.contractViolations).toEqual([])
   })
 
@@ -439,6 +466,110 @@ describe('thesisGenerator', () => {
     ])
     expect(thesis.avoid.map(({ label, severity }) => ({ label, severity }))).toEqual([
       { label: 'Pure Cluster Admin', severity: 'hard' },
+    ])
+  })
+
+  it('tolerates malformed legacy override filters and one-sided legacy filter payloads', () => {
+    const basePayload = {
+      narrative,
+      competitiveMoat:
+        'Kubernetes delivery depth combined with product-aware platform strategy.',
+      unfairAdvantages: [
+        {
+          combination: 'Kubernetes delivery plus product judgment',
+          targetCompanyProfile: 'Platform modernization teams',
+        },
+      ],
+      searchLanes: [
+        {
+          id: 'lane-modernization',
+          title: 'Platform modernization',
+          rationale:
+            'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+          targetSignals: ['platform modernization'],
+        },
+      ],
+      interviewStrategy: 'Anchor on deployment architecture tradeoffs.',
+      lookFor: ['Platform modernization'],
+      avoid: ['Pure cluster admin'],
+      keywordCombinations: [],
+      skillDepthMap: [{ skill: 'Kubernetes', calibration: 'Use as platform evidence.' }],
+    }
+    const identity = cloneIdentityFixture()
+
+    const malformedOverrides = normalizeGeneratedSearchThesis(
+      {
+        ...basePayload,
+        searchOverrides: 'not-a-record',
+      },
+      identity,
+    )
+    expect(malformedOverrides.lookFor.map((signal) => signal.label)).toEqual([
+      'Platform modernization',
+    ])
+    expect(malformedOverrides.avoid.map((signal) => signal.label)).toEqual(['Pure cluster admin'])
+    expect(malformedOverrides.searchOverrides).toBeUndefined()
+
+    const malformedFilters = normalizeGeneratedSearchThesis(
+      {
+        ...basePayload,
+        searchOverrides: {
+          constraints: {
+            industriesToAvoid: 'adtech',
+            fundingStagesAcceptable: { stage: 'series-a' },
+            remotePolicies: 'remote-only',
+            employmentTypes: 123,
+          },
+          filters: 'not-a-record',
+          interviewPrefs: {},
+          hiddenSkillIds: [],
+        },
+      },
+      identity,
+    )
+    expect(malformedFilters.searchOverrides?.constraints.industriesToAvoid).toEqual([])
+    expect(malformedFilters.searchOverrides?.constraints.fundingStagesAcceptable).toEqual([])
+    expect(malformedFilters.searchOverrides?.constraints.remotePolicies).toEqual([])
+    expect(malformedFilters.searchOverrides?.constraints.employmentTypes).toEqual([])
+    expect(malformedFilters.lookFor.map((signal) => signal.label)).toEqual([
+      'Platform modernization',
+    ])
+    expect(malformedFilters.avoid.map((signal) => signal.label)).toEqual(['Pure cluster admin'])
+
+    const prioritizeOnly = normalizeGeneratedSearchThesis(
+      {
+        ...basePayload,
+        searchOverrides: {
+          constraints: {},
+          filters: { prioritize: ['Developer leverage'] },
+          interviewPrefs: {},
+          hiddenSkillIds: [],
+        },
+      },
+      identity,
+    )
+    expect(prioritizeOnly.lookFor.map((signal) => signal.label)).toEqual([
+      'Platform modernization',
+      'Developer leverage',
+    ])
+    expect(prioritizeOnly.avoid.map((signal) => signal.label)).toEqual(['Pure cluster admin'])
+
+    const avoidOnly = normalizeGeneratedSearchThesis(
+      {
+        ...basePayload,
+        searchOverrides: {
+          constraints: {},
+          filters: { avoid: ['Crypto speculation'] },
+          interviewPrefs: {},
+          hiddenSkillIds: [],
+        },
+      },
+      identity,
+    )
+    expect(avoidOnly.lookFor.map((signal) => signal.label)).toEqual(['Platform modernization'])
+    expect(avoidOnly.avoid.map((signal) => signal.label)).toEqual([
+      'Pure cluster admin',
+      'Crypto speculation',
     ])
   })
 
