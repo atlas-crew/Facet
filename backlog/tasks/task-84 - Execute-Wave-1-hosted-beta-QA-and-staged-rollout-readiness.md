@@ -4,13 +4,13 @@ title: Execute Wave 1 hosted beta QA and staged rollout readiness
 status: In Progress
 assignee: []
 created_date: '2026-03-12 16:07'
-updated_date: '2026-05-06 20:43'
+updated_date: '2026-05-07 19:23'
 labels:
   - feature
   - billing
   - persistence
   - release
-milestone: m-13
+milestone: Wave 1 Hosted Accounts Launch Readiness
 dependencies:
   - TASK-81
   - TASK-82

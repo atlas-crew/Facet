@@ -6,10 +6,12 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-03-14 04:00'
+updated_date: '2026-05-07 19:23'
 labels:
   - remediation
   - persistence
   - testing
+milestone: Wave 1 Hosted Accounts Launch Readiness
 dependencies: []
 references:
   - .agents/reviews/test-audit-20260313-235218.md

@@ -4,9 +4,10 @@ title: Polish Wave 1 readiness gate template portability and command stability
 status: To Do
 assignee: []
 created_date: '2026-04-08 06:54'
-updated_date: '2026-04-08 09:52'
+updated_date: '2026-05-07 19:23'
 labels:
   - documentation
+milestone: Wave 1 Hosted Accounts Launch Readiness
 dependencies: []
 references:
   - ./.agents/reviews/review-20260408-025234.md

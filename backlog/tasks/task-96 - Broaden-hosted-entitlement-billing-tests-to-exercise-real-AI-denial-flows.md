@@ -4,10 +4,12 @@ title: Broaden hosted entitlement billing tests to exercise real AI denial flows
 status: To Do
 assignee: []
 created_date: '2026-04-08 16:54'
+updated_date: '2026-05-07 19:23'
 labels:
   - tests
   - wave-1
   - hosted
+milestone: Wave 1 Hosted Accounts Launch Readiness
 dependencies: []
 references:
   - ./.agents/reviews/test-audit-20260408-124654.md

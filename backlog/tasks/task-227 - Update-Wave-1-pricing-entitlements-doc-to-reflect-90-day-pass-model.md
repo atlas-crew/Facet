@@ -4,11 +4,13 @@ title: Update Wave 1 pricing/entitlements doc to reflect 90-day-pass model
 status: To Do
 assignee: []
 created_date: '2026-05-06 08:07'
+updated_date: '2026-05-07 19:23'
 labels:
   - documentation
   - pricing
   - billing
   - wave-1
+milestone: Wave 1 Hosted Accounts Launch Readiness
 dependencies:
   - TASK-220.4
 references:

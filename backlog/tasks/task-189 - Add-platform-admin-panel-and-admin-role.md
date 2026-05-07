@@ -4,10 +4,12 @@ title: Add platform admin panel and admin role
 status: To Do
 assignee: []
 created_date: '2026-04-22 03:27'
+updated_date: '2026-05-07 19:23'
 labels:
   - admin
   - auth
   - proxy
+milestone: Wave 1 Hosted Accounts Platform
 dependencies: []
 references:
   - proxy/
