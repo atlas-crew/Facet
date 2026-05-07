@@ -75,6 +75,7 @@ Load-bearing architectural commitments. Read these before making structural chan
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | [Workspace Topology](architecture/facet-workspace-topology.md)     | Workspace responsibilities, data ownership, and the pipeline-as-canonical principle      |
 | [Identity Canonical Data](architecture/identity-canonical-data.md) | Diagnostic rule for per-listing artifact fields; prevents identity/listing data collapse |
+| [Audience Tagging](architecture/audience-tagging.md)               | Two-layer tag model, AUDIENCE_RULES_VERSION migration policy, and unclassified floor     |
 
 ---
 
