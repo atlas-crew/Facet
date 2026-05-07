@@ -38,7 +38,8 @@ const {
 }))
 
 vi.mock('@tanstack/react-router', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router')
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -46,7 +47,9 @@ vi.mock('@tanstack/react-router', async () => {
 })
 
 vi.mock('../utils/searchProfileInference', async () => {
-  const actual = await vi.importActual<typeof import('../utils/searchProfileInference')>('../utils/searchProfileInference')
+  const actual = await vi.importActual<typeof import('../utils/searchProfileInference')>(
+    '../utils/searchProfileInference',
+  )
   return {
     ...actual,
     inferSearchProfile: (...args: Parameters<typeof actual.inferSearchProfile>) =>
@@ -55,7 +58,9 @@ vi.mock('../utils/searchProfileInference', async () => {
 })
 
 vi.mock('../utils/deepSearchClient', async () => {
-  const actual = await vi.importActual<typeof import('../utils/deepSearchClient')>('../utils/deepSearchClient')
+  const actual = await vi.importActual<typeof import('../utils/deepSearchClient')>(
+    '../utils/deepSearchClient',
+  )
   return {
     ...actual,
     createDeepResearchJob: (...args: Parameters<typeof actual.createDeepResearchJob>) =>
@@ -72,7 +77,9 @@ vi.mock('../utils/deepSearchClient', async () => {
 })
 
 vi.mock('../utils/thesisGenerator', async () => {
-  const actual = await vi.importActual<typeof import('../utils/thesisGenerator')>('../utils/thesisGenerator')
+  const actual = await vi.importActual<typeof import('../utils/thesisGenerator')>(
+    '../utils/thesisGenerator',
+  )
   return {
     ...actual,
     generateSearchThesisFromIdentity: (
@@ -326,7 +333,8 @@ describe('ResearchPage', () => {
             title: 'Platform modernization',
             rationale:
               'This lane targets companies whose deployment model is becoming strategically important. It is strong because the candidate can connect infrastructure implementation to product delivery outcomes.',
-            competitiveContext: 'Look for teams modernizing delivery without hiring for narrow cluster operations.',
+            competitiveContext:
+              'Look for teams modernizing delivery without hiring for narrow cluster operations.',
             targetSignals: ['on-prem delivery', 'platform modernization'],
           },
           {
@@ -334,13 +342,21 @@ describe('ResearchPage', () => {
             title: 'Developer productivity infrastructure',
             rationale:
               'This lane targets teams where platform work is measured by developer leverage. It fits because the candidate evidence connects infrastructure tradeoffs to faster product delivery.',
-            competitiveContext: 'Look for teams that treat internal platform work as product leverage.',
+            competitiveContext:
+              'Look for teams that treat internal platform work as product leverage.',
             targetSignals: ['developer productivity', 'internal platform'],
           },
         ],
-        interviewStrategy: 'Lead with deployment architecture tradeoffs and product delivery outcomes.',
+        interviewStrategy:
+          'Lead with deployment architecture tradeoffs and product delivery outcomes.',
         lookFor: ['platform modernization', 'developer leverage'],
-        avoid: [{ label: 'Pure Kubernetes administration', condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.' }],
+        avoid: [
+          {
+            label: 'Pure Kubernetes administration',
+            condition:
+              'Building around Kubernetes is fine; owning clusters as the whole job is not.',
+          },
+        ],
         timeline: {
           urgency: 'active',
           deadline: '2026-05-01',
@@ -358,7 +374,8 @@ describe('ResearchPage', () => {
           {
             skill: 'Kubernetes',
             depth: 'strong',
-            context: 'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths.',
+            context:
+              'Contoso evidence shows Kubernetes-based installs that unlocked customer deployment paths.',
             searchSignal: 'Strong match signal for platform modernization roles.',
           },
         ],
@@ -381,10 +398,13 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
     fireEvent.click(screen.getByRole('button', { name: /Add to Pipeline/i }))
 
-    await waitFor(() => {
-      expect(usePipelineStore.getState().entries).toHaveLength(1)
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/pipeline' })
-    }, { timeout: 10000 })
+    await waitFor(
+      () => {
+        expect(usePipelineStore.getState().entries).toHaveLength(1)
+        expect(mockNavigate).toHaveBeenCalledWith({ to: '/pipeline' })
+      },
+      { timeout: 10000 },
+    )
 
     const entry = usePipelineStore.getState().entries[0]
     expect(entry).toBeDefined()
@@ -422,7 +442,9 @@ describe('ResearchPage', () => {
     expect(screen.getByRole('button', { name: 'Run Search' })).toBeTruthy()
     expect(screen.getByLabelText('Search readiness').textContent).toContain('Resume fallback')
     expect(screen.getByText('Search Readiness')).toBeTruthy()
-    expect(screen.getByText('Your resume-backed profile is ready for targeted searches.')).toBeTruthy()
+    expect(
+      screen.getByText('Your resume-backed profile is ready for targeted searches.'),
+    ).toBeTruthy()
   })
 
   it('shows identity-backed readiness context when the profile syncs from identity', async () => {
@@ -440,7 +462,9 @@ describe('ResearchPage', () => {
     })
 
     expect(screen.getByRole('button', { name: 'Run Search' })).toBeTruthy()
-    expect(screen.getByText('Your search profile is being driven by the identity model.')).toBeTruthy()
+    expect(
+      screen.getByText('Your search profile is being driven by the identity model.'),
+    ).toBeTruthy()
   })
 
   it('generates, edits, and saves a search thesis revision from identity', async () => {
@@ -606,12 +630,14 @@ describe('ResearchPage', () => {
       ...state,
       theses: savedThesis ? [thesis, savedThesis] : [thesis],
       activeThesisId: thesis.id,
-      runs: [{
-        ...state.runs[0]!,
-        identityVersion: 2,
-        thesisId: thesis.id,
-        thesisSnapshot: thesis,
-      }],
+      runs: [
+        {
+          ...state.runs[0]!,
+          identityVersion: 2,
+          thesisId: thesis.id,
+          thesisSnapshot: thesis,
+        },
+      ],
     }))
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
@@ -777,9 +803,7 @@ describe('ResearchPage', () => {
     expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[0]).toMatchObject({
       model_revision: 3,
     })
-    expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[1]).toBe(
-      'https://ai.example/proxy',
-    )
+    expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[1]).toBe('https://ai.example/proxy')
     expect(mockGenerateSearchThesisFromIdentity.mock.calls[0]?.[2]).toEqual([])
 
     await waitFor(() => {
@@ -813,7 +837,9 @@ describe('ResearchPage', () => {
       mutationToRevision: 3,
     })
     expect(useSearchStore.getState().activeThesisId).toBe('thesis-writeback')
-    expect(screen.getByText(/Saved search thesis refreshed with the latest Identity context/)).toBeTruthy()
+    expect(
+      screen.getByText(/Saved search thesis refreshed with the latest Identity context/),
+    ).toBeTruthy()
   })
 
   it('discards a thesis refresh result when Identity changes mid-refresh', async () => {
@@ -860,7 +886,9 @@ describe('ResearchPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText(/Identity or review context changed during thesis refresh/)).toBeTruthy()
+      expect(
+        screen.getByText(/Identity or review context changed during thesis refresh/),
+      ).toBeTruthy()
     })
     const staleThesis = useSearchStore
       .getState()
@@ -896,8 +924,12 @@ describe('ResearchPage', () => {
     )
 
     expect(mockGenerateSearchThesisFromIdentity).not.toHaveBeenCalled()
-    expect(screen.getByText(/Save or discard thesis edits before refreshing this stale thesis/)).toBeTruthy()
-    expect(useSearchStore.getState().theses.find((thesis) => thesis.id === savedThesisId)).toMatchObject({
+    expect(
+      screen.getByText(/Save or discard thesis edits before refreshing this stale thesis/),
+    ).toBeTruthy()
+    expect(
+      useSearchStore.getState().theses.find((thesis) => thesis.id === savedThesisId),
+    ).toMatchObject({
       narrative: 'Saved thesis generated before the current Identity correction.',
       identityVersion: 2,
     })
@@ -1158,9 +1190,9 @@ describe('ResearchPage', () => {
       'Add a search signal or calibration note before writing positioning back to Identity.',
     )
     expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]?.enriched_by)
-      .not
-      .toBe('user')
+    expect(
+      useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]?.enriched_by,
+    ).not.toBe('user')
   })
 
   it('blocks identity writeback when the thesis skill is not in Identity', async () => {
@@ -1567,9 +1599,7 @@ describe('ResearchPage', () => {
       '1 keyword combination is linked to a removed lane.',
     )
     expect(screen.getByText('Choose a current search lane before saving.')).toBeTruthy()
-    expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.lane).toBe(
-      'missing-lane',
-    )
+    expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.lane).toBe('missing-lane')
   })
 
   it('keeps orphan keyword combinations blocked after adding a new lane', async () => {
@@ -1662,7 +1692,10 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discard edits' }))
 
     expect(screen.getByLabelText('Thesis narrative')).toHaveProperty('value', 'Original narrative.')
-    expect(screen.getByLabelText('Look-for signals')).toHaveProperty('value', 'platform, observability')
+    expect(screen.getByLabelText('Look-for signals')).toHaveProperty(
+      'value',
+      'platform, observability',
+    )
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('button', { name: 'Discard edits' })).toHaveProperty('disabled', true)
   })
@@ -1703,9 +1736,7 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
 
     await waitFor(() => {
-      expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.noiseLevel).toBe(
-        'medium',
-      )
+      expect(useSearchStore.getState().theses[0]?.keywordCombinations[0]?.noiseLevel).toBe('medium')
     })
   })
 
@@ -2029,7 +2060,14 @@ describe('ResearchPage', () => {
     })
 
     expect(useSearchStore.getState().profile?.vectors).toEqual(resumeProfile?.vectors)
-    expect(useSearchStore.getState().profile?.constraints).toEqual(resumeProfile?.constraints)
+    expect(useSearchStore.getState().profile?.constraints).toMatchObject({
+      ...resumeProfile?.constraints,
+      industriesToAvoid: [],
+      fundingStagesAcceptable: [],
+      remotePolicies: [],
+      remotePolicyNote: '',
+      employmentTypes: [],
+    })
   })
 
   it('wires tabs to their tabpanel content', async () => {
@@ -2247,7 +2285,9 @@ describe('ResearchPage', () => {
         lookFor: [],
         avoid: [],
         keywordCombinations: [],
-        skillDepthMap: [{ skill: 'TypeScript', depth: 'strong', context: 'Test', searchSignal: 'Test' }],
+        skillDepthMap: [
+          { skill: 'TypeScript', depth: 'strong', context: 'Test', searchSignal: 'Test' },
+        ],
         source: 'generated',
         identityVersion: 0,
         feedbackIncorporated: [],
@@ -2260,13 +2300,20 @@ describe('ResearchPage', () => {
       startedAt: '2026-03-10T10:06:00.000Z',
       completedAt: '2026-03-10T10:08:00.000Z',
       ttlAt: '2026-04-10T10:06:00.000Z',
-      progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['principal backend engineer'] },
+      progress: {
+        phase: 'completed',
+        elapsedMs: 120000,
+        searchQueries: ['principal backend engineer'],
+      },
       result: {
         narrative: {
           competitiveMoat: 'The candidate has a durable platform moat with production evidence.',
-          selectionMethodology: 'The search filtered for senior platform roles with strong backend overlap.',
-          marketContext: 'Platform hiring remains active in companies investing in internal leverage.',
-          executiveSummary: 'NewCo is the best current fit because the role needs principal-level backend platform ownership and the candidate evidence maps cleanly to that scope [cite:market-report].',
+          selectionMethodology:
+            'The search filtered for senior platform roles with strong backend overlap.',
+          marketContext:
+            'Platform hiring remains active in companies investing in internal leverage.',
+          executiveSummary:
+            'NewCo is the best current fit because the role needs principal-level backend platform ownership and the candidate evidence maps cleanly to that scope [cite:market-report].',
           citations: [
             {
               id: 'market-report',
@@ -2290,7 +2337,8 @@ describe('ResearchPage', () => {
             vectorAlignment: 'backend',
             risks: [],
             source: 'greenhouse',
-            candidateEdge: 'The candidate has shipped backend platforms at staff scope. NewCo needs principal-level platform ownership, so the evidence maps directly to the role [cite:newco-careers].',
+            candidateEdge:
+              'The candidate has shipped backend platforms at staff scope. NewCo needs principal-level platform ownership, so the evidence maps directly to the role [cite:newco-careers].',
             citations: [
               {
                 id: 'newco-careers',
@@ -2326,13 +2374,20 @@ describe('ResearchPage', () => {
     })
 
     expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
-    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params.excludeCompanies).toEqual(['LaterCo', 'OldCo'])
+    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params.excludeCompanies).toEqual([
+      'LaterCo',
+      'OldCo',
+    ])
     expect(useSearchStore.getState().runs.at(-1)?.results[0]?.company).toBe('NewCo')
-    expect(screen.getByText('The candidate has a durable platform moat with production evidence.')).toBeTruthy()
+    expect(
+      screen.getByText('The candidate has a durable platform moat with production evidence.'),
+    ).toBeTruthy()
     expect(screen.getByText(/shipped backend platforms at staff scope/)).toBeTruthy()
     expect(screen.getAllByText('Market Report').length).toBeGreaterThan(0)
     expect(screen.getAllByText('NewCo Careers').length).toBeGreaterThan(0)
-    expect(screen.getByText('Series B · AI-native engineering workflows · Remote-first')).toBeTruthy()
+    expect(
+      screen.getByText('Series B · AI-native engineering workflows · Remote-first'),
+    ).toBeTruthy()
     expect(screen.getByText('Architecture screen and work sample · 3 weeks')).toBeTruthy()
     expect(screen.getByText('candidateEdge for NewCo is shorter than expected.')).toBeTruthy()
   })
@@ -2375,11 +2430,15 @@ describe('ResearchPage', () => {
       expect(screen.getByRole('alert').textContent).toContain('Build or restore a search profile')
     })
 
-    expect(screen.getByRole('tab', { name: 'Profile Editor' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tab', { name: 'Profile Editor' }).getAttribute('aria-selected')).toBe(
+      'true',
+    )
   })
 
   it('disables profile inference while the request is in flight', async () => {
-    let resolveInference: ((value: Awaited<ReturnType<typeof mockInferSearchProfile>>) => void) | undefined
+    let resolveInference:
+      | ((value: Awaited<ReturnType<typeof mockInferSearchProfile>>) => void)
+      | undefined
     mockInferSearchProfile.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -2395,7 +2454,9 @@ describe('ResearchPage', () => {
     fireEvent.click(button)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Build Profile from Resume/i }).hasAttribute('disabled')).toBe(true)
+      expect(
+        screen.getByRole('button', { name: /Build Profile from Resume/i }).hasAttribute('disabled'),
+      ).toBe(true)
     })
 
     expect(mockInferSearchProfile).toHaveBeenCalledWith(
@@ -2411,7 +2472,9 @@ describe('ResearchPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Run Search/i }).hasAttribute('disabled')).toBe(false)
+      expect(screen.getByRole('button', { name: /Run Search/i }).hasAttribute('disabled')).toBe(
+        false,
+      )
     })
   })
 
@@ -2431,7 +2494,9 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: 'Results Viewer' }).getAttribute('aria-selected')).toBe('true')
+      expect(
+        screen.getByRole('tab', { name: 'Results Viewer' }).getAttribute('aria-selected'),
+      ).toBe('true')
     })
 
     expect(screen.getByText('running')).toBeTruthy()
@@ -2465,39 +2530,45 @@ describe('ResearchPage', () => {
       return { close: vi.fn() }
     }) as typeof mockStreamDeepResearchJob)
     mockFetchDeepResearchJob
-      .mockResolvedValueOnce(buildResearchJob({
-        id: 'job-stream',
-        thesisSnapshot,
-        status: 'running',
-        progress: { phase: 'searching', elapsedMs: 1000, searchQueries: ['staff platform'] },
-      }))
-      .mockResolvedValueOnce(buildResearchJob({
-        id: 'job-stream',
-        thesisSnapshot,
-        status: 'completed',
-        progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['staff platform'] },
-        result: {
-          narrative: {
-            competitiveMoat: 'Stream-completed moat.',
-            selectionMethodology: 'Stream-completed methodology.',
-            marketContext: 'Stream-completed context.',
-            executiveSummary: 'Stream completion produced a final result.',
+      .mockResolvedValueOnce(
+        buildResearchJob({
+          id: 'job-stream',
+          thesisSnapshot,
+          status: 'running',
+          progress: { phase: 'searching', elapsedMs: 1000, searchQueries: ['staff platform'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        buildResearchJob({
+          id: 'job-stream',
+          thesisSnapshot,
+          status: 'completed',
+          progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['staff platform'] },
+          result: {
+            narrative: {
+              competitiveMoat: 'Stream-completed moat.',
+              selectionMethodology: 'Stream-completed methodology.',
+              marketContext: 'Stream-completed context.',
+              executiveSummary: 'Stream completion produced a final result.',
+            },
+            results: [],
+            tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
           },
-          results: [],
-          tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-        },
-      }))
+        }),
+      )
     useSearchStore.setState((state) => ({
       ...state,
-      runs: [{
-        ...state.runs[0]!,
-        status: 'running',
-        results: [],
-        searchLog: [],
-        thesisId: thesisSnapshot.id,
-        thesisSnapshot,
-        jobId: 'job-stream',
-      }],
+      runs: [
+        {
+          ...state.runs[0]!,
+          status: 'running',
+          results: [],
+          searchLog: [],
+          thesisId: thesisSnapshot.id,
+          thesisSnapshot,
+          jobId: 'job-stream',
+        },
+      ],
       activeResearchJob: {
         jobId: 'job-stream',
         runId: 'srun-1',
@@ -2541,7 +2612,9 @@ describe('ResearchPage', () => {
   it('closes the live stream while hidden and reopens it when visible', async () => {
     const streamClose = vi.fn()
     mockStreamDeepResearchJob.mockReturnValue({ close: streamClose })
-    mockFetchDeepResearchJob.mockResolvedValue(buildResearchJob({ id: 'job-visibility', status: 'running' }))
+    mockFetchDeepResearchJob.mockResolvedValue(
+      buildResearchJob({ id: 'job-visibility', status: 'running' }),
+    )
     useSearchStore.setState((state) => ({
       ...state,
       runs: [{ ...state.runs[0]!, status: 'running', jobId: 'job-visibility' }],
@@ -2586,11 +2659,13 @@ describe('ResearchPage', () => {
       streamHandlers = handlers
       return { close: streamClose }
     }) as typeof mockStreamDeepResearchJob)
-    mockFetchDeepResearchJob.mockResolvedValue(buildResearchJob({
-      id: 'job-stream-error',
-      status: 'running',
-      progress: { phase: 'running', elapsedMs: 1000, searchQueries: ['backend platform'] },
-    }))
+    mockFetchDeepResearchJob.mockResolvedValue(
+      buildResearchJob({
+        id: 'job-stream-error',
+        status: 'running',
+        progress: { phase: 'running', elapsedMs: 1000, searchQueries: ['backend platform'] },
+      }),
+    )
     useSearchStore.setState((state) => ({
       ...state,
       runs: [{ ...state.runs[0]!, status: 'running', jobId: 'job-stream-error' }],
@@ -2625,21 +2700,27 @@ describe('ResearchPage', () => {
     try {
       mockFetchDeepResearchJob
         .mockRejectedValueOnce(new Error('Temporary poll failure'))
-        .mockResolvedValueOnce(buildResearchJob({
-          id: 'job-poll-retry',
-          status: 'completed',
-          progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['backend platform'] },
-          result: {
-            narrative: {
-              competitiveMoat: 'Recovered polling moat.',
-              selectionMethodology: 'Recovered polling methodology.',
-              marketContext: 'Recovered polling context.',
-              executiveSummary: 'Recovered polling summary.',
+        .mockResolvedValueOnce(
+          buildResearchJob({
+            id: 'job-poll-retry',
+            status: 'completed',
+            progress: {
+              phase: 'completed',
+              elapsedMs: 120000,
+              searchQueries: ['backend platform'],
             },
-            results: [],
-            tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-          },
-        }))
+            result: {
+              narrative: {
+                competitiveMoat: 'Recovered polling moat.',
+                selectionMethodology: 'Recovered polling methodology.',
+                marketContext: 'Recovered polling context.',
+                executiveSummary: 'Recovered polling summary.',
+              },
+              results: [],
+              tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            },
+          }),
+        )
       useSearchStore.setState((state) => ({
         ...state,
         runs: [{ ...state.runs[0]!, status: 'running', jobId: 'job-poll-retry' }],
@@ -2675,8 +2756,12 @@ describe('ResearchPage', () => {
   })
 
   it('cancels the active research job and clears the server-side run state', async () => {
-    mockFetchDeepResearchJob.mockResolvedValue(buildResearchJob({ id: 'job-cancel', status: 'running' }))
-    mockCancelDeepResearchJob.mockResolvedValueOnce(buildResearchJob({ id: 'job-cancel', status: 'canceled' }))
+    mockFetchDeepResearchJob.mockResolvedValue(
+      buildResearchJob({ id: 'job-cancel', status: 'running' }),
+    )
+    mockCancelDeepResearchJob.mockResolvedValueOnce(
+      buildResearchJob({ id: 'job-cancel', status: 'canceled' }),
+    )
     useSearchStore.setState((state) => ({
       ...state,
       runs: [{ ...state.runs[0]!, status: 'running', jobId: 'job-cancel' }],
@@ -2696,7 +2781,10 @@ describe('ResearchPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel deep research' }))
 
     await waitFor(() => {
-      expect(mockCancelDeepResearchJob).toHaveBeenCalledWith('https://ai.example/proxy', 'job-cancel')
+      expect(mockCancelDeepResearchJob).toHaveBeenCalledWith(
+        'https://ai.example/proxy',
+        'job-cancel',
+      )
       expect(useSearchStore.getState().activeResearchJob).toBeNull()
     })
     expect(useSearchStore.getState().runs[0]?.error).toContain('canceled')
@@ -2709,13 +2797,15 @@ describe('ResearchPage', () => {
     })
     useSearchStore.setState((state) => ({
       ...state,
-      runs: [{
-        ...state.runs[0]!,
-        status: 'failed',
-        error: 'Provider timed out.',
-        thesisId: thesisSnapshot.id,
-        thesisSnapshot,
-      }],
+      runs: [
+        {
+          ...state.runs[0]!,
+          status: 'failed',
+          error: 'Provider timed out.',
+          thesisId: thesisSnapshot.id,
+          thesisSnapshot,
+        },
+      ],
     }))
 
     const { ResearchPage } = await import('../routes/research/ResearchPage')
@@ -2725,13 +2815,15 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry preserved thesis' }))
 
     await waitFor(() => {
-      expect(mockCreateDeepResearchJob).toHaveBeenCalledWith(expect.objectContaining({
-        thesisSnapshot: expect.objectContaining({
-          id: 'thesis-retry',
-          narrative: 'Preserved thesis narrative.',
-          competitiveMoat: 'Default moat.',
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thesisSnapshot: expect.objectContaining({
+            id: 'thesis-retry',
+            narrative: 'Preserved thesis narrative.',
+            competitiveMoat: 'Default moat.',
+          }),
         }),
-      }))
+      )
     })
   })
 
@@ -2747,25 +2839,30 @@ describe('ResearchPage', () => {
     })
     vi.stubGlobal('Notification', notificationConstructor)
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
-    mockFetchDeepResearchJob.mockResolvedValueOnce(buildResearchJob({
-      id: 'job-notify',
-      status: 'completed',
-      progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['principal platform'] },
-      result: {
-        narrative: {
-          competitiveMoat: 'Notification moat.',
-          selectionMethodology: 'Notification methodology.',
-          marketContext: 'Notification context.',
-          executiveSummary: 'Notification summary.',
+    mockFetchDeepResearchJob.mockResolvedValueOnce(
+      buildResearchJob({
+        id: 'job-notify',
+        status: 'completed',
+        progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['principal platform'] },
+        result: {
+          narrative: {
+            competitiveMoat: 'Notification moat.',
+            selectionMethodology: 'Notification methodology.',
+            marketContext: 'Notification context.',
+            executiveSummary: 'Notification summary.',
+          },
+          results: [
+            {
+              ...useSearchStore.getState().runs[0]!.results[0]!,
+              company: 'NotifyCo',
+              candidateEdge:
+                'NotifyCo needs platform leverage and this candidate has directly comparable evidence.',
+            },
+          ],
+          tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
         },
-        results: [{
-          ...useSearchStore.getState().runs[0]!.results[0]!,
-          company: 'NotifyCo',
-          candidateEdge: 'NotifyCo needs platform leverage and this candidate has directly comparable evidence.',
-        }],
-        tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-      },
-    }))
+      }),
+    )
     useSearchStore.setState((state) => ({
       ...state,
       runs: [{ ...state.runs[0]!, status: 'running', jobId: 'job-notify' }],
@@ -2800,7 +2897,7 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
 
     await waitFor(() => {
-    expect(useSearchStore.getState().runs.at(-1)?.status).toBe('failed')
+      expect(useSearchStore.getState().runs.at(-1)?.status).toBe('failed')
     })
 
     expect(useSearchStore.getState().runs.at(-1)?.error).toBe('Search execution failed hard')
@@ -2918,7 +3015,9 @@ describe('ResearchPage', () => {
   })
 
   it('lets the user change focus vectors before launching search', async () => {
-    const additionalVector = useResumeStore.getState().data.vectors.find((vector) => vector.id !== 'backend')
+    const additionalVector = useResumeStore
+      .getState()
+      .data.vectors.find((vector) => vector.id !== 'backend')
     expect(additionalVector).toBeTruthy()
 
     const { ResearchPage } = await import('../routes/research/ResearchPage')
@@ -2932,7 +3031,9 @@ describe('ResearchPage', () => {
       expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
     })
 
-    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params.focusVectors).toContain(additionalVector?.id)
+    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params.focusVectors).toContain(
+      additionalVector?.id,
+    )
   })
 
   it('switches active runs and shows failed-run details', async () => {
@@ -2999,10 +3100,9 @@ describe('ResearchPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
     fireEvent.click(screen.getByRole('button', { name: /Mark Acme Corp match as good/i }))
-    fireEvent.change(
-      screen.getByPlaceholderText(/interview process matches my preference/i),
-      { target: { value: 'Liked the builder-friendly process.' } },
-    )
+    fireEvent.change(screen.getByPlaceholderText(/interview process matches my preference/i), {
+      target: { value: 'Liked the builder-friendly process.' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }))
 
     await waitFor(() => {
@@ -3040,9 +3140,7 @@ describe('ResearchPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/deep K8s admin experience/i), {
       target: { value: 'Pure cluster-admin work — not my fit.' },
     })
-    fireEvent.click(
-      screen.getByLabelText(/Add to Identity avoid list/i),
-    )
+    fireEvent.click(screen.getByLabelText(/Add to Identity avoid list/i))
     fireEvent.change(screen.getByPlaceholderText(/K8s admin role/i), {
       target: { value: 'Cluster admin role' },
     })
@@ -3104,7 +3202,9 @@ describe('ResearchPage', () => {
   })
 
   it('lets the user choose a different vector before pushing a result to the pipeline', async () => {
-    const alternateVector = useResumeStore.getState().data.vectors.find((vector) => vector.id !== 'backend')
+    const alternateVector = useResumeStore
+      .getState()
+      .data.vectors.find((vector) => vector.id !== 'backend')
     expect(alternateVector).toBeTruthy()
 
     const { ResearchPage } = await import('../routes/research/ResearchPage')

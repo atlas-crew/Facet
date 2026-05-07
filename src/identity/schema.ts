@@ -1,3 +1,6 @@
+import { EMPLOYMENT_TYPE_BANK, FUNDING_STAGE_BANK, INDUSTRY_BANK } from '../types/search'
+import type { SearchEmploymentType, SearchFundingStage, SearchIndustry } from '../types/search'
+
 export type ProfessionalSchemaRevision = '3.1'
 
 export type ProfessionalSkillDepth =
@@ -121,6 +124,9 @@ export interface ProfessionalPreferenceConstraints {
   clearance?: ProfessionalClearanceConstraint
   education?: ProfessionalEducationConstraint
   title_flexibility?: string[]
+  industries_to_avoid?: SearchIndustry[]
+  funding_stages_acceptable?: SearchFundingStage[]
+  employment_types?: SearchEmploymentType[]
 }
 
 export interface ProfessionalInterviewProcessPreferences {
@@ -298,10 +304,25 @@ const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
 ])
 const DEPTH_SOURCE_VALUES = new Set<ProfessionalSkillDepthSource>(['inferred', 'corrected'])
 export const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
-export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>(['hard', 'soft', 'conditional'])
-export const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
-export const SEARCH_VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
+export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>([
+  'hard',
+  'soft',
+  'conditional',
+])
+export const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>([
+  'high',
+  'medium',
+  'low',
+])
+export const SEARCH_VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>([
+  'high',
+  'medium',
+  'low',
+])
 const SCHEMA_REVISION_VALUES = new Set<ProfessionalSchemaRevision>(['3.1'])
+const INDUSTRY_VALUES = new Set<SearchIndustry>(INDUSTRY_BANK)
+const FUNDING_STAGE_VALUES = new Set<SearchFundingStage>(FUNDING_STAGE_BANK)
+const EMPLOYMENT_TYPE_VALUES = new Set<SearchEmploymentType>(EMPLOYMENT_TYPE_BANK)
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' &&
@@ -361,10 +382,7 @@ const stripRedFlagWrapping = (value: string): string => {
 
 // Apply `strip` to each entry, but return the original array reference when
 // nothing changed. Lets the caller short-circuit by referential equality.
-const stripIfAnyChanged = (
-  values: string[],
-  strip: (value: string) => string,
-): string[] => {
+const stripIfAnyChanged = (values: string[], strip: (value: string) => string): string[] => {
   let changed = false
   const next = values.map((value) => {
     const out = strip(value)
@@ -404,10 +422,14 @@ export const normalizeRuntimeProfessionalIdentity = (
       ? normalizedIdentity
       : { ...normalizedIdentity, model_revision: 0 }
   const withCleanInterview: ProfessionalIdentityV3 = withRevision.preferences
-    ? { ...withRevision, preferences: normalizeAutofilledInterviewProcess(withRevision.preferences) }
+    ? {
+        ...withRevision,
+        preferences: normalizeAutofilledInterviewProcess(withRevision.preferences),
+      }
     : withRevision
-  const groups = (withCleanInterview.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined)
-    ?.groups
+  const groups = (
+    withCleanInterview.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined
+  )?.groups
 
   if (!Array.isArray(groups)) {
     return withCleanInterview
@@ -467,7 +489,10 @@ const assertOptionalString = (value: unknown, context: string): string | undefin
   return assertString(value, context)
 }
 
-const assertOptionalNullableString = (value: unknown, context: string): string | null | undefined => {
+const assertOptionalNullableString = (
+  value: unknown,
+  context: string,
+): string | null | undefined => {
   if (value === undefined) {
     return undefined
   }
@@ -515,6 +540,27 @@ const assertEnumString = <T extends string>(
   if (!allowedValues.has(parsed)) {
     throw new Error(`${context} must be one of ${Array.from(allowedValues).join(', ')}.`)
   }
+  return parsed
+}
+
+const parseOptionalEnumStringArray = <T extends string>(
+  value: unknown,
+  allowedValues: Set<T>,
+  context: string,
+  warnings: string[],
+): T[] => {
+  const parsed: T[] = []
+
+  assertArray(value, context).forEach((entry, index) => {
+    const item = assertString(entry, `${context}[${index}]`)
+    if (allowedValues.has(item as T)) {
+      parsed.push(item as T)
+      return
+    }
+
+    warnings.push(`${context}[${index}] used unknown bank value "${item}" and was dropped.`)
+  })
+
   return parsed
 }
 
@@ -608,7 +654,12 @@ const parseMatchingPreferences = (
           `${context}.prioritize[${index}].weight`,
         ),
         ...(item.condition !== undefined
-          ? { condition: assertOptionalString(item.condition, `${context}.prioritize[${index}].condition`) }
+          ? {
+              condition: assertOptionalString(
+                item.condition,
+                `${context}.prioritize[${index}].condition`,
+              ),
+            }
           : {}),
       }
     }),
@@ -626,7 +677,12 @@ const parseMatchingPreferences = (
           `${context}.avoid[${index}].severity`,
         ),
         ...(item.condition !== undefined
-          ? { condition: assertOptionalString(item.condition, `${context}.avoid[${index}].condition`) }
+          ? {
+              condition: assertOptionalString(
+                item.condition,
+                `${context}.avoid[${index}].condition`,
+              ),
+            }
           : {}),
       }
     }),
@@ -636,6 +692,7 @@ const parseMatchingPreferences = (
 const parseConstraints = (
   value: unknown,
   context: string,
+  warnings: string[],
 ): ProfessionalPreferenceConstraints => {
   const record = assertRecord(value, context)
 
@@ -701,7 +758,42 @@ const parseConstraints = (
         }
       : {}),
     ...(record.title_flexibility !== undefined
-      ? { title_flexibility: assertStringArray(record.title_flexibility, `${context}.title_flexibility`) }
+      ? {
+          title_flexibility: assertStringArray(
+            record.title_flexibility,
+            `${context}.title_flexibility`,
+          ),
+        }
+      : {}),
+    ...(record.industries_to_avoid !== undefined
+      ? {
+          industries_to_avoid: parseOptionalEnumStringArray(
+            record.industries_to_avoid,
+            INDUSTRY_VALUES,
+            `${context}.industries_to_avoid`,
+            warnings,
+          ),
+        }
+      : {}),
+    ...(record.funding_stages_acceptable !== undefined
+      ? {
+          funding_stages_acceptable: parseOptionalEnumStringArray(
+            record.funding_stages_acceptable,
+            FUNDING_STAGE_VALUES,
+            `${context}.funding_stages_acceptable`,
+            warnings,
+          ),
+        }
+      : {}),
+    ...(record.employment_types !== undefined
+      ? {
+          employment_types: parseOptionalEnumStringArray(
+            record.employment_types,
+            EMPLOYMENT_TYPE_VALUES,
+            `${context}.employment_types`,
+            warnings,
+          ),
+        }
       : {}),
   }
 }
@@ -714,13 +806,21 @@ const parseInterviewProcessPreferences = (
 
   return {
     accepted_formats: assertStringArray(record.accepted_formats, `${context}.accepted_formats`),
-    strong_fit_signals: assertStringArray(record.strong_fit_signals, `${context}.strong_fit_signals`),
+    strong_fit_signals: assertStringArray(
+      record.strong_fit_signals,
+      `${context}.strong_fit_signals`,
+    ),
     red_flags: assertStringArray(record.red_flags, `${context}.red_flags`),
     ...(record.max_rounds !== undefined
       ? { max_rounds: assertNumber(record.max_rounds, `${context}.max_rounds`) }
       : {}),
     ...(record.onsite_preferences !== undefined
-      ? { onsite_preferences: assertString(record.onsite_preferences, `${context}.onsite_preferences`) }
+      ? {
+          onsite_preferences: assertString(
+            record.onsite_preferences,
+            `${context}.onsite_preferences`,
+          ),
+        }
       : {}),
   }
 }
@@ -753,11 +853,13 @@ const parseSkillItem = (
     ...(item.depthSource !== undefined || depthSourceValue !== undefined
       ? { depthSource: depthSourceValue }
       : {}),
-    ...(item.context !== undefined ? { context: assertOptionalString(item.context, `${context}.context`) } : {}),
+    ...(item.context !== undefined
+      ? { context: assertOptionalString(item.context, `${context}.context`) }
+      : {}),
     ...(item.context_stale !== undefined
       ? { context_stale: assertOptionalBoolean(item.context_stale, `${context}.context_stale`) }
       : {}),
-    ...((item.positioning !== undefined || item.search_signal !== undefined)
+    ...(item.positioning !== undefined || item.search_signal !== undefined
       ? {
           positioning: assertOptionalString(
             item.positioning !== undefined ? item.positioning : item.search_signal,
@@ -799,7 +901,11 @@ const parseSearchVector = (value: unknown, context: string): ProfessionalSearchV
   return {
     id: assertString(vector.id, `${context}.id`),
     title: assertString(vector.title, `${context}.title`),
-    priority: assertEnumString(vector.priority, SEARCH_VECTOR_PRIORITY_VALUES, `${context}.priority`),
+    priority: assertEnumString(
+      vector.priority,
+      SEARCH_VECTOR_PRIORITY_VALUES,
+      `${context}.priority`,
+    ),
     ...(vector.subtitle !== undefined
       ? { subtitle: assertOptionalString(vector.subtitle, `${context}.subtitle`) }
       : {}),
@@ -810,10 +916,20 @@ const parseSearchVector = (value: unknown, context: string): ProfessionalSearchV
       secondary: assertStringArray(keywords.secondary, `${context}.keywords.secondary`),
     },
     ...(vector.supporting_skills !== undefined
-      ? { supporting_skills: assertStringArray(vector.supporting_skills, `${context}.supporting_skills`) }
+      ? {
+          supporting_skills: assertStringArray(
+            vector.supporting_skills,
+            `${context}.supporting_skills`,
+          ),
+        }
       : {}),
     ...(vector.supporting_bullets !== undefined
-      ? { supporting_bullets: assertStringArray(vector.supporting_bullets, `${context}.supporting_bullets`) }
+      ? {
+          supporting_bullets: assertStringArray(
+            vector.supporting_bullets,
+            `${context}.supporting_bullets`,
+          ),
+        }
       : {}),
     ...(vector.evidence !== undefined
       ? { evidence: assertStringArray(vector.evidence, `${context}.evidence`) }
@@ -829,42 +945,47 @@ const parseAwareness = (value: unknown, context: string): ProfessionalAwareness 
   const openQuestionIds = new Set<string>()
 
   return {
-    open_questions: assertArray(record.open_questions, `${context}.open_questions`).map((entry, index) => {
-      const item = assertRecord(entry, `${context}.open_questions[${index}]`)
-      const id = assertString(item.id, `${context}.open_questions[${index}].id`)
-      assertUniqueId(openQuestionIds, id, `${context}.open_questions`)
-      return {
-        id,
-        topic: assertString(item.topic, `${context}.open_questions[${index}].topic`),
-        description: assertString(item.description, `${context}.open_questions[${index}].description`),
-        action: assertString(item.action, `${context}.open_questions[${index}].action`),
-        ...(item.severity !== undefined
-          ? {
-              severity: assertEnumString(
-                item.severity,
-                AWARENESS_SEVERITY_VALUES,
-                `${context}.open_questions[${index}].severity`,
-              ),
-            }
-          : {}),
-        ...(item.evidence !== undefined
-          ? {
-              evidence: assertStringArray(
-                item.evidence,
-                `${context}.open_questions[${index}].evidence`,
-              ),
-            }
-          : {}),
-        ...(item.needs_review !== undefined
-          ? {
-              needs_review: assertBoolean(
-                item.needs_review,
-                `${context}.open_questions[${index}].needs_review`,
-              ),
-            }
-          : {}),
-      }
-    }),
+    open_questions: assertArray(record.open_questions, `${context}.open_questions`).map(
+      (entry, index) => {
+        const item = assertRecord(entry, `${context}.open_questions[${index}]`)
+        const id = assertString(item.id, `${context}.open_questions[${index}].id`)
+        assertUniqueId(openQuestionIds, id, `${context}.open_questions`)
+        return {
+          id,
+          topic: assertString(item.topic, `${context}.open_questions[${index}].topic`),
+          description: assertString(
+            item.description,
+            `${context}.open_questions[${index}].description`,
+          ),
+          action: assertString(item.action, `${context}.open_questions[${index}].action`),
+          ...(item.severity !== undefined
+            ? {
+                severity: assertEnumString(
+                  item.severity,
+                  AWARENESS_SEVERITY_VALUES,
+                  `${context}.open_questions[${index}].severity`,
+                ),
+              }
+            : {}),
+          ...(item.evidence !== undefined
+            ? {
+                evidence: assertStringArray(
+                  item.evidence,
+                  `${context}.open_questions[${index}].evidence`,
+                ),
+              }
+            : {}),
+          ...(item.needs_review !== undefined
+            ? {
+                needs_review: assertBoolean(
+                  item.needs_review,
+                  `${context}.open_questions[${index}].needs_review`,
+                ),
+              }
+            : {}),
+        }
+      },
+    ),
   }
 }
 
@@ -878,7 +999,11 @@ export const importProfessionalIdentity = (
     throw new Error('version must be 3.')
   }
 
-  const schemaRevision = assertEnumString(root.schema_revision, SCHEMA_REVISION_VALUES, 'schema_revision')
+  const schemaRevision = assertEnumString(
+    root.schema_revision,
+    SCHEMA_REVISION_VALUES,
+    'schema_revision',
+  )
   const parsedModelRevision =
     root.model_revision === undefined
       ? 0
@@ -915,8 +1040,12 @@ export const importProfessionalIdentity = (
       email: assertString(identity.email, 'identity.email'),
       phone: assertString(identity.phone, 'identity.phone'),
       location: assertString(identity.location, 'identity.location'),
-      ...(identity.remote !== undefined ? { remote: assertBoolean(identity.remote, 'identity.remote') } : {}),
-      ...(identity.title !== undefined ? { title: assertString(identity.title, 'identity.title') } : {}),
+      ...(identity.remote !== undefined
+        ? { remote: assertBoolean(identity.remote, 'identity.remote') }
+        : {}),
+      ...(identity.title !== undefined
+        ? { title: assertString(identity.title, 'identity.title') }
+        : {}),
       links: assertArray(identity.links, 'identity.links').map((entry, index) => {
         const link = assertRecord(entry, `identity.links[${index}]`)
         const id = assertString(link.id, `identity.links[${index}].id`)
@@ -930,7 +1059,9 @@ export const importProfessionalIdentity = (
       ...(identity.elaboration !== undefined
         ? { elaboration: assertString(identity.elaboration, 'identity.elaboration') }
         : {}),
-      ...(identity.origin !== undefined ? { origin: assertString(identity.origin, 'identity.origin') } : {}),
+      ...(identity.origin !== undefined
+        ? { origin: assertString(identity.origin, 'identity.origin') }
+        : {}),
     },
     self_model: {
       arc: assertArray(selfModel.arc, 'self_model.arc').map((entry, index) => {
@@ -947,12 +1078,22 @@ export const importProfessionalIdentity = (
         return {
           id,
           text: assertString(philosophy.text, `self_model.philosophy[${index}].text`),
-          tags: normalizeTagArray(philosophy.tags, `self_model.philosophy[${index}].tags`, warnings),
+          tags: normalizeTagArray(
+            philosophy.tags,
+            `self_model.philosophy[${index}].tags`,
+            warnings,
+          ),
         }
       }),
       interview_style: {
-        strengths: assertStringArray(interviewStyle.strengths, 'self_model.interview_style.strengths'),
-        weaknesses: assertStringArray(interviewStyle.weaknesses, 'self_model.interview_style.weaknesses'),
+        strengths: assertStringArray(
+          interviewStyle.strengths,
+          'self_model.interview_style.strengths',
+        ),
+        weaknesses: assertStringArray(
+          interviewStyle.weaknesses,
+          'self_model.interview_style.weaknesses',
+        ),
         prep_strategy: assertString(
           interviewStyle.prep_strategy,
           'self_model.interview_style.prep_strategy',
@@ -962,10 +1103,20 @@ export const importProfessionalIdentity = (
     preferences: {
       compensation: {
         ...(compensation.base_floor !== undefined
-          ? { base_floor: assertNumber(compensation.base_floor, 'preferences.compensation.base_floor') }
+          ? {
+              base_floor: assertNumber(
+                compensation.base_floor,
+                'preferences.compensation.base_floor',
+              ),
+            }
           : {}),
         ...(compensation.base_target !== undefined
-          ? { base_target: assertNumber(compensation.base_target, 'preferences.compensation.base_target') }
+          ? {
+              base_target: assertNumber(
+                compensation.base_target,
+                'preferences.compensation.base_target',
+              ),
+            }
           : {}),
         ...(compensation.notes !== undefined
           ? { notes: assertString(compensation.notes, 'preferences.compensation.notes') }
@@ -974,8 +1125,14 @@ export const importProfessionalIdentity = (
           (entry, index) => {
             const priority = assertRecord(entry, `preferences.compensation.priorities[${index}]`)
             return {
-              item: assertString(priority.item, `preferences.compensation.priorities[${index}].item`),
-              weight: assertString(priority.weight, `preferences.compensation.priorities[${index}].weight`),
+              item: assertString(
+                priority.item,
+                `preferences.compensation.priorities[${index}].item`,
+              ),
+              weight: assertString(
+                priority.weight,
+                `preferences.compensation.priorities[${index}].weight`,
+              ),
               ...(priority.notes !== undefined
                 ? {
                     notes: assertOptionalString(
@@ -991,7 +1148,12 @@ export const importProfessionalIdentity = (
       work_model: {
         preference: assertString(workModel.preference, 'preferences.work_model.preference'),
         ...(workModel.flexibility !== undefined
-          ? { flexibility: assertOptionalString(workModel.flexibility, 'preferences.work_model.flexibility') }
+          ? {
+              flexibility: assertOptionalString(
+                workModel.flexibility,
+                'preferences.work_model.flexibility',
+              ),
+            }
           : {}),
         ...(workModel.hard_no !== undefined
           ? { hard_no: assertOptionalString(workModel.hard_no, 'preferences.work_model.hard_no') }
@@ -999,7 +1161,13 @@ export const importProfessionalIdentity = (
       },
       matching: parsedMatching,
       ...(preferences.constraints !== undefined
-        ? { constraints: parseConstraints(preferences.constraints, 'preferences.constraints') }
+        ? {
+            constraints: parseConstraints(
+              preferences.constraints,
+              'preferences.constraints',
+              warnings,
+            ),
+          }
         : {}),
       ...(preferences.interview_process !== undefined
         ? {
@@ -1020,10 +1188,20 @@ export const importProfessionalIdentity = (
           id,
           label: assertString(group.label, `skills.groups[${index}].label`),
           ...(group.positioning !== undefined
-            ? { positioning: assertOptionalString(group.positioning, `skills.groups[${index}].positioning`) }
+            ? {
+                positioning: assertOptionalString(
+                  group.positioning,
+                  `skills.groups[${index}].positioning`,
+                ),
+              }
             : {}),
           ...(group.calibration !== undefined
-            ? { calibration: assertOptionalString(group.calibration, `skills.groups[${index}].calibration`) }
+            ? {
+                calibration: assertOptionalString(
+                  group.calibration,
+                  `skills.groups[${index}].calibration`,
+                ),
+              }
             : {}),
           ...(group.is_differentiator !== undefined
             ? {
@@ -1033,8 +1211,9 @@ export const importProfessionalIdentity = (
                 ),
               }
             : {}),
-          items: assertArray(group.items, `skills.groups[${index}].items`).map((itemEntry, itemIndex) =>
-            parseSkillItem(itemEntry, `skills.groups[${index}].items[${itemIndex}]`, warnings),
+          items: assertArray(group.items, `skills.groups[${index}].items`).map(
+            (itemEntry, itemIndex) =>
+              parseSkillItem(itemEntry, `skills.groups[${index}].items[${itemIndex}]`, warnings),
           ),
         }
       }),
@@ -1071,70 +1250,81 @@ export const importProfessionalIdentity = (
               ),
             }
           : {}),
-        bullets: assertArray(role.bullets, `roles[${index}].bullets`).map((bulletEntry, bulletIndex) => {
-          const bullet = assertRecord(bulletEntry, `roles[${index}].bullets[${bulletIndex}]`)
-          const bulletId = assertString(bullet.id, `roles[${index}].bullets[${bulletIndex}].id`)
-          if (bulletIds.has(bulletId)) {
-            throw new Error(
-              `roles.bullets has duplicate id "${bulletId}" - bullet IDs must be unique across all roles because they are resolved globally in the override system.`,
+        bullets: assertArray(role.bullets, `roles[${index}].bullets`).map(
+          (bulletEntry, bulletIndex) => {
+            const bullet = assertRecord(bulletEntry, `roles[${index}].bullets[${bulletIndex}]`)
+            const bulletId = assertString(bullet.id, `roles[${index}].bullets[${bulletIndex}].id`)
+            if (bulletIds.has(bulletId)) {
+              throw new Error(
+                `roles.bullets has duplicate id "${bulletId}" - bullet IDs must be unique across all roles because they are resolved globally in the override system.`,
+              )
+            }
+            bulletIds.add(bulletId)
+
+            const metricsRecord = assertRecord(
+              bullet.metrics,
+              `roles[${index}].bullets[${bulletIndex}].metrics`,
             )
-          }
-          bulletIds.add(bulletId)
-
-          const metricsRecord = assertRecord(
-            bullet.metrics,
-            `roles[${index}].bullets[${bulletIndex}].metrics`,
-          )
-          const metrics = Object.fromEntries(
-            Object.entries(metricsRecord).map(([key, metricValue]) => {
-              if (
-                typeof metricValue !== 'string' &&
-                (typeof metricValue !== 'number' || !Number.isFinite(metricValue)) &&
-                typeof metricValue !== 'boolean'
-              ) {
-                throw new Error(
-                  `roles[${index}].bullets[${bulletIndex}].metrics.${key} must be a string, number, or boolean.`,
-                )
-              }
-
-              return [key, metricValue]
-            }),
-          )
-
-          return {
-            id: bulletId,
-            problem: assertString(bullet.problem, `roles[${index}].bullets[${bulletIndex}].problem`),
-            action: assertString(bullet.action, `roles[${index}].bullets[${bulletIndex}].action`),
-            outcome: assertString(bullet.outcome, `roles[${index}].bullets[${bulletIndex}].outcome`),
-            impact: assertStringArray(bullet.impact, `roles[${index}].bullets[${bulletIndex}].impact`),
-            metrics,
-            technologies: assertStringArray(
-              bullet.technologies,
-              `roles[${index}].bullets[${bulletIndex}].technologies`,
-            ),
-            ...(bullet.source_text !== undefined
-              ? {
-                  source_text: assertOptionalString(
-                    bullet.source_text,
-                    `roles[${index}].bullets[${bulletIndex}].source_text`,
-                  ),
+            const metrics = Object.fromEntries(
+              Object.entries(metricsRecord).map(([key, metricValue]) => {
+                if (
+                  typeof metricValue !== 'string' &&
+                  (typeof metricValue !== 'number' || !Number.isFinite(metricValue)) &&
+                  typeof metricValue !== 'boolean'
+                ) {
+                  throw new Error(
+                    `roles[${index}].bullets[${bulletIndex}].metrics.${key} must be a string, number, or boolean.`,
+                  )
                 }
-              : {}),
-            ...(bullet.portfolio_dive !== undefined
-              ? {
-                  portfolio_dive: assertOptionalNullableString(
-                    bullet.portfolio_dive,
-                    `roles[${index}].bullets[${bulletIndex}].portfolio_dive`,
-                  ),
-                }
-              : {}),
-            tags: normalizeTagArray(
-              bullet.tags,
-              `roles[${index}].bullets[${bulletIndex}].tags`,
-              warnings,
-            ),
-          }
-        }),
+
+                return [key, metricValue]
+              }),
+            )
+
+            return {
+              id: bulletId,
+              problem: assertString(
+                bullet.problem,
+                `roles[${index}].bullets[${bulletIndex}].problem`,
+              ),
+              action: assertString(bullet.action, `roles[${index}].bullets[${bulletIndex}].action`),
+              outcome: assertString(
+                bullet.outcome,
+                `roles[${index}].bullets[${bulletIndex}].outcome`,
+              ),
+              impact: assertStringArray(
+                bullet.impact,
+                `roles[${index}].bullets[${bulletIndex}].impact`,
+              ),
+              metrics,
+              technologies: assertStringArray(
+                bullet.technologies,
+                `roles[${index}].bullets[${bulletIndex}].technologies`,
+              ),
+              ...(bullet.source_text !== undefined
+                ? {
+                    source_text: assertOptionalString(
+                      bullet.source_text,
+                      `roles[${index}].bullets[${bulletIndex}].source_text`,
+                    ),
+                  }
+                : {}),
+              ...(bullet.portfolio_dive !== undefined
+                ? {
+                    portfolio_dive: assertOptionalNullableString(
+                      bullet.portfolio_dive,
+                      `roles[${index}].bullets[${bulletIndex}].portfolio_dive`,
+                    ),
+                  }
+                : {}),
+              tags: normalizeTagArray(
+                bullet.tags,
+                `roles[${index}].bullets[${bulletIndex}].tags`,
+                warnings,
+              ),
+            }
+          },
+        ),
       }
     }),
     projects: assertArray(root.projects, 'projects').map((entry, index) => {
@@ -1145,7 +1335,9 @@ export const importProfessionalIdentity = (
       return {
         id,
         name: assertString(project.name, `projects[${index}].name`),
-        ...(project.url !== undefined ? { url: assertOptionalString(project.url, `projects[${index}].url`) } : {}),
+        ...(project.url !== undefined
+          ? { url: assertOptionalString(project.url, `projects[${index}].url`) }
+          : {}),
         description: assertString(project.description, `projects[${index}].description`),
         ...(project.portfolio_dive !== undefined
           ? {
@@ -1164,7 +1356,9 @@ export const importProfessionalIdentity = (
         school: assertString(education.school, `education[${index}].school`),
         location: assertString(education.location, `education[${index}].location`),
         degree: assertString(education.degree, `education[${index}].degree`),
-        ...(education.year !== undefined ? { year: assertOptionalString(education.year, `education[${index}].year`) } : {}),
+        ...(education.year !== undefined
+          ? { year: assertOptionalString(education.year, `education[${index}].year`) }
+          : {}),
       }
     }),
     generator_rules: {
@@ -1195,7 +1389,9 @@ export const importProfessionalIdentity = (
           }),
         }
       : {}),
-    ...(root.awareness !== undefined ? { awareness: parseAwareness(root.awareness, 'awareness') } : {}),
+    ...(root.awareness !== undefined
+      ? { awareness: parseAwareness(root.awareness, 'awareness') }
+      : {}),
   }
 
   return { data: parsed, warnings }

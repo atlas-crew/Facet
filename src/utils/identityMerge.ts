@@ -42,10 +42,14 @@ const stableSerialize = (value: unknown): string => {
 
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>
-    return '{' + Object.keys(record)
-      .sort()
-      .map((key) => JSON.stringify(key) + ':' + stableSerialize(record[key]))
-      .join(',') + '}'
+    return (
+      '{' +
+      Object.keys(record)
+        .sort()
+        .map((key) => JSON.stringify(key) + ':' + stableSerialize(record[key]))
+        .join(',') +
+      '}'
+    )
   }
 
   return JSON.stringify(value)
@@ -167,11 +171,8 @@ const describeIdChanges = (label: string, addedIds: string[], updatedIds: string
 const describeRemovedIds = (label: string, removedIds: string[]): string[] =>
   removedIds.length > 0 ? [`Removed ${label}: ${removedIds.join(', ')}.`] : []
 
-const describeScalarReplacement = <T>(
-  label: string,
-  current: T,
-  incoming: T,
-): string[] => (hasMeaningfulChange(current, incoming) ? [`Replaced ${label} from draft.`] : [])
+const describeScalarReplacement = <T>(label: string, current: T, incoming: T): string[] =>
+  hasMeaningfulChange(current, incoming) ? [`Replaced ${label} from draft.`] : []
 
 const skillItemKey = (item: ProfessionalSkillItem): string => item.name.trim().toLowerCase()
 
@@ -226,10 +227,7 @@ const mergeSkillGroups = (
   }
 }
 
-const buildSummary = (
-  data: ProfessionalIdentityV3,
-  action: string,
-): string =>
+const buildSummary = (data: ProfessionalIdentityV3, action: string): string =>
   `${action}: ${data.roles.length} roles, ${data.profiles.length} profiles, ${data.projects.length} projects.`
 
 export const replaceProfessionalIdentity = (
@@ -262,35 +260,38 @@ export const mergeProfessionalIdentity = (
   const currentOpenQuestions = current.awareness?.open_questions ?? []
   const incomingOpenQuestions = incoming.awareness?.open_questions ?? []
   const preserveCurrentMatching = fieldPresence.preferences?.matching === false
+  const preserveCurrentConstraints = fieldPresence.preferences?.constraints === false
+  const mergedConstraints = preserveCurrentConstraints
+    ? current.preferences.constraints
+    : incoming.preferences.constraints !== undefined
+      ? { ...current.preferences.constraints, ...incoming.preferences.constraints }
+      : current.preferences.constraints !== undefined
+        ? { ...current.preferences.constraints }
+        : undefined
   const mergedPreferences: ProfessionalIdentityV3['preferences'] = {
     ...current.preferences,
     ...incoming.preferences,
-    ...(fieldPresence.preferences?.constraints === false
-      ? { constraints: current.preferences.constraints }
-      : (incoming.preferences.constraints !== undefined
-          ? { constraints: incoming.preferences.constraints }
-          : (current.preferences.constraints !== undefined
-              ? { constraints: current.preferences.constraints }
-              : {}))),
+    ...(preserveCurrentConstraints || mergedConstraints !== undefined
+      ? { constraints: mergedConstraints }
+      : {}),
     ...(preserveCurrentMatching
       ? { matching: current.preferences.matching }
-      : { matching: incoming.preferences.matching }
-      ),
+      : { matching: incoming.preferences.matching }),
   }
   const mergedAwareness =
     fieldPresence.awareness === false
       ? current.awareness
-      : ((fieldPresence.awareness ?? incoming.awareness !== undefined)
-          ? {
-              open_questions: incomingOpenQuestions,
-            }
-          : current.awareness)
+      : (fieldPresence.awareness ?? incoming.awareness !== undefined)
+        ? {
+            open_questions: incomingOpenQuestions,
+          }
+        : current.awareness
   const mergedSearchVectors =
     fieldPresence.search_vectors === false
       ? current.search_vectors
-      : ((fieldPresence.search_vectors ?? incoming.search_vectors !== undefined)
-          ? incomingSearchVectors
-          : current.search_vectors)
+      : (fieldPresence.search_vectors ?? incoming.search_vectors !== undefined)
+        ? incomingSearchVectors
+        : current.search_vectors
   const mergedSearchVectorChanges = diffById(currentSearchVectors, mergedSearchVectors ?? [])
   const mergedAwarenessChanges = diffById(
     currentOpenQuestions,
@@ -304,12 +305,8 @@ export const mergeProfessionalIdentity = (
     self_model: incoming.self_model,
     preferences: mergedPreferences,
     generator_rules: incoming.generator_rules,
-    ...(mergedSearchVectors !== undefined
-      ? { search_vectors: mergedSearchVectors }
-      : {}),
-    ...(mergedAwareness !== undefined
-      ? { awareness: mergedAwareness }
-      : {}),
+    ...(mergedSearchVectors !== undefined ? { search_vectors: mergedSearchVectors } : {}),
+    ...(mergedAwareness !== undefined ? { awareness: mergedAwareness } : {}),
     skills: {
       groups: skillGroups.items,
     },
@@ -321,21 +318,41 @@ export const mergeProfessionalIdentity = (
 
   const normalized = importProfessionalIdentity(merged)
   const details = [
-    ...describeScalarReplacement('schema revision', current.schema_revision, incoming.schema_revision),
+    ...describeScalarReplacement(
+      'schema revision',
+      current.schema_revision,
+      incoming.schema_revision,
+    ),
     ...describeScalarReplacement('identity core', current.identity, incoming.identity),
     ...describeScalarReplacement('self model', current.self_model, incoming.self_model),
     ...describeScalarReplacement('preferences', current.preferences, mergedPreferences),
-    ...describeScalarReplacement('generator rules', current.generator_rules, incoming.generator_rules),
+    ...describeScalarReplacement(
+      'generator rules',
+      current.generator_rules,
+      incoming.generator_rules,
+    ),
     ...describeIdChanges('skill groups', skillGroups.addedIds, skillGroups.updatedIds),
     ...describeIdChanges('profiles', profiles.addedIds, profiles.updatedIds),
     ...describeIdChanges('roles', roles.addedIds, roles.updatedIds),
     ...describeIdChanges('projects', projects.addedIds, projects.updatedIds),
-    ...describeIdChanges('search vectors', mergedSearchVectorChanges.addedIds, mergedSearchVectorChanges.updatedIds),
+    ...describeIdChanges(
+      'search vectors',
+      mergedSearchVectorChanges.addedIds,
+      mergedSearchVectorChanges.updatedIds,
+    ),
     ...describeRemovedIds('search vectors', mergedSearchVectorChanges.removedIds),
-    ...describeIdChanges('awareness items', mergedAwarenessChanges.addedIds, mergedAwarenessChanges.updatedIds),
+    ...describeIdChanges(
+      'awareness items',
+      mergedAwarenessChanges.addedIds,
+      mergedAwarenessChanges.updatedIds,
+    ),
     ...describeRemovedIds('awareness items', mergedAwarenessChanges.removedIds),
-    ...(education.added > 0 ? [`Added ${education.added} education entr${education.added === 1 ? 'y' : 'ies'}.`] : []),
-    ...(education.updated > 0 ? [`Updated ${education.updated} education entr${education.updated === 1 ? 'y' : 'ies'}.`] : []),
+    ...(education.added > 0
+      ? [`Added ${education.added} education entr${education.added === 1 ? 'y' : 'ies'}.`]
+      : []),
+    ...(education.updated > 0
+      ? [`Updated ${education.updated} education entr${education.updated === 1 ? 'y' : 'ies'}.`]
+      : []),
   ]
 
   return {

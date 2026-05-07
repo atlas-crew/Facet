@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  migrateSearchState,
-  useSearchStore,
-} from '../store/searchStore'
+import { migrateSearchState, useSearchStore } from '../store/searchStore'
 import type { SearchThesis } from '../types/search'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
@@ -151,8 +148,12 @@ describe('searchStore', () => {
     })
 
     expect(useSearchStore.getState().requests[0]?.customKeywords).toBe('platform engineering')
-    expect(useSearchStore.getState().requests[0]?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
-    expect(useSearchStore.getState().requests[0]?.durableMeta?.createdAt).toBe(before?.durableMeta?.createdAt)
+    expect(useSearchStore.getState().requests[0]?.durableMeta?.workspaceId).toBe(
+      DEFAULT_LOCAL_WORKSPACE_ID,
+    )
+    expect(useSearchStore.getState().requests[0]?.durableMeta?.createdAt).toBe(
+      before?.durableMeta?.createdAt,
+    )
     expect(useSearchStore.getState().requests[0]?.durableMeta?.revision).toBe(1)
 
     useSearchStore.getState().deleteRequest(request.id)
@@ -315,18 +316,20 @@ describe('searchStore', () => {
   })
 
   it('returns whether thesis staleness review metadata was persisted', () => {
-    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
-      identityVersion: 5,
-      durableMeta: {
-        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
-        tenantId: null,
-        userId: null,
-        schemaVersion: 1,
-        revision: 0,
-        createdAt: '2026-04-20T10:00:00.000Z',
-        updatedAt: '2026-04-20T10:00:00.000Z',
-      },
-    }))
+    const thesis = useSearchStore.getState().addThesis(
+      buildSearchThesis({
+        identityVersion: 5,
+        durableMeta: {
+          workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+          tenantId: null,
+          userId: null,
+          schemaVersion: 1,
+          revision: 0,
+          createdAt: '2026-04-20T10:00:00.000Z',
+          updatedAt: '2026-04-20T10:00:00.000Z',
+        },
+      }),
+    )
     const validReview = {
       decision: 'accepted-current' as const,
       reviewedAt: '2026-04-28T00:00:00.000Z',
@@ -339,16 +342,20 @@ describe('searchStore', () => {
       reason: 'Generated from an older identity revision.',
     }
 
-    expect(useSearchStore.getState().markThesisStalenessReview(thesis.id, {
-      ...validReview,
-      reviewedIdentityVersion: 4,
-      mutationToRevision: 4,
-    })).toBe(false)
+    expect(
+      useSearchStore.getState().markThesisStalenessReview(thesis.id, {
+        ...validReview,
+        reviewedIdentityVersion: 4,
+        mutationToRevision: 4,
+      }),
+    ).toBe(false)
     expect(useSearchStore.getState().theses[0]?.stalenessReview).toBeUndefined()
-    expect(useSearchStore.getState().markThesisStalenessReview(thesis.id, {
-      ...validReview,
-      reviewedAt: '',
-    })).toBe(false)
+    expect(
+      useSearchStore.getState().markThesisStalenessReview(thesis.id, {
+        ...validReview,
+        reviewedAt: '',
+      }),
+    ).toBe(false)
     expect(useSearchStore.getState().markThesisStalenessReview(thesis.id, validReview)).toBe(true)
 
     const updated = useSearchStore.getState().theses[0]
@@ -361,18 +368,20 @@ describe('searchStore', () => {
   })
 
   it('returns false without mutating when thesis staleness review id is unknown', () => {
-    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
-      identityVersion: 3,
-      durableMeta: {
-        workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
-        tenantId: null,
-        userId: null,
-        schemaVersion: 1,
-        revision: 4,
-        createdAt: '2026-04-20T10:00:00.000Z',
-        updatedAt: '2026-04-20T10:00:00.000Z',
-      },
-    }))
+    const thesis = useSearchStore.getState().addThesis(
+      buildSearchThesis({
+        identityVersion: 3,
+        durableMeta: {
+          workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+          tenantId: null,
+          userId: null,
+          schemaVersion: 1,
+          revision: 4,
+          createdAt: '2026-04-20T10:00:00.000Z',
+          updatedAt: '2026-04-20T10:00:00.000Z',
+        },
+      }),
+    )
     const review = {
       decision: 'accepted-current' as const,
       reviewedAt: '2026-04-28T00:00:00.000Z',
@@ -385,8 +394,9 @@ describe('searchStore', () => {
       reason: 'Generated from an older identity revision.',
     }
 
-    expect(useSearchStore.getState().markThesisStalenessReview('missing-thesis', review))
-      .toBe(false)
+    expect(useSearchStore.getState().markThesisStalenessReview('missing-thesis', review)).toBe(
+      false,
+    )
 
     expect(useSearchStore.getState().theses).toHaveLength(1)
     expect(useSearchStore.getState().theses[0]?.updatedAt).toBe(thesis.updatedAt)
@@ -395,20 +405,22 @@ describe('searchStore', () => {
   })
 
   it('clears thesis staleness review metadata when identity version advances past the review', () => {
-    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
-      identityVersion: 2,
-      stalenessReview: {
-        decision: 'accepted-current',
-        reviewedAt: '2026-04-28T00:00:00.000Z',
-        reviewedIdentityVersion: 3,
-        artifactIdentityVersionAtReview: 2,
-        mutationLabel: 'Kubernetes depth correction',
-        mutationFields: ['skills.Kubernetes.depth'],
-        mutationFromRevision: 2,
-        mutationToRevision: 3,
-        reason: 'Generated from an older identity revision.',
-      },
-    }))
+    const thesis = useSearchStore.getState().addThesis(
+      buildSearchThesis({
+        identityVersion: 2,
+        stalenessReview: {
+          decision: 'accepted-current',
+          reviewedAt: '2026-04-28T00:00:00.000Z',
+          reviewedIdentityVersion: 3,
+          artifactIdentityVersionAtReview: 2,
+          mutationLabel: 'Kubernetes depth correction',
+          mutationFields: ['skills.Kubernetes.depth'],
+          mutationFromRevision: 2,
+          mutationToRevision: 3,
+          reason: 'Generated from an older identity revision.',
+        },
+      }),
+    )
 
     useSearchStore.getState().saveThesisRevision(thesis.id, { identityVersion: 3 })
     expect(useSearchStore.getState().theses[0]?.stalenessReview).toMatchObject({
@@ -421,9 +433,11 @@ describe('searchStore', () => {
   })
 
   it('sanitizes explicit thesis staleness review patches on revision save', () => {
-    const thesis = useSearchStore.getState().addThesis(buildSearchThesis({
-      identityVersion: 2,
-    }))
+    const thesis = useSearchStore.getState().addThesis(
+      buildSearchThesis({
+        identityVersion: 2,
+      }),
+    )
     const validReview = {
       decision: 'accepted-current' as const,
       reviewedAt: '2026-04-28T00:00:00.000Z',
@@ -451,9 +465,23 @@ describe('searchStore', () => {
   })
 
   it('treats profile updaters as no-ops when no profile exists and supports clear/delete run', () => {
-    useSearchStore.getState().updateProfileSkills([{ id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' }])
-    useSearchStore.getState().updateProfileVectors([{ vectorId: 'backend', priority: 1, description: '', targetRoleTitles: [], searchKeywords: [] }])
-    useSearchStore.getState().updateProfileConstraints({ compensation: '', locations: [], clearance: '', companySize: '' })
+    useSearchStore
+      .getState()
+      .updateProfileSkills([
+        { id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' },
+      ])
+    useSearchStore.getState().updateProfileVectors([
+      {
+        vectorId: 'backend',
+        priority: 1,
+        description: '',
+        targetRoleTitles: [],
+        searchKeywords: [],
+      },
+    ])
+    useSearchStore
+      .getState()
+      .updateProfileConstraints({ compensation: '', locations: [], clearance: '', companySize: '' })
     useSearchStore.getState().updateProfileFilters({ prioritize: [], avoid: [] })
     useSearchStore.getState().updateProfileInterviewPrefs({ strongFit: [], redFlags: [] })
     expect(useSearchStore.getState().profile).toBeNull()
@@ -499,21 +527,23 @@ describe('searchStore', () => {
   })
 
   it('stores thesis revisions and tracks the active thesis', () => {
-    const first = useSearchStore.getState().addThesis(buildSearchThesis({
-      unfairAdvantages: [
-        {
-          id: 'sadv-1',
-          combination: 'Kubernetes plus product judgment',
-          targetCompanyProfile: 'Platform modernization teams',
-        },
-      ],
-      interviewStrategy: 'Preserve this interview strategy.',
-      lookFor: ['platform modernization', 'developer leverage'],
-      keywordCombinations: [
-        { id: 'skwd-1', query: '"platform modernization"', lane: 'lane-1', noiseLevel: 'low' },
-      ],
-      feedbackIncorporated: ['sfe-1'],
-    }))
+    const first = useSearchStore.getState().addThesis(
+      buildSearchThesis({
+        unfairAdvantages: [
+          {
+            id: 'sadv-1',
+            combination: 'Kubernetes plus product judgment',
+            targetCompanyProfile: 'Platform modernization teams',
+          },
+        ],
+        interviewStrategy: 'Preserve this interview strategy.',
+        lookFor: ['platform modernization', 'developer leverage'],
+        keywordCombinations: [
+          { id: 'skwd-1', query: '"platform modernization"', lane: 'lane-1', noiseLevel: 'low' },
+        ],
+        feedbackIncorporated: ['sfe-1'],
+      }),
+    )
 
     expect(first.id).toBe('sthesis-1')
     expect(useSearchStore.getState().activeThesisId).toBe(first.id)
@@ -549,8 +579,9 @@ describe('searchStore', () => {
     useSearchStore.getState().setActiveThesis('missing-thesis')
     expect(useSearchStore.getState().activeThesisId).toBeNull()
     expect(useSearchStore.getState().saveThesisRevision('missing-thesis', {})).toBeNull()
-    expect(() => useSearchStore.getState().addThesis(buildSearchThesis({ id: first.id })))
-      .toThrow(/duplicate search thesis id/i)
+    expect(() => useSearchStore.getState().addThesis(buildSearchThesis({ id: first.id }))).toThrow(
+      /duplicate search thesis id/i,
+    )
   })
 
   it('threads per-search overrides through saveThesisRevision and toggle/correction helpers', () => {
@@ -562,11 +593,15 @@ describe('searchStore', () => {
         locations: ['Tampa Bay'],
         clearance: '',
         companySize: 'mid-market',
+        remotePolicyNote: 'Distributed team with quarterly retreats',
       },
       filters: { prioritize: ['platform leverage'], avoid: ['ad tech'] },
     })
 
     expect(updated?.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
+    expect(updated?.searchOverrides?.constraints.remotePolicyNote).toBe(
+      'Distributed team with quarterly retreats',
+    )
     expect(updated?.searchOverrides?.filters.prioritize).toEqual(['platform leverage'])
     expect(updated?.searchOverrides?.interviewPrefs.strongFit).toEqual([])
     expect(updated?.searchOverrides?.hiddenSkillIds).toEqual([])
@@ -577,18 +612,22 @@ describe('searchStore', () => {
     const afterToggleOff = useSearchStore.getState().toggleThesisHiddenSkill(thesis.id, 'skl-rust')
     expect(afterToggleOff?.searchOverrides?.hiddenSkillIds).toEqual([])
 
-    const withCorrections = useSearchStore.getState().setThesisUserCorrections(
-      thesis.id,
-      'Drop Kubernetes admin framing — focus on platform leverage.',
-    )
+    const withCorrections = useSearchStore
+      .getState()
+      .setThesisUserCorrections(
+        thesis.id,
+        'Drop Kubernetes admin framing — focus on platform leverage.',
+      )
     expect(withCorrections?.userCorrections).toBe(
       'Drop Kubernetes admin framing — focus on platform leverage.',
     )
 
-    const withDirective = useSearchStore.getState().setThesisCustomDirective(
-      thesis.id,
-      'Research adjacent CTO roles at platform-modernization startups.',
-    )
+    const withDirective = useSearchStore
+      .getState()
+      .setThesisCustomDirective(
+        thesis.id,
+        'Research adjacent CTO roles at platform-modernization startups.',
+      )
     expect(withDirective?.customDirective).toBe(
       'Research adjacent CTO roles at platform-modernization startups.',
     )
@@ -639,6 +678,11 @@ describe('searchStore', () => {
     expect(migrated.profile?.durableMeta?.createdAt).toBe('2025-02-01T00:00:00.000Z')
     expect(migrated.requests[0].durableMeta?.createdAt).toBe('2025-02-02T00:00:00.000Z')
     expect(migrated.runs[0].durableMeta?.createdAt).toBe('2025-02-03T00:00:00.000Z')
+    expect(migrated.profile?.constraints.industriesToAvoid).toEqual([])
+    expect(migrated.profile?.constraints.fundingStagesAcceptable).toEqual([])
+    expect(migrated.profile?.constraints.remotePolicies).toEqual([])
+    expect(migrated.profile?.constraints.remotePolicyNote).toBe('')
+    expect(migrated.profile?.constraints.employmentTypes).toEqual([])
 
     expect(migrateSearchState('bad-state')).toEqual({
       profile: null,
@@ -650,24 +694,28 @@ describe('searchStore', () => {
       activeResearchJob: null,
     })
 
-    expect(migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-      theses: [buildSearchThesis({ id: 'sthesis-legacy' })],
-      activeThesisId: 'sthesis-legacy',
-    })).toMatchObject({
+    expect(
+      migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        theses: [buildSearchThesis({ id: 'sthesis-legacy' })],
+        activeThesisId: 'sthesis-legacy',
+      }),
+    ).toMatchObject({
       theses: [expect.objectContaining({ id: 'sthesis-legacy' })],
       activeThesisId: 'sthesis-legacy',
     })
 
-    expect(migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-      theses: [{ id: 'partial-thesis' }],
-      activeThesisId: 'partial-thesis',
-    }).theses[0]).toMatchObject({
+    expect(
+      migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        theses: [{ id: 'partial-thesis' }],
+        activeThesisId: 'partial-thesis',
+      }).theses[0],
+    ).toMatchObject({
       id: 'partial-thesis',
       narrative: '',
       searchLanes: [],
@@ -703,18 +751,20 @@ describe('searchStore', () => {
     expect(migratedLegacyThesis?.unfairAdvantages[0]?.id).toMatch(/^sadv-/)
     expect(migratedLegacyThesis?.keywordCombinations[0]?.id).toMatch(/^skwd-/)
 
-    expect(migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-      activeResearchJob: {
-        jobId: 'job-legacy',
-        runId: 'srun-legacy',
-        requestId: 'sreq-legacy',
-        thesisId: 'sthesis-legacy',
-        status: 'running',
-      },
-    }).activeResearchJob).toMatchObject({
+    expect(
+      migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        activeResearchJob: {
+          jobId: 'job-legacy',
+          runId: 'srun-legacy',
+          requestId: 'sreq-legacy',
+          thesisId: 'sthesis-legacy',
+          status: 'running',
+        },
+      }).activeResearchJob,
+    ).toMatchObject({
       jobId: 'job-legacy',
       runId: 'srun-legacy',
       requestId: 'sreq-legacy',
@@ -723,18 +773,57 @@ describe('searchStore', () => {
       lastObservedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
 
-    expect(migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-      activeResearchJob: { jobId: 'job-missing-fields' },
-    }).activeResearchJob).toBeNull()
-    expect(migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-      activeResearchJob: [],
-    }).activeResearchJob).toBeNull()
+    expect(
+      migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        activeResearchJob: { jobId: 'job-missing-fields' },
+      }).activeResearchJob,
+    ).toBeNull()
+    expect(
+      migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        activeResearchJob: [],
+      }).activeResearchJob,
+    ).toBeNull()
+  })
+
+  it('preserves populated search constraint banks during migration', () => {
+    const migrated = migrateSearchState({
+      profile: {
+        id: 'profile-with-banks',
+        skills: [],
+        vectors: [],
+        workSummary: [],
+        openQuestions: [],
+        constraints: {
+          compensation: '',
+          locations: [],
+          clearance: '',
+          companySize: '',
+          industriesToAvoid: ['adtech'],
+          fundingStagesAcceptable: ['series-a'],
+          remotePolicies: ['remote-only'],
+          remotePolicyNote: 'Open to distributed teams',
+          employmentTypes: ['w2-fulltime'],
+        },
+        filters: { prioritize: [], avoid: [] },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        inferredFromResumeVersion: 2,
+        inferredAt: '2025-02-01T00:00:00.000Z',
+      },
+    })
+
+    expect(migrated.profile?.constraints).toMatchObject({
+      industriesToAvoid: ['adtech'],
+      fundingStagesAcceptable: ['series-a'],
+      remotePolicies: ['remote-only'],
+      remotePolicyNote: 'Open to distributed teams',
+      employmentTypes: ['w2-fulltime'],
+    })
   })
 
   it('tracks active async research job metadata for reload rejoin', () => {
@@ -814,7 +903,9 @@ describe('searchStore', () => {
 
     it('does not touch other events when marking one as applied', () => {
       const a = useSearchStore.getState().addFeedbackEvent(baseEventInput)
-      const b = useSearchStore.getState().addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
+      const b = useSearchStore
+        .getState()
+        .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
 
       useSearchStore.getState().markFeedbackApplied(a.id, 3)
 
@@ -826,8 +917,12 @@ describe('searchStore', () => {
 
     it('marks a batch of events as reflected in a thesis', () => {
       const a = useSearchStore.getState().addFeedbackEvent(baseEventInput)
-      const b = useSearchStore.getState().addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
-      const c = useSearchStore.getState().addFeedbackEvent({ ...baseEventInput, resultId: 'sres-3' })
+      const b = useSearchStore
+        .getState()
+        .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
+      const c = useSearchStore
+        .getState()
+        .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-3' })
 
       useSearchStore.getState().markFeedbackReflectedInThesis([a.id, c.id], 'sthesis-42')
 
@@ -846,9 +941,7 @@ describe('searchStore', () => {
 
       useSearchStore.getState().markFeedbackApplied(appliedA.id, 1)
       useSearchStore.getState().markFeedbackApplied(appliedB.id, 2)
-      useSearchStore
-        .getState()
-        .markFeedbackReflectedInThesis([appliedA.id], 'sthesis-current')
+      useSearchStore.getState().markFeedbackReflectedInThesis([appliedA.id], 'sthesis-current')
 
       const unreflected = useSearchStore.getState().getUnreflectedFeedback('sthesis-current')
 
@@ -863,9 +956,7 @@ describe('searchStore', () => {
       const unapplied = store.addFeedbackEvent(baseEventInput)
       const applied = store.addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
       useSearchStore.getState().markFeedbackApplied(applied.id, 1)
-      useSearchStore
-        .getState()
-        .markFeedbackReflectedInThesis([applied.id], 'sthesis-old')
+      useSearchStore.getState().markFeedbackReflectedInThesis([applied.id], 'sthesis-old')
 
       const result = useSearchStore.getState().getUnreflectedFeedback()
       const ids = result.map((e) => e.id)
@@ -876,7 +967,11 @@ describe('searchStore', () => {
     it('getFeedbackEventsForRun filters by runId', () => {
       const store = useSearchStore.getState()
       const run1a = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-1' })
-      const run1b = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-1', resultId: 'sres-x' })
+      const run1b = store.addFeedbackEvent({
+        ...baseEventInput,
+        runId: 'srun-1',
+        resultId: 'sres-x',
+      })
       store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-2' })
 
       const events = useSearchStore.getState().getFeedbackEventsForRun('srun-1')
@@ -884,40 +979,40 @@ describe('searchStore', () => {
       expect(events.map((e) => e.id).sort()).toEqual([run1a.id, run1b.id].sort())
     })
 
-  it('migrates persisted state without feedbackEvents to an empty array', () => {
-    const migrated = migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-    })
-    expect(migrated.feedbackEvents).toEqual([])
-  })
-
-  it('preserves existing thesis durable metadata timestamps during migration', () => {
-    const migrated = migrateSearchState({
-      profile: null,
-      requests: [],
-      runs: [],
-      theses: [
-        buildSearchThesis({
-          durableMeta: {
-            workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
-            tenantId: null,
-            userId: null,
-            schemaVersion: 1,
-            revision: 7,
-            createdAt: '2026-04-20T10:00:00.000Z',
-            updatedAt: '2026-04-22T12:34:56.000Z',
-          },
-        }),
-      ],
+    it('migrates persisted state without feedbackEvents to an empty array', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+      })
+      expect(migrated.feedbackEvents).toEqual([])
     })
 
-    expect(migrated.theses[0]?.durableMeta?.revision).toBe(7)
-    expect(migrated.theses[0]?.durableMeta?.updatedAt).toBe('2026-04-22T12:34:56.000Z')
-  })
+    it('preserves existing thesis durable metadata timestamps during migration', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [],
+        runs: [],
+        theses: [
+          buildSearchThesis({
+            durableMeta: {
+              workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+              tenantId: null,
+              userId: null,
+              schemaVersion: 1,
+              revision: 7,
+              createdAt: '2026-04-20T10:00:00.000Z',
+              updatedAt: '2026-04-22T12:34:56.000Z',
+            },
+          }),
+        ],
+      })
 
-  it('cascade-deletes feedback events when the referenced run is deleted', () => {
+      expect(migrated.theses[0]?.durableMeta?.revision).toBe(7)
+      expect(migrated.theses[0]?.durableMeta?.updatedAt).toBe('2026-04-22T12:34:56.000Z')
+    })
+
+    it('cascade-deletes feedback events when the referenced run is deleted', () => {
       const store = useSearchStore.getState()
       const keeper = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-keep' })
       const doomed = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-doomed' })
@@ -956,13 +1051,54 @@ describe('searchStore', () => {
       const eventRunC = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-c' })
       useSearchStore.setState({
         runs: [
-          { id: 'srun-a', requestId: 'sreq-doomed', createdAt: '2026-03-11T00:00:00.000Z', status: 'completed', results: [], searchLog: [] },
-          { id: 'srun-b', requestId: 'sreq-doomed', createdAt: '2026-03-11T00:00:00.000Z', status: 'completed', results: [], searchLog: [] },
-          { id: 'srun-c', requestId: 'sreq-keep', createdAt: '2026-03-11T00:00:00.000Z', status: 'completed', results: [], searchLog: [] },
+          {
+            id: 'srun-a',
+            requestId: 'sreq-doomed',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+          {
+            id: 'srun-b',
+            requestId: 'sreq-doomed',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+          {
+            id: 'srun-c',
+            requestId: 'sreq-keep',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
         ],
         requests: [
-          { id: 'sreq-doomed', createdAt: '2026-03-11T00:00:00.000Z', focusVectors: [], companySizeOverride: '', salaryAnchorOverride: '', geoExpand: false, customKeywords: '', excludeCompanies: [], maxResults: { tier1: 5, tier2: 10, tier3: 10 } },
-          { id: 'sreq-keep', createdAt: '2026-03-11T00:00:00.000Z', focusVectors: [], companySizeOverride: '', salaryAnchorOverride: '', geoExpand: false, customKeywords: '', excludeCompanies: [], maxResults: { tier1: 5, tier2: 10, tier3: 10 } },
+          {
+            id: 'sreq-doomed',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusVectors: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+          {
+            id: 'sreq-keep',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusVectors: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
         ],
       })
 

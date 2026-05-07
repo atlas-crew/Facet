@@ -34,6 +34,85 @@ export type SearchCompanySize =
   | 'public'
   | 'any'
 
+// TASK-196.1 bank values are mirrored into identity preferences.
+export const INDUSTRY_BANK = [
+  'adtech',
+  'gambling',
+  'tobacco',
+  'firearms-defense',
+  'oil-and-gas-extraction',
+  'predatory-lending',
+  'social-media-engagement',
+  'crypto-speculation',
+  'mlm',
+] as const
+export type SearchIndustry = (typeof INDUSTRY_BANK)[number]
+
+// Keep in sync with INDUSTRY_BANK; Record makes missing labels a type error.
+export const INDUSTRY_LABELS: Record<SearchIndustry, string> = {
+  adtech: 'Adtech',
+  gambling: 'Gambling',
+  tobacco: 'Tobacco',
+  'firearms-defense': 'Firearms / defense',
+  'oil-and-gas-extraction': 'Oil and gas extraction',
+  'predatory-lending': 'Predatory lending',
+  'social-media-engagement': 'Social media engagement',
+  'crypto-speculation': 'Crypto speculation',
+  mlm: 'Multi-level marketing',
+}
+
+export const FUNDING_STAGE_BANK = [
+  'bootstrapped',
+  'pre-seed',
+  'seed',
+  'series-a',
+  'series-b',
+  'series-c-plus',
+  'late-stage-private',
+  'profitable-private',
+  'public',
+] as const
+export type SearchFundingStage = (typeof FUNDING_STAGE_BANK)[number]
+
+// Keep in sync with FUNDING_STAGE_BANK; Record makes missing labels a type error.
+export const FUNDING_STAGE_LABELS: Record<SearchFundingStage, string> = {
+  bootstrapped: 'Bootstrapped',
+  'pre-seed': 'Pre-seed',
+  seed: 'Seed',
+  'series-a': 'Series A',
+  'series-b': 'Series B',
+  'series-c-plus': 'Series C+',
+  'late-stage-private': 'Late-stage private',
+  'profitable-private': 'Profitable private',
+  public: 'Public',
+}
+
+export const REMOTE_POLICY_BANK = [
+  'remote-only',
+  'remote-friendly',
+  'hybrid',
+  'onsite-only',
+] as const
+export type SearchRemotePolicy = (typeof REMOTE_POLICY_BANK)[number]
+
+// Keep in sync with REMOTE_POLICY_BANK; Record makes missing labels a type error.
+export const REMOTE_POLICY_LABELS: Record<SearchRemotePolicy, string> = {
+  'remote-only': 'Remote only',
+  'remote-friendly': 'Remote friendly',
+  hybrid: 'Hybrid',
+  'onsite-only': 'Onsite only',
+}
+
+export const EMPLOYMENT_TYPE_BANK = ['w2-fulltime', '1099-contract', 'either-acceptable'] as const
+export type SearchEmploymentType = (typeof EMPLOYMENT_TYPE_BANK)[number]
+
+// Keep in sync with EMPLOYMENT_TYPE_BANK; Record makes missing labels a type error.
+export const EMPLOYMENT_TYPE_LABELS: Record<SearchEmploymentType, string> = {
+  'w2-fulltime': 'W-2 full-time',
+  '1099-contract': '1099 contract',
+  'either-acceptable': 'Either acceptable',
+}
+
 export type SearchRunStatus = 'pending' | 'running' | 'completed' | 'failed'
 
 export type SearchProfileSourceKind = 'identity' | 'resume'
@@ -70,6 +149,11 @@ export interface SearchProfileConstraints {
   locations: string[]
   clearance: string
   companySize: SearchCompanySize | ''
+  industriesToAvoid?: SearchIndustry[]
+  fundingStagesAcceptable?: SearchFundingStage[]
+  remotePolicies?: SearchRemotePolicy[]
+  remotePolicyNote?: string
+  employmentTypes?: SearchEmploymentType[]
 }
 
 export interface SearchProfileFilters {
@@ -679,6 +763,11 @@ export const EMPTY_SEARCH_INSTANCE_OVERRIDES: SearchInstanceOverrides = {
     locations: [],
     clearance: '',
     companySize: '',
+    industriesToAvoid: [],
+    fundingStagesAcceptable: [],
+    remotePolicies: [],
+    remotePolicyNote: '',
+    employmentTypes: [],
   },
   filters: {
     prioritize: [],

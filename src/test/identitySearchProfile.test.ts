@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { adaptIdentityToSearchProfile } from '../utils/identitySearchProfile'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
+import type { SearchIndustry } from '../types/search'
+
+// @ts-expect-error Compile-time guard: custom industry strings must not typecheck.
+const invalidIndustry: SearchIndustry = 'general-tech'
+void invalidIndustry
 
 describe('identitySearchProfile', () => {
   it('uses lighter identity evidence to infer a working depth', () => {
@@ -38,7 +43,9 @@ describe('identitySearchProfile', () => {
 
   it('passes through explicit architectural depth from identity', () => {
     const identity = cloneIdentityFixture()
-    identity.skills.groups[0]!.items = [{ name: 'Kubernetes', depth: 'architectural', tags: ['kubernetes'] }]
+    identity.skills.groups[0]!.items = [
+      { name: 'Kubernetes', depth: 'architectural', tags: ['kubernetes'] },
+    ]
 
     const profile = adaptIdentityToSearchProfile(identity)
     expect(profile.skills[0]?.depth).toBe('architectural')
@@ -63,7 +70,9 @@ describe('identitySearchProfile', () => {
   it('includes calibration from skill groups in the adapted profile context', () => {
     const identity = cloneIdentityFixture()
     identity.skills.groups[0]!.calibration = 'Not a K8s admin. Builds platforms around it.'
-    identity.skills.groups[0]!.items = [{ name: 'Kubernetes', depth: 'strong', tags: ['kubernetes'] }]
+    identity.skills.groups[0]!.items = [
+      { name: 'Kubernetes', depth: 'strong', tags: ['kubernetes'] },
+    ]
 
     const profile = adaptIdentityToSearchProfile(identity)
     expect(profile.skills[0]?.depth).toBe('strong')
@@ -83,5 +92,56 @@ describe('identitySearchProfile', () => {
 
     const profile = adaptIdentityToSearchProfile(identity)
     expect(profile.filters.avoid).toContain('Kubernetes admin roles')
+  })
+
+  it('mirrors identity constraint banks and work model preference into search constraints', () => {
+    const identity = cloneIdentityFixture()
+    identity.preferences.constraints = {
+      ...identity.preferences.constraints,
+      industries_to_avoid: ['adtech', 'predatory-lending'],
+      funding_stages_acceptable: ['seed', 'series-a', 'profitable-private'],
+      employment_types: ['w2-fulltime', 'either-acceptable'],
+    }
+    identity.preferences.work_model.preference = 'hybrid'
+
+    const profile = adaptIdentityToSearchProfile(identity)
+
+    expect(profile.constraints.industriesToAvoid).toEqual(['adtech', 'predatory-lending'])
+    expect(profile.constraints.fundingStagesAcceptable).toEqual([
+      'seed',
+      'series-a',
+      'profitable-private',
+    ])
+    expect(profile.constraints.remotePolicies).toEqual(['hybrid'])
+    expect(profile.constraints.employmentTypes).toEqual(['w2-fulltime', 'either-acceptable'])
+  })
+
+  it('maps legacy remote work model preference to the search remote-friendly policy', () => {
+    const identity = cloneIdentityFixture()
+    identity.preferences.work_model.preference = 'remote'
+
+    const profile = adaptIdentityToSearchProfile(identity)
+
+    expect(profile.constraints.remotePolicies).toEqual(['remote-friendly'])
+  })
+
+  it('maps free-form work model preferences by policy keywords', () => {
+    const identity = cloneIdentityFixture()
+    identity.preferences.work_model.preference = 'Fully remote, US time zones preferred'
+
+    const profile = adaptIdentityToSearchProfile(identity)
+
+    expect(profile.constraints.remotePolicies).toEqual(['remote-friendly'])
+    expect(profile.constraints.remotePolicyNote).toBe('Fully remote, US time zones preferred')
+  })
+
+  it('preserves unmapped free-form work model preferences as a search constraint note', () => {
+    const identity = cloneIdentityFixture()
+    identity.preferences.work_model.preference = 'Distributed team with quarterly retreats'
+
+    const profile = adaptIdentityToSearchProfile(identity)
+
+    expect(profile.constraints.remotePolicies).toEqual([])
+    expect(profile.constraints.remotePolicyNote).toBe('Distributed team with quarterly retreats')
   })
 })

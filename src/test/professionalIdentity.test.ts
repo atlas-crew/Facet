@@ -97,9 +97,7 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
       {
         id: 'sg-practices',
         label: 'Also',
-        items: [
-          { name: 'Technical writing', tags: ['documentation', 'platform'] },
-        ],
+        items: [{ name: 'Technical writing', tags: ['documentation', 'platform'] }],
       },
     ],
   },
@@ -160,7 +158,7 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
   },
 }
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 describe('professional identity schema', () => {
   it('normalizes and deduplicates tags during identity import', () => {
@@ -171,7 +169,9 @@ describe('professional identity schema', () => {
     expect(parsed.data.skills.groups[0]?.items[0]?.tags).toEqual(['platform', 'devex'])
     expect(parsed.data.profiles[0]?.tags).toEqual(['general', 'platform'])
     expect(parsed.data.roles[0]?.bullets[0]?.tags).toEqual(['security', 'product'])
-    expect(parsed.warnings.some((warning) => warning.includes('duplicate tag "platform"'))).toBe(true)
+    expect(parsed.warnings.some((warning) => warning.includes('duplicate tag "platform"'))).toBe(
+      true,
+    )
   })
 
   it('imports native v3.1 fields without migration warnings', () => {
@@ -245,6 +245,9 @@ describe('professional identity schema', () => {
         filter_risk: 'Some companies filter on bachelors requirements.',
       },
       title_flexibility: ['Senior Platform Engineer', 'Staff Engineer'],
+      industries_to_avoid: ['adtech', 'gambling'],
+      funding_stages_acceptable: ['seed', 'series-a'],
+      employment_types: ['w2-fulltime', 'either-acceptable'],
     }
     enriched.skills.groups[0].positioning = 'Primary differentiator.'
     enriched.skills.groups[0].is_differentiator = true
@@ -304,9 +307,41 @@ describe('professional identity schema', () => {
     expect(parsed.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
     expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBe('avoid')
     expect(parsed.data.preferences.constraints?.clearance?.status).toBe('none')
+    expect(parsed.data.preferences.constraints?.industries_to_avoid).toEqual(['adtech', 'gambling'])
+    expect(parsed.data.preferences.constraints?.funding_stages_acceptable).toEqual([
+      'seed',
+      'series-a',
+    ])
+    expect(parsed.data.preferences.constraints?.employment_types).toEqual([
+      'w2-fulltime',
+      'either-acceptable',
+    ])
     expect(parsed.data.preferences.matching?.avoid[0]?.severity).toBe('hard')
     expect(parsed.data.search_vectors?.[0]?.id).toBe('v1-security-platform')
     expect(parsed.data.awareness?.open_questions[0]?.id).toBe('degree-filter-risk')
+  })
+
+  it('drops unknown identity constraint bank values with warnings', () => {
+    const enriched = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    const preferences = enriched.preferences as Record<string, unknown>
+    preferences.constraints = {
+      industries_to_avoid: ['adtech', 'unknown-industry'],
+      funding_stages_acceptable: ['seed', 'unknown-stage'],
+      employment_types: ['w2-fulltime', 'unknown-employment'],
+    }
+
+    const parsed = importProfessionalIdentity(enriched)
+
+    expect(parsed.data.preferences.constraints?.industries_to_avoid).toEqual(['adtech'])
+    expect(parsed.data.preferences.constraints?.funding_stages_acceptable).toEqual(['seed'])
+    expect(parsed.data.preferences.constraints?.employment_types).toEqual(['w2-fulltime'])
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        'preferences.constraints.industries_to_avoid[1] used unknown bank value "unknown-industry" and was dropped.',
+        'preferences.constraints.funding_stages_acceptable[1] used unknown bank value "unknown-stage" and was dropped.',
+        'preferences.constraints.employment_types[1] used unknown bank value "unknown-employment" and was dropped.',
+      ]),
+    )
   })
 
   it('bridges identity.json into the current resume data model', () => {
@@ -340,9 +375,7 @@ describe('professional identity schema', () => {
     )
     expect(parsed.data.skill_groups[0]?.content).toBe('TypeScript, Python')
     expect(
-      parsed.warnings.some((warning) =>
-        warning.includes('without configured search vectors'),
-      ),
+      parsed.warnings.some((warning) => warning.includes('without configured search vectors')),
     ).toBe(true)
   })
 
@@ -430,7 +463,9 @@ describe('professional identity schema', () => {
     expect(adapted.data.projects[0]?.vectors).toEqual({
       'platform-builder': 'include',
     })
-    expect(adapted.warnings.some((warning) => warning.includes('identity-derived vectors'))).toBe(true)
+    expect(adapted.warnings.some((warning) => warning.includes('identity-derived vectors'))).toBe(
+      true,
+    )
   })
 
   it('falls back unmatched content to the primary vector instead of broadcasting to all vectors', () => {
@@ -547,7 +582,9 @@ describe('professional identity schema', () => {
 
     const parsed = importProfessionalIdentity(legacy)
 
-    expect(parsed.data.skills.groups[0]?.items[0]?.positioning).toBe('Strong match signal. List first.')
+    expect(parsed.data.skills.groups[0]?.items[0]?.positioning).toBe(
+      'Strong match signal. List first.',
+    )
   })
 
   it('rejects unsupported schema versions', () => {
@@ -580,7 +617,10 @@ describe('professional identity schema', () => {
       {
         label: 'identity links',
         mutate: (identity) => {
-          identity.identity.links.push({ id: identity.identity.links[0]!.id, url: 'https://duplicate.example.dev' })
+          identity.identity.links.push({
+            id: identity.identity.links[0]!.id,
+            url: 'https://duplicate.example.dev',
+          })
         },
         error: /identity.links has duplicate id "github"/,
       },
@@ -649,7 +689,9 @@ describe('professional identity schema', () => {
       avoid: [],
     }
 
-    expect(() => importProfessionalIdentity(invalid)).toThrow(/preferences\.matching\.prioritize has duplicate id/i)
+    expect(() => importProfessionalIdentity(invalid)).toThrow(
+      /preferences\.matching\.prioritize has duplicate id/i,
+    )
   })
 
   it('rejects duplicate search vector ids', () => {
@@ -697,7 +739,9 @@ describe('professional identity schema', () => {
       ],
     }
 
-    expect(() => importProfessionalIdentity(invalid)).toThrow(/awareness\.open_questions has duplicate id/i)
+    expect(() => importProfessionalIdentity(invalid)).toThrow(
+      /awareness\.open_questions has duplicate id/i,
+    )
   })
 
   it('rejects duplicate bullet ids across different roles', () => {
@@ -850,7 +894,9 @@ describe('professional identity schema', () => {
     expect(parsed.data.meta.name).toBe('Alex Example')
     expect(parsed.data.target_lines[0]?.text).toBe('I solve business problems with computers.')
     expect(parsed.data.projects[0]?.url).toBeUndefined()
-    expect(parsed.data.education[0]?.id).toBe('edu-glen-hollow-community-college-aas-computer-information-systems-rivertown-or')
+    expect(parsed.data.education[0]?.id).toBe(
+      'edu-glen-hollow-community-college-aas-computer-information-systems-rivertown-or',
+    )
   })
 
   it('supports sparse sections and stable deduplicated education ids', () => {
@@ -905,7 +951,8 @@ describe('professional identity schema', () => {
       },
       {
         label: 'deep array element object',
-        selectTarget: (identity) => identity.roles[0].bullets[0] as unknown as Record<string, unknown>,
+        selectTarget: (identity) =>
+          identity.roles[0].bullets[0] as unknown as Record<string, unknown>,
       },
     ]
 
@@ -1048,7 +1095,12 @@ describe('professional identity schema', () => {
   it('preserves backward compatibility with hard and soft severity values', () => {
     const enriched = clone(baseIdentityFixture)
     enriched.preferences.matching.avoid = [
-      { id: 'clearance', label: 'Security clearance', description: 'No clearance', severity: 'hard' },
+      {
+        id: 'clearance',
+        label: 'Security clearance',
+        description: 'No clearance',
+        severity: 'hard',
+      },
       { id: 'jenkins', label: 'Jenkins roles', description: 'Avoid', severity: 'soft' },
     ]
 

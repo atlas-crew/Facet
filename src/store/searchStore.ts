@@ -68,7 +68,10 @@ interface SearchState {
   markThesisStalenessReview: (id: string, review: ArtifactStalenessReview) => boolean
   saveThesisRevision: (baseId: string, patch: Partial<SearchThesis>) => SearchThesis | null
   /** Update one slice of a thesis's per-search override layer. */
-  updateThesisOverrides: (id: string, patch: Partial<SearchInstanceOverrides>) => SearchThesis | null
+  updateThesisOverrides: (
+    id: string,
+    patch: Partial<SearchInstanceOverrides>,
+  ) => SearchThesis | null
   /** Toggle a skill id in the hidden-from-this-search set. */
   toggleThesisHiddenSkill: (id: string, skillId: string) => SearchThesis | null
   /** Persist user correction notes to be included on the next regenerate. */
@@ -97,8 +100,23 @@ interface SearchState {
 
 const now = () => new Date().toISOString()
 
+// Spread first preserves additive fields; explicit defaults coerce known undefined fields.
+const hydrateConstraints = (constraints: SearchProfileConstraints): SearchProfileConstraints => ({
+  ...constraints,
+  compensation: constraints.compensation ?? '',
+  locations: constraints.locations ?? [],
+  clearance: constraints.clearance ?? '',
+  companySize: constraints.companySize ?? '',
+  industriesToAvoid: constraints.industriesToAvoid ?? [],
+  fundingStagesAcceptable: constraints.fundingStagesAcceptable ?? [],
+  remotePolicies: constraints.remotePolicies ?? [],
+  remotePolicyNote: constraints.remotePolicyNote ?? '',
+  employmentTypes: constraints.employmentTypes ?? [],
+})
+
 const hydrateProfile = (profile: SearchProfileInput): SearchProfile => ({
   ...profile,
+  constraints: hydrateConstraints(profile.constraints),
   source: profile.source ?? { kind: 'resume', label: 'Resume fallback' },
   id: profile.id ?? createId('sprof'),
   inferredAt: profile.inferredAt ?? now(),
@@ -126,16 +144,24 @@ const hydrateOverrides = (
   if (!overrides) return undefined
   return {
     constraints: {
+      ...overrides.constraints,
       compensation: overrides.constraints?.compensation ?? '',
       locations: overrides.constraints?.locations ?? [],
       clearance: overrides.constraints?.clearance ?? '',
       companySize: overrides.constraints?.companySize ?? '',
+      industriesToAvoid: overrides.constraints?.industriesToAvoid ?? [],
+      fundingStagesAcceptable: overrides.constraints?.fundingStagesAcceptable ?? [],
+      remotePolicies: overrides.constraints?.remotePolicies ?? [],
+      remotePolicyNote: overrides.constraints?.remotePolicyNote ?? '',
+      employmentTypes: overrides.constraints?.employmentTypes ?? [],
     },
     filters: {
+      ...overrides.filters,
       prioritize: overrides.filters?.prioritize ?? [],
       avoid: overrides.filters?.avoid ?? [],
     },
     interviewPrefs: {
+      ...overrides.interviewPrefs,
       strongFit: overrides.interviewPrefs?.strongFit ?? [],
       redFlags: overrides.interviewPrefs?.redFlags ?? [],
     },
@@ -205,14 +231,10 @@ export const migrateSearchState = (persistedState: unknown) => {
     requests: Array.isArray(state?.requests)
       ? state.requests.map((request) => hydrateRequest(request))
       : [],
-    runs: Array.isArray(state?.runs)
-      ? state.runs.map((run) => hydrateRun(run))
-      : [],
+    runs: Array.isArray(state?.runs) ? state.runs.map((run) => hydrateRun(run)) : [],
     // Persisted theses pass through hydration so older records gain durable metadata,
     // sanitized staleness reviews, and any future thesis defaults in one migration path.
-    theses: Array.isArray(state?.theses)
-      ? state.theses.map((thesis) => hydrateThesis(thesis))
-      : [],
+    theses: Array.isArray(state?.theses) ? state.theses.map((thesis) => hydrateThesis(thesis)) : [],
     activeThesisId:
       typeof state?.activeThesisId === 'string' &&
       Array.isArray(state?.theses) &&
@@ -225,353 +247,349 @@ export const migrateSearchState = (persistedState: unknown) => {
 }
 
 export const useSearchStore = create<SearchState>()((set, get) => ({
-      profile: null,
-      requests: [],
-      runs: [],
-      theses: [],
-      activeThesisId: null,
-      feedbackEvents: [],
-      activeResearchJob: null,
+  profile: null,
+  requests: [],
+  runs: [],
+  theses: [],
+  activeThesisId: null,
+  feedbackEvents: [],
+  activeResearchJob: null,
 
-      setProfile: (profile) => {
-        const hydrated = hydrateProfile(profile)
-        set({ profile: hydrated })
-        return hydrated
-      },
+  setProfile: (profile) => {
+    const hydrated = hydrateProfile(profile)
+    set({ profile: hydrated })
+    return hydrated
+  },
 
-      updateProfileSkills: (skills) => {
-        set((state) =>
-          state.profile
-            ? {
-                profile: {
-                  ...state.profile,
-                  skills,
-                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-                },
-              }
-            : state,
-        )
-      },
+  updateProfileSkills: (skills) => {
+    set((state) =>
+      state.profile
+        ? {
+            profile: {
+              ...state.profile,
+              skills,
+              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
+            },
+          }
+        : state,
+    )
+  },
 
-      updateProfileVectors: (vectors) => {
-        set((state) =>
-          state.profile
-            ? {
-                profile: {
-                  ...state.profile,
-                  vectors,
-                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-                },
-              }
-            : state,
-        )
-      },
+  updateProfileVectors: (vectors) => {
+    set((state) =>
+      state.profile
+        ? {
+            profile: {
+              ...state.profile,
+              vectors,
+              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
+            },
+          }
+        : state,
+    )
+  },
 
-      updateProfileConstraints: (constraints) => {
-        set((state) =>
-          state.profile
-            ? {
-                profile: {
-                  ...state.profile,
-                  constraints,
-                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-                },
-              }
-            : state,
-        )
-      },
+  updateProfileConstraints: (constraints) => {
+    set((state) =>
+      state.profile
+        ? {
+            profile: {
+              ...state.profile,
+              constraints,
+              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
+            },
+          }
+        : state,
+    )
+  },
 
-      updateProfileFilters: (filters) => {
-        set((state) =>
-          state.profile
-            ? {
-                profile: {
-                  ...state.profile,
-                  filters,
-                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-                },
-              }
-            : state,
-        )
-      },
+  updateProfileFilters: (filters) => {
+    set((state) =>
+      state.profile
+        ? {
+            profile: {
+              ...state.profile,
+              filters,
+              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
+            },
+          }
+        : state,
+    )
+  },
 
-      updateProfileInterviewPrefs: (interviewPrefs) => {
-        set((state) =>
-          state.profile
-            ? {
-                profile: {
-                  ...state.profile,
-                  interviewPrefs,
-                  durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-                },
-              }
-            : state,
-        )
-      },
+  updateProfileInterviewPrefs: (interviewPrefs) => {
+    set((state) =>
+      state.profile
+        ? {
+            profile: {
+              ...state.profile,
+              interviewPrefs,
+              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
+            },
+          }
+        : state,
+    )
+  },
 
-      clearProfile: () => {
-        set({ profile: null })
-      },
+  clearProfile: () => {
+    set({ profile: null })
+  },
 
-      addRequest: (request) => {
-        const hydrated = hydrateRequest(request)
-        set((state) => ({ requests: [...state.requests, hydrated] }))
-        return hydrated
-      },
+  addRequest: (request) => {
+    const hydrated = hydrateRequest(request)
+    set((state) => ({ requests: [...state.requests, hydrated] }))
+    return hydrated
+  },
 
-      updateRequest: (id, patch) => {
-        const restPatch = stripDurableMetadataPatch(patch)
-        set((state) => ({
-          requests: state.requests.map((request) =>
-            request.id === id
-              ? {
-                  ...request,
-                  ...restPatch,
-                  durableMeta: touchDurableMetadata(request.durableMeta, now()),
-                }
-              : request,
-          ),
-        }))
-      },
+  updateRequest: (id, patch) => {
+    const restPatch = stripDurableMetadataPatch(patch)
+    set((state) => ({
+      requests: state.requests.map((request) =>
+        request.id === id
+          ? {
+              ...request,
+              ...restPatch,
+              durableMeta: touchDurableMetadata(request.durableMeta, now()),
+            }
+          : request,
+      ),
+    }))
+  },
 
-      deleteRequest: (id) => {
-        set((state) => {
-          // Cascade-delete feedback events that reference any run belonging to
-          // this request. Without this, orphaned events linger in the store and
-          // can be surfaced by `getUnreflectedFeedback()` after the originating
-          // run + request no longer exist.
-          const orphanedRunIds = new Set(
-            state.runs.filter((run) => run.requestId === id).map((run) => run.id),
-          )
-          return {
-            requests: state.requests.filter((request) => request.id !== id),
-            runs: state.runs.filter((run) => run.requestId !== id),
-            feedbackEvents: state.feedbackEvents.filter(
-              (event) => !orphanedRunIds.has(event.runId),
+  deleteRequest: (id) => {
+    set((state) => {
+      // Cascade-delete feedback events that reference any run belonging to
+      // this request. Without this, orphaned events linger in the store and
+      // can be surfaced by `getUnreflectedFeedback()` after the originating
+      // run + request no longer exist.
+      const orphanedRunIds = new Set(
+        state.runs.filter((run) => run.requestId === id).map((run) => run.id),
+      )
+      return {
+        requests: state.requests.filter((request) => request.id !== id),
+        runs: state.runs.filter((run) => run.requestId !== id),
+        feedbackEvents: state.feedbackEvents.filter((event) => !orphanedRunIds.has(event.runId)),
+      }
+    })
+  },
+
+  addRun: (run) => {
+    const hydrated = hydrateRun(run)
+    set((state) => ({ runs: [...state.runs, hydrated] }))
+    return hydrated
+  },
+
+  updateRun: (id, patch) => {
+    const restPatch = stripDurableMetadataPatch(patch)
+    const hasStalenessReviewPatch = 'stalenessReview' in restPatch
+    const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
+    const runPatch: Partial<SearchRun> = {
+      ...restPatch,
+      ...(hasStalenessReviewPatch
+        ? {
+            stalenessReview: sanitizeArtifactStalenessReview(
+              (restPatch as Partial<SearchRun>).stalenessReview,
             ),
           }
-        })
-      },
-
-      addRun: (run) => {
-        const hydrated = hydrateRun(run)
-        set((state) => ({ runs: [...state.runs, hydrated] }))
-        return hydrated
-      },
-
-      updateRun: (id, patch) => {
-        const restPatch = stripDurableMetadataPatch(patch)
-        const hasStalenessReviewPatch = 'stalenessReview' in restPatch
-        const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
-        const runPatch: Partial<SearchRun> = {
-          ...restPatch,
-          ...(hasStalenessReviewPatch
-            ? {
-                stalenessReview: sanitizeArtifactStalenessReview(
-                  (restPatch as Partial<SearchRun>).stalenessReview,
-                ),
-              }
-            : {}),
-        }
-        set((state) => ({
-          runs: state.runs.map((run) => {
-            if (run.id !== id) return run
-            const clearsReviewForNewIdentity =
-              !hasStalenessReviewPatch &&
-              nextIdentityVersion !== undefined &&
-              run.identityVersion !== nextIdentityVersion &&
-              run.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
-            return {
-              ...run,
-              ...runPatch,
-              ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
-              durableMeta: touchDurableMetadata(run.durableMeta, now()),
-            }
-          }),
-        }))
-      },
-
-      deleteRun: (id) => {
-        // Cascade-delete feedback events tied to this run — same reasoning as
-        // deleteRequest's cascade: stale events would otherwise be returned by
-        // `getUnreflectedFeedback()` long after the run they reference is gone.
-        set((state) => ({
-          runs: state.runs.filter((run) => run.id !== id),
-          feedbackEvents: state.feedbackEvents.filter((event) => event.runId !== id),
-        }))
-      },
-
-      getRunsForRequest: (requestId) =>
-        get().runs.filter((run) => run.requestId === requestId),
-
-      addThesis: (thesis) => {
-        const existingIds = new Set(get().theses.map((item) => item.id))
-        const hydrated = hydrateThesis(thesis)
-        if (existingIds.has(hydrated.id)) {
-          throw new Error('Cannot add duplicate search thesis id.')
-        }
-        set((state) => ({
-          theses: [...state.theses, hydrated],
-          activeThesisId: hydrated.id,
-        }))
-        return hydrated
-      },
-
-      markThesisStalenessReview: (id, review) => {
-        const stalenessReview = sanitizeArtifactStalenessReview(review)
-        if (!stalenessReview) return false
-        let didUpdate = false
-        set((state) => ({
-          theses: state.theses.map((thesis) => {
-            if (thesis.id !== id) return thesis
-            if (stalenessReview.reviewedIdentityVersion < (thesis.identityVersion ?? 0)) {
-              return thesis
-            }
-            didUpdate = true
-            const timestamp = now()
-            return {
-              ...thesis,
-              stalenessReview,
-              updatedAt: timestamp,
-              durableMeta: touchDurableMetadata(thesis.durableMeta, timestamp),
-            }
-          }),
-        }))
-        return didUpdate
-      },
-
-      saveThesisRevision: (baseId, patch) => {
-        const base = get().theses.find((thesis) => thesis.id === baseId)
-        if (!base) return null
-        const timestamp = now()
-        const hasStalenessReviewPatch = 'stalenessReview' in patch
-        const nextIdentityVersion = sanitizeIdentityVersion(patch.identityVersion)
+        : {}),
+    }
+    set((state) => ({
+      runs: state.runs.map((run) => {
+        if (run.id !== id) return run
         const clearsReviewForNewIdentity =
           !hasStalenessReviewPatch &&
           nextIdentityVersion !== undefined &&
-          base.identityVersion !== nextIdentityVersion &&
-          base.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
-        const updated: SearchThesis = {
-          ...base,
-          ...patch,
-          ...(hasStalenessReviewPatch
-            ? { stalenessReview: sanitizeArtifactStalenessReview(patch.stalenessReview) }
-            : {}),
+          run.identityVersion !== nextIdentityVersion &&
+          run.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
+        return {
+          ...run,
+          ...runPatch,
           ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
-          id: base.id,
-          durableMeta: touchDurableMetadata(base.durableMeta, timestamp),
-          createdAt: base.createdAt,
-          updatedAt: timestamp,
-          source: 'user-edited',
+          durableMeta: touchDurableMetadata(run.durableMeta, now()),
         }
-        set((state) => ({
-          theses: state.theses.map((thesis) => (thesis.id === baseId ? updated : thesis)),
-          activeThesisId: updated.id,
-        }))
-        return updated
-      },
-
-      updateThesisOverrides: (id, patch) => {
-        const base = get().theses.find((thesis) => thesis.id === id)
-        if (!base) return null
-        const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
-        const nextOverrides: SearchInstanceOverrides = {
-          constraints: { ...current.constraints, ...(patch.constraints ?? {}) },
-          filters: { ...current.filters, ...(patch.filters ?? {}) },
-          interviewPrefs: { ...current.interviewPrefs, ...(patch.interviewPrefs ?? {}) },
-          hiddenSkillIds: patch.hiddenSkillIds ?? current.hiddenSkillIds,
-        }
-        return get().saveThesisRevision(id, { searchOverrides: nextOverrides })
-      },
-
-      toggleThesisHiddenSkill: (id, skillId) => {
-        const base = get().theses.find((thesis) => thesis.id === id)
-        if (!base) return null
-        const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
-        const hidden = new Set(current.hiddenSkillIds)
-        if (hidden.has(skillId)) {
-          hidden.delete(skillId)
-        } else {
-          hidden.add(skillId)
-        }
-        return get().saveThesisRevision(id, {
-          searchOverrides: {
-            ...current,
-            hiddenSkillIds: Array.from(hidden),
-          },
-        })
-      },
-
-      setThesisUserCorrections: (id, notes) => {
-        return get().saveThesisRevision(id, { userCorrections: notes })
-      },
-
-      setThesisCustomDirective: (id, directive) => {
-        return get().saveThesisRevision(id, { customDirective: directive })
-      },
-
-      setActiveThesis: (id) => {
-        set((state) => ({
-          activeThesisId: id && state.theses.some((thesis) => thesis.id === id) ? id : null,
-        }))
-      },
-
-      setActiveResearchJob: (job) => {
-        set({ activeResearchJob: job })
-      },
-
-      updateActiveResearchJob: (patch) => {
-        set((state) =>
-          state.activeResearchJob
-            ? { activeResearchJob: { ...state.activeResearchJob, ...patch } }
-            : state,
-        )
-      },
-
-      clearActiveResearchJob: (jobId) => {
-        set((state) =>
-          !state.activeResearchJob || (jobId && state.activeResearchJob.jobId !== jobId)
-            ? state
-            : { activeResearchJob: null },
-        )
-      },
-
-      addFeedbackEvent: (input) => {
-        const event: SearchFeedbackEvent = {
-          ...input,
-          id: createId('sfe'),
-          createdAt: now(),
-        }
-        set((state) => ({ feedbackEvents: [...state.feedbackEvents, event] }))
-        return event
-      },
-
-      markFeedbackApplied: (id, identityVersion) => {
-        set((state) => ({
-          feedbackEvents: state.feedbackEvents.map((event) =>
-            event.id === id
-              ? { ...event, appliedToIdentity: true, appliedAtVersion: identityVersion }
-              : event,
-          ),
-        }))
-      },
-
-      markFeedbackReflectedInThesis: (ids, thesisId) => {
-        const idSet = new Set(ids)
-        set((state) => ({
-          feedbackEvents: state.feedbackEvents.map((event) =>
-            idSet.has(event.id) ? { ...event, reflectedInThesisId: thesisId } : event,
-          ),
-        }))
-      },
-
-      getUnreflectedFeedback: (currentThesisId) =>
-        get().feedbackEvents.filter(
-          (event) =>
-            event.appliedToIdentity &&
-            (currentThesisId === undefined || event.reflectedInThesisId !== currentThesisId),
-        ),
-
-      getFeedbackEventsForRun: (runId) =>
-        get().feedbackEvents.filter((event) => event.runId === runId),
+      }),
     }))
+  },
+
+  deleteRun: (id) => {
+    // Cascade-delete feedback events tied to this run — same reasoning as
+    // deleteRequest's cascade: stale events would otherwise be returned by
+    // `getUnreflectedFeedback()` long after the run they reference is gone.
+    set((state) => ({
+      runs: state.runs.filter((run) => run.id !== id),
+      feedbackEvents: state.feedbackEvents.filter((event) => event.runId !== id),
+    }))
+  },
+
+  getRunsForRequest: (requestId) => get().runs.filter((run) => run.requestId === requestId),
+
+  addThesis: (thesis) => {
+    const existingIds = new Set(get().theses.map((item) => item.id))
+    const hydrated = hydrateThesis(thesis)
+    if (existingIds.has(hydrated.id)) {
+      throw new Error('Cannot add duplicate search thesis id.')
+    }
+    set((state) => ({
+      theses: [...state.theses, hydrated],
+      activeThesisId: hydrated.id,
+    }))
+    return hydrated
+  },
+
+  markThesisStalenessReview: (id, review) => {
+    const stalenessReview = sanitizeArtifactStalenessReview(review)
+    if (!stalenessReview) return false
+    let didUpdate = false
+    set((state) => ({
+      theses: state.theses.map((thesis) => {
+        if (thesis.id !== id) return thesis
+        if (stalenessReview.reviewedIdentityVersion < (thesis.identityVersion ?? 0)) {
+          return thesis
+        }
+        didUpdate = true
+        const timestamp = now()
+        return {
+          ...thesis,
+          stalenessReview,
+          updatedAt: timestamp,
+          durableMeta: touchDurableMetadata(thesis.durableMeta, timestamp),
+        }
+      }),
+    }))
+    return didUpdate
+  },
+
+  saveThesisRevision: (baseId, patch) => {
+    const base = get().theses.find((thesis) => thesis.id === baseId)
+    if (!base) return null
+    const timestamp = now()
+    const hasStalenessReviewPatch = 'stalenessReview' in patch
+    const nextIdentityVersion = sanitizeIdentityVersion(patch.identityVersion)
+    const clearsReviewForNewIdentity =
+      !hasStalenessReviewPatch &&
+      nextIdentityVersion !== undefined &&
+      base.identityVersion !== nextIdentityVersion &&
+      base.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
+    const updated: SearchThesis = {
+      ...base,
+      ...patch,
+      ...(hasStalenessReviewPatch
+        ? { stalenessReview: sanitizeArtifactStalenessReview(patch.stalenessReview) }
+        : {}),
+      ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
+      id: base.id,
+      durableMeta: touchDurableMetadata(base.durableMeta, timestamp),
+      createdAt: base.createdAt,
+      updatedAt: timestamp,
+      source: 'user-edited',
+    }
+    set((state) => ({
+      theses: state.theses.map((thesis) => (thesis.id === baseId ? updated : thesis)),
+      activeThesisId: updated.id,
+    }))
+    return updated
+  },
+
+  updateThesisOverrides: (id, patch) => {
+    const base = get().theses.find((thesis) => thesis.id === id)
+    if (!base) return null
+    const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
+    const nextOverrides: SearchInstanceOverrides = {
+      constraints: { ...current.constraints, ...(patch.constraints ?? {}) },
+      filters: { ...current.filters, ...(patch.filters ?? {}) },
+      interviewPrefs: { ...current.interviewPrefs, ...(patch.interviewPrefs ?? {}) },
+      hiddenSkillIds: patch.hiddenSkillIds ?? current.hiddenSkillIds,
+    }
+    return get().saveThesisRevision(id, { searchOverrides: nextOverrides })
+  },
+
+  toggleThesisHiddenSkill: (id, skillId) => {
+    const base = get().theses.find((thesis) => thesis.id === id)
+    if (!base) return null
+    const current = base.searchOverrides ?? EMPTY_SEARCH_INSTANCE_OVERRIDES
+    const hidden = new Set(current.hiddenSkillIds)
+    if (hidden.has(skillId)) {
+      hidden.delete(skillId)
+    } else {
+      hidden.add(skillId)
+    }
+    return get().saveThesisRevision(id, {
+      searchOverrides: {
+        ...current,
+        hiddenSkillIds: Array.from(hidden),
+      },
+    })
+  },
+
+  setThesisUserCorrections: (id, notes) => {
+    return get().saveThesisRevision(id, { userCorrections: notes })
+  },
+
+  setThesisCustomDirective: (id, directive) => {
+    return get().saveThesisRevision(id, { customDirective: directive })
+  },
+
+  setActiveThesis: (id) => {
+    set((state) => ({
+      activeThesisId: id && state.theses.some((thesis) => thesis.id === id) ? id : null,
+    }))
+  },
+
+  setActiveResearchJob: (job) => {
+    set({ activeResearchJob: job })
+  },
+
+  updateActiveResearchJob: (patch) => {
+    set((state) =>
+      state.activeResearchJob
+        ? { activeResearchJob: { ...state.activeResearchJob, ...patch } }
+        : state,
+    )
+  },
+
+  clearActiveResearchJob: (jobId) => {
+    set((state) =>
+      !state.activeResearchJob || (jobId && state.activeResearchJob.jobId !== jobId)
+        ? state
+        : { activeResearchJob: null },
+    )
+  },
+
+  addFeedbackEvent: (input) => {
+    const event: SearchFeedbackEvent = {
+      ...input,
+      id: createId('sfe'),
+      createdAt: now(),
+    }
+    set((state) => ({ feedbackEvents: [...state.feedbackEvents, event] }))
+    return event
+  },
+
+  markFeedbackApplied: (id, identityVersion) => {
+    set((state) => ({
+      feedbackEvents: state.feedbackEvents.map((event) =>
+        event.id === id
+          ? { ...event, appliedToIdentity: true, appliedAtVersion: identityVersion }
+          : event,
+      ),
+    }))
+  },
+
+  markFeedbackReflectedInThesis: (ids, thesisId) => {
+    const idSet = new Set(ids)
+    set((state) => ({
+      feedbackEvents: state.feedbackEvents.map((event) =>
+        idSet.has(event.id) ? { ...event, reflectedInThesisId: thesisId } : event,
+      ),
+    }))
+  },
+
+  getUnreflectedFeedback: (currentThesisId) =>
+    get().feedbackEvents.filter(
+      (event) =>
+        event.appliedToIdentity &&
+        (currentThesisId === undefined || event.reflectedInThesisId !== currentThesisId),
+    ),
+
+  getFeedbackEventsForRun: (runId) => get().feedbackEvents.filter((event) => event.runId === runId),
+}))

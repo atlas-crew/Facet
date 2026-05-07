@@ -2,6 +2,7 @@ import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type {
   SearchProfile,
   SearchProfileConstraints,
+  SearchRemotePolicy,
   SearchSkillCategory,
   SearchSkillDepth,
   SearchWorkSummaryEntry,
@@ -15,7 +16,10 @@ const CATEGORY_HINTS: Array<{
 }> = [
   { category: 'backend', keywords: ['backend', 'api', 'services', 'distributed', 'microservice'] },
   { category: 'frontend', keywords: ['frontend', 'ui', 'ux', 'react', 'web'] },
-  { category: 'platform', keywords: ['platform', 'developer platform', 'internal platform', 'devex'] },
+  {
+    category: 'platform',
+    keywords: ['platform', 'developer platform', 'internal platform', 'devex'],
+  },
   { category: 'devops', keywords: ['devops', 'ci', 'cd', 'automation', 'release'] },
   { category: 'cloud', keywords: ['cloud', 'aws', 'gcp', 'azure', 'kubernetes'] },
   { category: 'data', keywords: ['data', 'analytics', 'etl', 'warehouse'] },
@@ -69,10 +73,7 @@ const uniqueTerms = (values: string[]): string[] =>
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const containsAlias = (
-  text: string | undefined | null,
-  aliases: string[],
-): boolean => {
+const containsAlias = (text: string | undefined | null, aliases: string[]): boolean => {
   if (!text) {
     return false
   }
@@ -90,10 +91,7 @@ const containsAlias = (
   return new RegExp(`\\b(?:${pattern})\\b`).test(normalizedText)
 }
 
-const includesAlias = (
-  values: string[] | undefined,
-  aliases: string[],
-): boolean =>
+const includesAlias = (values: string[] | undefined, aliases: string[]): boolean =>
   Boolean(values?.some((value) => aliases.includes(normalizeTerm(value))))
 
 const inferSkillDepth = (
@@ -205,18 +203,15 @@ const inferSkillDepth = (
   return 'basic'
 }
 
-const inferSkillCategory = (
-  groupLabel: string,
-  tags: string[],
-): SearchSkillCategory => {
+const inferSkillCategory = (groupLabel: string, tags: string[]): SearchSkillCategory => {
   const haystack = [groupLabel, ...tags].join(' ').toLowerCase()
-  const match = CATEGORY_HINTS.find(({ keywords }) => keywords.some((keyword) => haystack.includes(keyword)))
+  const match = CATEGORY_HINTS.find(({ keywords }) =>
+    keywords.some((keyword) => haystack.includes(keyword)),
+  )
   return match?.category ?? 'other'
 }
 
-const formatCompensation = (
-  identity: ProfessionalIdentityV3,
-): string => {
+const formatCompensation = (identity: ProfessionalIdentityV3): string => {
   const { base_floor: baseFloor, base_target: baseTarget } = identity.preferences.compensation
   const formatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -239,18 +234,55 @@ const formatCompensation = (
   return identity.preferences.compensation.notes?.trim() ?? ''
 }
 
-const buildConstraints = (
-  identity: ProfessionalIdentityV3,
-): SearchProfileConstraints => ({
-  compensation: formatCompensation(identity),
-  locations: identity.identity.location ? [identity.identity.location] : [],
-  clearance: identity.preferences.constraints?.clearance?.status ?? '',
-  companySize: '',
-})
+const normalizeRemotePolicy = (
+  preference: string | undefined,
+): { policies: SearchRemotePolicy[]; note: string } => {
+  const normalized = preference?.trim().toLowerCase()
 
-const buildSkills = (
-  identity: ProfessionalIdentityV3,
-): SkillCatalogEntry[] =>
+  switch (normalized) {
+    case 'remote-only':
+      return { policies: ['remote-only'], note: '' }
+    case 'remote-friendly':
+    case 'remote':
+      return { policies: ['remote-friendly'], note: '' }
+    case 'hybrid':
+      return { policies: ['hybrid'], note: '' }
+    case 'onsite-only':
+    case 'onsite':
+    case 'on-site':
+      return { policies: ['onsite-only'], note: '' }
+    default:
+      if (normalized?.includes('remote')) {
+        return { policies: ['remote-friendly'], note: preference?.trim() ?? '' }
+      }
+      if (normalized?.includes('hybrid')) {
+        return { policies: ['hybrid'], note: preference?.trim() ?? '' }
+      }
+      if (normalized?.includes('onsite') || normalized?.includes('on-site')) {
+        return { policies: ['onsite-only'], note: preference?.trim() ?? '' }
+      }
+      return { policies: [], note: preference?.trim() ?? '' }
+  }
+}
+
+const buildConstraints = (identity: ProfessionalIdentityV3): SearchProfileConstraints => {
+  const constraints = identity.preferences.constraints
+  const remotePolicy = normalizeRemotePolicy(identity.preferences.work_model.preference)
+
+  return {
+    compensation: formatCompensation(identity),
+    locations: identity.identity.location ? [identity.identity.location] : [],
+    clearance: constraints?.clearance?.status ?? '',
+    companySize: '',
+    industriesToAvoid: [...(constraints?.industries_to_avoid ?? [])],
+    fundingStagesAcceptable: [...(constraints?.funding_stages_acceptable ?? [])],
+    remotePolicies: remotePolicy.policies,
+    remotePolicyNote: remotePolicy.note,
+    employmentTypes: [...(constraints?.employment_types ?? [])],
+  }
+}
+
+const buildSkills = (identity: ProfessionalIdentityV3): SkillCatalogEntry[] =>
   identity.skills.groups.flatMap((group) =>
     group.items.map((item) => ({
       id: `identity-skill-${group.id}-${slugify(item.name) || 'untitled'}`,
@@ -262,23 +294,16 @@ const buildSkills = (
     })),
   )
 
-const buildVectors = (
-  identity: ProfessionalIdentityV3,
-): VectorSearchConfig[] =>
+const buildVectors = (identity: ProfessionalIdentityV3): VectorSearchConfig[] =>
   (identity.search_vectors ?? []).map((vector, index) => ({
     vectorId: vector.id,
     priority: index + 1,
     description: vector.subtitle?.trim() || vector.thesis.trim(),
     targetRoleTitles: vector.target_roles,
-    searchKeywords: [
-      ...vector.keywords.primary,
-      ...vector.keywords.secondary,
-    ],
+    searchKeywords: [...vector.keywords.primary, ...vector.keywords.secondary],
   }))
 
-const buildWorkSummary = (
-  identity: ProfessionalIdentityV3,
-): SearchWorkSummaryEntry[] => {
+const buildWorkSummary = (identity: ProfessionalIdentityV3): SearchWorkSummaryEntry[] => {
   const profileSummaries = identity.profiles.map((profile) => ({
     title: profile.tags[0] || 'Profile',
     summary: profile.text,
@@ -291,15 +316,15 @@ const buildWorkSummary = (
         .slice(0, 2)
         .map((bullet) => [bullet.problem, bullet.action, bullet.outcome].filter(Boolean).join(' '))
         .join(' ')
-        .trim() || role.subtitle?.trim() || role.dates,
+        .trim() ||
+      role.subtitle?.trim() ||
+      role.dates,
   }))
 
   return [...profileSummaries, ...roleSummaries].filter((entry) => entry.summary.trim())
 }
 
-const buildOpenQuestions = (
-  identity: ProfessionalIdentityV3,
-): string[] =>
+const buildOpenQuestions = (identity: ProfessionalIdentityV3): string[] =>
   (identity.awareness?.open_questions ?? []).map((question) =>
     [question.topic, question.action || question.description].filter(Boolean).join(': '),
   )

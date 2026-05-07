@@ -100,7 +100,11 @@ describe('identityMerge', () => {
     incoming.identity.title = 'Staff Engineer'
     incoming.self_model.philosophy = [
       ...incoming.self_model.philosophy,
-      { id: 'handoff-first', text: 'Everything is built to hand off from day one.', tags: ['leadership'] },
+      {
+        id: 'handoff-first',
+        text: 'Everything is built to hand off from day one.',
+        tags: ['leadership'],
+      },
     ]
     incoming.skills.groups = [
       {
@@ -255,6 +259,9 @@ describe('identityMerge', () => {
         highest: 'B.S.',
         show_on_resume: true,
       },
+      industries_to_avoid: ['adtech'],
+      funding_stages_acceptable: ['series-a'],
+      employment_types: ['w2-fulltime'],
     }
     current.preferences.matching = {
       prioritize: [
@@ -295,6 +302,52 @@ describe('identityMerge', () => {
     expect(merged.data.awareness).toEqual(current.awareness)
     expect(merged.details).not.toContain('Removed search vectors: v1-platform.')
     expect(merged.details).not.toContain('Removed awareness items: degree-filter-risk.')
+  })
+
+  it('round-trips incoming constraint bank fields through merge and export', () => {
+    const current = createIdentity()
+    const incoming = createIdentity()
+    incoming.preferences.constraints = {
+      industries_to_avoid: ['adtech', 'predatory-lending'],
+      funding_stages_acceptable: ['seed', 'series-a'],
+      employment_types: ['w2-fulltime', 'either-acceptable'],
+    }
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+    const exported = JSON.parse(JSON.stringify(merged.data)) as unknown
+    const roundTripped = importProfessionalIdentity(exported).data
+
+    expect(roundTripped.preferences.constraints).toMatchObject({
+      industries_to_avoid: ['adtech', 'predatory-lending'],
+      funding_stages_acceptable: ['seed', 'series-a'],
+      employment_types: ['w2-fulltime', 'either-acceptable'],
+    })
+  })
+
+  it('preserves current constraint bank fields when incoming constraints are partial', () => {
+    const current = createIdentity()
+    current.preferences.constraints = {
+      industries_to_avoid: ['adtech'],
+      funding_stages_acceptable: ['series-a'],
+      employment_types: ['w2-fulltime'],
+    }
+    const incoming = createIdentity()
+    incoming.preferences.constraints = {
+      clearance: {
+        status: 'none',
+      },
+    }
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.preferences.constraints).toMatchObject({
+      clearance: {
+        status: 'none',
+      },
+      industries_to_avoid: ['adtech'],
+      funding_stages_acceptable: ['series-a'],
+      employment_types: ['w2-fulltime'],
+    })
   })
 
   it('preserves enriched skill metadata when a legacy draft omits it', () => {
@@ -550,10 +603,7 @@ describe('identityMerge', () => {
       incoming.search_vectors[1],
     ])
     expect(merged.data.awareness).toEqual({
-      open_questions: [
-        incoming.awareness.open_questions[0],
-        incoming.awareness.open_questions[1],
-      ],
+      open_questions: [incoming.awareness.open_questions[0], incoming.awareness.open_questions[1]],
     })
     expect(merged.details).toEqual(
       expect.arrayContaining([
