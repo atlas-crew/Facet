@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ProfessionalIdentityV3 } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
-import { Actions, MetaRows, NotFound, Prompt, SlotShell, countBullets } from './slotPrimitives'
+import { Actions, MetaRows, NotFound, SlotShell, countBullets } from './slotPrimitives'
 
 export function ThesisInspector({ identity }: { identity: ProfessionalIdentityV3 }) {
   const updateCore = useIdentityStore((s) => s.updateCurrentIdentityCore)
@@ -81,9 +81,14 @@ export function ThesisInspector({ identity }: { identity: ProfessionalIdentityV3
           ['Cited by', `${identity.profiles.length} profiles · ${countBullets(identity)} bullets`],
         ]}
       />
-      {!identity.identity.origin || !identity.identity.elaboration ? (
-        <Prompt label="Open question" text="Origin and elaboration help interview prep generate the 'how I came to believe this' story when asked." />
-      ) : null}
+      {/*
+        TASK-194: thesis is prose-only. Origin/elaboration are private
+        scaffolding (visible above as MetaRows when set) but don't drive
+        strength — and the prior "Origin and elaboration help interview
+        prep…" Prompt was a guilt-meter pattern surfacing emptiness as a
+        problem. Removed: the strength meter and the editor remain the
+        feedback loop.
+      */}
       <Actions>
         <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit thesis</button>
       </Actions>
