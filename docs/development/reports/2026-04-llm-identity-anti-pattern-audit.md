@@ -37,7 +37,7 @@ Full rule and rationale: `docs/architecture/identity-canonical-data.md`.
 | A1  | `thesisGenerator.ts`                      | `skillDepthMap[].depth`                                                         | `identity.skills.*.depth` (8-value enum)                                | Free-form string ("Expert / 'could write a book'")                              | **High** — user-visible drift            | **Mirror** (read-only, link to identity skill)                                                         |
 | A2  | `thesisGenerator.ts`                      | `unfairAdvantages[].depth`                                                      | `identity.skills.*.depth` (combined skill depth)                        | Free-form string                                                                | Medium                                   | **Mirror or Remove** — `combination + targetCompanyProfile` are editorial; `depth` is duplicate        |
 | A3  | `thesisGenerator.ts`                      | `searchOverrides.constraints.{compensation, locations, clearance, companySize}` | `identity.preferences.compensation`, `identity.preferences.constraints` | LLM "infers plausibly per-thesis" as starting points                            | Medium — by-design compromise per doc-34 | **Mirror** in the long run; STAY for now (open in TASK-204/205)                                        |
-| A4  | `searchProfileInference.ts` (resume mode) | `skills[].depth`                                                                | (none yet — identity hasn't been built)                                 | Generates from resume; depth enum is a *subset* of identity's 8 values (5 of 8) | Low                                      | **STAY** — legitimate inference before identity exists; the enum subset mismatch is a separate cleanup |
+| A4  | `searchProfileInference.ts` (resume mode) | `skills[].depth`                                                                | (none yet — identity hasn't been built)                                 | Generates from resume; depth enum is a _subset_ of identity's 8 values (5 of 8) | Low                                      | **STAY** — legitimate inference before identity exists; the enum subset mismatch is a separate cleanup |
 
 ### Group B — Already Mirror correctly (reference by id, no duplicate data)
 
@@ -52,7 +52,7 @@ Full rule and rationale: `docs/architecture/identity-canonical-data.md`.
 | #   | Generator                     | Field                                                                                                 | Why editorial                                                                                                     |
 | --- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | C1  | `thesisGenerator.ts`          | `narrative`, `competitiveMoat`, `searchLanes`, `keywordCombinations`, `timeline`, `interviewStrategy` | Per-thesis search strategy artifact                                                                               |
-| C2  | `thesisGenerator.ts`          | `skillDepthMap[].context`                                                                             | Per-thesis search-tailored evidence cite (vs identity's general context) — *but worth questioning when fixing A1* |
+| C2  | `thesisGenerator.ts`          | `skillDepthMap[].context`                                                                             | Per-thesis search-tailored evidence cite (vs identity's general context) — _but worth questioning when fixing A1_ |
 | C3  | `thesisGenerator.ts`          | `skillDepthMap[].searchSignal`, `calibration`                                                         | Per-thesis search positioning (vs identity's general positioning)                                                 |
 | C4  | `prepGenerator.ts`            | `numbersToKnow.candidate`, `stackAlignment[].yourMatch`                                               | Prompt already enforces "use provided metrics, do not invent" — correct per-deck join                             |
 | C5  | `prepGenerator.ts`            | `interviewers[]`, `questionsToAsk[]`, `donts`, `rules`, `categoryGuidance`, `contextGaps`             | Per-target-company editorial                                                                                      |
@@ -65,11 +65,11 @@ Full rule and rationale: `docs/architecture/identity-canonical-data.md`.
 
 Decisions made post-audit (logged here for historical record):
 
-| #   | Question                                                                                                                        | Decision                                                                                                                                                   |
-| --- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Should `thesisGenerator.skillDepthMap[].context` and `searchSignal` mirror `identity.skills.*.context` and `positioning`?       | **Demote to Mirror.** Identity's context/positioning are canonical; per-thesis re-invention undermines the wizard's effort.                                |
-| D2  | Should `searchProfileInference.inferSearchProfile` (resume mode) be retired entirely once identity becomes the source of truth? | **File follow-up to verify no live callers.** If confirmed dead, retire. Don't delete blindly.                                                             |
-| D3  | `thesisGenerator.interviewStrategy` vs `identity.self_model.interview_style.prep_strategy`                                      | **Stay editorial; add prompt guardrail.** "Search-tailored emphasis for this specific role; do not restate the candidate's general prep approach."         |
+| #   | Question                                                                                                                        | Decision                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Should `thesisGenerator.skillDepthMap[].context` and `searchSignal` mirror `identity.skills.*.context` and `positioning`?       | **Demote to Mirror.** Identity's context/positioning are canonical; per-thesis re-invention undermines the wizard's effort.                        |
+| D2  | Should `searchProfileInference.inferSearchProfile` (resume mode) be retired entirely once identity becomes the source of truth? | **File follow-up to verify no live callers.** If confirmed dead, retire. Don't delete blindly.                                                     |
+| D3  | `thesisGenerator.interviewStrategy` vs `identity.self_model.interview_style.prep_strategy`                                      | **Stay editorial; add prompt guardrail.** "Search-tailored emphasis for this specific role; do not restate the candidate's general prep approach." |
 
 ## Sequencing
 
@@ -90,7 +90,7 @@ Decisions made post-audit (logged here for historical record):
 
 - **A1, A2: shipped in `b27f5c9` (2026-05-02)**
   `refactor(thesis): mirror identity-canonical fields in skillDepthMap and
-  unfairAdvantages`. Drops `depth`/`context`/`searchSignal` from the LLM
+unfairAdvantages`. Drops `depth`/`context`/`searchSignal` from the LLM
   `skillDepthMap` schema and `depth` from `unfairAdvantages`. New
   `findIdentitySkillItem` helper in `thesisGenerator` sources canonical
   fields from `identity.skills.*.{depth, context, positioning}` at
@@ -106,14 +106,15 @@ Decisions made post-audit (logged here for historical record):
   and likely no longer needed**: it depended on the Thesis Map UX
   (SkillDepthInspector) which has since been retired per the workspace
   topology decision (see below).
-- **D2: open** — task-206 tracks verification that
-  `searchProfileInference.inferSearchProfile` resume-mode has no live
-  callers before retiring it.
+- **D2: verified live in TASK-206 (2026-05-07)** — resume-mode
+  `searchProfileInference.inferSearchProfile` is still reachable from the
+  Research page when `currentIdentity` is null, so it was not retired.
+  TASK-238 tracks the remaining depth-contract follow-up.
 - **D3: shipped in `b27f5c9`** — prompt directive added:
-  *"`interviewStrategy`: search-tailored emphasis for THIS specific
+  _"`interviewStrategy`: search-tailored emphasis for THIS specific
   role/lane — what to lead with in this search's interview process. Do
   NOT restate the candidate's general prep approach (which lives on
-  `identity.self_model.interview_style.prep_strategy`)."*
+  `identity.self_model.interview_style.prep_strategy`)."_
 
 ### Items deferred by the topology decision
 
