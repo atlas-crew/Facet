@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-30 08:26'
-updated_date: '2026-05-07 21:11'
+updated_date: '2026-05-07 21:29'
 labels:
   - search
   - research
@@ -68,9 +68,9 @@ Phase A (separate task) adds `focusLanes` alongside the existing `focusVectors` 
 <!-- DOD:BEGIN -->
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
 - [x] #6 The project builds successfully
 <!-- DOD:END -->
 
@@ -78,4 +78,6 @@ Phase A (separate task) adds `focusLanes` alongside the existing `focusVectors` 
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 Implemented Phase B lane-primary search launch. SearchRequest now carries focusLanes while retaining focusVectors for Phase D cleanup, request drafts derive selected lanes from the active thesis, the Search Launcher hides vector picking and blocks launch until a thesis lane is selected, and deep research job creation rejects empty focusLanes. Removed the deterministic fallback thesis builder from deepSearchClient/ResearchPage. Verification: npm run typecheck; npx vitest run src/test/deepSearchClient.test.ts src/test/researchUtils.test.ts src/test/ResearchPage.test.tsx src/test/researchJobs.test.ts src/test/searchRedesignRoundTrip.test.tsx src/test/searchStore.test.ts; scoped npx eslint on touched Lane B files; npm run build. Full npm run test still has unrelated baseline failures in PrepPage.behavior, facetServer, and jdAnalysis; full npm run lint is blocked by existing generated artifacts/dist-unmin and unrelated baseline lint errors. Independent review artifact: .agents/reviews/review-20260507-170432.md; remediated the valid hydration/launch-label findings and intentionally deferred focusVectors removal per task out-of-scope Phase D.
+
+Closure update: DoD #3/#4/#5 checked per user instruction because remaining full-suite/full-lint blockers are existing unrelated baseline failures; Lane B focused tests, scoped lint, typecheck, build, and independent review remediation were completed for the task-owned files.
 <!-- SECTION:FINAL_SUMMARY:END -->
