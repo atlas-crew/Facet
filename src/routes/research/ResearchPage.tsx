@@ -80,6 +80,8 @@ import {
 import './research.css'
 
 type ResearchTab = 'profile' | 'search' | 'results'
+type ThesisSignalEditTarget = 'lookFor' | 'avoid'
+type ThesisSignalsFocusRequest = { id: number; target: ThesisSignalEditTarget }
 const RESEARCH_TABS: ResearchTab[] = ['profile', 'search', 'results']
 const TERMINAL_RESEARCH_JOB_STATUSES = new Set(['completed', 'failed', 'canceled'])
 type ResearchJobEventLogEntry = { id: number; text: string }
@@ -617,6 +619,8 @@ export function ResearchPage() {
   const [thesisDraftIsDirty, setThesisDraftIsDirty] = useState(false)
   const [thesisLookForText, setThesisLookForText] = useState('')
   const [thesisLookForBaselineText, setThesisLookForBaselineText] = useState('')
+  const [thesisSignalsFocusRequest, setThesisSignalsFocusRequest] =
+    useState<ThesisSignalsFocusRequest | null>(null)
   const [correctionsDraft, setCorrectionsDraft] = useState('')
   const [directiveDraft, setDirectiveDraft] = useState('')
   const [pendingSkillWriteback, setPendingSkillWriteback] =
@@ -655,6 +659,12 @@ export function ResearchPage() {
   const stalenessReviewImpactRef = useRef<DownstreamImpact | null>(null)
   const thesisDraftIsDirtyRef = useRef(false)
   const refreshingStalenessArtifactKeyRef = useRef<string | null>(null)
+  const thesisSignalsInputRef = useRef<HTMLInputElement | null>(null)
+  const thesisFirstAvoidInputRef = useRef<HTMLInputElement | null>(null)
+  const thesisAddAvoidButtonRef = useRef<HTMLButtonElement | null>(null)
+  const nextThesisSignalsFocusRequestIdRef = useRef(0)
+  const focusedThesisSignalsRequestRef = useRef(0)
+  const thesisDraftRef = useRef<SearchThesis | null>(null)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
   const currentIdentityRevision = currentIdentity ? (currentIdentity.model_revision ?? 0) : null
@@ -746,6 +756,9 @@ export function ResearchPage() {
   useEffect(() => {
     thesisDraftIsDirtyRef.current = thesisDraftIsDirty
   }, [thesisDraftIsDirty])
+  useEffect(() => {
+    thesisDraftRef.current = thesisDraft
+  }, [thesisDraft])
   useEffect(() => {
     stalenessReviewImpactRef.current = stalenessReviewImpact
   }, [stalenessReviewImpact])
@@ -1286,6 +1299,72 @@ export function ResearchPage() {
       setActiveTab('results')
     }
   }
+
+  const focusThesisSignalsEditor = useCallback((target: ThesisSignalEditTarget) => {
+    if (!activeThesis) return
+
+    const currentDraft = thesisDraftRef.current
+    if (currentDraft?.id !== activeThesis.id) {
+      const nextDraft = structuredClone(activeThesis)
+      const lookForText = thesisSignalText(nextDraft.lookFor)
+      setThesisDraft(nextDraft)
+      setThesisLookForText(lookForText)
+      setThesisLookForBaselineText(lookForText)
+      setThesisDraftIsDirty(false)
+    }
+
+    nextThesisSignalsFocusRequestIdRef.current += 1
+    setActiveTab('search')
+    setThesisSignalsFocusRequest({
+      id: nextThesisSignalsFocusRequestIdRef.current,
+      target,
+    })
+  }, [activeThesis])
+
+  useEffect(() => {
+    if (
+      activeTab !== 'search' ||
+      !thesisSignalsFocusRequest ||
+      focusedThesisSignalsRequestRef.current === thesisSignalsFocusRequest.id ||
+      !thesisDraft
+    ) {
+      return
+    }
+
+    let disposed = false
+    let frame = 0
+
+    const focusWhenReady = () => {
+      if (disposed) return
+      const target =
+        thesisSignalsFocusRequest.target === 'avoid'
+          ? (thesisFirstAvoidInputRef.current ?? thesisAddAvoidButtonRef.current)
+          : thesisSignalsInputRef.current
+
+      if (!target) {
+        setThesisSignalsFocusRequest(null)
+        return
+      }
+
+      target.scrollIntoView?.({ block: 'center' })
+      target.focus({ preventScroll: true })
+      focusedThesisSignalsRequestRef.current = thesisSignalsFocusRequest.id
+      setThesisSignalsFocusRequest(null)
+    }
+
+    frame = window.requestAnimationFrame(focusWhenReady)
+
+    return () => {
+      disposed = true
+      window.cancelAnimationFrame(frame)
+    }
+  }, [activeTab, thesisDraft, thesisSignalsFocusRequest])
+
+  useEffect(() => {
+    if (activeTab !== 'search' && thesisSignalsFocusRequest) {
+      setThesisSignalsFocusRequest(null)
+    }
+  }, [activeTab, thesisSignalsFocusRequest])
 
   const handleInfer = async () => {
     try {
@@ -2558,17 +2637,7 @@ export function ResearchPage() {
                   if (!activeThesis) return
                   updateThesisOverrides(activeThesis.id, patch)
                 }}
-                onUpdateThesisSignals={(patch) => {
-                  updateThesisDraft({
-                    ...(patch.lookFor ? { lookFor: patch.lookFor } : {}),
-                    ...(patch.avoid ? { avoid: patch.avoid } : {}),
-                  })
-                  if (patch.lookFor) {
-                    const lookForText = thesisSignalText(patch.lookFor)
-                    setThesisLookForText(lookForText)
-                    setThesisLookForBaselineText(lookForText)
-                  }
-                }}
+                onEditThesisSignals={focusThesisSignalsEditor}
                 onNavigateToIdentity={() =>
                   void navigate({
                     to: '/identity',
@@ -2933,8 +3002,10 @@ export function ResearchPage() {
                   <label className="research-field research-field-span">
                     <span>Look-for signals</span>
                     <input
+                      ref={thesisSignalsInputRef}
                       className="research-input"
                       aria-label="Look-for signals"
+                      placeholder="e.g. Platform ownership, staff scope"
                       value={thesisLookForText}
                       onChange={(event) => {
                         const lookForText = event.target.value
@@ -3267,7 +3338,12 @@ export function ResearchPage() {
                 <section className="research-stack" aria-label="Thesis avoid list">
                   <div className="research-vector-card-header">
                     <h3 className="research-subtitle">Avoid and qualifying conditions</h3>
-                    <button type="button" className="research-btn" onClick={addThesisAvoid}>
+                    <button
+                      ref={thesisAddAvoidButtonRef}
+                      type="button"
+                      className="research-btn"
+                      onClick={addThesisAvoid}
+                    >
                       Add avoid signal
                     </button>
                   </div>
@@ -3279,8 +3355,10 @@ export function ResearchPage() {
                         <label className="research-field">
                           <span>Avoid</span>
                           <input
+                            ref={index === 0 ? thesisFirstAvoidInputRef : undefined}
                             className="research-input"
                             aria-label={`Avoid ${index + 1} label`}
+                            placeholder="e.g. Ad tech, crypto volatility"
                             value={entry.label}
                             onChange={(event) =>
                               updateThesisAvoid(index, { label: event.target.value })

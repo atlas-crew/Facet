@@ -27,13 +27,20 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         identityBase={baseIdentity}
         activeThesis={null}
         onUpdateOverrides={() => {}}
-        onUpdateThesisSignals={() => {}}
+        onEditThesisSignals={() => {}}
         onNavigateToIdentity={onNavigateToIdentity}
       />,
     )
 
     screen.getByRole('button', { name: 'Edit in Identity' }).click()
     expect(onNavigateToIdentity).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText('Interview prep advantages')).toHaveLength(2)
+    expect(screen.getAllByText('Interview process risks')).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Edit look-for signals' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Edit avoid signals' })).toBeNull()
+    expect(
+      screen.getByText('Generate or select a thesis to edit look-for and avoid signals.'),
+    ).toBeTruthy()
   })
 
   it('component contract: parent owns the navigation shape — the button just fires the callback', () => {
@@ -50,7 +57,7 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         identityBase={baseIdentity}
         activeThesis={null}
         onUpdateOverrides={() => {}}
-        onUpdateThesisSignals={() => {}}
+        onEditThesisSignals={() => {}}
         onNavigateToIdentity={onNavigateToIdentity}
       />,
     )
@@ -62,8 +69,8 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
     expect(onNavigateToIdentity).toHaveBeenCalledTimes(1)
   })
 
-  it('deduplicates edited thesis signal labels while preserving existing severity', () => {
-    const onUpdateThesisSignals = vi.fn()
+  it('routes search-stage signal edits to the thesis strategy surface', () => {
+    const onEditThesisSignals = vi.fn()
     render(
       <SearchInstancePreferences
         identityBase={baseIdentity}
@@ -85,17 +92,107 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
           feedbackIncorporated: [],
         }}
         onUpdateOverrides={() => {}}
-        onUpdateThesisSignals={onUpdateThesisSignals}
+        onEditThesisSignals={onEditThesisSignals}
         onNavigateToIdentity={() => {}}
       />,
     )
 
-    fireEvent.change(screen.getByLabelText('Avoid'), {
-      target: { value: 'Pure Admin Updated, PURE ADMIN UPDATED' },
+    expect(screen.queryByLabelText('Prioritize')).toBeNull()
+    expect(screen.queryByLabelText('Avoid')).toBeNull()
+    expect(screen.getByText('Pure Cluster Admin')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit look-for signals' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit avoid signals' }))
+
+    expect(onEditThesisSignals).toHaveBeenCalledTimes(2)
+    expect(onEditThesisSignals).toHaveBeenNthCalledWith(1, 'lookFor')
+    expect(onEditThesisSignals).toHaveBeenNthCalledWith(2, 'avoid')
+  })
+
+  it('renders empty thesis signal readout placeholders without enabling edits', () => {
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={{
+          id: 'sthesis-empty-signals',
+          createdAt: '2026-04-01T00:00:00.000Z',
+          updatedAt: '2026-04-01T00:00:00.000Z',
+          narrative: '',
+          competitiveMoat: '',
+          unfairAdvantages: [],
+          searchLanes: [],
+          interviewStrategy: '',
+          lookFor: [],
+          avoid: [],
+          keywordCombinations: [],
+          skillDepthMap: [],
+          source: 'generated',
+          identityVersion: 1,
+          feedbackIncorporated: [],
+        }}
+        onUpdateOverrides={() => {}}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    const signalReadout = screen.getByText('Thesis search signals').closest('.research-field')
+    expect(
+      Array.from(signalReadout?.querySelectorAll('dd') ?? []).map((entry) => entry.textContent),
+    ).toEqual(['—', '—'])
+  })
+
+  it('keeps interview-stage preference edits in the preference panel', () => {
+    const onUpdateOverrides = vi.fn()
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={{
+          id: 'sthesis-preferences',
+          createdAt: '2026-04-01T00:00:00.000Z',
+          updatedAt: '2026-04-01T00:00:00.000Z',
+          narrative: '',
+          competitiveMoat: '',
+          unfairAdvantages: [],
+          searchLanes: [],
+          interviewStrategy: '',
+          lookFor: [],
+          avoid: [],
+          keywordCombinations: [],
+          skillDepthMap: [],
+          searchOverrides: {
+            constraints: baseIdentity.constraints,
+            interviewPrefs: { strongFit: [], redFlags: [] },
+            hiddenSkillIds: [],
+          },
+          source: 'generated',
+          identityVersion: 1,
+          feedbackIncorporated: [],
+        }}
+        onUpdateOverrides={onUpdateOverrides}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Interview prep advantages'), {
+      target: { value: 'distributed systems, internal platforms' },
+    })
+    fireEvent.change(screen.getByLabelText('Interview process risks'), {
+      target: { value: 'noisy on-call' },
     })
 
-    expect(onUpdateThesisSignals).toHaveBeenCalledWith({
-      avoid: [{ id: 'ssig-avoid-hard', label: 'Pure Admin Updated', severity: 'hard' }],
+    expect(onUpdateOverrides).toHaveBeenCalledWith({
+      interviewPrefs: {
+        strongFit: ['distributed systems', 'internal platforms'],
+        redFlags: [],
+      },
+    })
+    expect(onUpdateOverrides).toHaveBeenCalledWith({
+      interviewPrefs: {
+        strongFit: [],
+        redFlags: ['noisy on-call'],
+      },
     })
   })
 })

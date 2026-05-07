@@ -1,12 +1,11 @@
+import { useId } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import type {
   SearchCompanySize,
   SearchInstanceOverrides,
   SearchThesis,
-  SearchThesisSignal,
   SkillCatalogEntry,
 } from '../../types/search'
-import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
 import { joinTags, splitTags } from './researchUtils'
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
@@ -277,10 +276,7 @@ interface SearchInstancePreferencesProps {
   }
   activeThesis: SearchThesis | null
   onUpdateOverrides: (patch: Partial<SearchInstanceOverrides>) => void
-  onUpdateThesisSignals: (patch: {
-    lookFor?: SearchThesisSignal[]
-    avoid?: SearchThesisSignal[]
-  }) => void
+  onEditThesisSignals: (target: 'lookFor' | 'avoid') => void
   onNavigateToIdentity: () => void
 }
 
@@ -288,9 +284,10 @@ export function SearchInstancePreferences({
   identityBase,
   activeThesis,
   onUpdateOverrides,
-  onUpdateThesisSignals,
+  onEditThesisSignals,
   onNavigateToIdentity,
 }: SearchInstancePreferencesProps) {
+  const thesisSignalsLabelId = useId()
   const overrides = activeThesis?.searchOverrides
   const effectiveOverrides = overrides ?? {
     constraints: identityBase.constraints,
@@ -386,7 +383,7 @@ export function SearchInstancePreferences({
               </dd>
             </div>
             <div>
-              <dt>Strong fit signals</dt>
+              <dt>Interview prep advantages</dt>
               <dd>
                 {identityBase.interviewPrefs.strongFit.length > 0 ? (
                   identityBase.interviewPrefs.strongFit.join(', ')
@@ -396,7 +393,7 @@ export function SearchInstancePreferences({
               </dd>
             </div>
             <div>
-              <dt>Red flags</dt>
+              <dt>Interview process risks</dt>
               <dd>
                 {identityBase.interviewPrefs.redFlags.length > 0 ? (
                   identityBase.interviewPrefs.redFlags.join(', ')
@@ -488,44 +485,64 @@ export function SearchInstancePreferences({
                 </select>
               </label>
 
-              <label className="research-field">
-                <span>Prioritize</span>
-                <input
-                  className="research-input"
-                  value={joinTags(effectiveFilters.prioritize)}
-                  onChange={(event) => {
-                    if (!activeThesis) return
-                    onUpdateThesisSignals({
-                      lookFor: reconcileThesisSignalsFromLabels(
-                        activeThesis.lookFor,
-                        splitTags(event.target.value),
-                      ),
-                    })
-                  }}
-                  placeholder="Platform ownership, staff scope"
-                />
-              </label>
+              <div
+                className="research-field research-preferences-signal-field"
+                role="group"
+                aria-labelledby={thesisSignalsLabelId}
+              >
+                <span id={thesisSignalsLabelId}>Thesis search signals</span>
+                <dl className="research-preferences-readout research-preferences-signal-readout">
+                  <div>
+                    <dt>Look for</dt>
+                    <dd>
+                      {effectiveFilters.prioritize.length > 0 ? (
+                        effectiveFilters.prioritize.join(', ')
+                      ) : (
+                        <span className="research-muted">—</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Avoid</dt>
+                    <dd>
+                      {effectiveFilters.avoid.length > 0 ? (
+                        effectiveFilters.avoid.join(', ')
+                      ) : (
+                        <span className="research-muted">—</span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+                {activeThesis ? (
+                  <div
+                    className="research-thesis-actions"
+                    role="group"
+                    aria-label="Edit thesis signals"
+                  >
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={() => onEditThesisSignals('lookFor')}
+                    >
+                      Edit look-for signals
+                    </button>
+                    <button
+                      type="button"
+                      className="research-btn"
+                      onClick={() => onEditThesisSignals('avoid')}
+                    >
+                      Edit avoid signals
+                    </button>
+                  </div>
+                ) : (
+                  <p className="research-muted">
+                    Generate or select a thesis to edit look-for and avoid signals.
+                  </p>
+                )}
+              </div>
 
               <label className="research-field">
-                <span>Avoid</span>
-                <input
-                  className="research-input"
-                  value={joinTags(effectiveFilters.avoid)}
-                  onChange={(event) => {
-                    if (!activeThesis) return
-                    onUpdateThesisSignals({
-                      avoid: reconcileThesisSignalsFromLabels(
-                        activeThesis.avoid,
-                        splitTags(event.target.value),
-                      ),
-                    })
-                  }}
-                  placeholder="Ad tech, crypto volatility"
-                />
-              </label>
-
-              <label className="research-field">
-                <span>Strong fit signals</span>
+                <span>Interview prep advantages</span>
                 <input
                   className="research-input"
                   value={joinTags(effectiveOverrides.interviewPrefs.strongFit)}
@@ -542,7 +559,7 @@ export function SearchInstancePreferences({
               </label>
 
               <label className="research-field">
-                <span>Red flags</span>
+                <span>Interview process risks</span>
                 <input
                   className="research-input"
                   value={joinTags(effectiveOverrides.interviewPrefs.redFlags)}

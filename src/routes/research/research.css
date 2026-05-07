@@ -1108,6 +1108,14 @@
   word-break: break-word;
 }
 
+.research-preferences-signal-field {
+  grid-column: 1 / -1;
+}
+
+.research-preferences-signal-readout {
+  width: 100%;
+}
+
 .research-pill {
   display: inline-flex;
   align-items: center;

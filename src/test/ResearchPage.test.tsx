@@ -2007,7 +2007,7 @@ describe('ResearchPage', () => {
     })
   })
 
-  it('preserves existing thesis signal metadata when editing prioritize labels', async () => {
+  it('preserves existing thesis signal metadata when editing look-for labels', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-prioritize-metadata',
       lookFor: [
@@ -2029,7 +2029,7 @@ describe('ResearchPage', () => {
     render(<ResearchPage />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
-    fireEvent.change(screen.getByLabelText('Prioritize'), {
+    fireEvent.change(screen.getByLabelText('Look-for signals'), {
       target: { value: 'platform modernization, PLATFORM MODERNIZATION, developer leverage' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
@@ -2047,6 +2047,86 @@ describe('ResearchPage', () => {
           severity: 'soft',
         }),
       ])
+    })
+  })
+
+  it('routes preference-panel look-for signal edits to the thesis strategy surface', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-preference-signal-route',
+      lookFor: [{ id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' }],
+      avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin', severity: 'soft' }],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    expect(screen.getByRole('tab', { name: 'Profile Editor' }).getAttribute('aria-selected')).toBe(
+      'true',
+    )
+    expect(screen.queryByLabelText('Prioritize')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit look-for signals' }))
+
+    expect(screen.getByRole('tab', { name: 'Search Launcher' }).getAttribute('aria-selected')).toBe(
+      'true',
+    )
+    const lookForSignalsInput = screen.getByLabelText('Look-for signals')
+    expect(lookForSignalsInput).toBeTruthy()
+    await waitFor(() => {
+      expect(document.activeElement).toBe(lookForSignalsInput)
+    })
+  })
+
+  it('routes preference-panel avoid signal edits to the thesis avoid editor', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-preference-avoid-route',
+      lookFor: [{ id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' }],
+      avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin', severity: 'soft' }],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit avoid signals' }))
+
+    expect(screen.getByRole('tab', { name: 'Search Launcher' }).getAttribute('aria-selected')).toBe(
+      'true',
+    )
+    const avoidEditor = screen.getByLabelText('Avoid 1 label')
+    await waitFor(() => {
+      expect(document.activeElement).toBe(avoidEditor)
+    })
+  })
+
+  it('routes an empty avoid list to the add avoid action in the thesis editor', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-preference-empty-avoid-route',
+      lookFor: [{ id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' }],
+      avoid: [],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit avoid signals' }))
+
+    const avoidEditor = await screen.findByRole('button', { name: 'Add avoid signal' })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(avoidEditor)
     })
   })
 
