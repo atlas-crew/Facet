@@ -1,11 +1,10 @@
 ---
 id: TASK-196.5
-title: >-
-  Replace filter text-area inputs with per-item toggle list in
-  SearchInstancePreferences
+title: Retarget per-item signal toggle UI to canonical thesis signals
 status: To Do
 assignee: []
 created_date: '2026-04-29 08:42'
+updated_date: '2026-05-07 20:02'
 labels:
   - search-redesign
   - ui
@@ -18,6 +17,7 @@ references:
   - src/routes/identity/inspectorSlots/MatchRuleInspector.tsx
   - src/test/ResearchPage.test.tsx
 documentation:
+  - backlog doc-39
   - backlog doc-34 (Search Parameters Surface — Design)
   - backlog doc-24 (Search Workspace Redesign)
 parent_task_id: TASK-196
@@ -27,26 +27,28 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Replace the current text-area inputs for prioritize/avoid filters in `SearchInstancePreferences` (lines around 461 and 478 of searchWorkspaceComponents.tsx, in the existing override editor) with a list view: one row per master-list entry, with a per-search enable/disable checkbox.
+Reconciled by TASK-204.4 after doc-39 and TASK-204.3.
 
-Toggling a row updates `SearchInstanceFilterOverrides.disabledFilterIds` for the active search. Master-list mutation (add / edit / delete custom entries) lives on the Identity Map via the `MatchRuleInspector` slot (`src/routes/identity/inspectorSlots/MatchRuleInspector.tsx`) and is out of scope here; surface an "Edit master list" link from the search workspace that navigates to the Identity Map. The link's exact target — plain route navigation vs. deep-linking to the relevant `MatchRuleInspector` selection via `setMapSelection({ type: 'matchRule', kind, id })` — is a coordination question flagged on the parent task (TASK-196 Implementation Notes); confirm before kickoff.
+Do not build per-item toggle UI against legacy SearchInstancePreferences Prioritize/Avoid text inputs or searchOverrides.filters.prioritize/avoid arrays. Those arrays are deleted migration input after TASK-204.1, and TASK-204.3 routes canonical lookFor/avoid editing to the Search Thesis editor.
 
-Visual treatment: green/red column accents matching prioritize/avoid semantics (per the user-supplied spec). Empty master list shows guidance text directing the user to the Identity Map to add entries.
+If per-search signal disablement remains desired, render any toggle list from canonical SearchThesis.lookFor/SearchThesis.avoid entries and persist disabled state by canonical SearchThesisSignal id via the storage shape decided in TASK-196.3. The toggle UI must not mutate canonical thesis signals.
 
-Depends on subtask .3 (the id and per-search override shape must exist before the UI can wire to them).
+If product scope no longer needs per-search disabling after the thesis-signal cleanup, close/de-scope this toggle UI explicitly and leave SearchInstancePreferences with the read-only thesis signal readout plus Search Thesis edit actions delivered by TASK-204.3.
+
+TASK-196 hard-constraints work remains unaffected: hard-constraint controls in SearchInstancePreferences remain in TASK-196.4 / the surviving TASK-196 scope.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Prioritize and avoid sections in SearchInstancePreferences render as item-list views, one row per master-list entry, with a checkbox per row
-- [ ] #2 Toggling a row's checkbox updates SearchInstanceFilterOverrides.disabledFilterIds for the active search via a searchStore action; toggling does not mutate the master list
-- [ ] #3 Visual treatment differentiates prioritize (green accent) and avoid (red accent)
-- [ ] #4 An 'Edit master list' link or button is present in each section; activating it navigates to the Identity Map (target depth — plain route vs. deep-linked `MatchRuleInspector` selection — confirmed against the coordination question on TASK-196 before implementation)
-- [ ] #5 When the master list is empty, the section shows guidance text directing the user to the Identity Map rather than an empty checkbox list
-- [ ] #6 No remaining text-area input for prioritize/avoid filters in the search workspace
-- [ ] #7 Component tests cover: toggling updates only the override (master unchanged), navigation link is present and routes correctly, empty-list guidance renders, ids on toggled rows persist through store rehydration
-- [ ] #8 Accessibility: each checkbox has an accessible label tied to the filter's label text; keyboard navigation works through the list
+- [ ] #1 No SearchInstancePreferences UI restores free-text Prioritize/Avoid inputs or legacy searchOverrides.filters.* editing
+- [ ] #2 If toggles remain in scope, rows render from canonical SearchThesis.lookFor/SearchThesis.avoid signals and use canonical signal ids
+- [ ] #3 Toggling a row updates only the per-search disable state decided in TASK-196.3 and does not mutate canonical thesis signals
+- [ ] #4 Edit actions for canonical signal content route to the Search Thesis editor, not the retired IdentityStrategyWorkbench or legacy filter arrays
+- [ ] #5 If per-search signal toggles are de-scoped, this task records that decision and leaves hard-constraint TASK-196 scope intact
+- [ ] #6 Focused tests cover either canonical signal-id toggling or the explicit de-scope/no-toggle behavior
 <!-- AC:END -->
+
+
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

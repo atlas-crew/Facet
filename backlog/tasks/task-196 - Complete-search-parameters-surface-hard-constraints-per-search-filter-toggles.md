@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-04-29 08:40'
+updated_date: '2026-05-07 20:02'
 labels:
   - search-redesign
   - identity-model
@@ -20,37 +21,38 @@ references:
 documentation:
   - backlog doc-24 (Search Workspace Redesign)
   - backlog doc-34 (Search Parameters Surface — Design)
+  - backlog doc-39
 priority: medium
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-The Research workspace's search-parameter surface is missing hard constraints (industries to avoid, funding stages, remote policies, employment types, salary band) and per-search filter toggles (enable/disable individual prioritize/avoid items per search instance without mutating the master list).
+The Research workspace's search-parameter surface is missing hard constraints (industries to avoid, funding stages, remote policies, employment types, salary band) and previously tracked per-search prioritize/avoid filter toggles.
 
-Per the architecture established in doc-24 (Search Workspace Redesign), durable self-knowledge lives in the identity model and is mirrored into the search snapshot; per-search overrides live in the search instance only.
+Per doc-39 and TASK-204, search-stage look-for/avoid signals now live canonically on SearchThesis.lookFor/SearchThesis.avoid. Any surviving per-search signal-disable work must target canonical SearchThesisSignal ids, not legacy searchOverrides.filters.* arrays. The hard-constraints scope remains unchanged.
 
-This parent task tracks the five subtasks that complete this surface end-to-end:
+This parent task tracks the subtasks that complete the surviving surface:
 - .1 — Bank enums + identity preference fields (industries / funding / employment / surface remote)
-- .2 — Restructure compensation as structured `SalaryBand`
-- .3 — Add stable id to filter entries + per-search `disabledFilterIds` override (depends on TASK-165)
-- .4 — Hard-constraints UI in `SearchInstancePreferences`
-- .5 — Per-item filter toggle UI in `SearchInstancePreferences`
+- .2 — Restructure compensation as structured SalaryBand
+- .3 — Retarget any per-search signal disablement to canonical SearchThesisSignal ids, or explicitly de-scope it
+- .4 — Hard-constraints UI in SearchInstancePreferences
+- .5 — Retarget/de-scope any per-item signal toggle UI after TASK-204 canonicalization
 
-Subtasks .1 and .2 can run in parallel. .3 waits on TASK-165. .4 and .5 are UI work and run last in parallel after their schema dependencies land.
-
-Design decisions, bank members, migration logic, and override semantics are documented in backlog doc-34. Subtasks should reference it and not re-derive.
+Design decisions, bank members, migration logic, and override semantics are documented in backlog doc-34 and doc-39. Subtasks should reference them and not re-derive.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 All five subtasks completed and merged
+- [ ] #1 Surviving hard-constraint subtasks are completed and merged
 - [ ] #2 User can edit hard constraints (industries, funding, remote, employment, salary, clearance) in SearchInstancePreferences and have edits persist
-- [ ] #3 User can disable individual prioritize/avoid filters for a single search without affecting the master list
-- [ ] #4 Master list edits via Identity Map's MatchRuleInspector correctly propagate to search snapshots via the existing adapter pattern
+- [ ] #3 Any per-search look-for/avoid disabling that remains in scope references canonical SearchThesisSignal ids and does not mutate canonical thesis signals
+- [ ] #4 Legacy searchOverrides.filters.prioritize/avoid arrays are not revived as canonical storage
 - [ ] #5 Migration handles existing persisted state without data loss
 - [ ] #6 No raw enum values appear in the UI — all bank values render with display labels
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
@@ -79,6 +81,12 @@ Real coordination questions to lock before TASK-196.5 ships:
 3. **"Suggest priorities" / "Suggest things to avoid" affordances** previously wired in the retired workbench via `generateAwarenessFromIdentity`. If still in scope, they need a Map-side home. Out of scope for TASK-196; track separately if the user wants them re-surfaced.
 
 **Awaiting user lock on (1).** TASK-196.5's "Edit master list" link target should be specified before subtask kickoff.
+
+## TASK-204 canonical signal reconciliation (2026-05-07)
+
+doc-39 and TASK-204.1/TASK-204.3 supersede the original TASK-196 filter-toggle storage plan for prioritize/avoid. Do not add ids or disabledFilterIds to legacy searchOverrides.filters.* arrays; those arrays are deleted migration input. TASK-196.3 / TASK-196.5 are retargeted to canonical SearchThesis.lookFor/SearchThesis.avoid signal ids if per-search signal disabling remains in scope, or must explicitly de-scope the toggle UI.
+
+The hard-constraints portion of TASK-196 remains unaffected: industries, funding, remote, employment, salary, clearance, company size, and the SearchInstancePreferences hard-constraint controls continue under TASK-196.4 / surviving parent scope.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

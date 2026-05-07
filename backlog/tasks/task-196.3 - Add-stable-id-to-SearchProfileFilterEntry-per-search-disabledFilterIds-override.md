@@ -1,22 +1,22 @@
 ---
 id: TASK-196.3
-title: >-
-  Add stable id to SearchProfileFilterEntry + per-search disabledFilterIds
-  override
+title: Retarget per-search signal disablement to canonical SearchThesisSignal ids
 status: To Do
 assignee: []
 created_date: '2026-04-29 08:41'
+updated_date: '2026-05-07 20:02'
 labels:
   - search-redesign
   - identity-model
 dependencies:
-  - TASK-165
+  - TASK-204.1
 references:
   - src/types/search.ts
   - src/store/searchStore.ts
   - src/utils/identitySearchProfile.ts
   - src/test/searchStore.test.ts
 documentation:
+  - backlog doc-39
   - backlog doc-34 (Search Parameters Surface — Design)
   - backlog doc-24 (Search Workspace Redesign)
 parent_task_id: TASK-196
@@ -26,27 +26,25 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Per-search filter toggle UX (subtask .5) needs a stable identifier per filter entry so a search can record "this entry is disabled for this run" without coupling to label text (which the user can edit). TASK-165 (in progress) restructures SearchProfileFilterEntry but does not add ids; this task extends TASK-165's deliverable.
+Reconciled by TASK-204.4 after doc-39 and TASK-204.1.
 
-Adds `id: string` to `SearchProfileFilterEntry`. Adds `disabledFilterIds: string[]` to `SearchInstanceFilterOverrides` for per-search disable. Default empty array means "all master-list filters apply to this search."
+Do not add stable ids to SearchProfileFilterEntry and do not add disabledFilterIds to searchOverrides.filters.*. TASK-204.1 made SearchThesis.lookFor and SearchThesis.avoid the canonical search-stage signal lists, and those SearchThesisSignal entries already carry stable ids.
 
-**Hard prerequisite: TASK-165 must merge first.** This task assumes the post-TASK-165 shape (`{label, condition, severity}`) as its starting point.
+If per-search signal disablement remains desired, implement it against canonical SearchThesisSignal ids from SearchThesis.lookFor/SearchThesis.avoid, using storage that clearly references thesis signal ids rather than legacy profile filter strings. Legacy searchOverrides.filters.prioritize/avoid are deleted migration input and must not be revived.
 
-Filter id semantics, override default behavior, and chained migration are specified in backlog doc-34 §4–6.
-
-Migration must be idempotent: do not regenerate ids on already-id-bearing entries — that would break per-search override references silently.
+TASK-196 hard-constraints work remains unaffected: industries, funding, remote, employment, salary, clearance, and company-size constraints still live under TASK-196.4 / the surviving hard-constraints scope.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 SearchProfileFilterEntry includes id: string field; ids are url-safe and stable across user edits to label, condition, or severity
-- [ ] #2 SearchInstanceFilterOverrides includes disabledFilterIds: string[]; default initialization is an empty array
-- [ ] #3 searchStore.migrateSearchState assigns ids to existing filter entries that lack them; migration is idempotent (no-op on entries that already have ids)
-- [ ] #4 Master list mutation (add) generates a new id; (edit) preserves the existing id; (delete) does not orphan disabledFilterIds entries on disk but tolerates them as no-op references
-- [ ] #5 Per-search disable does not mutate the master list; clearing disable (removing id from disabledFilterIds) restores the entry for that search
-- [ ] #6 New tests cover: adding a filter assigns id, editing preserves id, per-search disable doesn't affect master list, ids survive store rehydration, migration is idempotent on a second run
-- [ ] #7 Existing tests pass without modification
+- [ ] #1 No code path adds ids to SearchProfileFilterEntry solely for deleted prioritize/avoid filter arrays
+- [ ] #2 Any per-search disable storage references canonical SearchThesisSignal ids from SearchThesis.lookFor/SearchThesis.avoid, not searchOverrides.filters.*
+- [ ] #3 Migration/default initialization is idempotent and tolerates existing thesis signal ids without regenerating them
+- [ ] #4 Per-search disablement, if implemented, does not mutate canonical thesis signals; clearing the disable restores the signal for that search context
+- [ ] #5 Tests cover canonical signal-id disablement or explicitly document that per-search signal toggles are de-scoped
 <!-- AC:END -->
+
+
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
