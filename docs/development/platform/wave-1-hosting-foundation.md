@@ -25,7 +25,7 @@ contract for `TASK-85`, `TASK-75`, `TASK-76`, `TASK-77`, and `TASK-79`.
 
 ### Billing
 - `Stripe`
-- owns subscription checkout, billing portal, invoices, and webhook event delivery
+- owns one-time pass checkout, customer portal, invoices, and webhook event delivery for the 90-day pass model (see [`brand/PRICING.md`](../../../brand/PRICING.md))
 
 ## Environment Topology
 
@@ -206,13 +206,18 @@ Rules:
 - entitlement writes must be derived from webhook reconciliation, not raw client claims
 - billing failures should degrade AI access only; they must not block hosted persistence
 
-Minimum events to support in Wave 1:
-- checkout session completion
-- subscription created
-- subscription updated
-- subscription deleted
-- invoice paid
-- invoice payment failed
+Minimum events to support in Wave 1 (pass model — one-time payments, not subscriptions):
+- `checkout.session.completed` — pass purchased; entitlement should activate
+- `payment_intent.succeeded` — payment confirmed
+- `charge.refunded` — pass refunded; entitlement should deactivate
+- `payment_intent.payment_failed` — purchase attempt failed; surface billing recovery
+
+> **Migration note:** Wave 1 hosting was originally architected around Stripe
+> subscription events (`customer.subscription.created`/`updated`/`deleted`,
+> `invoice.paid`, `invoice.payment_failed`). The pass model uses one-time payment
+> events instead. Code references in `proxy/billingState.js`, billing webhook
+> handlers, and `src/types/hosted.ts` (`subscriptionId` field) are tracked as
+> follow-up tasks (see TASK-227 audit follow-ups).
 
 Recommended entitlement states:
 - `inactive`

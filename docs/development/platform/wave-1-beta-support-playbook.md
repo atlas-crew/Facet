@@ -86,7 +86,7 @@ Escalate when:
 
 Map the error first:
 - `upgrade_required` -> plan or feature coverage issue
-- `billing_issue` -> subscription or payment issue
+- `billing_issue` -> payment or pass issue (failed charge, refund-in-progress, expired pass)
 - `billing_state_error` -> internal billing-state outage
 
 Customer guidance:

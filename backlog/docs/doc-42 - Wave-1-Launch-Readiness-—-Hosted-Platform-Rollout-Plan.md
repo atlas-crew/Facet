@@ -3,6 +3,7 @@ id: doc-42
 title: Wave 1 Launch Readiness — Hosted Platform Rollout Plan
 type: other
 created_date: '2026-05-07 19:23'
+updated_date: '2026-05-07 21:13'
 ---
 # Wave 1 Launch Readiness — Hosted Platform Rollout Plan
 
@@ -39,24 +40,37 @@ TASK-189    Closes when all 4 sub-tasks land  [med, parent]
 
 ### Lane B — Pricing Model Migration → Entitlement Tests (sequential)
 
-The brand has shifted to a $299 / 90-day-pass model with a 12-month usage window and 7-day refund (canonical: `brand/PRICING.md`, `brand/MANIFESTO.md`). Internal docs and possibly code still use subscription semantics. Lane B works the doc → audit → code → test sequence.
+The brand has shifted to a $299 / 90-day-pass model with a 12-month usage window and 7-day refund (canonical: `brand/PRICING.md`, `brand/MANIFESTO.md`). TASK-227 closed 2026-05-07 (doc audit complete) and surfaced three concrete code-side follow-ups, now filed as TASK-240/241/242.
 
 ```
-TASK-227   Update Wave 1 pricing/entitlements doc to 90-day-pass model  [med]
-   │       (doc-only: docs/development/platform/wave-1-pricing-and-
-   │        entitlements.md + sibling Wave 1 docs. Audit identifies
-   │        code-level follow-ups, files them as new tasks)
+✓ TASK-227   Update Wave 1 pricing/entitlements doc to 90-day-pass model  [med]
+   │         (DONE 2026-05-07. Audit also swept 4 sibling docs; filed
+   │          three code-side follow-ups below.)
    ▼
-???        Code follow-ups (filed by TASK-227 audit; not yet in backlog)
-   │       Probable shape:
-   │       - Stripe integration: subscription products → one-time-payment
-   │       - Billing webhook handlers: subscription events → checkout-session
-   │       - Type renames: monthlyPlan → passPlan, etc.
+TASK-240    Stripe product + webhook migration (operator action)         [med]
+   │        (Replace recurring monthly price with $299 one-time price;
+   │         swap subscription webhook subscriptions for payment_intent.*
+   │         events; verify Customer Portal config.)
+   │
+TASK-241    Code migration: subscriptionId → paymentIntentId,            [med]
+   │        webhook handlers, test fixtures, UI strings
+   │        (Touches src/types/hosted.ts, proxy/billingState.js,
+   │         proxy/postgresBillingStore.js, billing webhook handlers,
+   │         src/test/billingApi.test.ts, src/test/aiAccess.test.ts,
+   │         AppShell "subscription" UI string. Pairs with TASK-240 —
+   │         either order works, but both are needed before TASK-242.)
+   │
+TASK-242    Adapt entitlement state model to pass lifecycle              [med]
+   │        (Design decision + code: replace inactive/trial/active/grace/
+   │         delinquent with pass-shaped states. Depends on TASK-240 +
+   │         TASK-241 because the state machine is downstream of "what
+   │         events does Stripe send" and "what fields exist on the
+   │         billing record.")
    ▼
-TASK-96    Broaden hosted entitlement billing tests for AI denial flows  [HIGH]
-           (upgrade_required UX, billing_issue UX, Refresh Billing State
-            contract — verified against the post-migration model, not the
-            stale subscription one)
+TASK-96     Broaden hosted entitlement billing tests for AI denial flows  [HIGH]
+            (upgrade_required UX, billing_issue UX, Refresh Billing State
+             contract — verified against the post-migration model, not
+             the stale subscription one)
 ```
 
 **Why TASK-96 is downstream of the code follow-ups:** if `TASK-96` ships against the current subscription-based code, its tests pin yesterday's model and would need to be redone after the code migration. Sequencing it after the migration writes the tests once.
@@ -89,11 +103,11 @@ Continues with current owner. Coordinate at completion if findings affect Lane B
 
 Three points where two lanes need ordering:
 
-1. **Lane B's TASK-227 audit ↔ Lane B's TASK-96.**
-   TASK-227 audits code for monthly-billing references and files follow-ups. Until those follow-ups land, TASK-96 would test the current subscription-based behavior — which the team is migrating away from. Resolution: TASK-96 starts only after the TASK-227-filed code follow-ups land. If audit finds zero code references (Stripe integration was already pass-shaped), TASK-96 unblocks immediately.
+1. **Lane B's TASK-240/241/242 ↔ Lane B's TASK-96.**
+   The three code follow-ups must land before TASK-96 so the entitlement billing tests target the post-migration model rather than yesterday's subscription-based behavior. Resolution: TASK-96 starts only after TASK-240 + TASK-241 + TASK-242 land.
 
-2. **Lane B (any phase) ↔ Lane A's TASK-189.4 (admin billing view).**
-   The admin billing view renders entitlement state. If Lane B's pricing migration changes the billing model representation (e.g., column renames in `accounts` or `entitlements` tables), TASK-189.4's view should target the post-migration shape. Resolution: build TASK-189.4 against whatever billing shape exists when its turn comes; TASK-227 audit should call out admin-panel impact if any.
+2. **Lane B's TASK-241 + TASK-242 ↔ Lane A's TASK-189.4 (admin billing view).**
+   The admin billing view renders entitlement state. If Lane B renames `subscription` → `pass` columns and changes the entitlement state machine, TASK-189.4's view should target the post-migration shape. Resolution: schedule TASK-189.4 last among the admin views (after 189.2 and 189.3) so Lane B has a chance to land before it.
 
 3. **Lane D's TASK-84 ↔ all other lanes.**
    Beta QA may surface bugs that change priorities for Lane B/C tests or surface new admin-panel needs. Resolution: TASK-84 findings get filed as new tasks slotted into the appropriate lane; don't pivot Lane B/C mid-execution to absorb beta findings.
@@ -103,6 +117,10 @@ Three points where two lanes need ordering:
 ## Already in flight
 
 - **TASK-84** [low, in progress] — Wave 1 beta QA + staged rollout readiness
+
+## Recently closed
+
+- **TASK-227** [done 2026-05-07] — Doc audit; surfaced TASK-240/241/242 as follow-ups
 
 ---
 
@@ -117,34 +135,34 @@ Three points where two lanes need ordering:
 
 ## Starting position
 
-### 4-dev parallel start (TASK-84 already in flight)
+### 4-dev parallel start (TASK-84 already in flight, TASK-227 done)
 
 | Seat | Task | Lane | Why first |
 |---|---|---|---|
-| 1 | **TASK-227** | B | Doc-only; lands fast; audit unblocks TASK-96 sequencing |
+| 1 | **TASK-240** OR **TASK-241** | B | Code-side migration; either works; TASK-240 is operator action (small, time-bounded), TASK-241 is the bulk code change |
 | 2 | **TASK-189.1** | A | Admin panel MVP slice; gates 189.2/3/4; auth plumbing is the longest-pole work |
 | 3 | **TASK-95** OR **TASK-79.2** | C | Independent test coverage; no blockers |
 | 4 | ~~TASK-84~~ | D | In progress |
 
-After TASK-227 lands and identifies code follow-ups, seat 1 can pick up the highest-priority follow-up. After TASK-189.1 lands, seats 2 and 3 can split the three view subtasks in parallel.
+After TASK-240 + TASK-241 land, seat 1 picks up TASK-242 (entitlement state model). After TASK-189.1 lands, seats 2 and 3 split the three view subtasks in parallel (schedule 189.4 last per Coordination #2).
 
 ### 1–2 dev start
 
-Strict sequence: TASK-227 → (code follow-ups, if any) → TASK-189.1 → TASK-96 (parallel with the rest of Lane A) → TASK-189.2/3/4 → close TASK-189. Pull Lane C as filler when blocked.
+Strict sequence: TASK-240 → TASK-241 → TASK-242 → TASK-96 (or interleave 240 ∥ 241 since they touch different surfaces). Then TASK-189.1 → TASK-189.2/3 → TASK-189.4 (last) → close TASK-189. Pull Lane C as filler when blocked.
 
 ---
 
 ## Critical path
 
 ```
-TASK-227 → (code follow-ups) → TASK-96 → launch ready
-        ↘ (parallel)
-            TASK-189.1 → 189.2/3/4 → close 189
+TASK-240 ∥ TASK-241 → TASK-242 → TASK-96 → launch ready
+                                        ↘ (parallel)
+                                            TASK-189.1 → 189.2/3 → 189.4 → close 189
 ```
 
-Lane B is the longer chain because of the dependency on potential code follow-ups. Lane A has six nodes (1.1 + 3 views + parent close + manual SQL prerequisite).
+Lane B is the longer chain at five sequential nodes (or four if TASK-240 and TASK-241 run in parallel).
 
-**Realistic total at solo pace:** ~3 weeks (TASK-227 quick, code follow-ups depend on what the audit finds, TASK-96 ~1 week, admin panel ~2 weeks). At 4-dev parallel: ~1.5–2 weeks.
+**Realistic total at solo pace:** ~3-4 weeks (TASK-240 small operator action, TASK-241 ~1 week, TASK-242 ~3-5 days, TASK-96 ~1 week, admin panel ~2 weeks parallel). At 4-dev parallel: ~1.5–2 weeks.
 
 ---
 
@@ -153,9 +171,7 @@ Lane B is the longer chain because of the dependency on potential code follow-up
 Tasks should be attached to existing milestones rather than creating a new one:
 
 - **m-12 (Hosted Accounts Platform):** `TASK-189`, `TASK-189.1`, `TASK-189.2`, `TASK-189.3`, `TASK-189.4` — admin panel is platform infrastructure.
-- **m-13 (Hosted Accounts Launch Readiness):** `TASK-227`, `TASK-96`, `TASK-95`, `TASK-79.2`, `TASK-94`, `TASK-84` — pricing migration + test hardening + beta QA are launch-readiness shaped.
-
-Code follow-up tasks filed by TASK-227's audit should also attach to `m-13`.
+- **m-13 (Hosted Accounts Launch Readiness):** `TASK-227`, `TASK-240`, `TASK-241`, `TASK-242`, `TASK-96`, `TASK-95`, `TASK-79.2`, `TASK-94`, `TASK-84` — pricing migration + code follow-ups + test hardening + beta QA are launch-readiness shaped.
 
 ---
 
@@ -167,9 +183,9 @@ Code follow-up tasks filed by TASK-227's audit should also attach to `m-13`.
 
 ## Open questions
 
-- **What does TASK-227's audit actually find?** The audit may surface zero code references (if Stripe integration was already pass-shaped as the latest commit) or several (if monthly-subscription assumptions are baked in). Until the audit lands, the size of the code-follow-up phase is unknown. Could be 0 tasks, could be 5.
-- **Should TASK-189.4 (admin billing view) wait for Lane B?** If it ships against the subscription model and Lane B then renames billing columns, the view needs a follow-up. Resolution above says "build against whatever billing shape exists at the time" but if Lane B is mid-flight, it may make sense to schedule 189.4 last among the views.
+- **Should TASK-189.4 (admin billing view) wait for Lane B?** Coordination #2 above says yes — schedule 189.4 last among the views. The other two views (actors, workspaces) don't intersect with Lane B's billing changes.
 - **Beta QA findings (TASK-84) may file new launch-blocker tasks.** Allocate Lane B/C bandwidth for in-month surprises rather than fully committing to the existing list.
+- **TASK-242's entitlement state design decision** — open question on whether `paid-but-not-activated` is its own state. The "90-day clock starts on first use" detail in `brand/PRICING.md` argues for yes; the simpler state machine argues for no. Decision belongs in TASK-242.
 
 ---
 
@@ -177,8 +193,8 @@ Code follow-up tasks filed by TASK-227's audit should also attach to `m-13`.
 
 - Brand pricing canonical source: `brand/PRICING.md`, `brand/MANIFESTO.md` ("Career-search runs in bursts" section)
 - Internal entitlement spec: `docs/development/platform/wave-1-pricing-and-entitlements.md`
-- Sibling Wave 1 docs (sweep targets for TASK-227): `wave-1-domain-contract.md`, `wave-1-hosting-foundation.md`, `wave-1-operations-runbook.md`, `wave-1-beta-support-playbook.md`, `wave-1-beta-readiness-gate.md`
-- Hosted code surfaces: `proxy/`, `proxy/aiAccess.js`, `src/utils/hostedSession.ts`, `src/utils/facetEnv.ts`, `supabase/migrations/`, `src/router.tsx`, `src/components/AppShell.tsx`
+- Sibling Wave 1 docs (already swept by TASK-227): `wave-1-domain-contract.md`, `wave-1-hosting-foundation.md`, `wave-1-infrastructure-provisioning.md`, `wave-1-beta-support-playbook.md` (`wave-1-operations-runbook.md` and `wave-1-beta-readiness-gate.md` were clean, no edits needed)
+- Hosted code surfaces: `proxy/`, `proxy/aiAccess.js`, `proxy/billingState.js`, `proxy/postgresBillingStore.js`, `src/utils/hostedSession.ts`, `src/utils/facetEnv.ts`, `src/types/hosted.ts`, `supabase/migrations/`, `src/router.tsx`, `src/components/AppShell.tsx`
 - Admin panel architecture decisions: `TASK-189` description (workspace role vs platform role distinction, app_metadata claim, proxy-side authorization)
 
 ---
@@ -186,3 +202,4 @@ Code follow-up tasks filed by TASK-227's audit should also attach to `m-13`.
 ## Revision history
 
 - **2026-05-07 v1**: initial Wave 1 launch readiness rollout plan. 11 tasks across 4 lanes (admin panel + pricing migration + test hardening + in-flight beta QA). Pre-existing milestones m-12/m-13 used; no new milestone created.
+- **2026-05-07 v2**: TASK-227 closed (doc audit complete). The "???" placeholder for code follow-ups in Lane B replaced with the three filed tasks: TASK-240 (Stripe operator), TASK-241 (code migration), TASK-242 (entitlement state model). Critical path expanded from 3 nodes to 5 in Lane B. Coordination #1 reworked to name the actual blockers; Coordination #2 strengthened (schedule 189.4 last). Starting position table updated.

@@ -92,20 +92,24 @@ scope.
 ### 3a. Create the AI Pro product
 
 - in the Stripe dashboard (test mode), create a product called "Facet AI Pro"
-- add a recurring monthly price
+- add a **one-time price of $299** (USD) — this is the 90-day pass purchase, not a recurring subscription. See [`brand/PRICING.md`](../../../brand/PRICING.md) for the canonical pricing argument.
 - record the price ID (`price_...`) as `STRIPE_PRICE_AI_PRO`
 
 ### 3b. Create webhook endpoint
 
 - add a webhook endpoint pointing to: `https://<fly-app-domain>/api/billing/webhooks/stripe`
-- subscribe to these events:
-  - `checkout.session.completed`
-  - `customer.subscription.created`
-  - `customer.subscription.updated`
-  - `customer.subscription.deleted`
-  - `invoice.paid`
-  - `invoice.payment_failed`
+- subscribe to these events (pass model — one-time payments, not subscriptions):
+  - `checkout.session.completed` — pass purchased
+  - `payment_intent.succeeded` — payment confirmed
+  - `charge.refunded` — pass refunded
+  - `payment_intent.payment_failed` — purchase attempt failed
 - record the signing secret as `STRIPE_WEBHOOK_SECRET`
+
+> **Migration note:** the original Wave 1 plan called for a recurring monthly
+> price and `customer.subscription.*` webhooks. The pass model uses a one-time
+> price and `payment_intent.*` / `charge.refunded` events instead. If your Stripe
+> setup still has the subscription product and old webhook subscriptions,
+> migrate them as part of the TASK-227 follow-up code work before launch.
 
 ### 3c. Collect Stripe values
 

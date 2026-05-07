@@ -76,17 +76,29 @@ Fields:
 - `provider = stripe`
 - `customerId`
 
-### Billing subscription
-Represents the Stripe subscription record used to reconcile hosted AI access.
+### Billing pass purchase
+Represents the Stripe one-time payment record used to reconcile hosted AI access.
+Wave 1 sells AI access as a 90-day pass with a 12-month usage window
+(see [`brand/PRICING.md`](../../../brand/PRICING.md)).
 
 Fields:
 - `provider = stripe`
-- `subscriptionId`
-- `planId`
-- `status`
+- `paymentIntentId` — Stripe PaymentIntent ID for the pass purchase
+- `planId` — pass-product identifier (`ai-pro` for Wave 1)
+- `status` — `active` / `expired` / `refunded`
+- `purchasedAt` — when the pass was bought
+- `activatedAt` — when the 90-day clock started (first AI use)
+- `expiresAt` — derived from `activatedAt + 90 days`, capped by the 12-month
+  usage window from `purchasedAt`
 
 Wave 1 rule:
 - only one paid AI plan is required: `ai-pro`
+
+> **Migration note:** Wave 1 originally modeled billing as a Stripe `subscriptionId`
+> with a `subscription` lifecycle. The pass model uses a `paymentIntentId` and
+> a derived expiry instead. Code rename of `subscriptionId` → `paymentIntentId`
+> in `src/types/hosted.ts`, `proxy/billingState.js`, and downstream consumers
+> is tracked as a TASK-227 follow-up.
 
 ### Entitlement
 Represents the app-local decision state after billing reconciliation.

@@ -1,10 +1,10 @@
 ---
 id: TASK-227
 title: Update Wave 1 pricing/entitlements doc to reflect 90-day-pass model
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-06 08:07'
-updated_date: '2026-05-07 19:23'
+updated_date: '2026-05-07 21:12'
 labels:
   - documentation
   - pricing
@@ -57,6 +57,28 @@ This contradicts the brand's now-canonical pricing commitment, surfaced and conf
 - [ ] #5 Any code-level references to monthly billing identified during the doc review are filed as separate follow-up tasks (out of scope for this PR but documented)
 - [ ] #6 Doc still serves its original purpose as the internal entitlement enforcement spec for hosted features
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Doc-only audit complete. Updated `docs/development/platform/wave-1-pricing-and-entitlements.md` to reflect the $299 / 90-day pass model and cross-referenced `brand/PRICING.md` as the canonical public-facing source.
+
+**Sibling docs swept** (4 of 6 had subscription wording; 2 were clean):
+- `wave-1-hosting-foundation.md` — Stripe section + webhook event list updated to pass-model events; migration note added
+- `wave-1-domain-contract.md` — `Billing subscription` entity rewritten as `Billing pass purchase` with new fields (`paymentIntentId`, `purchasedAt`, `activatedAt`, `expiresAt`); migration note added
+- `wave-1-beta-support-playbook.md` — `billing_issue` mapping updated from "subscription or payment issue" to "payment or pass issue"
+- `wave-1-infrastructure-provisioning.md` — Stripe operator setup instructions updated (one-time price; payment_intent webhook events); not in the original sibling list but had the most subscription wording, so swept anyway
+- `wave-1-operations-runbook.md` and `wave-1-beta-readiness-gate.md` — clean, no edits needed
+
+**Code-level follow-ups filed** (per task boundary; no code edits in this PR):
+- **TASK-240** [m-13]: Stripe product + webhook migration (operator action — change Stripe AI Pro product from recurring monthly price to one-time $299 price; update webhook event subscriptions to `payment_intent.*` events)
+- **TASK-241** [m-13]: Code migration: rename `subscriptionId` → `paymentIntentId` across `src/types/hosted.ts`, `proxy/billingState.js`, `proxy/postgresBillingStore.js`, billing webhook handlers, test fixtures, and UI strings (`"Your hosted subscription needs attention"`)
+- **TASK-242** [m-13]: Adapt entitlement state model from subscription lifecycle (inactive/trial/active/grace/delinquent) to pass lifecycle (active/expired/refunded). Includes a small design decision on whether `paid-but-not-activated` is its own state.
+
+All three follow-ups attached to `m-13` (Wave 1 Hosted Accounts Launch Readiness) and depend on TASK-227. They should land before the Wave 1 hosted launch.
+
+Updated AC status: all 6 met. Doc remains the internal entitlement enforcement spec for hosted features (#6 preserved).
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
