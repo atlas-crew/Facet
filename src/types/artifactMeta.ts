@@ -86,6 +86,55 @@ export const isArtifactStale = (
   currentIdentityVersion: number,
 ): boolean => currentIdentityVersion > metadata.identityVersion
 
+export interface StaleArtifactSummary {
+  artifactType: ArtifactImpactType
+  artifactId: string
+  identityVersion: number
+}
+
+export interface StalenessSurveyInput {
+  theses?: ReadonlyArray<{ id: string; identityVersion?: number | null }>
+  runs?: ReadonlyArray<{ id: string; identityVersion?: number | null }>
+  prepDecks?: ReadonlyArray<{ id: string; identityVersion?: number | null }>
+  coverLetters?: ReadonlyArray<{ id: string; identityVersion?: number | null }>
+}
+
+/**
+ * Surveys a workspace and returns artifacts whose recorded `identityVersion`
+ * is strictly behind the current identity revision.
+ *
+ * Coarse signal — pairs with `describeImpact` (mutation-aware, field-level).
+ * Use this when you need a workspace-wide "what's stale right now?" view
+ * without a specific mutation in hand. Artifacts without a recorded
+ * `identityVersion` are excluded (no stamp = no comparison possible).
+ */
+export const findStaleArtifacts = (
+  currentIdentityVersion: number,
+  workspace: StalenessSurveyInput,
+): StaleArtifactSummary[] => {
+  const out: StaleArtifactSummary[] = []
+  const collect = (
+    items: ReadonlyArray<{ id: string; identityVersion?: number | null }> | undefined,
+    artifactType: ArtifactImpactType,
+  ): void => {
+    if (!items) return
+    for (const item of items) {
+      const version = sanitizeIdentityVersion(item.identityVersion)
+      if (version === undefined) continue
+      if (isArtifactStale({ identityVersion: version }, currentIdentityVersion)) {
+        out.push({ artifactType, artifactId: item.id, identityVersion: version })
+      }
+    }
+  }
+  for (const artifactType of IMPACT_TYPE_ORDER) {
+    if (artifactType === 'thesis') collect(workspace.theses, 'thesis')
+    else if (artifactType === 'run') collect(workspace.runs, 'run')
+    else if (artifactType === 'prep-deck') collect(workspace.prepDecks, 'prep-deck')
+    else if (artifactType === 'cover-letter') collect(workspace.coverLetters, 'cover-letter')
+  }
+  return out
+}
+
 /**
  * Human-readable summary of identity changes between two revisions.
  *

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:04'
-updated_date: '2026-05-07 21:36'
+updated_date: '2026-05-07 21:42'
 labels:
   - shepherding
   - staleness
@@ -61,7 +61,7 @@ This is the mechanism that makes corrections feel like progress — the user see
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Generated artifacts record the identity model version they were created from
-- [ ] #2 When identity model changes, stale artifacts are identified by version comparison
+- [x] #2 When identity model changes, stale artifacts are identified by version comparison
 - [x] #3 Non-blocking notification surfaces stale artifact count
 - [ ] #4 User can review stale artifacts with diff showing what changed and why
 - [x] #5 One-click accept/reject per artifact in batch review
@@ -90,6 +90,22 @@ Verification: npx vitest run src/test/ResearchPage.test.tsx src/test/artifactMet
 Regression coverage in src/test/PrepPage.identityGeneration.test.tsx: bumped the fixture's model_revision and the JD analysis fixture's identityVersion from 0 to 3 (matched, so the drift gate doesn't trip), and added an assertion that the AI-generated deck stamps `identityVersion === 3`. Verified the test fails (`expected undefined to be 3`) when the stamping line is removed, confirming it catches regressions mechanically.
 
 Verification: npm run typecheck PASS; npx vitest run src/test/PrepPage.identityGeneration.test.tsx PASS (8/8). Closing AC #1; remaining outstanding ACs (#2, #4, #6, #8) tracked separately.
+
+2026-05-07 AC #2 closure: Added `findStaleArtifacts(currentIdentityVersion, workspace)` cross-store survey helper in src/types/artifactMeta.ts. Given a workspace inventory (theses, runs, prep decks, cover letters), returns the subset whose recorded `identityVersion` is strictly behind current. Coarse signal, pairs with the existing mutation-aware `describeImpact` (field-level) — use `findStaleArtifacts` when you need a workspace-wide survey without a specific mutation in hand.
+
+Gap that motivated the helper: prior to this, version-based identification only happened inside the Research workspace's writeback flow. `isArtifactStale` (per-artifact predicate) had zero production call sites, only tests. There was no cross-store function to answer "given current identity revision, which artifacts are stale?"
+
+Design decisions:
+- Artifacts without a recorded `identityVersion` are excluded (no stamp = no comparison possible). AC #1 just closed the stamping gap, so going forward all generated artifacts will be surveyed.
+- Output preserves the canonical `IMPACT_TYPE_ORDER` (thesis → run → prep-deck → cover-letter) so downstream UIs render in a stable shape.
+- Time-travel guard: artifacts ahead of current (identityVersion > currentVersion) are not flagged — same invariant as `isArtifactStale`.
+- Function is pure and store-shape-agnostic (accepts `Array<{id, identityVersion?}>`) so it doesn't pull in store types or create circular imports.
+
+Not wired to any UI surface yet — AC #2 only requires the identification capability. Surface wiring lives under AC #3 (already done for the writeback case) and AC #4 (diff UI, still outstanding).
+
+Test coverage in src/test/artifactMeta.test.ts: 6 new cases covering empty workspace, all-current, mixed (only stale returned), unstamped artifacts excluded, time-travel guard, and canonical type ordering. 24/24 in artifactMeta.test.ts pass.
+
+Verification: npm run typecheck PASS; npx vitest run src/test/artifactMeta.test.ts PASS (24/24).
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

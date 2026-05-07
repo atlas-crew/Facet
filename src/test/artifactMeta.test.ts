@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   describeImpact,
   describeIdentityDiff,
+  findStaleArtifacts,
   isArtifactStale,
   recordIdentityMetadata,
   sanitizeArtifactStalenessReview,
@@ -25,6 +26,70 @@ describe('artifactMeta helpers', () => {
 
     it('returns false at the initial zero state', () => {
       expect(isArtifactStale({ identityVersion: 0 }, 0)).toBe(false)
+    })
+  })
+
+  describe('findStaleArtifacts', () => {
+    it('returns an empty list for an empty workspace', () => {
+      expect(findStaleArtifacts(5, {})).toEqual([])
+    })
+
+    it('returns an empty list when every artifact is at the current revision', () => {
+      const workspace = {
+        theses: [{ id: 't-1', identityVersion: 5 }],
+        runs: [{ id: 'r-1', identityVersion: 5 }],
+        prepDecks: [{ id: 'd-1', identityVersion: 5 }],
+        coverLetters: [{ id: 'c-1', identityVersion: 5 }],
+      }
+      expect(findStaleArtifacts(5, workspace)).toEqual([])
+    })
+
+    it('flags artifacts whose identityVersion is strictly behind current', () => {
+      const workspace = {
+        theses: [
+          { id: 't-current', identityVersion: 5 },
+          { id: 't-stale', identityVersion: 3 },
+        ],
+        runs: [{ id: 'r-stale', identityVersion: 4 }],
+        prepDecks: [{ id: 'd-stale', identityVersion: 2 }],
+        coverLetters: [{ id: 'c-current', identityVersion: 5 }],
+      }
+      expect(findStaleArtifacts(5, workspace)).toEqual([
+        { artifactType: 'thesis', artifactId: 't-stale', identityVersion: 3 },
+        { artifactType: 'run', artifactId: 'r-stale', identityVersion: 4 },
+        { artifactType: 'prep-deck', artifactId: 'd-stale', identityVersion: 2 },
+      ])
+    })
+
+    it('excludes artifacts that have no recorded identityVersion (no stamp = no comparison)', () => {
+      const workspace = {
+        theses: [{ id: 't-unstamped', identityVersion: undefined }],
+        prepDecks: [{ id: 'd-null', identityVersion: null }],
+      }
+      expect(findStaleArtifacts(10, workspace)).toEqual([])
+    })
+
+    it('does not flag artifacts ahead of current revision (time-travel guard)', () => {
+      const workspace = {
+        theses: [{ id: 't-future', identityVersion: 9 }],
+      }
+      expect(findStaleArtifacts(5, workspace)).toEqual([])
+    })
+
+    it('preserves the canonical artifact-type order: thesis, run, prep-deck, cover-letter', () => {
+      const workspace = {
+        coverLetters: [{ id: 'c-1', identityVersion: 1 }],
+        prepDecks: [{ id: 'd-1', identityVersion: 1 }],
+        runs: [{ id: 'r-1', identityVersion: 1 }],
+        theses: [{ id: 't-1', identityVersion: 1 }],
+      }
+      const stale = findStaleArtifacts(5, workspace)
+      expect(stale.map((entry) => entry.artifactType)).toEqual([
+        'thesis',
+        'run',
+        'prep-deck',
+        'cover-letter',
+      ])
     })
   })
 
