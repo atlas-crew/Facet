@@ -8,6 +8,9 @@ const IN_FLIGHT = new Set(['queued', 'running'])
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1_000
 const DEFAULT_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1_000
 const DEFAULT_PROGRESS_INTERVAL_MS = 15_000
+const DEFAULT_SSE_KEEPALIVE_MS = 15_000
+const DEFAULT_SSE_REAUTH_INTERVAL_MS = 60_000
+const MAX_SSE_BUFFER_BYTES = 1_000_000
 const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_RETRY_BASE_DELAY_MS = 1_000
 const DEFAULT_USAGE_WINDOW_MS = 24 * 60 * 60 * 1_000
@@ -25,6 +28,39 @@ function clone(value) {
   return typeof structuredClone === 'function'
     ? structuredClone(value)
     : JSON.parse(JSON.stringify(value))
+}
+
+function createResearchJobEventHub() {
+  const subscribers = new Map()
+
+  return {
+    publish(jobId, event) {
+      const listeners = subscribers.get(jobId)
+      if (!listeners) return
+      for (const listener of [...listeners]) {
+        try {
+          listener(clone(event))
+        } catch {}
+      }
+    },
+    subscribe(jobId, listener) {
+      let listeners = subscribers.get(jobId)
+      if (!listeners) {
+        listeners = new Set()
+        subscribers.set(jobId, listeners)
+      }
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0) {
+          subscribers.delete(jobId)
+        }
+      }
+    },
+    clear() {
+      subscribers.clear()
+    },
+  }
 }
 
 function stableStringify(value) {
@@ -127,6 +163,110 @@ function inFlightHeartbeatMs(job) {
 
 function isFreshInFlightJob(job, nowMs, heartbeatTimeoutMs) {
   return IN_FLIGHT.has(job.status) && nowMs - inFlightHeartbeatMs(job) <= heartbeatTimeoutMs
+}
+
+function writeSseEvent(res, event) {
+  if (res.writableEnded || res.destroyed) return false
+  let payload = 'event: ' + event.type + '\n'
+  const data = JSON.stringify(event.data ?? {})
+  for (const line of data.split('\n')) {
+    payload += 'data: ' + line + '\n'
+  }
+  payload += '\n'
+  if (res.writableLength + Buffer.byteLength(payload) > MAX_SSE_BUFFER_BYTES) return false
+  res.write(payload)
+  return true
+}
+
+function writeSseComment(res, comment = 'keepalive') {
+  if (res.writableEnded || res.destroyed) return false
+  const payload = ': ' + comment + '\n\n'
+  if (res.writableLength + Buffer.byteLength(payload) > MAX_SSE_BUFFER_BYTES) return false
+  res.write(payload)
+  return true
+}
+
+function statusEvent(job) {
+  return {
+    type: 'status',
+    data: {
+      status: job.status,
+      jobId: job.id,
+      phase: job.progress?.phase ?? job.status,
+    },
+  }
+}
+
+function progressEvent(job) {
+  return {
+    type: 'progress',
+    data: {
+      jobId: job.id,
+      phase: job.progress?.phase ?? job.status,
+      elapsedMs: job.progress?.elapsedMs ?? 0,
+      searchQueries: Array.isArray(job.progress?.searchQueries) ? job.progress.searchQueries : [],
+      findingsCount: typeof job.progress?.findingsCount === 'number' ? job.progress.findingsCount : 0,
+    },
+  }
+}
+
+function maybeTerminalEvent(job) {
+  if (job.status === 'completed') {
+    return {
+      type: 'complete',
+      data: { status: 'completed', jobId: job.id },
+      terminal: true,
+    }
+  }
+  if (job.status === 'failed') {
+    return {
+      type: 'error',
+      data: {
+        status: 'failed',
+        jobId: job.id,
+        error: job.error ?? { code: 'research_job_failed', message: 'Research job failed.' },
+      },
+      terminal: true,
+    }
+  }
+  if (job.status === 'canceled') {
+    return {
+      type: 'status',
+      data: { status: 'canceled', jobId: job.id, phase: job.progress?.phase ?? 'canceled' },
+      terminal: true,
+    }
+  }
+  return null
+}
+
+function responseStreamEvents(response, result, { exposeThinking = true } = {}) {
+  const events = []
+  for (const part of Array.isArray(response?.content) ? response.content : []) {
+    if (!isRecord(part)) continue
+    if (exposeThinking && part.type === 'thinking' && typeof part.thinking === 'string' && part.thinking.trim()) {
+      events.push({ type: 'thinking', data: { text: part.thinking } })
+    }
+    if (part.type === 'server_tool_use' || part.type === 'tool_use') {
+      const input = isRecord(part.input) ? part.input : {}
+      const query = typeof input.query === 'string' ? input.query.trim() : ''
+      if ((part.name === 'web_search' || part.name === 'web_search_20260209') && query) {
+        events.push({ type: 'search_query', data: { query } })
+      }
+    }
+    if (part.type === 'web_search_tool_result' && typeof part.summary === 'string' && part.summary.trim()) {
+      events.push({ type: 'finding', data: { summary: part.summary } })
+    }
+  }
+
+  if (Array.isArray(result?.results)) {
+    events.push({
+      type: 'finding',
+      data: {
+        summary: 'Found ' + result.results.length + ' research result' + (result.results.length === 1 ? '' : 's') + '.',
+      },
+    })
+  }
+  return events
 }
 
 function normalizeJob(value) {
@@ -561,12 +701,18 @@ export function createResearchJobService(options) {
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS
   const heartbeatTimeoutMs = options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS
   const progressIntervalMs = options.progressIntervalMs ?? DEFAULT_PROGRESS_INTERVAL_MS
+  const sseKeepaliveMs = options.sseKeepaliveMs ?? DEFAULT_SSE_KEEPALIVE_MS
+  const sseReauthIntervalMs = options.sseReauthIntervalMs ?? DEFAULT_SSE_REAUTH_INTERVAL_MS
+  const sseEnabled = options.sseEnabled ?? true
+  const sseExposeThinking = options.sseExposeThinking ?? true
   const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
   const retryBaseDelayMs = options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS
   const onEvent = options.onEvent ?? (() => {})
   const logger = options.logger ?? console
   const activeRunners = new Map()
   const actorCreateQueues = new Map()
+  const eventHub = createResearchJobEventHub()
+  const activeStreams = new Set()
   const config = {
     model: options.model ?? 'claude-opus-4-7',
     maxTokens: options.maxTokens ?? 128_000,
@@ -590,8 +736,17 @@ export function createResearchJobService(options) {
   const warningRatio = clampRatio(options.warningRatio, DEFAULT_USAGE_WARNING_RATIO)
 
   const record = (result, details) => onEvent('research_job', result, details)
-  const resolveActor = async (req) => {
-    const actor = await options.actorResolver(req)
+  const publish = (jobId, event) => eventHub.publish(jobId, event)
+  const publishStatus = (job) => publish(job.id, statusEvent(job))
+  const publishProgress = (job) => {
+    if (job?.progress && !TERMINAL.has(job.status)) publish(job.id, progressEvent(job))
+  }
+  const publishTerminal = (job) => {
+    const event = maybeTerminalEvent(job)
+    if (event) publish(job.id, event)
+  }
+  const resolveActor = async (req, resolveOptions) => {
+    const actor = await options.actorResolver(req, resolveOptions)
     if (!actor?.userId) {
       const error = new Error('Research jobs require an authenticated actor.')
       error.status = 401
@@ -602,7 +757,11 @@ export function createResearchJobService(options) {
   const runMaintenance = async () => {
     const nowMs = now()
     const failed = await store.failOrphanedJobs(nowMs, heartbeatTimeoutMs, ttlMs)
-    for (const job of failed) record('failed', { jobId: job.id, userId: job.userId, code: job.error?.code })
+    for (const job of failed) {
+      publishStatus(job)
+      publishTerminal(job)
+      record('failed', { jobId: job.id, userId: job.userId, code: job.error?.code })
+    }
     await store.cleanup(nowMs)
   }
   const actorQueueKey = (actor) => [
@@ -700,7 +859,7 @@ export function createResearchJobService(options) {
   }
   const updateProgress = async (jobId, phase, extra = {}) => {
     const nowMs = now()
-    return store.updateJob(jobId, (job) => {
+    const updated = await store.updateJob(jobId, (job) => {
       if (!job || TERMINAL.has(job.status)) return job
       return {
         ...job,
@@ -714,6 +873,8 @@ export function createResearchJobService(options) {
         },
       }
     }, nowMs)
+    publishProgress(updated)
+    return updated
   }
   const startRunner = (jobId) => {
     if (activeRunners.has(jobId)) return
@@ -741,6 +902,8 @@ export function createResearchJobService(options) {
         }
       }, now())
       if (!job || job.status !== 'running') return
+      publishStatus(job)
+      publishProgress(job)
       record('running', { jobId: job.id, userId: job.userId, status: job.status })
       interval = setInterval(() => {
         void updateProgress(jobId, 'running deep research')
@@ -775,6 +938,9 @@ export function createResearchJobService(options) {
       job = await store.getJobForActor(jobId, job, now())
       if (!job || job.status === 'canceled') return
       const result = parseResearchResult(response)
+      for (const event of responseStreamEvents(response, result, { exposeThinking: sseExposeThinking })) {
+        publish(jobId, event)
+      }
       const nowMs = now()
       const completed = await store.updateJob(jobId, (current) => {
         if (!current || TERMINAL.has(current.status)) return current
@@ -793,6 +959,8 @@ export function createResearchJobService(options) {
         }
       }, nowMs)
       if (!completed || completed.status !== 'completed') return
+      publishStatus(completed)
+      publishTerminal(completed)
       record('completed', {
         jobId,
         userId: completed?.userId,
@@ -819,6 +987,10 @@ export function createResearchJobService(options) {
         }
       }, nowMs)
       logger.error?.('[research-jobs] runner failed', error, classified)
+      if (failed) {
+        publishStatus(failed)
+        publishTerminal(failed)
+      }
       record('failed', { jobId, userId: failed?.userId, code: classified.code, retriable: classified.retriable })
     } finally {
       if (interval) clearInterval(interval)
@@ -875,6 +1047,7 @@ export function createResearchJobService(options) {
       })
       if (!duplicate) {
         record('queued', { jobId: job.id, userId: job.userId, status: job.status })
+        publishStatus(job)
         setTimeout(() => startRunner(job.id), 0)
       }
 
@@ -930,7 +1103,112 @@ export function createResearchJobService(options) {
     }
     activeRunners.get(id)?.abort()
     record('canceled', { jobId: job.id, userId: job.userId, status: job.status })
+    publishStatus(job)
+    publishTerminal(job)
     options.sendJson(res, 200, { job })
+  }
+  const streamJob = async (req, res, id) => {
+    if (!sseEnabled) {
+      options.sendJson(res, 501, { error: 'Research job streaming is not available.', code: 'research_job_stream_unavailable' })
+      return
+    }
+
+    const actor = await resolveActor(req)
+    await runMaintenance()
+    const bufferedEvents = []
+    let replayingSnapshot = true
+    let unsubscribe = eventHub.subscribe(id, (event) => {
+      if (replayingSnapshot) {
+        bufferedEvents.push(event)
+        return
+      }
+      forward(event)
+    })
+
+    let job
+    try {
+      job = await store.getJobForActor(id, actor, now())
+    } catch (error) {
+      unsubscribe()
+      throw error
+    }
+    if (!job) {
+      unsubscribe()
+      options.sendJson(res, 404, { error: 'Research job not found.', code: 'research_job_not_found' })
+      return
+    }
+
+    let keepalive = null
+    let closed = false
+    const cleanup = () => {
+      if (closed) return
+      closed = true
+      unsubscribe()
+      if (keepalive) clearInterval(keepalive)
+      activeStreams.delete(cleanup)
+      if (!res.writableEnded) res.end()
+    }
+    const forward = (event) => {
+      if (!writeSseEvent(res, event)) {
+        cleanup()
+        return
+      }
+      if (event.terminal) cleanup()
+    }
+    activeStreams.add(cleanup)
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-store, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+
+    forward(statusEvent(job))
+    if (job.progress && !TERMINAL.has(job.status)) forward(progressEvent(job))
+    if (TERMINAL.has(job.status)) {
+      const terminal = maybeTerminalEvent(job)
+      if (terminal) forward(terminal)
+      return
+    }
+
+    const reauthorize = async () => {
+      try {
+        const currentActor = await resolveActor(req, { refresh: true })
+        return await store.getJobForActor(id, currentActor, now())
+      } catch {
+        return null
+      }
+    }
+
+    let reauthorizing = false
+    let lastReauthMs = Date.now()
+    keepalive = setInterval(() => {
+      if (!writeSseComment(res)) {
+        cleanup()
+        return
+      }
+      if (reauthorizing || Date.now() - lastReauthMs < sseReauthIntervalMs) return
+      reauthorizing = true
+      void reauthorize()
+        .then((current) => {
+          if (!current) {
+            logger.warn?.('[research-jobs] stream authorization expired', { jobId: id })
+            cleanup()
+            return
+          }
+          lastReauthMs = Date.now()
+        })
+        .finally(() => {
+          reauthorizing = false
+        })
+    }, sseKeepaliveMs)
+
+    replayingSnapshot = false
+    for (const event of bufferedEvents) {
+      if (closed) break
+      forward(event)
+    }
+    bufferedEvents.length = 0
   }
 
   return {
@@ -938,14 +1216,15 @@ export function createResearchJobService(options) {
     canHandle(pathname) {
       return pathname === '/research/jobs' ||
         pathname === '/research/usage' ||
-        /^\/research\/jobs\/[^/]+(?:\/cancel)?$/.test(pathname)
+        /^\/research\/jobs\/[^/]+(?:\/(cancel|stream))?$/.test(pathname)
     },
     async handle(req, res, url) {
-      const match = url.pathname.match(/^\/research\/jobs\/([^/]+)(?:\/(cancel))?$/)
+      const match = url.pathname.match(/^\/research\/jobs\/([^/]+)(?:\/(cancel|stream))?$/)
       if (url.pathname === '/research/jobs' && req.method === 'POST') return createJob(req, res)
       if (url.pathname === '/research/jobs' && req.method === 'GET') return listJobs(req, res, url)
       if (url.pathname === '/research/usage' && req.method === 'GET') return getUsage(req, res)
       if (match?.[1] && match[2] === 'cancel' && req.method === 'POST') return cancelJob(req, res, match[1])
+      if (match?.[1] && match[2] === 'stream' && req.method === 'GET') return streamJob(req, res, match[1])
       if (match?.[1] && !match[2] && req.method === 'GET') return getJob(req, res, match[1])
       options.sendJson(res, 405, { error: 'Method not allowed' })
     },
@@ -955,6 +1234,8 @@ export function createResearchJobService(options) {
     dispose() {
       for (const controller of activeRunners.values()) controller.abort()
       activeRunners.clear()
+      for (const cleanup of [...activeStreams]) cleanup()
+      eventHub.clear()
     },
   }
 }

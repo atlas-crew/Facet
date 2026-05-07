@@ -919,8 +919,8 @@ export function createFacetServer(options = {}) {
         : createTokenActorResolver(persistenceAuthTokens)
     )
   const requestActorSymbol = Symbol('facet.requestActor')
-  const resolveRequestActor = async (req) => {
-    if (req[requestActorSymbol]) {
+  const resolveRequestActor = async (req, { refresh = false } = {}) => {
+    if (!refresh && req[requestActorSymbol]) {
       return req[requestActorSymbol]
     }
 
@@ -933,9 +933,9 @@ export function createFacetServer(options = {}) {
     accountId: 'local',
     userId: 'local-user',
   }
-  const resolveResearchJobActor = async (req) => {
+  const resolveResearchJobActor = async (req, options) => {
     if (authMode === 'hosted' || extractBearerToken(req.headers.authorization)) {
-      return resolveRequestActor(req)
+      return resolveRequestActor(req, options)
     }
 
     return localResearchActor
@@ -1131,6 +1131,10 @@ export function createFacetServer(options = {}) {
     ttlMs: options.researchJobTtlMs,
     heartbeatTimeoutMs: options.researchJobHeartbeatTimeoutMs,
     progressIntervalMs: options.researchJobProgressIntervalMs,
+    sseEnabled: options.researchJobSseEnabled,
+    sseKeepaliveMs: options.researchJobSseKeepaliveMs,
+    sseReauthIntervalMs: options.researchJobSseReauthIntervalMs,
+    sseExposeThinking: options.researchJobSseExposeThinking,
     maxAttempts: options.researchJobMaxAttempts,
     retryBaseDelayMs: options.researchJobRetryBaseDelayMs,
     usageWindowMs: options.researchUsageWindowMs,

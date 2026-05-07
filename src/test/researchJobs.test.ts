@@ -9,6 +9,12 @@ type AnthropicCreate = (params: unknown, options?: {
   signal?: AbortSignal
 }) => Promise<unknown>
 
+type SseRecord = {
+  event?: string
+  data?: Record<string, unknown>
+  comment?: string
+}
+
 async function loadProxyModules() {
   const [
     { createFacetServer },
@@ -173,6 +179,29 @@ function researchResponse(candidateEdge = 'The candidate wins because they have 
   }
 }
 
+function streamingResearchResponse() {
+  const response = researchResponse()
+  return {
+    ...response,
+    content: [
+      {
+        type: 'thinking',
+        thinking: 'Looking at the Platform + Security combination...',
+      },
+      {
+        type: 'server_tool_use',
+        name: 'web_search',
+        input: { query: '"platform engineer" security startup' },
+      },
+      {
+        type: 'web_search_tool_result',
+        summary: 'Found 3 promising companies in early-stage security platform space.',
+      },
+      ...response.content,
+    ],
+  }
+}
+
 function fencedResearchResponse() {
   const response = researchResponse()
   const fence = String.fromCharCode(96, 96, 96)
@@ -206,6 +235,10 @@ async function startResearchServer(options: {
   anthropicCreate?: AnthropicCreate
   maxAttempts?: number
   progressIntervalMs?: number
+  sseEnabled?: boolean
+  sseKeepaliveMs?: number
+  sseReauthIntervalMs?: number
+  sseExposeThinking?: boolean
   heartbeatTimeoutMs?: number
   ttlMs?: number
   researchBudgetCents?: number
@@ -213,9 +246,20 @@ async function startResearchServer(options: {
   researchBudgetWarningRatio?: number
   researchEstimatedInputTokens?: number
   researchEstimatedOutputTokens?: number
+  persistenceActorResolver?: (req: unknown, options?: { refresh?: boolean }) => Promise<{
+    tenantId?: string
+    accountId?: string
+    userId: string
+    workspaces?: string[]
+  }>
 } = {}) {
   const { createFacetServer } = await loadProxyModules()
   let nowMs = Date.parse('2026-03-15T12:00:00.000Z')
+  const logger = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  }
   const { server, operationsMonitor, researchJobStore } = createFacetServer({
     allowedOrigins: ['http://localhost:5173'],
     proxyApiKey: 'proxy-key',
@@ -233,6 +277,7 @@ async function startResearchServer(options: {
         workspaces: ['ws-2'],
       },
     ],
+    persistenceActorResolver: options.persistenceActorResolver,
     anthropicClient: {
       messages: {
         create: options.anthropicCreate ?? (async () => researchResponse()),
@@ -240,6 +285,10 @@ async function startResearchServer(options: {
     },
     researchJobNow: () => nowMs,
     researchJobProgressIntervalMs: options.progressIntervalMs ?? 5,
+    researchJobSseEnabled: options.sseEnabled,
+    researchJobSseKeepaliveMs: options.sseKeepaliveMs,
+    researchJobSseReauthIntervalMs: options.sseReauthIntervalMs,
+    researchJobSseExposeThinking: options.sseExposeThinking,
     researchJobHeartbeatTimeoutMs: options.heartbeatTimeoutMs,
     researchJobTtlMs: options.ttlMs,
     researchJobMaxAttempts: options.maxAttempts ?? 2,
@@ -249,11 +298,7 @@ async function startResearchServer(options: {
     researchBudgetWarningRatio: options.researchBudgetWarningRatio,
     researchEstimatedInputTokens: options.researchEstimatedInputTokens,
     researchEstimatedOutputTokens: options.researchEstimatedOutputTokens,
-    logger: {
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-    },
+    logger,
   })
 
   await new Promise<void>((resolve) => {
@@ -271,6 +316,7 @@ async function startResearchServer(options: {
       nowMs += ms
     },
     baseUrl: 'http://127.0.0.1:' + address.port,
+    logger,
     operationsMonitor,
     researchJobStore,
     server,
@@ -302,6 +348,75 @@ async function createResearchJob(baseUrl: string, token = 'member-token') {
     method: 'POST',
     headers: jsonHeaders(token),
     body: JSON.stringify(researchPayload()),
+  })
+}
+
+function parseSseBlock(block: string): SseRecord | null {
+  const lines = block.split(/\r?\n/)
+  const comment = lines.find((line) => line.startsWith(':'))?.slice(1).trim()
+  if (comment) return { comment }
+
+  const eventLine = lines.find((line) => line.startsWith('event:'))
+  const dataLines = lines
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice('data:'.length).trimStart())
+  if (!eventLine) return null
+
+  return {
+    event: eventLine.slice('event:'.length).trim(),
+    data: dataLines.length > 0 ? JSON.parse(dataLines.join('\n')) : {},
+  }
+}
+
+async function readSseRecords(
+  response: Response,
+  predicate: (records: SseRecord[], ended: boolean) => boolean,
+  timeoutMs = 1_000,
+) {
+  if (!response.body) throw new Error('Expected an SSE response body.')
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const records: SseRecord[] = []
+  let buffer = ''
+  let ended = false
+  const deadline = Date.now() + timeoutMs
+  try {
+    while (Date.now() < deadline) {
+      if (predicate(records, ended)) return { records, ended }
+      const read = await Promise.race([
+        reader.read(),
+        new Promise<ReadableStreamReadResult<Uint8Array>>((resolve) => {
+          setTimeout(() => resolve({ done: false, value: new Uint8Array() }), 20)
+        }),
+      ])
+      if (read.done) {
+        ended = true
+        if (buffer.trim()) {
+          const parsed = parseSseBlock(buffer.trim())
+          if (parsed) records.push(parsed)
+          buffer = ''
+        }
+        if (predicate(records, ended)) return { records, ended }
+        break
+      }
+      if (!read.value?.length) continue
+      buffer += decoder.decode(read.value, { stream: true })
+      const blocks = buffer.split(/\r?\n\r?\n/)
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        const parsed = parseSseBlock(block)
+        if (parsed) records.push(parsed)
+      }
+    }
+  } finally {
+    if (!ended) await reader.cancel().catch(() => {})
+  }
+  throw new Error('Timed out waiting for SSE records. Latest: ' + JSON.stringify(records))
+}
+
+async function openJobStream(baseUrl: string, jobId: string, token = 'member-token') {
+  return fetch(baseUrl + '/research/jobs/' + jobId + '/stream', {
+    headers: jsonHeaders(token),
   })
 }
 
@@ -738,6 +853,189 @@ describe('research job API', () => {
       async () => (await fetchJob(baseUrl, created.jobId)).body.job,
       (job) => job.status === 'completed',
     )
+  })
+
+  it('streams running job events to multiple subscribers in order', async () => {
+    let resolveResponse: ((value: unknown) => void) | null = null
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise((resolve) => {
+      resolveResponse = resolve
+    }))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+
+    const firstStream = await openJobStream(baseUrl, created.jobId)
+    const secondStream = await openJobStream(baseUrl, created.jobId)
+    expect(firstStream.status).toBe(200)
+    expect(secondStream.status).toBe(200)
+    expect(firstStream.headers.get('content-type')).toContain('text/event-stream')
+    expect(firstStream.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
+
+    expect(resolveResponse).toBeTruthy()
+    const finishResearch = resolveResponse as unknown as (value: unknown) => void
+    finishResearch(streamingResearchResponse())
+
+    const untilComplete = (records: SseRecord[], ended: boolean) => (
+      ended && records.some((record) => record.event === 'complete')
+    )
+    const first = await readSseRecords(firstStream, untilComplete)
+    const second = await readSseRecords(secondStream, untilComplete)
+
+    for (const result of [first, second]) {
+      const events = result.records
+        .filter((record) => record.event)
+        .map((record) => record.event)
+      expect(events).toEqual(expect.arrayContaining([
+        'status',
+        'progress',
+        'thinking',
+        'search_query',
+        'finding',
+        'complete',
+      ]))
+      expect(events.indexOf('thinking')).toBeGreaterThan(events.indexOf('progress'))
+      expect(events.indexOf('search_query')).toBeGreaterThan(events.indexOf('thinking'))
+      expect(events.indexOf('complete')).toBeGreaterThan(events.lastIndexOf('finding'))
+      expect(result.records).toContainEqual({
+        event: 'thinking',
+        data: { text: 'Looking at the Platform + Security combination...' },
+      })
+      expect(result.records).toContainEqual({
+        event: 'search_query',
+        data: { query: '"platform engineer" security startup' },
+      })
+      expect(result.records).toContainEqual({
+        event: 'complete',
+        data: { status: 'completed', jobId: created.jobId },
+      })
+      expect(result.ended).toBe(true)
+    }
+  })
+
+  it('auth-scopes research job streams and reports disabled SSE as not implemented', async () => {
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate: vi.fn<AnthropicCreate>(() => new Promise(() => {})),
+    })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+
+    const otherStream = await openJobStream(baseUrl, created.jobId, 'other-token')
+    expect(otherStream.status).toBe(404)
+    await expect(otherStream.json()).resolves.toMatchObject({
+      code: 'research_job_not_found',
+    })
+
+    const disabled = await startResearchServer({ sseEnabled: false })
+    const disabledCreate = await createResearchJob(disabled.baseUrl)
+    const disabledJob = await disabledCreate.json()
+    const disabledStream = await openJobStream(disabled.baseUrl, disabledJob.jobId)
+    expect(disabledStream.status).toBe(501)
+    await expect(disabledStream.json()).resolves.toMatchObject({
+      code: 'research_job_stream_unavailable',
+    })
+  })
+
+  it('sends keepalive comments and tolerates client disconnects', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise(() => {}))
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate,
+      sseKeepaliveMs: 5,
+    })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+
+    const stream = await openJobStream(baseUrl, created.jobId)
+    expect(stream.status).toBe(200)
+    const keepalive = await readSseRecords(
+      stream,
+      (records) => records.some((record) => record.comment === 'keepalive'),
+    )
+    expect(keepalive.records).toContainEqual({ comment: 'keepalive' })
+  })
+
+  it('streams cancellation as a terminal status event', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise(() => {}))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    const stream = await openJobStream(baseUrl, created.jobId)
+    expect(stream.status).toBe(200)
+
+    const cancelResponse = await fetch(baseUrl + '/research/jobs/' + created.jobId + '/cancel', {
+      method: 'POST',
+      headers: jsonHeaders(),
+    })
+    expect(cancelResponse.status).toBe(200)
+
+    const canceled = await readSseRecords(
+      stream,
+      (records, ended) => ended && records.some((record) => record.data?.status === 'canceled'),
+    )
+    expect(canceled.records).toContainEqual({
+      event: 'status',
+      data: { status: 'canceled', jobId: created.jobId, phase: 'canceled' },
+    })
+    expect(canceled.ended).toBe(true)
+  })
+
+  it('late subscribers receive complete and close immediately for completed jobs', async () => {
+    const { baseUrl } = await startResearchServer()
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    await waitUntil(
+      async () => (await fetchJob(baseUrl, created.jobId)).body.job,
+      (job) => job.status === 'completed',
+    )
+
+    const stream = await openJobStream(baseUrl, created.jobId)
+    expect(stream.status).toBe(200)
+    const result = await readSseRecords(
+      stream,
+      (records, ended) => ended && records.some((record) => record.event === 'complete'),
+    )
+    expect(result.records).toContainEqual({
+      event: 'complete',
+      data: { status: 'completed', jobId: created.jobId },
+    })
+    expect(result.ended).toBe(true)
+  })
+
+  it('streams terminal errors and closes failed jobs', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise((_resolve, reject) => {
+      setTimeout(() => reject(Object.assign(new Error('bad request'), { status: 400 })), 10)
+    }))
+    const { baseUrl } = await startResearchServer({ anthropicCreate })
+
+    const createResponse = await createResearchJob(baseUrl)
+    const created = await createResponse.json()
+    const stream = await openJobStream(baseUrl, created.jobId)
+    expect(stream.status).toBe(200)
+
+    const result = await readSseRecords(
+      stream,
+      (records, ended) => ended && records.some((record) => record.event === 'error'),
+    )
+    expect(result.records).toContainEqual({
+      event: 'error',
+      data: {
+        status: 'failed',
+        jobId: created.jobId,
+        error: {
+          code: 'upstream_400',
+          message: 'bad request',
+          retriable: false,
+        },
+      },
+    })
+    expect(result.ended).toBe(true)
   })
 
   it('aborts active research runners when the server closes', async () => {
