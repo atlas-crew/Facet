@@ -347,9 +347,9 @@ describe('searchExecutor', () => {
       { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
     )
 
-    expect(normalized.results[0]?.matchReason).toBe('.')
+    expect(normalized.results[0]?.matchReason).toBe('')
     expect(normalized.results[0]?.vectorAlignment).toBe('')
-    expect(normalized.results[0]?.candidateEdge).toBe('.')
+    expect(normalized.results[0]?.candidateEdge).toBeUndefined()
     expect(normalized.contractViolations).toEqual([
       'rawResults[0].matchReason: empty after stripping unresolved citation markers (surfaced; tier: 1; company: MarkerOnly; title: Staff Engineer)',
       'rawResults[0].vectorAlignment: empty after stripping unresolved citation markers (surfaced; tier: 1; company: MarkerOnly; title: Staff Engineer)',
@@ -825,7 +825,7 @@ describe('searchExecutor', () => {
     })
     expect(result.contractViolations).toEqual([])
     expect(warnSpy).not.toHaveBeenCalledWith(
-      '[research] search result contract violations',
+      '[research] search result contract violations (executeSearch)',
       expect.any(Array),
     )
     warnSpy.mockRestore()
@@ -866,7 +866,7 @@ describe('searchExecutor', () => {
       'rawResults[0].matchReason: empty after stripping unresolved citation markers (surfaced; tier: 1; company: Acme; title: Staff Engineer)',
     ])
     expect(warnSpy).toHaveBeenCalledWith(
-      '[research] search result contract violations',
+      '[research] search result contract violations (executeSearch)',
       result.contractViolations,
     )
     warnSpy.mockRestore()

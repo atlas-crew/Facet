@@ -270,12 +270,13 @@ const cleanResultCitedText = (
     citations,
   )
   const proseWithoutCitationMarkers = stripCitationMarkers(cleaned)
+  const unresolvedCitationStrippedAllProse =
+    strippedUnresolved && !/[\p{L}\p{N}]/u.test(proseWithoutCitationMarkers)
   return {
-    text: cleaned,
+    text: unresolvedCitationStrippedAllProse ? '' : cleaned,
     // Punctuation left behind by stripped markers ("[cite:x].") is visual debris,
     // not the required result-level prose this contract is checking for.
-    unresolvedCitationStrippedAllProse:
-      strippedUnresolved && !/[\p{L}\p{N}]/u.test(proseWithoutCitationMarkers),
+    unresolvedCitationStrippedAllProse,
   }
 }
 
@@ -295,6 +296,14 @@ const annotateResultViolation = (
 ): string => {
   const statusLabel = status === 'surfaced' ? 'surfaced' : `dropped: tier ${entry.tier} cap`
   return `${violation} (${statusLabel}; tier: ${entry.tier}; company: ${entry.company}; title: ${entry.title})`
+}
+
+const logSearchResultContractViolations = (
+  source: 'executeSearch',
+  violations: readonly string[],
+) => {
+  if (violations.length === 0) return
+  console.warn(`[research] search result contract violations (${source})`, violations)
 }
 
 // ── Run-Level Narrative Normalization ────────────────────────────────────────
@@ -791,13 +800,8 @@ export function normalizeResultsWithContractViolations(
 }
 
 export function normalizeResults(payload: unknown, request: SearchRequest): SearchResultEntry[] {
-  const normalized = normalizeResultsWithContractViolations(payload, request)
-  if (normalized.contractViolations.length > 0) {
-    console.warn('[research] search result contract violations', normalized.contractViolations)
-  }
-  return normalized.results
+  return normalizeResultsWithContractViolations(payload, request).results
 }
-
 
 export function buildSearchPrompt(profile: SearchProfile, request: SearchRequest): string {
   const prioritizedSkills = profile.skills
@@ -900,9 +904,7 @@ Prioritize roles that match the candidate's vectors, seniority, and search const
       JSON.parse(extractJsonBlock(execution.text)),
       request,
     )
-    if (normalized.contractViolations.length > 0) {
-      console.warn('[research] search result contract violations', normalized.contractViolations)
-    }
+    logSearchResultContractViolations('executeSearch', normalized.contractViolations)
     return {
       results: normalized.results,
       searchLog: execution.searchLog,
