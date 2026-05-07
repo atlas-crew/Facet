@@ -4,6 +4,7 @@ import { useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
 import type { ResumeScanBulkProgress, ResumeScanResult } from '../types/identity'
 import { parseDeepenIdentityBulletResponse } from '../utils/identityExtraction'
+import { findStaleArtifacts } from '../types/artifactMeta'
 
 const createScanResult = (): ResumeScanResult => {
   const identity = cloneIdentityFixture()
@@ -1162,6 +1163,52 @@ describe('identityStore model_revision', () => {
     expect(identity?.model_revision).toBe(3)
     expect(skill?.depth).toBe('architectural')
     expect(skill?.depthSource).toBe('corrected')
+  })
+
+  it('flags older theses as stale after a vector change bumps the revision (TASK-158 AC #8)', () => {
+    seedCurrent(2)
+    const thesisBeforeChange = { id: 'thesis-1', identityVersion: 2 }
+
+    useIdentityStore.getState().updateCurrentSearchVectors([
+      {
+        id: 'vec-platform',
+        title: 'Platform Engineering',
+        priority: 'high',
+        thesis: 'Build resilient internal platforms.',
+        target_roles: ['Staff Platform Engineer'],
+        keywords: { primary: ['platform'], secondary: [] },
+      },
+    ])
+
+    const currentRevision = useIdentityStore.getState().currentIdentity?.model_revision
+    expect(currentRevision).toBe(3)
+    expect(
+      findStaleArtifacts(currentRevision ?? 0, { theses: [thesisBeforeChange] }),
+    ).toEqual([
+      { artifactType: 'thesis', artifactId: 'thesis-1', identityVersion: 2 },
+    ])
+  })
+
+  it('flags older theses as stale after a skill-depth change bumps the revision (TASK-158 AC #8)', () => {
+    seedCurrent(2)
+    const thesisBeforeChange = { id: 'thesis-1', identityVersion: 2 }
+
+    useIdentityStore
+      .getState()
+      .saveSkillEnrichment(
+        'platform',
+        'Kubernetes',
+        { depth: 'architectural', context: 'Architected platforms around it', positioning: '' },
+        'user',
+      )
+
+    const currentRevision = useIdentityStore.getState().currentIdentity?.model_revision
+    expect(currentRevision).toBe(3)
+    expect(
+      findStaleArtifacts(currentRevision ?? 0, { theses: [thesisBeforeChange] }),
+    ).toEqual([
+      { artifactType: 'thesis', artifactId: 'thesis-1', identityVersion: 2 },
+    ])
   })
 
   it('bumps model_revision on scanResult identity mutations', () => {

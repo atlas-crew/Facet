@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 06:04'
-updated_date: '2026-05-07 21:42'
+updated_date: '2026-05-07 21:52'
 labels:
   - shepherding
   - staleness
@@ -67,7 +67,7 @@ This is the mechanism that makes corrections feel like progress — the user see
 - [x] #5 One-click accept/reject per artifact in batch review
 - [ ] #6 Refresh action regenerates artifact with latest identity context (fresh-context critique)
 - [x] #7 Skill depth correction triggers staleness check on cover letters and prep cards referencing that skill
-- [ ] #8 Search thesis flagged as stale when vectors or skill depths change
+- [x] #8 Search thesis flagged as stale when vectors or skill depths change
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -106,6 +106,16 @@ Not wired to any UI surface yet — AC #2 only requires the identification capab
 Test coverage in src/test/artifactMeta.test.ts: 6 new cases covering empty workspace, all-current, mixed (only stale returned), unstamped artifacts excluded, time-travel guard, and canonical type ordering. 24/24 in artifactMeta.test.ts pass.
 
 Verification: npm run typecheck PASS; npx vitest run src/test/artifactMeta.test.ts PASS (24/24).
+
+2026-05-07 AC #8 closure: "Search thesis flagged as stale when vectors or skill depths change" turned out to be already mechanically satisfied by the universal `advanceModelRevision` bump path — every mutation through `updateCurrentIdentity` (including `updateCurrentSearchVectors` at line 1315 and `saveSkillEnrichment`) increments `currentIdentity.model_revision`. Theses recorded at the prior revision are then automatically flagged stale by `findStaleArtifacts` (the AC #2 helper).
+
+Gap that was missing: explicit test coverage proving this for the two AC-named triggers. Added two focused tests in src/test/identityStore.test.ts under the existing `identityStore model_revision` describe block:
+- 'flags older theses as stale after a vector change bumps the revision' — seeds identity at v=2, calls updateCurrentSearchVectors, asserts revision bumps to 3 AND findStaleArtifacts surfaces the v=2 thesis.
+- 'flags older theses as stale after a skill-depth change bumps the revision' — same shape with saveSkillEnrichment.
+
+Design note: AC #8 is satisfied without any new production code precisely because revision bumping is universal at the store level rather than per-mutation-type. Future identity-mutation paths inherit the staleness flagging "for free" without each one needing its own staleness-trigger wiring. The two tests pin this contract.
+
+Verification: npm run typecheck PASS; npx vitest run src/test/identityStore.test.ts PASS (43/43, 2 new). All TASK-158 outstanding ACs (#4 diff UI, #6 non-thesis refresh) remain; closing AC #8.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
