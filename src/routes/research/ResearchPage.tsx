@@ -45,7 +45,6 @@ import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
   buildDeepResearchIdentityEvidence,
-  buildDeepResearchThesisSnapshot,
   cancelDeepResearchJob,
   createDeepResearchJob,
   fetchDeepResearchJob,
@@ -563,6 +562,24 @@ const getReadinessCopy = ({
   }
 }
 
+const getLaunchSearchLabel = ({
+  isSearching,
+  hasActiveThesis,
+  hasProfile,
+  focusLaneCount,
+}: {
+  isSearching: boolean
+  hasActiveThesis: boolean
+  hasProfile: boolean
+  focusLaneCount: number
+}) => {
+  if (isSearching) return 'Searching...'
+  if (!hasActiveThesis) return 'Generate a thesis to launch search'
+  if (!hasProfile) return 'Create a profile to launch search'
+  if (focusLaneCount === 0) return 'Select a thesis lane to launch search'
+  return 'Launch Search'
+}
+
 export function ResearchPage() {
   const navigate = useNavigate()
   const resumeData = useResumeStore((state) => state.data)
@@ -606,7 +623,7 @@ export function ResearchPage() {
   const [activeTab, setActiveTab] = useState<ResearchTab>('profile')
   const [requestDraft, setRequestDraft] = useState(() => {
     const initialThesis = theses.find((thesis) => thesis.id === activeThesisId) ?? null
-    return buildRequestDraft(profile, initialThesis?.searchOverrides ?? null)
+    return buildRequestDraft(profile, initialThesis)
   })
   const [activeRunId, setActiveRunId] = useState<string | null>(runs.at(-1)?.id ?? null)
   const [resultVectorSelections, setResultVectorSelections] = useState<Record<string, string>>({})
@@ -887,6 +904,22 @@ export function ResearchPage() {
       label: vector.label,
     }))
   }, [effectiveProfile?.vectors, isIdentitySource, resumeData.vectors])
+  const laneOptions = useMemo(
+    () =>
+      activeThesis?.searchLanes.map((lane) => ({
+        id: lane.id,
+        label: lane.title || lane.id,
+      })) ?? [],
+    [activeThesis?.searchLanes],
+  )
+  const launchSearchDisabled =
+    isSearching || !effectiveProfile || !activeThesis || requestDraft.focusLanes.length === 0
+  const launchSearchLabel = getLaunchSearchLabel({
+    isSearching,
+    hasActiveThesis: Boolean(activeThesis),
+    hasProfile: Boolean(effectiveProfile),
+    focusLaneCount: requestDraft.focusLanes.length,
+  })
 
   const closedPipelineCompanies = useMemo(
     () =>
@@ -921,7 +954,7 @@ export function ResearchPage() {
     // Refresh request defaults when either the source profile or the active thesis (and thus its
     // override layer) changes. Switching theses is a context switch — request knobs should track
     // the new search rather than carry over the previous one's edits.
-    setRequestDraft(buildRequestDraft(effectiveProfile, activeThesis?.searchOverrides ?? null))
+    setRequestDraft(buildRequestDraft(effectiveProfile, activeThesis))
   }, [effectiveProfile, activeThesis])
 
   useEffect(() => {
@@ -2245,9 +2278,19 @@ export function ResearchPage() {
   }
 
   const handleLaunchSearch = async () => {
+    if (!activeThesis) {
+      setPageError('Generate a thesis before launching deep research.')
+      setActiveTab('search')
+      return
+    }
     if (!effectiveProfile || !executableProfile) {
       setPageError('Build or restore a search profile before launching search.')
       setActiveTab('profile')
+      return
+    }
+    if (requestDraft.focusLanes.length === 0) {
+      setPageError('Select at least one thesis lane before launching search.')
+      setActiveTab('search')
       return
     }
 
@@ -2263,13 +2306,7 @@ export function ResearchPage() {
       })
       // Reviewed theses are the strategy artifact for Phase 2; request knobs stay
       // on the SearchRequest while the thesis remains stable across retries.
-      const thesisSnapshot =
-        activeThesis ??
-        buildDeepResearchThesisSnapshot({
-          profile: executableProfile,
-          request,
-          identity: currentIdentity,
-        })
+      const thesisSnapshot = activeThesis
       const thesisSnapshotWithDependencies = thesisSnapshot.identityFields
         ? thesisSnapshot
         : {
@@ -3482,18 +3519,18 @@ export function ResearchPage() {
             <div className="research-card-header">
               <div>
                 <h2>Search Launcher</h2>
-                <p>Choose vectors, overrides, and result quotas for the next run.</p>
+                <p>Generate a thesis, then choose lanes, overrides, and result quotas.</p>
               </div>
               <div className="research-launch-actions">
                 <button
                   type="button"
                   className="research-btn ai-working-button"
                   onClick={() => void handleLaunchSearch()}
-                  disabled={isSearching}
+                  disabled={launchSearchDisabled}
                   aria-busy={isSearching}
                 >
                   <Search size={16} />
-                  {isSearching ? 'Searching…' : 'Launch Search'}
+                  {launchSearchLabel}
                 </button>
                 <p className="research-cost-preview">
                   Est. run: {formatCostCents(researchUsage?.estimate.runCostCents)}
@@ -3520,26 +3557,32 @@ export function ResearchPage() {
             ) : (
               <div className="research-form-grid">
                 <fieldset className="research-fieldset research-field research-field-span">
-                  <legend>Focus vectors</legend>
-                  <div className="research-checkbox-grid">
-                    {vectorOptions.map((vector) => (
-                      <label key={vector.id} className="research-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={requestDraft.focusVectors.includes(vector.id)}
-                          onChange={(event) =>
-                            setRequestDraft((current) => ({
-                              ...current,
-                              focusVectors: event.target.checked
-                                ? [...current.focusVectors, vector.id]
-                                : current.focusVectors.filter((item) => item !== vector.id),
-                            }))
-                          }
-                        />
-                        <span>{vector.label}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <legend>Focus lanes</legend>
+                  {!activeThesis ? (
+                    <p className="research-muted">Generate Thesis before launching search.</p>
+                  ) : laneOptions.length === 0 ? (
+                    <p className="research-muted">Add at least one thesis lane before launching search.</p>
+                  ) : (
+                    <div className="research-checkbox-grid">
+                      {laneOptions.map((lane) => (
+                        <label key={lane.id} className="research-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={requestDraft.focusLanes.includes(lane.id)}
+                            onChange={(event) =>
+                              setRequestDraft((current) => ({
+                                ...current,
+                                focusLanes: event.target.checked
+                                  ? [...current.focusLanes, lane.id]
+                                  : current.focusLanes.filter((item) => item !== lane.id),
+                              }))
+                            }
+                          />
+                          <span>{lane.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </fieldset>
 
                 <label className="research-field">
@@ -3708,9 +3751,9 @@ export function ResearchPage() {
                       .map((request) => (
                         <li key={request.id}>
                           {new Date(request.createdAt).toLocaleString()} ·{' '}
-                          {request.focusVectors.length > 0
-                            ? request.focusVectors.join(', ')
-                            : 'All vectors'}{' '}
+                          {request.focusLanes.length > 0
+                            ? request.focusLanes.join(', ')
+                            : 'No thesis lanes'}{' '}
                           · {request.customKeywords || 'No extra keywords'}
                         </li>
                       ))}
@@ -3769,9 +3812,9 @@ export function ResearchPage() {
                   {activeRequest ? (
                     <span className="research-muted">
                       Focus:{' '}
-                      {activeRequest.focusVectors.length > 0
-                        ? activeRequest.focusVectors.join(', ')
-                        : 'All vectors'}
+                      {activeRequest.focusLanes.length > 0
+                        ? activeRequest.focusLanes.join(', ')
+                        : 'No thesis lanes'}
                     </span>
                   ) : null}
                   {activeRun.tokenUsage ? (
@@ -3974,7 +4017,6 @@ export function ResearchPage() {
                         {group.items.map((result) => {
                           const selectedVector =
                             resultVectorSelections[result.id] ??
-                            activeRequest?.focusVectors[0] ??
                             vectorOptions[0]?.id ??
                             ''
                           const feedbackBadge = feedbackByResultId.get(result.id) ?? null

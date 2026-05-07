@@ -30,8 +30,8 @@ import {
 type SearchProfileInput = Omit<SearchProfile, 'id' | 'inferredAt'> &
   Partial<Pick<SearchProfile, 'id' | 'inferredAt'>>
 
-type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt'> &
-  Partial<Pick<SearchRequest, 'id' | 'createdAt'>>
+type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt' | 'focusLanes' | 'focusVectors'> &
+  Partial<Pick<SearchRequest, 'id' | 'createdAt' | 'focusLanes' | 'focusVectors'>>
 
 type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt'> &
   Partial<Pick<SearchRun, 'id' | 'createdAt'>>
@@ -142,6 +142,8 @@ const hydrateProfile = (profile: SearchProfileInput): SearchProfile => ({
 
 const hydrateRequest = (request: SearchRequestInput): SearchRequest => ({
   ...request,
+  focusLanes: request.focusLanes ?? [],
+  focusVectors: request.focusVectors ?? [],
   id: request.id ?? createId('sreq'),
   createdAt: request.createdAt ?? now(),
   durableMeta: ensureDurableMetadata(request.durableMeta, request.createdAt ?? now()),

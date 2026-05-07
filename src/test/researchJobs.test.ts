@@ -126,6 +126,7 @@ function researchPayload() {
     params: {
       id: 'request-1',
       createdAt: '2026-03-15T11:10:00.000Z',
+      focusLanes: ['security-platform'],
       focusVectors: ['security-platform'],
       companySizeOverride: '',
       salaryAnchorOverride: '',

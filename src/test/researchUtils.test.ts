@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { SearchProfile, SearchRequestMaxResults, SearchResultEntry } from '../types/search'
+import type {
+  SearchProfile,
+  SearchRequestMaxResults,
+  SearchResultEntry,
+  SearchThesis,
+} from '../types/search'
 import {
   buildInterviewProcessSignals,
   buildRequestDraft,
@@ -58,6 +63,23 @@ const baseProfile: SearchProfile = {
     strongFit: [],
     redFlags: [],
   },
+}
+
+const baseThesis: Pick<SearchThesis, 'searchLanes' | 'searchOverrides'> = {
+  searchLanes: [
+    {
+      id: 'backend-lane',
+      title: 'Backend systems',
+      rationale: 'Find senior backend roles.',
+      targetSignals: ['backend'],
+    },
+    {
+      id: 'security-lane',
+      title: 'Security platform',
+      rationale: 'Find security platform roles.',
+      targetSignals: ['security'],
+    },
+  ],
 }
 
 const maxResults: SearchRequestMaxResults = {
@@ -222,9 +244,10 @@ describe('researchUtils', () => {
     expect(original[0]).toEqual(snapshot[0])
   })
 
-  it('builds a request draft from the top two priority vectors', () => {
-    expect(buildRequestDraft(baseProfile)).toEqual({
-      focusVectors: ['backend', 'security'],
+  it('builds a request draft from thesis lanes', () => {
+    expect(buildRequestDraft(baseProfile, baseThesis)).toEqual({
+      focusLanes: ['backend-lane', 'security-lane'],
+      focusVectors: [],
       companySizeOverride: '',
       salaryAnchorOverride: '$250k',
       geoExpand: true,
@@ -232,7 +255,7 @@ describe('researchUtils', () => {
       maxResults: { tier1: 5, tier2: 10, tier3: 10 },
     })
 
-    expect(buildRequestDraft(null).focusVectors).toEqual([])
+    expect(buildRequestDraft(null).focusLanes).toEqual([])
 
     const singleVectorProfile: SearchProfile = {
       ...baseProfile,
@@ -243,18 +266,26 @@ describe('researchUtils', () => {
       vectors: [],
     }
     const originalOrder = baseProfile.vectors.map((vector) => vector.vectorId)
-    expect(buildRequestDraft(singleVectorProfile).focusVectors).toEqual(['platform'])
-    expect(buildRequestDraft(emptyVectorProfile).focusVectors).toEqual([])
+    expect(buildRequestDraft(singleVectorProfile).focusLanes).toEqual([])
+    expect(buildRequestDraft(emptyVectorProfile, baseThesis).focusLanes).toEqual([
+      'backend-lane',
+      'security-lane',
+    ])
     expect(baseProfile.vectors.map((vector) => vector.vectorId)).toEqual(originalOrder)
   })
 
   it('prefers thesis searchOverrides over profile constraints when building a request draft', () => {
     const draftFromThesis = buildRequestDraft(baseProfile, {
-      constraints: {
-        compensation: '$340k total',
-        locations: ['Tampa Bay'],
-        clearance: '',
-        companySize: 'growth',
+      ...baseThesis,
+      searchOverrides: {
+        constraints: {
+          compensation: '$340k total',
+          locations: ['Tampa Bay'],
+          clearance: '',
+          companySize: 'growth',
+        },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        hiddenSkillIds: [],
       },
     })
 
@@ -264,11 +295,16 @@ describe('researchUtils', () => {
 
     // When the override compensation is empty/whitespace, fall back to profile.
     const draftWithEmptyOverride = buildRequestDraft(baseProfile, {
-      constraints: {
-        compensation: '   ',
-        locations: [],
-        clearance: '',
-        companySize: '',
+      ...baseThesis,
+      searchOverrides: {
+        constraints: {
+          compensation: '   ',
+          locations: [],
+          clearance: '',
+          companySize: '',
+        },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        hiddenSkillIds: [],
       },
     })
     expect(draftWithEmptyOverride.salaryAnchorOverride).toBe('$250k')

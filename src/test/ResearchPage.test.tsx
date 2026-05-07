@@ -123,7 +123,14 @@ const buildTestThesis = (overrides: TestThesisOverrides = {}): SearchThesis => {
     narrative: 'A default test thesis.',
     competitiveMoat: 'Default moat.',
     unfairAdvantages: [],
-    searchLanes: [],
+    searchLanes: [
+      {
+        id: 'lane-platform',
+        title: 'Platform modernization',
+        rationale: 'Default test lane for thesis-driven launch coverage.',
+        targetSignals: ['platform'],
+      },
+    ],
     interviewStrategy: 'Default strategy.',
     lookFor: normalizeTestSignals(lookFor),
     avoid: normalizeTestSignals(avoid),
@@ -154,6 +161,16 @@ const buildResearchJob = (overrides: Partial<ResearchJob> = {}): ResearchJob => 
     progress: { phase: 'queued', elapsedMs: 0, searchQueries: [] },
     ...overrides,
   }
+}
+
+const seedLaunchThesis = (overrides: TestThesisOverrides = {}): SearchThesis => {
+  const thesis = buildTestThesis(overrides)
+  useSearchStore.setState((state) => ({
+    ...state,
+    theses: [thesis],
+    activeThesisId: thesis.id,
+  }))
+  return thesis
 }
 
 const buildResearchUsage = () => ({
@@ -285,6 +302,7 @@ describe('ResearchPage', () => {
         {
           id: 'sreq-1',
           createdAt: '2026-03-10T10:05:00.000Z',
+          focusLanes: ['lane-platform'],
           focusVectors: ['backend'],
           companySizeOverride: '',
           salaryAnchorOverride: '',
@@ -1569,7 +1587,7 @@ describe('ResearchPage', () => {
   })
 
   it('keeps keyword combinations disabled until a thesis lane exists', async () => {
-    const thesis = buildTestThesis({ id: 'thesis-empty-lanes' })
+    const thesis = buildTestThesis({ id: 'thesis-empty-lanes', searchLanes: [] })
     useSearchStore.setState((state) => ({
       ...state,
       theses: [thesis],
@@ -2337,6 +2355,7 @@ describe('ResearchPage', () => {
   })
 
   it('surfaces billing-issue messaging without blocking the rest of the page', async () => {
+    seedLaunchThesis({ id: 'thesis-billing-test' })
     mockCreateDeepResearchJob.mockRejectedValueOnce(
       new Error('AI access is unavailable until billing is resolved for this hosted account.'),
     )
@@ -2462,6 +2481,7 @@ describe('ResearchPage', () => {
       ],
     }))
 
+    seedLaunchThesis({ id: 'thesis-completed-job' })
     mockFetchDeepResearchJob.mockResolvedValueOnce({
       id: 'job-new',
       userId: 'user-1',
@@ -2600,6 +2620,7 @@ describe('ResearchPage', () => {
 
   it('shows an error when search launch is missing the AI endpoint', async () => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', '')
+    seedLaunchThesis({ id: 'thesis-missing-endpoint' })
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
 
@@ -2611,8 +2632,32 @@ describe('ResearchPage', () => {
     })
   })
 
-  it('shows an error and returns to the profile tab when search launches without a profile', async () => {
+  it('blocks search launch until an active thesis exists', async () => {
     useSearchStore.setState((state) => ({ ...state, profile: null, requests: [], runs: [] }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+
+    expect(
+      screen
+        .getByRole('button', { name: /Generate a thesis to launch search/i })
+        .hasAttribute('disabled'),
+    ).toBe(true)
+    expect(screen.getByText('Create a profile before launching search.')).toBeTruthy()
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+  })
+
+  it('shows the running search state while a search is in flight', async () => {
+    seedLaunchThesis({ id: 'thesis-running-state' })
+    let resolveCreate: ((value: { jobId: string; status: 'queued' }) => void) | undefined
+    mockCreateDeepResearchJob.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve
+        }),
+    )
+
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
 
@@ -2620,12 +2665,18 @@ describe('ResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toContain('Build or restore a search profile')
+      expect(
+        screen.getByRole('tab', { name: 'Results Viewer' }).getAttribute('aria-selected'),
+      ).toBe('true')
     })
 
-    expect(screen.getByRole('tab', { name: 'Profile Editor' }).getAttribute('aria-selected')).toBe(
-      'true',
-    )
+    expect(screen.getByText('running')).toBeTruthy()
+
+    resolveCreate?.({ jobId: 'job-pending', status: 'queued' })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().activeResearchJob?.jobId).toBe('job-pending')
+    })
   })
 
   it('disables profile inference while the request is in flight', async () => {
@@ -2668,36 +2719,6 @@ describe('ResearchPage', () => {
       expect(screen.getByRole('button', { name: /Run Search/i }).hasAttribute('disabled')).toBe(
         false,
       )
-    })
-  })
-
-  it('shows the running search state while a search is in flight', async () => {
-    let resolveCreate: ((value: { jobId: string; status: 'queued' }) => void) | undefined
-    mockCreateDeepResearchJob.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveCreate = resolve
-        }),
-    )
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
-    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('tab', { name: 'Results Viewer' }).getAttribute('aria-selected'),
-      ).toBe('true')
-    })
-
-    expect(screen.getByText('running')).toBeTruthy()
-
-    resolveCreate?.({ jobId: 'job-pending', status: 'queued' })
-
-    await waitFor(() => {
-      expect(useSearchStore.getState().activeResearchJob?.jobId).toBe('job-pending')
     })
   })
 
@@ -3081,6 +3102,7 @@ describe('ResearchPage', () => {
   })
 
   it('marks the run as failed when search execution errors', async () => {
+    seedLaunchThesis({ id: 'thesis-failed-run' })
     mockCreateDeepResearchJob.mockRejectedValueOnce(new Error('Search execution failed hard'))
     const { ResearchPage } = await import('../routes/research/ResearchPage')
 
@@ -3207,26 +3229,40 @@ describe('ResearchPage', () => {
     })
   })
 
-  it('lets the user change focus vectors before launching search', async () => {
-    const additionalVector = useResumeStore
-      .getState()
-      .data.vectors.find((vector) => vector.id !== 'backend')
-    expect(additionalVector).toBeTruthy()
+  it('lets the user change focus lanes before launching search', async () => {
+    const thesis = seedLaunchThesis({
+      id: 'thesis-focus-lanes',
+      searchLanes: [
+        {
+          id: 'lane-platform',
+          title: 'Platform modernization',
+          rationale: 'Find platform modernization roles.',
+          targetSignals: ['platform'],
+        },
+        {
+          id: 'lane-devex',
+          title: 'Developer productivity',
+          rationale: 'Find developer productivity infrastructure roles.',
+          targetSignals: ['developer productivity'],
+        },
+      ],
+    })
+    const laneToRemove = thesis.searchLanes[1]!
 
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: additionalVector?.label ?? '' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: laneToRemove.title }))
     fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
 
     await waitFor(() => {
       expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
     })
 
-    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params.focusVectors).toContain(
-      additionalVector?.id,
-    )
+    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params.focusLanes).toEqual([
+      'lane-platform',
+    ])
   })
 
   it('switches active runs and shows failed-run details', async () => {
@@ -3237,6 +3273,7 @@ describe('ResearchPage', () => {
         {
           id: 'sreq-2',
           createdAt: '2026-03-10T11:05:00.000Z',
+          focusLanes: ['lane-platform'],
           focusVectors: ['backend'],
           companySizeOverride: '',
           salaryAnchorOverride: '',

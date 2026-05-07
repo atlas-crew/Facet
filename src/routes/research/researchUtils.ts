@@ -5,12 +5,12 @@ import {
   normalizeJobDescriptionText,
 } from '../../utils/jobDescriptionText'
 import type {
-  SearchInstanceOverrides,
   SearchProfile,
   SearchRequest,
   SearchRequestMaxResults,
   SearchResultEntry,
   SearchResultInterviewProcess,
+  SearchThesis,
   VectorSearchConfig,
 } from '../../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../../types/search'
@@ -75,25 +75,21 @@ export function upsertVectorConfig(
 
 export function buildRequestDraft(
   profile: Pick<SearchProfile, 'vectors' | 'constraints'> | null,
-  thesisOverrides?: Pick<SearchInstanceOverrides, 'constraints'> | null,
+  thesis?: Pick<SearchThesis, 'searchLanes' | 'searchOverrides'> | null,
 ): Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'> {
-  const focusVectors =
-    profile?.vectors
-      .slice()
-      .sort((left, right) => left.priority - right.priority)
-      .map((vector) => vector.vectorId)
-      .slice(0, 2) ?? []
+  const focusLanes = thesis?.searchLanes.map((lane) => lane.id).filter(Boolean) ?? []
 
   // Per-search overrides take precedence over identity-derived profile defaults: the user
   // edited these on the active thesis to apply specifically to this search. Profile is the
   // fallback when no thesis (or no override value) exists.
-  const overrideConstraints = thesisOverrides?.constraints
+  const overrideConstraints = thesis?.searchOverrides?.constraints
   const compensation =
     overrideConstraints?.compensation?.trim() || profile?.constraints.compensation || ''
   const companySize = overrideConstraints?.companySize ?? ''
 
   return {
-    focusVectors,
+    focusLanes,
+    focusVectors: [],
     companySizeOverride: companySize,
     salaryAnchorOverride: compensation,
     geoExpand: true,

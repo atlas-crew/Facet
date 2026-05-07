@@ -1239,6 +1239,7 @@ describe('searchStore', () => {
           {
             id: 'sreq-doomed',
             createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
             focusVectors: [],
             companySizeOverride: '',
             salaryAnchorOverride: '',
@@ -1250,6 +1251,7 @@ describe('searchStore', () => {
           {
             id: 'sreq-keep',
             createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
             focusVectors: [],
             companySizeOverride: '',
             salaryAnchorOverride: '',

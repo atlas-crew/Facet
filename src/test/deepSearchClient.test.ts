@@ -5,7 +5,6 @@ import { facetClientEnv } from '../utils/facetEnv'
 import { getHostedAccessToken } from '../utils/hostedSession'
 import {
   buildDeepResearchIdentityEvidence,
-  buildDeepResearchThesisSnapshot,
   cancelDeepResearchJob,
   createDeepResearchJob,
   fetchDeepResearchJob,
@@ -57,6 +56,7 @@ const baseProfile: SearchProfile = {
 const baseRequest: SearchRequest = {
   id: 'sreq-1',
   createdAt: '2026-03-10T10:05:00.000Z',
+  focusLanes: ['security-platform'],
   focusVectors: ['security-platform'],
   companySizeOverride: '',
   salaryAnchorOverride: '',
@@ -66,18 +66,52 @@ const baseRequest: SearchRequest = {
   maxResults: { tier1: 2, tier2: 3, tier3: 4 },
 }
 
+const createTestThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
+  id: 'sthesis-1',
+  createdAt: '2026-03-10T10:06:00.000Z',
+  updatedAt: '2026-03-10T10:06:00.000Z',
+  narrative: 'Use security platform depth to target builder-friendly teams.',
+  competitiveMoat: 'Owned platform systems.',
+  unfairAdvantages: [
+    {
+      id: 'sadv-1',
+      combination: 'WAF depth plus platform ownership',
+      targetCompanyProfile: 'Security platform teams',
+    },
+  ],
+  searchLanes: [
+    {
+      id: 'security-platform',
+      title: 'Staff Security Platform Engineer',
+      rationale: 'Find builder-friendly teams that need WAF and edge security depth.',
+      targetSignals: ['WAF', 'edge security'],
+    },
+  ],
+  interviewStrategy: 'work sample',
+  lookFor: [{ id: 'ssig-1', label: 'builder-friendly interviews', severity: 'soft' }],
+  avoid: [{ id: 'ssig-2', label: 'Leetcode-heavy loops', severity: 'soft' }],
+  keywordCombinations: [
+    { id: 'skwd-1', query: 'WAF remote', lane: 'security-platform', noiseLevel: 'medium' },
+  ],
+  skillDepthMap: [
+    {
+      skill: 'WAF',
+      depth: 'strong',
+      context: 'Built production WAF controls.',
+      searchSignal: 'Use as a security-platform differentiator.',
+    },
+  ],
+  source: 'generated',
+  identityVersion: 0,
+  feedbackIncorporated: [],
+  ...overrides,
+})
+
 const buildJob = (
   overrides: Partial<ResearchJob> = {},
   thesisSnapshot?: SearchThesis,
 ): ResearchJob => {
-  const thesis =
-    thesisSnapshot ??
-    buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: baseRequest,
-      identity: null,
-      createdAt: '2026-03-10T10:06:00.000Z',
-    })
+  const thesis = thesisSnapshot ?? createTestThesis()
 
   return {
     id: 'job-1',
@@ -121,27 +155,6 @@ describe('deepSearchClient', () => {
     ])
   })
 
-  it('builds a thesis snapshot with identity version and skill evidence', () => {
-    const identity = cloneIdentityFixture()
-    identity.model_revision = 7
-    const thesis = buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: baseRequest,
-      identity,
-      createdAt: '2026-03-10T10:06:00.000Z',
-    })
-
-    expect(thesis.identityVersion).toBe(7)
-    expect(thesis.competitiveMoat).toBe(identity.identity.thesis)
-    expect(thesis.narrative).toContain('deep research runner')
-    expect(thesis.skillDepthMap[0]).toMatchObject({
-      skill: 'WAF',
-      depth: 'strong',
-      context: 'Built production WAF controls.',
-    })
-    expect(thesis.keywordCombinations[0]?.query).toContain('remote')
-  })
-
   it('extracts raw identity evidence for the async runner prompt', () => {
     const identity = cloneIdentityFixture() as ProfessionalIdentityV3
     identity.skills.groups[0]!.calibration = 'Strong in WAF internals, not generic SOC work.'
@@ -175,57 +188,6 @@ describe('deepSearchClient', () => {
       'Strong interview fit: work sample',
       'Interview red flag: trivia screening',
     ])
-  })
-
-  it('builds safe thesis fallbacks for sparse profiles', () => {
-    const sparseProfile: SearchProfile = {
-      ...baseProfile,
-      skills: [],
-      vectors: [],
-      workSummary: [],
-      filters: { prioritize: [], avoid: [] },
-      interviewPrefs: { strongFit: [], redFlags: [] },
-    }
-
-    const thesis = buildDeepResearchThesisSnapshot({
-      profile: sparseProfile,
-      request: { ...baseRequest, focusVectors: [], customKeywords: '' },
-      identity: null,
-    })
-
-    expect(thesis.searchLanes).toEqual([
-      {
-        id: 'general-fit',
-        title: 'General fit',
-        rationale: 'Search for roles that match the candidate profile and constraints.',
-        targetSignals: [],
-      },
-    ])
-    expect(thesis.skillDepthMap).toEqual([
-      {
-        skill: 'Candidate profile',
-        depth: 'working',
-        context: 'Search profile evidence is available but sparse.',
-        searchSignal: 'Use the candidate profile as the primary fit signal.',
-      },
-    ])
-    expect(thesis.competitiveMoat).toContain('Candidate combines validated experience')
-  })
-
-  it('falls back to available vectors when requested focus vectors are stale', () => {
-    const thesis = buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: { ...baseRequest, focusVectors: ['deleted-vector'] },
-      identity: null,
-    })
-
-    expect(thesis.searchLanes).toEqual([
-      expect.objectContaining({
-        id: 'security-platform',
-        title: 'Staff Security Platform Engineer',
-      }),
-    ])
-    expect(thesis.competitiveMoat).toBe('Owned platform systems.')
   })
 
   it('resolves research job auth headers without sending the default key with bearer auth', async () => {
@@ -263,11 +225,7 @@ describe('deepSearchClient', () => {
       json: async () => ({ jobId: 'job-1', status: 'queued' }),
     } as Response)
     const identity = cloneIdentityFixture()
-    const thesisSnapshot = buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: baseRequest,
-      identity,
-    })
+    const thesisSnapshot = createTestThesis({ identityVersion: identity.model_revision })
     const identityEvidence = buildDeepResearchIdentityEvidence(identity, baseProfile)
 
     await createDeepResearchJob({
@@ -291,6 +249,17 @@ describe('deepSearchClient', () => {
     )
     expect(body.promptContract).toContain('same-origin source URL')
     expect(body.promptContract).toContain('jobDescriptionSourceUrl')
+  })
+
+  it('rejects async job creation when no thesis focus lanes are selected', async () => {
+    await expect(
+      createDeepResearchJob({
+        endpoint: 'https://ai.example/proxy',
+        thesisSnapshot: createTestThesis(),
+        params: { ...baseRequest, focusLanes: [] },
+      }),
+    ).rejects.toThrow('at least one thesis focus lane')
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('fetches and cancels deep research jobs with authenticated lifecycle requests', async () => {
@@ -383,11 +352,7 @@ describe('deepSearchClient', () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ error: 'job cancel denied' }), { status: 409 }),
       )
-    const thesisSnapshot = buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: baseRequest,
-      identity: null,
-    })
+    const thesisSnapshot = createTestThesis()
 
     await expect(
       createDeepResearchJob({
@@ -481,11 +446,7 @@ describe('deepSearchClient', () => {
   })
 
   it('hydrates completed jobs into SearchRun patches and flags candidate-edge fragments', () => {
-    const thesisSnapshot = buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: baseRequest,
-      identity: null,
-    })
+    const thesisSnapshot = createTestThesis()
     const patch = hydrateSearchRunFromResearchJob({
       id: 'job-1',
       userId: 'user-1',
@@ -534,11 +495,7 @@ describe('deepSearchClient', () => {
   })
 
   it('marks completed jobs without result payloads as failed instead of spinning forever', () => {
-    const thesisSnapshot = buildDeepResearchThesisSnapshot({
-      profile: baseProfile,
-      request: baseRequest,
-      identity: null,
-    })
+    const thesisSnapshot = createTestThesis()
     const patch = hydrateSearchRunFromResearchJob({
       id: 'job-missing-result',
       userId: 'user-1',

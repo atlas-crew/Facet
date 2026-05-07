@@ -14,7 +14,6 @@ import type {
 import { readAiProxyError } from './aiProxyErrors'
 import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
-import { createId } from './idUtils'
 import { validateNarrativeCandidateEdges } from './searchExecutor'
 
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
@@ -184,6 +183,10 @@ export async function createDeepResearchJob({
   params,
   identityEvidence,
 }: DeepResearchCreateInput): Promise<DeepResearchCreateResponse> {
+  if (params.focusLanes.length === 0) {
+    throw new Error('Deep research requires at least one thesis focus lane.')
+  }
+
   const response = await fetch(resolveResearchJobsUrl(endpoint), {
     method: 'POST',
     headers: await researchJobHeaders(),
@@ -298,120 +301,6 @@ export function buildDeepResearchIdentityEvidence(
     })),
     paioHighlights: [...roleHighlights, ...projectHighlights, ...vectorEvidence].slice(0, 24),
     calibrations: [...skillCalibrations, ...matchingCalibrations].slice(0, 24),
-  }
-}
-
-export function buildDeepResearchThesisSnapshot({
-  profile,
-  request,
-  identity,
-  createdAt = new Date().toISOString(),
-}: {
-  profile: SearchProfile
-  request: SearchRequest
-  identity: ProfessionalIdentityV3 | null
-  createdAt?: string
-}): SearchThesis {
-  const identityVersion = Math.max(0, Math.floor(identity?.model_revision ?? 0))
-  const activeVectors =
-    request.focusVectors.length > 0
-      ? profile.vectors.filter((vector) => request.focusVectors.includes(vector.vectorId))
-      : profile.vectors
-  const vectors = activeVectors.length > 0 ? activeVectors : profile.vectors
-  const prioritizedSkills = profile.skills.filter((skill) => skill.depth !== 'avoid').slice(0, 12)
-  const skillDepthMap = prioritizedSkills.map((skill) => ({
-    skill: skill.name,
-    depth: skill.depth,
-    context:
-      skill.context ?? skill.positioning ?? `${skill.category} skill from the search profile`,
-    searchSignal: skill.positioning ?? `Use ${skill.name} as a ${skill.depth} match signal.`,
-  }))
-  const fallbackSkill = profile.skills.find((skill) => skill.name.trim())
-  const safeSkillDepthMap =
-    skillDepthMap.length > 0
-      ? skillDepthMap
-      : [
-          {
-            skill: fallbackSkill?.name ?? 'Candidate profile',
-            depth: fallbackSkill?.depth ?? 'working',
-            context: fallbackSkill?.context ?? 'Search profile evidence is available but sparse.',
-            searchSignal: 'Use the candidate profile as the primary fit signal.',
-          },
-        ]
-  const lanes = vectors.map((vector, index) => ({
-    id: vector.vectorId || `lane-${index + 1}`,
-    title: vector.targetRoleTitles[0] || vector.description || `Search lane ${index + 1}`,
-    rationale:
-      vector.description ||
-      `Search for roles where ${vector.searchKeywords.slice(0, 3).join(', ') || 'the candidate profile'} creates an advantage.`,
-    targetSignals:
-      vector.searchKeywords.length > 0 ? vector.searchKeywords : vector.targetRoleTitles,
-  }))
-  const safeLanes =
-    lanes.length > 0
-      ? lanes
-      : [
-          {
-            id: 'general-fit',
-            title: 'General fit',
-            rationale: 'Search for roles that match the candidate profile and constraints.',
-            targetSignals: prioritizedSkills.map((skill) => skill.name).slice(0, 5),
-          },
-        ]
-  const keywordCombinations = safeLanes.flatMap((lane) => {
-    const keywords = lane.targetSignals.length > 0 ? lane.targetSignals : [lane.title]
-    return keywords.slice(0, 3).map((keyword) => ({
-      id: createId('skwd'),
-      query: [keyword, request.customKeywords].filter(Boolean).join(' '),
-      lane: lane.id,
-      noiseLevel: 'medium' as const,
-    }))
-  })
-  const moat =
-    identity?.identity.thesis ||
-    profile.workSummary[0]?.summary ||
-    `Candidate combines ${
-      prioritizedSkills
-        .slice(0, 3)
-        .map((skill) => skill.name)
-        .join(', ') || 'validated experience'
-    } with the requested search constraints.`
-  const narrative = [
-    moat,
-    `This search prioritizes ${safeLanes.map((lane) => lane.title).join(', ')} while respecting compensation, location, and company-fit constraints.`,
-    `The deep research runner should use the raw identity evidence to prove candidate-edge claims instead of relying on the compressed thesis alone.`,
-  ].join('\n\n')
-
-  return {
-    id: createId('sthesis'),
-    createdAt,
-    updatedAt: createdAt,
-    narrative,
-    competitiveMoat: moat,
-    unfairAdvantages: safeSkillDepthMap.slice(0, 4).map((skill) => ({
-      id: createId('sadv'),
-      combination: skill.skill,
-      depth: skill.depth,
-      targetCompanyProfile: safeLanes[0]?.title ?? 'High-fit teams',
-    })),
-    searchLanes: safeLanes,
-    interviewStrategy:
-      profile.interviewPrefs.strongFit[0] ??
-      identity?.self_model.interview_style.prep_strategy ??
-      'Prefer evidence-backed work sample and architecture conversations over trivia-heavy screening.',
-    lookFor: [...profile.filters.prioritize, ...safeLanes.flatMap((lane) => lane.targetSignals)]
-      .slice(0, 16)
-      .map((label) => ({ id: createId('ssig'), label, severity: 'soft' })),
-    avoid: profile.filters.avoid.map((label) => ({
-      id: createId('ssig'),
-      label,
-      severity: 'soft',
-    })),
-    keywordCombinations,
-    skillDepthMap: safeSkillDepthMap,
-    source: 'generated',
-    identityVersion,
-    feedbackIncorporated: [],
   }
 }
 
