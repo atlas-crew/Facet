@@ -34,6 +34,9 @@ import type { FacetAiFeatureKey } from '../types/hosted'
 const REQUEST_TIMEOUT_MS = 120000
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_WEB_SEARCH_TOOL_TYPE = 'web_search_20250305'
+// True when a string contains any Unicode letter or digit; used to detect whether
+// stripping unresolved citation markers consumed all real prose.
+const HAS_LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
 
 interface CleanedCitedText {
   text: string
@@ -271,11 +274,9 @@ const cleanResultCitedText = (
   )
   const proseWithoutCitationMarkers = stripCitationMarkers(cleaned)
   const unresolvedCitationStrippedAllProse =
-    strippedUnresolved && !/[\p{L}\p{N}]/u.test(proseWithoutCitationMarkers)
+    strippedUnresolved && !HAS_LETTER_OR_DIGIT.test(proseWithoutCitationMarkers)
   return {
     text: unresolvedCitationStrippedAllProse ? '' : cleaned,
-    // Punctuation left behind by stripped markers ("[cite:x].") is visual debris,
-    // not the required result-level prose this contract is checking for.
     unresolvedCitationStrippedAllProse,
   }
 }
@@ -296,14 +297,6 @@ const annotateResultViolation = (
 ): string => {
   const statusLabel = status === 'surfaced' ? 'surfaced' : `dropped: tier ${entry.tier} cap`
   return `${violation} (${statusLabel}; tier: ${entry.tier}; company: ${entry.company}; title: ${entry.title})`
-}
-
-const logSearchResultContractViolations = (
-  source: 'executeSearch',
-  violations: readonly string[],
-) => {
-  if (violations.length === 0) return
-  console.warn(`[research] search result contract violations (${source})`, violations)
 }
 
 // ── Run-Level Narrative Normalization ────────────────────────────────────────
@@ -800,6 +793,8 @@ export function normalizeResultsWithContractViolations(
 }
 
 export function normalizeResults(payload: unknown, request: SearchRequest): SearchResultEntry[] {
+  // Pure compatibility wrapper that drops contract-violation diagnostics. Call
+  // normalizeResultsWithContractViolations for telemetry, UI, or QA surfaces.
   return normalizeResultsWithContractViolations(payload, request).results
 }
 
@@ -904,7 +899,12 @@ Prioritize roles that match the candidate's vectors, seniority, and search const
       JSON.parse(extractJsonBlock(execution.text)),
       request,
     )
-    logSearchResultContractViolations('executeSearch', normalized.contractViolations)
+    if (normalized.contractViolations.length > 0) {
+      console.warn(
+        '[research] search result contract violations (executeSearch)',
+        normalized.contractViolations,
+      )
+    }
     return {
       results: normalized.results,
       searchLog: execution.searchLog,
