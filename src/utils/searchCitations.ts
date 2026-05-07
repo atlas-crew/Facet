@@ -64,19 +64,39 @@ export function collectCitationMarkerIds(text: string): string[] {
   return ids
 }
 
+export interface CitationMarkerStripResult {
+  text: string
+  strippedUnresolved: boolean
+}
+
+export function stripUnresolvedCitationMarkersWithDiagnostics(
+  text: string,
+  citations: readonly Citation[],
+): CitationMarkerStripResult {
+  if (!text.includes('[cite:')) return { text: text.trim(), strippedUnresolved: false }
+  const citationIds = new Set(citations.map((citation) => citation.id))
+  let strippedUnresolved = false
+  const cleaned = text
+    .replace(CITATION_MARKER_PATTERN, (marker, id: string) => {
+      if (citationIds.has(id.trim())) return marker
+      strippedUnresolved = true
+      return ''
+    })
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([,.!?;:])/g, '$1')
+    .trim()
+  return { text: cleaned, strippedUnresolved }
+}
+
 export function stripUnresolvedCitationMarkers(
   text: string,
   citations: readonly Citation[],
 ): string {
-  if (!text.includes('[cite:')) return text.trim()
-  const citationIds = new Set(citations.map((citation) => citation.id))
-  return text
-    .replace(CITATION_MARKER_PATTERN, (marker, id: string) =>
-      citationIds.has(id.trim()) ? marker : '',
-    )
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/[ \t]+([,.!?;:])/g, '$1')
-    .trim()
+  return stripUnresolvedCitationMarkersWithDiagnostics(text, citations).text
+}
+
+export function stripCitationMarkers(text: string): string {
+  return text.replace(CITATION_MARKER_PATTERN, '').trim()
 }
 
 export function splitTextByCitationMarkers(

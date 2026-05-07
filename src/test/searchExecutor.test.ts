@@ -14,7 +14,7 @@ import {
   countSentences,
   executeSearch,
   extractJsonBlock,
-  normalizeResults,
+  normalizeResultsWithContractViolations,
   normalizeRunNarrative,
   normalizeTier,
   validateApplicationPlanAgainstTimeline,
@@ -60,6 +60,7 @@ const baseProfile: SearchProfile = {
 const baseRequest: SearchRequest = {
   id: 'sreq-1',
   createdAt: '2026-03-10T10:05:00.000Z',
+  focusLanes: ['backend-platform'],
   focusVectors: ['backend'],
   companySizeOverride: '',
   salaryAnchorOverride: '$250k',
@@ -73,13 +74,16 @@ const baseRequest: SearchRequest = {
   },
 }
 
+const normalizeResultEntries = (payload: unknown, request: SearchRequest = baseRequest) =>
+  normalizeResultsWithContractViolations(payload, request).results
+
 describe('searchExecutor', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
   })
 
   it('normalizes results, filters invalid entries, sorts, and enforces tier limits', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -171,14 +175,26 @@ describe('searchExecutor', () => {
   })
 
   it('handles empty and invalid result payloads safely', () => {
-    expect(normalizeResults(null, baseRequest)).toEqual([])
-    expect(normalizeResults(undefined, baseRequest)).toEqual([])
-    expect(normalizeResults('not-an-object', baseRequest)).toEqual([])
-    expect(normalizeResults({ results: [] }, baseRequest)).toEqual([])
+    expect(normalizeResultsWithContractViolations(null, baseRequest)).toEqual({
+      results: [],
+      contractViolations: [],
+    })
+    expect(normalizeResultsWithContractViolations(undefined, baseRequest)).toEqual({
+      results: [],
+      contractViolations: [],
+    })
+    expect(normalizeResultsWithContractViolations('not-an-object', baseRequest)).toEqual({
+      results: [],
+      contractViolations: [],
+    })
+    expect(normalizeResultsWithContractViolations({ results: [] }, baseRequest)).toEqual({
+      results: [],
+      contractViolations: [],
+    })
   })
 
   it('normalizes enriched result fields when present', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -236,7 +252,7 @@ describe('searchExecutor', () => {
   })
 
   it('normalizes resolved citation markers and citation metadata', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -280,7 +296,7 @@ describe('searchExecutor', () => {
   })
 
   it('drops unresolved citation markers while preserving resolved ones', () => {
-    const results = normalizeResults(
+    const normalized = normalizeResultsWithContractViolations(
       {
         results: [
           {
@@ -301,15 +317,196 @@ describe('searchExecutor', () => {
       },
       { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
     )
+    const results = normalized.results
 
     expect(results[0]?.matchReason).toBe('Verified claim [cite:known]. Unsupported claim.')
     expect(results[0]?.candidateEdge).toBe(
       'Known process evidence is cited [cite:known]. The missing marker should be removed.',
     )
+    expect(normalized.contractViolations).toEqual([])
+  })
+
+  it('surfaces result fields that become empty after unresolved citation markers are stripped', () => {
+    const normalized = normalizeResultsWithContractViolations(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'MarkerOnly',
+            title: 'Staff Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 90,
+            matchReason: '[cite:missing.match_1-2].',
+            vectorAlignment: '[cite:missing-vector]',
+            risks: [],
+            source: 'web',
+            candidateEdge: '[cite:missing-edge].',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(normalized.results[0]?.matchReason).toBe('.')
+    expect(normalized.results[0]?.vectorAlignment).toBe('')
+    expect(normalized.results[0]?.candidateEdge).toBe('.')
+    expect(normalized.contractViolations).toEqual([
+      'rawResults[0].matchReason: empty after stripping unresolved citation markers (surfaced; tier: 1; company: MarkerOnly; title: Staff Engineer)',
+      'rawResults[0].vectorAlignment: empty after stripping unresolved citation markers (surfaced; tier: 1; company: MarkerOnly; title: Staff Engineer)',
+      'rawResults[0].candidateEdge: empty after stripping unresolved citation markers (surfaced; tier: 1; company: MarkerOnly; title: Staff Engineer)',
+    ])
+  })
+
+  it('surfaces marker-only result fields even when the citation id resolves', () => {
+    const normalized = normalizeResultsWithContractViolations(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'ResolvedMarkerOnly',
+            title: 'Staff Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 90,
+            matchReason: '[cite:known]',
+            vectorAlignment: 'Platform systems work maps well.',
+            risks: [],
+            source: 'web',
+            citations: [{ id: 'known', source: 'Known Source' }],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(normalized.results[0]?.matchReason).toBe('[cite:known]')
+    expect(normalized.contractViolations).toEqual([])
+  })
+
+  it('does not treat non-ASCII prose as empty when unresolved citation markers are stripped', () => {
+    const normalized = normalizeResultsWithContractViolations(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'UnicodeProse',
+            title: 'Staff Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 90,
+            matchReason: '完成。 [cite:missing]',
+            vectorAlignment: 'バックエンド platform work.',
+            risks: [],
+            source: 'web',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(normalized.results[0]?.matchReason).toBe('完成。')
+    expect(normalized.contractViolations).toEqual([])
+  })
+
+  it('emits citation-stripping violations for raw results even when tier limits drop entries', () => {
+    const normalized = normalizeResultsWithContractViolations(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'DroppedMarkerOnly',
+            title: 'Staff Engineer',
+            url: 'https://example.com/dropped',
+            matchScore: 80,
+            matchReason: '[cite:dropped]',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+          },
+          {
+            tier: 1,
+            company: 'KeptMarkerOnly',
+            title: 'Principal Engineer',
+            url: 'https://example.com/kept',
+            matchScore: 90,
+            matchReason: '[cite:kept]',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 1, tier2: 5, tier3: 5 } },
+    )
+
+    expect(normalized.results.map((result) => result.company)).toEqual(['KeptMarkerOnly'])
+    expect(normalized.contractViolations).toEqual([
+      'rawResults[1].matchReason: empty after stripping unresolved citation markers (surfaced; tier: 1; company: KeptMarkerOnly; title: Principal Engineer)',
+      'rawResults[0].matchReason: empty after stripping unresolved citation markers (dropped: tier 1 cap; tier: 1; company: DroppedMarkerOnly; title: Staff Engineer)',
+    ])
+  })
+
+  it('preserves raw result indices when invalid entries are dropped before normalization', () => {
+    const normalized = normalizeResultsWithContractViolations(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'InvalidNoUrl',
+            title: 'Staff Engineer',
+            matchScore: 80,
+            matchReason: '[cite:invalid]',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+          },
+          {
+            tier: 1,
+            company: 'MarkerAfterInvalid',
+            title: 'Principal Engineer',
+            url: 'https://example.com/marker',
+            matchScore: 90,
+            matchReason: '[cite:marker]',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(normalized.results.map((result) => result.company)).toEqual(['MarkerAfterInvalid'])
+    expect(normalized.contractViolations).toEqual([
+      'rawResults[1].matchReason: empty after stripping unresolved citation markers (surfaced; tier: 1; company: MarkerAfterInvalid; title: Principal Engineer)',
+    ])
+  })
+
+  it('does not emit citation-stripping violations for missing or whitespace-only result fields', () => {
+    const normalized = normalizeResultsWithContractViolations(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'WhitespaceOnly',
+            title: 'Staff Engineer',
+            url: 'https://example.com/jobs',
+            matchScore: 90,
+            matchReason: '   ',
+            vectorAlignment: '\t',
+            risks: [],
+            source: 'web',
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(normalized.results[0]?.matchReason).toBe('')
+    expect(normalized.results[0]?.vectorAlignment).toBe('')
+    expect(normalized.contractViolations).toEqual([])
   })
 
   it('normalizes orphaned citations without inventing markers', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -334,7 +531,7 @@ describe('searchExecutor', () => {
   })
 
   it('strips citation markers when citations are empty or invalid', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -370,7 +567,7 @@ describe('searchExecutor', () => {
   })
 
   it('drops unsafe citation urls during normalization', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -394,7 +591,7 @@ describe('searchExecutor', () => {
   })
 
   it('omits enriched fields when absent from AI response', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -424,7 +621,7 @@ describe('searchExecutor', () => {
   })
 
   it('drops raw job descriptions without source URLs and caps oversized descriptions', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -511,7 +708,7 @@ describe('searchExecutor', () => {
   })
 
   it('normalizes interviewProcess with missing optional fields', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -538,7 +735,7 @@ describe('searchExecutor', () => {
   })
 
   it('drops companyIntel when all fields are empty strings', () => {
-    const results = normalizeResults(
+    const results = normalizeResultEntries(
       {
         results: [
           {
@@ -580,6 +777,7 @@ describe('searchExecutor', () => {
   })
 
   it('executes search, extracts search logs, and returns token usage', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -625,6 +823,53 @@ describe('searchExecutor', () => {
       outputTokens: 80,
       totalTokens: 200,
     })
+    expect(result.contractViolations).toEqual([])
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      '[research] search result contract violations',
+      expect.any(Array),
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('exposes citation-stripping contract violations from executed searches', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              results: [
+                {
+                  tier: 1,
+                  company: 'Acme',
+                  title: 'Staff Engineer',
+                  url: 'https://example.com/acme',
+                  matchScore: 92,
+                  matchReason: '[cite:missing]',
+                  vectorAlignment: 'Strong backend alignment.',
+                  risks: [],
+                  source: 'greenhouse',
+                },
+              ],
+            }),
+          },
+        ],
+      }),
+    } as Response)
+
+    const result = await executeSearch(baseProfile, baseRequest, 'https://ai.example/proxy')
+
+    expect(result.results[0]?.matchReason).toBe('')
+    expect(result.contractViolations).toEqual([
+      'rawResults[0].matchReason: empty after stripping unresolved citation markers (surfaced; tier: 1; company: Acme; title: Staff Engineer)',
+    ])
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[research] search result contract violations',
+      result.contractViolations,
+    )
+    warnSpy.mockRestore()
   })
 
   it('supports direct proxy parsing for choices responses and fallback payloads', async () => {

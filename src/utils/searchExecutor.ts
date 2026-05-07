@@ -23,12 +23,22 @@ import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
 import { createId } from './idUtils'
 import { normalizeJobDescriptionSourceUrl, normalizeJobDescriptionText } from './jobDescriptionText'
-import { normalizeCitations, stripUnresolvedCitationMarkers } from './searchCitations'
+import {
+  normalizeCitations,
+  stripCitationMarkers,
+  stripUnresolvedCitationMarkers,
+  stripUnresolvedCitationMarkersWithDiagnostics,
+} from './searchCitations'
 import type { FacetAiFeatureKey } from '../types/hosted'
 
 const REQUEST_TIMEOUT_MS = 120000
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_WEB_SEARCH_TOOL_TYPE = 'web_search_20250305'
+
+interface CleanedCitedText {
+  text: string
+  unresolvedCitationStrippedAllProse: boolean
+}
 
 interface SearchExecutionPayload {
   text: string
@@ -242,10 +252,49 @@ function normalizeCompanyIntel(value: unknown): SearchResultCompanyIntel | undef
   }
 }
 
-const cleanCitedText = (value: unknown, citations: readonly Citation[]): string | undefined => {
-  if (!isString(value)) return undefined
-  const cleaned = stripUnresolvedCitationMarkers(value.trim(), citations)
-  return cleaned || undefined
+const cleanResultCitedText = (
+  value: unknown,
+  citations: readonly Citation[],
+): CleanedCitedText => {
+  if (!isString(value)) {
+    return { text: '', unresolvedCitationStrippedAllProse: false }
+  }
+  const raw = value.trim()
+  if (!raw) {
+    // Empty/missing fields are handled by the broader result contract; this diagnostic
+    // only reports prose that citation cleanup reduced to effectively empty.
+    return { text: '', unresolvedCitationStrippedAllProse: false }
+  }
+  const { text: cleaned, strippedUnresolved } = stripUnresolvedCitationMarkersWithDiagnostics(
+    raw,
+    citations,
+  )
+  const proseWithoutCitationMarkers = stripCitationMarkers(cleaned)
+  return {
+    text: cleaned,
+    // Punctuation left behind by stripped markers ("[cite:x].") is visual debris,
+    // not the required result-level prose this contract is checking for.
+    unresolvedCitationStrippedAllProse:
+      strippedUnresolved && !/[\p{L}\p{N}]/u.test(proseWithoutCitationMarkers),
+  }
+}
+
+const buildCitationStrippingViolation = (
+  rawResultIndex: number,
+  field: 'matchReason' | 'vectorAlignment' | 'candidateEdge',
+  cleaned: CleanedCitedText,
+): string | null =>
+  cleaned.unresolvedCitationStrippedAllProse
+    ? `rawResults[${rawResultIndex}].${field}: empty after stripping unresolved citation markers`
+    : null
+
+const annotateResultViolation = (
+  violation: string,
+  entry: SearchResultEntry,
+  status: 'surfaced' | 'dropped',
+): string => {
+  const statusLabel = status === 'surfaced' ? 'surfaced' : `dropped: tier ${entry.tier} cap`
+  return `${violation} (${statusLabel}; tier: ${entry.tier}; company: ${entry.company}; title: ${entry.title})`
 }
 
 // ── Run-Level Narrative Normalization ────────────────────────────────────────
@@ -619,7 +668,15 @@ export function validateApplicationPlanAgainstTimeline(
   return violations
 }
 
-export function normalizeResults(payload: unknown, request: SearchRequest): SearchResultEntry[] {
+export interface SearchResultNormalization {
+  results: SearchResultEntry[]
+  contractViolations: string[]
+}
+
+export function normalizeResultsWithContractViolations(
+  payload: unknown,
+  request: SearchRequest,
+): SearchResultNormalization {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const rawResults = Array.isArray(record.results) ? record.results : []
   const perTierCounts = { 1: 0, 2: 0, 3: 0 }
@@ -630,7 +687,7 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
   }
 
   const normalized = rawResults
-    .flatMap((result) => {
+    .flatMap((result, rawResultIndex) => {
       if (!result || typeof result !== 'object') {
         return []
       }
@@ -652,56 +709,95 @@ export function normalizeResults(payload: unknown, request: SearchRequest): Sear
         ? normalizeJobDescriptionText(item.jobDescription) || undefined
         : undefined
       const citations = normalizeCitations(item.citations)
-      const matchReason = cleanCitedText(item.matchReason, citations) ?? ''
-      const vectorAlignment = cleanCitedText(item.vectorAlignment, citations) ?? ''
-      const candidateEdge = cleanCitedText(item.candidateEdge, citations)
+      const matchReason = cleanResultCitedText(item.matchReason, citations)
+      const vectorAlignment = cleanResultCitedText(item.vectorAlignment, citations)
+      const candidateEdge = cleanResultCitedText(item.candidateEdge, citations)
+      const resultViolations = [
+        buildCitationStrippingViolation(rawResultIndex, 'matchReason', matchReason),
+        buildCitationStrippingViolation(rawResultIndex, 'vectorAlignment', vectorAlignment),
+        buildCitationStrippingViolation(rawResultIndex, 'candidateEdge', candidateEdge),
+      ].filter((violation): violation is string => violation !== null)
 
+      // Observability-only: keep the normalized result visible while the raw-result
+      // violation points QA back to the model payload field that lost prose.
       return [
         {
-          id: createId('sres'),
-          tier,
-          company,
-          title,
-          url,
-          location: isString(item.location) ? item.location.trim() : undefined,
-          matchScore: clampMatchScore(item.matchScore),
-          matchReason,
-          vectorAlignment,
-          risks: Array.isArray(item.risks)
-            ? item.risks
-                .filter(isString)
-                .map((risk) => risk.trim())
-                .filter(Boolean)
-            : [],
-          estimatedComp: isString(item.estimatedComp) ? item.estimatedComp.trim() : undefined,
-          source: isString(item.source) ? item.source.trim() : 'web_search',
-          ...(citations.length > 0 ? { citations } : {}),
-          ...(candidateEdge ? { candidateEdge } : {}),
-          interviewProcess: normalizeInterviewProcess(item.interviewProcess),
-          companyIntel: normalizeCompanyIntel(item.companyIntel),
-          signalGroup: isString(item.signalGroup)
-            ? item.signalGroup.trim() || undefined
-            : undefined,
-          advantageMatch: isString(item.advantageMatch)
-            ? item.advantageMatch.trim() || undefined
-            : undefined,
-          jobDescription,
-          jobDescriptionSourceUrl: jobDescription ? jobDescriptionSourceUrl : undefined,
+          entry: {
+            id: createId('sres'),
+            tier,
+            company,
+            title,
+            url,
+            location: isString(item.location) ? item.location.trim() : undefined,
+            matchScore: clampMatchScore(item.matchScore),
+            matchReason: matchReason.text,
+            vectorAlignment: vectorAlignment.text,
+            risks: Array.isArray(item.risks)
+              ? item.risks
+                  .filter(isString)
+                  .map((risk) => risk.trim())
+                  .filter(Boolean)
+              : [],
+            estimatedComp: isString(item.estimatedComp) ? item.estimatedComp.trim() : undefined,
+            source: isString(item.source) ? item.source.trim() : 'web_search',
+            ...(citations.length > 0 ? { citations } : {}),
+            ...(candidateEdge.text ? { candidateEdge: candidateEdge.text } : {}),
+            interviewProcess: normalizeInterviewProcess(item.interviewProcess),
+            companyIntel: normalizeCompanyIntel(item.companyIntel),
+            signalGroup: isString(item.signalGroup)
+              ? item.signalGroup.trim() || undefined
+              : undefined,
+            advantageMatch: isString(item.advantageMatch)
+              ? item.advantageMatch.trim() || undefined
+              : undefined,
+            jobDescription,
+            jobDescriptionSourceUrl: jobDescription ? jobDescriptionSourceUrl : undefined,
+          },
+          violations: resultViolations,
         },
       ]
     })
     .sort((left, right) => {
-      if (left.tier !== right.tier) {
-        return left.tier - right.tier
+      if (left.entry.tier !== right.entry.tier) {
+        return left.entry.tier - right.entry.tier
       }
-      return right.matchScore - left.matchScore
+      return right.entry.matchScore - left.entry.matchScore
     })
 
-  return normalized.filter((entry) => {
-    perTierCounts[entry.tier] += 1
-    return perTierCounts[entry.tier] <= tierLimits[entry.tier]
-  })
+  const results: SearchResultEntry[] = []
+  const contractViolations: string[] = []
+  for (const normalizedResult of normalized) {
+    perTierCounts[normalizedResult.entry.tier] += 1
+    const droppedByTierCap =
+      perTierCounts[normalizedResult.entry.tier] > tierLimits[normalizedResult.entry.tier]
+    // QA needs model-output violations, including raw entries later dropped by tier caps.
+    // Annotate the status because rawResults indexes point at the model payload, not the UI list.
+    contractViolations.push(
+      ...normalizedResult.violations.map((violation) =>
+        annotateResultViolation(
+          violation,
+          normalizedResult.entry,
+          droppedByTierCap ? 'dropped' : 'surfaced',
+        ),
+      ),
+    )
+    if (droppedByTierCap) {
+      continue
+    }
+    results.push(normalizedResult.entry)
+  }
+
+  return { results, contractViolations }
 }
+
+export function normalizeResults(payload: unknown, request: SearchRequest): SearchResultEntry[] {
+  const normalized = normalizeResultsWithContractViolations(payload, request)
+  if (normalized.contractViolations.length > 0) {
+    console.warn('[research] search result contract violations', normalized.contractViolations)
+  }
+  return normalized.results
+}
+
 
 export function buildSearchPrompt(profile: SearchProfile, request: SearchRequest): string {
   const prioritizedSkills = profile.skills
@@ -784,7 +880,12 @@ export async function executeSearch(
   profile: SearchProfile,
   request: SearchRequest,
   endpoint: string,
-): Promise<{ results: SearchResultEntry[]; searchLog: string[]; tokenUsage?: SearchTokenUsage }> {
+): Promise<{
+  results: SearchResultEntry[]
+  searchLog: string[]
+  tokenUsage?: SearchTokenUsage
+  contractViolations: string[]
+}> {
   const systemPrompt = `You are a strategic executive recruiter and job-search operator. Use web search actively, evaluate fit rigorously, and return JSON only.
 Prioritize roles that match the candidate's vectors, seniority, and search constraints. Be realistic about fit, call out risks, and avoid duplicate listings.`
 
@@ -795,10 +896,18 @@ Prioritize roles that match the candidate's vectors, seniority, and search const
   )
 
   try {
+    const normalized = normalizeResultsWithContractViolations(
+      JSON.parse(extractJsonBlock(execution.text)),
+      request,
+    )
+    if (normalized.contractViolations.length > 0) {
+      console.warn('[research] search result contract violations', normalized.contractViolations)
+    }
     return {
-      results: normalizeResults(JSON.parse(extractJsonBlock(execution.text)), request),
+      results: normalized.results,
       searchLog: execution.searchLog,
       tokenUsage: execution.tokenUsage,
+      contractViolations: normalized.contractViolations,
     }
   } catch (error) {
     if (error instanceof JsonExtractionError) {
