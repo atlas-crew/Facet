@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateInterviewPrep } from '../utils/prepGenerator'
 import type { JDAnalysis } from '../types/jdAnalysis'
-import { untaggedNote } from '../types/audience'
+import { untagged, untaggedNote } from '../types/audience'
 
 const { callLlmProxyMock } = vi.hoisted(() => ({
   callLlmProxyMock: vi.fn(),
@@ -40,7 +40,26 @@ const testJdAnalysis: JDAnalysis = {
   rationale: 'The role maps to backend platform evidence.',
   matchedVectors: [],
   primaryVectorId: 'backend',
-  skillMatches: [],
+  skillMatches: [
+    untagged({
+      skillName: 'Kubernetes',
+      jdRequirement: 'Operate Kubernetes-backed platforms',
+      requirementStrength: 'required',
+      userDepth: 'strong',
+      userPositioning: 'Built platforms around Kubernetes workloads.',
+      matchQuality: 'strong',
+      presentationGuidance: 'Do not overclaim: not a K8s admin, built platforms around K8s.',
+    }),
+    untagged({
+      skillName: 'COBOL',
+      jdRequirement: 'Maintain COBOL integrations',
+      requirementStrength: 'nice-to-have',
+      userDepth: 'avoid',
+      userPositioning: 'No truthful COBOL claim.',
+      matchQuality: 'negative',
+      presentationGuidance: 'Avoid claiming COBOL depth.',
+    }),
+  ],
   evidenceMapping: {
     topBullets: [],
     topSkills: [],
@@ -232,6 +251,7 @@ describe('generateInterviewPrep', () => {
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Structured Pipeline Entry Context')
+    expect(userPrompt).toContain('Prep Stack Alignment Confidence Mapping')
     expect(userPrompt).toContain('Canonical JD Analysis')
     expect(userPrompt).toContain('"id": "jd-analysis-test"')
     expect(userPrompt).toContain('"strengthsToLead"')
@@ -282,6 +302,19 @@ describe('generateInterviewPrep', () => {
     )
     expect(canonicalAnalysis).not.toHaveProperty('analyzedJobDescription')
     expect(canonicalAnalysis).not.toHaveProperty('warnings')
+    const skillMatches = canonicalAnalysis.skillMatches as Array<Record<string, unknown>>
+    expect(skillMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          skillName: 'Kubernetes',
+          prepStackConfidence: 'Solid',
+        }),
+        expect.objectContaining({
+          skillName: 'COBOL',
+          prepStackConfidence: 'Gap',
+        }),
+      ]),
+    )
     expect(userPrompt).toContain('Candidate Metrics From Identity')
     expect(userPrompt).toContain('Additional Candidate Metrics Outside The Vector Slice')
     expect(userPrompt).toContain('Existing Context Gaps')
@@ -297,6 +330,7 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('outside the vector slice')
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('return a stackAlignment table')
+    expect(userPrompt).toContain('source of truth for stackAlignment.confidence')
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
     expect(userPrompt).toContain('tag "gap-framing"')
     expect(userPrompt).toContain('Generate 3 to 5 landmine cards tagged "landmine"')
@@ -748,7 +782,7 @@ describe('generateInterviewPrep', () => {
       {
         theirTech: 'Kubernetes',
         yourMatch: 'Operated multi-cluster platform infrastructure.',
-        confidence: 'Strong',
+        confidence: 'Solid',
       },
       {
         theirTech: 'Terraform',
@@ -804,6 +838,94 @@ describe('generateInterviewPrep', () => {
         trigger: 'If they keep pushing on certainty',
         response: 'Say what you knew, what you escalated, and what you would verify next.',
         tone: 'escalation',
+      },
+    ])
+  })
+
+  it('applies stack confidence ceilings only to exact skill matches', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        stackAlignment: [
+          {
+            theirTech: 'Node.js',
+            yourMatch: 'No truthful Node claim.',
+            confidence: 'Strong',
+          },
+          {
+            theirTech: 'Java',
+            yourMatch: 'No truthful Java claim.',
+            confidence: 'Strong',
+          },
+          {
+            theirTech: 'JavaScript',
+            yourMatch: 'Built production frontend workflows.',
+            confidence: 'Strong',
+          },
+        ],
+        cards: [
+          {
+            category: 'technical',
+            title: 'Frontend systems',
+            tags: ['frontend'],
+            script: 'Lead with production JavaScript systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'frontend',
+      vectorLabel: 'Frontend',
+      jobDescription: 'Build JavaScript systems; Java is a nice-to-have.',
+      jdAnalysis: {
+        ...testJdAnalysis,
+        skillMatches: [
+          untagged({
+            skillName: 'Node',
+            jdRequirement: 'Maintain Node services',
+            requirementStrength: 'preferred',
+            userDepth: 'avoid',
+            userPositioning: 'No truthful Node claim.',
+            matchQuality: 'negative',
+            presentationGuidance: 'Avoid claiming Node depth.',
+          }),
+          untagged({
+            skillName: 'Java',
+            jdRequirement: 'Maintain Java services',
+            requirementStrength: 'nice-to-have',
+            userDepth: 'avoid',
+            userPositioning: 'No truthful Java claim.',
+            matchQuality: 'negative',
+            presentationGuidance: 'Avoid claiming Java depth.',
+          }),
+        ],
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.stackAlignment).toEqual([
+      {
+        theirTech: 'Node.js',
+        yourMatch: 'No truthful Node claim.',
+        confidence: 'Gap',
+      },
+      {
+        theirTech: 'Java',
+        yourMatch: 'No truthful Java claim.',
+        confidence: 'Gap',
+      },
+      {
+        theirTech: 'JavaScript',
+        yourMatch: 'Built production frontend workflows.',
+        confidence: 'Strong',
       },
     ])
   })

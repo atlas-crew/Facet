@@ -35,6 +35,10 @@ import type {
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import {
+  formatPrepSkillDepthConfidenceGuidance,
+  mapSkillDepthToStackConfidence,
+} from './prepSkillDepthMapping'
 
 /** Model used for interview prep — needs creative, detailed output. */
 const PREP_MODEL = 'sonnet'
@@ -271,7 +275,122 @@ function stripCandidateMetricsFromIdentityContext(
   return rest
 }
 
+function normalizeStackAlignmentTechKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9+#]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function expandStackAlignmentTechKeys(value: string): string[] {
+  const normalizedKey = normalizeStackAlignmentTechKey(value)
+  if (!normalizedKey) return []
+
+  const keys = new Set([normalizedKey])
+  if (normalizedKey.endsWith(' js')) keys.add(normalizedKey.replace(/\s+js$/, ''))
+  if (normalizedKey === 'postgres') keys.add('postgresql')
+  if (normalizedKey === 'postgresql') keys.add('postgres')
+  if (normalizedKey === 'k8s') keys.add('kubernetes')
+  if (normalizedKey === 'kubernetes') keys.add('k8s')
+  return [...keys]
+}
+
+function pickLowerStackConfidence(
+  left: PrepStackAlignmentConfidence,
+  right: PrepStackAlignmentConfidence,
+): PrepStackAlignmentConfidence {
+  return GAP_FRAMING_CONFIDENCE_ORDER[left] <= GAP_FRAMING_CONFIDENCE_ORDER[right] ? left : right
+}
+
+function isLowerStackConfidence(
+  left: PrepStackAlignmentConfidence,
+  right: PrepStackAlignmentConfidence,
+): boolean {
+  return GAP_FRAMING_CONFIDENCE_ORDER[left] < GAP_FRAMING_CONFIDENCE_ORDER[right]
+}
+
+function warnStackAlignmentConfidenceCollision(params: {
+  key: string
+  existing: PrepStackAlignmentConfidence
+  incoming: PrepStackAlignmentConfidence
+}): void {
+  console.warn('[prepGenerator] duplicate stack alignment confidence ceiling', params)
+}
+
+function buildStackAlignmentConfidenceCeilings(
+  analysis: PrepGenerationRequest['jdAnalysis'],
+): Map<string, PrepStackAlignmentConfidence> {
+  const ceilings = new Map<string, PrepStackAlignmentConfidence>()
+
+  const setCeiling = (key: string, confidence: PrepStackAlignmentConfidence) => {
+    for (const normalizedKey of expandStackAlignmentTechKeys(key)) {
+      const existing = ceilings.get(normalizedKey)
+      if (existing && existing !== confidence) {
+        warnStackAlignmentConfidenceCollision({
+          key: normalizedKey,
+          existing,
+          incoming: confidence,
+        })
+      }
+      ceilings.set(
+        normalizedKey,
+        existing ? pickLowerStackConfidence(existing, confidence) : confidence,
+      )
+    }
+  }
+
+  for (const skillMatch of analysis.skillMatches) {
+    const confidence = mapSkillDepthToStackConfidence(
+      skillMatch.userDepth,
+      skillMatch.presentationGuidance,
+    )
+    setCeiling(skillMatch.skillName, confidence)
+  }
+
+  return ceilings
+}
+
+function findStackAlignmentConfidenceCeiling(
+  theirTech: string,
+  ceilings: Map<string, PrepStackAlignmentConfidence>,
+): PrepStackAlignmentConfidence | undefined {
+  const normalizedTech = normalizeStackAlignmentTechKey(theirTech)
+  if (!normalizedTech) return undefined
+
+  for (const key of expandStackAlignmentTechKeys(theirTech)) {
+    const confidence = ceilings.get(key)
+    if (confidence) return confidence
+  }
+
+  return undefined
+}
+
+function applyStackAlignmentConfidenceCeilings(
+  stackAlignment: PrepStackAlignmentRow[] | undefined,
+  analysis: PrepGenerationRequest['jdAnalysis'],
+): PrepStackAlignmentRow[] | undefined {
+  if (!stackAlignment) return undefined
+  const ceilings = buildStackAlignmentConfidenceCeilings(analysis)
+  if (ceilings.size === 0) return stackAlignment
+
+  return stackAlignment.map((row) => {
+    const ceiling = findStackAlignmentConfidenceCeiling(row.theirTech, ceilings)
+    if (!ceiling) return row
+    return isLowerStackConfidence(ceiling, row.confidence) ? { ...row, confidence: ceiling } : row
+  })
+}
+
 function formatJdAnalysisForPrompt(analysis: PrepGenerationRequest['jdAnalysis']): string {
+  const skillMatches = analysis.skillMatches.map((skillMatch) => ({
+    ...skillMatch,
+    prepStackConfidence: mapSkillDepthToStackConfidence(
+      skillMatch.userDepth,
+      skillMatch.presentationGuidance,
+    ),
+  }))
+
   return JSON.stringify(
     {
       id: analysis.id,
@@ -286,7 +405,7 @@ function formatJdAnalysisForPrompt(analysis: PrepGenerationRequest['jdAnalysis']
       fitScore: analysis.fitScore,
       rationale: analysis.rationale,
       requirements: analysis.requirements,
-      skillMatches: analysis.skillMatches,
+      skillMatches,
       matchedVectors: analysis.matchedVectors,
       primaryVectorId: analysis.primaryVectorId,
       strengthsToLead: analysis.strengthsToLead,
@@ -1594,6 +1713,9 @@ ${structuredPipelineEntryContext ? JSON.stringify(structuredPipelineEntryContext
 
 Company Research Notes: ${request.companyResearch ?? 'Not provided'}
 
+Prep Stack Alignment Confidence Mapping:
+${formatPrepSkillDepthConfidenceGuidance()}
+
 Canonical JD Analysis:
 ${formatJdAnalysisForPrompt(request.jdAnalysis)}
 
@@ -1653,7 +1775,9 @@ When candidate metrics are provided, use them as the primary source for numbersT
 When additional candidate metrics outside the vector slice are provided, treat them as truthful supporting proof for openers, resume-level headline positioning, or gap-avoidance when they clearly strengthen the answer. Do not let them override the target vector framing for the rest of the deck.
 Use numbersToKnow.company only for numbers grounded in the supplied job description or company research.
 When structured identity context includes bullet metrics, use those exact metrics for numbers-oriented cards instead of inventing new figures.
-When structured identity context includes skill enrichment or skill groups, compare the JD technologies against those identity skills and return a stackAlignment table with honest confidence levels, including "Gap" where the evidence is missing.
+When structured identity context includes skill enrichment or Canonical JD Analysis skillMatches include prepStackConfidence, compare the JD technologies against those identity-backed skills and return a stackAlignment table with honest confidence levels, including "Gap" where the evidence is missing.
+Use the Prep Stack Alignment Confidence Mapping as the source of truth for stackAlignment.confidence. When a Canonical JD Analysis skillMatch includes prepStackConfidence, treat that value as a hard ceiling for the matching technology: identity context may justify the same or lower confidence, but never a higher confidence.
+Use exact Canonical JD Analysis skillName labels for stackAlignment.theirTech when a row corresponds to a listed skillMatch.
 Use "yourMatch" to describe the closest truthful candidate evidence or positioning, not a restatement of the JD requirement.
 If no identity skill context is available, omit stackAlignment instead of guessing.
 When stackAlignment includes entries with confidence "Gap" or "Adjacent experience", generate 1 to 2 technical gap-framing cards titled like "What you know, what you don't: <tech>".
@@ -1721,7 +1845,10 @@ Return JSON only (inside the tags).`
     throw new Error(`Failed to parse interview prep response: ${parseMessage}`)
   }
 
-  const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
+  const stackAlignment = applyStackAlignmentConfidenceCeilings(
+    normalizeStackAlignment(parsed.stackAlignment),
+    request.jdAnalysis,
+  )
   const companyIntel = normalizeCompanyIntel(parsed.companyIntel)
   const generatedCards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
   const contextGaps = normalizeContextGaps(parsed.contextGaps)

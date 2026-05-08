@@ -32,7 +32,7 @@ TASK-171  Add structured PrepCompanyIntel and PrepInterviewer to PrepDeck  [done
 ### Lane B — Skill mapping (independent, single design decision)
 
 ```
-TASK-173  Document and apply stack alignment ↔ semantic skill depth mapping  [med]
+TASK-173  Document and apply stack alignment ↔ semantic skill depth mapping  [done]
           (cross-cuts identity skill depth → prep card content; produces a
            reference doc + applies the mapping in prepGenerator. No code
            dependency on Lane A but pairs naturally with TASK-171's skill-aware
@@ -88,7 +88,7 @@ Two coordination points:
 
 ## Already in flight
 
-None. All Lane A and Lane C tasks are open.
+None. Lane A and Lane B are done; Lane C remains open for content extensions.
 
 ---
 

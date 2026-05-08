@@ -53,7 +53,7 @@ Prep generation uses the five-level `PrepStackAlignmentConfidence` scale for the
 | `avoid` | Gap | Do not claim this skill. |
 | missing depth | Gap | No identity evidence. |
 
-Calibration notes are part of the mapping. Anti-overselling guidance such as "not a K8s admin, builds platforms around K8s" softens Strong to Solid. Basic depth with explicit non-direct calibration maps to Gap. The prep prompt treats this mapping as the source of truth and does not let the model invent a different translation during regeneration.
+Calibration notes are part of the mapping. Anti-claim guidance such as "do not claim this" maps any depth to Gap. Anti-overselling guidance such as "not a K8s admin, builds platforms around K8s" softens Strong to Solid and Solid to Working knowledge. Basic depth with explicit non-direct calibration maps to Gap. The prep prompt treats this mapping as the source of truth and does not let the model invent a different translation during regeneration.
 
 ---
 
