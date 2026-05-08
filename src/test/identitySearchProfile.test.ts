@@ -8,6 +8,182 @@ const invalidIndustry: SearchIndustry = 'general-tech'
 void invalidIndustry
 
 describe('identitySearchProfile', () => {
+  it('does not infer depth from word-boundary false positives', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [{ name: 'Rust', tags: ['rust'] }]
+    identity.roles[0]!.bullets = [
+      {
+        id: 'trust-controls',
+        problem: 'Incident response lacked customer trust controls.',
+        action: 'Built trust dashboards and disclosure workflows.',
+        outcome: 'Improved trust posture for enterprise buyers.',
+        impact: [],
+        metrics: {},
+        technologies: [],
+        tags: [],
+      },
+    ]
+    identity.projects = []
+    identity.profiles = []
+    identity.search_vectors = []
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.skills[0]?.depth).toBe('basic')
+  })
+
+  it('infers depth from regex-escaped aliases in free text', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [{ name: 'Node.js', tags: ['node.js'] }]
+    identity.roles[0]!.bullets = [
+      {
+        id: 'node-service',
+        problem: 'Internal tooling needed a shared service runtime.',
+        action: 'Built the Node.js service layer for release automation.',
+        outcome: 'Gave teams a repeatable automation path.',
+        impact: [],
+        metrics: {},
+        technologies: [],
+        tags: [],
+      },
+    ]
+    identity.projects = [
+      {
+        id: 'node-tooling',
+        name: 'Release Tooling',
+        description: 'Extended Node.js automation for deployment previews.',
+        tags: [],
+      },
+    ]
+    identity.profiles = []
+    identity.search_vectors = []
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.skills[0]?.depth).toBe('working')
+  })
+
+  it('excludes generic skill terms from inferred depth scoring', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.label = 'Engineering'
+    identity.skills.groups[0]!.items = [
+      { name: 'Backend', tags: ['backend'] },
+      { name: 'Security', tags: ['security'] },
+    ]
+    identity.roles[0]!.bullets = [
+      {
+        id: 'generic-scope',
+        problem: 'Backend security services needed architecture reviews.',
+        action: 'Led backend security architecture and platform hardening.',
+        outcome: 'Improved backend security system reliability.',
+        impact: [],
+        metrics: {},
+        technologies: [],
+        tags: [],
+      },
+    ]
+    identity.projects = [
+      {
+        id: 'generic-project',
+        name: 'Backend Security Review',
+        description: 'Reviewed backend security architecture and services.',
+        tags: [],
+      },
+    ]
+    identity.profiles = [
+      {
+        id: 'generic-profile',
+        tags: [],
+        text: 'Backend security platform work across services and systems.',
+      },
+    ]
+    identity.search_vectors = [
+      {
+        id: 'generic-vector',
+        priority: 'medium',
+        title: 'Backend Security',
+        subtitle: 'Backend security platform systems',
+        thesis: 'Focus on backend security architecture.',
+        keywords: {
+          primary: ['backend', 'security'],
+          secondary: ['services', 'systems'],
+        },
+        target_roles: [],
+        supporting_skills: [],
+        evidence: ['Backend security services and systems.'],
+      },
+    ]
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.skills.map((skill) => [skill.name, skill.depth])).toEqual([
+      ['Backend', 'basic'],
+      ['Security', 'basic'],
+    ])
+  })
+
+  it('infers strong depth from direct role-technology evidence', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [{ name: 'Kubernetes', tags: ['kubernetes'] }]
+    identity.roles[0]!.bullets = [
+      {
+        id: 'runtime-port',
+        problem: 'Customer deployments needed a portable runtime.',
+        action: 'Ported deployment workflows to a container platform.',
+        outcome: 'Unlocked customer-hosted installs.',
+        impact: [],
+        metrics: {},
+        technologies: ['Kubernetes'],
+        tags: [],
+      },
+    ]
+    identity.projects = []
+    identity.profiles = []
+    identity.search_vectors = []
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.skills[0]?.depth).toBe('strong')
+  })
+
+  it('infers strong depth from the score threshold without direct role technology evidence', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [{ name: 'Terraform', tags: ['terraform'] }]
+    identity.roles[0]!.bullets = [
+      {
+        id: 'tagged-infra',
+        problem: 'Infrastructure modules were inconsistent across teams.',
+        action: 'Standardized deployment modules and review workflows.',
+        outcome: 'Reduced release setup time.',
+        impact: [],
+        metrics: {},
+        technologies: [],
+        tags: ['terraform'],
+      },
+    ]
+    identity.projects = [
+      {
+        id: 'module-catalog',
+        name: 'Module Catalog',
+        description: 'Cataloged reusable infrastructure modules.',
+        tags: ['terraform'],
+      },
+    ]
+    identity.profiles = []
+    identity.search_vectors = []
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.skills[0]?.depth).toBe('strong')
+  })
+
+  it('falls back to basic depth when evidence does not meet inference thresholds', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [{ name: 'GraphQL', tags: ['graphql'] }]
+    identity.roles[0]!.bullets = []
+    identity.projects = []
+    identity.profiles = []
+    identity.search_vectors = []
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.skills[0]?.depth).toBe('basic')
+  })
+
   it('uses lighter identity evidence to infer a working depth', () => {
     const identity = cloneIdentityFixture()
     identity.skills.groups[0]!.items = [{ name: 'Terraform', tags: ['terraform'] }]
