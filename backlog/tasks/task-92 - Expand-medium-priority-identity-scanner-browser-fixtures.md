@@ -1,10 +1,11 @@
 ---
 id: TASK-92
 title: Expand medium priority identity scanner browser fixtures
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-04-07 02:07'
-updated_date: '2026-04-07 22:13'
+updated_date: '2026-05-08 21:23'
 labels:
   - scanner
   - testing
@@ -27,8 +28,8 @@ Remaining medium-priority browser acceptance gaps:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The suite covers an extremely long parsed string and asserts the UI remains usable without structural breakage.
-- [ ] #2 The suite covers irregular date text and verifies the parsed role preserves the raw date string without failing extraction.
+- [x] #1 The suite covers an extremely long parsed string and asserts the UI remains usable without structural breakage.
+- [x] #2 The suite covers irregular date text and verifies the parsed role preserves the raw date string without failing extraction.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -40,9 +41,20 @@ Remaining medium-priority browser acceptance gaps:
 <!-- SECTION:PLAN:END -->
 
 ## Definition of Done
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-08 closeout:
+- Added browser coverage for an extremely long parsed role field and asserted no horizontal document overflow.
+- Added browser coverage for irregular pipe-delimited role date text and preserved the raw date string for scanner review.
+- Updated scanner browser route usage to `/identity/import`.
+- Added irregular date-segment preservation in `src/utils/resumeScanner/parser.ts`.
+- Added `overflow-wrap: anywhere` for scanner review summary text in `src/routes/identity/identity.css`.
+- Verification passed: `npx vitest run src/test/resumeScanner.test.ts src/test/resumeScannerAcceptance.test.ts src/test/resumeScannerPdf.test.ts` (64 passed), focused Playwright `npx playwright test tests/identity-scanner.spec.ts --project=chromium --grep "extremely long parsed role field|irregular role date text"` (2 passed), scoped ESLint, scoped format check. Worker also ran the full scanner browser file successfully: `npx playwright test tests/identity-scanner.spec.ts --project=chromium` (45 passed).
+- Test audit artifact `.agents/reviews/test-audit-20260508-170915.md` confirmed the two TASK-92 fixture behaviors are covered and surfaced broader scanner hardening gaps (MIME spoofing, dangerous URL schemes, whitespace-only text, deeper PDF edge cases) that are outside this task's medium-priority fixture scope.
+<!-- SECTION:NOTES:END -->
+
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Test changes were approved by a test gap analysis review
-- [ ] #3 All relevant tests pass successfully
-- [ ] #4 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Test changes were approved by a test gap analysis review
+- [x] #3 All relevant tests pass successfully
+- [x] #4 The project builds successfully
 <!-- DOD:END -->

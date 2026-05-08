@@ -57,7 +57,7 @@ Identity scanner pipeline + identity store regression coverage. Independent of L
 ```
 TASK-87    Align scan store field typing and normalization conventions  [done]
 TASK-89    Broaden identityStore scan persistence coverage              [done]
-TASK-92    Expand medium-priority identity scanner browser fixtures     [med]
+TASK-92    Expand medium-priority identity scanner browser fixtures     [done]
 TASK-114.4 Expand skill enrichment wizard regression coverage           [done]
 TASK-114.6 Add case-variant skill dedupe safeguards                     [done]
 ```
@@ -79,7 +79,7 @@ TASK-200   Phase 2 sad-path test coverage for identity Map editing [done]
 
 ## Already in flight
 
-- No doc-40 tasks are currently in flight outside TASK-92 takeover closeout.
+- No doc-40 tasks are currently in flight.
 
 TASK-114.6 landed in commit `498ac69` and is closed; its earlier write set is no longer active.
 
@@ -130,7 +130,7 @@ Lane A's serial chain was the convergence-finishing path and is now closed:
 TASK-202.2 → 202.3 → TASK-243 → TASK-202
 ```
 
-Remaining doc-40 work is TASK-92 scanner browser fixture closeout.
+Doc-40 rollout is closed.
 
 ---
 
@@ -159,4 +159,4 @@ Remaining doc-40 work is TASK-92 scanner browser fixture closeout.
 ## Revision history
 
 - **2026-05-07 v1**: initial Strategy D rollout plan. Closed TASK-115.3 (strategy workbench zombie). Out-of-scoped TASK-205 / TASK-201 (research workspace, not identity workspace).
-- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. TASK-87, TASK-100, TASK-114.6, and TASK-200 closed. Lane C has TASK-92 remaining.
+- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. TASK-87, TASK-92, TASK-100, TASK-114.6, and TASK-200 closed. Doc-40 rollout closed.

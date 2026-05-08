@@ -9,18 +9,29 @@ import type { Page } from '@playwright/test'
 const QPDF_BIN = process.env.QPDF_BIN ?? 'qpdf'
 const OVERSIZED_PDF_BYTES = 10 * 1024 * 1024 + 1
 const OVERLONG_PAGE_COUNT = 11
-const IDENTITY_SCANNER_ROUTE = '/identity/workbench'
+const IDENTITY_SCANNER_ROUTE = '/identity/import'
+const EXTREME_UNBROKEN_COMPANY_NAME = `Apex${'X'.repeat(520)}Labs`
 
 const escapePdfText = (value: string): string =>
   value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
 
-const buildPdf = (lines: string[]): Buffer => {
+const buildPdf = (
+  lines: string[],
+  options: {
+    fontSize?: number
+    leading?: number
+  } = {},
+): Buffer => {
+  const fontSize = options.fontSize ?? 12
+  const leading = options.leading ?? 14
   const content = [
     'BT',
-    '/F1 12 Tf',
-    '14 TL',
+    `/F1 ${fontSize} Tf`,
+    `${leading} TL`,
     '72 760 Td',
-    ...lines.flatMap((line, index) => (index === 0 ? [`(${escapePdfText(line)}) Tj`] : ['T*', `(${escapePdfText(line)}) Tj`])),
+    ...lines.flatMap((line, index) =>
+      index === 0 ? [`(${escapePdfText(line)}) Tj`] : ['T*', `(${escapePdfText(line)}) Tj`],
+    ),
     'ET',
   ].join('\n')
 
@@ -149,6 +160,27 @@ const multiBulletResumePdf = () =>
     '- Stabilized the third service.',
   ])
 
+const extremeStringResumePdf = () =>
+  buildPdf(
+    [
+      'NICK FERGUSON',
+      'nick@atlascrew.dev',
+      'PROFESSIONAL EXPERIENCE',
+      `Senior Platform Engineer | ${EXTREME_UNBROKEN_COMPANY_NAME} | Feb 2025 - Mar 2026`,
+      '- Kept scanner review usable around hostile unbroken text.',
+    ],
+    { fontSize: 1.25, leading: 3 },
+  )
+
+const irregularDateResumePdf = () =>
+  buildPdf([
+    'NICK FERGUSON',
+    'nick@atlascrew.dev',
+    'PROFESSIONAL EXPERIENCE',
+    'Senior Platform Engineer | A10 Networks | Summer 2020-ish to roughly Q1 2024',
+    '- Preserved irregular chronology for human review.',
+  ])
+
 const mixedBulletAndZeroBulletRolesPdf = () =>
   buildPdf([
     'NICK FERGUSON',
@@ -203,12 +235,26 @@ const expandScannedSectionDetails = async (section: Locator) => {
   await expect(section.locator('.identity-scan-role-toggle').first()).toBeVisible()
 
   for (;;) {
-    const expandButton = section.locator('.identity-scan-role-toggle[aria-expanded="false"]').first()
+    const expandButton = section
+      .locator('.identity-scan-role-toggle[aria-expanded="false"]')
+      .first()
     if ((await expandButton.count()) === 0) {
       return
     }
     await expandButton.click()
   }
+}
+
+const expectNoHorizontalPageOverflow = async (page: Page) => {
+  const overflow = await page.evaluate(() => ({
+    documentScrollWidth: document.documentElement.scrollWidth,
+    documentClientWidth: document.documentElement.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    bodyClientWidth: document.body.clientWidth,
+  }))
+
+  expect(overflow.documentScrollWidth).toBeLessThanOrEqual(overflow.documentClientWidth + 1)
+  expect(overflow.bodyScrollWidth).toBeLessThanOrEqual(overflow.bodyClientWidth + 1)
 }
 
 const multiProjectsAndEducationPdf = () =>
@@ -259,7 +305,15 @@ const encryptedResumePdf = () => {
         '- Built the first platform.',
       ]),
     )
-    execFileSync(QPDF_BIN, ['--encrypt', 'userpass', 'ownerpass', '256', '--', inputPath, outputPath])
+    execFileSync(QPDF_BIN, [
+      '--encrypt',
+      'userpass',
+      'ownerpass',
+      '256',
+      '--',
+      inputPath,
+      outputPath,
+    ])
     return readFileSync(outputPath)
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
@@ -279,12 +333,7 @@ const maliciousLinksPdf = () =>
   ])
 
 const contactOnlyPdf = () =>
-  buildPdf([
-    'NICK FERGUSON',
-    'nick@atlascrew.dev',
-    '727.266.8813',
-    'Tampa, FL',
-  ])
+  buildPdf(['NICK FERGUSON', 'nick@atlascrew.dev', '727.266.8813', 'Tampa, FL'])
 
 const oversizedPdf = () =>
   Buffer.concat([
@@ -471,7 +520,9 @@ test('uploads, parses, clears, and rescans a resume PDF with projects and educat
   await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="Feb 2025 - Mar 2026"]')).toBeVisible()
   await expect(
-    rolesSection.locator('textarea').filter({ hasText: 'Took the product from SaaS-only to deployable on customer-managed hardware.' }),
+    rolesSection.locator('textarea').filter({
+      hasText: 'Took the product from SaaS-only to deployable on customer-managed hardware.',
+    }),
   ).toBeVisible()
   await expect(skillsSection.locator('input[value="Languages"]')).toHaveValue('Languages')
   await expect(skillsSection.locator('input[value="TypeScript"]')).toHaveValue('TypeScript')
@@ -510,11 +561,15 @@ test('rejects non-pdf uploads before scanning', async ({ page }) => {
     buffer: Buffer.from('plain text only', 'utf8'),
   })
 
-  await expect(page.getByRole('alert')).toContainText('Resume Scanner v1 only supports PDF uploads.')
+  await expect(page.getByRole('alert')).toContainText(
+    'Resume Scanner v1 only supports PDF uploads.',
+  )
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 })
 
-test('shows an error for malformed pdf uploads without rendering scanned sections', async ({ page }) => {
+test('shows an error for malformed pdf uploads without rendering scanned sections', async ({
+  page,
+}) => {
   await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
@@ -523,7 +578,9 @@ test('shows an error for malformed pdf uploads without rendering scanned section
     buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n', 'utf8'),
   })
 
-  await expect(page.getByRole('alert')).toContainText(/resume scan failed|invalid pdf|invalid root reference|malformed/i)
+  await expect(page.getByRole('alert')).toContainText(
+    /resume scan failed|invalid pdf|invalid root reference|malformed/i,
+  )
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 })
 
@@ -544,7 +601,9 @@ test('recovers with a valid pdf after a rejected upload', async ({ page }) => {
     buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n', 'utf8'),
   })
 
-  await expect(page.getByRole('alert')).toContainText(/resume scan failed|invalid pdf|invalid root reference|malformed/i)
+  await expect(page.getByRole('alert')).toContainText(
+    /resume scan failed|invalid pdf|invalid root reference|malformed/i,
+  )
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 
   await uploadInput.setInputFiles({
@@ -763,7 +822,9 @@ test('keeps the current scan when the file picker is cleared', async ({ page }) 
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
 })
 
-test('shows an error for zero-byte pdf uploads without rendering scanned sections', async ({ page }) => {
+test('shows an error for zero-byte pdf uploads without rendering scanned sections', async ({
+  page,
+}) => {
   await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
@@ -772,7 +833,9 @@ test('shows an error for zero-byte pdf uploads without rendering scanned section
     buffer: Buffer.alloc(0),
   })
 
-  await expect(page.getByRole('alert')).toContainText(/resume scan failed|invalid pdf|unexpected server response|missing pdf|empty/i)
+  await expect(page.getByRole('alert')).toContainText(
+    /resume scan failed|invalid pdf|unexpected server response|missing pdf|empty/i,
+  )
   await expect(page.locator('section.identity-scan-section')).toHaveCount(0)
 })
 
@@ -950,7 +1013,9 @@ test('preserves escaped parentheses and backslashes from pdf text', async ({ pag
   )
 })
 
-test('replacing the uploaded pdf without clearing swaps the scanned structure', async ({ page }) => {
+test('replacing the uploaded pdf without clearing swaps the scanned structure', async ({
+  page,
+}) => {
   await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const contactSection = page
@@ -1087,7 +1152,9 @@ test('parses multiple skill groups from a single resume pdf', async ({ page }) =
   await expect(skillsSection.locator('input[value="Kubernetes"]')).toHaveValue('Kubernetes')
 })
 
-test('parses multiple projects and education entries from a single resume pdf', async ({ page }) => {
+test('parses multiple projects and education entries from a single resume pdf', async ({
+  page,
+}) => {
   await page.goto(IDENTITY_SCANNER_ROUTE)
 
   const projectsSection = page
@@ -1107,7 +1174,9 @@ test('parses multiple projects and education entries from a single resume pdf', 
   await expect(page.getByLabel('Education: 2')).toBeVisible()
   await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
   await expect(projectsSection.locator('input[value="Orbit"]')).toHaveValue('Orbit')
-  await expect(projectsSection.locator('textarea').nth(0)).toHaveValue('Vector-based job search platform.')
+  await expect(projectsSection.locator('textarea').nth(0)).toHaveValue(
+    'Vector-based job search platform.',
+  )
   await expect(projectsSection.locator('textarea').nth(1)).toHaveValue('Internal developer portal.')
   await expect(educationSection.locator('input[value="St. Petersburg College"]')).toBeVisible()
   await expect(educationSection.locator('input[value="University of South Florida"]')).toBeVisible()
@@ -1129,11 +1198,71 @@ test('parses multiple roles from a single resume pdf', async ({ page }) => {
   })
 
   await expect(page.getByLabel('Roles: 2')).toBeVisible()
-  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
-  await expect(rolesSection.getByRole('button', { name: /ThreatX[\s\S]*Platform Engineer/i })).toBeVisible()
+  await expect(
+    rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i }),
+  ).toBeVisible()
+  await expect(
+    rolesSection.getByRole('button', { name: /ThreatX[\s\S]*Platform Engineer/i }),
+  ).toBeVisible()
   await expect(rolesSection.locator('input[value="A10 Networks"]')).toHaveValue('A10 Networks')
-  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toHaveValue('Senior Platform Engineer')
-  await expect(rolesSection.locator('input[value="Feb 2025 - Mar 2026"]')).toHaveValue('Feb 2025 - Mar 2026')
+  await expect(rolesSection.locator('input[value="Senior Platform Engineer"]')).toHaveValue(
+    'Senior Platform Engineer',
+  )
+  await expect(rolesSection.locator('input[value="Feb 2025 - Mar 2026"]')).toHaveValue(
+    'Feb 2025 - Mar 2026',
+  )
+})
+
+test('keeps the scanner review usable with an extremely long parsed role field', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'extreme-string.pdf',
+    mimeType: 'application/pdf',
+    buffer: extremeStringResumePdf(),
+  })
+
+  await expect(page.getByLabel('Roles: 1')).toBeVisible()
+  await expect(rolesSection.getByLabel('Company')).toHaveValue(EXTREME_UNBROKEN_COMPANY_NAME)
+  await expect(rolesSection.getByRole('button', { name: 'Next bullet' })).toBeDisabled()
+  await expectNoHorizontalPageOverflow(page)
+
+  await page.getByRole('textbox', { name: 'Search bullets' }).fill('hostile unbroken text')
+  await expect(rolesSection.getByLabel('Bullet 1 Source')).toHaveValue(
+    'Kept scanner review usable around hostile unbroken text.',
+  )
+  await expectNoHorizontalPageOverflow(page)
+})
+
+test('preserves irregular role date text for scanner review', async ({ page }) => {
+  await page.goto(IDENTITY_SCANNER_ROUTE)
+
+  const rolesSection = page
+    .locator('section.identity-scan-section')
+    .filter({ has: page.getByRole('heading', { name: 'Roles' }) })
+
+  await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+    name: 'irregular-date.pdf',
+    mimeType: 'application/pdf',
+    buffer: irregularDateResumePdf(),
+  })
+
+  await expect(page.getByLabel('Roles: 1')).toBeVisible()
+  await expect(rolesSection.getByLabel('Company')).toHaveValue('A10 Networks')
+  await expect(rolesSection.getByLabel('Title', { exact: true })).toHaveValue(
+    'Senior Platform Engineer',
+  )
+  await expect(rolesSection.getByLabel('Dates')).toHaveValue('Summer 2020-ish to roughly Q1 2024')
+  await expect(rolesSection.getByLabel('Bullet 1 Source')).toHaveValue(
+    'Preserved irregular chronology for human review.',
+  )
 })
 
 test('parses multiple bullets for a single role in source order', async ({ page }) => {
@@ -1157,9 +1286,7 @@ test('parses multiple bullets for a single role in source order', async ({ page 
   await expect(bulletRows.nth(2)).toContainText('Stabilized the third service.')
 })
 
-test('shows the bullet empty state when search hides all bullet-backed roles', async ({
-  page,
-}) => {
+test('shows the bullet empty state when search hides all bullet-backed roles', async ({ page }) => {
   await page.goto(IDENTITY_SCANNER_ROUTE)
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
@@ -1288,7 +1415,9 @@ test('renders a role header even when no bullets follow it', async ({ page }) =>
 
   await expect(page.getByLabel('Roles: 1')).toBeVisible()
   await expect(scanStatus.getByRole('group', { name: 'Bullets: 0', exact: true })).toBeVisible()
-  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
+  await expect(
+    rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i }),
+  ).toBeVisible()
   await expect(rolesSection.getByLabel(/Bullet \d+ Source/)).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toHaveCount(0)
   await expect(projectsSection.locator('input[value="Facet"]')).toHaveValue('Facet')
@@ -1311,7 +1440,9 @@ test('keeps a zero-bullet role header visible when bullet search has no matches'
 
   await page.getByRole('textbox', { name: 'Search bullets' }).fill('no matching bullet text')
 
-  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
+  await expect(
+    rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i }),
+  ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toHaveCount(0)
 })
 
@@ -1332,8 +1463,12 @@ test('hides filtered bullet-backed roles while keeping mixed zero-bullet roles v
 
   await page.getByRole('textbox', { name: 'Search bullets' }).fill('no matching bullet text')
 
-  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toHaveCount(0)
-  await expect(rolesSection.getByRole('button', { name: /ThreatX[\s\S]*Platform Engineer/i })).toBeVisible()
+  await expect(
+    rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i }),
+  ).toHaveCount(0)
+  await expect(
+    rolesSection.getByRole('button', { name: /ThreatX[\s\S]*Platform Engineer/i }),
+  ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'No bullets match this view' })).toHaveCount(0)
 })
 
@@ -1434,7 +1569,9 @@ test('keeps role bullets attached when they continue onto the next page', async 
 
   await expect(page.getByLabel('Roles: 1')).toBeVisible()
   await expect(page.getByLabel('Bullets: 3')).toBeVisible()
-  await expect(rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i })).toBeVisible()
+  await expect(
+    rolesSection.getByRole('button', { name: /A10 Networks[\s\S]*Senior Platform Engineer/i }),
+  ).toBeVisible()
   await expect(bulletRows).toHaveCount(3)
   await expect(bulletRows.nth(0)).toContainText('Built the first platform.')
   await expect(bulletRows.nth(1)).toContainText('Automated the second workflow.')
@@ -1578,7 +1715,7 @@ test('preserves scanned data across route navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Build' }).click()
   await expect(page).toHaveURL(/\/build$/)
   await page.goto(IDENTITY_SCANNER_ROUTE)
-  await expect(page).toHaveURL(/\/identity\/workbench$/)
+  await expect(page).toHaveURL(/\/identity\/import$/)
   await expect(contactSection.locator('input[value="NICK FERGUSON"]')).toBeVisible()
   await expect(rolesSection.locator('input[value="A10 Networks"]')).toBeVisible()
 })

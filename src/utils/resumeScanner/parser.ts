@@ -15,7 +15,8 @@ const BULLET_PREFIX = /^[•●▪◦◆▸►*-]\s*/
 const ROLE_KEYWORD_SOURCE =
   '(?:engineer|developer|manager|director|lead|architect|consultant|analyst|founder|owner|designer|administrator|specialist|intern)'
 // Loose date vocabulary check used to decide whether a line is date-like at all.
-const DATE_WORD_SOURCE = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|spring|summer|fall|winter|present|current|\\d{4})'
+const DATE_WORD_SOURCE =
+  '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|spring|summer|fall|winter|present|current|\\d{4})'
 // Structured date token used when a segment should be treated as an entire date fragment.
 const DATE_TOKEN_SOURCE =
   '(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?\\s+\\d{4}|(?:spring|summer|fall|winter)\\s+\\d{4}|\\d{4}|present|current)'
@@ -39,14 +40,15 @@ const TRAILING_DATE_PATTERN = new RegExp(
   `(?:${TRAILING_DATE_SEPARATOR_SOURCE}\\s*)(${DATE_TOKEN_SOURCE})$`,
   'i',
 )
-const PHONE_PATTERN =
-  /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}/
+const PHONE_PATTERN = /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}/
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
 // g-flag: safe with .match() and .replace(); avoid .test()/.exec() which retain lastIndex state.
 const URL_MATCH_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/gi
 const URL_TEST_PATTERN = /https?:\/\/[^\s)]+|(?:www\.)[^\s)]+/i
-const DOMAIN_MATCH_PATTERN = /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/gi
-const DOMAIN_TEST_PATTERN = /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/i
+const DOMAIN_MATCH_PATTERN =
+  /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/gi
+const DOMAIN_TEST_PATTERN =
+  /(?<![@/])\b(?:[A-Z0-9-]+\.)+[A-Z]{2,}(?:\/[A-Z0-9._~:/?#[\]@!$&'()*+,;=%-]+)?\b/i
 const SPACED_CAPS_PATTERN = /^(?:[A-Z]\s+){2,}[A-Z]$/i
 // Resume Scanner v1 intentionally tunes location detection to US state codes plus Remote/Hybrid.
 // Matches: "Denver, CO", "CO", "Remote", "Denver, CO (Remote)", "Remote - Denver, CO".
@@ -55,7 +57,10 @@ const LOCATION_LINE_PATTERN = new RegExp(
   'i',
 )
 const SECTION_HEADINGS: Array<[ResumeSection['key'], string[]]> = [
-  ['experience', ['experience', 'professional experience', 'work experience', 'employment', 'career history']],
+  [
+    'experience',
+    ['experience', 'professional experience', 'work experience', 'employment', 'career history'],
+  ],
   ['skills', ['skills', 'technical skills', 'core competencies', 'technologies', 'tooling']],
   ['education', ['education', 'academic background', 'academic history']],
   ['summary', ['summary', 'profile', 'professional summary', 'about']],
@@ -237,9 +242,7 @@ const parseLinks = (text: string): ProfessionalIdentityV3['identity']['links'] =
   const domainMatches = text.replace(URL_MATCH_PATTERN, ' ').match(DOMAIN_MATCH_PATTERN) ?? []
   const matches = [...urlMatches, ...domainMatches]
   const normalizedUrls = Array.from(
-    new Set(
-      matches.map((url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)),
-    ),
+    new Set(matches.map((url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`))),
   )
   return normalizedUrls.map((normalized, index) => {
     const hostname = (() => {
@@ -283,7 +286,10 @@ export const extractContact = (sections: ResumeSection[]): ParsedResumeContact =
         LOCATION_LINE_PATTERN.test(line),
     ) ?? ''
   const thesis =
-    summaryLines.map((line) => line.text).join(' ').trim() ||
+    summaryLines
+      .map((line) => line.text)
+      .join(' ')
+      .trim() ||
     (title && !DOMAIN_TEST_PATTERN.test(title) ? title : '') ||
     ''
 
@@ -300,24 +306,29 @@ export const extractContact = (sections: ResumeSection[]): ParsedResumeContact =
 
 const isBulletLine = (text: string): boolean => BULLET_PREFIX.test(text)
 
-const cleanBulletText = (text: string): string => normalizeWhitespace(text.replace(BULLET_PREFIX, ''))
+const cleanBulletText = (text: string): string =>
+  normalizeWhitespace(text.replace(BULLET_PREFIX, ''))
 
 const isLikelyMetadataLine = (text: string): boolean => {
-  const segments = text.split(/\s*[|•]\s*/).map((entry) => normalizeWhitespace(entry)).filter(Boolean)
+  const segments = text
+    .split(/\s*[|•]\s*/)
+    .map((entry) => normalizeWhitespace(entry))
+    .filter(Boolean)
   if (segments.length === 0) {
     return false
   }
 
-  return segments.every((segment) =>
-    looksLikeContactDetail(segment) || DOMAIN_TEST_PATTERN.test(segment) || LOCATION_LINE_PATTERN.test(segment),
+  return segments.every(
+    (segment) =>
+      looksLikeContactDetail(segment) ||
+      DOMAIN_TEST_PATTERN.test(segment) ||
+      LOCATION_LINE_PATTERN.test(segment),
   )
 }
 
 const hasLikelyAtRoleHeader = (text: string): boolean => {
   const stripped = normalizeWhitespace(
-    text
-      .replace(DATE_RANGE_PATTERN, ' ')
-      .replace(TRAILING_DATE_PATTERN, ' '),
+    text.replace(DATE_RANGE_PATTERN, ' ').replace(TRAILING_DATE_PATTERN, ' '),
   )
   const atSplit = pickAtSplit(stripped)
   return Boolean(atSplit && isLikelyRoleKeyword(atSplit.title))
@@ -332,13 +343,18 @@ const looksLikeRoleHeader = (text: string): boolean => {
     return false
   }
 
-  const segments = text.split(/\s*[|•]\s*/).map((entry) => normalizeWhitespace(entry)).filter(Boolean)
+  const segments = text
+    .split(/\s*[|•]\s*/)
+    .map((entry) => normalizeWhitespace(entry))
+    .filter(Boolean)
 
   return (
     DATE_PATTERN.test(text) ||
     hasLikelyAtRoleHeader(text) ||
     (/[|•]/.test(text) &&
-      segments.some((segment) => isLikelyRoleKeyword(segment) || FULL_DATE_SEGMENT_PATTERN.test(segment)))
+      segments.some(
+        (segment) => isLikelyRoleKeyword(segment) || FULL_DATE_SEGMENT_PATTERN.test(segment),
+      ))
   )
 }
 
@@ -347,7 +363,13 @@ const isLikelyRoleKeyword = (value: string): boolean => ROLE_KEYWORD_PATTERN.tes
 const endsWithRoleKeyword = (value: string): boolean => ROLE_KEYWORD_END_PATTERN.test(value.trim())
 
 const looksLikeContactDetail = (value: string): boolean =>
-  EMAIL_PATTERN.test(value) || PHONE_PATTERN.test(value) || URL_TEST_PATTERN.test(value) || DOMAIN_TEST_PATTERN.test(value)
+  EMAIL_PATTERN.test(value) ||
+  PHONE_PATTERN.test(value) ||
+  URL_TEST_PATTERN.test(value) ||
+  DOMAIN_TEST_PATTERN.test(value)
+
+const looksLikeIrregularDateSegment = (value: string): boolean =>
+  DATE_PATTERN.test(value) && /(?:[-–—]|\bto\b|\?|ish|roughly|\bq[1-4]\b)/i.test(value)
 
 const trimRoleSeparators = (value: string): string =>
   normalizeWhitespace(value.replace(/^[|•–—-]+\s*|\s*[|•–—-]+$/g, ''))
@@ -421,17 +443,34 @@ export const extractDateFromRoleHeader = (
           })
           .find((entry): entry is { index: number; date: string } => Boolean(entry.date))
       : null) ?? null
+  const irregularSegmentDateEntry =
+    (segments.length > 1
+      ? segments
+          .map((segment, index) => ({
+            index,
+            date:
+              looksLikeIrregularDateSegment(segment) &&
+              !isLikelyRoleKeyword(segment) &&
+              !looksLikeContactDetail(segment)
+                ? segment
+                : null,
+          }))
+          .find((entry): entry is { index: number; date: string } => Boolean(entry.date))
+      : null) ?? null
   const dateSegment =
     segmentDateEntry?.date ||
     inlineDateSegment ||
     trailingDateSegment ||
+    irregularSegmentDateEntry?.date ||
     (nextLine && DATE_PATTERN.test(nextLine) ? normalizeWhitespace(nextLine) : '')
   const remaining =
-    segmentDateEntry
-      ? segments.filter((_, index) => index !== segmentDateEntry.index)
+    segmentDateEntry || irregularSegmentDateEntry
+      ? segments.filter(
+          (_, index) => index !== (segmentDateEntry ?? irregularSegmentDateEntry)?.index,
+        )
       : segments.filter((segment) => segment !== dateSegment)
 
-  if (segmentDateEntry) {
+  if (segmentDateEntry || irregularSegmentDateEntry) {
     return {
       dateSegment,
       remaining,
@@ -474,7 +513,11 @@ const parseRoleHeader = (
     .split(/\s*[|•]\s*/)
     .map((entry) => normalizeWhitespace(entry))
     .filter(Boolean)
-  const { dateSegment, remaining, textWithoutDates } = extractDateFromRoleHeader(line, segments, nextLine)
+  const { dateSegment, remaining, textWithoutDates } = extractDateFromRoleHeader(
+    line,
+    segments,
+    nextLine,
+  )
 
   if (remaining.length >= 2) {
     const [first, second] = remaining
@@ -502,7 +545,9 @@ const parseRoleHeader = (
     title: normalizeWhitespace(textWithoutDates),
     company: '',
     dates: normalizeWhitespace(dateSegment),
-    ...(nextLine && nextLine !== dateSegment && !isBulletLine(nextLine) ? { subtitle: nextLine } : {}),
+    ...(nextLine && nextLine !== dateSegment && !isBulletLine(nextLine)
+      ? { subtitle: nextLine }
+      : {}),
   }
 }
 
@@ -519,7 +564,11 @@ const parseStackedRoleHeader = (
     return null
   }
 
-  if (!companyCandidate || isBulletLine(companyCandidate) || looksLikeContactDetail(companyCandidate)) {
+  if (
+    !companyCandidate ||
+    isBulletLine(companyCandidate) ||
+    looksLikeContactDetail(companyCandidate)
+  ) {
     return null
   }
 
@@ -559,7 +608,12 @@ const parseCompanyFirstRoleHeader = (
   const company = normalizeWhitespace(line)
   const detailLine = normalizeWhitespace(nextLine ?? '')
 
-  if (!company || identifySection(company) || isLikelyMetadataLine(company) || isLikelyRoleKeyword(company)) {
+  if (
+    !company ||
+    identifySection(company) ||
+    isLikelyMetadataLine(company) ||
+    isLikelyRoleKeyword(company)
+  ) {
     return null
   }
 
@@ -718,8 +772,13 @@ const parseEducationEntry = (text: string): ParsedResumeEducation => {
   )
   const yearMatch = normalizedText.match(/\b(19|20)\d{2}(?:\s*[-–]\s*(?:19|20)\d{2})?\b/)
   const year = yearMatch?.[0]
-  const textWithoutYear = year ? normalizeWhitespace(normalizedText.replace(year, ' ')) : normalizedText
-  const parts = textWithoutYear.split(/\s*[|•]\s*|,\s*/).map((entry) => normalizeWhitespace(entry)).filter(Boolean)
+  const textWithoutYear = year
+    ? normalizeWhitespace(normalizedText.replace(year, ' '))
+    : normalizedText
+  const parts = textWithoutYear
+    .split(/\s*[|•]\s*|,\s*/)
+    .map((entry) => normalizeWhitespace(entry))
+    .filter(Boolean)
   const school =
     parts.find((entry) => /\b(university|college|institute|school)\b/i.test(entry)) ??
     parts[0] ??
@@ -819,7 +878,9 @@ export const extractProjects = (sections: ResumeSection[]): ParsedResumeProject[
     }
 
     const continuation = isBulletLine(text) ? cleanBulletText(text) : text
-    currentProject.description = normalizeWhitespace(`${currentProject.description} ${continuation}`)
+    currentProject.description = normalizeWhitespace(
+      `${currentProject.description} ${continuation}`,
+    )
   }
 
   return projects.filter((project) => project.name && project.description)
@@ -923,7 +984,9 @@ const toIdentity = ({
     dates: role.dates,
     ...(role.subtitle ? { subtitle: role.subtitle } : {}),
     bullets: role.bullets.map((bullet, bulletIndex) => ({
-      id: slugify(`${role.company}-${role.title}-${bullet}`) || `bullet-${roleIndex + 1}-${bulletIndex + 1}`,
+      id:
+        slugify(`${role.company}-${role.title}-${bullet}`) ||
+        `bullet-${roleIndex + 1}-${bulletIndex + 1}`,
       problem: '',
       action: '',
       outcome: '',
@@ -948,16 +1011,24 @@ const toIdentity = ({
   return identity
 }
 
-export const parseResumeTextItems = (items: ResumeTextItem[]): {
+export const parseResumeTextItems = (
+  items: ResumeTextItem[],
+): {
   identity: ProfessionalIdentityV3
   rawText: string
   warnings: ResumeScanResult['warnings']
   layout: ResumeScanResult['layout']
 } => {
   const lines = groupTextItemsIntoLines(items)
-  const rawText = lines.map((line) => line.text).filter(Boolean).join('\n').trim()
+  const rawText = lines
+    .map((line) => line.text)
+    .filter(Boolean)
+    .join('\n')
+    .trim()
   if (!rawText) {
-    throw new Error('The PDF appears to be image-only or unreadable. Paste text instead or upload a text-based PDF.')
+    throw new Error(
+      'The PDF appears to be image-only or unreadable. Paste text instead or upload a text-based PDF.',
+    )
   }
 
   const sections = splitLinesIntoSections(lines)
