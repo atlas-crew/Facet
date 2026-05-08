@@ -3,7 +3,7 @@ id: doc-43
 title: Golden E2E Fixture Coverage Plan
 type: specification
 created_date: '2026-05-08 23:26'
-updated_date: '2026-05-08 23:26'
+updated_date: '2026-05-08 23:28'
 tags:
   - fixtures
   - e2e
@@ -62,7 +62,29 @@ Required focused checks:
 
 ## Rollout Tasks
 
-This document is tracked by milestone `m-29` and the child tasks filed under the Golden E2E Fixture Coverage parent task.
+Milestone: `m-29` Golden E2E Fixture Coverage.
+
+Task graph:
+
+```
+TASK-245    Build golden E2E fixture coverage                 [parent]
+   |
+   +-- TASK-245.1  Add Maya golden fixture data artifacts      [med]
+          |
+          v
+      TASK-245.2  Build golden workspace snapshot composer     [med]
+          |
+          +-- TASK-245.3  Use golden workspace in hosted Playwright fixtures  [med]
+          +-- TASK-245.4  Add deterministic cross-workspace golden E2E test   [med]
+          +-- TASK-245.5  Add optional dev demo workspace loader              [low]
+          +-- TASK-245.6  Document golden fixture usage and maintenance       [low]
+```
+
+Implementation order:
+
+1. `TASK-245.1` creates the missing downstream data for Maya.
+2. `TASK-245.2` composes that data into a reusable golden workspace/snapshot and validates hydration.
+3. `TASK-245.3`, `TASK-245.4`, `TASK-245.5`, and `TASK-245.6` can proceed in parallel after the composer lands.
 
 ## Open Questions
 
