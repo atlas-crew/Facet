@@ -14,9 +14,7 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
 }))
 
-const seed = (
-  modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void,
-) => {
+const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) => {
   const identity = cloneIdentityFixture()
   modifier?.(identity)
   resolveStorage().removeItem('facet-identity-workspace')
@@ -81,9 +79,7 @@ describe('BulletInspector — source_text sheet canary', () => {
     fireEvent.change(textarea, { target: { value: 'Newly captured raw text' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    const stored = useIdentityStore
-      .getState()
-      .currentIdentity!.roles[0].bullets[0].source_text
+    const stored = useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].source_text
     expect(stored).toBe('Newly captured raw text')
     expect(screen.queryByRole('region', { name: /source text/i })).toBeNull()
   })
@@ -99,9 +95,7 @@ describe('BulletInspector — source_text sheet canary', () => {
     fireEvent.change(textarea, { target: { value: 'discarded edits' } })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    const stored = useIdentityStore
-      .getState()
-      .currentIdentity!.roles[0].bullets[0].source_text
+    const stored = useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].source_text
     expect(stored).toBe('Already saved')
     expect(screen.queryByRole('region', { name: /source text/i })).toBeNull()
   })
@@ -117,9 +111,7 @@ describe('BulletInspector — source_text sheet canary', () => {
     fireEvent.change(textarea, { target: { value: '   ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    const stored = useIdentityStore
-      .getState()
-      .currentIdentity!.roles[0].bullets[0].source_text
+    const stored = useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].source_text
     expect(stored).toBeUndefined()
   })
 
@@ -164,10 +156,86 @@ describe('BulletInspector — source_text sheet canary', () => {
     fireEvent.change(textarea, { target: { value: 'Updated source only' } })
     fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }))
 
-    const bullet = useIdentityStore
-      .getState()
-      .currentIdentity!.roles[0].bullets[0]
+    const bullet = useIdentityStore.getState().currentIdentity!.roles[0].bullets[0]
     expect(bullet.source_text).toBe('Updated source only')
     expect(bullet.problem).toBe('Cloud-only delivery blocked on-prem deployments.')
+  })
+
+  it('shows metric summaries and an edit affordance when metrics exist', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].metrics = {
+        services_ported: 12,
+        revenue_protected: '$1.2M',
+        audited: true,
+      }
+    })
+    render(<IdentityMapPage />)
+
+    expect(screen.getByText(/services_ported: 12/)).not.toBeNull()
+    expect(screen.getByText(/revenue_protected: \$1.2M/)).not.toBeNull()
+    expect(screen.getByText(/audited: true/)).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit metrics' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add metrics' })).toBeNull()
+  })
+
+  it('opens the metrics sheet and persists valid JSON to the canonical bullet', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].metrics = { services_ported: 12 }
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit metrics' }))
+    const sheet = screen.getByRole('region', { name: 'Edit metrics' })
+    const textarea = within(sheet).getByLabelText('Metrics JSON') as HTMLTextAreaElement
+    expect(textarea.value).toBe(JSON.stringify({ services_ported: 12 }, null, 2))
+
+    fireEvent.change(textarea, {
+      target: {
+        value: JSON.stringify({
+          latency_ms: 120,
+          validated: true,
+          ignored_nested: { value: 1 },
+        }),
+      },
+    })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }))
+
+    const stored = useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].metrics
+    expect(stored).toEqual({ latency_ms: 120, validated: true })
+    expect(screen.queryByRole('region', { name: /metrics/i })).toBeNull()
+  })
+
+  it('keeps the metrics sheet open and leaves the store unchanged for invalid JSON', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].metrics = {}
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add metrics' }))
+    const sheet = screen.getByRole('region', { name: 'Add metrics' })
+    const textarea = within(sheet).getByLabelText('Metrics JSON') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: '{' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }))
+
+    expect(within(sheet).getByRole('alert').textContent).toContain(
+      'Metrics must be valid JSON before you save.',
+    )
+    expect(useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].metrics).toEqual({})
+    expect(screen.getByRole('region', { name: 'Add metrics' })).not.toBeNull()
+  })
+
+  it('saves empty metrics input as an empty object', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].metrics = { services_ported: 12 }
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit metrics' }))
+    const sheet = screen.getByRole('region', { name: 'Edit metrics' })
+    const textarea = within(sheet).getByLabelText('Metrics JSON') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: '   ' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].metrics).toEqual({})
   })
 })

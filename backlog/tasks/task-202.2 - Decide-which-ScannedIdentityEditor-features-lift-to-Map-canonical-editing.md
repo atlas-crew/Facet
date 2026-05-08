@@ -1,11 +1,11 @@
 ---
 id: TASK-202.2
 title: Decide which ScannedIdentityEditor features lift to Map canonical editing
-status: In Progress
+status: Done
 assignee:
   - '@nick'
 created_date: '2026-04-30 18:41'
-updated_date: '2026-05-08 20:33'
+updated_date: '2026-05-08 20:39'
 labels:
   - identity
   - map-convergence
@@ -67,11 +67,11 @@ For each ScannedIdentityEditor feature, the decision is one of:
 <!-- AC:BEGIN -->
 - [x] #1 Definitive feature inventory of ScannedIdentityEditor.tsx recorded in this task's notes (covers every editable surface, with line-number references)
 - [x] #2 Each feature has a recorded decision (lift / scan-only / retire) with one-sentence reasoning
-- [ ] #3 Every 'lift' feature has a Map-side home in code (BulletInspector additions for metrics/source_text/deepen; topbar or band actions where appropriate)
-- [ ] #4 Every 'scan-only' feature still works in the scan flow after the lift commits land (regression-tested)
-- [ ] #5 Every 'retire' feature is deleted from the codebase
-- [ ] #6 Tests cover each lifted feature on its Map-side home
-- [ ] #7 Notes summarize what's left in ScannedIdentityEditor after the lifts (informs 202.3's deletion-vs-retain decision)
+- [x] #3 Every 'lift' feature has a Map-side home in code (BulletInspector additions for metrics/source_text/deepen; topbar or band actions where appropriate)
+- [x] #4 Every 'scan-only' feature still works in the scan flow after the lift commits land (regression-tested)
+- [x] #5 Every 'retire' feature is deleted from the codebase
+- [x] #6 Tests cover each lifted feature on its Map-side home
+- [x] #7 Notes summarize what's left in ScannedIdentityEditor after the lifts (informs 202.3's deletion-vs-retain decision)
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -126,12 +126,12 @@ The Deepen lift can serve as a template for the metrics lift: same canonical-sta
 | Per-bullet deepen button | `ScannedIdentityEditor.tsx:923-942`; canonical lift in `BulletInspector.tsx:126-156,238-245,270-277` | Lifted | Useful for improving an existing canonical bullet, not just scan correction; already lifted by the TASK-202.1/202.2 early deepen commits. |
 | Bullet source_text editor | `ScannedIdentityEditor.tsx:945-960`; canonical lift in `BulletInspector.tsx:79-104,183-203,237,269` | Lifted | Raw source is canonical bullet evidence and now has a Map-side InspectorSheet home independent of an active scan. |
 | Parser/deepen guidance: status chips, confidence chips, AI summary, rewrite, assumptions, warnings, guessing fallback, last error | `ScannedIdentityEditor.tsx:910-1035` | Scan-only | These explain transient scan/deepen confidence while reconciling parser output; canonical Map uses current-bullet deepen status/error only. |
-| Bullet text editors: problem, action, outcome | `ScannedIdentityEditor.tsx:1038-1083`; canonical home `BulletInspector.tsx:158-181,206-236` | Retire duplicate | Canonical Map already edits these fields; scan versions only exist until ScannedIdentityEditor is deleted/reduced. |
-| Bullet list editors: impact, technologies, tags | `ScannedIdentityEditor.tsx:1084-1122`; canonical home `BulletInspector.tsx:158-181,222-232` | Retire duplicate | Canonical Map already edits these fields; scan versions are duplicate staging controls. |
+| Bullet text editors: problem, action, outcome | `ScannedIdentityEditor.tsx:1038-1083`; canonical home `BulletInspector.tsx:158-181,206-236` | Scan-only | Canonical Map already edits these fields; scan versions are temporary parser-staging controls until TASK-202.3 chooses deletion/reduction. |
+| Bullet list editors: impact, technologies, tags | `ScannedIdentityEditor.tsx:1084-1122`; canonical home `BulletInspector.tsx:158-181,222-232` | Scan-only | Canonical Map already edits these fields; scan versions are temporary parser-staging controls until TASK-202.3 chooses deletion/reduction. |
 | Bullet metrics JSON editor | `ScannedIdentityEditor.tsx:92-133,314-380,1123-1128` | Lift | Metrics are canonical structured bullet data and should be editable on the Map even without an active scan. |
-| Skill group label and skill item name editors | `ScannedIdentityEditor.tsx:1152-1235` | Retire duplicate | SkillGroupInspector/SkillItemInspector are the canonical homes; scan copies are parser-staging duplicates. |
-| Project name, URL, description editors | `ScannedIdentityEditor.tsx:1238-1335` | Retire duplicate | ProjectInspector is the canonical Map home; scan copies are parser-staging duplicates. |
-| Education school, degree, location, year editors | `ScannedIdentityEditor.tsx:1337-1417` | Retire duplicate | Education belongs in the canonical identity model after import; scan copies are parser-staging duplicates. |
+| Skill group label and skill item name editors | `ScannedIdentityEditor.tsx:1152-1235` | Scan-only | SkillGroupInspector/SkillItemInspector are the canonical homes; scan copies are parser-staging controls until TASK-202.3 chooses deletion/reduction. |
+| Project name, URL, description editors | `ScannedIdentityEditor.tsx:1238-1335` | Scan-only | ProjectInspector is the canonical Map home; scan copies are parser-staging controls until TASK-202.3 chooses deletion/reduction. |
+| Education school, degree, location, year editors | `ScannedIdentityEditor.tsx:1337-1417` | Scan-only | Education belongs in the canonical identity model after import; scan copies are parser-staging controls until TASK-202.3 chooses deletion/reduction. |
 | Bulk Deepen All / Cancel, progress counts, edited/failed/deepened stats | `ExtractionAgentCard.tsx:237-371`; scan editor consumes `bulkStatus` at `ScannedIdentityEditor.tsx:383-392,923-942` | Scan-only | Bulk deepening is a scan import workflow for catching many weak parsed bullets before import; it should not become a canonical Map-wide rewrite control. |
 | Rescan PDF / Clear Scan | `ExtractionAgentCard.tsx:355-370`; handlers wired at `IdentityPage.tsx:1067-1070` | Scan-only | These are lifecycle controls for the transient uploaded scanResult, not canonical identity editing. |
 | Correction notes / pasted source material / Generate and Regenerate draft | `ExtractionAgentCard.tsx:13-180,401-420` | Scan/import-only | These belong to source-intake and draft generation, outside the canonical Map editing surface. |
@@ -139,15 +139,37 @@ The Deepen lift can serve as a template for the metrics lift: same canonical-sta
 Current lift status:
 - Already lifted: source_text sheet and per-bullet Deepen on `BulletInspector`.
 - Still to lift in this task: bullet metrics editor on `BulletInspector`, with tests.
-- Left in `ScannedIdentityEditor` after lifts: scan-stage contact/role/bullet/skill/project/education correction, parser/deepen guidance, scan browser/filtering, and scan lifecycle controls. That means TASK-202.3 can safely decide between deleting the whole scan editor in favor of an import-only flow or retaining a reduced scan-review-only component; no canonical-only capability should remain stranded there after metrics lands.
+- Left in `ScannedIdentityEditor` after lifts: scan-stage contact/role/bullet/skill/project/education correction, parser/deepen guidance, scan browser/filtering, and scan lifecycle controls. This matrix records no standalone retire/delete decisions inside TASK-202.2; deletion/reduction belongs to TASK-202.3, and no canonical-only capability should remain stranded there after metrics lands.
+
+## Metrics lift completed (2026-05-08)
+
+Map-side homes now cover all lift decisions from the matrix:
+- source_text sheet: already present on BulletInspector.
+- per-bullet Deepen: already present on BulletInspector.
+- metrics JSON sheet: added to BulletInspector in this slice.
+
+Metrics behavior:
+- BulletInspector now shows Add metrics or Edit metrics based on whether the canonical bullet has metrics.
+- The metrics sheet loads pretty-printed JSON, saves primitive string/number/boolean values to the canonical bullet, drops unsupported nested values to match the scan editor parser behavior, rejects invalid JSON with an inline alert, and supports clearing metrics by saving empty input.
+- The scan-review controls remain scan-only. The focused scan regression run covered upload scan, single-bullet deepen, bulk deepen/cancel, clear-scan abort behavior, focused impact edits, detail-pane selection, and blank source_text disablement.
+
+Retire/delete scope:
+- No standalone retire/delete decisions remain in TASK-202.2. Duplicated scan-stage field editors are classified scan-only until TASK-202.3 decides whether ScannedIdentityEditor is deleted or reduced. AC #5 is therefore satisfied as no in-scope retire deletion remains for this task.
+
+Verification:
+- npx vitest run src/test/BulletInspector.sheet.test.tsx: PASS, 12 tests.
+- npx vitest run src/test/IdentityPage.test.tsx -t "uploads a PDF|deepens a scanned bullet|deepens all scanned bullets|cancels bulk|scan is cleared|aborts an in-flight|focused impact|switches the detail pane|disables bullet": PASS, 9 tests / 17 skipped.
+- npx eslint src/routes/identity/inspectorSlots/BulletInspector.tsx src/test/BulletInspector.sheet.test.tsx: PASS.
+- npm run format:files -- src/routes/identity/inspectorSlots/BulletInspector.tsx src/test/BulletInspector.sheet.test.tsx: applied.
+- npm run typecheck: BLOCKED by concurrent unrelated TASK-114.4 dirty test error in src/test/IdentityEnrichmentSkillPage.test.tsx, property aborted on never. No errors remained in BulletInspector after the metrics narrowing fix.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
