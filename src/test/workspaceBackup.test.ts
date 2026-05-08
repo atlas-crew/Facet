@@ -15,7 +15,7 @@ import { useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useSearchStore } from '../store/searchStore'
-import type { SearchFeedbackEvent, SearchThesis } from '../types/search'
+import type { SearchFeedbackEvent, SearchProfile, SearchThesis } from '../types/search'
 import { hashCoverLetterContent } from '../utils/coverLetterEntities'
 import { slugify } from '../utils/idUtils'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
@@ -64,6 +64,30 @@ const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis 
   source: 'generated',
   identityVersion: 1,
   feedbackIncorporated: [],
+  ...overrides,
+})
+
+const buildResearchProfile = (overrides: Partial<SearchProfile> = {}): SearchProfile => ({
+  id: 'sprof-backup',
+  skills: [],
+  workSummary: [],
+  openQuestions: [],
+  constraints: {
+    compensation: '$250k',
+    locations: ['Remote'],
+    clearance: '',
+    companySize: '',
+  },
+  filters: {
+    prioritize: [{ label: 'platform', severity: 'soft' }],
+    avoid: [{ label: 'ad-tech', severity: 'soft' }],
+  },
+  interviewPrefs: {
+    strongFit: ['ownership'],
+    redFlags: ['low scope'],
+  },
+  inferredAt: '2026-03-11T00:00:00.000Z',
+  inferredFromResumeVersion: 1,
   ...overrides,
 })
 
@@ -335,6 +359,23 @@ describe('workspace backup merge helpers', () => {
       'pipe-1',
       'pipe-2',
     ])
+  })
+
+  it('strips identity-sourced research profiles during workspace import merge', () => {
+    const current = backupSnapshot()
+    const imported = backupSnapshot()
+    current.artifacts.research.payload.profile = buildResearchProfile({
+      id: 'sprof-current-identity',
+      source: { kind: 'identity', label: 'Identity model' },
+    })
+    imported.artifacts.research.payload.profile = buildResearchProfile({
+      id: 'sprof-imported-identity',
+      source: { kind: 'identity', label: 'Identity model' },
+    })
+
+    const merged = mergeWorkspaceSnapshots(current, imported)
+
+    expect(merged.artifacts.research.payload.profile).toBeNull()
   })
 
   it('normalizes legacy cover letter payloads before workspace merge', () => {

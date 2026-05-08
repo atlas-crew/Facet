@@ -36,6 +36,7 @@ import {
   LOCAL_ONLY_PERSISTENCE_BOUNDARIES,
 } from '../persistence/snapshot'
 import { assertValidWorkspaceSnapshot } from '../persistence/validation'
+import type { SearchProfile } from '../types/search'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
 const LEGACY_KEYS = [
@@ -56,6 +57,30 @@ const clearLegacyStorage = () => {
     storage.removeItem(key)
   }
 }
+
+const buildResearchProfile = (overrides: Partial<SearchProfile> = {}): SearchProfile => ({
+  id: 'sprof-test',
+  skills: [],
+  workSummary: [],
+  openQuestions: [],
+  constraints: {
+    compensation: '$250k',
+    locations: ['Remote'],
+    clearance: '',
+    companySize: '',
+  },
+  filters: {
+    prioritize: [{ label: 'platform', severity: 'soft' }],
+    avoid: [{ label: 'ad-tech', severity: 'soft' }],
+  },
+  interviewPrefs: {
+    strongFit: ['ownership'],
+    redFlags: ['low scope'],
+  },
+  inferredAt: '2026-03-11T00:00:00.000Z',
+  inferredFromResumeVersion: defaultResumeData.version,
+  ...overrides,
+})
 
 describe('persistence foundation', () => {
   afterEach(() => {
@@ -387,6 +412,28 @@ describe('persistence foundation', () => {
     expect(workspaceSnapshot.exportedAt).toEqual(expect.any(String))
     expect(localPreferencesSnapshot.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(localPreferencesSnapshot.exportedAt).toEqual(expect.any(String))
+  })
+
+  it('strips identity-sourced research profiles from durable workspace snapshots', () => {
+    useSearchStore.setState({
+      profile: buildResearchProfile({
+        id: 'sprof-identity',
+        source: { kind: 'identity', label: 'Identity model' },
+      }),
+      requests: [],
+      runs: [],
+      theses: [],
+      activeThesisId: null,
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+
+    const snapshot = createWorkspaceSnapshotFromStores({
+      workspaceId: 'ws-identity-research',
+      exportedAt: '2026-03-11T12:00:00.000Z',
+    })
+
+    expect(snapshot.artifacts.research.payload.profile).toBeNull()
   })
 
   it('captures local-only preferences separately from durable workspace content', () => {
@@ -769,6 +816,48 @@ describe('persistence foundation', () => {
 
     expect(hydrateStoresFromLegacyStorage()).toBe(true)
     expect(useSearchStore.getState().activeResearchJob).toEqual(activeResearchJob)
+  })
+
+  it('strips identity-sourced research profiles during workspace and legacy hydration', () => {
+    const snapshot = buildWorkspaceSnapshot({
+      workspace: {
+        id: 'ws-identity-hydration',
+        name: 'Identity Hydration',
+        revision: 1,
+        updatedAt: '2026-03-11T12:00:00.000Z',
+      },
+      tenantId: null,
+      userId: null,
+      exportedAt: '2026-03-11T12:00:00.000Z',
+    })
+    snapshot.artifacts.research.payload.profile = buildResearchProfile({
+      id: 'sprof-identity-hydrate',
+      source: { kind: 'identity', label: 'Identity model' },
+    })
+
+    applyWorkspaceSnapshotToStores(snapshot)
+    expect(useSearchStore.getState().profile).toBeNull()
+
+    resolveStorage().setItem(
+      'facet-search-data',
+      JSON.stringify({
+        state: {
+          profile: buildResearchProfile({
+            id: 'sprof-identity-legacy',
+            source: { kind: 'identity', label: 'Identity model' },
+          }),
+          requests: [],
+          runs: [],
+          theses: [],
+          feedbackEvents: [],
+          activeResearchJob: null,
+        },
+        version: 0,
+      }),
+    )
+
+    expect(hydrateStoresFromLegacyStorage()).toBe(true)
+    expect(useSearchStore.getState().profile).toBeNull()
   })
 
   it('migrates legacy search thesis filters to canonical signals during hydration', () => {
