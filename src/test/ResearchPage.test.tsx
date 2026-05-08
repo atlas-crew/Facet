@@ -36,6 +36,7 @@ const {
   mockGenerateSearchThesisFromIdentity,
   mockFetchAiProxyCapabilities,
   mockGenerateCoverLetter,
+  mockGenerateInterviewPrep,
 } = vi.hoisted(() => ({
   mockInferSearchProfile: vi.fn(),
   mockCreateDeepResearchJob: vi.fn(),
@@ -46,6 +47,7 @@ const {
   mockGenerateSearchThesisFromIdentity: vi.fn(),
   mockFetchAiProxyCapabilities: vi.fn(),
   mockGenerateCoverLetter: vi.fn(),
+  mockGenerateInterviewPrep: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', async () => {
@@ -108,6 +110,17 @@ vi.mock('../utils/coverLetterGenerator', async () => {
     ...actual,
     generateCoverLetter: (...args: Parameters<typeof actual.generateCoverLetter>) =>
       mockGenerateCoverLetter(...args),
+  }
+})
+
+vi.mock('../utils/prepGenerator', async () => {
+  const actual = await vi.importActual<typeof import('../utils/prepGenerator')>(
+    '../utils/prepGenerator',
+  )
+  return {
+    ...actual,
+    generateInterviewPrep: (...args: Parameters<typeof actual.generateInterviewPrep>) =>
+      mockGenerateInterviewPrep(...args),
   }
 })
 
@@ -255,6 +268,7 @@ describe('ResearchPage', () => {
     mockGenerateSearchThesisFromIdentity.mockReset()
     mockFetchAiProxyCapabilities.mockReset()
     mockGenerateCoverLetter.mockReset()
+    mockGenerateInterviewPrep.mockReset()
     mockStreamDeepResearchJob.mockReturnValue({ close: vi.fn() })
     mockFetchAiProxyCapabilities.mockResolvedValue({
       modelCapabilities: {
