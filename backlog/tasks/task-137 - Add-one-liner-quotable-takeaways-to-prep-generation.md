@@ -1,10 +1,11 @@
 ---
 id: TASK-137
 title: Add one-liner quotable takeaways to prep generation
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-16 13:11'
-updated_date: '2026-05-08 23:19'
+updated_date: '2026-05-08 23:51'
 labels:
   - prep
   - generation
@@ -57,6 +58,12 @@ Request 1-2 memorable one-sentence takeaways per major story/project card. These
 - [ ] #4 No new types or rendering changes required
 - [ ] #5 Existing cards without one-liners render unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-137. Scope: prompt-only prep generation refinement anchored to canonical JDAnalysis.strengthsToLead and positioningRecommendations; add focused prompt-contract tests; no schema/UI changes.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
