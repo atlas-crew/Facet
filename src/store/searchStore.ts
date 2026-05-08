@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import type {
   FeedbackApplicationState,
+  SearchFeedbackDimensions,
   SearchFeedbackEvent,
   SearchFeedbackEventBase,
+  SearchFeedbackRating,
   SearchInstanceOverrides,
   SearchInterviewPrefs,
   SearchProfile,
@@ -152,7 +154,7 @@ interface SearchState {
   addFeedbackEvent: (event: SearchFeedbackEventInput) => SearchFeedbackEvent
   /** Flip `appliedToIdentity=true` and record the identity version that absorbed the event. */
   markFeedbackApplied: (id: string, identityVersion: number) => void
-  /** Record which thesis first incorporated a batch of applied events. */
+  /** Record which search thesis first incorporated a batch of applied events; first write wins. */
   markFeedbackReflectedInThesis: (ids: readonly string[], thesisId: string) => void
   /**
    * Events eligible for thesis regeneration input — applied to identity but not yet
@@ -173,8 +175,8 @@ export const pruneOrphans = <TState extends SearchOrphanPrunableState>(state: TS
   const validRequestIds = new Set(state.requests.map((request) => request.id))
   const runs = state.runs.filter((run) => validRequestIds.has(run.requestId))
   const validRunIds = new Set(runs.map((run) => run.id))
-  const feedbackEvents = state.feedbackEvents.filter((event) => validRunIds.has(event.runId))
-  const validFeedbackIds = new Set(feedbackEvents.map((event) => event.id))
+  const feedbackEventsForRuns = state.feedbackEvents.filter((event) => validRunIds.has(event.runId))
+  const validFeedbackIds = new Set(feedbackEventsForRuns.map((event) => event.id))
   const theses = state.theses.map((thesis) => {
     const currentFeedbackIncorporated = thesis.feedbackIncorporated ?? []
     const feedbackIncorporated = currentFeedbackIncorporated.filter((id) =>
@@ -185,6 +187,32 @@ export const pruneOrphans = <TState extends SearchOrphanPrunableState>(state: TS
       : { ...thesis, feedbackIncorporated }
   })
   const validThesisIds = new Set(theses.map((thesis) => thesis.id))
+  const feedbackEvents = feedbackEventsForRuns.map((event) => {
+    // Search feedback is only reflected by regenerated theses. The generic
+    // field name stays aligned with the shared feedback contract, but this
+    // store validates it against thesis ids.
+    const {
+      reflectedInThesisId: currentReflectedInThesisId,
+      reflectedInArtifactId: currentReflectedInArtifactId,
+      ...eventWithoutReflection
+    } = event
+    const reflectedInThesisId =
+      currentReflectedInThesisId && validThesisIds.has(currentReflectedInThesisId)
+        ? currentReflectedInThesisId
+        : undefined
+    const reflectedInArtifactId =
+      currentReflectedInArtifactId && validThesisIds.has(currentReflectedInArtifactId)
+        ? currentReflectedInArtifactId
+        : undefined
+    return reflectedInThesisId === currentReflectedInThesisId &&
+      reflectedInArtifactId === currentReflectedInArtifactId
+      ? event
+      : {
+          ...eventWithoutReflection,
+          ...(reflectedInThesisId ? { reflectedInThesisId } : {}),
+          ...(reflectedInArtifactId ? { reflectedInArtifactId } : {}),
+        }
+  })
   const activeThesisId =
     state.activeThesisId && validThesisIds.has(state.activeThesisId) ? state.activeThesisId : null
   const activeResearchJob =
@@ -430,14 +458,57 @@ const hydrateFeedbackApplicationState = (
     : { appliedToIdentity: false }
 }
 
-const hydrateFeedbackEvent = (event: LegacySearchFeedbackEventInput): SearchFeedbackEvent => {
-  const {
-    appliedToIdentity: _legacyAppliedToIdentity,
-    appliedAtVersion: _legacyAppliedAtVersion,
-    ...baseEvent
-  } = event
+const isSearchFeedbackRating = (rating: unknown): rating is SearchFeedbackRating =>
+  rating === 'up' || rating === 'down'
+
+const hydrateFeedbackEvent = (
+  event: LegacySearchFeedbackEventInput,
+): SearchFeedbackEvent | null => {
+  const runId = typeof event.runId === 'string' ? event.runId : ''
+  const resultId = typeof event.resultId === 'string' ? event.resultId : ''
+  if (!runId || !resultId || !isSearchFeedbackRating(event.rating)) {
+    return null
+  }
+
+  const id = typeof event.id === 'string' && event.id.trim() ? event.id : createId('sfe')
+  const createdAt =
+    typeof event.createdAt === 'string' && event.createdAt.trim() ? event.createdAt : now()
+  const updatedAt =
+    typeof event.updatedAt === 'string' && event.updatedAt.trim() ? event.updatedAt : undefined
+  const reason = typeof event.reason === 'string' && event.reason.trim() ? event.reason : undefined
+  const dimensions =
+    event.dimensions && typeof event.dimensions === 'object'
+      ? (event.dimensions as SearchFeedbackDimensions)
+      : undefined
+  const payload =
+    event.payload && typeof event.payload === 'object'
+      ? (event.payload as SearchFeedbackDimensions)
+      : dimensions
+  const reflectedInThesisId =
+    typeof event.reflectedInThesisId === 'string' && event.reflectedInThesisId.trim()
+      ? event.reflectedInThesisId
+      : undefined
+  const reflectedInArtifactId =
+    typeof event.reflectedInArtifactId === 'string' && event.reflectedInArtifactId.trim()
+      ? event.reflectedInArtifactId
+      : reflectedInThesisId
   return {
-    ...(baseEvent as SearchFeedbackEventBase),
+    id,
+    runId,
+    resultId,
+    rating: event.rating,
+    domain: 'search',
+    artifactId:
+      typeof event.artifactId === 'string' && event.artifactId.trim() ? event.artifactId : runId,
+    targetId:
+      typeof event.targetId === 'string' && event.targetId.trim() ? event.targetId : resultId,
+    createdAt,
+    ...(updatedAt ? { updatedAt } : {}),
+    ...(reason ? { reason } : {}),
+    ...(dimensions ? { dimensions } : {}),
+    ...(payload ? { payload } : {}),
+    ...(reflectedInThesisId ? { reflectedInThesisId } : {}),
+    ...(reflectedInArtifactId ? { reflectedInArtifactId } : {}),
     ...hydrateFeedbackApplicationState(event),
   }
 }
@@ -647,7 +718,9 @@ export const migrateSearchState = (persistedState: unknown) => {
         ? state.activeThesisId
         : null,
     feedbackEvents: Array.isArray(state?.feedbackEvents)
-      ? state.feedbackEvents.map((event) => hydrateFeedbackEvent(event))
+      ? state.feedbackEvents
+          .map((event) => hydrateFeedbackEvent(event))
+          .filter((event): event is SearchFeedbackEvent => event !== null)
       : [],
     activeResearchJob,
   })
@@ -954,10 +1027,16 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
   addFeedbackEvent: (input) => {
     const timestamp = now()
     const { appliedToIdentity, appliedAtVersion, ...baseInput } = input
+    const sanitizedAppliedAtVersion = sanitizeIdentityVersion(appliedAtVersion)
     const event: SearchFeedbackEvent = {
       ...baseInput,
-      ...(appliedToIdentity
-        ? { appliedToIdentity: true, appliedAtVersion }
+      domain: 'search',
+      artifactId: baseInput.artifactId ?? baseInput.runId,
+      targetId: baseInput.targetId ?? baseInput.resultId,
+      payload: baseInput.payload ?? baseInput.dimensions,
+      reflectedInArtifactId: baseInput.reflectedInArtifactId ?? baseInput.reflectedInThesisId,
+      ...(appliedToIdentity && sanitizedAppliedAtVersion !== undefined
+        ? { appliedToIdentity: true, appliedAtVersion: sanitizedAppliedAtVersion }
         : { appliedToIdentity: false }),
       id: createId('sfe'),
       createdAt: timestamp,
@@ -968,6 +1047,8 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
   },
 
   markFeedbackApplied: (id, identityVersion) => {
+    const appliedAtVersion = sanitizeIdentityVersion(identityVersion)
+    if (appliedAtVersion === undefined) return
     const timestamp = now()
     set((state) => ({
       feedbackEvents: state.feedbackEvents.map((event) =>
@@ -975,7 +1056,7 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
           ? {
               ...event,
               appliedToIdentity: true,
-              appliedAtVersion: identityVersion,
+              appliedAtVersion,
               updatedAt: timestamp,
             }
           : event,
@@ -988,8 +1069,16 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
     const timestamp = now()
     set((state) => ({
       feedbackEvents: state.feedbackEvents.map((event) =>
-        idSet.has(event.id)
-          ? { ...event, reflectedInThesisId: thesisId, updatedAt: timestamp }
+        idSet.has(event.id) &&
+        (event.domain === undefined || event.domain === 'search') &&
+        event.reflectedInThesisId === undefined &&
+        event.reflectedInArtifactId === undefined
+          ? {
+              ...event,
+              reflectedInThesisId: thesisId,
+              reflectedInArtifactId: thesisId,
+              updatedAt: timestamp,
+            }
           : event,
       ),
     }))
@@ -999,7 +1088,8 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
     get().feedbackEvents.filter(
       (event) =>
         event.appliedToIdentity &&
-        (currentThesisId === undefined || event.reflectedInThesisId !== currentThesisId),
+        (currentThesisId === undefined ||
+          (event.reflectedInThesisId ?? event.reflectedInArtifactId) !== currentThesisId),
     ),
 
   getFeedbackEventsForRun: (runId) => get().feedbackEvents.filter((event) => event.runId === runId),

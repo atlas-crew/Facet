@@ -1,9 +1,11 @@
 ---
 id: TASK-172
-title: Unify feedback event pattern across search, prep, and letter domains
-status: To Do
-assignee: []
+title: 'Unify feedback event pattern across search, prep, and letter domains'
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 09:49'
 labels:
   - shepherding
   - feedback
@@ -107,21 +109,39 @@ interface FeedbackState {
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Generic FeedbackBase<TDomain, TPayload> type defined in src/types/feedback.ts
-- [ ] #2 SearchFeedbackEvent refactored to a type alias: FeedbackBase<'search', SearchFeedbackPayload>
-- [ ] #3 PrepFeedbackEvent defined with PrepFeedbackPayload covering skillDepth, calibration, storyFraming, interviewer
-- [ ] #4 Shared store contract supports addEvent, markApplied, markReflectedInArtifact, getUnreflected, getEventsForArtifact
-- [ ] #5 Backward-compatible: existing SearchFeedbackEvent consumers compile unchanged
-- [ ] #6 Tests cover: per-domain event creation, cross-domain query, identity-version writeback tracking
-- [ ] #7 doc-26 (shepherding) references the unified pattern; per-stage sections point here for feedback-event details
+- [x] #1 Generic FeedbackBase<TDomain, TPayload> type defined in src/types/feedback.ts
+- [x] #2 SearchFeedbackEvent refactored to a type alias: FeedbackBase<'search', SearchFeedbackPayload>
+- [x] #3 PrepFeedbackEvent defined with PrepFeedbackPayload covering skillDepth, calibration, storyFraming, interviewer
+- [x] #4 Shared store contract supports addEvent, markApplied, markReflectedInArtifact, getUnreflected, getEventsForArtifact
+- [x] #5 Backward-compatible: existing SearchFeedbackEvent consumers compile unchanged
+- [x] #6 Tests cover: per-domain event creation, cross-domain query, identity-version writeback tracking
+- [x] #7 doc-26 (shepherding) references the unified pattern; per-stage sections point here for feedback-event details
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Implement the unified feedback type foundation in a narrow slice: add generic feedback types, refactor SearchFeedbackEvent to the shared base without changing existing consumers, define PrepFeedbackEvent payloads, add a small reusable feedback collection contract/helper for cross-domain queries and writeback state, cover it with focused tests, update doc-26 references, then run targeted typecheck/lint/tests.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented unified feedback foundation: added src/types/feedback.ts with FeedbackBase/FeedbackApplicationState, PrepFeedbackEvent, CoverLetterFeedbackEvent, and shared FeedbackStateContract; added createFeedbackCollection helper with cross-domain add/apply/reflect/query operations; projected SearchFeedbackEvent onto the shared base while preserving runId/resultId/dimensions consumers; documented doc-26 unified feedback event guidance. Verification: npx vitest run src/test/feedbackStore.test.ts src/test/searchStore.test.ts passed 55/55; npm run typecheck passed; touched-file eslint passed; npm run build passed with existing chunk warnings. Full npm run test remains known baseline debt from unrelated suites, so DoD #3 remains unchecked per owner guidance. Review receipts: .agents/reviews/review-20260508-054453.md and .agents/reviews/test-audit-20260508-054459.md; feedback-specific findings were remediated, remaining broad searchStore findings are outside TASK-172.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Unified feedback event types and helper contract are in place across search/prep/cover-letter domains. Search feedback remains backward-compatible for existing consumers while carrying canonical domain/artifact/payload fields, and focused coverage now pins per-domain creation, cross-domain queries, writeback tracking, reflection semantics, migration hardening, and immutable helper snapshots.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

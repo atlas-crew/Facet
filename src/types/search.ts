@@ -1,5 +1,8 @@
 import type { DurableMetadata } from './durable'
 import type { ArtifactStalenessReview } from './artifactMeta'
+import type { FeedbackBase, FeedbackRating } from './feedback'
+
+export type { FeedbackApplicationState } from './feedback'
 
 export type SearchSkillCategory =
   | 'backend'
@@ -616,7 +619,7 @@ export interface SearchThesis {
 
 // ── Search Feedback Events (TASK-163) ─────────────────────────────────────
 
-export type SearchFeedbackRating = 'up' | 'down'
+export type SearchFeedbackRating = FeedbackRating
 
 /** User's suggested depth correction, e.g., "this should be 'conceptual' not 'strong'". */
 export interface SearchFeedbackSkillDimension {
@@ -640,11 +643,13 @@ export interface SearchFeedbackVectorDimension {
  * Structured signal attached to a feedback event. Each sub-field is optional; a
  * single event may carry any combination of skill, preference, and vector dimensions.
  */
-export interface SearchFeedbackDimensions {
+export interface SearchFeedbackPayload {
   skill?: SearchFeedbackSkillDimension
   preference?: SearchFeedbackPreferenceDimension
   vector?: SearchFeedbackVectorDimension
 }
+
+export type SearchFeedbackDimensions = SearchFeedbackPayload
 
 /**
  * A user reaction to a specific search result (thumbs up/down with optional reason and
@@ -653,29 +658,42 @@ export interface SearchFeedbackDimensions {
  *   2. Thesis regeneration (TASK-151.1) — `reflectedInThesisId` records which thesis
  *      first incorporated the event, enabling `getUnreflectedFeedback()` queries.
  */
-export type FeedbackApplicationState =
-  | { readonly appliedToIdentity: false; readonly appliedAtVersion?: never }
-  | { readonly appliedToIdentity: true; readonly appliedAtVersion: number }
-
-export interface SearchFeedbackEventBase {
-  id: string
+interface SearchFeedbackEventFields {
   /** SearchRun this event was raised against. */
   runId: string
   /** SearchResultEntry within the run that the user reacted to. */
   resultId: string
-  rating: SearchFeedbackRating
-  /** Optional free-text rationale from the user. */
-  reason?: string
   /** Structured signal derived from the reason (skill correction, preference add, etc.). */
-  dimensions?: SearchFeedbackDimensions
+  dimensions?: SearchFeedbackPayload
   /** Id of the first thesis that was regenerated with this event incorporated. */
   reflectedInThesisId?: string
-  createdAt: string
-  /** Most recent mutation time for merge conflict resolution. Optional for legacy snapshots. */
-  updatedAt?: string
 }
 
-export type SearchFeedbackEvent = SearchFeedbackEventBase & FeedbackApplicationState
+type SearchFeedbackCanonicalProjection = {
+  domain?: 'search'
+  artifactId?: string
+  targetId?: string
+  payload?: SearchFeedbackPayload
+  /** Search feedback is only reflected by regenerated theses; this is the canonical thesis id. */
+  reflectedInArtifactId?: string
+}
+
+type SearchFeedbackBaseEvent = FeedbackBase<
+  'search',
+  SearchFeedbackPayload,
+  SearchFeedbackEventFields
+>
+
+type SearchFeedbackLegacyProjection<TEvent> = TEvent extends unknown
+  ? Omit<TEvent, keyof SearchFeedbackCanonicalProjection> & SearchFeedbackCanonicalProjection
+  : never
+
+export type SearchFeedbackEvent = SearchFeedbackLegacyProjection<SearchFeedbackBaseEvent>
+
+export type SearchFeedbackEventBase = Omit<
+  SearchFeedbackEvent,
+  'appliedToIdentity' | 'appliedAtVersion'
+>
 
 // ── Research Job (TASK-161 storage + runner; type definition lives here) ─────
 

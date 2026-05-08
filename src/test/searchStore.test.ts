@@ -1353,6 +1353,9 @@ describe('searchStore', () => {
       expect(event.id).toMatch(/^sfe-/)
       expect(event.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
       expect(event.updatedAt).toBe(event.createdAt)
+      expect(event.domain).toBe('search')
+      expect(event.artifactId).toBe('srun-1')
+      expect(event.targetId).toBe('sres-1')
       expect(event.runId).toBe('srun-1')
       expect(event.rating).toBe('down')
       expect(event.appliedToIdentity).toBe(false)
@@ -1369,8 +1372,20 @@ describe('searchStore', () => {
       })
 
       expect(event.dimensions?.skill?.name).toBe('Go')
+      expect(event.payload?.skill?.name).toBe('Go')
       expect(event.dimensions?.preference?.category).toBe('avoid')
       expect(event.dimensions?.preference?.condition).toBe('unless adjacent')
+    })
+
+    it('sanitizes invalid applied identity versions when adding feedback at runtime', () => {
+      const event = useSearchStore.getState().addFeedbackEvent({
+        ...baseEventInput,
+        appliedToIdentity: true,
+        appliedAtVersion: Number.NaN,
+      } as SearchFeedbackEventInput)
+
+      expect(event.appliedToIdentity).toBe(false)
+      expect(event).not.toHaveProperty('appliedAtVersion')
     })
 
     it('marks a feedback event as applied with the identity version that absorbed it', () => {
@@ -1390,6 +1405,17 @@ describe('searchStore', () => {
       } finally {
         vi.useRealTimers()
       }
+    })
+
+    it('ignores invalid identity versions when marking feedback applied', () => {
+      const event = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+
+      useSearchStore.getState().markFeedbackApplied(event.id, Number.POSITIVE_INFINITY)
+
+      expect(useSearchStore.getState().feedbackEvents[0]).toMatchObject({
+        id: event.id,
+        appliedToIdentity: false,
+      })
     })
 
     it('does not touch other events when marking one as applied', () => {
@@ -1647,6 +1673,9 @@ describe('searchStore', () => {
         runId: 'srun-legacy',
         resultId: 'sres-legacy',
         rating: 'up' as const,
+        payload: {
+          skill: { name: 'Rust', suggestedDepth: 'conceptual' },
+        },
         appliedToIdentity: true,
         appliedAtVersion: 4,
         createdAt: '2025-12-01T00:00:00.000Z',
@@ -1678,7 +1707,63 @@ describe('searchStore', () => {
         ],
         feedbackEvents: [existing],
       })
-      expect(migrated.feedbackEvents).toEqual([existing])
+      expect(migrated.feedbackEvents).toEqual([
+        {
+          ...existing,
+          domain: 'search',
+          artifactId: 'srun-legacy',
+          targetId: 'sres-legacy',
+          reflectedInArtifactId: undefined,
+        },
+      ])
+    })
+
+    it('drops malformed persisted feedback events during migration', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [
+          {
+            id: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: [
+          {
+            id: 'srun-legacy',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+        ],
+        feedbackEvents: [
+          {
+            id: 'sfe-missing-result',
+            runId: 'srun-legacy',
+            rating: 'up',
+            appliedToIdentity: false,
+            createdAt: '2025-12-01T00:00:00.000Z',
+          },
+          {
+            id: 'sfe-invalid-rating',
+            runId: 'srun-legacy',
+            resultId: 'sres-legacy',
+            rating: 'maybe',
+            appliedToIdentity: false,
+            createdAt: '2025-12-01T00:00:00.000Z',
+          },
+        ],
+      })
+
+      expect(migrated.feedbackEvents).toEqual([])
     })
 
     it('migrates legacy feedback application state into the discriminated union', () => {
@@ -1908,6 +1993,57 @@ describe('searchStore', () => {
       expect(migrated.feedbackEvents.map((event) => event.id)).toEqual(['sfe-live'])
       expect(migrated.theses[0]?.feedbackIncorporated).toEqual(['sfe-live'])
       expect(migrated.activeResearchJob).toBeNull()
+    })
+
+    it('clears reflected thesis references when the target thesis is absent during migration', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [
+          {
+            id: 'sreq-live',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: [
+          {
+            id: 'srun-live',
+            requestId: 'sreq-live',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+        ],
+        theses: [],
+        feedbackEvents: [
+          {
+            id: 'sfe-live',
+            runId: 'srun-live',
+            resultId: 'sres-live',
+            rating: 'up' as const,
+            appliedToIdentity: true,
+            appliedAtVersion: 4,
+            reflectedInThesisId: 'thesis-missing',
+            reflectedInArtifactId: 'thesis-missing',
+            createdAt: '2026-03-11T00:00:00.000Z',
+          },
+        ],
+      })
+
+      expect(migrated.feedbackEvents[0]).toMatchObject({
+        id: 'sfe-live',
+        appliedToIdentity: true,
+        appliedAtVersion: 4,
+      })
+      expect(migrated.feedbackEvents[0]).not.toHaveProperty('reflectedInThesisId')
+      expect(migrated.feedbackEvents[0]).not.toHaveProperty('reflectedInArtifactId')
     })
   })
 })

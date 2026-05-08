@@ -347,6 +347,16 @@ Throughout the journey, the app should detect when existing artifacts may be sta
 - **One-click accept/reject** per artifact — don't force the user to re-edit everything
 - **Diff view** — show what changed and WHY ("your K8s depth correction changed this sentence")
 
+### Unified Feedback Events
+
+Feedback that should flow back into the identity model uses the shared
+\`FeedbackBase<TDomain, TPayload>\` pattern from \`src/types/feedback.ts\`. Search
+results, prep cards, and future cover-letter feedback keep domain-specific
+payloads, but share writeback fields (\`appliedToIdentity\`, \`appliedAtVersion\`)
+and reflection tracking (\`reflectedInArtifactId\`). Per-stage sections should
+describe the correction moment; the event shape and cross-domain query contract
+live in the shared feedback types.
+
 ---
 
 ## The Dependency Graph (Impact Tracing)
