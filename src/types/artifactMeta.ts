@@ -40,11 +40,18 @@ export interface ArtifactFieldDependency {
   fields: string[]
 }
 
+export interface IdentityValueChange {
+  field: string
+  before: string
+  after: string
+}
+
 export interface IdentityMutation {
   label: string
   fields: string[]
   fromRevision: number
   toRevision: number
+  valueChanges?: IdentityValueChange[]
 }
 
 export interface ImpactArtifactInput {

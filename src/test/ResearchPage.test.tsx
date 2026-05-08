@@ -950,7 +950,7 @@ describe('ResearchPage', () => {
     fireEvent.change(screen.getByLabelText('Skill depth 1 context'), {
       target: { value: 'Current visible thesis row context wins.' },
     })
-    expect(confirmPanel.textContent).toContain('Depth: expert')
+    expect(confirmPanel.textContent).toContain('Depth: strong → expert')
 
     fireEvent.click(within(confirmPanel).getByRole('button', { name: 'Apply to Identity' }))
 
@@ -995,6 +995,12 @@ describe('ResearchPage', () => {
     expect(stalenessReview.textContent).toContain('Search run')
     expect(stalenessReview.textContent).toContain('Acme prep deck')
     expect(stalenessReview.textContent).toContain('Acme cover letter')
+    // TASK-158 AC #4: value-level identity diff renders before the artifact list
+    const diffList = within(stalenessReview).getByLabelText(
+      'Identity changes that triggered this review',
+    )
+    expect(diffList.textContent).toContain('skills.Kubernetes.depth')
+    expect(diffList.textContent).toContain('strong → expert')
     fireEvent.click(
       within(stalenessReview).getByRole('button', {
         name: 'Save accept current artifact for Search run',

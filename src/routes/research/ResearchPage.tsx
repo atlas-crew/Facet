@@ -27,6 +27,7 @@ import {
   sanitizeArtifactStalenessReview,
   type DownstreamImpact,
   type IdentityMutation,
+  type IdentityValueChange,
   type ImpactArtifactInput,
 } from '../../types/artifactMeta'
 import type { ProfessionalIdentityV3, ProfessionalSkillDepth } from '../../identity/schema'
@@ -265,12 +266,32 @@ const collectThesisIdentityFieldDependencies = (
   return fields.size > 0 ? Array.from(fields) : undefined
 }
 
-const buildSkillDepthMutation = (skillName: string, fromRevision: number): IdentityMutation => ({
+const buildSkillDepthMutation = (
+  skillName: string,
+  fromRevision: number,
+  valueChanges?: IdentityValueChange[],
+): IdentityMutation => ({
   label: skillName + ' depth correction',
   fields: buildSkillIdentityFields(skillName),
   fromRevision,
   toRevision: fromRevision + 1,
+  ...(valueChanges && valueChanges.length > 0 ? { valueChanges } : {}),
 })
+
+const buildSkillDepthValueChanges = (
+  identity: ProfessionalIdentityV3,
+  skillName: string,
+  newDepth: string,
+): IdentityValueChange[] => {
+  for (const group of identity.skills.groups) {
+    const skill = group.items.find((entry) => skillNamesMatch(entry.name, skillName))
+    if (!skill) continue
+    const before = typeof skill.depth === 'string' ? skill.depth : 'unset'
+    if (before === newDepth) return []
+    return [{ field: 'skills.' + skill.name + '.depth', before, after: newDepth }]
+  }
+  return []
+}
 
 const formatOptionalCount = (
   count: number,
@@ -796,14 +817,24 @@ export function ResearchPage() {
   )
   const pendingIdentityImpact = useMemo<DownstreamImpact | null>(() => {
     if (!pendingSkillWriteback) return null
+    const pendingEntry = thesisDraft?.skillDepthMap[pendingSkillWriteback.skillIndex]
+    const valueChanges =
+      currentIdentity && pendingEntry && isProfessionalSkillDepth(pendingEntry.depth)
+        ? buildSkillDepthValueChanges(
+            currentIdentity,
+            pendingSkillWriteback.target.skillName,
+            pendingEntry.depth,
+          )
+        : []
     return describeImpact(
       buildSkillDepthMutation(
         pendingSkillWriteback.target.skillName,
         pendingSkillWriteback.identityRevision,
+        valueChanges,
       ),
       pendingSkillWriteback.impactArtifacts,
     )
-  }, [pendingSkillWriteback])
+  }, [pendingSkillWriteback, thesisDraft, currentIdentity])
   useEffect(() => {
     if (!pendingSkillWriteback) return
     if (currentIdentityRevision === null) {
@@ -2227,8 +2258,17 @@ export function ResearchPage() {
       return
     }
     const target = pendingSkillWriteback.target
+    const valueChanges = buildSkillDepthValueChanges(
+      currentIdentity,
+      target.skillName,
+      entry.depth,
+    )
     const impact = describeImpact(
-      buildSkillDepthMutation(target.skillName, pendingSkillWriteback.identityRevision),
+      buildSkillDepthMutation(
+        target.skillName,
+        pendingSkillWriteback.identityRevision,
+        valueChanges,
+      ),
       pendingSkillWriteback.impactArtifacts,
     )
 
@@ -3074,6 +3114,19 @@ export function ResearchPage() {
                   Choices are saved on each reviewed artifact. Refreshing a thesis regenerates it
                   against the latest Identity context and records it as reviewed.
                 </p>
+                {stalenessReviewImpact.mutation.valueChanges &&
+                stalenessReviewImpact.mutation.valueChanges.length > 0 ? (
+                  <ul
+                    className="research-list research-staleness-diff"
+                    aria-label="Identity changes that triggered this review"
+                  >
+                    {stalenessReviewImpact.mutation.valueChanges.map((change) => (
+                      <li key={change.field}>
+                        <strong>{change.field}</strong>: {change.before} → {change.after}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <ul className="research-list">
                   {stalenessReviewImpact.artifactsAffected.map((artifact, index) => {
                     const artifactKey = getStalenessArtifactKey(
@@ -3186,7 +3239,14 @@ export function ResearchPage() {
                     Skill: {pendingSkillWriteback.target.skillName} (
                     {pendingSkillWriteback.target.groupLabel})
                   </li>
-                  <li>Depth: {pendingSkillWritebackEntry?.depth ?? 'Unavailable'}</li>
+                  <li>
+                    Depth:{' '}
+                    {pendingIdentityImpact?.mutation.valueChanges?.[0]
+                      ? pendingIdentityImpact.mutation.valueChanges[0].before +
+                        ' → ' +
+                        pendingIdentityImpact.mutation.valueChanges[0].after
+                      : (pendingSkillWritebackEntry?.depth ?? 'Unavailable')}
+                  </li>
                   <li>Context and positioning will be copied from this thesis calibration.</li>
                   {pendingIdentityImpact?.artifactsAffected.slice(0, 4).map((artifact) => (
                     <li key={artifact.artifactType + '-' + artifact.artifactId}>
