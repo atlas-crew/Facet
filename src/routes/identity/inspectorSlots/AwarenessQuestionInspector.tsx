@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type {
   ProfessionalAwarenessSeverity,
   ProfessionalIdentityV3,
@@ -6,6 +6,7 @@ import type {
 } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { Actions, MetaRows, NotFound, SlotShell } from './slotPrimitives'
+import { hasRequiredText } from './slotValidation'
 
 type SeverityChoice = ProfessionalAwarenessSeverity | ''
 
@@ -45,6 +46,8 @@ export function AwarenessQuestionInspector({
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const question = identity.awareness?.open_questions.find((q) => q.id === questionId)
+  const topicHintId = useId()
+  const actionHintId = useId()
   const [editing, setEditing] = useState<boolean>(() => justAdded ?? false)
   const [draft, setDraft] = useState<QuestionDraft>(() =>
     question
@@ -53,6 +56,10 @@ export function AwarenessQuestionInspector({
   )
 
   if (!question) return <NotFound label="open question" />
+
+  const topicValid = hasRequiredText(draft.topic)
+  const actionValid = hasRequiredText(draft.action)
+  const canSave = topicValid && actionValid
 
   const startEditing = () => {
     setDraft(draftFromQuestion(question))
@@ -97,6 +104,7 @@ export function AwarenessQuestionInspector({
     if (justAdded) {
       handleRemove()
     } else {
+      setDraft(draftFromQuestion(question))
       setEditing(false)
     }
   }
@@ -120,8 +128,15 @@ export function AwarenessQuestionInspector({
             type="text"
             value={draft.topic}
             onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
+            aria-invalid={!topicValid}
+            aria-describedby={!topicValid ? topicHintId : undefined}
           />
         </label>
+        {!topicValid ? (
+          <span id={topicHintId} className="inspector-field-hint">
+            Topic is required.
+          </span>
+        ) : null}
         <label className="inspector-field">
           <span className="inspector-field-label label-tracked">Severity</span>
           <select
@@ -152,8 +167,15 @@ export function AwarenessQuestionInspector({
             rows={2}
             value={draft.action}
             onChange={(e) => setDraft({ ...draft, action: e.target.value })}
+            aria-invalid={!actionValid}
+            aria-describedby={!actionValid ? actionHintId : undefined}
           />
         </label>
+        {!actionValid ? (
+          <span id={actionHintId} className="inspector-field-hint">
+            Action is required.
+          </span>
+        ) : null}
         <label className="inspector-field">
           <span className="inspector-field-label label-tracked">Evidence</span>
           <textarea
@@ -165,7 +187,12 @@ export function AwarenessQuestionInspector({
           />
         </label>
         <Actions>
-          <button type="button" className="inspector-btn primary" onClick={handleSave}>
+          <button
+            type="button"
+            className="inspector-btn primary"
+            onClick={handleSave}
+            disabled={!canSave}
+          >
             Save
           </button>
           <button type="button" className="inspector-btn" onClick={handleCancel}>

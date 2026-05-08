@@ -1,9 +1,11 @@
 ---
 id: TASK-200
 title: Phase 2 sad-path test coverage for identity Map editing
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-04-30 10:31'
+updated_date: '2026-05-08 21:20'
 labels:
   - identity
   - map-convergence
@@ -78,20 +80,39 @@ Test fixture: existing question with `severity: 'high'`. User clicks Edit, chang
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Test verifies Cancel-then-Edit shows original values (not cancelled draft) for all three inspectors (MatchRule, SearchVector, AwarenessQuestion)
-- [ ] #2 Decision recorded: blank-save is either tested as intentional behavior OR inspectors gain validation that disables Save when required fields are empty (recommendation: add validation)
-- [ ] #3 If validation added: inspectors disable Save button when required field is empty; test asserts disabled state for each inspector
-- [ ] #4 Test verifies rapid selection switching: switching between two rules of the same kind drops the unsaved draft and renders fresh local state for the new selection
-- [ ] #5 Test verifies awareness severity '— unset' option clears severity to undefined on save
-- [ ] #6 All new tests live in src/test/IdentityMapEditing.test.tsx (or a sibling file if the new tests grow it past ~400 lines)
+- [x] #1 Test verifies Cancel-then-Edit shows original values (not cancelled draft) for all three inspectors (MatchRule, SearchVector, AwarenessQuestion)
+- [x] #2 Decision recorded: blank-save is either tested as intentional behavior OR inspectors gain validation that disables Save when required fields are empty (recommendation: add validation)
+- [x] #3 If validation added: inspectors disable Save button when required field is empty; test asserts disabled state for each inspector
+- [x] #4 Test verifies rapid selection switching: switching between two rules of the same kind drops the unsaved draft and renders fresh local state for the new selection
+- [x] #5 Test verifies awareness severity '— unset' option clears severity to undefined on save
+- [x] #6 All new tests live in src/test/IdentityMapEditing.test.tsx (or a sibling file if the new tests grow it past ~400 lines)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation plan:
+- Inspect the existing Identity Map editing test harness and the three inspector slot save/cancel behaviors.
+- Add focused sad-path coverage for cancel/re-edit, blank-save validation, rapid selection switching, and awareness severity clearing.
+- If blank-save validation is absent, add minimal inspector-side Save disablement for the required fields only.
+- Run focused Vitest, scoped lint, typecheck/build as practical, then close TASK-200 with evidence.
+
+2026-05-08 closeout:
+- Added 16 additional Identity Map editing tests in `src/test/IdentityMapEditing.test.tsx`, including the four required sad paths plus parity coverage for avoid-rule save, search-vector/awareness selection-switch draft drops, and justAdded save/cancel lifecycle for match rules and awareness questions.
+- Added required-field Save disabling for match rule label, search vector title/thesis, and awareness question topic/action.
+- Added accessible field error descriptions with per-instance ids from `useId`, keeping validation hints outside the label text.
+- Verification passed: `npx vitest run src/test/IdentityMapEditing.test.tsx` (24 passed), scoped ESLint on touched TS/TSX files, scoped format check, `npm run typecheck`, and `npm run build` (existing Vite large-chunk warnings).
+- Independent source review artifacts: `.agents/reviews/review-20260508-170951.md` and `.agents/reviews/review-20260508-171750.md` blocked on accessibility issues that were fixed; `.agents/reviews/review-20260508-172019.md` reported one P1 about required-field trimming, verified as a false positive because `topic`, `action`, `title`, and `thesis` are all trimmed on save.
+- Independent test audit `.agents/reviews/test-audit-20260508-171750.md` confirmed TASK-200's required behaviors are covered and surfaced broader follow-up gaps for parser/list boundary cases, discard parity, and optional-field edges; those are outside this task's scoped ACs.
+- Full `npm run test` was not rerun for this closure because unrelated repo-wide failures were already documented in adjacent doc-40 lanes and treated as non-gating.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

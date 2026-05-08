@@ -1,18 +1,12 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type {
   ProfessionalIdentityV3,
   ProfessionalSearchVector,
   ProfessionalSearchVectorPriority,
 } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
-import {
-  Actions,
-  MetaRows,
-  NotFound,
-  SlotShell,
-  inputToTags,
-  tagsToInput,
-} from './slotPrimitives'
+import { Actions, MetaRows, NotFound, SlotShell, inputToTags, tagsToInput } from './slotPrimitives'
+import { hasRequiredText } from './slotValidation'
 
 interface SearchVectorDraft {
   title: string
@@ -58,6 +52,8 @@ export function SearchVectorInspector({
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const vector = identity.search_vectors?.find((v) => v.id === vectorId)
+  const titleHintId = useId()
+  const thesisHintId = useId()
   const [editing, setEditing] = useState<boolean>(() => justAdded ?? false)
   const [draft, setDraft] = useState<SearchVectorDraft>(() =>
     vector
@@ -74,12 +70,18 @@ export function SearchVectorInspector({
 
   if (!vector) return <NotFound label="search vector" />
 
+  const titleValid = hasRequiredText(draft.title)
+  const thesisValid = hasRequiredText(draft.thesis)
+  const canSave = titleValid && thesisValid
+
   const startEditing = () => {
     setDraft(draftFromVector(vector))
     setEditing(true)
   }
 
-  const replaceVector = (updater: (current: ProfessionalSearchVector[]) => ProfessionalSearchVector[]) => {
+  const replaceVector = (
+    updater: (current: ProfessionalSearchVector[]) => ProfessionalSearchVector[],
+  ) => {
     const current = identity.search_vectors ?? []
     updateVectors(updater(current))
   }
@@ -124,6 +126,7 @@ export function SearchVectorInspector({
     if (justAdded) {
       handleRemove()
     } else {
+      setDraft(draftFromVector(vector))
       setEditing(false)
     }
   }
@@ -144,8 +147,15 @@ export function SearchVectorInspector({
             type="text"
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            aria-invalid={!titleValid}
+            aria-describedby={!titleValid ? titleHintId : undefined}
           />
         </label>
+        {!titleValid ? (
+          <span id={titleHintId} className="inspector-field-hint">
+            Title is required.
+          </span>
+        ) : null}
         <label className="inspector-field">
           <span className="inspector-field-label label-tracked">Subtitle</span>
           <input
@@ -178,8 +188,15 @@ export function SearchVectorInspector({
             rows={4}
             value={draft.thesis}
             onChange={(e) => setDraft({ ...draft, thesis: e.target.value })}
+            aria-invalid={!thesisValid}
+            aria-describedby={!thesisValid ? thesisHintId : undefined}
           />
         </label>
+        {!thesisValid ? (
+          <span id={thesisHintId} className="inspector-field-hint">
+            Thesis is required.
+          </span>
+        ) : null}
         <label className="inspector-field">
           <span className="inspector-field-label label-tracked">Target roles</span>
           <input
@@ -231,7 +248,12 @@ export function SearchVectorInspector({
           />
         </label>
         <Actions>
-          <button type="button" className="inspector-btn primary" onClick={handleSave}>
+          <button
+            type="button"
+            className="inspector-btn primary"
+            onClick={handleSave}
+            disabled={!canSave}
+          >
             Save
           </button>
           <button type="button" className="inspector-btn" onClick={handleCancel}>
@@ -254,7 +276,9 @@ export function SearchVectorInspector({
       eyebrow={`Vector · ${vector.priority}`}
       title={vector.title.trim() || 'Untitled vector'}
     >
-      {vector.subtitle ? <p className="inspector-eyebrow label-tracked">{vector.subtitle}</p> : null}
+      {vector.subtitle ? (
+        <p className="inspector-eyebrow label-tracked">{vector.subtitle}</p>
+      ) : null}
       <p className="inspector-body-text chapter-copy">
         {vector.thesis.trim() || <em>No thesis yet.</em>}
       </p>
