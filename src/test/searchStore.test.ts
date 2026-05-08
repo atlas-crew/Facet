@@ -631,7 +631,11 @@ describe('searchStore', () => {
         locations: ['Tampa Bay'],
         clearance: '',
         companySize: 'mid-market',
+        industriesToAvoid: ['adtech'],
+        fundingStagesAcceptable: ['series-a'],
+        remotePolicies: ['remote-friendly'],
         remotePolicyNote: 'Distributed team with quarterly retreats',
+        employmentTypes: ['w2-fulltime'],
       },
     })
 
@@ -643,6 +647,10 @@ describe('searchStore', () => {
     expect(updated?.searchOverrides?.constraints.remotePolicyNote).toBe(
       'Distributed team with quarterly retreats',
     )
+    expect(updated?.searchOverrides?.constraints.industriesToAvoid).toEqual(['adtech'])
+    expect(updated?.searchOverrides?.constraints.fundingStagesAcceptable).toEqual(['series-a'])
+    expect(updated?.searchOverrides?.constraints.remotePolicies).toEqual(['remote-friendly'])
+    expect(updated?.searchOverrides?.constraints.employmentTypes).toEqual(['w2-fulltime'])
     expect(updated?.searchOverrides).not.toHaveProperty('filters')
     expect(updated?.lookFor.map((signal) => signal.label)).toEqual(['platform modernization'])
     expect(updated?.avoid).toEqual([])
@@ -1176,6 +1184,68 @@ describe('searchStore', () => {
     expect(remigrated?.lookFor).toEqual(migrated?.lookFor)
     expect(remigrated?.avoid).toEqual(migrated?.avoid)
     expect(remigrated?.searchOverrides).not.toHaveProperty('filters')
+  })
+
+  it('keeps per-search signal disabling de-scoped from override persistence', () => {
+    const legacyThesis = {
+      ...buildSearchThesis({
+        id: 'sthesis-disabled-filter-de-scoped',
+        lookFor: [
+          { id: 'ssig-existing-platform', label: 'Platform leverage', severity: 'hard' },
+        ],
+        avoid: [{ id: 'ssig-existing-admin', label: 'Pure admin work', severity: 'soft' }],
+      }),
+      searchOverrides: {
+        constraints: {
+          salary: { min: 0, max: 0 },
+          locations: [],
+          clearance: '',
+          companySize: '',
+        },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        hiddenSkillIds: [],
+        disabledFilterIds: ['legacy-filter-platform'],
+        disabledSignalIds: ['ssig-existing-platform'],
+        filters: {
+          prioritize: ['AI infrastructure'],
+          avoid: ['Crypto volatility'],
+        },
+      },
+    }
+
+    const migrated = migrateSearchState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [legacyThesis],
+      activeThesisId: legacyThesis.id,
+    }).theses[0]
+
+    expect(migrated?.lookFor).toEqual([
+      expect.objectContaining({
+        id: 'ssig-existing-platform',
+        label: 'Platform leverage',
+        severity: 'hard',
+      }),
+      expect.objectContaining({
+        label: 'AI infrastructure',
+        severity: 'soft',
+      }),
+    ])
+    expect(migrated?.avoid).toEqual([
+      expect.objectContaining({
+        id: 'ssig-existing-admin',
+        label: 'Pure admin work',
+        severity: 'soft',
+      }),
+      expect.objectContaining({
+        label: 'Crypto volatility',
+        severity: 'soft',
+      }),
+    ])
+    expect(migrated?.searchOverrides).not.toHaveProperty('filters')
+    expect(migrated?.searchOverrides).not.toHaveProperty('disabledFilterIds')
+    expect(migrated?.searchOverrides).not.toHaveProperty('disabledSignalIds')
   })
 
   it('leaves already-migrated thesis signals unchanged', () => {

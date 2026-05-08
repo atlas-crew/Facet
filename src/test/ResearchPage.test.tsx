@@ -2344,6 +2344,39 @@ describe('ResearchPage', () => {
     })
   })
 
+  it('keeps preference-panel thesis signals read-only without legacy filter toggles', async () => {
+    const thesis = buildTestThesis({
+      id: 'thesis-preference-signals-read-only',
+      lookFor: [
+        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
+        { id: 'ssig-devex-existing', label: 'developer leverage', severity: 'soft' },
+      ],
+      avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin work', severity: 'soft' }],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    const signalReadout = screen.getByRole('group', { name: 'Thesis search signals' })
+    expect(within(signalReadout).getByText('Look for')).toBeTruthy()
+    expect(within(signalReadout).getByText(/platform modernization, developer leverage/i)).toBeTruthy()
+    expect(within(signalReadout).getByText('Avoid')).toBeTruthy()
+    expect(within(signalReadout).getByText(/pure admin work/i)).toBeTruthy()
+    expect(within(signalReadout).queryAllByRole('checkbox')).toEqual([])
+    expect(within(signalReadout).queryByLabelText('Prioritize')).toBeNull()
+    expect(within(signalReadout).queryByLabelText('Avoid')).toBeNull()
+    expect(
+      within(signalReadout).queryByRole('button', { name: /disable.*platform modernization/i }),
+    ).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit look-for signals' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Edit avoid signals' })).toBeTruthy()
+  })
+
   it('routes preference-panel avoid signal edits to the thesis avoid editor', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-preference-avoid-route',
