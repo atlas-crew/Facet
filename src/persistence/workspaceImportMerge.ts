@@ -18,6 +18,7 @@ import type {
   SearchRun,
   SearchThesis,
 } from '../types/search'
+import { pruneOrphans } from '../store/searchStore'
 import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
 import { normalizeResumeWorkspacePayload, updateResumeEntityContent } from '../utils/resumeEntities'
@@ -429,6 +430,29 @@ export const mergeWorkspaceSnapshots = (
     rawMergedPipelineEntries,
     mergedJDAnalyses,
   )
+  const mergedResearchPayload = pruneOrphans({
+    profile:
+      persistableResearchProfile(current.artifacts.research.payload.profile) ??
+      persistableResearchProfile(imported.artifacts.research.payload.profile),
+    requests: mergeSearchRequests(
+      current.artifacts.research.payload.requests,
+      imported.artifacts.research.payload.requests,
+    ),
+    runs: mergeSearchRuns(
+      current.artifacts.research.payload.runs,
+      imported.artifacts.research.payload.runs,
+    ),
+    theses: mergedSearchTheses,
+    activeThesisId: mergedActiveThesisId,
+    feedbackEvents: mergeSearchFeedbackEvents(
+      current.artifacts.research.payload.feedbackEvents ?? [],
+      imported.artifacts.research.payload.feedbackEvents ?? [],
+    ),
+    activeResearchJob:
+      current.artifacts.research.payload.activeResearchJob ??
+      imported.artifacts.research.payload.activeResearchJob ??
+      null,
+  })
 
   return {
     ...cloneValue(current),
@@ -519,29 +543,7 @@ export const mergeWorkspaceSnapshots = (
       },
       research: {
         ...cloneValue(current.artifacts.research),
-        payload: {
-          profile:
-            persistableResearchProfile(current.artifacts.research.payload.profile) ??
-            persistableResearchProfile(imported.artifacts.research.payload.profile),
-          requests: mergeSearchRequests(
-            current.artifacts.research.payload.requests,
-            imported.artifacts.research.payload.requests,
-          ),
-          runs: mergeSearchRuns(
-            current.artifacts.research.payload.runs,
-            imported.artifacts.research.payload.runs,
-          ),
-          theses: mergedSearchTheses,
-          activeThesisId: mergedActiveThesisId,
-          feedbackEvents: mergeSearchFeedbackEvents(
-            current.artifacts.research.payload.feedbackEvents ?? [],
-            imported.artifacts.research.payload.feedbackEvents ?? [],
-          ),
-          activeResearchJob:
-            current.artifacts.research.payload.activeResearchJob ??
-            imported.artifacts.research.payload.activeResearchJob ??
-            null,
-        },
+        payload: mergedResearchPayload,
       },
     },
     exportedAt: imported.exportedAt,

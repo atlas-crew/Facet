@@ -790,8 +790,30 @@ describe('searchStore', () => {
     expect(
       migrateSearchState({
         profile: null,
-        requests: [],
-        runs: [],
+        requests: [
+          {
+            id: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: [
+          {
+            id: 'srun-legacy',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'running',
+            results: [],
+            searchLog: [],
+          },
+        ],
+        theses: [buildSearchThesis({ id: 'sthesis-legacy' })],
         activeResearchJob: {
           jobId: 'job-legacy',
           runId: 'srun-legacy',
@@ -1308,6 +1330,19 @@ describe('searchStore', () => {
       const keeper = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-keep' })
       const doomed = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-doomed' })
       useSearchStore.setState({
+        requests: [
+          {
+            id: 'sreq-1',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
         runs: [
           {
             id: 'srun-keep',
@@ -1326,6 +1361,11 @@ describe('searchStore', () => {
             searchLog: [],
           },
         ],
+        theses: [
+          buildSearchThesis({
+            feedbackIncorporated: [keeper.id, doomed.id],
+          }),
+        ],
       })
 
       useSearchStore.getState().deleteRun('srun-doomed')
@@ -1333,6 +1373,7 @@ describe('searchStore', () => {
       const events = useSearchStore.getState().feedbackEvents
       expect(events.map((e) => e.id)).toEqual([keeper.id])
       expect(events.find((e) => e.id === doomed.id)).toBeUndefined()
+      expect(useSearchStore.getState().theses[0]?.feedbackIncorporated).toEqual([keeper.id])
     })
 
     it('cascade-deletes feedback events for every run when a request is deleted', () => {
@@ -1391,6 +1432,11 @@ describe('searchStore', () => {
             maxResults: { tier1: 5, tier2: 10, tier3: 10 },
           },
         ],
+        theses: [
+          buildSearchThesis({
+            feedbackIncorporated: [eventRunA.id, eventRunB.id, eventRunC.id],
+          }),
+        ],
       })
 
       useSearchStore.getState().deleteRequest('sreq-doomed')
@@ -1399,9 +1445,10 @@ describe('searchStore', () => {
       expect(events.map((e) => e.id)).toEqual([eventRunC.id])
       expect(events.find((e) => e.id === eventRunA.id)).toBeUndefined()
       expect(events.find((e) => e.id === eventRunB.id)).toBeUndefined()
+      expect(useSearchStore.getState().theses[0]?.feedbackIncorporated).toEqual([eventRunC.id])
     })
 
-    it('preserves persisted feedbackEvents across migration', () => {
+    it('preserves persisted feedbackEvents across migration when their run survives', () => {
       const existing = {
         id: 'sfe-existing',
         runId: 'srun-legacy',
@@ -1413,11 +1460,106 @@ describe('searchStore', () => {
       }
       const migrated = migrateSearchState({
         profile: null,
-        requests: [],
-        runs: [],
+        requests: [
+          {
+            id: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: [
+          {
+            id: 'srun-legacy',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+        ],
         feedbackEvents: [existing],
       })
       expect(migrated.feedbackEvents).toEqual([existing])
+    })
+
+    it('prunes orphaned feedback and thesis feedback references during migration', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [
+          {
+            id: 'sreq-live',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: [
+          {
+            id: 'srun-live',
+            requestId: 'sreq-live',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+          {
+            id: 'srun-orphan',
+            requestId: 'sreq-missing',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+        ],
+        theses: [
+          buildSearchThesis({
+            feedbackIncorporated: ['sfe-live', 'sfe-orphan'],
+          }),
+        ],
+        feedbackEvents: [
+          {
+            id: 'sfe-live',
+            runId: 'srun-live',
+            resultId: 'sres-live',
+            rating: 'up' as const,
+            appliedToIdentity: true,
+            createdAt: '2026-03-11T00:00:00.000Z',
+          },
+          {
+            id: 'sfe-orphan',
+            runId: 'srun-orphan',
+            resultId: 'sres-orphan',
+            rating: 'down' as const,
+            appliedToIdentity: true,
+            createdAt: '2026-03-11T00:00:00.000Z',
+          },
+        ],
+        activeThesisId: 'sthesis-1',
+        activeResearchJob: {
+          jobId: 'job-orphan',
+          requestId: 'sreq-live',
+          runId: 'srun-orphan',
+          thesisId: 'sthesis-1',
+          status: 'running' as const,
+          startedAt: '2026-03-11T00:00:00.000Z',
+        },
+      })
+
+      expect(migrated.runs.map((run) => run.id)).toEqual(['srun-live'])
+      expect(migrated.feedbackEvents.map((event) => event.id)).toEqual(['sfe-live'])
+      expect(migrated.theses[0]?.feedbackIncorporated).toEqual(['sfe-live'])
+      expect(migrated.activeResearchJob).toBeNull()
     })
   })
 })

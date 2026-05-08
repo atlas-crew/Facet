@@ -65,6 +65,15 @@ type SearchThesisInput = Omit<
 /** Caller supplies every feedback-event field except store-generated identity/timestamps. */
 export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt' | 'updatedAt'>
 
+type SearchOrphanPrunableState = {
+  requests: SearchRequest[]
+  runs: SearchRun[]
+  theses: SearchThesis[]
+  activeThesisId: string | null
+  feedbackEvents: SearchFeedbackEvent[]
+  activeResearchJob: ActiveResearchJobState | null
+}
+
 interface SearchState {
   profile: SearchProfile | null
   requests: SearchRequest[]
@@ -122,6 +131,45 @@ interface SearchState {
 }
 
 const now = () => new Date().toISOString()
+
+const sameStringList = (left: readonly string[], right: readonly string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index])
+
+export const pruneOrphans = <TState extends SearchOrphanPrunableState>(state: TState): TState => {
+  const validRequestIds = new Set(state.requests.map((request) => request.id))
+  const runs = state.runs.filter((run) => validRequestIds.has(run.requestId))
+  const validRunIds = new Set(runs.map((run) => run.id))
+  const feedbackEvents = state.feedbackEvents.filter((event) => validRunIds.has(event.runId))
+  const validFeedbackIds = new Set(feedbackEvents.map((event) => event.id))
+  const theses = state.theses.map((thesis) => {
+    const currentFeedbackIncorporated = thesis.feedbackIncorporated ?? []
+    const feedbackIncorporated = currentFeedbackIncorporated.filter((id) =>
+      validFeedbackIds.has(id),
+    )
+    return sameStringList(currentFeedbackIncorporated, feedbackIncorporated)
+      ? thesis
+      : { ...thesis, feedbackIncorporated }
+  })
+  const validThesisIds = new Set(theses.map((thesis) => thesis.id))
+  const activeThesisId =
+    state.activeThesisId && validThesisIds.has(state.activeThesisId) ? state.activeThesisId : null
+  const activeResearchJob =
+    state.activeResearchJob &&
+    validRequestIds.has(state.activeResearchJob.requestId) &&
+    validRunIds.has(state.activeResearchJob.runId) &&
+    validThesisIds.has(state.activeResearchJob.thesisId)
+      ? state.activeResearchJob
+      : null
+
+  return {
+    ...state,
+    runs,
+    theses,
+    activeThesisId,
+    feedbackEvents,
+    activeResearchJob,
+  }
+}
 
 // Spread first preserves additive fields; explicit defaults coerce known undefined fields.
 const hydrateConstraints = (constraints: SearchProfileConstraints): SearchProfileConstraints => ({
@@ -396,7 +444,7 @@ export const migrateSearchState = (persistedState: unknown) => {
         }
       : null
 
-  return {
+  return pruneOrphans({
     profile: state?.profile ? hydrateProfile(state.profile) : null,
     requests: Array.isArray(state?.requests)
       ? state.requests.map((request) => hydrateRequest(request))
@@ -413,7 +461,7 @@ export const migrateSearchState = (persistedState: unknown) => {
         : null,
     feedbackEvents: Array.isArray(state?.feedbackEvents) ? state.feedbackEvents : [],
     activeResearchJob,
-  }
+  })
 }
 
 export const useSearchStore = create<SearchState>()((set, get) => ({
@@ -521,11 +569,12 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       const orphanedRunIds = new Set(
         state.runs.filter((run) => run.requestId === id).map((run) => run.id),
       )
-      return {
+      return pruneOrphans({
+        ...state,
         requests: state.requests.filter((request) => request.id !== id),
         runs: state.runs.filter((run) => run.requestId !== id),
         feedbackEvents: state.feedbackEvents.filter((event) => !orphanedRunIds.has(event.runId)),
-      }
+      })
     })
   },
 
@@ -571,10 +620,13 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
     // Cascade-delete feedback events tied to this run — same reasoning as
     // deleteRequest's cascade: stale events would otherwise be returned by
     // `getUnreflectedFeedback()` long after the run they reference is gone.
-    set((state) => ({
-      runs: state.runs.filter((run) => run.id !== id),
-      feedbackEvents: state.feedbackEvents.filter((event) => event.runId !== id),
-    }))
+    set((state) =>
+      pruneOrphans({
+        ...state,
+        runs: state.runs.filter((run) => run.id !== id),
+        feedbackEvents: state.feedbackEvents.filter((event) => event.runId !== id),
+      }),
+    )
   },
 
   getRunsForRequest: (requestId) => get().runs.filter((run) => run.requestId === requestId),

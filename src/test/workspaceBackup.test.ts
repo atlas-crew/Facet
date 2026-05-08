@@ -587,6 +587,54 @@ describe('workspace backup merge helpers', () => {
       lastObservedAt: '2026-03-11T13:05:00.000Z',
     }
 
+    current.artifacts.research.payload.requests = [
+      {
+        id: 'sreq-current',
+        createdAt: '2026-03-11T12:00:00.000Z',
+        focusLanes: [],
+        companySizeOverride: '',
+        salaryAnchorOverride: '',
+        geoExpand: false,
+        customKeywords: '',
+        excludeCompanies: [],
+        maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+      },
+    ]
+    current.artifacts.research.payload.runs = [
+      {
+        id: 'srun-current',
+        requestId: 'sreq-current',
+        createdAt: '2026-03-11T12:00:00.000Z',
+        status: 'running',
+        results: [],
+        searchLog: [],
+      },
+    ]
+    current.artifacts.research.payload.theses = [buildSearchThesis({ id: 'sthesis-current' })]
+    imported.artifacts.research.payload.requests = [
+      {
+        id: 'sreq-imported',
+        createdAt: '2026-03-11T13:00:00.000Z',
+        focusLanes: [],
+        companySizeOverride: '',
+        salaryAnchorOverride: '',
+        geoExpand: false,
+        customKeywords: '',
+        excludeCompanies: [],
+        maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+      },
+    ]
+    imported.artifacts.research.payload.runs = [
+      {
+        id: 'srun-imported',
+        requestId: 'sreq-imported',
+        createdAt: '2026-03-11T13:00:00.000Z',
+        status: 'running',
+        results: [],
+        searchLog: [],
+      },
+    ]
+    imported.artifacts.research.payload.theses = [buildSearchThesis({ id: 'sthesis-imported' })]
     current.artifacts.research.payload.activeResearchJob = currentJob
     imported.artifacts.research.payload.activeResearchJob = importedJob
     expect(
@@ -717,10 +765,30 @@ describe('workspace backup merge helpers', () => {
     })
 
     const seedSearchStore = (events: SearchFeedbackEvent[]) => {
+      const runIds = Array.from(new Set(events.map((event) => event.runId)))
       useSearchStore.setState({
         profile: null,
-        requests: [],
-        runs: [],
+        requests: [
+          {
+            id: 'sreq-feedback',
+            createdAt: '2026-03-11T12:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: runIds.map((id) => ({
+          id,
+          requestId: 'sreq-feedback',
+          createdAt: '2026-03-11T12:00:00.000Z',
+          status: 'completed' as const,
+          results: [],
+          searchLog: [],
+        })),
         feedbackEvents: events,
       })
     }
@@ -888,6 +956,93 @@ describe('workspace backup merge helpers', () => {
       const events = merged.artifacts.research.payload.feedbackEvents ?? []
       expect(events[0].appliedToIdentity).toBe(true)
       expect(events[0].appliedAtVersion).toBe(8)
+    })
+  })
+
+  describe('mergeWorkspaceSnapshots — research orphan pruning', () => {
+    const request = (id: string) => ({
+      id,
+      createdAt: '2026-03-11T12:00:00.000Z',
+      focusLanes: [],
+      companySizeOverride: '' as const,
+      salaryAnchorOverride: '',
+      geoExpand: false,
+      customKeywords: '',
+      excludeCompanies: [],
+      maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+    })
+
+    const run = (id: string, requestId: string) => ({
+      id,
+      requestId,
+      createdAt: '2026-03-11T12:00:00.000Z',
+      status: 'completed' as const,
+      results: [],
+      searchLog: [],
+    })
+
+    const feedback = (id: string, runId: string): SearchFeedbackEvent => ({
+      id,
+      runId,
+      resultId: id + '-result',
+      rating: 'up',
+      appliedToIdentity: true,
+      createdAt: '2026-03-11T12:00:00.000Z',
+    })
+
+    it('drops imported research artifacts whose run does not survive the merge', () => {
+      useSearchStore.setState({
+        profile: null,
+        requests: [request('sreq-live')],
+        runs: [run('srun-live', 'sreq-live')],
+        theses: [
+          buildSearchThesis({
+            id: 'sthesis-current',
+            feedbackIncorporated: ['sfe-live'],
+          }),
+        ],
+        activeThesisId: 'sthesis-current',
+        feedbackEvents: [feedback('sfe-live', 'srun-live')],
+        activeResearchJob: null,
+      })
+      const current = createWorkspaceSnapshotFromStores({
+        workspaceId: 'facet-local-workspace',
+        exportedAt: '2026-03-11T12:00:00.000Z',
+      })
+
+      useSearchStore.setState({
+        profile: null,
+        requests: [],
+        runs: [run('srun-orphan', 'sreq-missing')],
+        theses: [
+          buildSearchThesis({
+            id: 'sthesis-current',
+            updatedAt: '2026-03-11T13:00:00.000Z',
+            feedbackIncorporated: ['sfe-live', 'sfe-orphan'],
+          }),
+        ],
+        activeThesisId: 'sthesis-current',
+        feedbackEvents: [feedback('sfe-orphan', 'srun-orphan')],
+        activeResearchJob: {
+          jobId: 'job-orphan',
+          requestId: 'sreq-missing',
+          runId: 'srun-orphan',
+          thesisId: 'sthesis-current',
+          status: 'running',
+          lastObservedAt: '2026-03-11T13:00:00.000Z',
+        },
+      })
+      const imported = createWorkspaceSnapshotFromStores({
+        workspaceId: 'facet-local-workspace',
+        exportedAt: '2026-03-11T13:00:00.000Z',
+      })
+
+      const merged = mergeWorkspaceSnapshots(current, imported).artifacts.research.payload
+
+      expect(merged.runs.map((item) => item.id)).toEqual(['srun-live'])
+      expect((merged.feedbackEvents ?? []).map((item) => item.id)).toEqual(['sfe-live'])
+      expect(merged.theses?.[0]?.feedbackIncorporated).toEqual(['sfe-live'])
+      expect(merged.activeResearchJob).toBeNull()
     })
   })
 })
