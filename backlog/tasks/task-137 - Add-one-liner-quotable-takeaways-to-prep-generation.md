@@ -4,11 +4,13 @@ title: Add one-liner quotable takeaways to prep generation
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:11'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - generation
 milestone: m-18
-dependencies: []
+dependencies:
+  - TASK-170
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B12
   - src/utils/prepGenerator.ts

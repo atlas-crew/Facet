@@ -4,6 +4,7 @@ title: Add multi-role narrative arc for core pitch opener
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:15'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - generation
@@ -11,7 +12,7 @@ labels:
   - content
 milestone: m-18
 dependencies:
-  - TASK-145
+  - TASK-170
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B11
   - src/identity/schema.ts

@@ -4,12 +4,14 @@ title: Add alternative narrative support to prep cards
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:11'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - content
   - rendering
 milestone: m-18
-dependencies: []
+dependencies:
+  - TASK-170
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B5
   - src/types/prep.ts

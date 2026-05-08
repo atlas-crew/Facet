@@ -5,14 +5,15 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-30 08:26'
-updated_date: '2026-05-07 21:29'
+updated_date: '2026-05-08 07:49'
 labels:
   - search
   - research
   - architecture
   - lanes-migration
   - phase-b
-dependencies: []
+dependencies:
+  - TASK-204.4
 references:
   - src/types/search.ts
   - src/utils/deepSearchClient.ts
@@ -44,6 +45,7 @@ Phase A (separate task) adds `focusLanes` alongside the existing `focusVectors` 
 4. **Update copy** on the Search Launcher empty state to direct users at "Generate Thesis" rather than at vector picking.
 
 ## Acceptance Criteria
+<!-- AC:BEGIN -->
 - Run Search button is disabled and clearly labeled when `activeThesis === null` (e.g. "Generate a thesis to launch search")
 - Search Launcher UI no longer renders the legacy `focusVectors` picker — only lane checkboxes
 - `createDeepResearchJob` rejects requests without `focusLanes` populated
@@ -62,6 +64,7 @@ Phase A (separate task) adds `focusLanes` alongside the existing `focusVectors` 
 - [x] #3 createDeepResearchJob rejects requests without focusLanes populated.
 - [x] #4 Resume-only fallback thesis construction is removed from the deep-research launch path.
 - [x] #5 Tests cover the blocked-without-thesis launch path and updated thesis-driven launch path.
+<!-- AC:END -->
 <!-- AC:END -->
 
 ## Definition of Done

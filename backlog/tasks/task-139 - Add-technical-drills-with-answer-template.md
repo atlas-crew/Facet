@@ -4,12 +4,14 @@ title: Add technical drills with answer template
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:12'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - generation
   - content
 milestone: m-18
-dependencies: []
+dependencies:
+  - TASK-170
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B4
   - src/types/prep.ts

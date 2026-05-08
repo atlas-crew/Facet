@@ -4,11 +4,13 @@ title: Decompose ResearchPage into tab-focused subcomponents
 status: To Do
 assignee: []
 created_date: '2026-03-11 04:02'
+updated_date: '2026-05-08 07:49'
 labels:
   - quality
   - research
 milestone: m-4
-dependencies: []
+dependencies:
+  - TASK-62
 references:
   - .agents/reviews/review-20260310-235018.md
 priority: low

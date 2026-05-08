@@ -4,20 +4,23 @@ title: Add beat sheet and glance points to PrepCard
 status: To Do
 assignee: []
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - types
   - live-mode
 milestone: m-26
 dependencies:
-  - TASK-154
+  - TASK-170
 references:
   - src/types/prep.ts
   - src/utils/prepGenerator.ts
   - src/routes/prep/PrepLiveMode.tsx
 documentation:
   - 'backlog reference files/blackstone-prep-r3.html (Beat sheet, line 518)'
-  - 'backlog reference files/blackstone-prep-r1.html (Glance Points pattern, lines 556, 574, 601)'
+  - >-
+    backlog reference files/blackstone-prep-r1.html (Glance Points pattern,
+    lines 556, 574, 601)
 priority: low
 ---
 

@@ -5,14 +5,14 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:00'
-updated_date: '2026-05-08 05:08'
+updated_date: '2026-05-08 07:49'
 labels:
   - search-redesign
   - transparency
   - output-contract
 milestone: m-20
 dependencies:
-  - TASK-160
+  - TASK-184
 references:
   - src/types/search.ts
   - src/utils/searchExecutor.ts

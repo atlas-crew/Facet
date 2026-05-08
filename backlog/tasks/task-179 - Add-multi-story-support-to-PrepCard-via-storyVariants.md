@@ -4,21 +4,23 @@ title: Add multi-story support to PrepCard via storyVariants
 status: To Do
 assignee: []
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - types
   - generation
 milestone: m-26
 dependencies:
-  - TASK-154
-  - TASK-177
+  - TASK-170
 references:
   - src/types/prep.ts
   - src/utils/prepGenerator.ts
   - src/routes/prep/PrepLiveMode.tsx
   - src/routes/prep/PrepPracticeMode.tsx
 documentation:
-  - 'backlog reference files/blackstone-prep-r1.html (Primary + Alternative story pattern, lines 654-670, 692-708)'
+  - >-
+    backlog reference files/blackstone-prep-r1.html (Primary + Alternative story
+    pattern, lines 654-670, 692-708)
 priority: low
 ---
 

@@ -4,12 +4,12 @@ title: Add hard-constraints controls to SearchInstancePreferences
 status: To Do
 assignee: []
 created_date: '2026-04-29 08:41'
+updated_date: '2026-05-08 07:49'
 labels:
   - search-redesign
   - ui
 dependencies:
-  - TASK-196.1
-  - TASK-196.2
+  - TASK-204.1
 references:
   - src/routes/research/searchWorkspaceComponents.tsx
   - src/routes/research/research.css

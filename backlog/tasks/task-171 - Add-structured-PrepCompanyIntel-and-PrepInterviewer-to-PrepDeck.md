@@ -4,20 +4,23 @@ title: Add structured PrepCompanyIntel and PrepInterviewer to PrepDeck
 status: To Do
 assignee: []
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - types
   - structured-intel
 milestone: m-26
 dependencies:
-  - TASK-154
+  - TASK-170
 references:
   - src/types/prep.ts
   - src/utils/prepGenerator.ts
   - src/routes/prep/PrepLiveMode.tsx
 documentation:
   - 'backlog doc-25: Gap 3 Named Interviewer Intel'
-  - 'backlog reference files/unanet-hm-prep.html (Unanet Intel grid, Named Team Members)'
+  - >-
+    backlog reference files/unanet-hm-prep.html (Unanet Intel grid, Named Team
+    Members)
 priority: medium
 ---
 

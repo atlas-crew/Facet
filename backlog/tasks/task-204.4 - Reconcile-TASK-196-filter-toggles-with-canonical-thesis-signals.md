@@ -5,13 +5,13 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 22:46'
-updated_date: '2026-05-07 20:03'
+updated_date: '2026-05-08 07:49'
 labels:
   - documentation
   - search-redesign
   - lane-b
 dependencies:
-  - TASK-204.1
+  - TASK-204.3
 references:
   - >-
     backlog/tasks/task-196.3 -

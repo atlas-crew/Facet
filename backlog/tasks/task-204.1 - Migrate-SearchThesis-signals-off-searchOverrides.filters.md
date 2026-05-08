@@ -5,12 +5,13 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 22:46'
-updated_date: '2026-05-07 02:32'
+updated_date: '2026-05-08 07:49'
 labels:
   - refactor
   - search-redesign
   - lane-b
-dependencies: []
+dependencies:
+  - TASK-204
 references:
   - src/types/search.ts
   - src/store/searchStore.ts

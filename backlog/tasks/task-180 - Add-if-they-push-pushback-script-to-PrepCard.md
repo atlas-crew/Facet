@@ -4,20 +4,25 @@ title: Add "if they push" pushback script to PrepCard
 status: To Do
 assignee: []
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 07:49'
 labels:
   - prep
   - types
   - generation
 milestone: m-26
 dependencies:
-  - TASK-154
+  - TASK-170
 references:
   - src/types/prep.ts
   - src/utils/prepGenerator.ts
   - src/routes/prep/PrepLiveMode.tsx
 documentation:
-  - 'backlog reference files/blackstone-prep-r1.html (If they push card, line 592-595)'
-  - 'backlog reference files/generic-prep.html (If They Push info-card, line 610-614)'
+  - >-
+    backlog reference files/blackstone-prep-r1.html (If they push card, line
+    592-595)
+  - >-
+    backlog reference files/generic-prep.html (If They Push info-card, line
+    610-614)
 priority: low
 ---
 

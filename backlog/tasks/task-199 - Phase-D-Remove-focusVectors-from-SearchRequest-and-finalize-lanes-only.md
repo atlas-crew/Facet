@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-30 08:26'
-updated_date: '2026-05-08 00:47'
+updated_date: '2026-05-08 07:49'
 labels:
   - search
   - research
@@ -14,7 +14,6 @@ labels:
   - phase-d
   - cleanup
 dependencies:
-  - TASK-197
   - TASK-198
 references:
   - src/types/search.ts

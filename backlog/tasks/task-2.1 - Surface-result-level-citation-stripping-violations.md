@@ -5,10 +5,11 @@ status: Done
 assignee:
   - '@lane-a-worker'
 created_date: '2026-05-06 23:06'
-updated_date: '2026-05-07 21:26'
+updated_date: '2026-05-08 07:49'
 labels:
   - remediation
-dependencies: []
+dependencies:
+  - TASK-184
 parent_task_id: TASK-2
 ---
 
