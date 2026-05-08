@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
-import type {
-  ResumeScanBulletProgress,
-  ResumeScanResult,
-} from '../../types/identity'
+import type { ResumeScanBulletProgress, ResumeScanResult } from '../../types/identity'
 
-interface ScannedIdentityEditorProps {
+interface ScanReviewPaneProps {
   scanResult: ResumeScanResult
   bulkStatus: ResumeScanResult['progress']['bulk']['status']
   onUpdateIdentityCore: (
@@ -17,11 +14,7 @@ interface ScannedIdentityEditorProps {
     field: 'company' | 'title' | 'dates' | 'subtitle',
     value: string,
   ) => void
-  onUpdateBulletSourceText: (
-    roleIndex: number,
-    bulletIndex: number,
-    value: string,
-  ) => void
+  onUpdateBulletSourceText: (roleIndex: number, bulletIndex: number, value: string) => void
   onUpdateBulletTextField: (
     roleId: string,
     bulletId: string,
@@ -41,11 +34,7 @@ interface ScannedIdentityEditorProps {
   ) => void
   onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>
   onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void
-  onUpdateSkillItemName: (
-    groupIndex: number,
-    itemIndex: number,
-    value: string,
-  ) => void
+  onUpdateSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
   onUpdateProjectEntry: (
     projectIndex: number,
     field: 'name' | 'description' | 'url',
@@ -58,13 +47,10 @@ interface ScannedIdentityEditorProps {
   ) => void
 }
 
-const linksToDocument = (
-  links: ProfessionalIdentityV3['identity']['links'],
-): string => links.map((link) => `${link.id} | ${link.url}`).join('\n')
+const linksToDocument = (links: ProfessionalIdentityV3['identity']['links']): string =>
+  links.map((link) => `${link.id} | ${link.url}`).join('\n')
 
-const parseLinksDocument = (
-  value: string,
-): ProfessionalIdentityV3['identity']['links'] =>
+const parseLinksDocument = (value: string): ProfessionalIdentityV3['identity']['links'] =>
   value
     .split('\n')
     .map((line) => line.trim())
@@ -80,18 +66,14 @@ const parseLinksDocument = (
 
 const listToDocument = (items: string[]): string => items.join('\n')
 
-const parseListDocument = (
-  value: string,
-  options?: { splitOnComma?: boolean },
-): string[] =>
+const parseListDocument = (value: string, options?: { splitOnComma?: boolean }): string[] =>
   value
     .split(options?.splitOnComma ? /\n|,/ : /\n/)
     .map((entry) => entry.trim())
     .filter(Boolean)
 
-const metricsToDocument = (
-  metrics: Record<string, string | number | boolean>,
-): string => JSON.stringify(metrics, null, 2)
+const metricsToDocument = (metrics: Record<string, string | number | boolean>): string =>
+  JSON.stringify(metrics, null, 2)
 
 const parseMetricsDocument = (
   value: string,
@@ -105,11 +87,7 @@ const parseMetricsDocument = (
 
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       return {
         data: null,
         error: 'Metrics must be a JSON object before you leave this field.',
@@ -148,22 +126,14 @@ const STATUS_CLASSNAMES: Record<ResumeScanBulletProgress['status'], string> = {
   edited: 'identity-chip-corrected',
 }
 
-const CONFIDENCE_LABELS: Record<
-  ResumeScanBulletProgress['confidence'],
-  string
-> = {
+const CONFIDENCE_LABELS: Record<ResumeScanBulletProgress['confidence'], string> = {
   stated: 'Stated',
   confirmed: 'Confirmed',
   guessing: 'Guessing',
   corrected: 'Corrected',
 }
 
-type ScannedBulletFilter =
-  | 'all'
-  | 'needs-review'
-  | 'guessing'
-  | 'failed'
-  | 'edited'
+type ScannedBulletFilter = 'all' | 'needs-review' | 'guessing' | 'failed' | 'edited'
 
 interface ScannedBulletRef {
   key: string
@@ -249,21 +219,15 @@ const bulletMatchesFilter = (
   return true
 }
 
-const findPreferredBulletKey = (
-  bulletRefs: ScannedBulletRef[],
-): string | null => {
-  const nextReview = bulletRefs.find((bulletRef) =>
-    bulletNeedsReview(bulletRef),
-  )
+const findPreferredBulletKey = (bulletRefs: ScannedBulletRef[]): string | null => {
+  const nextReview = bulletRefs.find((bulletRef) => bulletNeedsReview(bulletRef))
   return nextReview?.key ?? bulletRefs[0]?.key ?? null
 }
 
 const hasDecomposition = (
   bullet: ProfessionalIdentityV3['roles'][number]['bullets'][number],
 ): boolean =>
-  [bullet.problem, bullet.action, bullet.outcome].some((entry) =>
-    entry.trim(),
-  ) ||
+  [bullet.problem, bullet.action, bullet.outcome].some((entry) => entry.trim()) ||
   bullet.impact.length > 0 ||
   bullet.technologies.length > 0 ||
   bullet.tags.length > 0 ||
@@ -380,7 +344,7 @@ function DeferredMetricsField({
   )
 }
 
-export function ScannedIdentityEditor({
+export function ScanReviewPane({
   scanResult,
   bulkStatus,
   onUpdateIdentityCore,
@@ -394,7 +358,7 @@ export function ScannedIdentityEditor({
   onUpdateSkillItemName,
   onUpdateProjectEntry,
   onUpdateEducationEntry,
-}: ScannedIdentityEditorProps) {
+}: ScanReviewPaneProps) {
   const { identity, progress } = scanResult
   const hasRunningBullet = Object.values(progress.bullets).some(
     (entry) => entry.status === 'running',
@@ -421,24 +385,15 @@ export function ScannedIdentityEditor({
   )
   const visibleBulletRefs = useMemo(
     () =>
-      bulletRefs.filter((bulletRef) =>
-        bulletMatchesFilter(bulletRef, bulletFilter, bulletQuery),
-      ),
+      bulletRefs.filter((bulletRef) => bulletMatchesFilter(bulletRef, bulletFilter, bulletQuery)),
     [bulletFilter, bulletQuery, bulletRefs],
   )
-  const preferredBulletKey = useMemo(
-    () => findPreferredBulletKey(bulletRefs),
-    [bulletRefs],
-  )
-  const [selectedBulletKey, setSelectedBulletKey] = useState<string | null>(
-    preferredBulletKey,
-  )
+  const preferredBulletKey = useMemo(() => findPreferredBulletKey(bulletRefs), [bulletRefs])
+  const [selectedBulletKey, setSelectedBulletKey] = useState<string | null>(preferredBulletKey)
   const [expandedRoleIds, setExpandedRoleIds] = useState<string[]>(() =>
     identity.roles[0] ? [identity.roles[0].id] : [],
   )
-  const [expandedSkillGroupIds, setExpandedSkillGroupIds] = useState<string[]>(
-    [],
-  )
+  const [expandedSkillGroupIds, setExpandedSkillGroupIds] = useState<string[]>([])
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
 
   useEffect(() => {
@@ -457,17 +412,14 @@ export function ScannedIdentityEditor({
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedBulletKey((current) =>
-      current &&
-      visibleBulletRefs.some((bulletRef) => bulletRef.key === current)
+      current && visibleBulletRefs.some((bulletRef) => bulletRef.key === current)
         ? current
         : (visibleBulletRefs[0]?.key ?? current),
     )
   }, [visibleBulletRefs])
 
   const selectedBulletRef =
-    bulletRefs.find((bulletRef) => bulletRef.key === selectedBulletKey) ??
-    bulletRefs[0] ??
-    null
+    bulletRefs.find((bulletRef) => bulletRef.key === selectedBulletKey) ?? bulletRefs[0] ?? null
 
   useEffect(() => {
     if (!selectedBulletRef) {
@@ -495,28 +447,19 @@ export function ScannedIdentityEditor({
     return grouped
   }, [visibleBulletRefs])
   const shouldShowRoleList =
-    visibleBulletRefs.length > 0 ||
-    identity.roles.some((role) => role.bullets.length === 0)
+    visibleBulletRefs.length > 0 || identity.roles.some((role) => role.bullets.length === 0)
 
   const selectedVisibleIndex = selectedBulletRef
-    ? visibleBulletRefs.findIndex(
-        (bulletRef) => bulletRef.key === selectedBulletRef.key,
-      )
+    ? visibleBulletRefs.findIndex((bulletRef) => bulletRef.key === selectedBulletRef.key)
     : -1
   const previousVisibleBullet =
-    selectedVisibleIndex > 0
-      ? (visibleBulletRefs[selectedVisibleIndex - 1] ?? null)
-      : null
+    selectedVisibleIndex > 0 ? (visibleBulletRefs[selectedVisibleIndex - 1] ?? null) : null
   const nextVisibleBullet =
-    selectedVisibleIndex >= 0
-      ? (visibleBulletRefs[selectedVisibleIndex + 1] ?? null)
-      : null
+    selectedVisibleIndex >= 0 ? (visibleBulletRefs[selectedVisibleIndex + 1] ?? null) : null
 
   const toggleRole = (roleId: string) => {
     setExpandedRoleIds((current) =>
-      current.includes(roleId)
-        ? current.filter((entry) => entry !== roleId)
-        : [...current, roleId],
+      current.includes(roleId) ? current.filter((entry) => entry !== roleId) : [...current, roleId],
     )
   }
 
@@ -549,9 +492,7 @@ export function ScannedIdentityEditor({
       <section className="identity-scan-section">
         <div>
           <h3>Contact</h3>
-          <p>
-            Review the header fields before deepening the scanned structure.
-          </p>
+          <p>Review the header fields before deepening the scanned structure.</p>
         </div>
         <div className="identity-scan-form-grid">
           <label className="identity-field">
@@ -559,9 +500,7 @@ export function ScannedIdentityEditor({
             <input
               className="identity-input"
               value={identity.identity.name}
-              onChange={(event) =>
-                onUpdateIdentityCore('name', event.target.value)
-              }
+              onChange={(event) => onUpdateIdentityCore('name', event.target.value)}
             />
           </label>
           <label className="identity-field">
@@ -569,9 +508,7 @@ export function ScannedIdentityEditor({
             <input
               className="identity-input"
               value={identity.identity.title ?? ''}
-              onChange={(event) =>
-                onUpdateIdentityCore('title', event.target.value)
-              }
+              onChange={(event) => onUpdateIdentityCore('title', event.target.value)}
             />
           </label>
           <label className="identity-field">
@@ -579,9 +516,7 @@ export function ScannedIdentityEditor({
             <input
               className="identity-input"
               value={identity.identity.email}
-              onChange={(event) =>
-                onUpdateIdentityCore('email', event.target.value)
-              }
+              onChange={(event) => onUpdateIdentityCore('email', event.target.value)}
             />
           </label>
           <label className="identity-field">
@@ -589,9 +524,7 @@ export function ScannedIdentityEditor({
             <input
               className="identity-input"
               value={identity.identity.phone}
-              onChange={(event) =>
-                onUpdateIdentityCore('phone', event.target.value)
-              }
+              onChange={(event) => onUpdateIdentityCore('phone', event.target.value)}
             />
           </label>
           <label className="identity-field">
@@ -599,9 +532,7 @@ export function ScannedIdentityEditor({
             <input
               className="identity-input"
               value={identity.identity.location}
-              onChange={(event) =>
-                onUpdateIdentityCore('location', event.target.value)
-              }
+              onChange={(event) => onUpdateIdentityCore('location', event.target.value)}
             />
           </label>
           <label className="identity-field identity-field-wide">
@@ -610,10 +541,7 @@ export function ScannedIdentityEditor({
               className="identity-textarea"
               value={linksToDocument(identity.identity.links)}
               onChange={(event) =>
-                onUpdateIdentityCore(
-                  'links',
-                  parseLinksDocument(event.target.value),
-                )
+                onUpdateIdentityCore('links', parseLinksDocument(event.target.value))
               }
               placeholder="github | https://github.com/you"
             />
@@ -623,9 +551,7 @@ export function ScannedIdentityEditor({
             <textarea
               className="identity-textarea"
               value={identity.identity.thesis}
-              onChange={(event) =>
-                onUpdateIdentityCore('thesis', event.target.value)
-              }
+              onChange={(event) => onUpdateIdentityCore('thesis', event.target.value)}
               placeholder="Short summary extracted from the resume."
             />
           </label>
@@ -635,10 +561,7 @@ export function ScannedIdentityEditor({
       <section className="identity-scan-section">
         <div>
           <h3>Roles</h3>
-          <p>
-            Browse the scan on the left, then review one bullet at a time in the
-            detail pane.
-          </p>
+          <p>Browse the scan on the left, then review one bullet at a time in the detail pane.</p>
         </div>
         {identity.roles.length > 0 ? (
           <div className="identity-scan-master-detail">
@@ -658,17 +581,13 @@ export function ScannedIdentityEditor({
                   <select
                     className="identity-input"
                     value={bulletFilter}
-                    onChange={(event) =>
-                      setBulletFilter(event.target.value as ScannedBulletFilter)
-                    }
+                    onChange={(event) => setBulletFilter(event.target.value as ScannedBulletFilter)}
                   >
-                    {Object.entries(BULLET_FILTER_LABELS).map(
-                      ([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ),
-                    )}
+                    {Object.entries(BULLET_FILTER_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <div className="identity-scan-browser-summary">
@@ -690,10 +609,7 @@ export function ScannedIdentityEditor({
                     ).length
                     const isExpanded = expandedRoleIds.includes(role.id)
                     return (
-                      <section
-                        className="identity-scan-role-group"
-                        key={role.id}
-                      >
+                      <section className="identity-scan-role-group" key={role.id}>
                         <button
                           className="identity-scan-role-toggle"
                           type="button"
@@ -702,16 +618,11 @@ export function ScannedIdentityEditor({
                           aria-controls={role.id + '-role-panel'}
                         >
                           <span className="identity-scan-role-summary">
-                            <strong>
-                              {role.company || 'Untitled company'}
-                            </strong>
+                            <strong>{role.company || 'Untitled company'}</strong>
                             <span>
-                              {role.title || 'Untitled role'} ·{' '}
-                              {roleBullets.length} bullet
+                              {role.title || 'Untitled role'} · {roleBullets.length} bullet
                               {roleBullets.length === 1 ? '' : 's'}
-                              {reviewCount > 0
-                                ? ` · ${reviewCount} need review`
-                                : ''}
+                              {reviewCount > 0 ? ` · ${reviewCount} need review` : ''}
                             </span>
                           </span>
                           <span className="identity-chip identity-chip-empty">
@@ -729,9 +640,7 @@ export function ScannedIdentityEditor({
                               key={bulletRef.key}
                               className={`identity-scan-bullet-row${selectedBulletRef?.key === bulletRef.key ? ' identity-scan-bullet-row-active' : ''}`}
                               type="button"
-                              onClick={() =>
-                                setSelectedBulletKey(bulletRef.key)
-                              }
+                              onClick={() => setSelectedBulletKey(bulletRef.key)}
                             >
                               <span className="identity-scan-bullet-copy">
                                 <span className="identity-scan-bullet-heading">
@@ -754,11 +663,7 @@ export function ScannedIdentityEditor({
                                 <span
                                   className={`identity-chip identity-chip-${bulletRef.progress.confidence}`}
                                 >
-                                  {
-                                    CONFIDENCE_LABELS[
-                                      bulletRef.progress.confidence
-                                    ]
-                                  }
+                                  {CONFIDENCE_LABELS[bulletRef.progress.confidence]}
                                 </span>
                               </span>
                             </button>
@@ -771,10 +676,7 @@ export function ScannedIdentityEditor({
               ) : (
                 <div className="identity-empty">
                   <h3>No bullets match this view</h3>
-                  <p>
-                    Clear the search or switch focus to inspect the full scanned
-                    history.
-                  </p>
+                  <p>Clear the search or switch focus to inspect the full scanned history.</p>
                 </div>
               )}
             </aside>
@@ -785,12 +687,10 @@ export function ScannedIdentityEditor({
                   <section className="identity-scan-card">
                     <div className="identity-card-header">
                       <div>
-                        <h4>
-                          {selectedBulletRef.role.company || 'Untitled company'}
-                        </h4>
+                        <h4>{selectedBulletRef.role.company || 'Untitled company'}</h4>
                         <p>
-                          {selectedBulletRef.role.title || 'Untitled role'} ·
-                          Bullet {selectedBulletRef.bulletIndex + 1}
+                          {selectedBulletRef.role.title || 'Untitled role'} · Bullet{' '}
+                          {selectedBulletRef.bulletIndex + 1}
                         </p>
                       </div>
                       <div className="identity-card-actions">
@@ -798,8 +698,7 @@ export function ScannedIdentityEditor({
                           className="identity-btn"
                           type="button"
                           onClick={() =>
-                            previousVisibleBullet &&
-                            setSelectedBulletKey(previousVisibleBullet.key)
+                            previousVisibleBullet && setSelectedBulletKey(previousVisibleBullet.key)
                           }
                           disabled={!previousVisibleBullet}
                         >
@@ -809,8 +708,7 @@ export function ScannedIdentityEditor({
                           className="identity-btn"
                           type="button"
                           onClick={() =>
-                            nextVisibleBullet &&
-                            setSelectedBulletKey(nextVisibleBullet.key)
+                            nextVisibleBullet && setSelectedBulletKey(nextVisibleBullet.key)
                           }
                           disabled={!nextVisibleBullet}
                         >
@@ -826,11 +724,7 @@ export function ScannedIdentityEditor({
                           className="identity-input"
                           value={selectedBulletRef.role.company}
                           onChange={(event) =>
-                            onUpdateRole(
-                              selectedBulletRef.roleIndex,
-                              'company',
-                              event.target.value,
-                            )
+                            onUpdateRole(selectedBulletRef.roleIndex, 'company', event.target.value)
                           }
                         />
                       </label>
@@ -840,11 +734,7 @@ export function ScannedIdentityEditor({
                           className="identity-input"
                           value={selectedBulletRef.role.title}
                           onChange={(event) =>
-                            onUpdateRole(
-                              selectedBulletRef.roleIndex,
-                              'title',
-                              event.target.value,
-                            )
+                            onUpdateRole(selectedBulletRef.roleIndex, 'title', event.target.value)
                           }
                         />
                       </label>
@@ -854,11 +744,7 @@ export function ScannedIdentityEditor({
                           className="identity-input"
                           value={selectedBulletRef.role.dates}
                           onChange={(event) =>
-                            onUpdateRole(
-                              selectedBulletRef.roleIndex,
-                              'dates',
-                              event.target.value,
-                            )
+                            onUpdateRole(selectedBulletRef.roleIndex, 'dates', event.target.value)
                           }
                         />
                       </label>
@@ -943,26 +829,18 @@ export function ScannedIdentityEditor({
                         </div>
 
                         <label className="identity-field">
-                          <span className="identity-label">
-                            Bullet {bulletIndex + 1} Source
-                          </span>
+                          <span className="identity-label">Bullet {bulletIndex + 1} Source</span>
                           <textarea
                             className="identity-textarea"
                             value={bullet.source_text ?? ''}
                             onChange={(event) =>
-                              onUpdateBulletSourceText(
-                                roleIndex,
-                                bulletIndex,
-                                event.target.value,
-                              )
+                              onUpdateBulletSourceText(roleIndex, bulletIndex, event.target.value)
                             }
                           />
                         </label>
 
                         {bulletProgress.lastError ? (
-                          <p className="identity-muted">
-                            {bulletProgress.lastError}
-                          </p>
+                          <p className="identity-muted">{bulletProgress.lastError}</p>
                         ) : null}
 
                         {showDecomposition ? (
@@ -974,11 +852,10 @@ export function ScannedIdentityEditor({
                               >
                                 {showGuessingFallback ? (
                                   <p className="identity-scan-guidance-text">
-                                    This decomposition was inferred from the
-                                    scanned source text. Review and edit the
-                                    fields below to confirm any guessed details.
-                                    Your first edit will switch this bullet from
-                                    Guessing to Corrected.
+                                    This decomposition was inferred from the scanned source text.
+                                    Review and edit the fields below to confirm any guessed details.
+                                    Your first edit will switch this bullet from Guessing to
+                                    Corrected.
                                   </p>
                                 ) : bulletExplanation?.summary ? (
                                   <p className="identity-scan-guidance-text">
@@ -986,15 +863,12 @@ export function ScannedIdentityEditor({
                                   </p>
                                 ) : bulletProgress.confidence === 'guessing' ? (
                                   <p className="identity-scan-guidance-text">
-                                    This decomposition was inferred from the
-                                    scanned source text.
+                                    This decomposition was inferred from the scanned source text.
                                   </p>
                                 ) : null}
                                 {bulletExplanation?.rewrite ? (
                                   <div className="identity-scan-guess-block">
-                                    <span className="identity-label">
-                                      Current AI rewrite
-                                    </span>
+                                    <span className="identity-label">Current AI rewrite</span>
                                     <p className="identity-scan-guess-text">
                                       {bulletExplanation.rewrite}
                                     </p>
@@ -1002,21 +876,15 @@ export function ScannedIdentityEditor({
                                 ) : null}
                                 {bulletExplanation?.assumptions?.length ? (
                                   <div className="identity-chip-row">
-                                    {bulletExplanation.assumptions.map(
-                                      (assumption, index) => (
-                                        <span
-                                          key={`${bullet.id}:assumption:${index}`}
-                                          className={`identity-chip identity-chip-${assumption.confidence}`}
-                                        >
-                                          {assumption.label} ·{' '}
-                                          {
-                                            CONFIDENCE_LABELS[
-                                              assumption.confidence
-                                            ]
-                                          }
-                                        </span>
-                                      ),
-                                    )}
+                                    {bulletExplanation.assumptions.map((assumption, index) => (
+                                      <span
+                                        key={`${bullet.id}:assumption:${index}`}
+                                        className={`identity-chip identity-chip-${assumption.confidence}`}
+                                      >
+                                        {assumption.label} ·{' '}
+                                        {CONFIDENCE_LABELS[assumption.confidence]}
+                                      </span>
+                                    ))}
                                   </div>
                                 ) : null}
                                 {bulletExplanation?.warnings?.length ? (
@@ -1027,9 +895,8 @@ export function ScannedIdentityEditor({
                                 {bulletProgress.confidence === 'guessing' &&
                                 !showGuessingFallback ? (
                                   <p className="identity-muted">
-                                    Edit the fields below to correct any guessed
-                                    details. Your first edit will switch this
-                                    bullet from Guessing to Corrected.
+                                    Edit the fields below to correct any guessed details. Your first
+                                    edit will switch this bullet from Guessing to Corrected.
                                   </p>
                                 ) : null}
                               </section>
@@ -1086,12 +953,7 @@ export function ScannedIdentityEditor({
                                 value={bullet.impact}
                                 splitOnComma={false}
                                 onCommit={(nextValue) =>
-                                  onUpdateBulletListField(
-                                    role.id,
-                                    bullet.id,
-                                    'impact',
-                                    nextValue,
-                                  )
+                                  onUpdateBulletListField(role.id, bullet.id, 'impact', nextValue)
                                 }
                               />
                               <DeferredListField
@@ -1114,9 +976,7 @@ export function ScannedIdentityEditor({
                                     role.id,
                                     bullet.id,
                                     'tags',
-                                    nextValue.map((entry) =>
-                                      entry.toLowerCase(),
-                                    ),
+                                    nextValue.map((entry) => entry.toLowerCase()),
                                   )
                                 }
                               />
@@ -1136,10 +996,7 @@ export function ScannedIdentityEditor({
               ) : (
                 <div className="identity-empty">
                   <h3>No Bullet Selected</h3>
-                  <p>
-                    Select a bullet from the browser to inspect and correct its
-                    decomposition.
-                  </p>
+                  <p>Select a bullet from the browser to inspect and correct its decomposition.</p>
                 </div>
               )}
             </div>
@@ -1152,10 +1009,7 @@ export function ScannedIdentityEditor({
       <section className="identity-scan-section">
         <div>
           <h3>Skills</h3>
-          <p>
-            Expand a skill group when you want to rename it or adjust the parsed
-            skills inline.
-          </p>
+          <p>Expand a skill group when you want to rename it or adjust the parsed skills inline.</p>
         </div>
         {identity.skills.groups.length > 0 ? (
           <div className="identity-scan-stack">
@@ -1182,42 +1036,30 @@ export function ScannedIdentityEditor({
                     </span>
                   </button>
 
-                <article
-                  className="identity-scan-card identity-scan-role-panel"
-                  id={group.id + '-skills-panel'}
-                  hidden={!isExpanded}
-                >
+                  <article
+                    className="identity-scan-card identity-scan-role-panel"
+                    id={group.id + '-skills-panel'}
+                    hidden={!isExpanded}
+                  >
                     <label className="identity-field">
                       <span className="identity-label">Group Label</span>
                       <input
                         className="identity-input"
                         value={group.label}
                         onChange={(event) =>
-                          onUpdateSkillGroupLabel(
-                            groupIndex,
-                            event.target.value,
-                          )
+                          onUpdateSkillGroupLabel(groupIndex, event.target.value)
                         }
                       />
                     </label>
                     <div className="identity-scan-stack">
                       {group.items.map((item, itemIndex) => (
-                        <label
-                          className="identity-field"
-                          key={group.id + ':' + itemIndex}
-                        >
-                          <span className="identity-label">
-                            Skill {itemIndex + 1}
-                          </span>
+                        <label className="identity-field" key={group.id + ':' + itemIndex}>
+                          <span className="identity-label">Skill {itemIndex + 1}</span>
                           <input
                             className="identity-input"
                             value={item.name}
                             onChange={(event) =>
-                              onUpdateSkillItemName(
-                                groupIndex,
-                                itemIndex,
-                                event.target.value,
-                              )
+                              onUpdateSkillItemName(groupIndex, itemIndex, event.target.value)
                             }
                           />
                         </label>
@@ -1229,9 +1071,7 @@ export function ScannedIdentityEditor({
             })}
           </div>
         ) : (
-          <p className="identity-muted">
-            No skill groups were parsed from this PDF.
-          </p>
+          <p className="identity-muted">No skill groups were parsed from this PDF.</p>
         )}
       </section>
 
@@ -1239,8 +1079,8 @@ export function ScannedIdentityEditor({
         <div>
           <h3>Projects</h3>
           <p>
-            Projects stay editable in the scanned draft so downstream Build
-            output can use them directly.
+            Projects stay editable in the scanned draft so downstream Build output can use them
+            directly.
           </p>
         </div>
         {identity.projects.length > 0 ? (
@@ -1260,11 +1100,7 @@ export function ScannedIdentityEditor({
                   >
                     <span className="identity-scan-role-summary">
                       <strong>{project.name || 'Untitled project'}</strong>
-                      <span>
-                        {project.url
-                          ? 'Project link included'
-                          : 'No project link yet'}
-                      </span>
+                      <span>{project.url ? 'Project link included' : 'No project link yet'}</span>
                     </span>
                     <span className="identity-chip identity-chip-empty">
                       {isExpanded ? 'Collapse' : 'Expand'}
@@ -1285,11 +1121,7 @@ export function ScannedIdentityEditor({
                           className="identity-input"
                           value={project.name}
                           onChange={(event) =>
-                            onUpdateProjectEntry(
-                              projectIndex,
-                              'name',
-                              event.target.value,
-                            )
+                            onUpdateProjectEntry(projectIndex, 'name', event.target.value)
                           }
                         />
                       </label>
@@ -1299,11 +1131,7 @@ export function ScannedIdentityEditor({
                           className="identity-input"
                           value={project.url ?? ''}
                           onChange={(event) =>
-                            onUpdateProjectEntry(
-                              projectIndex,
-                              'url',
-                              event.target.value,
-                            )
+                            onUpdateProjectEntry(projectIndex, 'url', event.target.value)
                           }
                         />
                       </label>
@@ -1313,11 +1141,7 @@ export function ScannedIdentityEditor({
                           className="identity-textarea"
                           value={project.description}
                           onChange={(event) =>
-                            onUpdateProjectEntry(
-                              projectIndex,
-                              'description',
-                              event.target.value,
-                            )
+                            onUpdateProjectEntry(projectIndex, 'description', event.target.value)
                           }
                         />
                       </label>
@@ -1328,26 +1152,19 @@ export function ScannedIdentityEditor({
             })}
           </div>
         ) : (
-          <p className="identity-muted">
-            No projects were parsed from this PDF.
-          </p>
+          <p className="identity-muted">No projects were parsed from this PDF.</p>
         )}
       </section>
 
       <section className="identity-scan-section">
         <div>
           <h3>Education</h3>
-          <p>
-            Education entries stay lightweight in v1 and can be refined later.
-          </p>
+          <p>Education entries stay lightweight in v1 and can be refined later.</p>
         </div>
         {identity.education.length > 0 ? (
           <div className="identity-scan-stack">
             {identity.education.map((entry, educationIndex) => (
-              <article
-                className="identity-scan-card"
-                key={`${entry.school}-${educationIndex}`}
-              >
+              <article className="identity-scan-card" key={`${entry.school}-${educationIndex}`}>
                 <div className="identity-scan-form-grid">
                   <label className="identity-field">
                     <span className="identity-label">School</span>
@@ -1355,11 +1172,7 @@ export function ScannedIdentityEditor({
                       className="identity-input"
                       value={entry.school}
                       onChange={(event) =>
-                        onUpdateEducationEntry(
-                          educationIndex,
-                          'school',
-                          event.target.value,
-                        )
+                        onUpdateEducationEntry(educationIndex, 'school', event.target.value)
                       }
                     />
                   </label>
@@ -1369,11 +1182,7 @@ export function ScannedIdentityEditor({
                       className="identity-input"
                       value={entry.degree}
                       onChange={(event) =>
-                        onUpdateEducationEntry(
-                          educationIndex,
-                          'degree',
-                          event.target.value,
-                        )
+                        onUpdateEducationEntry(educationIndex, 'degree', event.target.value)
                       }
                     />
                   </label>
@@ -1383,11 +1192,7 @@ export function ScannedIdentityEditor({
                       className="identity-input"
                       value={entry.location}
                       onChange={(event) =>
-                        onUpdateEducationEntry(
-                          educationIndex,
-                          'location',
-                          event.target.value,
-                        )
+                        onUpdateEducationEntry(educationIndex, 'location', event.target.value)
                       }
                     />
                   </label>
@@ -1397,11 +1202,7 @@ export function ScannedIdentityEditor({
                       className="identity-input"
                       value={entry.year ?? ''}
                       onChange={(event) =>
-                        onUpdateEducationEntry(
-                          educationIndex,
-                          'year',
-                          event.target.value,
-                        )
+                        onUpdateEducationEntry(educationIndex, 'year', event.target.value)
                       }
                     />
                   </label>
@@ -1410,9 +1211,7 @@ export function ScannedIdentityEditor({
             ))}
           </div>
         ) : (
-          <p className="identity-muted">
-            No education entries were parsed from this PDF.
-          </p>
+          <p className="identity-muted">No education entries were parsed from this PDF.</p>
         )}
       </section>
     </div>

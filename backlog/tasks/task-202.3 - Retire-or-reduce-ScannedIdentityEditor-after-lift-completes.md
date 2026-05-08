@@ -1,10 +1,10 @@
 ---
 id: TASK-202.3
 title: Retire or reduce ScannedIdentityEditor after lift completes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-30 18:42'
-updated_date: '2026-04-30 19:41'
+updated_date: '2026-05-08 20:42'
 labels:
   - identity
   - map-convergence
@@ -13,7 +13,7 @@ labels:
 dependencies:
   - TASK-202.2
 references:
-  - src/routes/identity/ScannedIdentityEditor.tsx
+  - src/routes/identity/ScanReviewPane.tsx
   - src/routes/identity/IdentityPage.tsx
   - src/routes/identity/ExtractionAgentCard.tsx
 parent_task_id: TASK-202
@@ -50,13 +50,15 @@ The choice depends on what TASK-202.2's decision matrix produces. This task can'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Decision recorded in notes: retire ScannedIdentityEditor entirely, or reduce + rename, with reasoning citing TASK-202.2's outcomes
+- [x] #1 Decision recorded in notes: retire ScannedIdentityEditor entirely, or reduce + rename, with reasoning citing TASK-202.2's outcomes
 - [ ] #2 If retired: ScannedIdentityEditor.tsx deleted; replacement ScanReviewPane (or equivalent) is minimal — just renders parser output and Apply control
-- [ ] #3 If reduced: file renamed if appropriate; remaining responsibilities are scan-flow-only with no canonical-state writers
-- [ ] #4 All callers updated; no orphaned imports
-- [ ] #5 Scan flow works end-to-end (PDF upload → review → apply produces a correct currentIdentity); regression-tested
-- [ ] #6 Test suite passes; no test coverage gap for previously-tested behaviors
+- [x] #3 If reduced: file renamed if appropriate; remaining responsibilities are scan-flow-only with no canonical-state writers
+- [x] #4 All callers updated; no orphaned imports
+- [x] #5 Scan flow works end-to-end (PDF upload → review → apply produces a correct currentIdentity); regression-tested
+- [x] #6 Test suite passes; no test coverage gap for previously-tested behaviors
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
@@ -73,14 +75,39 @@ The choice depends on what TASK-202.2's decision matrix produces. This task can'
 - `repo-cleanup` — safe-deletion workflow (find dead refs, verify no orphaned types, confirm no test fixtures depend on it)
 
 **Note:** This task depends on TASK-202.2 being complete. Do not start until TASK-202.2's lift commits have all landed and its notes contain the survivor inventory.
+
+## Decision and reduction completed (2026-05-08)
+
+Decision: reduce and rename rather than retire entirely.
+
+Reasoning from TASK-202.2:
+- All canonical-only survivors now have Map-side homes: source_text sheet, per-bullet Deepen, and metrics JSON sheet in BulletInspector.
+- The remaining scan surface responsibilities are scan-flow-only: parser-output staging, scan/deepen confidence guidance, review filters, transient scanResult field correction, bulk scan deepening, rescan, and clear-scan lifecycle controls.
+- DRAFT-2 owns the final import-flow form factor. Fully replacing the scan reviewer with a minimal apply-only pane would collapse that future routing/sheet decision into this mechanical cleanup task.
+
+Implementation:
+- Renamed src/routes/identity/ScannedIdentityEditor.tsx to src/routes/identity/ScanReviewPane.tsx.
+- Renamed the exported component and props to ScanReviewPane / ScanReviewPaneProps.
+- Updated ExtractionAgentCard to import and render ScanReviewPane.
+- Confirmed there are no source imports or component references to ScannedIdentityEditor after the rename; remaining mentions are historical task text.
+
+Verification:
+- npx vitest run src/test/IdentityPage.test.tsx -t "uploads a PDF|deepens a scanned bullet|deepens all scanned bullets|cancels bulk|scan is cleared|aborts an in-flight|focused impact|switches the detail pane|disables bullet": PASS, 9 tests / 17 skipped.
+- npx eslint src/routes/identity/ScanReviewPane.tsx src/routes/identity/ExtractionAgentCard.tsx: PASS.
+- npm run typecheck: PASS.
+- npm run build: PASS, with existing large-chunk warnings.
+- npm run format:files -- src/routes/identity/ScanReviewPane.tsx src/routes/identity/ExtractionAgentCard.tsx: applied.
+- npm run format:files:check -- src/routes/identity/ScanReviewPane.tsx src/routes/identity/ExtractionAgentCard.tsx: PASS.
+
+AC #2 is not applicable because the chosen branch was reduce + rename, not retire entirely.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
