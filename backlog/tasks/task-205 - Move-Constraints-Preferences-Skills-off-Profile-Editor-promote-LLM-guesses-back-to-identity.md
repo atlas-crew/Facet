@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-05-01 00:48'
+updated_date: '2026-05-08 23:26'
 labels:
   - search-redesign
   - thesis-map
@@ -30,62 +31,85 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-## Why
+## Status (2026-05-08 — refreshed during backlog staleness audit; supersedes earlier description)
 
-After the Thesis Map migration (TASK-195) and the duplicate-storage cleanup (TASK-203 + Phase 1 of TASK-204), the Profile Editor tab has degraded into a **residue of three surfaces** that all duplicate or contradict the Map:
+This task's original framing (filed 2026-05-01) predated three architectural shifts that change its shape:
 
-1. `<SearchSkillsTable>` — shows skills with a per-thesis "hide" toggle. Skills master is in identity; per-thesis depth annotations are now on the Map's Calibration band. The hide toggle is the only thing this card does that isn't covered elsewhere.
-2. `<SearchInstancePreferences>` — edits constraints (compensation, locations, clearance, companySize) + filters (prioritize/avoid) + interview prefs (strongFit/redFlags). All four are thesis-level state and belong on the Map alongside the other thesis bands.
-3. The "Generate / Regenerate Thesis from Identity" workspace card — this is the only thing that genuinely belongs to a "Profile Editor" surface.
+1. **doc-37 (2026-05-04) — Research is Discovery, not a per-listing artifact.** Research reads from Identity (search criteria, vectors, preferences) via SearchProfile snapshot; it is upstream of Pipeline. This makes the "research workspace owns its own Map" framing wrong — there should not be a research-side thesis Map; identity is the canonical authoring surface for search criteria.
+2. **doc-38 v3 (2026-05-08) — Research Workspace 4-lane rollout closed.** TASK-204 + sub-tasks consolidated thesis signals (`SearchThesis.lookFor` / `avoid` canonical; `searchOverrides.filters.*` deprecated and lifted into canonical fields). TASK-204.3 cleaned up Research preferences after canonical thesis signals.
+3. **doc-40 v2 (2026-05-07/08) — Identity Map convergence closed.** Identity Map gained `SearchStrategyBand` (search vectors + open questions, with full add/remove/edit) and `PreferencesBand`. The candidate identity Map is the canonical edit surface for search vectors and preferences.
 
-The user's framing (verbatim, 2026-04-30):
-> "i dont se why we need this skills list in profiel editor at all when we have the calibration in thesis map, and these constraints and preferences should be handled similarly in the thesis map, should they not?"
+**Verified current state (2026-05-08):**
 
-After this task, the Profile Editor tab likely either disappears entirely or reduces to the thesis-generation launcher.
+- `src/routes/research/` contains only: `research.css`, `ResearchPage.tsx`, `researchUtils.ts`, `searchWorkspaceComponents.tsx`. **There is no `ThesisMapPanel.tsx` or `ThesisInspector.tsx` or `inspectorSlots/`** — those references in the original description never landed (and per doc-37 should never land).
+- `src/routes/identity/bands/` contains `PreferencesBand.tsx`, `SearchStrategyBand.tsx`, `ProfilesBand.tsx`, `RolesBand.tsx`, `SelfModelBand.tsx`, `SkillsBand.tsx`, `ThesisBand.tsx`. `IdentityMapPage.tsx` renders `<PreferencesBand />` and `<SearchStrategyBand />` (lines 254-255).
+- `ResearchPage.tsx` line 99: `{ id: 'profile', label: 'Profile Editor' }` — Profile Editor tab still exists.
+- `ResearchPage.tsx` line 3194: `<SearchSkillsTable />` still rendered. Line 3203: `<SearchInstancePreferences />` still rendered, with an `onNavigateToIdentity` deep-link to `/identity?focus=preferences&return=/research` (TASK-217's bridge).
+- TASK-217 (cross-workspace deep-link bridge) shipped Done.
 
-## Scope (sub-phases)
+## Refreshed scope
 
-**Phase 2 — Promote inferred prefs back to identity.** The Phase 1 fix (sourcing filters/interviewPrefs from identity) eliminated LLM inference for those four lists, but the LLM's prior guesses were *decent* (the user said so). Add a "Promote to Identity" affordance on each `<PreferenceList>` item, mirroring the SkillDepthInspector's "Write back to Identity" button. So when the user opens an existing thesis and sees a useful inferred entry, they can copy it into `identity.preferences.matching.{prioritize,avoid}` or `identity.preferences.interview_process.{strong_fit_signals,red_flags}` with one click. Closes the only path the prior architecture had for thesis→identity learning.
+The original Phase 1 (regenerate thesis from identity, Phase 1 fix sourcing filters/interviewPrefs from identity) is shipped. What remains is the **structural retirement** of the residual Profile Editor surface in Research, with all canonical authoring routed to the identity Map.
 
-**Phase 3 — Move Constraints & Preferences into a new Map band.** Add a "Preferences" band alongside Strategy / Lanes / Calibration. The band hosts:
-   - Constraints (compensation, locations, clearance, companySize)
-   - Filters (prioritize/avoid) — read from identity, edited via the per-thesis disable mechanism
-   - Interview prefs (strongFit/redFlags) — same pattern
-   - Hidden skills toggle list (replaces the Profile Editor's Skills card)
+### Phase A — Verify identity Map covers the Research Profile Editor's edit surface
 
-The band uses the same per-slot edit-commit pattern the rest of the Map uses (`saveThesisRevision`).
+Before deletion, confirm every edit Research's Profile Editor currently does has a viable home on the identity Map:
 
-**Phase 4 — Remove `<SearchSkillsTable>` and `<SearchInstancePreferences>` from Profile Editor.** Once Phase 3's Preferences band hosts the equivalents, the cards on Profile Editor are pure duplication. Delete them.
+- **Skills hide/restore for a thesis** (the `<SearchSkillsTable>` job): hidden-skill toggles per active thesis. Currently routed to `toggleThesisHiddenSkill`. The identity Map's SkillsBand/SearchStrategyBand may need a per-thesis "hide from this thesis" affordance, OR this becomes a thesis-scoped overlay editable from a thin Research-side surface (not Profile Editor).
+- **Constraints (compensation, locations, clearance, companySize)** + **filters (prioritize/avoid)** + **interview prefs (strongFit/redFlags)**: per `<SearchInstancePreferences>`. Identity's PreferencesBand should hold these; verify all four sub-categories have first-class edit affordances. The `onNavigateToIdentity` link suggests this routing already partly works — confirm it's complete.
 
-**Phase 5 — Profile Editor cleanup decision.** With Skills + Constraints + Preferences gone, the Profile Editor tab has only the thesis-generation launcher. Two options:
-   - Keep it as a thin "Generate Thesis" launcher tab.
-   - Fold the launcher into the Map's empty-state and delete the tab entirely.
+If any gap exists on identity Map, file targeted small tasks to close it FIRST. Do not delete the Research-side cards until identity Map covers their job.
 
-Decide as part of this task; don't pre-commit.
+### Phase B — Delete `<SearchSkillsTable>` and `<SearchInstancePreferences>` from Profile Editor
 
-## Coordination with adjacent tasks
+Once Phase A confirms parity:
+- Remove the imports and JSX usage at `ResearchPage.tsx:3194` and `:3203`
+- Delete the components from `searchWorkspaceComponents.tsx` if unused
+- Delete the corresponding sections of `research.css` if scoped
 
-- **TASK-196** (hard-constraints UI rebuild): Phase 3's "Preferences" band is the natural home for TASK-196.4 / .5's UI work. Sequence Phase 3 here BEFORE TASK-196.4 ships its UI.
-- **TASK-204** (lookFor/prioritize consolidation): the canonical-home decisions made in TASK-204's design doc constrain Phase 3's band shape. Land TASK-204's design before starting Phase 3 implementation.
-- **TASK-203** (run-override cleanup): already done; this task builds on the cleared shape.
+### Phase C — Profile Editor tab decision
+
+With Skills + Constraints + Preferences gone, the Profile Editor tab has little left. Decide:
+- **Option C1**: keep as a thin "Generate Thesis" launcher tab (re-runs `handleGenerateThesis`) — preserve the regen affordance
+- **Option C2**: fold the launcher into the Research workspace's main flow (e.g., a button in the search results header) and delete the tab entry at `ResearchPage.tsx:99`
+
+Either way: doc-37's framing supports a leaner Research workspace whose UI is opportunities-list + per-opportunity actions + thesis launcher only. Don't preserve the tab structure for its own sake.
+
+### Phase D — "Promote inferred preferences to identity" (was original Phase 2)
+
+Original task included a per-PreferenceList "Promote to Identity" button. Reverify whether this is still needed: TASK-217's deep-link routes users to identity Map preferences directly, which may be the preferred flow (edit at the canonical surface). If a per-item promote button is still wanted (e.g., to quickly capture a useful inferred entry into identity without leaving Research), confirm scope and add to Phase A.
 
 ## Out of scope
 
-- The thesis-generation prompt itself (handled in Phase 1, already done).
-- `disabledFilterIds[]` schema work — that's TASK-196.3.
-- Match-scoring fixes for conditional severity — that's TASK-165.
+- The thesis-generation prompt itself (Phase 1, shipped).
+- `disabledFilterIds[]` schema work (closed via TASK-196.3 as descoped per doc-38 v3).
+- Match-scoring fixes for conditional severity (TASK-165, Done).
+- Any research-side Map UI (per doc-37, this should not exist).
+
+## Coordination
+
+- TASK-217 (deep-link bridge) is shipped — relied on for the `onNavigateToIdentity` flow.
+- doc-38 v3 is closed; TASK-204 sub-tasks landed. Canonical thesis signal storage is settled.
+- doc-40 v2 is closed; identity Map's PreferencesBand and SearchStrategyBand are stable.
+
+---
+
+## Original description (preserved for reference)
+
+The earlier framing assumed a research-side Thesis Map workspace. Per doc-37 that surface should not exist. The Phase 2/3/4/5 numbering and the "new Map band on Research" verbiage in the original description are outdated. Phase A/B/C/D above replace them.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Phase 2: each PreferenceList item has a Promote-to-Identity button that writes the label into the corresponding identity master list and bumps identity.model_revision
-- [ ] #2 Phase 3: a new Preferences band on the Thesis Map hosts constraints, filters, interview prefs, and hidden-skill toggles
-- [ ] #3 Phase 4: SearchInstancePreferences and SearchSkillsTable are removed from the Profile Editor tab
-- [ ] #4 Phase 5: the Profile Editor tab is either deleted or reduced to a thin generate-thesis launcher with a documented rationale for the choice
-- [ ] #5 All Map bands continue to use the per-slot edit-commit pattern (no global thesisDraft for migrated fields)
-- [ ] #6 Identity-derived list values still flow through hydratePreferenceItems so legacy string[] data continues to render correctly
-- [ ] #7 Test sweep covers the new Promote-to-Identity flow including model_revision bumps and identity-version stamping on the thesis
+- [ ] #1 Phase A: every edit currently performed by <SearchSkillsTable> and <SearchInstancePreferences> has a viable home on the identity Map (PreferencesBand + SearchStrategyBand + SkillsBand), with any gaps filed as targeted small tasks
+- [ ] #2 Phase B: <SearchSkillsTable> and <SearchInstancePreferences> imports and JSX usage are removed from ResearchPage.tsx; unused components are deleted from searchWorkspaceComponents.tsx and corresponding CSS
+- [ ] #3 Phase C: Profile Editor tab fate decided (kept as thin Generate Thesis launcher, OR deleted with launcher folded into main Research flow), with rationale recorded in implementation notes
+- [ ] #4 Phase D: decision recorded on whether per-PreferenceList Promote-to-Identity buttons add value beyond TASK-217's deep-link — if yes, scoped and implemented; if no, dropped with rationale
+- [ ] #5 Identity-derived list values still flow through hydratePreferenceItems so legacy string[] data continues to render correctly on the identity Map
+- [ ] #6 Test sweep covers any new identity Map affordances added in Phase A (with model_revision bumps and identity-version stamping)
 <!-- AC:END -->
+
+
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
