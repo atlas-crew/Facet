@@ -1033,7 +1033,7 @@ describe('ResearchPage', () => {
       }),
     )
     expect(stalenessReview.textContent).toContain(
-      'Thesis and cover-letter refresh are available',
+      'Thesis, cover-letter, and prep deck refresh are available',
     )
     expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
       decision: 'accepted-current',
@@ -1233,6 +1233,25 @@ describe('ResearchPage', () => {
     expect(
       screen.getByText(/Saved search thesis refreshed with the latest Identity context/),
     ).toBeTruthy()
+  })
+
+  it('routes the prep deck refresh button to the prep deck handler (TASK-244)', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    // The prep deck is created with no pipeline entry seeded in pipelineStore,
+    // so the dispatch should land in runPrepDeckRefresh and surface the
+    // "no pipeline entry" notice rather than the legacy "Refresh pending" no-op.
+    const refreshButton = within(stalenessReview).getByRole('button', {
+      name: 'Refresh Acme prep deck with latest Identity',
+    })
+    expect(refreshButton).toBeTruthy()
+    fireEvent.click(refreshButton)
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Acme prep deck cannot be refreshed because (it has no linked pipeline entry|its pipeline entry is no longer available)/,
+        ),
+      ).toBeTruthy()
+    })
   })
 
   it('routes the cover letter refresh button to the cover letter handler (TASK-158 AC #6)', async () => {

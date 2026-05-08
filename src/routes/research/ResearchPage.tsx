@@ -63,6 +63,9 @@ import {
   regenerateCoverLetterForEntry,
   resolvePipelineJdAnalysis,
 } from '../../utils/coverLetterRegen'
+import { regeneratePrepDeckForEntry } from '../../utils/prepDeckRegen'
+import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
+import { buildPrepPipelineEntryContext } from '../../utils/prepPipelineContext'
 import { generateSearchThesisFromIdentity, validateSearchThesis } from '../../utils/thesisGenerator'
 import { fetchAiProxyCapabilities } from '../../utils/llmProxy'
 import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
@@ -2147,6 +2150,149 @@ export function ResearchPage() {
     }
   }
 
+  const runPrepDeckRefresh = async (
+    artifact: DownstreamImpact['artifactsAffected'][number],
+    artifactKey: string,
+  ) => {
+    if (
+      !currentIdentity ||
+      !stalenessReviewImpact ||
+      currentIdentityRevision === null ||
+      stalenessReviewIdentityRevision !== currentIdentityRevision
+    ) {
+      setThesisNotice(
+        'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
+      )
+      return
+    }
+
+    const targetDeck = usePrepStore
+      .getState()
+      .decks.find((deck) => deck.id === artifact.artifactId)
+    if (!targetDeck) {
+      setThesisNotice(`${artifact.label} is no longer available, so it was not refreshed.`)
+      return
+    }
+    if (!targetDeck.pipelineEntryId) {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed because it has no linked pipeline entry.`,
+      )
+      return
+    }
+    const targetEntry = usePipelineStore
+      .getState()
+      .entries.find((entry) => entry.id === targetDeck.pipelineEntryId && !entry.deletedAt)
+    if (!targetEntry) {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed because its pipeline entry is no longer available.`,
+      )
+      return
+    }
+    if (!targetEntry.jobDescription.trim()) {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed because its pipeline entry has no job description.`,
+      )
+      return
+    }
+    const analyses = useJDAnalysisStore.getState().analyses
+    const jdAnalysis = resolvePipelineJdAnalysis(
+      targetEntry,
+      Array.isArray(analyses) ? analyses : [],
+    )
+    if (!jdAnalysis) {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed because its JD analysis is not available. Refresh the JD analysis first.`,
+      )
+      return
+    }
+
+    try {
+      ensureEndpoint()
+      setPageError(null)
+      setThesisNotice(null)
+      refreshingStalenessArtifactKeyRef.current = artifactKey
+      setRefreshingStalenessArtifactKey(artifactKey)
+      const refreshStartedIdentityRevision = currentIdentityRevision
+      const refreshStartedImpact = stalenessReviewImpact
+      const refreshStartedMutation = refreshStartedImpact.mutation
+      const vector = targetDeck.vectorId
+        ? resumeData.vectors.find((item) => item.id === targetDeck.vectorId)
+        : undefined
+      const prepIdentityContext = buildPrepIdentityContext(
+        currentIdentity,
+        vector?.id,
+        vector?.label,
+      )
+      const { deck: refreshedDeck } = await regeneratePrepDeckForEntry(
+        {
+          endpoint: aiEndpoint,
+          deck: targetDeck,
+          request: {
+            company: targetDeck.company,
+            role: targetDeck.role,
+            vectorId: vector?.id,
+            vectorLabel: vector?.label,
+            roundNumber: targetDeck.roundNumber,
+            roundType: targetDeck.roundType,
+            companyUrl: targetEntry.url || undefined,
+            skillMatch: targetEntry.skillMatch || undefined,
+            positioning: targetEntry.positioning || undefined,
+            notes: targetEntry.notes || undefined,
+            companyResearch: targetDeck.companyResearch || undefined,
+            jobDescription: targetEntry.jobDescription,
+            jdAnalysis,
+            identityContext: prepIdentityContext,
+            pipelineEntryContext: buildPrepPipelineEntryContext(targetEntry),
+            priorRoundDebriefs: targetDeck.roundDebriefs,
+            resumeContext: { candidate: resumeData.meta },
+          },
+        },
+        { identityVersion: currentIdentity.model_revision },
+      )
+
+      const latestIdentityRevision =
+        useIdentityStore.getState().currentIdentity?.model_revision ?? null
+      const reviewSnapshotStillOpen = stalenessReviewImpactRef.current === refreshStartedImpact
+      if (
+        latestIdentityRevision !== refreshStartedIdentityRevision ||
+        stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
+        !reviewSnapshotStillOpen
+      ) {
+        setThesisNotice(
+          'Identity or review context changed during prep deck refresh. The regenerated deck was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
+        )
+        return
+      }
+
+      const refreshReview = sanitizeArtifactStalenessReview({
+        decision: 'accepted-current',
+        reviewedAt: new Date().toISOString(),
+        reviewedIdentityVersion: refreshStartedIdentityRevision,
+        artifactIdentityVersionAtReview:
+          refreshedDeck.identityVersion ?? refreshStartedIdentityRevision,
+        mutationLabel: refreshStartedMutation.label,
+        mutationFields: [...refreshStartedMutation.fields],
+        mutationFromRevision: refreshStartedMutation.fromRevision,
+        mutationToRevision: refreshStartedMutation.toRevision,
+        reason: artifact.reason || 'Refreshed with latest Identity context.',
+      } satisfies ArtifactStalenessReview)
+      if (refreshReview) {
+        updatePrepDeck(refreshedDeck.id, { stalenessReview: refreshReview })
+      }
+
+      setRefreshedStalenessArtifactKeys((current) => ({
+        ...current,
+        [artifactKey]: true,
+      }))
+      setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Prep deck refresh failed.')
+    } finally {
+      refreshingStalenessArtifactKeyRef.current = null
+      setRefreshingStalenessArtifactKey(null)
+    }
+  }
+
   const handleRefreshStalenessArtifact = async (
     artifact: DownstreamImpact['artifactsAffected'][number],
     artifactKey: string,
@@ -2158,9 +2304,13 @@ export function ResearchPage() {
       return
     }
 
-    if (artifact.artifactType !== 'thesis' && artifact.artifactType !== 'cover-letter') {
+    if (
+      artifact.artifactType !== 'thesis' &&
+      artifact.artifactType !== 'cover-letter' &&
+      artifact.artifactType !== 'prep-deck'
+    ) {
       setThesisNotice(
-        `${artifact.label} cannot be refreshed yet. Thesis and cover-letter refresh are available; run and prep deck refresh generators are still pending.`,
+        `${artifact.label} cannot be refreshed yet. Thesis, cover-letter, and prep deck refresh are available; run refresh generators are still pending.`,
       )
       return
     }
@@ -2179,6 +2329,11 @@ export function ResearchPage() {
 
     if (artifact.artifactType === 'cover-letter') {
       await runCoverLetterRefresh(artifact, artifactKey)
+      return
+    }
+
+    if (artifact.artifactType === 'prep-deck') {
+      await runPrepDeckRefresh(artifact, artifactKey)
       return
     }
 
@@ -3222,8 +3377,8 @@ export function ResearchPage() {
               >
                 <strong id="staleness-review-title">Batch staleness review</strong>
                 <p>
-                  {stalenessReviewImpact.summary} Review each artifact now. Thesis and cover-letter
-                  refresh are available; run and prep deck refresh generators are still pending.
+                  {stalenessReviewImpact.summary} Review each artifact now. Thesis, cover-letter,
+                  and prep deck refresh are available; run refresh generators are still pending.
                 </p>
                 <p>
                   Choices are saved on each reviewed artifact. Refreshing regenerates the artifact
@@ -3257,12 +3412,17 @@ export function ResearchPage() {
                     const wasRefreshed = Boolean(refreshedStalenessArtifactKeys[artifactKey])
                     const isRefreshSupported =
                       artifact.artifactType === 'thesis' ||
-                      artifact.artifactType === 'cover-letter'
+                      artifact.artifactType === 'cover-letter' ||
+                      artifact.artifactType === 'prep-deck'
                     const isRefreshing = refreshingStalenessArtifactKey === artifactKey
                     const isRefreshDisabled =
                       !isRefreshSupported || refreshingStalenessArtifactKey !== null
                     const refreshNoun =
-                      artifact.artifactType === 'cover-letter' ? 'cover letter' : 'thesis'
+                      artifact.artifactType === 'cover-letter'
+                        ? 'cover letter'
+                        : artifact.artifactType === 'prep-deck'
+                          ? 'prep deck'
+                          : 'thesis'
                     const refreshButtonLabel = !isRefreshSupported
                       ? 'Refresh pending'
                       : isRefreshing
