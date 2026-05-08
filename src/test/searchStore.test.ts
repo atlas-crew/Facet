@@ -531,14 +531,12 @@ describe('searchStore', () => {
       .updateProfileSkills([
         { id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' },
       ])
-    useSearchStore
-      .getState()
-      .updateProfileConstraints({
-        salary: { min: 0, max: 0 },
-        locations: [],
-        clearance: '',
-        companySize: '',
-      })
+    useSearchStore.getState().updateProfileConstraints({
+      salary: { min: 0, max: 0 },
+      locations: [],
+      clearance: '',
+      companySize: '',
+    })
     useSearchStore.getState().updateProfileFilters({ prioritize: [], avoid: [] })
     useSearchStore.getState().updateProfileInterviewPrefs({ strongFit: [], redFlags: [] })
     expect(useSearchStore.getState().profile).toBeNull()
@@ -1207,9 +1205,7 @@ describe('searchStore', () => {
     const legacyThesis = {
       ...buildSearchThesis({
         id: 'sthesis-disabled-filter-de-scoped',
-        lookFor: [
-          { id: 'ssig-existing-platform', label: 'Platform leverage', severity: 'hard' },
-        ],
+        lookFor: [{ id: 'ssig-existing-platform', label: 'Platform leverage', severity: 'hard' }],
         avoid: [{ id: 'ssig-existing-admin', label: 'Pure admin work', severity: 'soft' }],
       }),
       searchOverrides: {

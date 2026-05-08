@@ -70,7 +70,7 @@
   --preview-rule-weight: 1px;
   --preview-bullet-indent: 20px;
   --preview-bullet-hanging: 12px;
-  --preview-bullet-char: "•";
+  --preview-bullet-char: '•';
   --preview-name-weight: 700;
   --preview-name-align: left;
   --preview-contact-align: left;
@@ -130,7 +130,7 @@
   --layer-prefs: #0891b2;
 }
 
-:root[data-theme="light"] {
+:root[data-theme='light'] {
   --bg-primary: #f8fafc;
   --bg-surface: #ffffff;
   --bg-surface-hover: #f1f5f9;
@@ -184,7 +184,7 @@
   --layer-prefs: var(--accent-cyan);
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --bg-primary: #0a0c10;
   --bg-surface: #12151c;
   --bg-surface-hover: #171b24;
@@ -287,7 +287,7 @@ select {
  * focus contrast in dark theme where the bare outline alone can flatten
  * into surface-hover backgrounds.
  */
-:where(button, a, [role="button"], [role="tab"], [tabindex="0"]):focus-visible {
+:where(button, a, [role='button'], [role='tab'], [tabindex='0']):focus-visible {
   outline: 2px solid var(--focus-ring-color);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px var(--focus-ring-halo);
@@ -761,7 +761,9 @@ select {
   text-align: left;
   display: grid;
   gap: var(--space-1);
-  transition: border-color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
 .theme-preset-card:hover,
@@ -927,7 +929,11 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  transition: border-color var(--duration-fast) var(--easing), background var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
 .theme-tab:hover {
@@ -1018,7 +1024,8 @@ select {
   flex-wrap: wrap;
   min-width: 0;
   padding-top: var(--space-1);
-  border-top: 1px solid color-mix(in srgb, var(--active-vector-color, var(--border-subtle)) 42%, var(--border-subtle));
+  border-top: 1px solid
+    color-mix(in srgb, var(--active-vector-color, var(--border-subtle)) 42%, var(--border-subtle));
 }
 
 .vector-action-group {
@@ -1032,16 +1039,29 @@ select {
   padding: 2px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--active-vector-color, var(--border-default)) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--active-vector-color, var(--border-default)) 32%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--active-vector-color, var(--border-default)) 32%, transparent);
 }
 
 .vector-edit-actions .btn-ghost:not(:disabled) {
-  color: color-mix(in srgb, var(--active-vector-color, var(--text-secondary)) 78%, var(--text-primary));
+  color: color-mix(
+    in srgb,
+    var(--active-vector-color, var(--text-secondary)) 78%,
+    var(--text-primary)
+  );
 }
 
 .vector-view-actions .vector-view-all-btn {
-  border-color: color-mix(in srgb, var(--active-vector-color, var(--accent-primary)) 24%, var(--border-default));
-  color: color-mix(in srgb, var(--active-vector-color, var(--text-secondary)) 72%, var(--text-secondary));
+  border-color: color-mix(
+    in srgb,
+    var(--active-vector-color, var(--accent-primary)) 24%,
+    var(--border-default)
+  );
+  color: color-mix(
+    in srgb,
+    var(--active-vector-color, var(--text-secondary)) 72%,
+    var(--text-secondary)
+  );
 }
 
 .vector-view-actions .vector-view-all-btn[aria-pressed='true'] {
@@ -1058,7 +1078,8 @@ select {
   font-weight: 600;
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--vector-color, var(--accent-primary)) 25%, var(--border-subtle));
+  border: 1px solid
+    color-mix(in srgb, var(--vector-color, var(--accent-primary)) 25%, var(--border-subtle));
   background: color-mix(in srgb, var(--vector-color, var(--accent-primary)) 8%, var(--bg-surface));
   color: color-mix(in srgb, var(--vector-color, var(--accent-primary)) 70%, var(--text-secondary));
   cursor: pointer;
@@ -1198,7 +1219,9 @@ select {
   width: 6px;
   cursor: col-resize;
   background: var(--border-subtle);
-  transition: background var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    background var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
   position: relative;
 }
 
@@ -1371,29 +1394,31 @@ select {
   border-radius: 999px;
   margin-left: auto;
   border: 1px solid var(--border-subtle);
-.section-add-btn {
-  color: var(--text-tertiary);
-  opacity: 0.4;
-  transition: opacity var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
-}
+  .section-add-btn {
+    color: var(--text-tertiary);
+    opacity: 0.4;
+    transition:
+      opacity var(--duration-fast) var(--easing),
+      color var(--duration-fast) var(--easing);
+  }
 
-.section-header-wrapper:hover .section-add-btn {
-  opacity: 1;
-}
+  .section-header-wrapper:hover .section-add-btn {
+    opacity: 1;
+  }
 
-.section-add-btn:focus,
-.section-add-btn:focus-visible {
-  opacity: 1;
-  color: var(--accent-primary);
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
-}
+  .section-add-btn:focus,
+  .section-add-btn:focus-visible {
+    opacity: 1;
+    color: var(--accent-primary);
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+  }
 
-.search-clear:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
-  color: var(--text-primary);
-}
+  .search-clear:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -2px;
+    color: var(--text-primary);
+  }
 
   color: var(--accent-primary);
 }
@@ -1414,7 +1439,6 @@ select {
 }
 
 .library-section-toggle {
-
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1464,7 +1488,11 @@ select {
   border-color: var(--border-default);
   color: var(--text-secondary);
   box-shadow: inset 3px 0 0 var(--active-vector-color, var(--accent-primary));
-  background: color-mix(in srgb, var(--active-vector-color, var(--accent-primary)) 4%, var(--bg-surface));
+  background: color-mix(
+    in srgb,
+    var(--active-vector-color, var(--accent-primary)) 4%,
+    var(--bg-surface)
+  );
 }
 
 .library-section-toggle:focus-visible {
@@ -1581,7 +1609,9 @@ select {
   padding: 8px;
   min-height: 76px;
   resize: vertical;
-  transition: border-color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
 .component-input:hover {
@@ -1661,7 +1691,11 @@ select.component-input {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-3);
-  background: linear-gradient(to right, color-mix(in srgb, var(--accent-primary) 8%, var(--bg-inset)), var(--bg-inset) 60%);
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent-primary) 8%, var(--bg-inset)),
+    var(--bg-inset) 60%
+  );
   border-radius: 6px;
   padding: var(--space-2) var(--space-3);
   border-left: 3px solid var(--accent-primary);
@@ -1692,7 +1726,9 @@ select.component-input {
   display: flex;
   align-items: center;
   border-radius: 4px;
-  transition: color var(--duration-fast) var(--easing), background var(--duration-fast) var(--easing);
+  transition:
+    color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing);
   align-self: center;
 }
 
@@ -1920,7 +1956,9 @@ select.component-input {
   border-radius: 50%;
   border: 1.5px solid transparent;
   cursor: pointer;
-  transition: transform var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    transform var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
   position: relative;
   padding: 0;
 }
@@ -1932,7 +1970,9 @@ select.component-input {
 
 .matrix-dot.priority-include {
   background: var(--vector-color);
-  box-shadow: 0 0 0 1px var(--bg-surface), 0 0 0 2px color-mix(in srgb, var(--vector-color) 28%, transparent);
+  box-shadow:
+    0 0 0 1px var(--bg-surface),
+    0 0 0 2px color-mix(in srgb, var(--vector-color) 28%, transparent);
 }
 
 .matrix-dot.priority-exclude {
@@ -1956,9 +1996,13 @@ select.component-input {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity var(--duration-fast) var(--easing), transform var(--duration-fast) var(--easing);
+  transition:
+    opacity var(--duration-fast) var(--easing),
+    transform var(--duration-fast) var(--easing);
   z-index: 100;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 .matrix-dot:hover::after {
@@ -2016,7 +2060,9 @@ select.component-input {
   padding: 0;
   display: inline-flex;
   border-radius: 4px;
-  transition: color var(--duration-fast) var(--easing), background var(--duration-fast) var(--easing);
+  transition:
+    color var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing);
 }
 
 .drag-handle:hover {
@@ -2040,7 +2086,9 @@ select.component-input {
   padding: var(--space-2);
   background: var(--bg-surface);
   box-shadow: var(--shadow-xs);
-  transition: border-color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
   display: grid;
   gap: var(--space-2);
 }
@@ -2165,9 +2213,15 @@ select.component-input {
   font-family: var(--font-mono);
 }
 
-.health-score-value.good { color: #22c55e; }
-.health-score-value.fair { color: #eab308; }
-.health-score-value.poor { color: #ef4444; }
+.health-score-value.good {
+  color: #22c55e;
+}
+.health-score-value.fair {
+  color: #eab308;
+}
+.health-score-value.poor {
+  color: #ef4444;
+}
 
 .health-score-bar {
   height: 8px;
@@ -2182,9 +2236,15 @@ select.component-input {
   transition: width 0.5s ease-out;
 }
 
-.health-score-fill.good { background: #22c55e; }
-.health-score-fill.fair { background: #eab308; }
-.health-score-fill.poor { background: #ef4444; }
+.health-score-fill.good {
+  background: #22c55e;
+}
+.health-score-fill.fair {
+  background: #eab308;
+}
+.health-score-fill.poor {
+  background: #ef4444;
+}
 
 .health-issues-list {
   list-style: none;
@@ -2279,7 +2339,9 @@ select.component-input {
 .pdf-preview-shell.is-stale .pdf-preview-frame {
   opacity: 0.6;
   filter: grayscale(0.5);
-  transition: opacity 300ms var(--easing), filter 300ms var(--easing);
+  transition:
+    opacity 300ms var(--easing),
+    filter 300ms var(--easing);
 }
 
 .pdf-preview-stale-overlay {
@@ -2870,7 +2932,9 @@ select.component-input {
   font-family: var(--font-mono);
   font-size: 12px;
   resize: vertical;
-  transition: border-color var(--duration-fast) var(--easing), box-shadow var(--duration-fast) var(--easing);
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
 }
 
 .import-textarea:hover {
@@ -3060,7 +3124,7 @@ select.component-input {
   background: rgba(0, 0, 0, 0.05);
 }
 
-[data-theme="dark"] .toast-dismiss:hover {
+[data-theme='dark'] .toast-dismiss:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -3210,8 +3274,11 @@ select.component-input {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-6);
   border-top: 1px solid var(--border-subtle);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
 }
 
 .workspace-backup-reminder-copy {
@@ -3434,7 +3501,11 @@ select.component-input {
   border: 1px solid var(--border-subtle);
   border-radius: 18px;
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface)), var(--bg-surface)),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface)),
+      var(--bg-surface)
+    ),
     var(--bg-surface);
   box-shadow: var(--shadow-md);
 }
@@ -3947,7 +4018,9 @@ select.component-input {
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: var(--space-4);
-  box-shadow: var(--shadow-lg), 0 8px 32px rgba(0, 0, 0, 0.24);
+  box-shadow:
+    var(--shadow-lg),
+    0 8px 32px rgba(0, 0, 0, 0.24);
   animation: tour-card-in var(--duration-slow) var(--easing) both;
   outline: none;
 }
@@ -4026,7 +4099,8 @@ select.component-input {
   cursor: pointer;
   vertical-align: middle;
   flex-shrink: 0;
-  transition: color var(--duration-fast) var(--easing),
+  transition:
+    color var(--duration-fast) var(--easing),
     background var(--duration-fast) var(--easing);
 }
 
@@ -4136,8 +4210,14 @@ select.component-input {
 }
 
 @keyframes slide-down {
-  from { transform: translate(-50%, -20px); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
+  from {
+    transform: translate(-50%, -20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
 }
 
 .suggestion-info {
@@ -4217,7 +4297,7 @@ select.component-input {
 }
 
 .preview-suggested::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: -2px -4px;
   background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
@@ -4266,7 +4346,7 @@ select.component-input {
   font-weight: 600;
 }
 
-[data-theme="dark"] .variable-token {
+[data-theme='dark'] .variable-token {
   background: color-mix(in srgb, var(--accent-primary) 25%, var(--bg-inset));
 }
 

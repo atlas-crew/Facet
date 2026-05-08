@@ -49,9 +49,8 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('../persistence/runtime', async () => {
-  const actual = await vi.importActual<typeof import('../persistence/runtime')>(
-    '../persistence/runtime',
-  )
+  const actual =
+    await vi.importActual<typeof import('../persistence/runtime')>('../persistence/runtime')
 
   return {
     ...actual,
@@ -67,9 +66,7 @@ vi.mock('../persistence/runtime', async () => {
 vi.mock('../persistence/remoteBackend', () => remoteBackendMocks)
 vi.mock('../utils/windowLocation', () => locationMocks)
 vi.mock('../utils/hostedApi', async () => {
-  const actual = await vi.importActual<typeof import('../utils/hostedApi')>(
-    '../utils/hostedApi',
-  )
+  const actual = await vi.importActual<typeof import('../utils/hostedApi')>('../utils/hostedApi')
 
   return {
     ...actual,
@@ -157,7 +154,10 @@ const persistedIdentityValue = (modelRevision: number) => {
   return JSON.stringify({ state: { currentIdentity: identity }, version: 4 })
 }
 
-const setPersistenceHydration = (hydrated: boolean, activeWorkspaceId = 'facet-local-workspace') => {
+const setPersistenceHydration = (
+  hydrated: boolean,
+  activeWorkspaceId = 'facet-local-workspace',
+) => {
   usePersistenceRuntimeStore.setState({
     hydrated,
     usingLegacyMigration: false,
@@ -172,12 +172,16 @@ const setPersistenceHydration = (hydrated: boolean, activeWorkspaceId = 'facet-l
   })
 }
 
-const setHostedStore = (
-  overrides: Partial<ReturnType<typeof useHostedAppStore.getState>>,
-) => {
-  const reportError = vi.fn((message: string, code: string | null = null, reason: string | null = null) => {
-    useHostedAppStore.setState({ lastError: message, lastErrorCode: code, lastErrorReason: reason })
-  })
+const setHostedStore = (overrides: Partial<ReturnType<typeof useHostedAppStore.getState>>) => {
+  const reportError = vi.fn(
+    (message: string, code: string | null = null, reason: string | null = null) => {
+      useHostedAppStore.setState({
+        lastError: message,
+        lastErrorCode: code,
+        lastErrorReason: reason,
+      })
+    },
+  )
   const clearError = vi.fn(() => {
     useHostedAppStore.setState({ lastError: null, lastErrorCode: null, lastErrorReason: null })
   })
@@ -318,7 +322,9 @@ describe('AppShell hosted workspace bootstrap', () => {
       bearerToken: 'token-123',
     })
     expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Workspace:')
-    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Hosted Workspace')
+    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      'Hosted Workspace',
+    )
   })
 
   it('bootstraps hosted mode without a local migration snapshot', async () => {
@@ -412,7 +418,9 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     const sidebarNav = document.querySelector('.sidebar-nav') as HTMLElement
     expect(
-      within(sidebarNav).getAllByRole('link').map((link) => link.textContent?.trim()),
+      within(sidebarNav)
+        .getAllByRole('link')
+        .map((link) => link.textContent?.trim()),
     ).toEqual([
       'Overview',
       'Identity',
@@ -433,7 +441,9 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(overviewGroup.hasAttribute('aria-labelledby')).toBe(false)
     expect(within(overviewGroup).queryByText('Overview')).toBeTruthy()
     expect(overviewGroup.querySelector('.sidebar-nav-group-label')).toBeNull()
-    const labelledGroups = Array.from(sidebarNav.querySelectorAll('section.sidebar-nav-group[aria-labelledby]'))
+    const labelledGroups = Array.from(
+      sidebarNav.querySelectorAll('section.sidebar-nav-group[aria-labelledby]'),
+    )
     expect(labelledGroups).toHaveLength(4)
     labelledGroups.forEach((group) => {
       expect(group.getAttribute('aria-labelledby')).toMatch(/^sidebar-nav-group-/)
@@ -448,7 +458,9 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(within(sidebarNav).queryByText('Output')).toBeNull()
     expect(document.querySelector('.app-topbar-eyebrow')?.textContent).toBe('Analyze Workspace')
     expect(
-      screen.getByText('Turn your identity into targeted searches and pipeline-ready opportunities.')
+      screen.getByText(
+        'Turn your identity into targeted searches and pipeline-ready opportunities.',
+      ),
     ).toBeTruthy()
   })
 
@@ -571,7 +583,9 @@ describe('AppShell hosted workspace bootstrap', () => {
     render(<AppShell />)
 
     expect(screen.getByText('Connecting your hosted account…')).toBeTruthy()
-    expect(screen.getByText(/Loading account context, workspaces, and local migration state/)).toBeTruthy()
+    expect(
+      screen.getByText(/Loading account context, workspaces, and local migration state/),
+    ).toBeTruthy()
     expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -648,7 +662,9 @@ describe('AppShell hosted workspace bootstrap', () => {
 
       expect(screen.getByRole('heading', { name: heading })).toBeTruthy()
       expect(document.querySelector('.app-topbar-eyebrow')?.textContent).toBe(eyebrow)
-      expect(screen.getByRole('link', { name: new RegExp(`^${navLabel}$`, 'i') }).className).toContain('active')
+      expect(
+        screen.getByRole('link', { name: new RegExp(`^${navLabel}$`, 'i') }).className,
+      ).toContain('active')
     },
   )
 
@@ -672,7 +688,9 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
 
     expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
-    expect(document.querySelector('.app-topbar-workspace')?.textContent ?? '').not.toContain('Hosted Workspace')
+    expect(document.querySelector('.app-topbar-workspace')?.textContent ?? '').not.toContain(
+      'Hosted Workspace',
+    )
     expect(screen.getByRole('alert').textContent).toContain('Remote load failed')
     expect(useHostedAppStore.getState().lastError).toBe('Remote load failed')
   })
@@ -790,7 +808,9 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
 
     expect(screen.getByRole('button', { name: /refresh session/i })).toBeTruthy()
-    expect(within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i })).toBeTruthy()
+    expect(
+      within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i }),
+    ).toBeTruthy()
   })
 
   it('reloads the session when hosted runtime auth expires', async () => {
@@ -844,7 +864,9 @@ describe('AppShell hosted workspace bootstrap', () => {
       expect(screen.getByRole('button', { name: /backup workspace/i })).toBeTruthy()
     })
 
-    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i }))
+    fireEvent.click(
+      within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i }),
+    )
     expect(screen.getByTestId('workspace-backup-dialog')).toBeTruthy()
   })
 
@@ -1160,7 +1182,9 @@ describe('AppShell hosted workspace bootstrap', () => {
     resolveFirstStart()
 
     await waitFor(() => {
-      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Recovery Workspace')
+      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+        'Recovery Workspace',
+      )
     })
 
     expect(runtimeOne.importWorkspaceSnapshot).not.toHaveBeenCalled()

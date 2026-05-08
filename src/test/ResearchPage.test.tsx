@@ -1750,7 +1750,12 @@ describe('ResearchPage', () => {
       draftDocument: JSON.stringify(identity, null, 2),
     })
     let resolveCreate:
-      | ((value: { jobId: string; status: 'queued'; usage?: undefined; warning?: undefined }) => void)
+      | ((value: {
+          jobId: string
+          status: 'queued'
+          usage?: undefined
+          warning?: undefined
+        }) => void)
       | undefined
     mockCreateDeepResearchJob.mockReturnValueOnce(
       new Promise<{ jobId: string; status: 'queued'; usage?: undefined; warning?: undefined }>(
@@ -2517,7 +2522,9 @@ describe('ResearchPage', () => {
 
     const signalReadout = screen.getByRole('group', { name: 'Thesis search signals' })
     expect(within(signalReadout).getByText('Look for')).toBeTruthy()
-    expect(within(signalReadout).getByText(/platform modernization, developer leverage/i)).toBeTruthy()
+    expect(
+      within(signalReadout).getByText(/platform modernization, developer leverage/i),
+    ).toBeTruthy()
     expect(within(signalReadout).getByText('Avoid')).toBeTruthy()
     expect(within(signalReadout).getByText(/pure admin work/i)).toBeTruthy()
     expect(within(signalReadout).queryAllByRole('checkbox')).toEqual([])

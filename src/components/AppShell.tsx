@@ -49,7 +49,13 @@ import { WorkspaceBackupReminder } from './WorkspaceBackupReminder'
 const CURRENT_YEAR = new Date().getFullYear()
 const AI_ENABLED = Boolean(facetClientEnv.anthropicProxyUrl)
 const AI_ROUTES: ReadonlySet<string> = new Set([
-  '/identity', '/match', '/research', '/prep', '/letters', '/linkedin', '/debrief',
+  '/identity',
+  '/match',
+  '/research',
+  '/prep',
+  '/letters',
+  '/linkedin',
+  '/debrief',
 ])
 const HELP_ROUTE = '/help' as const
 const HOME_ROUTE = '/' as const
@@ -85,13 +91,15 @@ const NAV_ITEMS = [
     to: '/build' as const,
     icon: Layers,
     label: 'Build',
-    description: 'Generate tailored resumes from your identity model, AI vector suggestions, and per-job pipeline context.',
+    description:
+      'Generate tailored resumes from your identity model, AI vector suggestions, and per-job pipeline context.',
   },
   {
     to: '/pipeline' as const,
     icon: ListChecks,
     label: 'Pipeline',
-    description: 'Track opportunities, investigate openings, and keep momentum across applications.',
+    description:
+      'Track opportunities, investigate openings, and keep momentum across applications.',
   },
   {
     to: '/prep' as const,
@@ -283,9 +291,10 @@ export function AppShell() {
   const accountDaysLeft = useMemo(() => {
     if (!entitlement?.effectiveThrough) return null
     const nowMs = new Date().getTime()
-    return Math.max(0, Math.ceil(
-      (new Date(entitlement.effectiveThrough).getTime() - nowMs) / (1000 * 60 * 60 * 24),
-    ))
+    return Math.max(
+      0,
+      Math.ceil((new Date(entitlement.effectiveThrough).getTime() - nowMs) / (1000 * 60 * 60 * 24)),
+    )
   }, [entitlement])
 
   const accountLabel = useMemo(() => {
@@ -322,8 +331,9 @@ export function AppShell() {
   const [hostedRuntimeErrorReason, setHostedRuntimeErrorReason] = useState<string | null>(null)
   const [activeHostedWorkspaceId, setActiveHostedWorkspaceId] = useState<string | null>(null)
   const [hostedRuntimeRetryToken, setHostedRuntimeRetryToken] = useState(0)
-  const [crossTabIdentityToast, setCrossTabIdentityToast] =
-    useState<CrossTabIdentityToast | null>(null)
+  const [crossTabIdentityToast, setCrossTabIdentityToast] = useState<CrossTabIdentityToast | null>(
+    null,
+  )
   const configuredHostedWorkspaceKeyRef = useRef<string | null>(null)
   const pendingMigrationRef = useRef<{
     workspaceId: string
@@ -405,9 +415,11 @@ export function AppShell() {
 
     const bootstrap = async () => {
       if (hostedApp.deploymentMode !== 'hosted') {
-        void getPersistenceRuntime().start().catch((error) => {
-          console.error('[persistence-runtime]', error)
-        })
+        void getPersistenceRuntime()
+          .start()
+          .catch((error) => {
+            console.error('[persistence-runtime]', error)
+          })
         return
       }
 
@@ -557,9 +569,7 @@ export function AppShell() {
   ])
 
   const cycleAppearance = () =>
-    setAppearance(
-      appearance === 'system' ? 'light' : appearance === 'light' ? 'dark' : 'system',
-    )
+    setAppearance(appearance === 'system' ? 'light' : appearance === 'light' ? 'dark' : 'system')
 
   const handleCreateHostedWorkspace = async ({
     name,
@@ -648,7 +658,9 @@ export function AppShell() {
           <HardDrive size={20} />
           <div>
             <strong>Hosted sign-in required</strong>
-            <p>{hostedApp.lastError ?? 'Sign in to your hosted account to load your workspaces.'}</p>
+            <p>
+              {hostedApp.lastError ?? 'Sign in to your hosted account to load your workspaces.'}
+            </p>
             <div className="hosted-workspace-state-actions">
               <button
                 className="btn-secondary"
@@ -657,11 +669,7 @@ export function AppShell() {
               >
                 Sign in with GitHub
               </button>
-              <button
-                className="btn-ghost"
-                type="button"
-                onClick={handleSessionRefresh}
-              >
+              <button className="btn-ghost" type="button" onClick={handleSessionRefresh}>
                 Refresh Session
               </button>
             </div>
@@ -686,25 +694,17 @@ export function AppShell() {
                   ? 'Hosted billing issue'
                   : isUpgradeRequired
                     ? 'Hosted upgrade required'
-                : isOffline
-                  ? 'You appear to be offline'
-                  : 'Hosted bootstrap failed'}
+                    : isOffline
+                      ? 'You appear to be offline'
+                      : 'Hosted bootstrap failed'}
             </strong>
             <p>{hostedApp.lastError ?? 'We could not load your hosted account.'}</p>
             <div className="hosted-workspace-state-actions">
-              <button
-                className="btn-secondary"
-                type="button"
-                onClick={handleHostedBootstrapRetry}
-              >
+              <button className="btn-secondary" type="button" onClick={handleHostedBootstrapRetry}>
                 Retry Hosted Bootstrap
               </button>
               {isBillingStateError ? (
-                <button
-                  className="btn-ghost"
-                  type="button"
-                  onClick={handleSessionRefresh}
-                >
+                <button className="btn-ghost" type="button" onClick={handleSessionRefresh}>
                   Refresh Billing State
                 </button>
               ) : null}
@@ -780,18 +780,14 @@ export function AppShell() {
                     ? 'Hosted billing issue'
                     : isUpgradeRequired
                       ? 'Hosted upgrade required'
-                : isOffline
-                  ? 'Hosted sync is offline'
-                  : 'Hosted workspace sync failed'}
+                      : isOffline
+                        ? 'Hosted sync is offline'
+                        : 'Hosted workspace sync failed'}
             </strong>
             <p>{hostedRuntimeError ?? 'We could not load the selected hosted workspace.'}</p>
             <div className="hosted-workspace-state-actions">
               {isAuthError ? (
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={handleSessionRefresh}
-                >
+                <button className="btn-secondary" type="button" onClick={handleSessionRefresh}>
                   Refresh Session
                 </button>
               ) : (
@@ -803,11 +799,7 @@ export function AppShell() {
                   Retry Hosted Workspace
                 </button>
               )}
-              <button
-                className="btn-ghost"
-                type="button"
-                onClick={() => setBackupOpen(true)}
-              >
+              <button className="btn-ghost" type="button" onClick={() => setBackupOpen(true)}>
                 Backup Workspace
               </button>
               <button
@@ -921,7 +913,8 @@ export function AppShell() {
           <div className="app-topbar-actions">
             {displayedHostedWorkspace ? (
               <span className="app-topbar-workspace" title={displayedHostedWorkspace.workspaceId}>
-                <span className="app-topbar-workspace-label">Workspace:</span> {displayedHostedWorkspace.name}
+                <span className="app-topbar-workspace-label">Workspace:</span>{' '}
+                {displayedHostedWorkspace.name}
               </span>
             ) : null}
             <div
@@ -964,7 +957,9 @@ export function AppShell() {
               ) : (
                 <Monitor size={18} strokeWidth={1.5} />
               )}
-              <span>{appearance === 'system' ? 'System' : appearance === 'light' ? 'Light' : 'Dark'}</span>
+              <span>
+                {appearance === 'system' ? 'System' : appearance === 'light' ? 'Light' : 'Dark'}
+              </span>
             </button>
           </div>
         </header>
@@ -977,7 +972,11 @@ export function AppShell() {
             <a href="https://github.com/atlas-crew/Facet" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
-            <a href="https://github.com/atlas-crew/Facet/issues" target="_blank" rel="noopener noreferrer">
+            <a
+              href="https://github.com/atlas-crew/Facet/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Report an Issue
             </a>
             <Link to="/terms">Terms</Link>

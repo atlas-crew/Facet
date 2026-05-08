@@ -5,7 +5,9 @@ import { BuildPage } from './routes/build/BuildPage'
 import { PipelinePage } from './routes/pipeline/PipelinePage'
 import { RecruiterPage } from './routes/recruiter/RecruiterPage'
 
-const LazyHomePage = lazy(() => import('./routes/home/HomePage').then((m) => ({ default: m.HomePage })))
+const LazyHomePage = lazy(() =>
+  import('./routes/home/HomePage').then((m) => ({ default: m.HomePage })),
+)
 // AI-dependent routes — lazy-loaded so they code-split into separate chunks
 const LazyIdentityMapPage = lazy(() =>
   import('./routes/identity/IdentityMapPage').then((m) => ({ default: m.IdentityMapPage })),
@@ -14,24 +16,48 @@ const LazyIdentityPage = lazy(() =>
   import('./routes/identity/IdentityPage').then((m) => ({ default: m.IdentityPage })),
 )
 const LazyIdentityEnrichmentPage = lazy(() =>
-  import('./routes/identity/IdentityEnrichmentPage').then((m) => ({ default: m.IdentityEnrichmentPage })),
+  import('./routes/identity/IdentityEnrichmentPage').then((m) => ({
+    default: m.IdentityEnrichmentPage,
+  })),
 )
 const LazyIdentityEnrichmentSkillPage = lazy(() =>
   import('./routes/identity/IdentityEnrichmentSkillPage').then((m) => ({
     default: m.IdentityEnrichmentSkillPage,
   })),
 )
-const LazyMatchPage = lazy(() => import('./routes/match/MatchPage').then((m) => ({ default: m.MatchPage })))
-const LazyResearchPage = lazy(() => import('./routes/research/ResearchPage').then((m) => ({ default: m.ResearchPage })))
-const LazyPrepPage = lazy(() => import('./routes/prep/PrepPage').then((m) => ({ default: m.PrepPage })))
-const LazyPrepLivePage = lazy(() => import('./routes/prep/PrepLivePage').then((m) => ({ default: m.PrepLivePage })))
-const LazyLettersPage = lazy(() => import('./routes/letters/LettersPage').then((m) => ({ default: m.LettersPage })))
-const LazyLinkedInPage = lazy(() => import('./routes/linkedin/LinkedInPage').then((m) => ({ default: m.LinkedInPage })))
-const LazyDebriefPage = lazy(() => import('./routes/debrief/DebriefPage').then((m) => ({ default: m.DebriefPage })))
-const LazyAccountPage = lazy(() => import('./routes/account/AccountPage').then((m) => ({ default: m.AccountPage })))
-const LazyTermsPage = lazy(() => import('./routes/legal/TermsPage').then((m) => ({ default: m.TermsPage })))
-const LazyPrivacyPage = lazy(() => import('./routes/legal/PrivacyPage').then((m) => ({ default: m.PrivacyPage })))
-const LazyHelpPage = lazy(() => import('./routes/help/HelpPage').then((m) => ({ default: m.HelpPage })))
+const LazyMatchPage = lazy(() =>
+  import('./routes/match/MatchPage').then((m) => ({ default: m.MatchPage })),
+)
+const LazyResearchPage = lazy(() =>
+  import('./routes/research/ResearchPage').then((m) => ({ default: m.ResearchPage })),
+)
+const LazyPrepPage = lazy(() =>
+  import('./routes/prep/PrepPage').then((m) => ({ default: m.PrepPage })),
+)
+const LazyPrepLivePage = lazy(() =>
+  import('./routes/prep/PrepLivePage').then((m) => ({ default: m.PrepLivePage })),
+)
+const LazyLettersPage = lazy(() =>
+  import('./routes/letters/LettersPage').then((m) => ({ default: m.LettersPage })),
+)
+const LazyLinkedInPage = lazy(() =>
+  import('./routes/linkedin/LinkedInPage').then((m) => ({ default: m.LinkedInPage })),
+)
+const LazyDebriefPage = lazy(() =>
+  import('./routes/debrief/DebriefPage').then((m) => ({ default: m.DebriefPage })),
+)
+const LazyAccountPage = lazy(() =>
+  import('./routes/account/AccountPage').then((m) => ({ default: m.AccountPage })),
+)
+const LazyTermsPage = lazy(() =>
+  import('./routes/legal/TermsPage').then((m) => ({ default: m.TermsPage })),
+)
+const LazyPrivacyPage = lazy(() =>
+  import('./routes/legal/PrivacyPage').then((m) => ({ default: m.PrivacyPage })),
+)
+const LazyHelpPage = lazy(() =>
+  import('./routes/help/HelpPage').then((m) => ({ default: m.HelpPage })),
+)
 
 const rootRoute = createRootRoute({
   component: AppShell,

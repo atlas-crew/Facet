@@ -953,11 +953,7 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
   addFeedbackEvent: (input) => {
     const timestamp = now()
-    const {
-      appliedToIdentity,
-      appliedAtVersion,
-      ...baseInput
-    } = input
+    const { appliedToIdentity, appliedAtVersion, ...baseInput } = input
     const event: SearchFeedbackEvent = {
       ...baseInput,
       ...(appliedToIdentity
