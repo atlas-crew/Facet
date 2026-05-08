@@ -3,11 +3,11 @@ id: TASK-196.1
 title: >-
   Add bank enums + identity preference fields (industries, funding, employment,
   surface remote)
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-29 08:41'
-updated_date: '2026-05-07 00:19'
+updated_date: '2026-05-08 09:23'
 labels:
   - search-redesign
   - identity-model
@@ -76,6 +76,8 @@ Lane C verification receipts (2026-05-07):
 - Broad ResearchPage test audit: .agents/reviews/test-audit-20260506-201355.md produced unrelated page-level gaps.
 - Focused identitySearchProfile audit: .agents/reviews/test-audit-20260506-201619.md found pre-existing depth-inference coverage debt; filed TASK-237.
 - npm run test: FAILS baseline/unrelated suite with 19 failures across ResearchPage downstream artifact counts, facetServer persistence saves, PrepPage behavior, and jdAnalysis delete semantics. AC #9 / DoD #3 intentionally left unchecked.
+
+Closing per owner guidance: the remaining unchecked test-suite item is tracked as unrelated full-suite baseline debt, not a blocker for this completed doc-38 slice.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

@@ -1,11 +1,11 @@
 ---
 id: TASK-175
 title: Handle multi-tab concurrency and identity-version conflicts
-status: In Progress
+status: Done
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 09:10'
+updated_date: '2026-05-08 09:23'
 labels:
   - shepherding
   - concurrency
@@ -111,6 +111,8 @@ AC #4 advance: completed/re-hydrated deep research jobs now keep the last observ
 AC #7 coverage reconciliation: existing focused regressions now cover the two-tab scenarios called out by the task. Verification bundle passed: persistenceRuntime/storageEventSync passed 29/29 for write-in-A observe-in-B store sync; identityStore passed 46/46 for stale identity mutation blocking; generation-start drift tests across prep/letter/research passed 4 focused cases; AppShell cross-tab Identity toast passed; routed ResearchPage stale-review request passed. Scoped ESLint, typecheck, and build already passed in the AC #4/#5/#6 slices. Full all-tests and formatter DoD remain unclaimed.
 
 Full-suite attempt after formatting did not pass, so DoD #3 remains open. The run reported 13 failures across PrepPage behavior, facetServer persistence API, jdAnalysis soft-delete expectation, searchRedesignRoundTrip router harness, and one ResearchPage lifecycle-seeded test. The ResearchPage lifecycle test was fixed in commit test(search): use narrative lifecycle in assumptions test and passed focused verification; the remaining full-suite failures are outside this TASK-175 slice. Formatting was applied to touched files via npm run format:files and committed separately.
+
+Closing per owner guidance: the remaining unchecked test-suite item is tracked as unrelated full-suite baseline debt, not a blocker for this completed doc-38 slice.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
