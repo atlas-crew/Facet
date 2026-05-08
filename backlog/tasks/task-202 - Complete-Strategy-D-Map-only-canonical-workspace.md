@@ -1,11 +1,11 @@
 ---
 id: TASK-202
 title: 'Complete Strategy D: Map-only canonical workspace'
-status: In Progress
+status: Done
 assignee:
   - '@nick'
 created_date: '2026-04-30 18:39'
-updated_date: '2026-04-30 19:47'
+updated_date: '2026-05-08 21:05'
 labels:
   - identity
   - map-convergence
@@ -15,7 +15,7 @@ references:
   - src/routes/identity/IdentityMapPage.tsx
   - src/routes/identity/IdentityPage.tsx
   - src/routes/identity/IdentityInspector.tsx
-  - src/routes/identity/ScannedIdentityEditor.tsx
+  - src/routes/identity/ScanReviewPane.tsx
   - src/routes/identity/bands/RolesBand.tsx
   - src/routes/identity/inspectorSlots/BulletInspector.tsx
 priority: medium
@@ -58,7 +58,7 @@ The reviewer's original framing was "multi-shape primitive (aside + expanded car
 - **TASK-202.1** — Add sheet primitive, canary on `source_text`. Proves the form-factor choice before extending.
 - **TASK-202.2** — Field-by-field decision matrix and lift for `ScannedIdentityEditor` features.
 - **TASK-202.3** — Retire `ScannedIdentityEditor` after the lift completes (depends on TASK-202.2).
-- **DRAFT-2** — Decide and execute the import flow's final form factor (Draft status; promote and execute after TASK-202.1 informs the choice).
+- **TASK-243** — Decide and execute the import flow's final form factor; promoted from DRAFT-2 after TASK-202.1 informed the choice.
 
 ## Out of scope
 
@@ -74,13 +74,13 @@ The reviewer's original framing was "multi-shape primitive (aside + expanded car
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Sheet primitive exists as a reusable pattern in inspectorSlots/ (or shared primitives location), with Save/Cancel/Discard semantics matching the existing inspector edit-mode pattern
-- [ ] #2 BulletInspector covers all canonical bullet fields including metrics (likely inline aside fields) and source_text (likely via sheet primitive)
-- [ ] #3 ScannedIdentityEditor.tsx is deleted; its features either lifted to Map-side homes or recorded as scan-only-and-retired with reasoning
-- [ ] #4 Workbench route exists only for import; its final form factor (route / overlay / sheet) is decided and shipped, with auto-redirect to Map after Apply
-- [ ] #5 No onGoToWorkbench or equivalent canonical-handoff buttons exist on Map inspectors
-- [ ] #6 Per-bullet deepen action (if kept by TASK-202.2's decision) has a Map-side surface; if retired, the decision is recorded
-- [ ] #7 All four subtasks closed; tests cover the sheet primitive, the lifted editors, and the import-flow rework
+- [x] #1 Sheet primitive exists as a reusable pattern in inspectorSlots/ (or shared primitives location), with Save/Cancel/Discard semantics matching the existing inspector edit-mode pattern
+- [x] #2 BulletInspector covers all canonical bullet fields including metrics (likely inline aside fields) and source_text (likely via sheet primitive)
+- [x] #3 ScannedIdentityEditor.tsx is deleted; its features either lifted to Map-side homes or recorded as scan-only-and-retired with reasoning
+- [x] #4 Workbench route exists only for import; its final form factor (route / overlay / sheet) is decided and shipped, with auto-redirect to Map after Apply
+- [x] #5 No onGoToWorkbench or equivalent canonical-handoff buttons exist on Map inspectors
+- [x] #6 Per-bullet deepen action (if kept by TASK-202.2's decision) has a Map-side surface; if retired, the decision is recorded
+- [x] #7 All four subtasks closed; tests cover the sheet primitive, the lifted editors, and the import-flow rework
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -93,7 +93,7 @@ Strategy D delivered as the three already-filed subtasks, executed in order. Eac
 1. **TASK-202.1** — Build the sheet primitive and canary it on bullet `source_text` editing. Form-factor decisions live here so they inform downstream lifts.
 2. **TASK-202.2** — Audit `ScannedIdentityEditor`, produce the lift/scan-only/retire matrix, then execute lifts. Each lift is its own atomic commit.
 3. **TASK-202.3** — Retire or reduce `ScannedIdentityEditor` based on 202.2's survivor list.
-4. **DRAFT-2** — Promote and execute the import-flow form-factor decision after 202.1 makes the sheet feel concrete.
+4. **TASK-243** — Promote and execute the import-flow form-factor decision after 202.1 makes the sheet feel concrete.
 
 ## Pattern guard (do not violate)
 
@@ -121,14 +121,25 @@ Concretely: when TASK-202.2 lifts `source_text` editing to canonical, the sheet 
 If a future implementer is tempted to reach for a `SourceTextSheet` or `MetricsSheet` as standalone slots, redirect: the slot is whatever `MapSelection` discriminant the data lives under. The sheet is a UI transport for that slot's edit mode.
 
 This matters because the slot pattern (one file per discriminant) is what keeps the dispatcher trivially typesafe via the `selection satisfies never` exhaustiveness check at the end of `IdentityInspector.tsx`'s switch. Adding new slot files for "transport variants" would dilute that check and decouple form factor from data shape, which is the wrong axis to vary on.
+
+## Closeout — 2026-05-08
+
+Strategy D is complete:
+
+- TASK-202.1 shipped the reusable `InspectorSheet` primitive and canaried it on bullet `source_text`.
+- TASK-202.2 recorded the full scan-editor lift/scan-only/retire matrix and lifted canonical bullet `metrics` editing into `BulletInspector`; per-bullet deepen already had its Map-side surface.
+- TASK-202.3 renamed/reduced the scan-only surface to `ScanReviewPane`, removing `ScannedIdentityEditor.tsx` from source references while keeping active import reconciliation behavior isolated to scan review.
+- TASK-243 promoted DRAFT-2, chose the route-but-ephemeral form factor, renamed the route to `/identity/import`, and redirects back to `/identity` after Apply.
+
+Verification receipts across the subtasks: focused Vitest coverage for `BulletInspector`, `IdentityMapPage`, `IdentityPage`, prep draft handoff, and the sheet primitive; `npm run typecheck`; targeted ESLint; format check; `npm run build`. Full-suite debt remains tracked outside this parent and was treated as non-gating per rollout direction.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
