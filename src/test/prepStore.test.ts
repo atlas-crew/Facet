@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  migratePrepState,
-  usePrepStore,
-} from '../store/prepStore'
+import { migratePrepState, usePrepStore } from '../store/prepStore'
 import { resolveStorage } from '../store/storage'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
@@ -33,16 +30,20 @@ describe('prepStore', () => {
         { question: ' ', context: 'missing' },
       ],
       numbersToKnow: {
-        candidate: [
-          { value: ' 38% ', label: ' Incident reduction ' },
-        ],
-        company: [
-          { value: ' 3 ', label: ' Core priorities ' },
-        ],
+        candidate: [{ value: ' 38% ', label: ' Incident reduction ' }],
+        company: [{ value: ' 3 ', label: ' Core priorities ' }],
       },
       stackAlignment: [
-        { theirTech: ' Kubernetes ', yourMatch: ' Built and operated shared clusters. ', confidence: 'Strong' },
-        { theirTech: 'Go', yourMatch: ' Adjacent systems work ', confidence: 'Adjacent experience' },
+        {
+          theirTech: ' Kubernetes ',
+          yourMatch: ' Built and operated shared clusters. ',
+          confidence: 'Strong',
+        },
+        {
+          theirTech: 'Go',
+          yourMatch: ' Adjacent systems work ',
+          confidence: 'Adjacent experience',
+        },
       ],
       categoryGuidance: {
         behavioral: ' Lead with scope ',
@@ -69,6 +70,22 @@ describe('prepStore', () => {
         ' gap-1 ': ' Wanted broader ownership. ',
         ' ': 'ignored',
       },
+      companyIntel: {
+        whatTheyDo: ' Platform SaaS ',
+        scale: ' 1,200 employees ',
+        theRole: ' Staff platform role ',
+        stack: ' Kubernetes and Terraform ',
+        team: ' Developer experience ',
+        aiPosture: {
+          strength: 'strong',
+          narrative: ' AI is already in the SDLC. ',
+          signals: [' Claude pilot ', ' '],
+        },
+        other: {
+          ' Hiring motion ': ' Team expansion ',
+          Empty: ' ',
+        },
+      },
       cards: [],
     })
 
@@ -92,7 +109,11 @@ describe('prepStore', () => {
       company: [expect.objectContaining({ value: '3', label: 'Core priorities' })],
     })
     expect(state.decks[0].stackAlignment).toEqual([
-      { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+      {
+        theirTech: 'Kubernetes',
+        yourMatch: 'Built and operated shared clusters.',
+        confidence: 'Strong',
+      },
       { theirTech: 'Go', yourMatch: 'Adjacent systems work', confidence: 'Adjacent experience' },
     ])
     expect(state.decks[0].categoryGuidance).toEqual({ behavioral: 'Lead with scope' })
@@ -107,16 +128,31 @@ describe('prepStore', () => {
       },
     ])
     expect(state.decks[0].contextGapAnswers).toEqual({ 'gap-1': 'Wanted broader ownership.' })
+    expect(state.decks[0].companyIntel).toEqual({
+      whatTheyDo: 'Platform SaaS',
+      scale: '1,200 employees',
+      theRole: 'Staff platform role',
+      stack: 'Kubernetes and Terraform',
+      team: 'Developer experience',
+      aiPosture: {
+        strength: 'strong',
+        narrative: 'AI is already in the SDLC.',
+        signals: ['Claude pilot'],
+      },
+      other: { 'Hiring motion': 'Team expansion' },
+    })
     expect(state.decks[0].durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(state.decks[0].durableMeta?.revision).toBe(0)
 
     const [exportedDeck] = usePrepStore.getState().exportDecks()
-    expect(exportedDeck).toEqual(expect.objectContaining({
-      jdAnalysisId: 'jd-analysis-1',
-      jdAnalysisGeneratedAt: '2026-04-20T12:00:00.000Z',
-      jdAnalysisModelVersion: 'jd-analysis.v1.match-multipass-sonnet',
-      jdTextHash: 'jdhash_123',
-    }))
+    expect(exportedDeck).toEqual(
+      expect.objectContaining({
+        jdAnalysisId: 'jd-analysis-1',
+        jdAnalysisGeneratedAt: '2026-04-20T12:00:00.000Z',
+        jdAnalysisModelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+        jdTextHash: 'jdhash_123',
+      }),
+    )
   })
 
   it('threads interviewers through createDeck and links them to cards by id', () => {
@@ -130,8 +166,12 @@ describe('prepStore', () => {
           id: 'interviewer-1',
           name: 'Sample Panelist',
           title: 'Engineering Manager',
+          likelyRole: 'hiring-manager',
+          coachingNote: ' Lead with team leverage. ',
           intel: { caresAbout: 'Does the platform make engineers faster?' },
           lineThatLands: 'My first month is listening, not shipping.',
+          metInRounds: [2, 1, 1],
+          notes: ' Asked about roadmaps. ',
         },
       ],
       cards: [
@@ -148,6 +188,10 @@ describe('prepStore', () => {
     const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
     expect(deck?.interviewers).toHaveLength(1)
     expect(deck?.interviewers?.[0]?.id).toBe('interviewer-1')
+    expect(deck?.interviewers?.[0]?.likelyRole).toBe('hiring-manager')
+    expect(deck?.interviewers?.[0]?.coachingNote).toBe('Lead with team leverage.')
+    expect(deck?.interviewers?.[0]?.metInRounds).toEqual([1, 2])
+    expect(deck?.interviewers?.[0]?.notes).toBe('Asked about roadmaps.')
     expect(deck?.cards[0]?.interviewerIds).toEqual(['interviewer-1'])
   })
 
@@ -197,7 +241,11 @@ describe('prepStore', () => {
       category: 'behavioral',
       tags: ['leadership'],
       conditionals: [
-        { trigger: 'If they push on scope', response: 'Name the decision you owned.', tone: 'pivot' },
+        {
+          trigger: 'If they push on scope',
+          response: 'Name the decision you owned.',
+          tone: 'pivot',
+        },
       ],
     })
 
@@ -406,7 +454,11 @@ describe('prepStore', () => {
           },
           stackAlignment: [
             { theirTech: ' Terraform ', yourMatch: ' Built shared modules ', confidence: 'Solid' },
-            { theirTech: 'Go', yourMatch: 'Led adjacent systems debugging', confidence: 'Unknown' as never },
+            {
+              theirTech: 'Go',
+              yourMatch: 'Led adjacent systems debugging',
+              confidence: 'Unknown' as never,
+            },
             { theirTech: 'Rust', yourMatch: ' ', confidence: 'Gap' },
           ],
           updatedAt: '2025-01-02T00:00:00.000Z',
@@ -454,7 +506,11 @@ describe('prepStore', () => {
               tags: ['cleanup'],
               followUps: [
                 null,
-                { question: ' Why now? ', answer: ' Because it was blocking startup. ', context: 9 },
+                {
+                  question: ' Why now? ',
+                  answer: ' Because it was blocking startup. ',
+                  context: 9,
+                },
               ],
               deepDives: [
                 null,
@@ -462,13 +518,14 @@ describe('prepStore', () => {
               ],
               conditionals: [
                 null,
-                { trigger: ' If they push on scope ', response: ' Clarify where you led directly. ', tone: ' pivot ' as never },
+                {
+                  trigger: ' If they push on scope ',
+                  response: ' Clarify where you led directly. ',
+                  tone: ' pivot ' as never,
+                },
                 { trigger: 'Skip me', response: ' ', tone: 'trap' as never },
               ],
-              metrics: [
-                null,
-                { value: ' 38% ', label: ' Incident reduction ' },
-              ],
+              metrics: [null, { value: ' 38% ', label: ' Incident reduction ' }],
             },
           ],
         },
@@ -513,13 +570,15 @@ describe('prepStore', () => {
       rules: [],
       donts: [],
       questionsToAsk: [],
-      cards: [{
-        id: 'card-1',
-        category: 'behavioral',
-        title: 'Leadership story',
-        tags: [],
-        timeBudgetMinutes: 2.5,
-      }],
+      cards: [
+        {
+          id: 'card-1',
+          category: 'behavioral',
+          title: 'Leadership story',
+          tags: [],
+          timeBudgetMinutes: 2.5,
+        },
+      ],
     })
 
     usePrepStore.getState().updateDeck(deckId, {
@@ -536,8 +595,16 @@ describe('prepStore', () => {
         ],
       },
       stackAlignment: [
-        { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
-        { theirTech: 'Go', yourMatch: 'Adjacent systems debugging', confidence: 'Unknown' as never },
+        {
+          theirTech: 'Kubernetes',
+          yourMatch: 'Built and operated shared clusters.',
+          confidence: 'Strong',
+        },
+        {
+          theirTech: 'Go',
+          yourMatch: 'Adjacent systems debugging',
+          confidence: 'Unknown' as never,
+        },
         { theirTech: 'Go', yourMatch: '', confidence: 'Gap' },
       ],
     })
@@ -549,7 +616,12 @@ describe('prepStore', () => {
         { label: 'result', text: '' },
       ],
       conditionals: [
-        { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
+        {
+          id: 'conditional-1',
+          trigger: 'If they push on ownership',
+          response: 'Name the decision you owned.',
+          tone: 'pivot',
+        },
         { id: 'conditional-2', trigger: 'If they ask a trap question', response: '', tone: 'trap' },
       ],
       metrics: [
@@ -572,7 +644,11 @@ describe('prepStore', () => {
       ],
     })
     expect(editingDeck.stackAlignment).toEqual([
-      { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+      {
+        theirTech: 'Kubernetes',
+        yourMatch: 'Built and operated shared clusters.',
+        confidence: 'Strong',
+      },
     ])
     expect(editingDeck.cards[0].timeBudgetMinutes).toBe(2.5)
     expect(editingDeck.cards[0].keyPoints).toEqual(['Lead with scope', ''])
@@ -581,7 +657,12 @@ describe('prepStore', () => {
       { label: 'result', text: '' },
     ])
     expect(editingDeck.cards[0].conditionals).toEqual([
-      { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
+      {
+        id: 'conditional-1',
+        trigger: 'If they push on ownership',
+        response: 'Name the decision you owned.',
+        tone: 'pivot',
+      },
       { id: 'conditional-2', trigger: 'If they ask a trap question', response: '', tone: 'trap' },
     ])
     expect(editingDeck.cards[0].metrics).toEqual([
@@ -596,12 +677,14 @@ describe('prepStore', () => {
       { question: 'What does success look like?', context: 'Align on goals' },
     ])
     expect(exportedDeck.numbersToKnow).toEqual({
-      candidate: [
-        { id: 'deck-metric-1', value: '45%', label: 'Faster delivery' },
-      ],
+      candidate: [{ id: 'deck-metric-1', value: '45%', label: 'Faster delivery' }],
     })
     expect(exportedDeck.stackAlignment).toEqual([
-      { theirTech: 'Kubernetes', yourMatch: 'Built and operated shared clusters.', confidence: 'Strong' },
+      {
+        theirTech: 'Kubernetes',
+        yourMatch: 'Built and operated shared clusters.',
+        confidence: 'Strong',
+      },
     ])
     expect(exportedDeck.cards[0].timeBudgetMinutes).toBe(2.5)
     expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
@@ -609,7 +692,12 @@ describe('prepStore', () => {
       { label: 'problem', text: 'Inherited a brittle release process.' },
     ])
     expect(exportedDeck.cards[0].conditionals).toEqual([
-      { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
+      {
+        id: 'conditional-1',
+        trigger: 'If they push on ownership',
+        response: 'Name the decision you owned.',
+        tone: 'pivot',
+      },
     ])
     expect(exportedDeck.cards[0].metrics).toEqual([
       { id: 'metric-1', value: '45%', label: 'Faster delivery' },
@@ -743,15 +831,15 @@ describe('prepStore', () => {
           newIntel: ['Use more story structure'],
         },
       ],
-      cards: [{
-        id: 'prep-card-export',
-        category: 'behavioral',
-        title: 'Export card',
-        tags: [],
-        perRoundState: [
-          { round: 2, status: 'fumbled', notes: 'R2 needs a tighter story' },
-        ],
-      }],
+      cards: [
+        {
+          id: 'prep-card-export',
+          category: 'behavioral',
+          title: 'Export card',
+          tags: [],
+          perRoundState: [{ round: 2, status: 'fumbled', notes: 'R2 needs a tighter story' }],
+        },
+      ],
     })
 
     const deck = usePrepStore.getState().decks[0]
@@ -885,7 +973,11 @@ describe('prepStore', () => {
               },
             ],
             conditionals: [
-              { trigger: ' If they push on ownership ', response: ' Name the decisions you made ', tone: ' pivot ' as never },
+              {
+                trigger: ' If they push on ownership ',
+                response: ' Name the decisions you made ',
+                tone: ' pivot ' as never,
+              },
               { trigger: 'If they keep pressing', response: ' ', tone: 'trap' as never },
               { trigger: 'Bad tone', response: 'Still keep the answer', tone: 'bad' as never },
             ],
@@ -1006,7 +1098,11 @@ describe('prepStore', () => {
       ] as never,
       conditionals: [
         { trigger: ' If they push on scope ', response: ' ', tone: 'pivot' as never },
-        { trigger: 'If they ask a trap question', response: 'Reframe to the decision.', tone: 'trap' as never },
+        {
+          trigger: 'If they ask a trap question',
+          response: 'Reframe to the decision.',
+          tone: 'trap' as never,
+        },
       ] as never,
     })
 
@@ -1046,8 +1142,18 @@ describe('prepStore', () => {
       { label: 'result', text: '' },
     ])
     expect(card.conditionals).toEqual([
-      { id: expect.stringMatching(/^prep-conditional-/), trigger: 'If they push on scope', response: '', tone: 'pivot' },
-      { id: expect.stringMatching(/^prep-conditional-/), trigger: 'If they ask a trap question', response: 'Reframe to the decision.', tone: 'trap' },
+      {
+        id: expect.stringMatching(/^prep-conditional-/),
+        trigger: 'If they push on scope',
+        response: '',
+        tone: 'pivot',
+      },
+      {
+        id: expect.stringMatching(/^prep-conditional-/),
+        trigger: 'If they ask a trap question',
+        response: 'Reframe to the decision.',
+        tone: 'trap',
+      },
     ])
   })
 
@@ -1083,7 +1189,11 @@ describe('prepStore', () => {
           { label: 'note', text: '' },
         ] as never,
         conditionals: [
-          { trigger: ' If they push on ownership ', response: ' Name the part you led. ', tone: 'pivot' as never },
+          {
+            trigger: ' If they push on ownership ',
+            response: ' Name the part you led. ',
+            tone: 'pivot' as never,
+          },
           { trigger: 'If they trap you', response: ' ', tone: 'trap' as never },
         ] as never,
       },
@@ -1094,13 +1204,16 @@ describe('prepStore', () => {
 
     expect(card.title).toBe('Replacement card')
     expect(card.tags).toEqual(['ownership'])
-    expect(card.perRoundState).toEqual([
-      { round: 1, status: 'worked', notes: 'Tight story' },
-    ])
+    expect(card.perRoundState).toEqual([{ round: 1, status: 'worked', notes: 'Tight story' }])
     expect(card.keyPoints).toEqual(['Close with the metric'])
     expect(card.storyBlocks).toEqual([{ label: 'result', text: 'Reduced incidents by 38%' }])
     expect(card.conditionals).toEqual([
-      { id: expect.stringMatching(/^prep-conditional-/), trigger: 'If they push on ownership', response: 'Name the part you led.', tone: 'pivot' },
+      {
+        id: expect.stringMatching(/^prep-conditional-/),
+        trigger: 'If they push on ownership',
+        response: 'Name the part you led.',
+        tone: 'pivot',
+      },
     ])
   })
 

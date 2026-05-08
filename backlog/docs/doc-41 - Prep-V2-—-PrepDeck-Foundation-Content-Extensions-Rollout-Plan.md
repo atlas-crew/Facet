@@ -24,7 +24,7 @@ Locks down the PrepDeck output contract and adds structured types before content
 TASK-170  Add prep output contract validation for prepGenerator   [done]
    │      (validation gates the deck shape; lands first so 171 has something to validate)
    ▼
-TASK-171  Add structured PrepCompanyIntel and PrepInterviewer to PrepDeck  [med]
+TASK-171  Add structured PrepCompanyIntel and PrepInterviewer to PrepDeck  [done]
           (replaces flat string fields with structured intel/interviewer entities;
            Lane C content extensions then read structured types instead of strings)
 ```

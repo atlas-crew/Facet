@@ -5,6 +5,7 @@ import type {
   PrepCardRoundState,
   PrepCardRoundStatus,
   PrepCardStudyState,
+  PrepCompanyIntel,
   PrepConditional,
   PrepConditionalTone,
   PrepContractViolation,
@@ -26,6 +27,7 @@ import type {
   PrepWorkspaceMode,
 } from '../types/prep'
 import {
+  PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES,
   PREP_CARD_CONFIDENCE_VALUES,
   PREP_CARD_ROUND_STATUS_VALUES,
   PREP_CATEGORY_VALUES,
@@ -33,6 +35,7 @@ import {
   PREP_CONTRACT_VIOLATION_KINDS,
   PREP_CONTRACT_VIOLATION_SEVERITIES,
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
+  PREP_INTERVIEWER_LIKELY_ROLE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
   isPrepStackAlignmentConfidence,
 } from '../types/prep'
@@ -67,6 +70,7 @@ interface CreateDeckInput {
   roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
+  companyIntel?: PrepCompanyIntel
   interviewers?: PrepInterviewer[]
   jobDescription?: string
   jdAnalysisId?: string | null
@@ -132,7 +136,7 @@ function sanitizeRoundNumber(value: unknown): number | undefined {
 function sanitizeCardRoundStatus(value: unknown): PrepCardRoundStatus | undefined {
   const normalized = sanitizeText(value)
   return normalized && PREP_CARD_ROUND_STATUS_VALUES.includes(normalized as PrepCardRoundStatus)
-    ? normalized as PrepCardRoundStatus
+    ? (normalized as PrepCardRoundStatus)
     : undefined
 }
 
@@ -143,9 +147,10 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     category: partial.category ?? 'behavioral',
     title: partial.title?.trim() || 'New Prep Card',
     tags: partial.tags ?? [],
-    timeBudgetMinutes: typeof partial.timeBudgetMinutes === 'number' && Number.isFinite(partial.timeBudgetMinutes)
-      ? partial.timeBudgetMinutes
-      : undefined,
+    timeBudgetMinutes:
+      typeof partial.timeBudgetMinutes === 'number' && Number.isFinite(partial.timeBudgetMinutes)
+        ? partial.timeBudgetMinutes
+        : undefined,
     notes: partial.notes?.trim() || undefined,
     source: partial.source ?? 'manual',
     company: partial.company?.trim() || undefined,
@@ -173,13 +178,12 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
   }
 }
 
-function sanitizeStringList(values?: string[], options: SanitizeOptions = {}): string[] | undefined {
+function sanitizeStringList(
+  values?: string[],
+  options: SanitizeOptions = {},
+): string[] | undefined {
   if (!Array.isArray(values)) return undefined
-  const sanitized = values.flatMap((value) => (
-    typeof value === 'string'
-      ? [value.trim()]
-      : []
-  ))
+  const sanitized = values.flatMap((value) => (typeof value === 'string' ? [value.trim()] : []))
   if (options.preserveDrafts) {
     return sanitized.length > 0 ? sanitized : undefined
   }
@@ -187,7 +191,128 @@ function sanitizeStringList(values?: string[], options: SanitizeOptions = {}): s
   return filtered.length > 0 ? filtered : undefined
 }
 
-function sanitizeStoryBlocks(blocks?: PrepStoryBlock[], options: SanitizeOptions = {}): PrepStoryBlock[] | undefined {
+function sanitizeStringRecord(
+  value?: Record<string, string>,
+  _options: SanitizeOptions = {},
+): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const sanitized = Object.fromEntries(
+    Object.entries(value).flatMap(([key, rawValue]) => {
+      const normalizedKey = key.trim()
+      const normalizedValue = typeof rawValue === 'string' ? rawValue.trim() : ''
+      if (!normalizedKey) return []
+      if (!normalizedValue) return []
+      return [[normalizedKey, normalizedValue]]
+    }),
+  )
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
+function sanitizeCompanyIntel(
+  companyIntel?: PrepCompanyIntel,
+  options: SanitizeOptions = {},
+): PrepCompanyIntel | undefined {
+  if (!companyIntel || typeof companyIntel !== 'object' || Array.isArray(companyIntel))
+    return undefined
+  const aiPostureNarrative = sanitizeText(companyIntel.aiPosture?.narrative, options)
+  const normalizedAiPostureStrength =
+    typeof companyIntel.aiPosture?.strength === 'string'
+      ? companyIntel.aiPosture.strength.trim().toLowerCase()
+      : ''
+  const aiPostureStrength = PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES.includes(
+    normalizedAiPostureStrength as (typeof PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES)[number],
+  )
+    ? (normalizedAiPostureStrength as (typeof PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES)[number])
+    : 'unknown'
+  const aiPosture =
+    aiPostureNarrative !== undefined && aiPostureNarrative.length >= 4
+      ? {
+          strength: aiPostureStrength,
+          narrative: aiPostureNarrative,
+          signals: sanitizeStringList(companyIntel.aiPosture?.signals, options),
+        }
+      : undefined
+  const sanitized: PrepCompanyIntel = {
+    whatTheyDo: sanitizeText(companyIntel.whatTheyDo, options),
+    scale: sanitizeText(companyIntel.scale, options),
+    theRole: sanitizeText(companyIntel.theRole, options),
+    stack: sanitizeText(companyIntel.stack, options),
+    team: sanitizeText(companyIntel.team, options),
+    aiPosture,
+    other: sanitizeStringRecord(companyIntel.other, options),
+  }
+
+  return Object.values(sanitized).some((value) => value !== undefined) ? sanitized : undefined
+}
+
+function sanitizeRoundNumbers(values?: number[]): number[] | undefined {
+  if (!Array.isArray(values)) return undefined
+  const sanitized = Array.from(
+    new Set(
+      values.flatMap((value) => {
+        const round = sanitizeRoundNumber(value)
+        return round ? [round] : []
+      }),
+    ),
+  ).sort((left, right) => left - right)
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeInterviewers(
+  interviewers?: PrepInterviewer[],
+  options: SanitizeOptions = {},
+): PrepInterviewer[] | undefined {
+  if (!Array.isArray(interviewers)) return undefined
+  const sanitized = interviewers.flatMap((interviewer) => {
+    if (!interviewer || typeof interviewer !== 'object') return []
+    const id = sanitizeText(interviewer.id, options)
+    if (!id) return []
+    const name = sanitizeText(interviewer.name, options) ?? ''
+    const title = sanitizeText(interviewer.title, options)
+    const linkedInUrl = sanitizeText(interviewer.linkedInUrl, options)
+    const providedLikelyRole = PREP_INTERVIEWER_LIKELY_ROLE_VALUES.includes(
+      interviewer.likelyRole as (typeof PREP_INTERVIEWER_LIKELY_ROLE_VALUES)[number],
+    )
+      ? interviewer.likelyRole
+      : undefined
+    const coachingNote = sanitizeText(interviewer.coachingNote, options)
+    const likelyRole = !name && coachingNote ? 'unknown' : providedLikelyRole
+    const notes = sanitizeText(interviewer.notes, options)
+    const intel = {
+      role: sanitizeText(interviewer.intel?.role, options),
+      background: sanitizeText(interviewer.intel?.background, options),
+      stack: sanitizeText(interviewer.intel?.stack, options),
+      caresAbout: sanitizeText(interviewer.intel?.caresAbout, options),
+      yourAngle: sanitizeText(interviewer.intel?.yourAngle, options),
+      keyTell: sanitizeText(interviewer.intel?.keyTell, options),
+      linkedInPositioning: sanitizeText(interviewer.intel?.linkedInPositioning, options),
+      education: sanitizeText(interviewer.intel?.education, options),
+    }
+
+    if (!name && (!coachingNote || likelyRole !== 'unknown')) return []
+
+    return [
+      {
+        id,
+        name,
+        title,
+        linkedInUrl,
+        intel,
+        likelyRole,
+        coachingNote,
+        lineThatLands: sanitizeText(interviewer.lineThatLands, options),
+        metInRounds: sanitizeRoundNumbers(interviewer.metInRounds),
+        notes,
+      },
+    ]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeStoryBlocks(
+  blocks?: PrepStoryBlock[],
+  options: SanitizeOptions = {},
+): PrepStoryBlock[] | undefined {
   if (!Array.isArray(blocks)) return undefined
   const sanitized = blocks.flatMap((block) => {
     if (!block || typeof block !== 'object') return []
@@ -202,7 +327,10 @@ function sanitizeStoryBlocks(blocks?: PrepStoryBlock[], options: SanitizeOptions
   return sanitized && sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeQuestionsToAsk(entries?: PrepQuestionToAsk[], options: SanitizeOptions = {}): PrepQuestionToAsk[] | undefined {
+function sanitizeQuestionsToAsk(
+  entries?: PrepQuestionToAsk[],
+  options: SanitizeOptions = {},
+): PrepQuestionToAsk[] | undefined {
   if (!Array.isArray(entries)) return undefined
   const sanitized = entries.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
@@ -223,8 +351,15 @@ function sanitizeQuestionsToAsk(entries?: PrepQuestionToAsk[], options: Sanitize
   return sanitized && sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeCategoryGuidance(categoryGuidance?: Record<string, string>, options: SanitizeOptions = {}): Record<string, string> | undefined {
-  if (!categoryGuidance || typeof categoryGuidance !== 'object' || Array.isArray(categoryGuidance)) {
+function sanitizeCategoryGuidance(
+  categoryGuidance?: Record<string, string>,
+  options: SanitizeOptions = {},
+): Record<string, string> | undefined {
+  if (
+    !categoryGuidance ||
+    typeof categoryGuidance !== 'object' ||
+    Array.isArray(categoryGuidance)
+  ) {
     return undefined
   }
   const sanitized = Object.fromEntries(
@@ -298,15 +433,17 @@ function sanitizeRoundDebriefs(
     const newIntel = sanitizeStringList(record.newIntel, options) ?? []
     const notes = sanitizeText(record.notes, options)
 
-    return [{
-      round,
-      date,
-      intel,
-      questionsAsked,
-      surprises,
-      newIntel,
-      ...(notes !== undefined ? { notes } : {}),
-    }]
+    return [
+      {
+        round,
+        date,
+        intel,
+        questionsAsked,
+        surprises,
+        newIntel,
+        ...(notes !== undefined ? { notes } : {}),
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
@@ -314,7 +451,7 @@ function sanitizeRoundDebriefs(
 function sanitizeContextGapPriority(value: unknown): PrepContextGapPriority {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
   return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(normalized as PrepContextGapPriority)
-    ? normalized as PrepContextGapPriority
+    ? (normalized as PrepContextGapPriority)
     : 'recommended'
 }
 
@@ -330,21 +467,24 @@ function sanitizeContextGaps(
     const section = typeof record.section === 'string' ? record.section.trim() : ''
     const question = typeof record.question === 'string' ? record.question.trim() : ''
     const why = typeof record.why === 'string' ? record.why.trim() : ''
-    const feedbackTarget = typeof record.feedbackTarget === 'string' ? record.feedbackTarget.trim() : ''
+    const feedbackTarget =
+      typeof record.feedbackTarget === 'string' ? record.feedbackTarget.trim() : ''
     if (!id) return []
     if (options.preserveDrafts) {
       if (!section && !question && !why && !feedbackTarget) return []
     } else if (!section || !question || !why) {
       return []
     }
-    return [{
-      id,
-      section,
-      question,
-      why,
-      feedbackTarget: feedbackTarget || undefined,
-      priority: sanitizeContextGapPriority(record.priority),
-    }]
+    return [
+      {
+        id,
+        section,
+        question,
+        why,
+        feedbackTarget: feedbackTarget || undefined,
+        priority: sanitizeContextGapPriority(record.priority),
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
@@ -378,26 +518,35 @@ function sanitizeContractViolations(
     const message = typeof record.message === 'string' ? record.message.trim() : ''
     const severity = typeof record.severity === 'string' ? record.severity.trim() : ''
     if (
-      !PREP_CONTRACT_VIOLATION_KINDS.includes(kind as typeof PREP_CONTRACT_VIOLATION_KINDS[number]) ||
+      !PREP_CONTRACT_VIOLATION_KINDS.includes(
+        kind as (typeof PREP_CONTRACT_VIOLATION_KINDS)[number],
+      ) ||
       !field ||
       !message ||
-      !PREP_CONTRACT_VIOLATION_SEVERITIES.includes(severity as typeof PREP_CONTRACT_VIOLATION_SEVERITIES[number])
+      !PREP_CONTRACT_VIOLATION_SEVERITIES.includes(
+        severity as (typeof PREP_CONTRACT_VIOLATION_SEVERITIES)[number],
+      )
     ) {
       return []
     }
     const cardId = typeof record.cardId === 'string' ? record.cardId.trim() : ''
-    return [{
-      kind: kind as PrepContractViolation['kind'],
-      ...(cardId ? { cardId } : {}),
-      field,
-      message,
-      severity: severity as PrepContractViolation['severity'],
-    }]
+    return [
+      {
+        kind: kind as PrepContractViolation['kind'],
+        ...(cardId ? { cardId } : {}),
+        field,
+        message,
+        severity: severity as PrepContractViolation['severity'],
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeFollowUps(followUps?: PrepFollowUp[], options: SanitizeOptions = {}): PrepFollowUp[] | undefined {
+function sanitizeFollowUps(
+  followUps?: PrepFollowUp[],
+  options: SanitizeOptions = {},
+): PrepFollowUp[] | undefined {
   if (!Array.isArray(followUps)) return undefined
   const sanitized = followUps.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
@@ -406,17 +555,22 @@ function sanitizeFollowUps(followUps?: PrepFollowUp[], options: SanitizeOptions 
     const answer = typeof record.answer === 'string' ? record.answer.trim() : ''
     const context = typeof record.context === 'string' ? record.context.trim() : undefined
     if (!options.preserveDrafts && !question && !answer) return []
-    return [{
-      id: record.id,
-      question,
-      answer,
-      context: context || undefined,
-    }]
+    return [
+      {
+        id: record.id,
+        question,
+        answer,
+        context: context || undefined,
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeDeepDives(deepDives?: PrepDeepDive[], options: SanitizeOptions = {}): PrepDeepDive[] | undefined {
+function sanitizeDeepDives(
+  deepDives?: PrepDeepDive[],
+  options: SanitizeOptions = {},
+): PrepDeepDive[] | undefined {
   if (!Array.isArray(deepDives)) return undefined
   const sanitized = deepDives.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
@@ -424,16 +578,21 @@ function sanitizeDeepDives(deepDives?: PrepDeepDive[], options: SanitizeOptions 
     const title = typeof record.title === 'string' ? record.title.trim() : ''
     const content = typeof record.content === 'string' ? record.content.trim() : ''
     if (!options.preserveDrafts && !title && !content) return []
-    return [{
-      id: record.id,
-      title,
-      content,
-    }]
+    return [
+      {
+        id: record.id,
+        title,
+        content,
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeConditionals(conditionals?: PrepConditional[], options: SanitizeOptions = {}): PrepConditional[] | undefined {
+function sanitizeConditionals(
+  conditionals?: PrepConditional[],
+  options: SanitizeOptions = {},
+): PrepConditional[] | undefined {
   if (!Array.isArray(conditionals)) return undefined
   const sanitized = conditionals.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
@@ -442,27 +601,31 @@ function sanitizeConditionals(conditionals?: PrepConditional[], options: Sanitiz
     const response = typeof record.response === 'string' ? record.response.trim() : ''
     const toneValue = typeof record.tone === 'string' ? record.tone.trim() : undefined
     const tone = (PREP_CONDITIONAL_TONE_VALUES as readonly string[]).includes(toneValue ?? '')
-      ? toneValue as PrepConditionalTone
+      ? (toneValue as PrepConditionalTone)
       : undefined
     const normalizedTone = tone ?? 'pivot'
 
     if (options.preserveDrafts) {
       if (!trigger && !response && !tone) return []
-      return [{
+      return [
+        {
+          id: record.id,
+          trigger,
+          response,
+          tone: normalizedTone,
+        },
+      ]
+    }
+
+    if (!trigger || !response) return []
+    return [
+      {
         id: record.id,
         trigger,
         response,
         tone: normalizedTone,
-      }]
-    }
-
-    if (!trigger || !response) return []
-    return [{
-      id: record.id,
-      trigger,
-      response,
-      tone: normalizedTone,
-    }]
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
@@ -479,16 +642,21 @@ function sanitizeCardRoundState(
     const status = sanitizeCardRoundStatus(record.status)
     const notes = sanitizeText(record.notes, options)
     if (!round || !status) return []
-    return [{
-      round,
-      status,
-      ...(notes !== undefined ? { notes } : {}),
-    }]
+    return [
+      {
+        round,
+        status,
+        ...(notes !== undefined ? { notes } : {}),
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeMetrics(metrics?: PrepMetric[], options: SanitizeOptions = {}): PrepMetric[] | undefined {
+function sanitizeMetrics(
+  metrics?: PrepMetric[],
+  options: SanitizeOptions = {},
+): PrepMetric[] | undefined {
   if (!Array.isArray(metrics)) return undefined
   const sanitized = metrics.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
@@ -501,11 +669,13 @@ function sanitizeMetrics(metrics?: PrepMetric[], options: SanitizeOptions = {}):
           : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     if (!options.preserveDrafts && !value && !label) return []
-    return [{
-      id: typeof record.id === 'string' ? record.id : createId('prep-metric'),
-      value,
-      label,
-    }]
+    return [
+      {
+        id: typeof record.id === 'string' ? record.id : createId('prep-metric'),
+        value,
+        label,
+      },
+    ]
   })
   return sanitized.length > 0 ? sanitized : undefined
 }
@@ -548,11 +718,13 @@ function sanitizeStackAlignment(
 
     if (!theirTech || !yourMatch || !confidence) return []
 
-    return [{
-      theirTech,
-      yourMatch,
-      confidence,
-    }]
+    return [
+      {
+        theirTech,
+        yourMatch,
+        confidence,
+      },
+    ]
   })
 
   return sanitized.length > 0 ? sanitized : undefined
@@ -585,14 +757,18 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
     })),
     metrics: sanitizeMetrics(card.metrics, options),
     perRoundState: sanitizeCardRoundState(card.perRoundState, options),
-    timeBudgetMinutes: typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
-      ? Math.round(card.timeBudgetMinutes * 10) / 10
-      : undefined,
+    timeBudgetMinutes:
+      typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
+        ? Math.round(card.timeBudgetMinutes * 10) / 10
+        : undefined,
     updatedAt: now(),
   }
 }
 
-function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts?: boolean } = {}): PrepDeck {
+function sanitizeDeck(
+  deck: PrepDeck,
+  options: { touch?: boolean; preserveDrafts?: boolean } = {},
+): PrepDeck {
   const timestamp = now()
   const cards = deck.cards.map((card) => sanitizeCard(deck.id, card, options))
   const validCardIds = new Set(cards.map((card) => card.id))
@@ -600,14 +776,24 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
       if (!validCardIds.has(cardId) || !state || typeof state !== 'object') return []
       const record = state as PrepCardStudyState
-      return [[cardId, {
-        confidence: PREP_CARD_CONFIDENCE_VALUES.includes(record.confidence as PrepCardConfidence)
-          ? record.confidence
-          : undefined,
-        attempts: Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
-        needsWorkCount: Number.isFinite(record.needsWorkCount) ? Math.max(0, record.needsWorkCount) : 0,
-        lastReviewedAt: typeof record.lastReviewedAt === 'string' ? record.lastReviewedAt : undefined,
-      } satisfies PrepCardStudyState]]
+      return [
+        [
+          cardId,
+          {
+            confidence: PREP_CARD_CONFIDENCE_VALUES.includes(
+              record.confidence as PrepCardConfidence,
+            )
+              ? record.confidence
+              : undefined,
+            attempts: Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
+            needsWorkCount: Number.isFinite(record.needsWorkCount)
+              ? Math.max(0, record.needsWorkCount)
+              : 0,
+            lastReviewedAt:
+              typeof record.lastReviewedAt === 'string' ? record.lastReviewedAt : undefined,
+          } satisfies PrepCardStudyState,
+        ],
+      ]
     }),
   )
 
@@ -624,13 +810,17 @@ function sanitizeDeck(deck: PrepDeck, options: { touch?: boolean; preserveDrafts
     companyUrl: deck.companyUrl?.trim() || undefined,
     skillMatch: deck.skillMatch?.trim() || undefined,
     positioning: deck.positioning?.trim() || undefined,
-    roundType: typeof deck.roundType === 'string' && INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
-      ? deck.roundType.trim() as InterviewFormat
-      : undefined,
+    roundType:
+      typeof deck.roundType === 'string' &&
+      INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
+        ? (deck.roundType.trim() as InterviewFormat)
+        : undefined,
     roundNumber: sanitizeRoundNumber(deck.roundNumber),
     roundDebriefs: sanitizeRoundDebriefs(deck.roundDebriefs, options),
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
+    companyIntel: sanitizeCompanyIntel(deck.companyIntel, options),
+    interviewers: sanitizeInterviewers(deck.interviewers, options),
     jobDescription: deck.jobDescription?.trim() || undefined,
     jdAnalysisId: sanitizeNullableText(deck.jdAnalysisId),
     jdAnalysisGeneratedAt: sanitizeNullableText(deck.jdAnalysisGeneratedAt),
@@ -673,9 +863,10 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
     script: card.script?.trim() || undefined,
     scriptLabel: card.scriptLabel?.trim() || undefined,
     warning: card.warning?.trim() || undefined,
-    timeBudgetMinutes: typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
-      ? Math.round(card.timeBudgetMinutes * 10) / 10
-      : undefined,
+    timeBudgetMinutes:
+      typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
+        ? Math.round(card.timeBudgetMinutes * 10) / 10
+        : undefined,
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
     keyPoints: sanitizeStringList(card.keyPoints),
     followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
@@ -702,14 +893,24 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
       if (!validCardIds.has(cardId) || !state || typeof state !== 'object') return []
       const record = state as PrepCardStudyState
-      return [[cardId, {
-        confidence: PREP_CARD_CONFIDENCE_VALUES.includes(record.confidence as PrepCardConfidence)
-          ? record.confidence
-          : undefined,
-        attempts: Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
-        needsWorkCount: Number.isFinite(record.needsWorkCount) ? Math.max(0, record.needsWorkCount) : 0,
-        lastReviewedAt: typeof record.lastReviewedAt === 'string' ? record.lastReviewedAt : undefined,
-      } satisfies PrepCardStudyState]]
+      return [
+        [
+          cardId,
+          {
+            confidence: PREP_CARD_CONFIDENCE_VALUES.includes(
+              record.confidence as PrepCardConfidence,
+            )
+              ? record.confidence
+              : undefined,
+            attempts: Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
+            needsWorkCount: Number.isFinite(record.needsWorkCount)
+              ? Math.max(0, record.needsWorkCount)
+              : 0,
+            lastReviewedAt:
+              typeof record.lastReviewedAt === 'string' ? record.lastReviewedAt : undefined,
+          } satisfies PrepCardStudyState,
+        ],
+      ]
     }),
   )
 
@@ -723,13 +924,17 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     companyUrl: deck.companyUrl?.trim() || undefined,
     skillMatch: deck.skillMatch?.trim() || undefined,
     positioning: deck.positioning?.trim() || undefined,
-    roundType: typeof deck.roundType === 'string' && INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
-      ? deck.roundType.trim() as InterviewFormat
-      : undefined,
+    roundType:
+      typeof deck.roundType === 'string' &&
+      INTERVIEW_FORMAT_VALUES.includes(deck.roundType.trim() as InterviewFormat)
+        ? (deck.roundType.trim() as InterviewFormat)
+        : undefined,
     roundNumber: sanitizeRoundNumber(deck.roundNumber),
     roundDebriefs: sanitizeRoundDebriefs(deck.roundDebriefs),
     notes: deck.notes?.trim() || undefined,
     companyResearch: deck.companyResearch?.trim() || undefined,
+    companyIntel: sanitizeCompanyIntel(deck.companyIntel),
+    interviewers: sanitizeInterviewers(deck.interviewers),
     jobDescription: deck.jobDescription?.trim() || undefined,
     jdAnalysisId: sanitizeNullableText(deck.jdAnalysisId),
     jdAnalysisGeneratedAt: sanitizeNullableText(deck.jdAnalysisGeneratedAt),
@@ -784,9 +989,9 @@ function updateDeckCollection(
   updater: (deck: PrepDeck) => PrepDeck,
   options: SanitizeOptions = {},
 ): PrepDeck[] {
-  return decks.map((deck) => (
-    deck.id === deckId ? sanitizeDeck(updater(deck), { touch: true, ...options }) : deck
-  ))
+  return decks.map((deck) =>
+    deck.id === deckId ? sanitizeDeck(updater(deck), { touch: true, ...options }) : deck,
+  )
 }
 
 export const migratePrepState = (persistedState: unknown) => {
@@ -808,215 +1013,220 @@ export const migratePrepState = (persistedState: unknown) => {
     decks,
     activeDeckId: state?.activeDeckId ?? decks[0]?.id ?? null,
     activeMode:
-      state?.activeMode === 'homework' || state?.activeMode === 'live' || state?.activeMode === 'edit'
+      state?.activeMode === 'homework' ||
+      state?.activeMode === 'live' ||
+      state?.activeMode === 'edit'
         ? state.activeMode
         : 'edit',
   }
 }
 
 export const usePrepStore = create<PrepState>()((set, get) => ({
-      decks: [],
-      activeDeckId: null,
-      activeMode: 'edit',
+  decks: [],
+  activeDeckId: null,
+  activeMode: 'edit',
 
-      setActiveDeck: (deckId) => set({ activeDeckId: deckId }),
-      setActiveMode: (activeMode) => set({ activeMode }),
+  setActiveDeck: (deckId) => set({ activeDeckId: deckId }),
+  setActiveMode: (activeMode) => set({ activeMode }),
 
-      createDeck: (input) => {
-        const deckId = createId('prep-deck')
-        const nextDeck = sanitizeDeck({
-          id: deckId,
-          title: input.title,
-          company: input.company,
-          role: input.role,
-          vectorId: input.vectorId,
-          pipelineEntryId: input.pipelineEntryId ?? null,
-          companyUrl: input.companyUrl,
-          skillMatch: input.skillMatch,
-          positioning: input.positioning,
-          roundType: input.roundType,
-          notes: input.notes,
-          companyResearch: input.companyResearch,
-          interviewers: input.interviewers,
-          jobDescription: input.jobDescription,
-          jdAnalysisId: input.jdAnalysisId,
-          jdAnalysisGeneratedAt: input.jdAnalysisGeneratedAt,
-          jdAnalysisModelVersion: input.jdAnalysisModelVersion,
-          jdTextHash: input.jdTextHash,
-          rules: input.rules,
-          donts: input.donts,
-          questionsToAsk: input.questionsToAsk,
-          numbersToKnow: input.numbersToKnow,
-          stackAlignment: input.stackAlignment,
-          categoryGuidance: input.categoryGuidance,
-          contextGaps: input.contextGaps,
-          contextGapAnswers: input.contextGapAnswers,
-          contractViolations: input.contractViolations,
-          roundNumber: input.roundNumber,
-          roundDebriefs: input.roundDebriefs,
-          generatedAt: input.generatedAt,
-          identityVersion: input.identityVersion,
-          identityFields: input.identityFields,
-          updatedAt: now(),
-          cards: (input.cards ?? []).map((card) => sanitizeCard(deckId, card)),
-        })
-        set((state) => ({
-          decks: [nextDeck, ...state.decks],
-          activeDeckId: deckId,
-        }))
-        return deckId
-      },
-
-      updateDeck: (deckId, patch) => {
-        const restPatch = stripDurableMetadataPatch(patch)
-        const hasStalenessReviewPatch = 'stalenessReview' in restPatch
-        const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
-        set((state) => ({
-          decks: updateDeckCollection(
-            state.decks,
-            deckId,
-            (deck) => {
-              const clearsReviewForNewIdentity =
-                !hasStalenessReviewPatch &&
-                nextIdentityVersion !== undefined &&
-                deck.identityVersion !== nextIdentityVersion &&
-                deck.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
-              return {
-                ...deck,
-                ...restPatch,
-                ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
-              }
-            },
-            { preserveDrafts: true },
-          ),
-        }))
-      },
-
-      replaceDeckCards: (deckId, cards) => {
-        set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({
-            ...deck,
-            cards: cards.map((card) => sanitizeCard(deckId, card)),
-          })),
-        }))
-      },
-
-      addCard: (deckId, partial) => {
-        const cardId = createId('prep-card')
-        set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({
-            ...deck,
-            cards: [
-              createEmptyCard(deckId, {
-                ...partial,
-                id: cardId,
-              }),
-              ...deck.cards,
-            ],
-          })),
-          activeDeckId: state.activeDeckId ?? deckId,
-        }))
-        return cardId
-      },
-
-      updateCard: (deckId, cardId, patch) => {
-        set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => ({
-            ...deck,
-            cards: deck.cards.map((card) =>
-              card.id === cardId ? { ...card, ...patch } : card,
-            ),
-          }), { preserveDrafts: true }),
-        }))
-      },
-
-      recordCardReview: (deckId, cardId, confidence) => {
-        set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => {
-            if (!deck.cards.some((card) => card.id === cardId)) {
-              return deck
-            }
-            const current = deck.studyProgress?.[cardId]
-            return {
-              ...deck,
-              studyProgress: {
-                ...(deck.studyProgress ?? {}),
-                [cardId]: {
-                  confidence,
-                  attempts: (current?.attempts ?? 0) + 1,
-                  needsWorkCount: (current?.needsWorkCount ?? 0) + (confidence === 'needs_work' ? 1 : 0),
-                  lastReviewedAt: now(),
-                },
-              },
-            }
-          }),
-        }))
-      },
-
-      duplicateCard: (deckId, cardId) => {
-        set((state) => ({
-          decks: updateDeckCollection(state.decks, deckId, (deck) => {
-            const original = deck.cards.find((card) => card.id === cardId)
-            if (!original) return deck
-            const duplicate = sanitizeCard(deckId, {
-              ...original,
-              id: createId('prep-card'),
-              title: `${original.title} Copy`,
-              source: 'manual',
-            })
-            return {
-              ...deck,
-              cards: [duplicate, ...deck.cards],
-            }
-          }),
-        }))
-      },
-
-      removeCard: (deckId, cardId) => {
-        set((state) => {
-          let shouldResetMode = false
-          const decks = updateDeckCollection(state.decks, deckId, (deck) => {
-            const cards = deck.cards.filter((card) => card.id !== cardId)
-            shouldResetMode = cards.length === 0
-            return {
-              ...deck,
-              cards,
-            }
-          })
-
-          return {
-            decks,
-            activeMode: shouldResetMode ? 'edit' : state.activeMode,
-          }
-        })
-      },
-
-      deleteDeck: (deckId) => {
-        set((state) => {
-          const remaining = state.decks.filter((deck) => deck.id !== deckId)
-          return {
-            decks: remaining,
-            activeDeckId:
-              state.activeDeckId === deckId ? remaining[0]?.id ?? null : state.activeDeckId,
-            activeMode:
-              state.activeDeckId === deckId && remaining.length === 0
-                ? 'edit'
-                : state.activeMode,
-          }
-        })
-      },
-
-      importDecks: (decks) => {
-        const sanitized = decks.map((deck) => sanitizeDeck(deck))
-        const nextActiveDeck = sanitized[0] ?? null
-        set({
-          decks: sanitized,
-          activeDeckId: nextActiveDeck?.id ?? null,
-          activeMode: nextActiveDeck && nextActiveDeck.cards.length > 0 ? get().activeMode : 'edit',
-        })
-      },
-
-      exportDecks: () => get().decks.map((deck) => stripDraftDeckForExport(deck)),
+  createDeck: (input) => {
+    const deckId = createId('prep-deck')
+    const nextDeck = sanitizeDeck({
+      id: deckId,
+      title: input.title,
+      company: input.company,
+      role: input.role,
+      vectorId: input.vectorId,
+      pipelineEntryId: input.pipelineEntryId ?? null,
+      companyUrl: input.companyUrl,
+      skillMatch: input.skillMatch,
+      positioning: input.positioning,
+      roundType: input.roundType,
+      notes: input.notes,
+      companyResearch: input.companyResearch,
+      companyIntel: input.companyIntel,
+      interviewers: input.interviewers,
+      jobDescription: input.jobDescription,
+      jdAnalysisId: input.jdAnalysisId,
+      jdAnalysisGeneratedAt: input.jdAnalysisGeneratedAt,
+      jdAnalysisModelVersion: input.jdAnalysisModelVersion,
+      jdTextHash: input.jdTextHash,
+      rules: input.rules,
+      donts: input.donts,
+      questionsToAsk: input.questionsToAsk,
+      numbersToKnow: input.numbersToKnow,
+      stackAlignment: input.stackAlignment,
+      categoryGuidance: input.categoryGuidance,
+      contextGaps: input.contextGaps,
+      contextGapAnswers: input.contextGapAnswers,
+      contractViolations: input.contractViolations,
+      roundNumber: input.roundNumber,
+      roundDebriefs: input.roundDebriefs,
+      generatedAt: input.generatedAt,
+      identityVersion: input.identityVersion,
+      identityFields: input.identityFields,
+      updatedAt: now(),
+      cards: (input.cards ?? []).map((card) => sanitizeCard(deckId, card)),
+    })
+    set((state) => ({
+      decks: [nextDeck, ...state.decks],
+      activeDeckId: deckId,
     }))
+    return deckId
+  },
+
+  updateDeck: (deckId, patch) => {
+    const restPatch = stripDurableMetadataPatch(patch)
+    const hasStalenessReviewPatch = 'stalenessReview' in restPatch
+    const nextIdentityVersion = sanitizeIdentityVersion(restPatch.identityVersion)
+    set((state) => ({
+      decks: updateDeckCollection(
+        state.decks,
+        deckId,
+        (deck) => {
+          const clearsReviewForNewIdentity =
+            !hasStalenessReviewPatch &&
+            nextIdentityVersion !== undefined &&
+            deck.identityVersion !== nextIdentityVersion &&
+            deck.stalenessReview?.reviewedIdentityVersion !== nextIdentityVersion
+          return {
+            ...deck,
+            ...restPatch,
+            ...(clearsReviewForNewIdentity ? { stalenessReview: undefined } : {}),
+          }
+        },
+        { preserveDrafts: true },
+      ),
+    }))
+  },
+
+  replaceDeckCards: (deckId, cards) => {
+    set((state) => ({
+      decks: updateDeckCollection(state.decks, deckId, (deck) => ({
+        ...deck,
+        cards: cards.map((card) => sanitizeCard(deckId, card)),
+      })),
+    }))
+  },
+
+  addCard: (deckId, partial) => {
+    const cardId = createId('prep-card')
+    set((state) => ({
+      decks: updateDeckCollection(state.decks, deckId, (deck) => ({
+        ...deck,
+        cards: [
+          createEmptyCard(deckId, {
+            ...partial,
+            id: cardId,
+          }),
+          ...deck.cards,
+        ],
+      })),
+      activeDeckId: state.activeDeckId ?? deckId,
+    }))
+    return cardId
+  },
+
+  updateCard: (deckId, cardId, patch) => {
+    set((state) => ({
+      decks: updateDeckCollection(
+        state.decks,
+        deckId,
+        (deck) => ({
+          ...deck,
+          cards: deck.cards.map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
+        }),
+        { preserveDrafts: true },
+      ),
+    }))
+  },
+
+  recordCardReview: (deckId, cardId, confidence) => {
+    set((state) => ({
+      decks: updateDeckCollection(state.decks, deckId, (deck) => {
+        if (!deck.cards.some((card) => card.id === cardId)) {
+          return deck
+        }
+        const current = deck.studyProgress?.[cardId]
+        return {
+          ...deck,
+          studyProgress: {
+            ...(deck.studyProgress ?? {}),
+            [cardId]: {
+              confidence,
+              attempts: (current?.attempts ?? 0) + 1,
+              needsWorkCount:
+                (current?.needsWorkCount ?? 0) + (confidence === 'needs_work' ? 1 : 0),
+              lastReviewedAt: now(),
+            },
+          },
+        }
+      }),
+    }))
+  },
+
+  duplicateCard: (deckId, cardId) => {
+    set((state) => ({
+      decks: updateDeckCollection(state.decks, deckId, (deck) => {
+        const original = deck.cards.find((card) => card.id === cardId)
+        if (!original) return deck
+        const duplicate = sanitizeCard(deckId, {
+          ...original,
+          id: createId('prep-card'),
+          title: `${original.title} Copy`,
+          source: 'manual',
+        })
+        return {
+          ...deck,
+          cards: [duplicate, ...deck.cards],
+        }
+      }),
+    }))
+  },
+
+  removeCard: (deckId, cardId) => {
+    set((state) => {
+      let shouldResetMode = false
+      const decks = updateDeckCollection(state.decks, deckId, (deck) => {
+        const cards = deck.cards.filter((card) => card.id !== cardId)
+        shouldResetMode = cards.length === 0
+        return {
+          ...deck,
+          cards,
+        }
+      })
+
+      return {
+        decks,
+        activeMode: shouldResetMode ? 'edit' : state.activeMode,
+      }
+    })
+  },
+
+  deleteDeck: (deckId) => {
+    set((state) => {
+      const remaining = state.decks.filter((deck) => deck.id !== deckId)
+      return {
+        decks: remaining,
+        activeDeckId:
+          state.activeDeckId === deckId ? (remaining[0]?.id ?? null) : state.activeDeckId,
+        activeMode:
+          state.activeDeckId === deckId && remaining.length === 0 ? 'edit' : state.activeMode,
+      }
+    })
+  },
+
+  importDecks: (decks) => {
+    const sanitized = decks.map((deck) => sanitizeDeck(deck))
+    const nextActiveDeck = sanitized[0] ?? null
+    set({
+      decks: sanitized,
+      activeDeckId: nextActiveDeck?.id ?? null,
+      activeMode: nextActiveDeck && nextActiveDeck.cards.length > 0 ? get().activeMode : 'edit',
+    })
+  },
+
+  exportDecks: () => get().decks.map((deck) => stripDraftDeckForExport(deck)),
+}))
 
 export const DEFAULT_PREP_CARD_CATEGORY: PrepCategory = 'behavioral'

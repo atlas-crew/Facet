@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
 import { PrepRulesPanel } from './PrepRulesPanel'
-import { derivePrepCheatsheetSections, OPENER_PREFERRED_SHORTCUTS } from '../../utils/prepCheatsheet'
+import {
+  derivePrepCheatsheetSections,
+  OPENER_PREFERRED_SHORTCUTS,
+} from '../../utils/prepCheatsheet'
 import { isPrepStackAlignmentConfidence } from '../../types/prep'
 import {
   filterPrepConditionals,
@@ -22,8 +25,19 @@ import {
   hasPrepNeedsReviewText,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
-import type { PrepCheatsheetGroup, PrepCheatsheetItem, PrepCheatsheetSection, PrepOpenerKind } from '../../utils/prepCheatsheet'
-import type { PrepCard, PrepDeck, PrepStackAlignmentConfidence } from '../../types/prep'
+import type {
+  PrepCheatsheetGroup,
+  PrepCheatsheetItem,
+  PrepCheatsheetSection,
+  PrepOpenerKind,
+} from '../../utils/prepCheatsheet'
+import type {
+  PrepCard,
+  PrepCompanyIntel,
+  PrepDeck,
+  PrepInterviewer,
+  PrepStackAlignmentConfidence,
+} from '../../types/prep'
 
 interface PrepLiveModeProps {
   deck: PrepDeck
@@ -46,7 +60,10 @@ type SectionGroupView = {
 }
 
 /** Per-item recommended time in minutes. */
-const SECTION_META: Record<string, { defaultTimeBudgetMinutes?: number; shortcut?: string; tone: string; phase: SectionPhase }> = {
+const SECTION_META: Record<
+  string,
+  { defaultTimeBudgetMinutes?: number; shortcut?: string; tone: string; phase: SectionPhase }
+> = {
   overview: { defaultTimeBudgetMinutes: 1, shortcut: '1', tone: 'overview', phase: 'pre' },
   intel: { defaultTimeBudgetMinutes: 2, shortcut: '2', tone: 'intel', phase: 'pre' },
   questions: { defaultTimeBudgetMinutes: 8, shortcut: 'Q', tone: 'overview', phase: 'pre' },
@@ -75,7 +92,14 @@ const LIVE_SHORTCUT_KEYS = {
   lastSection: ['l', 'L', 'End'],
 } as const
 
-const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = ['Intel', 'Openers', 'Landmines', 'Core', 'Technical', 'Tactical']
+const SECTION_GROUP_ORDER: PrepCheatsheetGroup[] = [
+  'Intel',
+  'Openers',
+  'Landmines',
+  'Core',
+  'Technical',
+  'Tactical',
+]
 const PREP_LIVE_COMPACT_MODE_STORAGE_KEY = 'facet-prep-live-compact-mode'
 const BASE_SHORTCUT_BAR = [
   { keys: 'Space', label: 'Start / Pause' },
@@ -99,14 +123,102 @@ type LiveAnchorCard = {
   pillars: string[]
 }
 
+type StructuredIntelCell = {
+  label: string
+  value: string
+}
+
+const UNKNOWN_INTERVIEWER_LABEL = "If unsure who you're talking to"
+
+function compactStructuredIntelCells(
+  cells: Array<StructuredIntelCell | undefined>,
+): StructuredIntelCell[] {
+  return cells.filter((cell): cell is StructuredIntelCell => Boolean(cell?.value.trim()))
+}
+
+function formatLikelyRole(role: PrepInterviewer['likelyRole']): string | undefined {
+  if (!role) return undefined
+  const labels: Record<NonNullable<PrepInterviewer['likelyRole']>, string> = {
+    'hiring-manager': 'Likely hiring manager',
+    'above-hm': 'Above the hiring manager',
+    peer: 'Peer interviewer',
+    'skip-level': 'Skip-level signal',
+    'cross-functional': 'Cross-functional partner',
+    recruiter: 'Recruiter screen',
+    unknown: 'Unclear role',
+  }
+  return labels[role]
+}
+
+function buildCompanyIntelCells(companyIntel: PrepCompanyIntel | undefined): StructuredIntelCell[] {
+  if (!companyIntel) return []
+  return compactStructuredIntelCells([
+    companyIntel.whatTheyDo ? { label: 'What they do', value: companyIntel.whatTheyDo } : undefined,
+    companyIntel.scale ? { label: 'Scale', value: companyIntel.scale } : undefined,
+    companyIntel.theRole ? { label: 'The role', value: companyIntel.theRole } : undefined,
+    companyIntel.stack ? { label: 'Stack', value: companyIntel.stack } : undefined,
+    companyIntel.team ? { label: 'Team', value: companyIntel.team } : undefined,
+    companyIntel.aiPosture
+      ? {
+          label: 'AI posture',
+          value: [
+            companyIntel.aiPosture.narrative,
+            companyIntel.aiPosture.signals?.filter((signal) => signal.trim()).length
+              ? `Signals: ${companyIntel.aiPosture.signals.filter((signal) => signal.trim()).join(', ')}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        }
+      : undefined,
+    ...Object.entries(companyIntel.other ?? {}).map(([label, value]) => ({ label, value })),
+  ])
+}
+
+function buildInterviewerIntelCells(interviewer: PrepInterviewer): StructuredIntelCell[] {
+  const fallbackName = interviewer.name.trim() || UNKNOWN_INTERVIEWER_LABEL
+  return compactStructuredIntelCells([
+    { label: 'Person', value: [fallbackName, interviewer.title].filter(Boolean).join(' - ') },
+    interviewer.likelyRole
+      ? {
+          label: 'Likely role',
+          value: formatLikelyRole(interviewer.likelyRole) ?? interviewer.likelyRole,
+        }
+      : undefined,
+    interviewer.coachingNote
+      ? { label: 'Coaching note', value: interviewer.coachingNote }
+      : undefined,
+    interviewer.intel?.role ? { label: 'Role signal', value: interviewer.intel.role } : undefined,
+    interviewer.intel?.caresAbout
+      ? { label: 'Likely cares about', value: interviewer.intel.caresAbout }
+      : undefined,
+    interviewer.intel?.yourAngle
+      ? { label: 'Your angle', value: interviewer.intel.yourAngle }
+      : undefined,
+    interviewer.lineThatLands
+      ? { label: 'Line that lands', value: interviewer.lineThatLands }
+      : undefined,
+    interviewer.metInRounds?.length
+      ? { label: 'Met in rounds', value: interviewer.metInRounds.join(', ') }
+      : undefined,
+    interviewer.notes ? { label: 'Notes', value: interviewer.notes } : undefined,
+  ])
+}
+
 const STACK_ALIGNMENT_LEGEND: Array<{
   confidence: PrepStackAlignmentConfidence
   description: string
 }> = [
   { confidence: 'Strong', description: 'direct depth you can lead with immediately' },
   { confidence: 'Solid', description: 'credible hands-on depth with strong proof' },
-  { confidence: 'Working knowledge', description: 'can discuss and ramp quickly with real context' },
-  { confidence: 'Adjacent experience', description: 'transferable pattern match, but not the same stack' },
+  {
+    confidence: 'Working knowledge',
+    description: 'can discuss and ramp quickly with real context',
+  },
+  {
+    confidence: 'Adjacent experience',
+    description: 'transferable pattern match, but not the same stack',
+  },
   { confidence: 'Gap', description: 'be explicit about the gap and bridge honestly' },
 ]
 
@@ -126,15 +238,18 @@ function normalizeShortcutKey(key: string): string {
 }
 
 const RESERVED_STATIC_SHORTCUTS = new Set(
-  Object.values(SECTION_META)
-    .flatMap((meta) => (meta.shortcut ? [normalizeShortcutKey(meta.shortcut)] : [])),
+  Object.values(SECTION_META).flatMap((meta) =>
+    meta.shortcut ? [normalizeShortcutKey(meta.shortcut)] : [],
+  ),
 )
 const RESERVED_COMMAND_SHORTCUTS = new Set(
   Object.values(LIVE_SHORTCUT_KEYS)
     .flatMap((keys) => keys.map(normalizeShortcutKey))
     .filter((key) => key.length === 1),
 )
-const RESERVED_OPENER_SHORTCUTS = new Set(Object.values(OPENER_PREFERRED_SHORTCUTS).map(normalizeShortcutKey))
+const RESERVED_OPENER_SHORTCUTS = new Set(
+  Object.values(OPENER_PREFERRED_SHORTCUTS).map(normalizeShortcutKey),
+)
 const OPENER_SHORTCUT_CANDIDATES = [...'123456789', ...'abcdefghijklmnopqrstuvwxyz'] as const
 // Keep opener shortcuts on single-character keys that do not overlap with fixed section jumps or command shortcuts.
 const OPENER_SHORTCUT_POOL = OPENER_SHORTCUT_CANDIDATES.filter((shortcut) => {
@@ -180,7 +295,11 @@ function getRenderableTableData(tableData: PrepCard['tableData']) {
   const headers = tableData.headers.filter((header): header is string => typeof header === 'string')
   const rows = tableData.rows
     .filter((row) => Array.isArray(row))
-    .map((row) => row.map((cell) => (typeof cell === 'string' ? cell : typeof cell === 'number' ? String(cell) : '')))
+    .map((row) =>
+      row.map((cell) =>
+        typeof cell === 'string' ? cell : typeof cell === 'number' ? String(cell) : '',
+      ),
+    )
     .filter((row) => row.length > 0)
 
   if (headers.length === 0) return null
@@ -223,7 +342,11 @@ function buildCardSearchText(card: PrepCard): string {
     ...keyPoints,
     ...storyBlocks.flatMap((block) => [block.label, block.text]),
     ...metrics.flatMap((metric) => [metric.value, metric.label]),
-    ...followUps.flatMap((followUp) => [followUp.question, followUp.answer, followUp.context ?? '']),
+    ...followUps.flatMap((followUp) => [
+      followUp.question,
+      followUp.answer,
+      followUp.context ?? '',
+    ]),
     ...deepDives.flatMap((deepDive) => [deepDive.title, deepDive.content]),
     ...conditionals.flatMap((conditional) => [conditional.trigger, conditional.response]),
     ...(tableData?.headers ?? []),
@@ -240,7 +363,8 @@ function buildItemSearchText(item: PrepCheatsheetItem, cardsById: Map<string, Pr
     item.category ?? '',
     ...(item.metrics?.flatMap((metric) => [metric.value, metric.label]) ?? []),
     // Confidence is intentionally searchable so "gap" surfaces rows that need framing help.
-    ...(item.stackAlignment?.flatMap((row) => [row.theirTech, row.yourMatch, row.confidence]) ?? []),
+    ...(item.stackAlignment?.flatMap((row) => [row.theirTech, row.yourMatch, row.confidence]) ??
+      []),
   ]
 
   if (item.cardId) {
@@ -286,13 +410,21 @@ function filterSections(
 function isTypingTarget(target: EventTarget | null): boolean {
   const element = target instanceof HTMLElement ? target : null
   if (!element) return false
-  return element.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') !== null
+  return (
+    element.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+    ) !== null
+  )
 }
 
 function isInteractiveShortcutTarget(target: EventTarget | null): boolean {
   const element = target instanceof HTMLElement ? target : null
   if (!element) return false
-  return element.closest('button, a[href], summary, [role="button"], [role="link"], [role="switch"], [role="checkbox"], [role="tab"], [role="menuitem"]') !== null
+  return (
+    element.closest(
+      'button, a[href], summary, [role="button"], [role="link"], [role="switch"], [role="checkbox"], [role="tab"], [role="menuitem"]',
+    ) !== null
+  )
 }
 
 function matchesShortcut(keys: readonly string[], key: string): boolean {
@@ -309,7 +441,10 @@ function getLiveTimerState(totalSeconds: number): LiveTimerState {
   return 'calm'
 }
 
-function getSectionBudgetState(elapsedSeconds: number, timeBudgetMinutes: number | undefined): SectionBudgetState | null {
+function getSectionBudgetState(
+  elapsedSeconds: number,
+  timeBudgetMinutes: number | undefined,
+): SectionBudgetState | null {
   if (!timeBudgetMinutes) return null
   const budgetSeconds = Math.round(timeBudgetMinutes * 60)
   if (elapsedSeconds > budgetSeconds) return 'over'
@@ -340,11 +475,15 @@ function collectReservedSectionShortcuts(sections: PrepCheatsheetSection[]): Set
   return reserved
 }
 
-function resolveOpenerShortcut(openerKind: PrepOpenerKind | undefined, usedShortcuts: Set<string>): string {
-  const preferredShortcut = openerKind && openerKind !== 'general'
-    ? OPENER_PREFERRED_SHORTCUTS[openerKind]
+function resolveOpenerShortcut(
+  openerKind: PrepOpenerKind | undefined,
+  usedShortcuts: Set<string>,
+): string {
+  const preferredShortcut =
+    openerKind && openerKind !== 'general' ? OPENER_PREFERRED_SHORTCUTS[openerKind] : undefined
+  const normalizedPreferredShortcut = preferredShortcut
+    ? normalizeShortcutKey(preferredShortcut)
     : undefined
-  const normalizedPreferredShortcut = preferredShortcut ? normalizeShortcutKey(preferredShortcut) : undefined
 
   if (normalizedPreferredShortcut && !usedShortcuts.has(normalizedPreferredShortcut)) {
     usedShortcuts.add(normalizedPreferredShortcut)
@@ -354,7 +493,9 @@ function resolveOpenerShortcut(openerKind: PrepOpenerKind | undefined, usedShort
   const fallbackShortcut = OPENER_SHORTCUT_POOL.find((shortcut) => !usedShortcuts.has(shortcut))
   if (!fallbackShortcut) {
     if (import.meta.env.DEV) {
-      console.warn('PrepLiveMode exhausted opener shortcuts; remaining opener sections will use nav fallback only.')
+      console.warn(
+        'PrepLiveMode exhausted opener shortcuts; remaining opener sections will use nav fallback only.',
+      )
     }
     return ''
   }
@@ -369,11 +510,7 @@ function getStableDeckIdentityPart(value: string | null | undefined): string | n
 }
 
 function buildLiveModeDeckKey(deck: PrepDeck): string {
-  const stableIdentity = [
-    deck.id,
-    deck.pipelineEntryId,
-    deck.vectorId,
-  ]
+  const stableIdentity = [deck.id, deck.pipelineEntryId, deck.vectorId]
     .map(getStableDeckIdentityPart)
     .filter((part): part is string => Boolean(part))
     .join(':')
@@ -383,7 +520,9 @@ function buildLiveModeDeckKey(deck: PrepDeck): string {
   }
 
   if (import.meta.env.DEV) {
-    console.warn('PrepLiveMode received a deck without stable identity fields; using the empty-session fallback key.')
+    console.warn(
+      'PrepLiveMode received a deck without stable identity fields; using the empty-session fallback key.',
+    )
   }
 
   return buildTransientDeckKey(deck)
@@ -407,10 +546,13 @@ function buildTransientDeckKey(deck: PrepDeck): string {
     return 'prep-live-transient-empty'
   }
 
-  return 'prep-live-transient-' + fingerprint
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  return (
+    'prep-live-transient-' +
+    fingerprint
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  )
 }
 
 function dedupeSectionShortcuts(sections: LiveSection[]): LiveSection[] {
@@ -422,7 +564,9 @@ function dedupeSectionShortcuts(sections: LiveSection[]): LiveSection[] {
 
     if (assignedShortcuts.has(normalizedShortcut)) {
       if (import.meta.env.DEV) {
-        console.warn(`Duplicate live shortcut "${normalizedShortcut}" removed from section ${section.id}`)
+        console.warn(
+          `Duplicate live shortcut "${normalizedShortcut}" removed from section ${section.id}`,
+        )
       }
       return {
         ...section,
@@ -451,7 +595,11 @@ function formatConditionalToneLabel(tone: 'pivot' | 'trap' | 'escalation'): stri
   return 'Pivot'
 }
 
-function renderPrepParagraphBlocks(text: string, className: string, mode: 'default' | 'spoken' = 'default') {
+function renderPrepParagraphBlocks(
+  text: string,
+  className: string,
+  mode: 'default' | 'spoken' = 'default',
+) {
   const paragraphs = getPrepParagraphs(text, mode)
   if (paragraphs.length === 0) return null
 
@@ -470,7 +618,9 @@ function scoreAnchorCard(card: PrepCard): number {
     getPrepSourceAwareText(card.notes, card.source),
     getPrepSourceAwareText(card.script, card.source),
     ...card.tags.map((tag) => getPrepDefaultText(tag)),
-  ].join(' ').toLowerCase()
+  ]
+    .join(' ')
+    .toLowerCase()
 
   let score = 0
   if (card.category === 'project') score += 40
@@ -503,18 +653,21 @@ function getAnchorPillars(deck: PrepDeck, card: PrepCard): string[] {
 
 function deriveAnchorCard(deck: PrepDeck): LiveAnchorCard | null {
   const candidate = [...(Array.isArray(deck.cards) ? deck.cards : [])]
-    .filter((card) => (
-      (card.category === 'project' || card.category === 'behavioral') &&
-      !hasPrepCardNeedsReviewContent(card) &&
-      !hasPrepFillInPlaceholder(card.script) &&
-      !hasPrepFillInPlaceholder(card.notes)
-    ))
+    .filter(
+      (card) =>
+        (card.category === 'project' || card.category === 'behavioral') &&
+        !hasPrepCardNeedsReviewContent(card) &&
+        !hasPrepFillInPlaceholder(card.script) &&
+        !hasPrepFillInPlaceholder(card.notes),
+    )
     .sort((left, right) => scoreAnchorCard(right) - scoreAnchorCard(left))[0]
 
   if (!candidate) return null
 
   const title = getPrepDisplayText(candidate.title) || 'Anchor story'
-  const summary = getPrepCopyText(candidate.script, candidate.source) || getPrepCopyText(candidate.notes, candidate.source)
+  const summary =
+    getPrepCopyText(candidate.script, candidate.source) ||
+    getPrepCopyText(candidate.notes, candidate.source)
   if (!summary) return null
 
   return {
@@ -543,8 +696,11 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     }
   })
   const [preInterviewOpen, setPreInterviewOpen] = useState(true)
+  const [structuredIntelOpen, setStructuredIntelOpen] = useState(true)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [sectionElapsedSecondsById, setSectionElapsedSecondsById] = useState<Record<string, number>>({})
+  const [sectionElapsedSecondsById, setSectionElapsedSecondsById] = useState<
+    Record<string, number>
+  >({})
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -567,31 +723,29 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     () => filterSections(sections, searchQuery, cardsById),
     [cardsById, searchQuery, sections],
   )
-  const visibleSectionLegend = useMemo(
-    () => {
-      const reservedShortcuts = collectReservedSectionShortcuts(filteredSections)
+  const visibleSectionLegend = useMemo(() => {
+    const reservedShortcuts = collectReservedSectionShortcuts(filteredSections)
 
-      return dedupeSectionShortcuts(
-        filteredSections.map((section) => {
-          const metaKey = getSectionMetaKey(section)
-          const meta = SECTION_META[metaKey]
-          const phase = meta?.phase ?? ('live' as SectionPhase)
-          const shortcut = metaKey === 'opener'
+    return dedupeSectionShortcuts(
+      filteredSections.map((section) => {
+        const metaKey = getSectionMetaKey(section)
+        const meta = SECTION_META[metaKey]
+        const phase = meta?.phase ?? ('live' as SectionPhase)
+        const shortcut =
+          metaKey === 'opener'
             ? resolveOpenerShortcut(section.openerKind, reservedShortcuts)
             : getSectionShortcutCandidate(section)
 
-          return {
-            ...section,
-            shortcut,
-            timeBudgetMinutes: section.timeBudgetMinutes ?? meta?.defaultTimeBudgetMinutes,
-            tone: meta?.tone ?? 'overview',
-            phase,
-          }
-        }) satisfies LiveSection[],
-      )
-    },
-    [filteredSections],
-  )
+        return {
+          ...section,
+          shortcut,
+          timeBudgetMinutes: section.timeBudgetMinutes ?? meta?.defaultTimeBudgetMinutes,
+          tone: meta?.tone ?? 'overview',
+          phase,
+        }
+      }) satisfies LiveSection[],
+    )
+  }, [filteredSections])
   const preSections = useMemo(
     () => visibleSectionLegend.filter((section) => section.phase === 'pre'),
     [visibleSectionLegend],
@@ -616,15 +770,22 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     return shortcutMap
   }, [visibleSectionLegend])
   const shortcutLegend = useMemo(() => {
-    const openerSections = visibleSectionLegend.filter((section) => getSectionMetaKey(section) === 'opener')
-    const openerShortcuts = openerSections.flatMap((section) => (section.shortcut ? [section.shortcut] : []))
+    const openerSections = visibleSectionLegend.filter(
+      (section) => getSectionMetaKey(section) === 'opener',
+    )
+    const openerShortcuts = openerSections.flatMap((section) =>
+      section.shortcut ? [section.shortcut] : [],
+    )
     const openerHasUnassignedShortcut = openerSections.some((section) => !section.shortcut)
-    const liveJumpShortcuts = visibleSectionLegend.flatMap((section) => {
-      const metaKey = getSectionMetaKey(section)
-      return ['behavioral', 'project', 'technical', 'situational'].includes(metaKey) && section.shortcut
-        ? [section.shortcut]
-        : []
-    }).filter(Boolean)
+    const liveJumpShortcuts = visibleSectionLegend
+      .flatMap((section) => {
+        const metaKey = getSectionMetaKey(section)
+        return ['behavioral', 'project', 'technical', 'situational'].includes(metaKey) &&
+          section.shortcut
+          ? [section.shortcut]
+          : []
+      })
+      .filter(Boolean)
     const items: ShortcutLegendItem[] = [...BASE_SHORTCUT_BAR]
 
     if (openerSections.length > 0) {
@@ -646,7 +807,9 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   const timerState = useMemo(() => getLiveTimerState(elapsedSeconds), [elapsedSeconds])
   const anchorCard = useMemo(() => deriveAnchorCard(deck), [deck])
   const effectiveActiveSectionId =
-    filteredSections.find((section) => section.id === activeSectionId)?.id ?? filteredSections[0]?.id ?? null
+    filteredSections.find((section) => section.id === activeSectionId)?.id ??
+    filteredSections[0]?.id ??
+    null
   const deckMeta = [deck.company, deck.role].filter(Boolean).join(' · ') || 'Interview prep set'
 
   useEffect(() => {
@@ -656,7 +819,10 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      window.localStorage.setItem(PREP_LIVE_COMPACT_MODE_STORAGE_KEY, compactMode ? 'true' : 'false')
+      window.localStorage.setItem(
+        PREP_LIVE_COMPACT_MODE_STORAGE_KEY,
+        compactMode ? 'true' : 'false',
+      )
     } catch {
       // Ignore storage failures and keep the preference in-memory for this session.
     }
@@ -710,7 +876,9 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return
 
-    const sectionIndexById = new Map(visibleSectionLegend.map((section, index) => [section.id, index]))
+    const sectionIndexById = new Map(
+      visibleSectionLegend.map((section, index) => [section.id, index]),
+    )
     const intersectingSectionEntries = new Map<string, IntersectionObserverEntry>()
     const observer = new IntersectionObserver(
       (entries) => {
@@ -727,11 +895,17 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
         const visibleEntries = [...intersectingSectionEntries.entries()]
           .map(([sectionId, entry]) => ({ sectionId, entry }))
-          .sort((left, right) => (sectionIndexById.get(left.sectionId) ?? 0) - (sectionIndexById.get(right.sectionId) ?? 0))
+          .sort(
+            (left, right) =>
+              (sectionIndexById.get(left.sectionId) ?? 0) -
+              (sectionIndexById.get(right.sectionId) ?? 0),
+          )
 
         const nextActiveSectionId = visibleEntries[0]?.sectionId
         if (nextActiveSectionId) {
-          setActiveSectionId((current) => (current === nextActiveSectionId ? current : nextActiveSectionId))
+          setActiveSectionId((current) =>
+            current === nextActiveSectionId ? current : nextActiveSectionId,
+          )
         }
       },
       {
@@ -859,7 +1033,10 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
       if (editingTarget) return
 
-      if ((matchesShortcut(LIVE_SHORTCUT_KEYS.toggleTimer, event.key) || event.code === 'Space') && !timerTarget) {
+      if (
+        (matchesShortcut(LIVE_SHORTCUT_KEYS.toggleTimer, event.key) || event.code === 'Space') &&
+        !timerTarget
+      ) {
         if (interactiveTarget || event.shiftKey) return
         event.preventDefault()
         toggleTimer()
@@ -872,20 +1049,29 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
         return
       }
 
-      if (matchesShortcut(LIVE_SHORTCUT_KEYS.toggleSection, event.key) && effectiveActiveSectionId) {
+      if (
+        matchesShortcut(LIVE_SHORTCUT_KEYS.toggleSection, event.key) &&
+        effectiveActiveSectionId
+      ) {
         event.preventDefault()
         toggleSection(effectiveActiveSectionId)
         return
       }
 
-      if (matchesShortcut(LIVE_SHORTCUT_KEYS.firstSection, event.key) && keyboardSections.length > 0) {
+      if (
+        matchesShortcut(LIVE_SHORTCUT_KEYS.firstSection, event.key) &&
+        keyboardSections.length > 0
+      ) {
         event.preventDefault()
         const firstSection = keyboardSections[0]
         jumpToSection(firstSection.id)
         return
       }
 
-      if (matchesShortcut(LIVE_SHORTCUT_KEYS.lastSection, event.key) && keyboardSections.length > 0) {
+      if (
+        matchesShortcut(LIVE_SHORTCUT_KEYS.lastSection, event.key) &&
+        keyboardSections.length > 0
+      ) {
         event.preventDefault()
         const lastSection = keyboardSections[keyboardSections.length - 1]
         jumpToSection(lastSection.id)
@@ -905,17 +1091,25 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
       if (matchesShortcut(LIVE_SHORTCUT_KEYS.nextSection, event.key) && effectiveActiveSectionId) {
         event.preventDefault()
-        const currentIndex = keyboardSections.findIndex((section) => section.id === effectiveActiveSectionId)
-        const nextSection = keyboardSections[Math.min(keyboardSections.length - 1, currentIndex + 1)]
+        const currentIndex = keyboardSections.findIndex(
+          (section) => section.id === effectiveActiveSectionId,
+        )
+        const nextSection =
+          keyboardSections[Math.min(keyboardSections.length - 1, currentIndex + 1)]
         if (nextSection) {
           jumpToSection(nextSection.id)
         }
         return
       }
 
-      if (matchesShortcut(LIVE_SHORTCUT_KEYS.previousSection, event.key) && effectiveActiveSectionId) {
+      if (
+        matchesShortcut(LIVE_SHORTCUT_KEYS.previousSection, event.key) &&
+        effectiveActiveSectionId
+      ) {
         event.preventDefault()
-        const currentIndex = keyboardSections.findIndex((section) => section.id === effectiveActiveSectionId)
+        const currentIndex = keyboardSections.findIndex(
+          (section) => section.id === effectiveActiveSectionId,
+        )
         const nextSection = keyboardSections[Math.max(0, currentIndex - 1)]
         if (nextSection) {
           jumpToSection(nextSection.id)
@@ -938,11 +1132,20 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   ])
 
   return (
-    <div className={`prep-live-mode${compactMode ? ' prep-live-mode-compact' : ''}`} role="region" aria-label="Live cheatsheet mode">
+    <div
+      className={`prep-live-mode${compactMode ? ' prep-live-mode-compact' : ''}`}
+      role="region"
+      aria-label="Live cheatsheet mode"
+    >
       <aside className={`prep-live-sidebar${compactMode ? ' prep-live-sidebar-compact' : ''}`}>
         <div className="prep-live-sidebar-header">
           {onBack ? (
-            <button className="prep-live-back" type="button" onClick={onBack} aria-label="Back to Prep">
+            <button
+              className="prep-live-back"
+              type="button"
+              onClick={onBack}
+              aria-label="Back to Prep"
+            >
               <ArrowLeft size={14} />
             </button>
           ) : null}
@@ -969,11 +1172,18 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
           aria-label={isTimerRunning ? 'Pause timer' : 'Start timer'}
         >
           <span className="prep-live-timer-label">Timer</span>
-          <span className={`prep-live-timer-display prep-live-timer-display-${timerState}`} role="timer">
+          <span
+            className={`prep-live-timer-display prep-live-timer-display-${timerState}`}
+            role="timer"
+          >
             {formatDuration(elapsedSeconds)}
           </span>
           <span className="prep-live-timer-hint">
-            {isTimerRunning ? 'space to pause' : elapsedSeconds > 0 ? 'space to resume' : 'space to start'}
+            {isTimerRunning
+              ? 'space to pause'
+              : elapsedSeconds > 0
+                ? 'space to resume'
+                : 'space to start'}
           </span>
           <button
             type="button"
@@ -1053,7 +1263,10 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
                 onClick={() => setPreInterviewOpen((open) => !open)}
                 aria-expanded={preInterviewOpen}
               >
-                <ChevronRight size={12} className={`prep-live-nav-group-chevron ${preInterviewOpen ? 'prep-live-nav-group-chevron-open' : ''}`} />
+                <ChevronRight
+                  size={12}
+                  className={`prep-live-nav-group-chevron ${preInterviewOpen ? 'prep-live-nav-group-chevron-open' : ''}`}
+                />
                 <span>Sections</span>
                 <span className="prep-live-nav-group-count">{preSections.length}</span>
               </button>
@@ -1105,12 +1318,16 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
         ) : (
           <div className="prep-live-phases">
             {preSectionGroups.length > 0 ? (
-              <section className={`prep-live-phase prep-live-phase-pre ${preInterviewOpen ? 'prep-live-phase-open' : ''}`}>
+              <section
+                className={`prep-live-phase prep-live-phase-pre ${preInterviewOpen ? 'prep-live-phase-open' : ''}`}
+              >
                 <div className="prep-live-phase-header">
                   <div>
                     <span className="prep-live-phase-label">Pre-Interview</span>
                     <h2>Warm-up notes</h2>
-                    <p>Use these sections to set the frame before you start answering live questions.</p>
+                    <p>
+                      Use these sections to set the frame before you start answering live questions.
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -1122,19 +1339,27 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
                   </button>
                 </div>
                 {preInterviewOpen ? (
-                  <SectionGroupList
-                    groups={preSectionGroups}
-                    cardsById={cardsById}
-                    cardNeedsReviewById={cardNeedsReviewById}
-                    activeSectionId={effectiveActiveSectionId}
-                    collapsedSections={collapsedSections}
-                    compactMode={compactMode}
-                    searchActive={searchQuery.trim().length > 0}
-                    onToggleSection={toggleSection}
-                    onSectionRef={(sectionId, el) => {
-                      sectionRefs.current[sectionId] = el
-                    }}
-                  />
+                  <>
+                    <StructuredIntelPanel
+                      companyIntel={deck.companyIntel}
+                      interviewers={deck.interviewers}
+                      open={structuredIntelOpen}
+                      onOpenChange={setStructuredIntelOpen}
+                    />
+                    <SectionGroupList
+                      groups={preSectionGroups}
+                      cardsById={cardsById}
+                      cardNeedsReviewById={cardNeedsReviewById}
+                      activeSectionId={effectiveActiveSectionId}
+                      collapsedSections={collapsedSections}
+                      compactMode={compactMode}
+                      searchActive={searchQuery.trim().length > 0}
+                      onToggleSection={toggleSection}
+                      onSectionRef={(sectionId, el) => {
+                        sectionRefs.current[sectionId] = el
+                      }}
+                    />
+                  </>
                 ) : (
                   <div className="prep-live-phase-collapsed">
                     Pre-interview sections are collapsed. Expand them when you want the setup notes.
@@ -1190,7 +1415,9 @@ interface NavLinkProps {
 
 function NavLink({ section, elapsedSeconds, isActive, onNavigate }: NavLinkProps) {
   const budgetState = getSectionBudgetState(elapsedSeconds, section.timeBudgetMinutes)
-  const budgetSeconds = section.timeBudgetMinutes ? Math.round(section.timeBudgetMinutes * 60) : null
+  const budgetSeconds = section.timeBudgetMinutes
+    ? Math.round(section.timeBudgetMinutes * 60)
+    : null
 
   return (
     <button
@@ -1202,7 +1429,10 @@ function NavLink({ section, elapsedSeconds, isActive, onNavigate }: NavLinkProps
     >
       <span className="prep-live-nav-copy">
         <span className="prep-live-nav-title">
-          <span className={`prep-live-tone-dot prep-live-tone-${section.tone}`} aria-hidden="true" />
+          <span
+            className={`prep-live-tone-dot prep-live-tone-${section.tone}`}
+            aria-hidden="true"
+          />
           {section.title}
         </span>
         <span className="prep-live-nav-meta">{section.items.length} items</span>
@@ -1212,7 +1442,9 @@ function NavLink({ section, elapsedSeconds, isActive, onNavigate }: NavLinkProps
           </span>
         ) : null}
       </span>
-      {section.shortcut ? <span className="prep-live-shortcut-badge">{section.shortcut}</span> : null}
+      {section.shortcut ? (
+        <span className="prep-live-shortcut-badge">{section.shortcut}</span>
+      ) : null}
     </button>
   )
 }
@@ -1224,7 +1456,12 @@ interface SectionGroupNavListProps {
   onNavigate: (sectionId: string) => void
 }
 
-function SectionGroupNavList({ groups, activeSectionId, sectionElapsedSecondsById, onNavigate }: SectionGroupNavListProps) {
+function SectionGroupNavList({
+  groups,
+  activeSectionId,
+  sectionElapsedSecondsById,
+  onNavigate,
+}: SectionGroupNavListProps) {
   return (
     <div className="prep-live-nav-groups">
       {groups.map((group) => (
@@ -1246,6 +1483,99 @@ function SectionGroupNavList({ groups, activeSectionId, sectionElapsedSecondsByI
         </div>
       ))}
     </div>
+  )
+}
+
+interface StructuredIntelPanelProps {
+  companyIntel?: PrepCompanyIntel
+  interviewers?: PrepInterviewer[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+function StructuredIntelPanel({
+  companyIntel,
+  interviewers,
+  open,
+  onOpenChange,
+}: StructuredIntelPanelProps) {
+  const companyCells = buildCompanyIntelCells(companyIntel)
+  const interviewerGroups = (interviewers ?? [])
+    .map((interviewer, index) => ({
+      id: interviewer.id || `synthetic-prep-interviewer-${index + 1}`,
+      title: interviewer.name.trim() || UNKNOWN_INTERVIEWER_LABEL,
+      cells: buildInterviewerIntelCells(interviewer),
+    }))
+    .filter((group) => group.cells.length > 0)
+
+  if (companyCells.length === 0 && interviewerGroups.length === 0) return null
+
+  return (
+    <section className="prep-live-structured-intel" aria-label="Structured intel">
+      <button
+        type="button"
+        className="prep-live-structured-intel-summary"
+        aria-expanded={open}
+        onClick={() => onOpenChange(!open)}
+      >
+        <span>Structured intel</span>
+        <span className="prep-live-structured-intel-count">
+          {companyCells.length +
+            interviewerGroups.reduce((count, group) => count + group.cells.length, 0)}{' '}
+          cells
+        </span>
+      </button>
+      {open ? (
+        <div className="prep-live-structured-intel-body">
+          {companyCells.length > 0 ? (
+            <section className="prep-live-structured-intel-section" aria-label="Company intel grid">
+              <h3>Company Intel</h3>
+              <div className="prep-live-structured-intel-grid">
+                {companyCells.map((cell, index) => (
+                  <div key={`${cell.label}-${index}`} className="prep-live-structured-intel-cell">
+                    <span className="prep-live-structured-intel-cell-label">{cell.label}</span>
+                    <p>{cell.value}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {interviewerGroups.length > 0 ? (
+            <section
+              className="prep-live-structured-intel-section"
+              aria-label="Interviewer intel grid"
+            >
+              <h3>Interviewers</h3>
+              <div className="prep-live-interviewer-grid">
+                {interviewerGroups.map((group) => (
+                  <section
+                    key={group.id}
+                    className="prep-live-interviewer-intel"
+                    aria-label={group.title}
+                  >
+                    <h4>{group.title}</h4>
+                    <div className="prep-live-structured-intel-grid">
+                      {group.cells.map((cell, index) => (
+                        <div
+                          key={`${group.id}-${cell.label}-${index}`}
+                          className="prep-live-structured-intel-cell"
+                        >
+                          <span className="prep-live-structured-intel-cell-label">
+                            {cell.label}
+                          </span>
+                          <p>{cell.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   )
 }
 
@@ -1313,16 +1643,26 @@ function SectionGroupList({
   )
 }
 
-function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCollapsed, compactMode, onToggle, sectionRef }: SectionBlockProps) {
+function SectionBlock({
+  section,
+  cardsById,
+  cardNeedsReviewById,
+  isActive,
+  isCollapsed,
+  compactMode,
+  onToggle,
+  sectionRef,
+}: SectionBlockProps) {
   let sectionGuidance = section.guidance
   if (!sectionGuidance && section.id === 'questions') {
     sectionGuidance = QUESTIONS_GUIDANCE
   }
   const displaySectionDescription = getPrepDisplayText(section.description)
   const displaySectionGuidance = sectionGuidance ? getPrepCoachDisplayText(sectionGuidance) : null
-  const sectionGuidanceClassName = section.tone === 'opener'
-    ? 'prep-live-section-guidance prep-live-section-guidance-opener'
-    : 'prep-live-section-guidance'
+  const sectionGuidanceClassName =
+    section.tone === 'opener'
+      ? 'prep-live-section-guidance prep-live-section-guidance-opener'
+      : 'prep-live-section-guidance'
 
   return (
     <section
@@ -1339,12 +1679,20 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
                 {section.shortcut}
               </span>
             ) : null}
-            {section.timeBudgetMinutes ? <span className="prep-live-budget-badge">{formatBudgetMinutes(section.timeBudgetMinutes)}</span> : null}
+            {section.timeBudgetMinutes ? (
+              <span className="prep-live-budget-badge">
+                {formatBudgetMinutes(section.timeBudgetMinutes)}
+              </span>
+            ) : null}
             <span className="prep-live-count-badge">{section.items.length} items</span>
           </div>
           <h2>{section.title}</h2>
-          {displaySectionDescription ? <p className="prep-live-section-description">{displaySectionDescription}</p> : null}
-          {displaySectionGuidance ? <div className={sectionGuidanceClassName}>{displaySectionGuidance}</div> : null}
+          {displaySectionDescription ? (
+            <p className="prep-live-section-description">{displaySectionDescription}</p>
+          ) : null}
+          {displaySectionGuidance ? (
+            <div className={sectionGuidanceClassName}>{displaySectionGuidance}</div>
+          ) : null}
         </div>
         <button
           className="prep-btn"
@@ -1367,15 +1715,23 @@ function SectionBlock({ section, cardsById, cardNeedsReviewById, isActive, isCol
   )
 }
 
-function renderSectionItems(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>, compactMode: boolean) {
+function renderSectionItems(
+  section: LiveSection,
+  cardsById: Map<string, PrepCard>,
+  cardNeedsReviewById: Map<string, boolean>,
+  compactMode: boolean,
+) {
   if (section.id === 'questions') return renderQuestionCards(section)
   if (section.id === 'donts') return renderDonts(section)
-  if (section.id === 'metrics') return renderMetricCards(section, cardsById, cardNeedsReviewById, compactMode)
+  if (section.id === 'metrics')
+    return renderMetricCards(section, cardsById, cardNeedsReviewById, compactMode)
 
   return section.items.flatMap((item) => {
     if (item.cardId) {
       const card = cardsById.get(item.cardId)
-      return card ? [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false, compactMode)] : [renderSimpleItem(section, item)]
+      return card
+        ? [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false, compactMode)]
+        : [renderSimpleItem(section, item)]
     }
 
     return [renderSimpleItem(section, item)]
@@ -1387,11 +1743,16 @@ function renderSimpleItem(section: LiveSection, item: PrepCheatsheetItem) {
   const displayTitle = getPrepDisplayText(item.title) || 'Needs review'
   const displayDetail = getPrepDisplayText(item.detail)
   return (
-    <article key={item.id} className={`prep-live-item prep-live-item-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
+    <article
+      key={item.id}
+      className={`prep-live-item prep-live-item-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}
+    >
       <div className="prep-live-item-header">
         <h3>{displayTitle}</h3>
         <div className="prep-live-item-meta">
-          {item.category ? <span className={`prep-category prep-category-${item.category}`}>{item.category}</span> : null}
+          {item.category ? (
+            <span className={`prep-category prep-category-${item.category}`}>{item.category}</span>
+          ) : null}
           {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
         </div>
       </div>
@@ -1406,12 +1767,17 @@ function renderQuestionCards(section: LiveSection) {
     const displayTitle = getPrepDisplayText(item.title) || 'Needs review'
     const displayDetail = getPrepDisplayText(item.detail)
     return (
-      <article key={item.id} className={`prep-live-question-card${needsReview ? ' prep-live-review-surface' : ''}`}>
+      <article
+        key={item.id}
+        className={`prep-live-question-card${needsReview ? ' prep-live-review-surface' : ''}`}
+      >
         <div className="prep-live-question-card-header">
           <div className="prep-live-question-card-question">{displayTitle}</div>
           {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
         </div>
-        {displayDetail ? <div className="prep-live-question-card-context">{displayDetail}</div> : null}
+        {displayDetail ? (
+          <div className="prep-live-question-card-context">{displayDetail}</div>
+        ) : null}
       </article>
     )
   })
@@ -1422,7 +1788,11 @@ function renderDonts(section: LiveSection) {
     const needsReview = hasPrepNeedsReviewText(item.title)
     const displayTitle = getPrepDisplayText(item.title) || 'Needs review'
     return (
-      <article key={item.id} className={`prep-live-dont-card${needsReview ? ' prep-live-review-surface' : ''}`} aria-label={'Do not: ' + displayTitle}>
+      <article
+        key={item.id}
+        className={`prep-live-dont-card${needsReview ? ' prep-live-review-surface' : ''}`}
+        aria-label={'Do not: ' + displayTitle}
+      >
         <div className="prep-live-dont-card-marker" aria-hidden="true">
           Do not
         </div>
@@ -1435,12 +1805,20 @@ function renderDonts(section: LiveSection) {
   })
 }
 
-function renderMetricCards(section: LiveSection, cardsById: Map<string, PrepCard>, cardNeedsReviewById: Map<string, boolean>, compactMode: boolean) {
+function renderMetricCards(
+  section: LiveSection,
+  cardsById: Map<string, PrepCard>,
+  cardNeedsReviewById: Map<string, boolean>,
+  compactMode: boolean,
+) {
   let renderedStackAlignmentLegend = false
 
   return section.items.flatMap((item) => {
     const card = item.cardId ? cardsById.get(item.cardId) : null
-    if (card) return [renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false, compactMode)]
+    if (card)
+      return [
+        renderCardBlock(card, section, cardNeedsReviewById.get(card.id) ?? false, compactMode),
+      ]
     if (item.stackAlignment && item.stackAlignment.length > 0) {
       const shouldShowLegend = !compactMode && !renderedStackAlignmentLegend
       renderedStackAlignmentLegend = true
@@ -1457,16 +1835,21 @@ function getStackAlignmentConfidenceClass(confidence: PrepStackAlignmentConfiden
   return 'prep-live-confidence-caution'
 }
 
-function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem, showLegend: boolean) {
+function renderStackAlignmentItem(
+  section: LiveSection,
+  item: PrepCheatsheetItem,
+  showLegend: boolean,
+) {
   const rows = item.stackAlignment ?? []
   const needsReview =
     hasPrepNeedsReviewText(item.title) ||
     hasPrepNeedsReviewText(item.detail) ||
-    rows.some((row) => (
-      hasPrepNeedsReviewText(row.theirTech) ||
-      hasPrepNeedsReviewText(row.yourMatch) ||
-      hasPrepNeedsReviewText(row.confidence)
-    ))
+    rows.some(
+      (row) =>
+        hasPrepNeedsReviewText(row.theirTech) ||
+        hasPrepNeedsReviewText(row.yourMatch) ||
+        hasPrepNeedsReviewText(row.confidence),
+    )
 
   return (
     <article
@@ -1479,7 +1862,11 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
             <h3>{getPrepDisplayText(item.title) || 'Needs review'}</h3>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
-          {getPrepDisplayText(item.detail) ? <div className="prep-live-card-block-script-label">{getPrepDisplayText(item.detail)}</div> : null}
+          {getPrepDisplayText(item.detail) ? (
+            <div className="prep-live-card-block-script-label">
+              {getPrepDisplayText(item.detail)}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1487,7 +1874,9 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
         <div className="prep-live-confidence-legend" aria-label="Confidence legend">
           {STACK_ALIGNMENT_LEGEND.map((entry) => (
             <div key={entry.confidence} className="prep-live-confidence-legend-item">
-              <span className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(entry.confidence)}`}>
+              <span
+                className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(entry.confidence)}`}
+              >
                 {entry.confidence}
               </span>
               <span className="prep-live-confidence-legend-copy">{entry.description}</span>
@@ -1506,7 +1895,9 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => {
-            const confidence: PrepStackAlignmentConfidence = isPrepStackAlignmentConfidence(row.confidence)
+            const confidence: PrepStackAlignmentConfidence = isPrepStackAlignmentConfidence(
+              row.confidence,
+            )
               ? row.confidence
               : 'Working knowledge'
 
@@ -1515,7 +1906,9 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
                 <td>{getPrepDisplayText(row.theirTech)}</td>
                 <td>{getPrepDisplayText(row.yourMatch)}</td>
                 <td>
-                  <span className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(confidence)}`}>
+                  <span
+                    className={`prep-live-confidence-pill ${getStackAlignmentConfidenceClass(confidence)}`}
+                  >
                     {confidence}
                   </span>
                 </td>
@@ -1529,7 +1922,10 @@ function renderStackAlignmentItem(section: LiveSection, item: PrepCheatsheetItem
 }
 
 function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
-  const needsReview = hasPrepNeedsReviewText(item.title) || hasPrepNeedsReviewText(item.detail) || (item.metrics?.some((metric) => hasPrepMetricNeedsReview(metric)) ?? false)
+  const needsReview =
+    hasPrepNeedsReviewText(item.title) ||
+    hasPrepNeedsReviewText(item.detail) ||
+    (item.metrics?.some((metric) => hasPrepMetricNeedsReview(metric)) ?? false)
   return (
     <article
       key={item.id}
@@ -1541,13 +1937,20 @@ function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
             <h3>{getPrepDisplayText(item.title) || 'Needs review'}</h3>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
-          {getPrepDisplayText(item.detail) ? <div className="prep-live-card-block-script-label">{getPrepDisplayText(item.detail)}</div> : null}
+          {getPrepDisplayText(item.detail) ? (
+            <div className="prep-live-card-block-script-label">
+              {getPrepDisplayText(item.detail)}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="prep-live-stat-grid">
         {item.metrics?.map((metric) => (
-          <div key={metric.id ?? `${item.id}-${metric.value}-${metric.label}`} className="prep-live-stat-box">
+          <div
+            key={metric.id ?? `${item.id}-${metric.value}-${metric.label}`}
+            className="prep-live-stat-box"
+          >
             <span className="prep-live-stat-value">{getPrepDisplayText(metric.value)}</span>
             <span className="prep-live-stat-label">{getPrepDisplayText(metric.label)}</span>
           </div>
@@ -1557,7 +1960,12 @@ function renderMetricGroupItem(section: LiveSection, item: PrepCheatsheetItem) {
   )
 }
 
-function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: boolean, compactMode: boolean) {
+function renderCardBlock(
+  card: PrepCard,
+  section: LiveSection,
+  needsReview: boolean,
+  compactMode: boolean,
+) {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
   const followUps = filterPrepFollowUps(card.followUps)
@@ -1575,7 +1983,10 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
   const showContext = Boolean(displayNotes) && (!compactMode || !displayScript)
 
   return (
-    <article key={card.id} className={`prep-live-card-block prep-live-card-block-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}>
+    <article
+      key={card.id}
+      className={`prep-live-card-block prep-live-card-block-${section.tone}${needsReview ? ' prep-live-review-surface' : ''}`}
+    >
       <div className="prep-live-card-block-header">
         <div>
           <div className="prep-live-card-block-title-row">
@@ -1583,7 +1994,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
-          {displayScriptLabel ? <div className="prep-live-card-block-script-label">{displayScriptLabel}</div> : null}
+          {displayScriptLabel ? (
+            <div className="prep-live-card-block-script-label">{displayScriptLabel}</div>
+          ) : null}
         </div>
       </div>
 
@@ -1598,7 +2011,11 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
         {displayScript ? (
           <section className="prep-live-callout prep-live-callout-script prep-live-callout-primary">
             <span className="prep-live-callout-label">Script</span>
-            {renderPrepParagraphBlocks(displayScript, 'prep-live-callout-copy prep-live-callout-copy-script', 'spoken')}
+            {renderPrepParagraphBlocks(
+              displayScript,
+              'prep-live-callout-copy prep-live-callout-copy-script',
+              'spoken',
+            )}
           </section>
         ) : null}
 
@@ -1607,7 +2024,9 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             className={`prep-live-keypoints-panel prep-live-keypoints-panel-${keyPointsPresentation.ordered ? 'numbered' : 'bulleted'}${section.tone === 'opener' && keyPointsPresentation.ordered ? ' prep-live-keypoints-panel-rescue' : ''}`}
             aria-labelledby={card.id + '-live-keypoints-label'}
           >
-            <div id={card.id + '-live-keypoints-label'} className="prep-live-keypoints-label">{keyPointsPresentation.label}</div>
+            <div id={card.id + '-live-keypoints-label'} className="prep-live-keypoints-label">
+              {keyPointsPresentation.label}
+            </div>
             {keyPointsPresentation.ordered ? (
               <ol className="prep-live-keypoints-list">
                 {keyPoints.map((point, index) => (
@@ -1631,35 +2050,39 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
           </section>
         ) : null}
 
-        {!compactMode && followUps.map((followUp, index) => (
-          (() => {
-            const questionText = getPrepSourceAwareText(followUp.question, card.source)
-            const answerText = getPrepSourceAwareText(followUp.answer, card.source)
-            const contextText = getPrepSourceAwareText(followUp.context, card.source)
+        {!compactMode &&
+          followUps.map((followUp, index) =>
+            (() => {
+              const questionText = getPrepSourceAwareText(followUp.question, card.source)
+              const answerText = getPrepSourceAwareText(followUp.answer, card.source)
+              const contextText = getPrepSourceAwareText(followUp.context, card.source)
 
-            return (
-              <section
-                key={followUp.id ?? `${card.id}-follow-up-${index}`}
-                className="prep-live-callout prep-live-callout-context"
-              >
-                <span className="prep-live-callout-label">Follow-up</span>
-                <p>{questionText}</p>
-                <p>{answerText}</p>
-                {contextText ? <p>{contextText}</p> : null}
-              </section>
-            )
-          })()
-        ))}
+              return (
+                <section
+                  key={followUp.id ?? `${card.id}-follow-up-${index}`}
+                  className="prep-live-callout prep-live-callout-context"
+                >
+                  <span className="prep-live-callout-label">Follow-up</span>
+                  <p>{questionText}</p>
+                  <p>{answerText}</p>
+                  {contextText ? <p>{contextText}</p> : null}
+                </section>
+              )
+            })(),
+          )}
 
-        {!compactMode && deepDives.map((deepDive, index) => (
-          <section
-            key={deepDive.id ?? `${card.id}-deep-dive-${index}`}
-            className="prep-live-callout prep-live-callout-script"
-          >
-            <span className="prep-live-callout-label">{getPrepDisplayText(deepDive.title) || 'Details'}</span>
-            <p>{getPrepSourceAwareText(deepDive.content, card.source)}</p>
-          </section>
-        ))}
+        {!compactMode &&
+          deepDives.map((deepDive, index) => (
+            <section
+              key={deepDive.id ?? `${card.id}-deep-dive-${index}`}
+              className="prep-live-callout prep-live-callout-script"
+            >
+              <span className="prep-live-callout-label">
+                {getPrepDisplayText(deepDive.title) || 'Details'}
+              </span>
+              <p>{getPrepSourceAwareText(deepDive.content, card.source)}</p>
+            </section>
+          ))}
       </div>
 
       {!compactMode && storyBlocks.length > 0 ? (
@@ -1681,7 +2104,8 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
           <h4 className="prep-live-conditionals-heading">Reactive pivots</h4>
           {conditionals.map((conditional, index) => {
             const tone = resolvePrepConditionalTone(conditional)
-            const key = conditional.id ?? `${card.id}-${conditional.trigger}-${conditional.response}-${index}`
+            const key =
+              conditional.id ?? `${card.id}-${conditional.trigger}-${conditional.response}-${index}`
             const triggerText = getPrepSourceAwareText(conditional.trigger, card.source)
             const responseText = getPrepSourceAwareText(conditional.response, card.source)
 
@@ -1703,9 +2127,14 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
             }
 
             return (
-              <div key={key} className={`prep-live-conditional prep-live-conditional-reactive prep-live-conditional-${tone}`}>
+              <div
+                key={key}
+                className={`prep-live-conditional prep-live-conditional-reactive prep-live-conditional-${tone}`}
+              >
                 <div className="prep-live-conditional-heading">
-                  <span className="prep-live-conditional-label">{formatConditionalToneLabel(tone)}</span>
+                  <span className="prep-live-conditional-label">
+                    {formatConditionalToneLabel(tone)}
+                  </span>
                   <span>{triggerText}</span>
                 </div>
                 <p>{responseText}</p>
@@ -1718,7 +2147,10 @@ function renderCardBlock(card: PrepCard, section: LiveSection, needsReview: bool
       {metrics.length > 0 ? (
         <div className="prep-live-stat-grid">
           {metrics.map((metric) => (
-            <div key={metric.id ?? `${card.id}-${metric.value}-${metric.label}`} className="prep-live-stat-box">
+            <div
+              key={metric.id ?? `${card.id}-${metric.value}-${metric.label}`}
+              className="prep-live-stat-box"
+            >
               <span className="prep-live-stat-value">{getPrepDisplayText(metric.value)}</span>
               <span className="prep-live-stat-label">{getPrepDisplayText(metric.label)}</span>
             </div>

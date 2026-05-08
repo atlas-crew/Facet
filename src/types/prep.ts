@@ -24,7 +24,11 @@ export type PrepWorkspaceMode = 'edit' | 'homework' | 'live'
 
 export type PrepCardConfidence = 'nailed_it' | 'okay' | 'needs_work'
 
-export const PREP_CARD_CONFIDENCE_VALUES = ['nailed_it', 'okay', 'needs_work'] as const satisfies readonly PrepCardConfidence[]
+export const PREP_CARD_CONFIDENCE_VALUES = [
+  'nailed_it',
+  'okay',
+  'needs_work',
+] as const satisfies readonly PrepCardConfidence[]
 
 export type PrepContextGapPriority = 'required' | 'recommended' | 'optional'
 
@@ -200,8 +204,13 @@ export const PREP_STACK_ALIGNMENT_CONFIDENCE_VALUES = [
   'Gap',
 ] as const satisfies readonly PrepStackAlignmentConfidence[]
 
-export function isPrepStackAlignmentConfidence(value: unknown): value is PrepStackAlignmentConfidence {
-  return typeof value === 'string' && (PREP_STACK_ALIGNMENT_CONFIDENCE_VALUES as readonly string[]).includes(value)
+export function isPrepStackAlignmentConfidence(
+  value: unknown,
+): value is PrepStackAlignmentConfidence {
+  return (
+    typeof value === 'string' &&
+    (PREP_STACK_ALIGNMENT_CONFIDENCE_VALUES as readonly string[]).includes(value)
+  )
 }
 
 export interface PrepStackAlignmentRow {
@@ -248,18 +257,59 @@ export interface PrepInterviewerIntel {
   education?: string
 }
 
+export const PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES = [
+  'strong',
+  'moderate',
+  'weak',
+  'unknown',
+] as const
+
+export type PrepCompanyAiPostureStrength = (typeof PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES)[number]
+
+export interface PrepCompanyAiPosture {
+  strength: PrepCompanyAiPostureStrength
+  narrative: string
+  signals?: string[]
+}
+
+export interface PrepCompanyIntel {
+  whatTheyDo?: string
+  scale?: string
+  theRole?: string
+  stack?: string
+  team?: string
+  aiPosture?: PrepCompanyAiPosture
+  other?: Record<string, string>
+}
+
+export const PREP_INTERVIEWER_LIKELY_ROLE_VALUES = [
+  'hiring-manager',
+  'above-hm',
+  'peer',
+  'skip-level',
+  'cross-functional',
+  'recruiter',
+  'unknown',
+] as const
+
+export type PrepInterviewerLikelyRole = (typeof PREP_INTERVIEWER_LIKELY_ROLE_VALUES)[number]
+
 export interface PrepInterviewer {
   id: string
   name: string
   title?: string
   linkedInUrl?: string
   intel: PrepInterviewerIntel
+  likelyRole?: PrepInterviewerLikelyRole
+  coachingNote?: string
   /**
    * One-liner tuned to this interviewer's known concern — mirrors what
    * they care about back at them. Grounded in `intel.caresAbout`; should
    * reference a specific observed concern, never a generic platitude.
    */
   lineThatLands?: string
+  metInRounds?: number[]
+  notes?: string
 }
 
 export interface PrepRoundDebriefIntel {
@@ -353,6 +403,7 @@ export interface PrepDeck {
   roundType?: InterviewFormat
   notes?: string
   companyResearch?: string
+  companyIntel?: PrepCompanyIntel
   /**
    * Structured distillation of interviewer intel derived from company
    * research + pipeline entry context. Each panel member / technical
@@ -395,14 +446,11 @@ export const PREP_CONTRACT_VIOLATION_KINDS = [
   'missing-landmine',
 ] as const
 
-export type PrepContractViolationKind = typeof PREP_CONTRACT_VIOLATION_KINDS[number]
+export type PrepContractViolationKind = (typeof PREP_CONTRACT_VIOLATION_KINDS)[number]
 
-export const PREP_CONTRACT_VIOLATION_SEVERITIES = [
-  'error',
-  'warning',
-] as const
+export const PREP_CONTRACT_VIOLATION_SEVERITIES = ['error', 'warning'] as const
 
-export type PrepContractViolationSeverity = typeof PREP_CONTRACT_VIOLATION_SEVERITIES[number]
+export type PrepContractViolationSeverity = (typeof PREP_CONTRACT_VIOLATION_SEVERITIES)[number]
 
 export interface PrepContractViolation {
   kind: PrepContractViolationKind

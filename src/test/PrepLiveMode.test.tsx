@@ -24,19 +24,26 @@ const mockDeck: PrepDeck = {
     technical: 'Name the signal, likely failure domain, and the next verification step.',
     questions: 'Pick 2-3. Save 8-10 minutes for questions.',
   },
-  donts: ['Do not spend too long on the setup before the answer.', 'Do not overclaim ownership on shared work.'],
+  donts: [
+    'Do not spend too long on the setup before the answer.',
+    'Do not overclaim ownership on shared work.',
+  ],
   questionsToAsk: [
-    { question: 'What does success look like in 90 days?', context: 'Use this to learn the evaluation criteria.' },
-    { question: 'Which team would I partner with most closely?', context: 'Useful for scope and cross-functional context.' },
+    {
+      question: 'What does success look like in 90 days?',
+      context: 'Use this to learn the evaluation criteria.',
+    },
+    {
+      question: 'Which team would I partner with most closely?',
+      context: 'Useful for scope and cross-functional context.',
+    },
   ],
   numbersToKnow: {
     candidate: [
       { id: 'metric-candidate-1', value: '38%', label: 'Incident reduction' },
       { id: 'metric-candidate-2', value: '12', label: 'Pipelines owned' },
     ],
-    company: [
-      { id: 'metric-company-1', value: '3', label: 'Core platform bets' },
-    ],
+    company: [{ id: 'metric-company-1', value: '3', label: 'Core platform bets' }],
   },
   stackAlignment: [
     {
@@ -81,11 +88,18 @@ const mockDeck: PrepDeck = {
       category: 'opener',
       title: 'Why this role/company?',
       tags: ['motivation'],
-      script: 'This role connects the platform work I already love with a product scope that is still growing fast.',
+      script:
+        'This role connects the platform work I already love with a product scope that is still growing fast.',
       notes: 'Bridge your recent wins into the company priorities and this team’s scope.',
       warning: 'Do not make this sound interchangeable with any other staff role.',
       conditionals: [
-        { id: 'conditional-1b', trigger: 'If they ask why now', response: 'Explain why the timing and scope line up with the work you want to keep doing.', tone: 'pivot' },
+        {
+          id: 'conditional-1b',
+          trigger: 'If they ask why now',
+          response:
+            'Explain why the timing and scope line up with the work you want to keep doing.',
+          tone: 'pivot',
+        },
       ],
     },
     {
@@ -93,11 +107,18 @@ const mockDeck: PrepDeck = {
       category: 'opener',
       title: 'Why did you leave your last role?',
       tags: ['departure'],
-      script: 'I wanted broader platform ownership and more direct product impact than the role could realistically offer.',
+      script:
+        'I wanted broader platform ownership and more direct product impact than the role could realistically offer.',
       notes: 'Keep it positive and future-focused.',
       warning: 'Do not drift into complaining about the prior company.',
       conditionals: [
-        { id: 'conditional-1c', trigger: 'If they push on conflict', response: 'Acknowledge the fit change plainly, then return to the growth you were looking for.', tone: 'escalation' },
+        {
+          id: 'conditional-1c',
+          trigger: 'If they push on conflict',
+          response:
+            'Acknowledge the fit change plainly, then return to the growth you were looking for.',
+          tone: 'escalation',
+        },
       ],
     },
     {
@@ -109,9 +130,24 @@ const mockDeck: PrepDeck = {
       warning: 'Do not frame product as the enemy.',
       keyPoints: ['Acknowledge the shared decision', 'Name the tradeoff you owned'],
       conditionals: [
-        { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Acknowledge the shared work, then narrow to your decisions.', tone: 'pivot' },
-        { id: 'conditional-2', trigger: 'Were you just reacting late?', response: 'Name the signal, the decision, and the prevention step.', tone: 'trap' },
-        { id: 'conditional-3', trigger: 'If they push on residual risk', response: 'Be explicit about what you escalated and what you would verify next.', tone: 'escalation' },
+        {
+          id: 'conditional-1',
+          trigger: 'If they push on ownership',
+          response: 'Acknowledge the shared work, then narrow to your decisions.',
+          tone: 'pivot',
+        },
+        {
+          id: 'conditional-2',
+          trigger: 'Were you just reacting late?',
+          response: 'Name the signal, the decision, and the prevention step.',
+          tone: 'trap',
+        },
+        {
+          id: 'conditional-3',
+          trigger: 'If they push on residual risk',
+          response: 'Be explicit about what you escalated and what you would verify next.',
+          tone: 'escalation',
+        },
       ],
       storyBlocks: [
         { label: 'problem', text: 'A launch was blocked by missing reliability work.' },
@@ -125,7 +161,8 @@ const mockDeck: PrepDeck = {
       title: 'How do you debug a flaky distributed system?',
       tags: ['debugging'],
       script: 'Start with blast radius, recent changes, and observability gaps.',
-      warning: 'Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.',
+      warning:
+        'Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.',
       keyPoints: ['Check the blast radius', 'Reproduce the issue', 'Compare deploys'],
     },
     {
@@ -211,7 +248,8 @@ const alternateDeck: PrepDeck = {
       category: 'behavioral',
       title: 'Coach through a scope disagreement',
       tags: ['coaching'],
-      script: 'I clarify the decision owner, tradeoffs, and what success looks like by the end of the conversation.',
+      script:
+        'I clarify the decision owner, tradeoffs, and what success looks like by the end of the conversation.',
       notes: 'Stay specific about coaching and decision-making.',
     },
   ],
@@ -227,7 +265,11 @@ function getSectionContainer(title: string) {
 function getNavLink(title: string) {
   return screen
     .getAllByRole('button')
-    .find((candidate) => candidate.classList.contains('prep-live-nav-link') && candidate.textContent?.includes(title))
+    .find(
+      (candidate) =>
+        candidate.classList.contains('prep-live-nav-link') &&
+        candidate.textContent?.includes(title),
+    )
 }
 
 describe('PrepLiveMode', () => {
@@ -247,8 +289,12 @@ describe('PrepLiveMode', () => {
 
     expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Warm-up notes' })).toBeTruthy()
-    expect(screen.getAllByLabelText('Beat sheet - if you lose your place').length).toBeGreaterThan(1)
-    expect(screen.getAllByLabelText('Beat sheet - if you lose your place')[0].querySelector('ol')).toBeTruthy()
+    expect(screen.getAllByLabelText('Beat sheet - if you lose your place').length).toBeGreaterThan(
+      1,
+    )
+    expect(
+      screen.getAllByLabelText('Beat sheet - if you lose your place')[0].querySelector('ol'),
+    ).toBeTruthy()
     expect(screen.getAllByLabelText('Glance Points').length).toBeGreaterThan(0)
     expect(screen.getAllByLabelText('Glance Points')[0].querySelector('ul')).toBeTruthy()
     expect(screen.getAllByText('Acknowledge the shared decision').length).toBeGreaterThan(0)
@@ -262,7 +308,9 @@ describe('PrepLiveMode', () => {
     expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Technical' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Tactical' })).toBeTruthy()
-    const groupHeadings = Array.from(container.querySelectorAll('.prep-live-section-group-title')).map((node) => node.textContent)
+    const groupHeadings = Array.from(
+      container.querySelectorAll('.prep-live-section-group-title'),
+    ).map((node) => node.textContent)
     expect(groupHeadings).toEqual(
       expect.arrayContaining(['Intel', 'Openers', 'Landmines', 'Core', 'Technical', 'Tactical']),
     )
@@ -286,21 +334,47 @@ describe('PrepLiveMode', () => {
     expect(screen.getByText('Do not spend too long on the setup before the answer.')).toBeTruthy()
     expect(screen.getByText('99.95%')).toBeTruthy()
     expect(screen.getByText('Lead with reliability wins.')).toBeTruthy()
-    expect(getSectionContainer('Tell me about yourself')?.textContent).toContain('Keep the opening answer under two minutes')
-    expect(getSectionContainer('Tell me about yourself')?.textContent).toContain('Lead with the platform angle')
-    expect(getSectionContainer('Why this role/company?')?.textContent).toContain('Do not make this sound interchangeable')
-    expect(getSectionContainer('Why did you leave your last role?')?.textContent).toContain('Keep it positive and future-focused')
-    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Anchor each behavioral answer in one decision you owned.')
-    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('If they push on ownership')
-    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Acknowledge the shared work, then narrow to your decisions.')
+    expect(getSectionContainer('Tell me about yourself')?.textContent).toContain(
+      'Keep the opening answer under two minutes',
+    )
+    expect(getSectionContainer('Tell me about yourself')?.textContent).toContain(
+      'Lead with the platform angle',
+    )
+    expect(getSectionContainer('Why this role/company?')?.textContent).toContain(
+      'Do not make this sound interchangeable',
+    )
+    expect(getSectionContainer('Why did you leave your last role?')?.textContent).toContain(
+      'Keep it positive and future-focused',
+    )
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain(
+      'Anchor each behavioral answer in one decision you owned.',
+    )
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain(
+      'If they push on ownership',
+    )
+    expect(getSectionContainer('Behavioral Stories')?.textContent).toContain(
+      'Acknowledge the shared work, then narrow to your decisions.',
+    )
     expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Trap')
     expect(getSectionContainer('Behavioral Stories')?.textContent).toContain('Reframe')
     expect(screen.getAllByText('Do not frame product as the enemy.')).toHaveLength(2)
-    expect(screen.getAllByText('Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.')).toHaveLength(2)
-    expect(screen.getAllByText('Do not over-rotate into hypotheticals without data.')).toHaveLength(2)
-    expect(getSectionContainer('Technical Topics')?.textContent).toContain('Name the signal, likely failure domain, and the next verification step.')
-    expect(getSectionContainer('Technical Topics')?.textContent).toContain('How do you debug a flaky distributed system?')
-    expect(getSectionContainer('Technical Topics')?.textContent).not.toContain('Tell me about yourself')
+    expect(
+      screen.getAllByText(
+        'Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.',
+      ),
+    ).toHaveLength(2)
+    expect(screen.getAllByText('Do not over-rotate into hypotheticals without data.')).toHaveLength(
+      2,
+    )
+    expect(getSectionContainer('Technical Topics')?.textContent).toContain(
+      'Name the signal, likely failure domain, and the next verification step.',
+    )
+    expect(getSectionContainer('Technical Topics')?.textContent).toContain(
+      'How do you debug a flaky distributed system?',
+    )
+    expect(getSectionContainer('Technical Topics')?.textContent).not.toContain(
+      'Tell me about yourself',
+    )
     expect(screen.getByText('Build platform tooling and improve developer velocity.')).toBeTruthy()
     expect(screen.getByText('platform leadership, distributed systems')).toBeTruthy()
     expect(screen.getByText('Acme Staff Engineer Prep')).toBeTruthy()
@@ -315,18 +389,32 @@ describe('PrepLiveMode', () => {
     expect(shortcutBar?.textContent).toContain('3 / 4 / 5')
     expect(shortcutBar?.textContent).toContain('6 / 7 / 8 / 9')
 
-    expect(container.querySelectorAll('.prep-live-section-opener .prep-live-budget-badge')).toHaveLength(3)
-    expect(getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')?.textContent).toBe('8m')
-    expect(getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')?.textContent).toBe('1m')
-    expect(getSectionContainer('Your Work')?.querySelector('.prep-live-budget-badge')?.textContent).toBe('1.5m')
-    expect(getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')?.textContent).toBe('1.5m')
+    expect(
+      container.querySelectorAll('.prep-live-section-opener .prep-live-budget-badge'),
+    ).toHaveLength(3)
+    expect(
+      getSectionContainer('Questions to Ask')?.querySelector('.prep-live-budget-badge')
+        ?.textContent,
+    ).toBe('8m')
+    expect(
+      getSectionContainer("Don'ts")?.querySelector('.prep-live-budget-badge')?.textContent,
+    ).toBe('1m')
+    expect(
+      getSectionContainer('Your Work')?.querySelector('.prep-live-budget-badge')?.textContent,
+    ).toBe('1.5m')
+    expect(
+      getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')
+        ?.textContent,
+    ).toBe('1.5m')
   })
 
   it('supports search, timer, and section shortcuts', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
     fireEvent.keyDown(document.body, { key: '/' })
-    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search cheatsheet' }))
+    expect(document.activeElement).toBe(
+      screen.getByRole('searchbox', { name: 'Search cheatsheet' }),
+    )
 
     fireEvent.keyDown(document.body, { key: ' ' })
     act(() => {
@@ -366,7 +454,9 @@ describe('PrepLiveMode', () => {
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Projects')
 
     fireEvent.keyDown(document.body, { key: 'J' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Technical Topics')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Technical Topics',
+    )
 
     fireEvent.keyDown(document.body, { key: 'K' })
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Projects')
@@ -512,7 +602,11 @@ describe('PrepLiveMode', () => {
 
     expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Behavioral Stories' })).toBeNull()
-    expect(screen.getAllByText('Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.')).toHaveLength(2)
+    expect(
+      screen.getAllByText(
+        'Avoid guessing at the root cause before you check the logs, deploy timeline, or rollback plan.',
+      ),
+    ).toHaveLength(2)
 
     fireEvent.keyDown(searchInput, { key: 'Escape' })
 
@@ -547,30 +641,42 @@ describe('PrepLiveMode', () => {
       ...mockDeck,
       companyResearch: undefined,
       notes: undefined,
-      cards: mockDeck.cards.map((card) => (
-        card.id === 'card-1'
-          ? {
-              ...card,
-              notes: undefined,
-              keyPoints: ['Scale', ''],
-              storyBlocks: [
-                { label: 'problem' as const, text: 'Platform was slowing product teams.' },
-                { label: 'note' as const, text: '' },
-              ],
-              conditionals: [
-                { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decisions you owned.', tone: 'pivot' as const },
-                { id: 'conditional-2', trigger: 'If they trap you', response: '', tone: 'trap' as const },
-              ],
-              metrics: [
-                { value: '45%', label: 'Lead time cut' },
-                { value: '', label: '' },
-              ],
-            }
-          : {
-              ...card,
-              notes: undefined,
-            }
-      )).filter((card) => card.id === 'card-1'),
+      cards: mockDeck.cards
+        .map((card) =>
+          card.id === 'card-1'
+            ? {
+                ...card,
+                notes: undefined,
+                keyPoints: ['Scale', ''],
+                storyBlocks: [
+                  { label: 'problem' as const, text: 'Platform was slowing product teams.' },
+                  { label: 'note' as const, text: '' },
+                ],
+                conditionals: [
+                  {
+                    id: 'conditional-1',
+                    trigger: 'If they push on ownership',
+                    response: 'Name the decisions you owned.',
+                    tone: 'pivot' as const,
+                  },
+                  {
+                    id: 'conditional-2',
+                    trigger: 'If they trap you',
+                    response: '',
+                    tone: 'trap' as const,
+                  },
+                ],
+                metrics: [
+                  { value: '45%', label: 'Lead time cut' },
+                  { value: '', label: '' },
+                ],
+              }
+            : {
+                ...card,
+                notes: undefined,
+              },
+        )
+        .filter((card) => card.id === 'card-1'),
     }
 
     const { container } = render(<PrepLiveMode deck={draftDeck} />)
@@ -586,12 +692,16 @@ describe('PrepLiveMode', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'lead time cut' },
     })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Tell me about yourself')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Tell me about yourself',
+    )
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'name the decisions you owned' },
     })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Tell me about yourself')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Tell me about yourself',
+    )
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'note' },
@@ -636,7 +746,9 @@ describe('PrepLiveMode', () => {
     const openerSection = getSectionContainer('Tell me about yourself')
     expect(openerSection?.textContent).toContain('tighten the company-specific motivation.')
     expect(openerSection?.textContent).toContain('Fill in: exact product area')
-    expect(openerSection?.textContent).toContain('This looks like a cold application from the notes, so lead with a crisp why-this-role answer.')
+    expect(openerSection?.textContent).toContain(
+      'This looks like a cold application from the notes, so lead with a crisp why-this-role answer.',
+    )
     expect(openerSection?.textContent).not.toContain('[[needs-review]]')
     expect(openerSection?.textContent).not.toContain('no inbound signal noted')
   })
@@ -646,14 +758,17 @@ describe('PrepLiveMode', () => {
       ...mockDeck,
       categoryGuidance: {
         ...mockDeck.categoryGuidance,
-        opener: 'You applied to this role (no inbound signal noted) so earn attention in the first two minutes.',
+        opener:
+          'You applied to this role (no inbound signal noted) so earn attention in the first two minutes.',
       },
     }
 
     render(<PrepLiveMode deck={deckWithInlineMetadata} />)
 
     const openerSection = getSectionContainer('Tell me about yourself')
-    expect(openerSection?.textContent).toContain('You applied to this role (you applied directly) so earn attention in the first two minutes.')
+    expect(openerSection?.textContent).toContain(
+      'You applied to this role (you applied directly) so earn attention in the first two minutes.',
+    )
     expect(openerSection?.textContent).not.toContain('no inbound signal noted')
   })
 
@@ -666,16 +781,15 @@ describe('PrepLiveMode', () => {
   })
 
   it('preserves explicit paragraph breaks in spoken copy', () => {
-    expect(getPrepParagraphs('Lead with the through-line.\n\nLand on the hook.', 'spoken')).toEqual([
-      'Lead with the through-line.',
-      'Land on the hook.',
-    ])
+    expect(getPrepParagraphs('Lead with the through-line.\n\nLand on the hook.', 'spoken')).toEqual(
+      ['Lead with the through-line.', 'Land on the hook.'],
+    )
   })
 
   it('keeps short spoken copy as a single paragraph', () => {
-    expect(getPrepParagraphs('Lead with the through-line and land on why this team now.', 'spoken')).toEqual([
-      'Lead with the through-line and land on why this team now.',
-    ])
+    expect(
+      getPrepParagraphs('Lead with the through-line and land on why this team now.', 'spoken'),
+    ).toEqual(['Lead with the through-line and land on why this team now.'])
   })
 
   it('does not split common abbreviations into stray spoken fragments', () => {
@@ -717,9 +831,15 @@ describe('PrepLiveMode', () => {
   it('renders conditional tone labels for pivot, trap, and escalation guidance', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
-    const pivotConditional = screen.getAllByText('If they push on ownership')[0]?.closest('.prep-live-conditional')
-    const trapConditional = screen.getAllByText('Were you just reacting late?')[0]?.closest('.prep-live-conditional')
-    const escalationConditional = screen.getAllByText('If they push on residual risk')[0]?.closest('.prep-live-conditional')
+    const pivotConditional = screen
+      .getAllByText('If they push on ownership')[0]
+      ?.closest('.prep-live-conditional')
+    const trapConditional = screen
+      .getAllByText('Were you just reacting late?')[0]
+      ?.closest('.prep-live-conditional')
+    const escalationConditional = screen
+      .getAllByText('If they push on residual risk')[0]
+      ?.closest('.prep-live-conditional')
 
     expect(pivotConditional?.textContent).toContain('Pivot')
     expect(trapConditional?.textContent).toContain('Trap')
@@ -734,19 +854,21 @@ describe('PrepLiveMode', () => {
     const anchorDeck: PrepDeck = {
       ...mockDeck,
       skillMatch: 'GitOps migration, [[fill-in: jd pillar]], release engineering',
-      cards: mockDeck.cards.map((card) => (
+      cards: mockDeck.cards.map((card) =>
         card.id === 'card-4'
           ? {
               ...card,
               notes: 'Your strongest single story. If you only tell one story, tell this one.',
             }
-          : card
-      )),
+          : card,
+      ),
     }
 
     const { container } = render(<PrepLiveMode deck={anchorDeck} />)
 
-    expect(screen.getByLabelText('Anchor story').textContent).toContain('A project you are proud of')
+    expect(screen.getByLabelText('Anchor story').textContent).toContain(
+      'A project you are proud of',
+    )
     expect(screen.getByLabelText('Anchor story').textContent).toContain('GitOps migration')
     expect(screen.getByLabelText('Anchor story').textContent).toContain('release engineering')
     expect(screen.getByLabelText('Anchor story').textContent).not.toContain('[[fill-in:')
@@ -761,13 +883,25 @@ describe('PrepLiveMode', () => {
 
     expect(container.querySelector('.prep-live-mode-compact')).toBeTruthy()
     expect(container.querySelector('.prep-live-sidebar-compact')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Compact view' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.queryByText('Compact view keeps the live reference focused on scripts, warnings, and pivots.')).toBeNull()
-    expect(screen.queryByText('Your strongest single story. If you only tell one story, tell this one.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Compact view' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    expect(
+      screen.queryByText(
+        'Compact view keeps the live reference focused on scripts, warnings, and pivots.',
+      ),
+    ).toBeNull()
+    expect(
+      screen.queryByText('Your strongest single story. If you only tell one story, tell this one.'),
+    ).toBeNull()
     expect(openerSection?.textContent).not.toContain('Lead with the platform angle')
     expect(openerSection?.textContent).not.toContain('Platform was slowing product teams.')
-    expect(openerSection?.textContent).toContain('I lead backend platform work and enjoy scaling teams and systems.')
-    expect(screen.getByLabelText('Anchor story').textContent).toContain('A project you are proud of')
+    expect(openerSection?.textContent).toContain(
+      'I lead backend platform work and enjoy scaling teams and systems.',
+    )
+    expect(screen.getByLabelText('Anchor story').textContent).toContain(
+      'A project you are proud of',
+    )
   })
 
   it('collapses the live rules panel without removing the rest of the cheatsheet', () => {
@@ -803,7 +937,7 @@ describe('PrepLiveMode', () => {
           return map.size
         },
         clear: () => map.clear(),
-        getItem: (key: string) => (map.has(key) ? map.get(key) ?? null : null),
+        getItem: (key: string) => (map.has(key) ? (map.get(key) ?? null) : null),
         key: (index: number) => Array.from(map.keys())[index] ?? null,
         removeItem: (key: string) => {
           map.delete(key)
@@ -856,7 +990,9 @@ describe('PrepLiveMode', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 
     const scriptCallout = screen
-      .getAllByText('This role connects the platform work I already love with a product scope that is still growing fast.')
+      .getAllByText(
+        'This role connects the platform work I already love with a product scope that is still growing fast.',
+      )
       .map((candidate) => candidate.closest('.prep-live-callout'))
       .find((candidate) => candidate?.classList.contains('prep-live-callout-primary'))
     const warningCallout = screen
@@ -874,41 +1010,46 @@ describe('PrepLiveMode', () => {
   it('breaks long spoken scripts into readable paragraphs', () => {
     const longScriptDeck: PrepDeck = {
       ...mockDeck,
-      cards: mockDeck.cards.map((card) => (
+      cards: mockDeck.cards.map((card) =>
         card.id === 'card-1'
           ? {
               ...card,
               script:
                 'I start by learning how the engineers around me deploy and where the friction is. Then I build the infrastructure and automation that lets them ship faster and sleep better. Most recently at Helios Security, I brought the platform under infrastructure-as-code from nothing and migrated twelve services. I also cut AWS spend by about sixty thousand dollars a month and mentored SOC analysts into SRE practitioners. Before that, I built a developer platform from scratch at Northwind. The pattern is platform as product, measured by adoption.',
             }
-          : card
-      )),
+          : card,
+      ),
     }
 
     const { container } = render(<PrepLiveMode deck={longScriptDeck} />)
 
-    const scriptCopy = Array.from(container.querySelectorAll('.prep-live-callout-copy-script'))
-      .find((candidate) => candidate.textContent?.includes('I start by learning how the engineers around me deploy'))
+    const scriptCopy = Array.from(
+      container.querySelectorAll('.prep-live-callout-copy-script'),
+    ).find((candidate) =>
+      candidate.textContent?.includes('I start by learning how the engineers around me deploy'),
+    )
     expect(scriptCopy?.querySelectorAll('p').length).toBeGreaterThan(1)
   })
 
   it('treats newline-separated spoken scripts as paragraphs even without punctuation', () => {
     const newlineScriptDeck: PrepDeck = {
       ...mockDeck,
-      cards: mockDeck.cards.map((card) => (
+      cards: mockDeck.cards.map((card) =>
         card.id === 'card-1'
           ? {
               ...card,
-              script: 'Platform as product\nHelios Security migration and AWS savings\nBuilt the team to run it without me',
+              script:
+                'Platform as product\nHelios Security migration and AWS savings\nBuilt the team to run it without me',
             }
-          : card
-      )),
+          : card,
+      ),
     }
 
     const { container } = render(<PrepLiveMode deck={newlineScriptDeck} />)
 
-    const scriptCopy = Array.from(container.querySelectorAll('.prep-live-callout-copy-script'))
-      .find((candidate) => candidate.textContent?.includes('Platform as product'))
+    const scriptCopy = Array.from(
+      container.querySelectorAll('.prep-live-callout-copy-script'),
+    ).find((candidate) => candidate.textContent?.includes('Platform as product'))
     expect(scriptCopy?.querySelectorAll('p').length).toBe(3)
   })
 
@@ -964,13 +1105,16 @@ describe('PrepLiveMode', () => {
       disconnect() {}
       observe() {}
       unobserve() {}
-      takeRecords() { return [] }
+      takeRecords() {
+        return []
+      }
       root = null
       rootMargin = ''
       thresholds = []
     }
 
-    globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    globalThis.IntersectionObserver =
+      MockIntersectionObserver as unknown as typeof IntersectionObserver
 
     try {
       render(<PrepLiveMode deck={mockDeck} />)
@@ -987,18 +1131,21 @@ describe('PrepLiveMode', () => {
       expect(observerCallbacks.length).toBeGreaterThan(0)
 
       act(() => {
-        observerCallbacks[0]([
-          {
-            target: overviewSection!,
-            isIntersecting: false,
-            intersectionRatio: 0,
-          } as IntersectionObserverEntry,
-          {
-            target: technicalSection!,
-            isIntersecting: true,
-            intersectionRatio: 0.6,
-          } as IntersectionObserverEntry,
-        ], {} as IntersectionObserver)
+        observerCallbacks[0](
+          [
+            {
+              target: overviewSection!,
+              isIntersecting: false,
+              intersectionRatio: 0,
+            } as IntersectionObserverEntry,
+            {
+              target: technicalSection!,
+              isIntersecting: true,
+              intersectionRatio: 0.6,
+            } as IntersectionObserverEntry,
+          ],
+          {} as IntersectionObserver,
+        )
       })
 
       act(() => {
@@ -1016,13 +1163,17 @@ describe('PrepLiveMode', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
     fireEvent.keyDown(document.body, { key: 'Q' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Questions to Ask',
+    )
 
     const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
     searchInput.focus()
 
     fireEvent.keyDown(searchInput, { key: '7' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Questions to Ask',
+    )
 
     fireEvent.keyDown(searchInput, { key: 'E' })
     expect(getSectionContainer('Questions to Ask')?.querySelector('[hidden]')).toBeNull()
@@ -1065,9 +1216,28 @@ describe('PrepLiveMode', () => {
       cards: [
         {
           ...mockDeck.cards[0],
-          followUps: [{ id: 'follow-up-1', question: 'What changed after launch?', answer: 'We held the rollback line.' }],
-          deepDives: [{ id: 'deep-dive-1', title: 'Incident review', content: 'Covered the rollback decision tree.' }],
-          conditionals: [{ id: 'conditional-1', trigger: 'If they push on risk', response: 'Name the mitigation and rollback path.', tone: 'pivot' }],
+          followUps: [
+            {
+              id: 'follow-up-1',
+              question: 'What changed after launch?',
+              answer: 'We held the rollback line.',
+            },
+          ],
+          deepDives: [
+            {
+              id: 'deep-dive-1',
+              title: 'Incident review',
+              content: 'Covered the rollback decision tree.',
+            },
+          ],
+          conditionals: [
+            {
+              id: 'conditional-1',
+              trigger: 'If they push on risk',
+              response: 'Name the mitigation and rollback path.',
+              tone: 'pivot',
+            },
+          ],
           tableData: {
             headers: ['Signal', 'Action'],
             rows: [['pager spike', 'throttle retries']],
@@ -1111,12 +1281,22 @@ describe('PrepLiveMode', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse pre-interview' }))
-    expect(screen.getByText('Pre-interview sections are collapsed. Expand them when you want the setup notes.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Pre-interview sections are collapsed. Expand them when you want the setup notes.',
+      ),
+    ).toBeTruthy()
 
     fireEvent.keyDown(document.body, { key: 'Q' })
 
-    expect(screen.queryByText('Pre-interview sections are collapsed. Expand them when you want the setup notes.')).toBeNull()
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+    expect(
+      screen.queryByText(
+        'Pre-interview sections are collapsed. Expand them when you want the setup notes.',
+      ),
+    ).toBeNull()
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Questions to Ask',
+    )
   })
 
   it('moves focus into the target section after a keyboard jump', () => {
@@ -1154,10 +1334,14 @@ describe('PrepLiveMode', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
     fireEvent.keyDown(document.body, { key: 'End' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Risks and Reminders')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Risks and Reminders',
+    )
 
     fireEvent.keyDown(document.body, { key: 'J' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Risks and Reminders')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Risks and Reminders',
+    )
 
     fireEvent.keyDown(document.body, { key: 'Home' })
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
@@ -1170,7 +1354,9 @@ describe('PrepLiveMode', () => {
     const { container } = render(<PrepLiveMode deck={mockDeck} />)
 
     fireEvent.keyDown(document.body, { key: 'q' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Questions to Ask',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Start timer' }))
     act(() => {
@@ -1217,7 +1403,9 @@ describe('PrepLiveMode', () => {
 
     scratchInput.blur()
     fireEvent.keyDown(document.body, { key: 'q' })
-    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Questions to Ask')
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Questions to Ask',
+    )
 
     scratchInput.remove()
   })
@@ -1280,7 +1468,9 @@ describe('PrepLiveMode', () => {
     expect(() => {
       fireEvent.change(searchInput, { target: { value: '[[fill' } })
     }).not.toThrow()
-    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('[[fill')
+    expect(
+      (screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value,
+    ).toBe('[[fill')
     expect(screen.getByLabelText('Live cheatsheet mode')).toBeTruthy()
 
     expect(() => {
@@ -1322,25 +1512,89 @@ describe('PrepLiveMode', () => {
   })
 
   it('renders a minimal deck without optional sections', () => {
-    render(<PrepLiveMode deck={{
-      ...mockDeck,
-      companyResearch: undefined,
-      skillMatch: undefined,
-      notes: undefined,
-      jobDescription: undefined,
-      rules: undefined,
-      categoryGuidance: undefined,
-      donts: undefined,
-      questionsToAsk: undefined,
-      numbersToKnow: undefined,
-      cards: [],
-    }} />)
+    render(
+      <PrepLiveMode
+        deck={{
+          ...mockDeck,
+          companyResearch: undefined,
+          skillMatch: undefined,
+          notes: undefined,
+          jobDescription: undefined,
+          rules: undefined,
+          categoryGuidance: undefined,
+          donts: undefined,
+          questionsToAsk: undefined,
+          numbersToKnow: undefined,
+          cards: [],
+        }}
+      />,
+    )
 
     expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
     expect(screen.queryByText('The Rules')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Questions to Ask' })).toBeNull()
     expect(screen.queryByRole('heading', { name: "Don'ts" })).toBeNull()
     expect(screen.queryByText('Your Work')).toBeNull()
+  })
+
+  it('renders structured company and interviewer intel above opener sections', () => {
+    const structuredDeck: PrepDeck = {
+      ...mockDeck,
+      companyIntel: {
+        whatTheyDo: 'ERP and CRM SaaS for AEC teams.',
+        scale: '4,300+ customers',
+        theRole: 'Newly created platform role',
+        stack: 'AWS, EKS, GitLab CI/CD',
+        team: '~35 engineers',
+        aiPosture: {
+          strength: 'strong',
+          narrative: 'Already using AI assistants in delivery.',
+          signals: ['Claude pilot'],
+        },
+      },
+      interviewers: [
+        {
+          id: 'iv-sastry',
+          name: 'Sastry Anipindi',
+          title: 'Sr. Director',
+          likelyRole: 'hiring-manager',
+          coachingNote: 'Be conversational and lead with delivery ownership.',
+          intel: {
+            role: 'Most likely the hiring manager',
+            caresAbout: 'delivery leverage',
+            yourAngle: 'Platform systems that make product teams faster',
+          },
+          lineThatLands: 'I turn platform investments into product-team leverage.',
+          metInRounds: [1],
+        },
+        {
+          id: 'iv-unknown',
+          name: '',
+          likelyRole: 'unknown',
+          coachingNote: "If unsure who you're talking to, ask how they connect to the role.",
+          intel: {},
+        },
+      ],
+    }
+
+    const { container } = render(<PrepLiveMode deck={structuredDeck} />)
+    const structuredIntel = container.querySelector('.prep-live-structured-intel')
+    const firstOpener = getSectionContainer('Tell me about yourself')
+
+    expect(structuredIntel).toBeTruthy()
+    expect(firstOpener).toBeTruthy()
+    expect(structuredIntel?.compareDocumentPosition(firstOpener as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    expect(structuredIntel?.textContent).toContain('Company Intel')
+    expect(screen.getByText('ERP and CRM SaaS for AEC teams.')).toBeTruthy()
+    expect(structuredIntel?.textContent).toContain('Interviewers')
+    expect(screen.getByText('Sastry Anipindi')).toBeTruthy()
+    expect(screen.getByText('Likely hiring manager')).toBeTruthy()
+    expect(screen.getAllByText("If unsure who you're talking to").length).toBeGreaterThan(0)
+    expect(
+      screen.getByText("If unsure who you're talking to, ask how they connect to the role."),
+    ).toBeTruthy()
   })
 
   it('ignores shortcuts for sections that are not present in the deck', () => {
@@ -1387,11 +1641,17 @@ describe('PrepLiveMode', () => {
   })
 
   it('handles decks with undefined cards without throwing', () => {
-    expect(() => render(<PrepLiveMode deck={{
-      ...mockDeck,
-      id: 'deck-without-cards',
-      cards: undefined as unknown as PrepDeck['cards'],
-    }} />)).not.toThrow()
+    expect(() =>
+      render(
+        <PrepLiveMode
+          deck={{
+            ...mockDeck,
+            id: 'deck-without-cards',
+            cards: undefined as unknown as PrepDeck['cards'],
+          }}
+        />,
+      ),
+    ).not.toThrow()
 
     expect(screen.getByRole('heading', { name: 'Answer bank' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Technical Topics' })).toBeNull()
@@ -1429,7 +1689,7 @@ describe('PrepLiveMode', () => {
   it('renders malformed table data without crashing', () => {
     const malformedTableDeck: PrepDeck = {
       ...mockDeck,
-      cards: mockDeck.cards.map((card) => (
+      cards: mockDeck.cards.map((card) =>
         card.id === 'card-3'
           ? {
               ...card,
@@ -1442,12 +1702,12 @@ describe('PrepLiveMode', () => {
                 ],
               },
             }
-          : card
-      )),
+          : card,
+      ),
     }
     const missingRowsDeck: PrepDeck = {
       ...mockDeck,
-      cards: mockDeck.cards.map((card) => (
+      cards: mockDeck.cards.map((card) =>
         card.id === 'card-3'
           ? {
               ...card,
@@ -1455,8 +1715,8 @@ describe('PrepLiveMode', () => {
                 headers: ['Stage', 'Owner'],
               } as PrepDeck['cards'][number]['tableData'],
             }
-          : card
-      )),
+          : card,
+      ),
     }
 
     expect(() => render(<PrepLiveMode deck={malformedTableDeck} />)).not.toThrow()
@@ -1481,13 +1741,17 @@ describe('PrepLiveMode', () => {
     expect(screen.getByRole('columnheader', { name: 'Confidence' })).toBeTruthy()
     expect(screen.getByLabelText('Confidence legend').textContent).toContain('Working knowledge')
     expect(screen.getByLabelText('Confidence legend').textContent).toContain('Adjacent experience')
-    expect(screen.getByLabelText('Confidence legend').textContent).toContain('can discuss and ramp quickly with real context')
+    expect(screen.getByLabelText('Confidence legend').textContent).toContain(
+      'can discuss and ramp quickly with real context',
+    )
 
     expect(screen.getByText('Kubernetes')).toBeTruthy()
     expect(screen.getByText('Built and operated shared platform clusters.')).toBeTruthy()
     expect(screen.getAllByText('Strong')[0]?.className).toContain('prep-live-confidence-positive')
     expect(screen.getAllByText('Solid')[0]?.className).toContain('prep-live-confidence-positive')
-    expect(screen.getAllByText('Adjacent experience')[0]?.className).toContain('prep-live-confidence-caution')
+    expect(screen.getAllByText('Adjacent experience')[0]?.className).toContain(
+      'prep-live-confidence-caution',
+    )
     expect(screen.getAllByText('Gap')[0]?.className).toContain('prep-live-confidence-gap')
   })
 
@@ -1510,7 +1774,9 @@ describe('PrepLiveMode', () => {
     }
 
     const { rerender } = render(<PrepLiveMode deck={identityFreeDeckA} />)
-    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Search cheatsheet',
+    }) as HTMLInputElement
 
     fireEvent.keyDown(document.body, { key: ' ' })
     act(() => {
@@ -1521,12 +1787,16 @@ describe('PrepLiveMode', () => {
     rerender(<PrepLiveMode deck={identityFreeDeckB} />)
 
     expect(screen.getByText('00:00')).toBeTruthy()
-    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('')
+    expect(
+      (screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value,
+    ).toBe('')
   })
 
   it('resets transient state when the mounted deck changes', () => {
     const { rerender } = render(<PrepLiveMode deck={mockDeck} />)
-    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Search cheatsheet',
+    }) as HTMLInputElement
 
     fireEvent.change(searchInput, { target: { value: 'blast radius' } })
     fireEvent.keyDown(document.body, { key: ' ' })
@@ -1539,14 +1809,18 @@ describe('PrepLiveMode', () => {
     rerender(<PrepLiveMode deck={alternateDeck} />)
 
     expect(screen.getByText('00:00')).toBeTruthy()
-    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('')
+    expect(
+      (screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value,
+    ).toBe('')
     expect(screen.getAllByText('Coach through a scope disagreement').length).toBeGreaterThan(0)
     expect(screen.queryByText('How do you debug a flaky distributed system?')).toBeNull()
   })
 
   it('keeps timer and search state when the same deck id rerenders with a new object', () => {
     const { rerender } = render(<PrepLiveMode deck={mockDeck} />)
-    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Search cheatsheet',
+    }) as HTMLInputElement
 
     fireEvent.keyDown(document.body, { key: ' ' })
     act(() => {
@@ -1554,17 +1828,23 @@ describe('PrepLiveMode', () => {
     })
     fireEvent.change(searchInput, { target: { value: 'blast radius' } })
 
-    rerender(<PrepLiveMode deck={{
-      ...mockDeck,
-      title: 'Acme Staff Engineer Prep v2',
-      company: 'Acme AI',
-      role: 'Principal Engineer',
-      generatedAt: '2026-04-15T08:00:00.000Z',
-      notes: 'Updated note without changing deck identity.',
-    }} />)
+    rerender(
+      <PrepLiveMode
+        deck={{
+          ...mockDeck,
+          title: 'Acme Staff Engineer Prep v2',
+          company: 'Acme AI',
+          role: 'Principal Engineer',
+          generatedAt: '2026-04-15T08:00:00.000Z',
+          notes: 'Updated note without changing deck identity.',
+        }}
+      />,
+    )
 
     expect(screen.getByText('00:02')).toBeTruthy()
-    expect((screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value).toBe('blast radius')
+    expect(
+      (screen.getByRole('searchbox', { name: 'Search cheatsheet' }) as HTMLInputElement).value,
+    ).toBe('blast radius')
   })
 
   it('cleans up the timer interval on unmount', () => {
@@ -1572,12 +1852,18 @@ describe('PrepLiveMode', () => {
     const clearedIntervals: unknown[] = []
     const originalSetInterval = window.setInterval.bind(window)
     const originalClearInterval = window.clearInterval.bind(window)
-    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((
+      handler: TimerHandler,
+      timeout?: number,
+      ...args: unknown[]
+    ) => {
       const intervalId = originalSetInterval(handler, timeout, ...args)
       createdIntervals.push(intervalId)
       return intervalId
     }) as typeof window.setInterval)
-    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(((intervalId?: number) => {
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(((
+      intervalId?: number,
+    ) => {
       clearedIntervals.push(intervalId)
       return originalClearInterval(intervalId)
     }) as typeof window.clearInterval)
@@ -1598,7 +1884,9 @@ describe('PrepLiveMode', () => {
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
     const { unmount } = render(<PrepLiveMode deck={mockDeck} />)
 
-    const keydownHandler = addEventListenerSpy.mock.calls.find(([eventName]) => eventName === 'keydown')?.[1]
+    const keydownHandler = addEventListenerSpy.mock.calls.find(
+      ([eventName]) => eventName === 'keydown',
+    )?.[1]
     expect(keydownHandler).toBeTruthy()
 
     unmount()

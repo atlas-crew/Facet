@@ -1476,6 +1476,97 @@
   color: var(--text-tertiary);
 }
 
+.prep-live-structured-intel {
+  margin: 0 var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--prep-live-tone-intel) 24%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--prep-live-tone-intel) 6%, var(--bg-surface));
+  overflow: hidden;
+}
+
+.prep-live-structured-intel-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prep-live-structured-intel-count {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.prep-live-structured-intel-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.prep-live-structured-intel-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.prep-live-structured-intel-section h3,
+.prep-live-interviewer-intel h4 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.prep-live-structured-intel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.prep-live-structured-intel-cell {
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+}
+
+.prep-live-structured-intel-cell-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.prep-live-structured-intel-cell p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.prep-live-interviewer-grid,
+.prep-live-interviewer-intel {
+  display: grid;
+  gap: var(--space-2);
+}
+
 .prep-live-phases {
   display: flex;
   flex-direction: column;
@@ -4550,6 +4641,10 @@
 }
 
 @media (max-width: 600px) {
+  .prep-live-structured-intel-grid {
+    grid-template-columns: 1fr;
+  }
+
   .prep-intel-grid {
     grid-template-columns: 1fr;
     gap: var(--space-1) 0;

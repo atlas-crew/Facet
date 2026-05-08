@@ -1,12 +1,15 @@
 import {
+  PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES,
   PREP_CATEGORY_VALUES,
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
+  PREP_INTERVIEWER_LIKELY_ROLE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
 } from '../types/prep'
 import type {
   PrepCard,
   PrepCategory,
+  PrepCompanyIntel,
   PrepConditional,
   PrepContractViolation,
   PrepContextGap,
@@ -18,6 +21,7 @@ import type {
   PrepDeck,
   PrepInterviewer,
   PrepInterviewerIntel,
+  PrepInterviewerLikelyRole,
   PrepMetric,
   PrepNumbersToKnow,
   PrepPipelineEntryContext,
@@ -45,6 +49,7 @@ const PREP_MAX_TOKENS = 8192
 interface PrepGenerationPayload {
   deckTitle: string
   companyResearchSummary?: string
+  companyIntel?: PrepCompanyIntel
   rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
@@ -147,6 +152,58 @@ function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
         ...(company ? { company } : {}),
       }
     : undefined
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const normalized = Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([key, rawValue]) => {
+      const normalizedKey = key.trim()
+      const normalizedValue = isString(rawValue) ? rawValue.trim() : ''
+      return normalizedKey && normalizedValue ? [[normalizedKey, normalizedValue]] : []
+    }),
+  )
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+function normalizeCompanyIntel(value: unknown): PrepCompanyIntel | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const pickString = (key: keyof Omit<PrepCompanyIntel, 'aiPosture' | 'other'>) => {
+    const raw = record[key]
+    return isString(raw) ? raw.trim() || undefined : undefined
+  }
+  const aiPostureRaw =
+    record.aiPosture && typeof record.aiPosture === 'object' && !Array.isArray(record.aiPosture)
+      ? (record.aiPosture as Record<string, unknown>)
+      : undefined
+  const aiPostureNarrative = isString(aiPostureRaw?.narrative) ? aiPostureRaw.narrative.trim() : ''
+  const aiPostureStrength = isString(aiPostureRaw?.strength)
+    ? aiPostureRaw.strength.trim().toLowerCase()
+    : ''
+  const aiPosture =
+    aiPostureRaw && aiPostureNarrative.length >= 4
+      ? {
+          strength: PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES.includes(
+            aiPostureStrength as (typeof PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES)[number],
+          )
+            ? (aiPostureStrength as (typeof PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES)[number])
+            : 'unknown',
+          narrative: aiPostureNarrative,
+          signals: normalizeStringList(aiPostureRaw.signals),
+        }
+      : undefined
+  const companyIntel: PrepCompanyIntel = {
+    whatTheyDo: pickString('whatTheyDo'),
+    scale: pickString('scale'),
+    theRole: pickString('theRole'),
+    stack: pickString('stack'),
+    team: pickString('team'),
+    aiPosture,
+    other: normalizeStringRecord(record.other),
+  }
+
+  return Object.values(companyIntel).some(Boolean) ? companyIntel : undefined
 }
 
 function normalizeStackAlignmentConfidence(
@@ -458,7 +515,7 @@ function normalizeInterviewers(value: unknown): PrepInterviewer[] | undefined {
   const interviewers = value.flatMap((entry): PrepInterviewer[] => {
     if (!entry || typeof entry !== 'object') return []
     const record = entry as Record<string, unknown>
-    if (!isString(record.name) || !record.name.trim()) return []
+    const name = isString(record.name) ? record.name.trim() : ''
 
     const intelRaw =
       record.intel && typeof record.intel === 'object'
@@ -490,19 +547,97 @@ function normalizeInterviewers(value: unknown): PrepInterviewer[] | undefined {
     const lineThatLands = isString(record.lineThatLands)
       ? record.lineThatLands.trim() || undefined
       : undefined
+    const providedLikelyRole = normalizeInterviewerLikelyRole(record.likelyRole)
+    const inferredLikelyRole = inferInterviewerLikelyRole(
+      [title, intel.role].filter(Boolean).join(' '),
+    )
+    const coachingNote = isString(record.coachingNote)
+      ? record.coachingNote.trim() || undefined
+      : undefined
+    const notes = isString(record.notes) ? record.notes.trim() || undefined : undefined
+    const metInRounds = normalizeRoundNumberList(record.metInRounds)
+    const likelyRole =
+      !name && coachingNote ? 'unknown' : (providedLikelyRole ?? inferredLikelyRole)
+
+    if (!name && (!coachingNote || likelyRole !== 'unknown')) return []
 
     return [
       {
         id,
-        name: record.name.trim(),
+        name,
         title,
         linkedInUrl,
         intel,
+        likelyRole,
+        coachingNote,
         lineThatLands,
+        metInRounds,
+        notes,
       },
     ]
   })
   return interviewers.length > 0 ? interviewers : undefined
+}
+
+function normalizeInterviewerLikelyRole(value: unknown): PrepInterviewerLikelyRole | undefined {
+  if (!isString(value)) return undefined
+  const normalized = value.trim().toLowerCase()
+  if ((PREP_INTERVIEWER_LIKELY_ROLE_VALUES as readonly string[]).includes(normalized)) {
+    return normalized as PrepInterviewerLikelyRole
+  }
+  const aliases: Record<string, PrepInterviewerLikelyRole> = {
+    hm: 'hiring-manager',
+    'hiring manager': 'hiring-manager',
+    manager: 'hiring-manager',
+    director: 'above-hm',
+    executive: 'above-hm',
+    peer: 'peer',
+    teammate: 'peer',
+    'skip level': 'skip-level',
+    'skip-level': 'skip-level',
+    partner: 'cross-functional',
+    crossfunctional: 'cross-functional',
+    'cross functional': 'cross-functional',
+    recruiter: 'recruiter',
+    talent: 'recruiter',
+    unknown: 'unknown',
+  }
+  return aliases[normalized]
+}
+
+function inferInterviewerLikelyRole(text: string): PrepInterviewerLikelyRole | undefined {
+  const normalized = text.toLowerCase()
+  if (!normalized) return undefined
+  if (/recruit|talent|people partner/.test(normalized)) return 'recruiter'
+  if (/\bceo\b|founder|vp|svp|chief|executive/.test(normalized)) return 'above-hm'
+  if (/director|head of|skip[-\s]?level/.test(normalized)) return 'skip-level'
+  if (
+    /manager.*(engineering|eng|software|platform)|(engineering|eng|software|platform).*manager|engineering lead|tech lead|staff engineer|principal engineer/.test(
+      normalized,
+    )
+  ) {
+    return 'hiring-manager'
+  }
+  if (/\b(product|design|security|sales|customer|ops)\b|cross[-\s]?functional/.test(normalized))
+    return 'cross-functional'
+  if (/\b(senior engineer|engineer)\b/.test(normalized)) return 'peer'
+  return 'unknown'
+}
+
+function normalizeRoundNumberList(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const rounds = Array.from(
+    new Set(
+      value.flatMap((entry) => {
+        const numericValue =
+          typeof entry === 'number' ? entry : isString(entry) ? Number(entry.trim()) : Number.NaN
+        if (!Number.isFinite(numericValue)) return []
+        const normalized = Math.trunc(numericValue)
+        return normalized > 0 ? [normalized] : []
+      }),
+    ),
+  )
+  return rounds.length > 0 ? rounds.sort((left, right) => left - right) : undefined
 }
 
 const OPENING_TIME_GUIDANCE_PATTERN =
@@ -1336,9 +1471,11 @@ You are not just generating scripts — you are coaching the candidate on WHY ea
 
 4. Named People Intel: Emit "interviewers" entries ONLY when structured pipeline entry context includes a non-empty "round.interviewers" list. Those names are user-sourced (entered from the recruiter's calendar invite) and are the exclusive authoritative source of interviewer identity. NEVER invent or guess interviewer names from company research, role patterns, LinkedIn surface, or org-chart inference — if "round.interviewers" is absent or empty, OMIT the "interviewers" field and any intel cards that would reference interviewer ids.
    When "round.interviewers" is provided, for each listed person emit BOTH of the following:
-   (a) A structured "interviewers" entry at the deck level reusing the supplied id, name, title, and linkedInUrl. Populate the intel grid (role, background, stack, caresAbout, yourAngle, keyTell, linkedInPositioning, education) only from what the supplied "intel" seed or supporting research actually supports — leave a field undefined rather than invent one. Always provide a "lineThatLands" one-liner tuned to the specific concern this person will evaluate, grounded in intel.caresAbout. Shape: take one concrete thing the interviewer cares about (from intel.caresAbout) and mirror it back through a specific thing the candidate has actually done about it — reference the concern explicitly, cite the candidate's evidence, keep it to one sentence. No generic platitudes, no filler empathy language, no phrases that could be swapped between two unrelated roles and still read fine.
+   (a) A structured "interviewers" entry at the deck level reusing the supplied id, name, title, and linkedInUrl. Populate likelyRole, coachingNote, notes, and the intel grid (role, background, stack, caresAbout, yourAngle, keyTell, linkedInPositioning, education) only from what the supplied "intel" seed or supporting research actually supports — leave a field undefined rather than invent one. Always provide a "lineThatLands" one-liner tuned to the specific concern this person will evaluate, grounded in intel.caresAbout. Shape: take one concrete thing the interviewer cares about (from intel.caresAbout) and mirror it back through a specific thing the candidate has actually done about it — reference the concern explicitly, cite the candidate's evidence, keep it to one sentence. No generic platitudes, no filler empathy language, no phrases that could be swapped between two unrelated roles and still read fine.
    (b) A dedicated card with category "situational", tag "intel", and an "interviewerIds" array containing that interviewer's id, linking the card to the structured record. Keep the card compact: the "interviewers" entry supplies the grid; the card is the deck-level anchor and can carry a "warning" (what not to do with this person) plus delivery coaching in "notes".
-   For each person also infer their likely role in the interview ("SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off") from supplied research only.
+   For each person also infer their likely role in the interview ("SVP Product Development — likely 2 levels above the role, probably not the interviewer but may have sign-off") from supplied research only. If the supplied round has interviewers but it is unclear who will lead the conversation, add one meta-entry with "name": "", "likelyRole": "unknown", and a coachingNote beginning "If unsure who you're talking to".
+
+4a. Structured Company Intel: Populate "companyIntel" as a concise grid derived from structured pipeline entry context, companyResearch notes, Canonical JD Analysis, and the raw job description only. Use undefined for unknown cells instead of filler. The six primary cells are whatTheyDo, scale, theRole, stack, team, and aiPosture. The aiPosture strength must be one of strong, moderate, weak, unknown and its narrative must explain the signal quality.
 
 5. Competitive Positioning: When the candidate's skills include combinations that are market-rare or unusually valuable for this specific role, generate a notes or deepDives entry explaining WHY it's rare. Example: "GitLab admin experience is genuinely uncommon — most candidates have GitHub Actions or Jenkins. The fact that you administered the instance, not just consumed it, is a differentiator. Lean into it." Or: "The Python + C# combination is rare at production depth. Most engineers live in one ecosystem. This matters at companies with mixed stacks." Look for 2-3 such combinations per deck and call them out explicitly.
 When the deck has depth gaps, make sure at least 2 cards are landmine or gap-framing cards to keep the candidate honest about risk.
@@ -1347,6 +1484,19 @@ Response schema:
 {
   "deckTitle": "string",
   "companyResearchSummary": "optional string",
+  "companyIntel": {
+    "whatTheyDo": "optional string",
+    "scale": "optional string",
+    "theRole": "optional string",
+    "stack": "optional string",
+    "team": "optional string",
+    "aiPosture": {
+      "strength": "strong|moderate|weak|unknown",
+      "narrative": "string",
+      "signals": ["optional string"]
+    },
+    "other": { "optional label": "optional string" }
+  },
   "rules": ["string"],
   "donts": ["string"],
   "questionsToAsk": [{ "question": "string", "context": "string" }],
@@ -1367,6 +1517,8 @@ Response schema:
       "name": "string",
       "title": "optional string",
       "linkedInUrl": "optional string",
+      "likelyRole": "optional hiring-manager|above-hm|peer|skip-level|cross-functional|recruiter|unknown",
+      "coachingNote": "optional string",
       "intel": {
         "role": "optional string",
         "background": "optional string",
@@ -1377,7 +1529,9 @@ Response schema:
         "linkedInPositioning": "optional string",
         "education": "optional string"
       },
-      "lineThatLands": "optional string — tuned one-liner grounded in intel.caresAbout"
+      "lineThatLands": "optional string — tuned one-liner grounded in intel.caresAbout",
+      "metInRounds": "optional number[]",
+      "notes": "optional string"
     }
   ],
   "contextGaps": [
@@ -1568,6 +1722,7 @@ Return JSON only (inside the tags).`
   }
 
   const stackAlignment = normalizeStackAlignment(parsed.stackAlignment)
+  const companyIntel = normalizeCompanyIntel(parsed.companyIntel)
   const generatedCards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
   const contextGaps = normalizeContextGaps(parsed.contextGaps)
   const categoryGuidance = normalizeCategoryGuidance(parsed.categoryGuidance)
@@ -1619,6 +1774,7 @@ Return JSON only (inside the tags).`
     roundType: request.roundType,
     notes: request.notes,
     companyResearch: request.companyResearch,
+    companyIntel,
     interviewers: roundHasInterviewers ? normalizeInterviewers(parsed.interviewers) : undefined,
     jobDescription: request.jobDescription,
     jdAnalysisId: request.jdAnalysis.id,
