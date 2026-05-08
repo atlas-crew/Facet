@@ -1,9 +1,11 @@
 ---
 id: TASK-173
 title: Document and apply stack alignment ↔ semantic skill depth mapping
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 23:20'
 labels:
   - prep
   - identity-model
@@ -75,6 +77,18 @@ Prep generation against identity happens per-deck. A lossy mapping means "my ide
 - [ ] #6 Mapping documented in doc-25 as an appendix or subsection
 - [ ] #7 Generation tests: regeneration produces the same confidence levels (no drift across runs)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-173. Plan: document the explicit identity skill depth → PrepStackAlignmentConfidence mapping, add a reusable mapping utility, wire the prep prompt/context to use it as source-of-truth, and cover the mapping + prompt contract with focused tests.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed as fully subsumed during 2026-05-08 backlog staleness audit. Per task-208 Workstream 1 audit (2026-05-04): canonical JDAnalysis.skillMatches already produces `userDepth`, `requirementStrength`, `matchQuality`, and `presentationGuidance` directly. After task-208 shipped (2026-05-05), prepGenerator.ts reads those fields from the canonical projection rather than translating from raw identity skills, so the proposed mapping function has no source-to-target translation step left to perform. If a render-time `SkillMatch → PrepStackAlignmentConfidence` labeller is wanted later (display-only, not generation), file as a small new task.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
