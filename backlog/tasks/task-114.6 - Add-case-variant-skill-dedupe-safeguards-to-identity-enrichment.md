@@ -1,7 +1,7 @@
 ---
 id: TASK-114.6
 title: Add case-variant skill dedupe safeguards to identity enrichment
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-12 23:48'
@@ -53,6 +53,7 @@ Protect identity enrichment from case-variant duplicate skill names inside a sin
 - Verification passed: npm run format:files -- src/test/identityEnrichmentDedupe.test.ts; npm run test -- src/test/identityEnrichmentDedupe.test.ts; npm run typecheck; npx eslint src/identity/skillDedupe.ts src/utils/identityEnrichment.ts src/identity/schema.ts src/test/identityEnrichmentDedupe.test.ts; npm run build.
 - Repo-wide npm run test is blocked by unrelated existing failures outside this lane: IdentityMapEditing, PrepPage behavior, facetServer persistence endpoints, jdAnalysis deleteEntry expectations, searchRedesignRoundTrip router setup, and workspaceBackup thesis reflection expectations.
 - Repo-wide npm run lint is blocked by unrelated existing/generated lint failures, including .vercel/output/dist artifacts and pre-existing source/test lint debt.
+- Closed 2026-05-08 because scoped implementation and focused gates passed in commit 498ac69; remaining repo-wide test/lint failures are unrelated/non-gating for this lane.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
