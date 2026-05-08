@@ -413,6 +413,31 @@ describe('IdentityPage', () => {
     })
   })
 
+  it('rejects non-PDF uploads before invoking the scanner', async () => {
+    resumeScannerMocks.scanResumePdfMock.mockClear()
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container, 'resume.txt')
+
+    expect(resumeScannerMocks.scanResumePdfMock).toHaveBeenCalledTimes(0)
+    expect(screen.getByText('Resume Scanner v1 only supports PDF uploads.')).toBeTruthy()
+    expect(useIdentityStore.getState().scanResult).toBeNull()
+  })
+
+  it('surfaces non-abort scan failures without persisting scan state', async () => {
+    resumeScannerMocks.scanResumePdfMock.mockRejectedValueOnce(
+      new Error('PDF text extraction failed.'),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByText('PDF text extraction failed.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(screen.queryByText('Scanning PDF…')).toBeNull()
+  })
+
   it('falls back to paste-text mode when scan text exists but role parsing fails', async () => {
     const fallback = scanFixture()
     fallback.identity.roles = []
@@ -515,6 +540,30 @@ describe('IdentityPage', () => {
     expect(useIdentityStore.getState().draft).toBeNull()
   })
 
+  it('surfaces draft-generation failures without storing a draft', async () => {
+    identityExtractionMocks.generateIdentityDraftMock.mockRejectedValueOnce(
+      new Error('Draft model timed out.'),
+    )
+    useIdentityStore.setState({
+      intakeMode: 'paste',
+      sourceMaterial: 'Alex Example\nExperience\nBuilt platform migration tools.',
+    })
+
+    render(<IdentityPage />)
+
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', {
+        name: 'Generate Draft',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Draft model timed out.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().draft).toBeNull()
+    expect(screen.queryByText('Generated a new Professional Identity draft.')).toBeNull()
+  })
+
   it('exports the current draft document and revokes the object URL after download', async () => {
     const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } = setupExportMocks(
       'blob:draft-export',
@@ -578,6 +627,19 @@ describe('IdentityPage', () => {
       draftIdentity.identity.name,
     )
     expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+  })
+
+  it('guards exports until a draft or identity model exists', () => {
+    const createObjectUrlMock = vi.spyOn(URL, 'createObjectURL')
+
+    render(<IdentityPage />)
+
+    fireEvent.click(screen.getByText('Export Draft'))
+    expect(screen.getByText('Generate or import a draft before exporting it.')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Export Identity'))
+    expect(screen.getByText('Apply or import an identity model before exporting it.')).toBeTruthy()
+    expect(createObjectUrlMock).not.toHaveBeenCalled()
   })
 
   it('deepens a scanned bullet inline and marks manual edits as corrected', async () => {
@@ -706,6 +768,30 @@ describe('IdentityPage', () => {
         .length,
     ).toBeGreaterThan(0)
     expect(screen.getByText(/Edit the fields below to correct any guessed details/i)).toBeTruthy()
+  })
+
+  it('surfaces single-bullet deepen failures and marks the bullet failed', async () => {
+    identityExtractionMocks.deepenIdentityBulletMock.mockRejectedValueOnce(
+      new Error('Bullet decomposition failed.'),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Bullet decomposition failed.').length).toBeGreaterThan(0)
+    })
+    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(1)
+    expect(
+      useIdentityStore.getState().scanResult?.progress.bullets['contoso::platform-migration']
+        ?.status,
+    ).toBe('failed')
   })
 
   it('shows correction guidance for scanned bullets that already start in guessing mode', async () => {
@@ -911,6 +997,46 @@ describe('IdentityPage', () => {
     expect(screen.getByText('Deepened 1 scanned bullet(s).')).toBeTruthy()
   })
 
+  it('reports partial failures when bulk deepening continues past a failed bullet', async () => {
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(scanFixtureWithTwoBullets())
+    identityExtractionMocks.deepenIdentityBulletMock
+      .mockResolvedValueOnce({
+        summary: 'Deepened the migration bullet.',
+        roleId: 'contoso',
+        bulletId: 'platform-migration',
+        bullet: {
+          id: 'platform-migration',
+          problem: 'Cloud-only delivery blocked on-prem installs.',
+          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+          outcome: 'Made the product deployable in customer environments.',
+          impact: ['Unlocked customer-hosted deployments'],
+          metrics: { installs: 12 },
+          technologies: ['Kubernetes'],
+          source_text: 'ignored',
+          tags: ['platform', 'kubernetes'],
+        },
+        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
+        assumptions: [],
+        warnings: [],
+      })
+      .mockRejectedValueOnce(new Error('Second bullet decomposition failed.'))
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen All'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 1 scanned bullet(s); 1 failed.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().scanResult?.counts.deepenedBullets).toBe(1)
+    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(1)
+  })
+
   it('preserves focused impact edits across progress updates and keeps comma-bearing statements intact', async () => {
     const { container } = render(<IdentityPage />)
     uploadPdf(container)
@@ -1111,6 +1237,19 @@ describe('IdentityPage', () => {
     expect(
       screen.getByText(/Open the skill depth wizard to review depth, context, and search signals/i),
     ).toBeTruthy()
+
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', {
+        name: 'Continue Skill Enrichment',
+      }),
+    )
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: expect.objectContaining({
+        skillName: 'TypeScript',
+      }),
+    })
   })
 
   it('keeps the skill depth wizard entry visible when a draft exists alongside the current identity', () => {
