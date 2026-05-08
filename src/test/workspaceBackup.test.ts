@@ -15,7 +15,13 @@ import { useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useSearchStore } from '../store/searchStore'
-import type { SearchFeedbackEvent, SearchProfile, SearchThesis } from '../types/search'
+import type {
+  FeedbackApplicationState,
+  SearchFeedbackEvent,
+  SearchFeedbackEventBase,
+  SearchProfile,
+  SearchThesis,
+} from '../types/search'
 import { hashCoverLetterContent } from '../utils/coverLetterEntities'
 import { slugify } from '../utils/idUtils'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
@@ -795,15 +801,29 @@ describe('workspace backup merge helpers', () => {
   })
 
   describe('mergeWorkspaceSnapshots — feedback event progress merge', () => {
-    const baseEvent = (overrides: Partial<SearchFeedbackEvent>): SearchFeedbackEvent => ({
-      id: 'sfe-1',
-      runId: 'srun-1',
-      resultId: 'sres-1',
-      rating: 'down',
-      appliedToIdentity: false,
-      createdAt: '2026-03-11T12:00:00.000Z',
-      ...overrides,
-    })
+    const baseEvent = (
+      overrides: Partial<SearchFeedbackEventBase> & Partial<FeedbackApplicationState>,
+    ): SearchFeedbackEvent => {
+      const {
+        appliedToIdentity: overrideAppliedToIdentity,
+        appliedAtVersion: overrideAppliedAtVersion,
+        ...baseOverrides
+      } = overrides
+      const applicationState: FeedbackApplicationState =
+        overrideAppliedToIdentity === true
+          ? { appliedToIdentity: true, appliedAtVersion: overrideAppliedAtVersion ?? 1 }
+          : { appliedToIdentity: false }
+
+      return {
+        id: 'sfe-1',
+        runId: 'srun-1',
+        resultId: 'sres-1',
+        rating: 'down',
+        createdAt: '2026-03-11T12:00:00.000Z',
+        ...baseOverrides,
+        ...applicationState,
+      }
+    }
 
     const seedSearchStore = (events: SearchFeedbackEvent[]) => {
       const runIds = Array.from(new Set(events.map((event) => event.runId)))
@@ -1028,6 +1048,7 @@ describe('workspace backup merge helpers', () => {
       resultId: id + '-result',
       rating: 'up',
       appliedToIdentity: true,
+      appliedAtVersion: 2,
       createdAt: '2026-03-11T12:00:00.000Z',
     })
 

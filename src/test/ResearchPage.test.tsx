@@ -1765,6 +1765,7 @@ describe('ResearchPage', () => {
           resultId: 'sres-1',
           rating: 'down',
           appliedToIdentity: true,
+          appliedAtVersion: 2,
         },
       ],
     }))

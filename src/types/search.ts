@@ -648,7 +648,11 @@ export interface SearchFeedbackDimensions {
  *   2. Thesis regeneration (TASK-151.1) — `reflectedInThesisId` records which thesis
  *      first incorporated the event, enabling `getUnreflectedFeedback()` queries.
  */
-export interface SearchFeedbackEvent {
+export type FeedbackApplicationState =
+  | { readonly appliedToIdentity: false; readonly appliedAtVersion?: never }
+  | { readonly appliedToIdentity: true; readonly appliedAtVersion: number }
+
+export interface SearchFeedbackEventBase {
   id: string
   /** SearchRun this event was raised against. */
   runId: string
@@ -659,16 +663,14 @@ export interface SearchFeedbackEvent {
   reason?: string
   /** Structured signal derived from the reason (skill correction, preference add, etc.). */
   dimensions?: SearchFeedbackDimensions
-  /** Whether the identity model has absorbed this event. Flipped by TASK-151.3 writeback. */
-  appliedToIdentity: boolean
-  /** `identity.model_revision` when absorption happened (TASK-159). */
-  appliedAtVersion?: number
   /** Id of the first thesis that was regenerated with this event incorporated. */
   reflectedInThesisId?: string
   createdAt: string
   /** Most recent mutation time for merge conflict resolution. Optional for legacy snapshots. */
   updatedAt?: string
 }
+
+export type SearchFeedbackEvent = SearchFeedbackEventBase & FeedbackApplicationState
 
 // ── Research Job (TASK-161 storage + runner; type definition lives here) ─────
 

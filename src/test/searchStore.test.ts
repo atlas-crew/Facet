@@ -1,8 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { migrateSearchState, useSearchStore } from '../store/searchStore'
-import type { SearchRequest, SearchThesis, SearchThesisSignal } from '../types/search'
+import type { SearchFeedbackEventInput } from '../store/searchStore'
+import type {
+  SearchFeedbackEvent,
+  SearchRequest,
+  SearchThesis,
+  SearchThesisSignal,
+} from '../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../types/search'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+
+// @ts-expect-error applied feedback must record the identity version that absorbed it.
+const illegalAppliedFeedbackEvent: SearchFeedbackEvent = {
+  id: 'sfe-illegal',
+  runId: 'srun-illegal',
+  resultId: 'sres-illegal',
+  rating: 'up',
+  appliedToIdentity: true,
+  createdAt: '2026-03-11T00:00:00.000Z',
+}
+void illegalAppliedFeedbackEvent
 
 type TestThesisSignalInput = string | Partial<SearchThesisSignal>
 type SearchThesisTestOverrides = Partial<Omit<SearchThesis, 'lookFor' | 'avoid'>> & {
@@ -1332,7 +1349,7 @@ describe('searchStore', () => {
       rating: 'down' as const,
       reason: 'Role requires Go at production depth',
       appliedToIdentity: false,
-    }
+    } satisfies SearchFeedbackEventInput
 
     it('adds a feedback event with a generated id and timestamp', () => {
       const event = useSearchStore.getState().addFeedbackEvent(baseEventInput)
@@ -1661,6 +1678,81 @@ describe('searchStore', () => {
         feedbackEvents: [existing],
       })
       expect(migrated.feedbackEvents).toEqual([existing])
+    })
+
+    it('migrates legacy feedback application state into the discriminated union', () => {
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [
+          {
+            id: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            focusLanes: [],
+            companySizeOverride: '',
+            salaryAnchorOverride: '',
+            geoExpand: false,
+            customKeywords: '',
+            excludeCompanies: [],
+            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+          },
+        ],
+        runs: [
+          {
+            id: 'srun-legacy',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+        ],
+        feedbackEvents: [
+          {
+            id: 'sfe-pending-with-version',
+            runId: 'srun-legacy',
+            resultId: 'sres-legacy',
+            rating: 'up',
+            appliedToIdentity: false,
+            appliedAtVersion: 5,
+            createdAt: '2026-03-11T00:00:00.000Z',
+          },
+          {
+            id: 'sfe-applied-without-version',
+            runId: 'srun-legacy',
+            resultId: 'sres-legacy',
+            rating: 'down',
+            appliedToIdentity: true,
+            createdAt: '2026-03-11T00:00:00.000Z',
+          },
+          {
+            id: 'sfe-applied-with-version',
+            runId: 'srun-legacy',
+            resultId: 'sres-legacy',
+            rating: 'down',
+            appliedToIdentity: true,
+            appliedAtVersion: 7,
+            createdAt: '2026-03-11T00:00:00.000Z',
+          },
+        ],
+      })
+
+      expect(migrated.feedbackEvents).toEqual([
+        expect.objectContaining({
+          id: 'sfe-pending-with-version',
+          appliedToIdentity: false,
+        }),
+        expect.objectContaining({
+          id: 'sfe-applied-without-version',
+          appliedToIdentity: false,
+        }),
+        expect.objectContaining({
+          id: 'sfe-applied-with-version',
+          appliedToIdentity: true,
+          appliedAtVersion: 7,
+        }),
+      ])
+      expect(migrated.feedbackEvents[0]).not.toHaveProperty('appliedAtVersion')
+      expect(migrated.feedbackEvents[1]).not.toHaveProperty('appliedAtVersion')
     })
 
     it('prunes orphaned feedback and thesis feedback references during migration', () => {

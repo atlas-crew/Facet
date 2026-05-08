@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type {
+  FeedbackApplicationState,
   SearchFeedbackEvent,
+  SearchFeedbackEventBase,
   SearchInstanceOverrides,
   SearchInterviewPrefs,
   SearchProfile,
@@ -78,7 +80,16 @@ type SearchThesisInput = Omit<
   }
 
 /** Caller supplies every feedback-event field except store-generated identity/timestamps. */
-export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt' | 'updatedAt'>
+export type SearchFeedbackEventInput = Omit<
+  SearchFeedbackEventBase,
+  'id' | 'createdAt' | 'updatedAt'
+> &
+  FeedbackApplicationState
+
+type LegacySearchFeedbackEventInput = Partial<SearchFeedbackEventBase> & {
+  appliedToIdentity?: unknown
+  appliedAtVersion?: unknown
+}
 
 type SearchOrphanPrunableState = {
   requests: SearchRequest[]
@@ -339,6 +350,27 @@ const hydrateRun = (run: SearchRunInput): SearchRun => ({
   durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
 })
 
+const hydrateFeedbackApplicationState = (
+  event: LegacySearchFeedbackEventInput,
+): FeedbackApplicationState => {
+  const appliedAtVersion = sanitizeIdentityVersion(event.appliedAtVersion)
+  return event.appliedToIdentity === true && appliedAtVersion !== undefined
+    ? { appliedToIdentity: true, appliedAtVersion }
+    : { appliedToIdentity: false }
+}
+
+const hydrateFeedbackEvent = (event: LegacySearchFeedbackEventInput): SearchFeedbackEvent => {
+  const {
+    appliedToIdentity: _legacyAppliedToIdentity,
+    appliedAtVersion: _legacyAppliedAtVersion,
+    ...baseEvent
+  } = event
+  return {
+    ...(baseEvent as SearchFeedbackEventBase),
+    ...hydrateFeedbackApplicationState(event),
+  }
+}
+
 const normalizeSignalKey = (label: string) => label.trim().toLowerCase()
 
 const trimSignalLabel = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
@@ -510,7 +542,7 @@ export const migrateSearchState = (persistedState: unknown) => {
           runs?: SearchRun[]
           theses?: SearchThesis[]
           activeThesisId?: string | null
-          feedbackEvents?: SearchFeedbackEvent[]
+          feedbackEvents?: LegacySearchFeedbackEventInput[]
           activeResearchJob?: ActiveResearchJobState | null
         })
       : undefined
@@ -543,7 +575,9 @@ export const migrateSearchState = (persistedState: unknown) => {
       state.theses.some((thesis) => thesis.id === state.activeThesisId)
         ? state.activeThesisId
         : null,
-    feedbackEvents: Array.isArray(state?.feedbackEvents) ? state.feedbackEvents : [],
+    feedbackEvents: Array.isArray(state?.feedbackEvents)
+      ? state.feedbackEvents.map((event) => hydrateFeedbackEvent(event))
+      : [],
     activeResearchJob,
   })
 }
@@ -848,8 +882,16 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
   addFeedbackEvent: (input) => {
     const timestamp = now()
+    const {
+      appliedToIdentity,
+      appliedAtVersion,
+      ...baseInput
+    } = input
     const event: SearchFeedbackEvent = {
-      ...input,
+      ...baseInput,
+      ...(appliedToIdentity
+        ? { appliedToIdentity: true, appliedAtVersion }
+        : { appliedToIdentity: false }),
       id: createId('sfe'),
       createdAt: timestamp,
       updatedAt: timestamp,

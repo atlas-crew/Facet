@@ -3,9 +3,10 @@ id: TASK-187
 title: >-
   Encode SearchFeedbackEvent application state and SearchRun narrative lifecycle
   as discriminated unions
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-04-20 07:07'
+updated_date: '2026-05-08 08:44'
 labels:
   - search-redesign
   - types
@@ -20,6 +21,13 @@ references:
   - src/store/searchStore.ts
   - src/utils/searchExecutor.ts
   - src/persistence/workspaceImportMerge.ts
+modified_files:
+  - src/types/search.ts
+  - src/store/searchStore.ts
+  - src/persistence/workspaceImportMerge.ts
+  - src/test/searchStore.test.ts
+  - src/test/workspaceBackup.test.ts
+  - src/test/ResearchPage.test.tsx
 priority: medium
 ---
 
@@ -94,18 +102,24 @@ Coordinate with TASK-186 — if both land, prefer shipping 186 first (smaller sc
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 SearchFeedbackEvent uses discriminated union for application state (appliedToIdentity: false | true + required appliedAtVersion)
-- [ ] #2 Illegal states unrepresentable in type — TypeScript rejects { appliedToIdentity: true } without appliedAtVersion
+- [x] #1 SearchFeedbackEvent uses discriminated union for application state (appliedToIdentity: false | true + required appliedAtVersion)
+- [x] #2 Illegal states unrepresentable in type — TypeScript rejects { appliedToIdentity: true } without appliedAtVersion
 - [ ] #3 SearchRun narrative encoded as tagged lifecycle (pending | generating | failed | ready)
 - [ ] #4 contractViolations migrates into the failed variant as a required field
 - [ ] #5 migrateSearchState handles all four legacy shapes (applied-no-version, applied-with-version, narrative-present, violations-present)
 - [ ] #6 Store mutations (addFeedbackEvent, markFeedbackApplied, addRun, updateRun) produce only valid variants
-- [ ] #7 workspaceImportMerge mergeFeedbackEventState dispatches on the tag rather than checking optional fields
+- [x] #7 workspaceImportMerge mergeFeedbackEventState dispatches on the tag rather than checking optional fields
 - [ ] #8 searchExecutor normalizeRunNarrative returns the discriminated union instead of separate narrative/violations
 - [ ] #9 All !== undefined guards on appliedAtVersion and narrative fields removed (type checker does the work)
 - [ ] #10 Regression tests cover migration of each legacy shape
 - [ ] #11 Existing 1324 tests still pass after the refactor
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-187 sub-slice committed scope: SearchFeedbackEvent application state now uses FeedbackApplicationState discriminated union; migrateSearchState drops false+version and coerces true-without-version to pending; workspace import merge now dispatches on appliedToIdentity tag and preserves monotonic applied versions. SearchRun narrative lifecycle remains open.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

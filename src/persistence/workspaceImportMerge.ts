@@ -12,6 +12,7 @@ import type { PipelineEntry } from '../types/pipeline'
 import type { PrepCard, PrepDeck } from '../types/prep'
 import type { RecruiterCard } from '../types/recruiter'
 import type {
+  FeedbackApplicationState,
   SearchFeedbackEvent,
   SearchProfile,
   SearchRequest,
@@ -313,6 +314,30 @@ const latestFeedbackUpdatedAt = (
   return local.updatedAt ?? imported.updatedAt
 }
 
+const feedbackApplicationState = (event: SearchFeedbackEvent): FeedbackApplicationState =>
+  event.appliedToIdentity
+    ? { appliedToIdentity: true, appliedAtVersion: event.appliedAtVersion }
+    : { appliedToIdentity: false }
+
+const mergeFeedbackApplicationState = (
+  local: SearchFeedbackEvent,
+  imported: SearchFeedbackEvent,
+): FeedbackApplicationState => {
+  if (local.appliedToIdentity && imported.appliedToIdentity) {
+    return {
+      appliedToIdentity: true,
+      appliedAtVersion: Math.max(local.appliedAtVersion, imported.appliedAtVersion),
+    }
+  }
+  if (local.appliedToIdentity) {
+    return { appliedToIdentity: true, appliedAtVersion: local.appliedAtVersion }
+  }
+  if (imported.appliedToIdentity) {
+    return { appliedToIdentity: true, appliedAtVersion: imported.appliedAtVersion }
+  }
+  return { appliedToIdentity: false }
+}
+
 const mergeFeedbackEventState = (
   local: SearchFeedbackEvent,
   imported: SearchFeedbackEvent,
@@ -328,8 +353,7 @@ const mergeFeedbackEventState = (
   if (newer) {
     return {
       ...immutableLocal,
-      appliedToIdentity: newer.appliedToIdentity,
-      ...(newer.appliedAtVersion !== undefined ? { appliedAtVersion: newer.appliedAtVersion } : {}),
+      ...feedbackApplicationState(newer),
       ...(newer.reflectedInThesisId !== undefined
         ? { reflectedInThesisId: newer.reflectedInThesisId }
         : {}),
@@ -337,11 +361,7 @@ const mergeFeedbackEventState = (
     }
   }
 
-  const appliedToIdentity = local.appliedToIdentity || imported.appliedToIdentity
-  const appliedAtVersion =
-    local.appliedAtVersion !== undefined && imported.appliedAtVersion !== undefined
-      ? Math.max(local.appliedAtVersion, imported.appliedAtVersion)
-      : (local.appliedAtVersion ?? imported.appliedAtVersion)
+  const applicationState = mergeFeedbackApplicationState(local, imported)
   // Non-regressing: local wins when both defined. Falls back to imported only
   // when local has no reflected thesis recorded yet.
   const reflectedInThesisId = local.reflectedInThesisId ?? imported.reflectedInThesisId
@@ -349,8 +369,7 @@ const mergeFeedbackEventState = (
 
   return {
     ...immutableLocal,
-    appliedToIdentity,
-    ...(appliedAtVersion !== undefined ? { appliedAtVersion } : {}),
+    ...applicationState,
     ...(reflectedInThesisId !== undefined ? { reflectedInThesisId } : {}),
     ...(updatedAt !== undefined ? { updatedAt } : {}),
   }
