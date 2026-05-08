@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 09:05'
+updated_date: '2026-05-08 09:06'
 labels:
   - shepherding
   - concurrency
@@ -88,7 +88,7 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 - [x] #4 ResearchJob.identityVersion is compared to current client-side identity version on rehydration; staleness badge shown if drift
 - [x] #5 Cross-tab identity mutation triggers a non-blocking toast on other tabs
 - [x] #6 Toast links to TASK-158 batch staleness review
-- [ ] #7 Tests: simulate 2-tab sequence (write in A → observe in B, generation in A while mutation in B, etc.)
+- [x] #7 Tests: simulate 2-tab sequence (write in A → observe in B, generation in A while mutation in B, etc.)
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -107,14 +107,16 @@ AC #3 advance: thesis, prep, cover-letter, and deep-research launch paths now sn
 AC #5/#6 advance: AppShell now listens for cross-tab identity localStorage writes, shows a non-blocking toast in other tabs when model_revision advances, counts currently stale generated artifacts, and links the toast to /research?review=stale. ResearchPage now treats that route flag as a request to open the existing TASK-158 batch staleness review against stale artifacts for the current Identity revision. Verification: npx vitest run src/test/AppShell.test.tsx --testNamePattern "cross-tab Identity toast" passed; npx vitest run src/test/ResearchPage.test.tsx --testNamePattern "routed stale-review request" passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large-chunk warnings.
 
 AC #4 advance: completed/re-hydrated deep research jobs now keep the last observed job visible for the selected SearchRun after terminal completion, compare ResearchJob.identityVersion to the current Identity model revision, and show an earlier-Identity warning with a preserved-thesis rerun action when drift is detected. Verification: npx vitest run src/test/ResearchPage.test.tsx -t "passes excluded companies into launched searches" --testTimeout=15000 passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large chunk warnings.
+
+AC #7 coverage reconciliation: existing focused regressions now cover the two-tab scenarios called out by the task. Verification bundle passed: persistenceRuntime/storageEventSync passed 29/29 for write-in-A observe-in-B store sync; identityStore passed 46/46 for stale identity mutation blocking; generation-start drift tests across prep/letter/research passed 4 focused cases; AppShell cross-tab Identity toast passed; routed ResearchPage stale-review request passed. Scoped ESLint, typecheck, and build already passed in the AC #4/#5/#6 slices. Full all-tests and formatter DoD remain unclaimed.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
