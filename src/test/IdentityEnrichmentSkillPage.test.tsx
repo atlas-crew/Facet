@@ -100,7 +100,8 @@ describe('IdentityEnrichmentSkillPage', () => {
   })
 
   it('loads the routed skill and shows the group context', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     expect(screen.getByRole('heading', { name: 'Kubernetes' })).toBeTruthy()
@@ -126,7 +127,8 @@ describe('IdentityEnrichmentSkillPage', () => {
     identity.skills.groups[0]!.items[0]!.context_stale = true
     useIdentityStore.setState({ currentIdentity: identity })
 
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     expect(screen.getByText('Needs refresh')).toBeTruthy()
@@ -136,7 +138,8 @@ describe('IdentityEnrichmentSkillPage', () => {
   })
 
   it('disables previous navigation on the first skill and navigates forward', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     expect(screen.getByRole('button', { name: 'Previous skill' }).hasAttribute('disabled')).toBe(
@@ -156,7 +159,8 @@ describe('IdentityEnrichmentSkillPage', () => {
 
   it('shows the no-bullet-evidence helper and navigates backward from the second skill', async () => {
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     expect(screen.getByText(/No bullet evidence for this skill/i)).toBeTruthy()
@@ -173,9 +177,33 @@ describe('IdentityEnrichmentSkillPage', () => {
     expect(screen.getByRole('button', { name: 'Next skill' }).hasAttribute('disabled')).toBe(true)
   })
 
+  it('requires depth before saving a skill', async () => {
+    routeParams.skillName = 'Terraform'
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save and continue' })[0]!)
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Select a depth before saving this skill.',
+    )
+    expect(screen.getByRole('combobox', { name: 'Depth' }).getAttribute('aria-invalid')).toBe(
+      'true',
+    )
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
+    expect(skill).toMatchObject({
+      name: 'Terraform',
+    })
+    expect(skill?.depth).toBeUndefined()
+    expect(skill?.enriched_at).toBeUndefined()
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
   it('allows saving depth without optional context or positioning', async () => {
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
@@ -196,7 +224,8 @@ describe('IdentityEnrichmentSkillPage', () => {
 
   it('lets users pick a positioning preset without opening custom entry', async () => {
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
@@ -220,7 +249,8 @@ describe('IdentityEnrichmentSkillPage', () => {
 
   it('lets users choose a custom positioning value from the preset control', async () => {
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
@@ -242,7 +272,8 @@ describe('IdentityEnrichmentSkillPage', () => {
   })
 
   it('preserves custom positioning values and allows editing them in custom mode', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     expect((screen.getByRole('combobox', { name: 'Positioning' }) as HTMLSelectElement).value).toBe(
@@ -263,7 +294,8 @@ describe('IdentityEnrichmentSkillPage', () => {
   it('keeps manual save available when the AI endpoint is missing', async () => {
     facetClientEnv.anthropicProxyUrl = ''
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -281,12 +313,143 @@ describe('IdentityEnrichmentSkillPage', () => {
       depth: 'working',
       enriched_by: 'user',
     })
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]?.enriched_at).toBeTruthy()
+    expect(
+      useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]?.enriched_at,
+    ).toBeTruthy()
     expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
   })
 
+  it('skips pending skills and disables skip for complete skills', async () => {
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { rerender } = render(<IdentityEnrichmentSkillPage />)
+
+    expect(screen.getByRole('button', { name: 'Skip for now' }).hasAttribute('disabled')).toBe(true)
+
+    routeParams.skillName = 'Terraform'
+    rerender(<IdentityEnrichmentSkillPage />)
+
+    expect(screen.getByRole('button', { name: 'Skip for now' }).hasAttribute('disabled')).toBe(
+      false,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+
+    const skippedSkill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
+    expect(skippedSkill).toMatchObject({
+      name: 'Terraform',
+      skipped_at: expect.any(String),
+    })
+    expect(skippedSkill?.enriched_at).toBeUndefined()
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
+  })
+
+  it('confirms dirty next, previous, and overview navigation before leaving', async () => {
+    const confirmMock = vi.spyOn(window, 'confirm')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { rerender } = render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.change(screen.getByLabelText('Context'), {
+      target: { value: 'Unsaved platform context.' },
+    })
+
+    confirmMock.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Next skill' }))
+
+    expect(confirmMock).toHaveBeenCalledWith('You have unsaved changes. Leave this skill anyway?')
+    expect(navigateMock).not.toHaveBeenCalled()
+
+    confirmMock.mockReturnValueOnce(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Next skill' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'Terraform',
+      },
+    })
+
+    navigateMock.mockClear()
+    routeParams.skillName = 'Terraform'
+    rerender(<IdentityEnrichmentSkillPage />)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'working' },
+    })
+
+    confirmMock.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Previous skill' }))
+
+    expect(navigateMock).not.toHaveBeenCalled()
+
+    confirmMock.mockReturnValueOnce(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Previous skill' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'Kubernetes',
+      },
+    })
+
+    navigateMock.mockClear()
+    confirmMock.mockReturnValueOnce(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Overview' }))
+
+    expect(navigateMock).not.toHaveBeenCalled()
+
+    confirmMock.mockReturnValueOnce(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Overview' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
+    confirmMock.mockRestore()
+  })
+
+  it('does not confirm clean next, previous, or overview navigation', async () => {
+    const confirmMock = vi.spyOn(window, 'confirm')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { rerender } = render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next skill' }))
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'Terraform',
+      },
+    })
+
+    navigateMock.mockClear()
+    routeParams.skillName = 'Terraform'
+    rerender(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous skill' }))
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'Kubernetes',
+      },
+    })
+
+    navigateMock.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Overview' }))
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/enrich' })
+    confirmMock.mockRestore()
+  })
+
   it('applies AI suggestions and marks accepted suggestions as llm-accepted', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -323,11 +486,14 @@ describe('IdentityEnrichmentSkillPage', () => {
       positioning: 'Platform modernization and Kubernetes operations.',
       enriched_by: 'llm-accepted',
     })
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]?.enriched_at).toBeTruthy()
+    expect(
+      useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]?.enriched_at,
+    ).toBeTruthy()
   })
 
   it('marks edited AI suggestions as user-edited-llm', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -348,7 +514,8 @@ describe('IdentityEnrichmentSkillPage', () => {
   })
 
   it('marks context and positioning stale when depth changes and clears stale on manual edit', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
@@ -356,13 +523,17 @@ describe('IdentityEnrichmentSkillPage', () => {
     })
 
     expect(screen.getByText('Needs refresh')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })).toHaveLength(2)
+    expect(
+      screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' }),
+    ).toHaveLength(2)
 
     fireEvent.change(screen.getByLabelText('Context'), {
       target: { value: 'Updated platform operating context.' },
     })
 
-    expect(screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })).toHaveLength(1)
+    expect(
+      screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' }),
+    ).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
 
@@ -376,7 +547,8 @@ describe('IdentityEnrichmentSkillPage', () => {
   })
 
   it('re-drafts stale fields with the selected depth preserved', async () => {
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
@@ -413,7 +585,8 @@ describe('IdentityEnrichmentSkillPage', () => {
       positioning: '',
     })
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -430,7 +603,8 @@ describe('IdentityEnrichmentSkillPage', () => {
       new Error('Proxy timed out'),
     )
     routeParams.skillName = 'Terraform'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -452,7 +626,8 @@ describe('IdentityEnrichmentSkillPage', () => {
 
   it('redirects to the overview when the routed skill cannot be found', async () => {
     routeParams.skillName = 'Missing Skill'
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     await waitFor(() => {
@@ -462,7 +637,8 @@ describe('IdentityEnrichmentSkillPage', () => {
 
   it('redirects to the overview when no identity is loaded', async () => {
     useIdentityStore.setState({ currentIdentity: null })
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     await waitFor(() => {
@@ -474,7 +650,8 @@ describe('IdentityEnrichmentSkillPage', () => {
     skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValueOnce({
       depth: 'strong',
     })
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -503,7 +680,8 @@ describe('IdentityEnrichmentSkillPage', () => {
       context: '',
       positioning: 'Updated positioning from AI.',
     })
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -531,7 +709,8 @@ describe('IdentityEnrichmentSkillPage', () => {
       context: '',
       positioning: 'Another AI positioning.',
     })
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     const contextField = screen.getByLabelText('Context') as HTMLTextAreaElement
@@ -560,7 +739,8 @@ describe('IdentityEnrichmentSkillPage', () => {
       positioning?: string
     }>()
     skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     const draftButton = screen.getByRole('button', { name: 'Draft with AI' })
@@ -593,7 +773,8 @@ describe('IdentityEnrichmentSkillPage', () => {
       positioning?: string
     }>()
     skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
-    const { IdentityEnrichmentSkillPage } = await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
     render(<IdentityEnrichmentSkillPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -619,9 +800,61 @@ describe('IdentityEnrichmentSkillPage', () => {
     })
 
     expect(screen.getByText('Needs refresh')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' })).toHaveLength(2)
+    expect(
+      screen.getAllByRole('button', { name: 'Depth changed - re-draft all fields?' }),
+    ).toHaveLength(2)
     expect((screen.getByRole('combobox', { name: 'Depth' }) as HTMLSelectElement).value).toBe(
       'working',
     )
+  })
+
+  it('aborts in-flight AI drafts when the routed skill changes', async () => {
+    const deferred = deferredPromise<{
+      depth?: 'strong'
+      context?: string
+      positioning?: string
+    }>()
+    const capturedSignals: AbortSignal[] = []
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockImplementationOnce(
+      ({ signal }: { signal: AbortSignal }) => {
+        capturedSignals.push(signal)
+        return deferred.promise
+      },
+    )
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const { rerender } = render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(capturedSignals).toHaveLength(1)
+    })
+    const signal = capturedSignals[0]!
+    expect(signal.aborted).toBe(false)
+
+    routeParams.skillName = 'Terraform'
+    rerender(<IdentityEnrichmentSkillPage />)
+
+    await waitFor(() => {
+      expect(signal.aborted).toBe(true)
+    })
+
+    deferred.resolve({
+      depth: 'strong',
+      context: 'Used for customer-hosted and internal platform delivery.',
+      positioning: 'Platform modernization and Kubernetes operations.',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Draft with AI' })).toBeTruthy()
+    })
+    expect((screen.getByLabelText('Context') as HTMLTextAreaElement).value).toBe('')
+    const routedSkill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[1]
+    expect(routedSkill).toMatchObject({ name: 'Terraform' })
+    expect(routedSkill?.depth).toBeUndefined()
+    expect(routedSkill?.context).toBeUndefined()
+    expect(routedSkill?.positioning).toBeUndefined()
+    expect(routedSkill?.enriched_at).toBeUndefined()
   })
 })
