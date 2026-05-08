@@ -1767,6 +1767,12 @@ Generate dedicated opener cards for the predictable opening questions instead of
   - Preserve the existing intel-tag people cards; do not reclassify named-person intel as landmines.
   - Add timeBudgetMinutes to every card so live mode can track section budgets. Use realistic interview timing: openers 1.5 to 2 minutes, behavioral/project answers 2 to 3 minutes, technical answers 3 to 5 minutes, situational answers 2 to 3 minutes, and metrics/reference answers 1 to 2 minutes.
 If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
+For behavioral and project cards with storyBlocks:
+- Add exactly one storyBlocks entry with label "closer" after problem/solution/result; this closer is the quotable one-sentence takeaway.
+- Keep the closer at 20 words or fewer and reference a specific system, metric, decision, or candidate evidence.
+- Anchor the closer in Canonical JD Analysis strengthsToLead and positioningRecommendations plus structured candidate evidence from identity bullets, candidate metrics, and skillMatches; do not derive it by raw-job re-inference.
+- Only use scriptLabel "The One-Liner" when the card script itself is the standalone takeaway instead of a full answer.
+- Keep every one-liner concrete, role-specific, and evidence-backed, never generic motivational copy.
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
 Return 3 to 5 deck-level rules as imperative one-liners in the rules array. These should sound like live commands or hard reminders, not passive coaching prose. Tailor them to the round type, application method, round stage, and any inbound versus cold-apply signals in the provided context.

@@ -337,6 +337,15 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('Preserve the existing intel-tag people cards')
     expect(userPrompt).toContain('include conditionals')
     expect(userPrompt).toContain('imperative one-liners')
+    expect(userPrompt).toContain('quotable one-sentence takeaway')
+    expect(userPrompt).toContain('after problem/solution/result')
+    expect(userPrompt).toContain('20 words or fewer')
+    expect(userPrompt).toContain('specific system, metric, decision, or candidate evidence')
+    expect(userPrompt).toContain('Canonical JD Analysis strengthsToLead')
+    expect(userPrompt).toContain('positioningRecommendations')
+    expect(userPrompt).toContain('structured candidate evidence from identity bullets')
+    expect(userPrompt).toContain('do not derive it by raw-job re-inference')
+    expect(userPrompt).toContain('Only use scriptLabel "The One-Liner"')
     expect(userPrompt).toContain(
       'Generate dedicated opener cards for the predictable opening questions',
     )
