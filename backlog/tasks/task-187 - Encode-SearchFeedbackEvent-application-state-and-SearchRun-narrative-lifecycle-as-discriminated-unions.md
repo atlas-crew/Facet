@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-04-20 07:07'
-updated_date: '2026-05-08 09:00'
+updated_date: '2026-05-08 09:10'
 labels:
   - search-redesign
   - types
@@ -120,6 +120,8 @@ TASK-187 sub-slice committed scope: SearchFeedbackEvent application state now us
 Second TASK-187 sub-slice: normalizeRunNarrative now returns a tagged ready/failed result with contractViolations instead of the old narrative?/violations pair; deep search hydration consumes the tag while preserving existing SearchRun persistence fields for a later lifecycle slice. Verification: focused normalizeRunNarrative/deepSearchClient Vitest passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large chunk warnings.
 
 Final lifecycle slice: SearchRun now persists narrativeState as pending/generating/failed/ready instead of loose narrative/contractViolations fields. hydrateRun migrates legacy ready narratives, failed validation payloads, pending no-narrative records, and existing tagged states; deep research hydration writes ready/failed narrative states; ResearchPage renders narrative and output warnings through the tag. Verification: npx vitest run src/test/searchStore.test.ts passed 38/38; deepSearchClient passed 15/15; normalizeRunNarrative focused tests passed 14; ResearchPage focused narrative/job tests passed; persistence activeResearchJob focused test passed; workspaceBackup research/feedback focused tests passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing chunk warnings. Did not check AC #11 because the full suite was not run; an unrelated router-harness failure remains in searchRedesignRoundTrip when run directly.
+
+Full-suite attempt after formatting did not pass, so AC #11 / DoD #3 remain open. One lifecycle-related ResearchPage assumptions fixture was fixed after the run in commit test(search): use narrative lifecycle in assumptions test and passed focused verification; remaining failures were outside the TASK-187 narrative lifecycle files (PrepPage behavior, facetServer persistence API, jdAnalysis soft-delete expectation, searchRedesignRoundTrip router harness). Formatting was applied to touched files via npm run format:files and committed separately.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
@@ -127,7 +129,7 @@ Final lifecycle slice: SearchRun now persists narrativeState as pending/generati
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
+- [x] #4 Automatic formatting was applied.
 - [x] #5 Linters report no WARNINGS or ERRORS
 - [x] #6 The project builds successfully
 <!-- DOD:END -->

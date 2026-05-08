@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 09:06'
+updated_date: '2026-05-08 09:10'
 labels:
   - shepherding
   - concurrency
@@ -109,6 +109,8 @@ AC #5/#6 advance: AppShell now listens for cross-tab identity localStorage write
 AC #4 advance: completed/re-hydrated deep research jobs now keep the last observed job visible for the selected SearchRun after terminal completion, compare ResearchJob.identityVersion to the current Identity model revision, and show an earlier-Identity warning with a preserved-thesis rerun action when drift is detected. Verification: npx vitest run src/test/ResearchPage.test.tsx -t "passes excluded companies into launched searches" --testTimeout=15000 passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large chunk warnings.
 
 AC #7 coverage reconciliation: existing focused regressions now cover the two-tab scenarios called out by the task. Verification bundle passed: persistenceRuntime/storageEventSync passed 29/29 for write-in-A observe-in-B store sync; identityStore passed 46/46 for stale identity mutation blocking; generation-start drift tests across prep/letter/research passed 4 focused cases; AppShell cross-tab Identity toast passed; routed ResearchPage stale-review request passed. Scoped ESLint, typecheck, and build already passed in the AC #4/#5/#6 slices. Full all-tests and formatter DoD remain unclaimed.
+
+Full-suite attempt after formatting did not pass, so DoD #3 remains open. The run reported 13 failures across PrepPage behavior, facetServer persistence API, jdAnalysis soft-delete expectation, searchRedesignRoundTrip router harness, and one ResearchPage lifecycle-seeded test. The ResearchPage lifecycle test was fixed in commit test(search): use narrative lifecycle in assumptions test and passed focused verification; the remaining full-suite failures are outside this TASK-175 slice. Formatting was applied to touched files via npm run format:files and committed separately.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
@@ -116,7 +118,7 @@ AC #7 coverage reconciliation: existing focused regressions now cover the two-ta
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
+- [x] #4 Automatic formatting was applied.
 - [x] #5 Linters report no WARNINGS or ERRORS
 - [x] #6 The project builds successfully
 <!-- DOD:END -->
