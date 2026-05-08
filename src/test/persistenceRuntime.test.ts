@@ -5,7 +5,7 @@ import { waitFor } from '@testing-library/react'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
 import { defaultResumeData } from '../store/defaultData'
-import { useIdentityStore } from '../store/identityStore'
+import { IDENTITY_STORE_STORAGE_KEY, useIdentityStore } from '../store/identityStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -53,8 +53,18 @@ const clearLegacyStorage = () => {
   for (const key of LEGACY_KEYS) {
     storage.removeItem(key)
   }
-  storage.removeItem('facet-identity-workspace')
+  storage.removeItem(IDENTITY_STORE_STORAGE_KEY)
   storage.removeItem(getLocalStorageWorkspaceSnapshotKey('ws-1'))
+}
+
+const dispatchSyntheticStorageEvent = (key: string, newValue: string) => {
+  const event = new Event('storage') as StorageEvent
+  Object.defineProperties(event, {
+    key: { value: key },
+    newValue: { value: newValue },
+    storageArea: { value: globalThis.localStorage },
+  })
+  window.dispatchEvent(event)
 }
 
 const localPreferencesSnapshot: FacetLocalPreferencesSnapshot = {
@@ -585,13 +595,8 @@ describe('persistence runtime', () => {
         },
         version: 4,
       })
-      storage.setItem('facet-identity-workspace', identityPayload)
-      window.dispatchEvent(
-        new StorageEvent('storage', {
-          key: 'facet-identity-workspace',
-          newValue: identityPayload,
-        }),
-      )
+      storage.setItem(IDENTITY_STORE_STORAGE_KEY, identityPayload)
+      dispatchSyntheticStorageEvent(IDENTITY_STORE_STORAGE_KEY, identityPayload)
 
       await waitFor(() => {
         expect(useIdentityStore.getState().currentIdentity?.identity.name).toBe(
@@ -624,12 +629,7 @@ describe('persistence runtime', () => {
       }
       const workspacePayload = JSON.stringify(crossTabSnapshot)
       storage.setItem(workspaceKey, workspacePayload)
-      window.dispatchEvent(
-        new StorageEvent('storage', {
-          key: workspaceKey,
-          newValue: workspacePayload,
-        }),
-      )
+      dispatchSyntheticStorageEvent(workspaceKey, workspacePayload)
 
       await waitFor(() => {
         expect(usePrepStore.getState().decks[0]?.title).toBe('Cross-tab Prep')

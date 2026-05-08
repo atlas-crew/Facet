@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 08:02'
+updated_date: '2026-05-08 08:13'
 labels:
   - shepherding
   - concurrency
@@ -97,6 +97,8 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 Lane D plan: implement a narrow first phase for storage-event driven persisted-store rehydration and focused tests, avoiding ResearchPage/result-enrichment files touched by parallel TASK-183/TASK-196 lanes. I will not mark TASK-175 Done unless all AC/DoD are genuinely satisfied.
 
 Lane D progress: implemented storage-event sync for the identity Zustand persistence key and localStorage workspace snapshot rehydration for search/prep runtime state. Added jsdom regression coverage that simulates another tab writing identity, search, and prep state, then observes this tab rehydrate. Remaining TASK-175 ACs cover identity mutation conflict checks, generation snapshot coverage, research-job staleness UI, and toast/TASK-158 links.
+
+Remediation follow-up: tightened storage-event sync typing/behavior, exported the identity storage key for runtime sync, added direct storageEventSync helper coverage, and verified the persistence runtime cross-tab sync tests. Verification: npx vitest run src/test/persistenceRuntime.test.ts src/test/storageEventSync.test.ts passed 29/29; scoped ESLint passed; npm run typecheck passed. TASK-175 remains open for AC #2-#7.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

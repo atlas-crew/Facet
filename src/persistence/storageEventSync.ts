@@ -1,4 +1,4 @@
-type StorageEventSyncTarget = {
+export type StorageEventSyncTarget = {
   key: string
   rehydrate: () => void | Promise<void>
 }
@@ -27,7 +27,7 @@ export const installStorageEventSync = (
 
   const listener = (event: StorageEvent) => {
     if (!event.key) return
-    if (source.localStorage && event.storageArea && event.storageArea !== source.localStorage) {
+    if (source.localStorage && event.storageArea !== source.localStorage) {
       return
     }
 

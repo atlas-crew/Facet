@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
-import { useIdentityStore } from '../store/identityStore'
+import { IDENTITY_STORE_STORAGE_KEY, useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -36,13 +36,19 @@ import {
   createWorkspaceSnapshotFromStores,
 } from './snapshot'
 import { normalizeLocalPreferencesSnapshot } from './normalization'
-import { installStorageEventSync } from './storageEventSync'
+import { installStorageEventSync, type StorageEventSyncTarget } from './storageEventSync'
 import type { FacetWorkspaceSnapshot } from './contracts'
 import { mergeWorkspaceSnapshots, scopeWorkspaceSnapshotToWorkspace } from './workspaceImportMerge'
 import { isFacetApiError } from '../utils/facetApiErrors'
 
 const DEFAULT_SAVE_DEBOUNCE_MS = 150
-const IDENTITY_STORAGE_KEY = 'facet-identity-workspace'
+const WORKSPACE_SYNC_CHANNEL = 'facet-workspace-sync'
+const WORKSPACE_SYNC_MESSAGE = 'workspace-saved'
+
+type WorkspaceSyncMessage = {
+  type: typeof WORKSPACE_SYNC_MESSAGE
+  workspaceId: string
+}
 
 const resolveRuntimeFailurePhase = (error: unknown): PersistenceStatus['phase'] =>
   isFacetApiError(error) && error.code === 'offline' ? 'offline' : 'error'
@@ -119,6 +125,13 @@ export const createPersistenceRuntime = (
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let subscriptions: Array<() => void> = []
   let storageSyncUnsubscribe: (() => void) | null = null
+  let workspaceSyncChannel: {
+    postMessage: (message: WorkspaceSyncMessage) => void
+    close: () => void
+    addEventListener: BroadcastChannel['addEventListener']
+    removeEventListener: BroadcastChannel['removeEventListener']
+  } | null = null
+  let workspaceSyncListener: ((event: MessageEvent<WorkspaceSyncMessage>) => void) | null = null
   let activePersistenceWrite: Promise<unknown> | null = null
 
   const syncRuntimeState = (patch: Partial<PersistenceRuntimeState>) => {
@@ -138,6 +151,22 @@ export const createPersistenceRuntime = (
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = null
+    }
+  }
+
+  const notifyWorkspaceSync = () => {
+    const channel = workspaceSyncChannel
+    if (!channel) {
+      return
+    }
+
+    try {
+      channel.postMessage({
+        type: WORKSPACE_SYNC_MESSAGE,
+        workspaceId,
+      } satisfies WorkspaceSyncMessage)
+    } catch {
+      // BroadcastChannel availability is best-effort; persistence already succeeded.
     }
   }
 
@@ -171,6 +200,7 @@ export const createPersistenceRuntime = (
       await localPreferencesBackend.saveLocalPreferencesSnapshot(
         createLocalPreferencesSnapshotFromStores(workspaceId),
       )
+      notifyWorkspaceSync()
     })()
 
     activePersistenceWrite = writePromise
@@ -218,8 +248,16 @@ export const createPersistenceRuntime = (
     ]
   }
 
-  const rehydrateWorkspaceFromStorage = async () => {
-    if (disposed || backend.kind !== 'localStorage') {
+  const rehydrateWorkspaceFromBackend = async () => {
+    if (disposed) {
+      return
+    }
+
+    clearSaveTimer()
+    if (activePersistenceWrite) {
+      await activePersistenceWrite.catch(() => undefined)
+    }
+    if (disposed) {
       return
     }
 
@@ -257,7 +295,7 @@ export const createPersistenceRuntime = (
             phase: resolveRuntimeFailurePhase(error),
             lastError: resolveRuntimeFailureMessage(
               error,
-              'Failed to rehydrate workspace from cross-tab storage update',
+              'Failed to rehydrate workspace from cross-tab persistence update',
             ),
           },
         })
@@ -268,9 +306,9 @@ export const createPersistenceRuntime = (
   }
 
   const installCrossTabStorageSync = () => {
-    const targets = [
+    const targets: StorageEventSyncTarget[] = [
       {
-        key: IDENTITY_STORAGE_KEY,
+        key: IDENTITY_STORE_STORAGE_KEY,
         rehydrate: () => {
           void useIdentityStore.persist.rehydrate()
         },
@@ -280,11 +318,25 @@ export const createPersistenceRuntime = (
     if (backend.kind === 'localStorage') {
       targets.push({
         key: getLocalStorageWorkspaceSnapshotKey(workspaceId),
-        rehydrate: rehydrateWorkspaceFromStorage,
+        rehydrate: rehydrateWorkspaceFromBackend,
       })
     }
 
     storageSyncUnsubscribe = installStorageEventSync(targets)
+  }
+
+  const installWorkspaceBroadcastSync = () => {
+    if (typeof globalThis.BroadcastChannel !== 'function') {
+      return
+    }
+
+    workspaceSyncChannel = new BroadcastChannel(WORKSPACE_SYNC_CHANNEL)
+    workspaceSyncListener = (event: MessageEvent<WorkspaceSyncMessage>) => {
+      if (event.data?.type === WORKSPACE_SYNC_MESSAGE && event.data.workspaceId === workspaceId) {
+        void rehydrateWorkspaceFromBackend()
+      }
+    }
+    workspaceSyncChannel.addEventListener('message', workspaceSyncListener)
   }
 
   const runtime: PersistenceRuntime = {
@@ -342,6 +394,7 @@ export const createPersistenceRuntime = (
           started = true
           installSubscriptions()
           installCrossTabStorageSync()
+          installWorkspaceBroadcastSync()
           syncRuntimeState({
             hydrated: true,
             usingLegacyMigration: usedLegacyMigration,
@@ -422,6 +475,7 @@ export const createPersistenceRuntime = (
         if (disposed) {
           return savedSnapshot
         }
+        notifyWorkspaceSync()
         syncRuntimeState({
           hydrated: true,
           usingLegacyMigration: false,
@@ -440,6 +494,12 @@ export const createPersistenceRuntime = (
       subscriptions = []
       storageSyncUnsubscribe?.()
       storageSyncUnsubscribe = null
+      if (workspaceSyncChannel && workspaceSyncListener) {
+        workspaceSyncChannel.removeEventListener('message', workspaceSyncListener)
+      }
+      workspaceSyncChannel?.close()
+      workspaceSyncChannel = null
+      workspaceSyncListener = null
       started = false
       starting = null
       syncRuntimeState({
