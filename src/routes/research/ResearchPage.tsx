@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   ArrowRight,
@@ -86,6 +86,11 @@ type ResearchTab = 'profile' | 'search' | 'results'
 type ThesisSignalEditTarget = 'lookFor' | 'avoid'
 type ThesisSignalsFocusRequest = { id: number; target: ThesisSignalEditTarget }
 const RESEARCH_TABS: ResearchTab[] = ['profile', 'search', 'results']
+const RESEARCH_TAB_DEFS: Array<{ id: ResearchTab; label: string }> = [
+  { id: 'profile', label: 'Profile Editor' },
+  { id: 'search', label: 'Search Launcher' },
+  { id: 'results', label: 'Results Viewer' },
+]
 const TERMINAL_RESEARCH_JOB_STATUSES = new Set(['completed', 'failed', 'canceled'])
 type ResearchJobEventLogEntry = { id: number; text: string }
 type ThesisNoiseLevel = SearchThesis['keywordCombinations'][number]['noiseLevel']
@@ -365,6 +370,26 @@ const CitationFootnotes = ({
     </div>
   )
 }
+
+const ResearchPanel = ({
+  tabId,
+  active,
+  children,
+}: {
+  tabId: ResearchTab
+  active: boolean
+  children: ReactNode
+}) => (
+  <section
+    className="research-panel"
+    id={'research-panel-' + tabId}
+    role="tabpanel"
+    aria-labelledby={'research-tab-' + tabId}
+    hidden={!active}
+  >
+    {children}
+  </section>
+)
 
 const getStalenessDecisionLabel = (decision?: StalenessReviewDecision): string => {
   if (decision === 'accepted') return 'Accepted current artifact'
@@ -2780,11 +2805,7 @@ export function ResearchPage() {
       ) : null}
 
       <div className="research-tabs" role="tablist" aria-label="Research sections">
-        {[
-          { id: 'profile', label: 'Profile Editor' },
-          { id: 'search', label: 'Search Launcher' },
-          { id: 'results', label: 'Results Viewer' },
-        ].map((tab) => (
+        {RESEARCH_TAB_DEFS.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -2802,13 +2823,7 @@ export function ResearchPage() {
         ))}
       </div>
 
-      <section
-        className="research-panel"
-        id="research-panel-profile"
-        role="tabpanel"
-        aria-labelledby="research-tab-profile"
-        hidden={activeTab !== 'profile'}
-      >
+      <ResearchPanel tabId="profile" active={activeTab === 'profile'}>
         {!effectiveProfile ? (
           <div className="research-empty">
             <h2>No search profile yet</h2>
@@ -2866,15 +2881,9 @@ export function ResearchPage() {
             </div>
           </>
         )}
-      </section>
+      </ResearchPanel>
 
-      <section
-        className="research-panel"
-        id="research-panel-search"
-        role="tabpanel"
-        aria-labelledby="research-tab-search"
-        hidden={activeTab !== 'search'}
-      >
+      <ResearchPanel tabId="search" active={activeTab === 'search'}>
         <div className="research-grid research-grid-two">
           <section className="research-card research-field-span research-thesis-card">
             <div className="research-card-header">
@@ -4007,15 +4016,9 @@ export function ResearchPage() {
             </div>
           </section>
         </div>
-      </section>
+      </ResearchPanel>
 
-      <section
-        className="research-panel"
-        id="research-panel-results"
-        role="tabpanel"
-        aria-labelledby="research-tab-results"
-        hidden={activeTab !== 'results'}
-      >
+      <ResearchPanel tabId="results" active={activeTab === 'results'}>
         <div className="research-grid research-grid-results">
           <section className="research-card">
             <div className="research-card-header">
@@ -4668,7 +4671,7 @@ export function ResearchPage() {
             )}
           </section>
         </div>
-      </section>
+      </ResearchPanel>
     </div>
   )
 }
