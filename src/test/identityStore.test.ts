@@ -1146,6 +1146,49 @@ describe('identityStore model_revision', () => {
     expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(3)
   })
 
+  it('treats current identity update helpers as no-ops when no identity is loaded', () => {
+    const store = useIdentityStore.getState()
+
+    expect(() => {
+      store.updateCurrentIdentityCore({ name: 'No loaded identity' })
+      store.updateCurrentProfiles([])
+      store.updateCurrentPhilosophy([])
+      store.updateCurrentSelfModelArc([])
+      store.updateCurrentRoles([])
+      store.updateCurrentProjects([])
+      store.updateCurrentSkillGroups([])
+      store.updateCurrentCompensation({ base_floor: 180000, priorities: [] })
+      store.updateCurrentWorkModel({ preference: 'remote' })
+      store.updateCurrentConstraints({ title_flexibility: ['Staff Engineer'] })
+      store.updateCurrentMatching({ prioritize: [], avoid: [] })
+      store.updateCurrentInterviewProcess({
+        accepted_formats: ['system design'],
+        strong_fit_signals: ['platform depth'],
+        red_flags: [],
+      })
+      store.updateCurrentSearchVectors([
+        {
+          id: 'vec-platform',
+          title: 'Platform Engineering',
+          priority: 'high',
+          thesis: 'Lead platform investments.',
+          target_roles: ['Staff Platform Engineer'],
+          keywords: { primary: ['platform'], secondary: [] },
+        },
+      ])
+      store.updateCurrentAwarenessQuestions([
+        { id: 'q1', topic: 'Departure', description: 'Why leaving', action: 'Prep answer' },
+      ])
+      store.updateCurrentAccuracyRules({ resume: 'Preserve measured claims.' })
+    }).not.toThrow()
+
+    expect(useIdentityStore.getState()).toMatchObject({
+      currentIdentity: null,
+      draftDocument: '',
+      lastError: null,
+    })
+  })
+
   it('bumps model_revision and marks depthSource=corrected on saveSkillEnrichment', () => {
     seedCurrent(2)
 
@@ -1257,5 +1300,75 @@ describe('identityStore model_revision', () => {
 
     // max(2, 12) + 1 = 13
     expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(13)
+  })
+
+  it('merges draft identity sections without dropping current-only records', () => {
+    seedCurrent(4)
+
+    const current = cloneIdentityFixture()
+    current.model_revision = 4
+    current.roles.push({
+      ...current.roles[0],
+      id: 'current-only-role',
+      company: 'Current Only Co',
+      bullets: [],
+    })
+    useIdentityStore.setState({
+      currentIdentity: current,
+      draftDocument: JSON.stringify(current, null, 2),
+      changelog: [],
+    })
+
+    const draft = cloneIdentityFixture()
+    draft.model_revision = 1
+    draft.identity.thesis = 'Draft thesis from corrected source material'
+    draft.roles[0] = {
+      ...draft.roles[0],
+      title: 'Principal Platform Engineer',
+    }
+    draft.projects.push({
+      id: 'draft-only-project',
+      name: 'Draft Only Project',
+      description: 'New project from the corrected draft.',
+      url: 'https://example.test/project',
+      tags: ['platform'],
+    })
+    useIdentityStore.setState({
+      draft: {
+        identity: draft,
+        summary: 'Corrected draft ready.',
+        followUpQuestions: [],
+        warnings: [],
+        generatedAt: '2026-04-20T00:00:00.000Z',
+        bullets: [],
+      },
+      draftDocument: JSON.stringify(draft, null, 2),
+    })
+
+    const result = useIdentityStore.getState().applyDraft('merge')
+
+    expect(result.summary).toMatch(/Merged identity draft/)
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(5)
+    expect(useIdentityStore.getState().currentIdentity?.identity.thesis).toBe(
+      'Draft thesis from corrected source material',
+    )
+    expect(
+      useIdentityStore.getState().currentIdentity?.roles.find((role) => role.id === 'contoso')
+        ?.title,
+    ).toBe('Principal Platform Engineer')
+    expect(
+      useIdentityStore
+        .getState()
+        .currentIdentity?.roles.some((role) => role.id === 'current-only-role'),
+    ).toBe(true)
+    expect(
+      useIdentityStore
+        .getState()
+        .currentIdentity?.projects.some((project) => project.id === 'draft-only-project'),
+    ).toBe(true)
+    expect(useIdentityStore.getState().changelog[0]).toMatchObject({
+      action: 'draft-applied',
+      mode: 'merge',
+    })
   })
 })

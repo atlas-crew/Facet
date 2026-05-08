@@ -97,6 +97,52 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
   beforeEach(() => navigateMock.mockReset())
   afterEach(() => cleanup())
 
+  it('renders authored strategy vectors and open questions in the map workbench', () => {
+    seed((id) => {
+      id.search_vectors = [
+        {
+          id: 'v-platform',
+          title: 'Backend Platform',
+          priority: 'high',
+          thesis: 'Lead platform investments.',
+          target_roles: ['Staff Engineer'],
+          keywords: { primary: ['platform'], secondary: [] },
+        },
+      ]
+      id.awareness = {
+        open_questions: [
+          {
+            id: 'q-departure',
+            topic: 'Departure from Contoso',
+            description: 'Why leaving',
+            action: 'Prep answer',
+            severity: 'high',
+          },
+        ],
+      }
+    })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByText('Search Strategy')).toBeTruthy()
+    expect(screen.getByText('Search Vectors')).toBeTruthy()
+    expect(screen.getByText('Open Questions')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /backend platform/i }))
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'search-vector',
+      id: 'v-platform',
+    })
+    expect(screen.getByRole('complementary').textContent).toContain('Backend Platform')
+
+    fireEvent.click(screen.getByRole('button', { name: /departure from contoso/i }))
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'awareness-question',
+      id: 'q-departure',
+    })
+    expect(screen.getByRole('complementary').textContent).toContain('Departure from Contoso')
+  })
+
   it('adds a search vector, edits all required fields, saves through to the store', () => {
     seed()
     render(<IdentityMapPage />)
