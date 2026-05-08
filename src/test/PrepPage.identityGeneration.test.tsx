@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PrepPage } from '../routes/prep/PrepPage'
 import type { ProfessionalIdentityV3 } from '../identity/schema'
 import { defaultResumeData } from '../store/defaultData'
@@ -367,6 +367,63 @@ describe('PrepPage identity generation', () => {
     })
     expect(generatedDeck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
     expect(generatedDeck.identityVersion).toBe(3)
+  })
+
+  it('records the generation-start identity version when identity changes mid-generation', async () => {
+    let resolveFetch: ((response: Response) => void) | undefined
+    global.fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        }),
+    ) as typeof fetch
+
+    render(<PrepPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Generate$/ }))
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled()
+    })
+
+    const updatedIdentity = JSON.parse(JSON.stringify(prepIdentityFixture)) as ProfessionalIdentityV3
+    updatedIdentity.model_revision = 9
+    act(() => {
+      useIdentityStore.setState({ currentIdentity: updatedIdentity })
+    })
+
+    const respond = resolveFetch
+    if (!respond) throw new Error('Expected prep generation request to be in flight.')
+    await act(async () => {
+      respond({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  deckTitle: 'Acme Staff Engineer Prep',
+                  cards: [
+                    {
+                      category: 'opener',
+                      title: 'Tell me about yourself',
+                      tags: ['backend', 'acme'],
+                      script: 'I build resilient backend systems.',
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+      } as Response)
+    })
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks[0]?.identityVersion).toBe(3)
+    })
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(9)
   })
 
   it('confirms before replacing an existing identity draft', async () => {

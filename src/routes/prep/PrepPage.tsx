@@ -1055,6 +1055,10 @@ export function PrepPage() {
         return
       }
       const jdAnalysis = generationContext.jdAnalysis
+      const generationIdentityVersion = resolvePrepGenerationIdentityVersion(
+        jdAnalysis,
+        currentIdentity,
+      )
 
       const vector = selectedVectorId
         ? (freshResumeData.vectors.find((item) => item.id === selectedVectorId) ?? null)
@@ -1132,7 +1136,7 @@ export function PrepPage() {
         jdAnalysisModelVersion: jdAnalysis.modelVersion,
         jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
-        identityVersion: currentIdentity?.model_revision,
+        identityVersion: generationIdentityVersion,
         cards: result.cards.map((card) => ({
           ...card,
           company: selectedEntry.company,

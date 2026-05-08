@@ -1031,6 +1031,61 @@ describe('ResearchPage', () => {
     expect(screen.getByText(/Decisions were saved on reviewed artifacts/)).toBeTruthy()
   })
 
+  it('records the generation-start identity version when Identity changes during thesis generation', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 4
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    let resolveGenerate:
+      | ((value: { thesis: SearchThesis; contractViolations: string[] }) => void)
+      | undefined
+    mockGenerateSearchThesisFromIdentity.mockReturnValueOnce(
+      new Promise<{ thesis: SearchThesis; contractViolations: string[] }>((resolve) => {
+        resolveGenerate = resolve
+      }),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate Thesis/i }))
+
+    await waitFor(() => {
+      expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(1)
+    })
+
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: {
+          ...identity,
+          model_revision: 6,
+        },
+      })
+    })
+
+    const respond = resolveGenerate
+    if (!respond) throw new Error('Expected thesis generation to be in flight.')
+    await act(async () => {
+      respond({
+        thesis: buildTestThesis({
+          id: 'thesis-generated-drift',
+          identityVersion: 99,
+          narrative: 'Generated while Identity changed.',
+        }),
+        contractViolations: [],
+      })
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().activeThesisId).toBe('thesis-generated-drift')
+    })
+    expect(useSearchStore.getState().theses.at(-1)?.identityVersion).toBe(4)
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(6)
+  })
+
   it('refreshes stale saved search theses from the batch review', async () => {
     const { savedThesisId, stalenessReview } = await openBatchReviewFromSkillWriteback({
       includeSavedThesis: true,
@@ -1646,6 +1701,64 @@ describe('ResearchPage', () => {
     const launchedRun = useSearchStore.getState().runs.at(-1)
     expect(launchedRun?.identityVersion).toBe(4)
     expect(launchedRun?.identityFields).toContain('skills.Kubernetes.depth')
+  })
+
+  it('records the launch-start identity version when Identity changes while creating a research job', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 4
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    let resolveCreate:
+      | ((value: { jobId: string; status: 'queued'; usage?: undefined; warning?: undefined }) => void)
+      | undefined
+    mockCreateDeepResearchJob.mockReturnValueOnce(
+      new Promise<{ jobId: string; status: 'queued'; usage?: undefined; warning?: undefined }>(
+        (resolve) => {
+          resolveCreate = resolve
+        },
+      ),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate Thesis/i }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().activeThesisId).toBe('thesis-generated')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: {
+          ...identity,
+          model_revision: 7,
+        },
+      })
+    })
+
+    const respond = resolveCreate
+    if (!respond) throw new Error('Expected research job creation to be in flight.')
+    await act(async () => {
+      respond({ jobId: 'job-drift', status: 'queued' })
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().runs.at(-1)?.jobId).toBe('job-drift')
+    })
+    const launchedRun = useSearchStore.getState().runs.at(-1)
+    expect(launchedRun?.identityVersion).toBe(4)
+    expect(useSearchStore.getState().activeResearchJob?.jobId).toBe('job-drift')
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(7)
   })
 
   it('surfaces Phase 2 Opus unavailability without dropping the preserved thesis', async () => {

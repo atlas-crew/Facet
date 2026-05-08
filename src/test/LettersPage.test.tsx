@@ -951,6 +951,64 @@ describe('LettersPage', () => {
     expect(userPrompt).not.toContain('Target Vector:')
   })
 
+  it('records the generation-start identity version when identity changes mid-generation', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 7
+    identity.identity.name = 'Nicholas Ferguson'
+    identity.identity.email = 'nick@example.dev'
+    useIdentityStore.setState({ currentIdentity: identity })
+
+    let resolveFetch: ((response: Response) => void) | undefined
+    global.fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        }),
+    ) as typeof fetch
+
+    render(<LettersPage />)
+
+    fireEvent.click(screen.getByText('Generate with AI'))
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled()
+    })
+
+    const updatedIdentity = cloneIdentityFixture()
+    updatedIdentity.model_revision = 12
+    updatedIdentity.identity.name = 'Updated Identity'
+    act(() => {
+      useIdentityStore.setState({ currentIdentity: updatedIdentity })
+    })
+
+    const respond = resolveFetch
+    if (!respond) throw new Error('Expected cover letter generation request to be in flight.')
+    await act(async () => {
+      respond({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  name: 'Acme Staff Engineer Cover Letter',
+                  greeting: 'Dear Jordan Lee,',
+                  signOff: 'Sincerely,\nNicholas Ferguson',
+                  paragraphs: [{ text: 'Generated paragraph.' }],
+                }),
+              },
+            },
+          ],
+        }),
+      } as Response)
+    })
+
+    await waitFor(() => {
+      expect(useCoverLetterStore.getState().letters[0]?.identityVersion).toBe(7)
+    })
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(12)
+  })
+
   it('refines an individual paragraph from saved feedback', async () => {
     useCoverLetterStore.setState({
       templates: [

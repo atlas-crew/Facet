@@ -779,6 +779,7 @@ export function LettersPage() {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
       }
+      const generationIdentityVersion = resolveLetterIdentityVersion(freshResume, freshIdentity)
       const freshAnalyses = useJDAnalysisStore.getState().analyses
       const freshJdAnalysis = resolvePipelineJdAnalysis(
         freshEntry,
@@ -841,7 +842,7 @@ export function LettersPage() {
         pipelineEntryId: freshEntry.id,
         sourceResumeId: freshResume.id,
         sourceResumeHash: freshResume.contentHash,
-        identityVersion: resolveLetterIdentityVersion(freshResume, freshIdentity),
+        identityVersion: generationIdentityVersion,
         generatedAt,
       })
       updatePipelineEntry(freshEntry.id, {

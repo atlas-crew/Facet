@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 08:28'
+updated_date: '2026-05-08 08:48'
 labels:
   - shepherding
   - concurrency
@@ -84,7 +84,7 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 <!-- AC:BEGIN -->
 - [x] #1 identityStore, searchStore, prepStore listen for storage events and re-hydrate on cross-tab writes
 - [x] #2 Identity mutations check current version from storage before writing; surface conflict if in-memory version is behind
-- [ ] #3 Generation routines (thesis, prep, letter, research job) snapshot identity version at start; final artifact records that version
+- [x] #3 Generation routines (thesis, prep, letter, research job) snapshot identity version at start; final artifact records that version
 - [ ] #4 ResearchJob.identityVersion is compared to current client-side identity version on rehydration; staleness badge shown if drift
 - [ ] #5 Cross-tab identity mutation triggers a non-blocking toast on other tabs
 - [ ] #6 Toast links to TASK-158 batch staleness review
@@ -101,6 +101,8 @@ Lane D progress: implemented storage-event sync for the identity Zustand persist
 Remediation follow-up: tightened storage-event sync typing/behavior, exported the identity storage key for runtime sync, added direct storageEventSync helper coverage, and verified the persistence runtime cross-tab sync tests. Verification: npx vitest run src/test/persistenceRuntime.test.ts src/test/storageEventSync.test.ts passed 29/29; scoped ESLint passed; npm run typecheck passed. TASK-175 remains open for AC #2-#7.
 
 AC #2 advance: current-identity mutations now compare the in-memory model_revision with the persisted identity revision before writing. When storage is newer, the store rehydrates the newer identity, sets a retryable lastError, and skips the attempted stale mutation. Verification: npx vitest run src/test/identityStore.test.ts passed 46/46; focused AC #2 subset passed; scoped ESLint passed; npm run typecheck passed.
+
+AC #3 advance: thesis, prep, cover-letter, and deep-research launch paths now snapshot the identity model revision at generation/launch start and write that revision to the final artifact/run even if Identity changes while the async request is in flight. Added mid-flight drift regressions for ResearchPage thesis + research job, PrepPage deck generation, and LettersPage AI generation. Verification: focused generation-start vitest cases passed; PrepPage.identityGeneration full file passed 9/9; LettersPage full file passed 57/57; ResearchPage focused generation/launch cases passed 2/2; scoped ESLint passed; npm run typecheck passed; npm run build passed. Full ResearchPage suite reached 85/86 with the existing pushes-a-result test timing out under suite load; that exact test passed alone.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

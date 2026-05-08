@@ -1517,6 +1517,7 @@ export function ResearchPage() {
       setLatestIdentityImpact(null)
       resetStalenessReview()
       setIsGeneratingThesis(true)
+      const generationIdentityVersion = currentIdentity.model_revision
       const feedbackEvents = getUnreflectedFeedback(activeThesis?.id)
       const corrections = options.userCorrections?.trim()
       const directive =
@@ -1533,6 +1534,7 @@ export function ResearchPage() {
       )
       const saved = addThesis({
         ...generated.thesis,
+        identityVersion: generationIdentityVersion,
         identityFields:
           generated.thesis.identityFields ??
           collectThesisIdentityFieldDependencies(generated.thesis),
