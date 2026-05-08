@@ -275,8 +275,8 @@ describe('persistence foundation', () => {
           companySize: '',
         },
         filters: {
-          prioritize: ['platform'],
-          avoid: ['ad-tech'],
+          prioritize: [{ label: 'platform', severity: 'soft' }],
+          avoid: [{ label: 'ad-tech', severity: 'soft' }],
         },
         interviewPrefs: {
           strongFit: ['ownership'],
@@ -682,6 +682,42 @@ describe('persistence foundation', () => {
   })
 
   it('round-trips active research jobs through workspace snapshots and legacy hydration', () => {
+    const activeRequest = {
+      id: 'sreq-active',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      focusLanes: [],
+      companySizeOverride: '' as const,
+      salaryAnchorOverride: '',
+      geoExpand: false,
+      customKeywords: '',
+      excludeCompanies: [],
+      maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+    }
+    const activeRun = {
+      id: 'srun-active',
+      requestId: 'sreq-active',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      status: 'running' as const,
+      results: [],
+      searchLog: [],
+    }
+    const activeThesis = {
+      id: 'sthesis-active',
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:00:00.000Z',
+      narrative: 'Active thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+      competitiveMoat: 'A specific platform moat with clear evidence.',
+      unfairAdvantages: [],
+      searchLanes: [],
+      interviewStrategy: 'Anchor on platform tradeoffs.',
+      lookFor: [],
+      avoid: [],
+      keywordCombinations: [],
+      skillDepthMap: [],
+      source: 'generated' as const,
+      identityVersion: 1,
+      feedbackIncorporated: [],
+    }
     const activeResearchJob = {
       jobId: 'job-active',
       runId: 'srun-active',
@@ -694,8 +730,9 @@ describe('persistence foundation', () => {
 
     useSearchStore.setState({
       profile: null,
-      requests: [],
-      runs: [],
+      requests: [activeRequest],
+      runs: [activeRun],
+      theses: [activeThesis],
       feedbackEvents: [],
       activeResearchJob,
     })
@@ -720,8 +757,9 @@ describe('persistence foundation', () => {
       JSON.stringify({
         state: {
           profile: null,
-          requests: [],
-          runs: [],
+          requests: [activeRequest],
+          runs: [activeRun],
+          theses: [activeThesis],
           feedbackEvents: [],
           activeResearchJob,
         },

@@ -1,9 +1,13 @@
 ---
 id: TASK-165
-title: Fix conditional filter match scoring and propagate conditions through search profile
-status: To Do
-assignee: []
+title: >-
+  Fix conditional filter match scoring and propagate conditions through search
+  profile
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-04-19 09:30'
+updated_date: '2026-05-08 05:08'
 labels:
   - search-redesign
   - match-scoring
@@ -66,21 +70,40 @@ The AI side of the redesign is fine — Phase 1 (thesis) and Phase 2 (deep resea
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 normalizeSeverity() no longer collapses 'conditional' → 'soft' unconditionally
-- [ ] #2 Conditional avoid/prioritize entries apply match weight only when JD text satisfies the condition (substring keyword match for MVP)
-- [ ] #3 SearchProfileFilters type extended to preserve condition text and severity per entry (backward-compatible migration)
-- [ ] #4 identitySearchProfile adapter propagates condition text through to SearchProfile.filters
-- [ ] #5 Existing jobMatch tests pass; new tests cover: conditional match applied when condition keyword is in JD, conditional match NOT applied when absent, soft and hard paths unchanged
-- [ ] #6 Existing search prompts continue to work; flat string arrays are still producible for AI prompts that prefer them
-- [ ] #7 Store migration handles old persisted state without data loss
+- [x] #1 normalizeSeverity() no longer collapses 'conditional' → 'soft' unconditionally
+- [x] #2 Conditional avoid/prioritize entries apply match weight only when JD text satisfies the condition (substring keyword match for MVP)
+- [x] #3 SearchProfileFilters type extended to preserve condition text and severity per entry (backward-compatible migration)
+- [x] #4 identitySearchProfile adapter propagates condition text through to SearchProfile.filters
+- [x] #5 Existing jobMatch tests pass; new tests cover: conditional match applied when condition keyword is in JD, conditional match NOT applied when absent, soft and hard paths unchanged
+- [x] #6 Existing search prompts continue to work; flat string arrays are still producible for AI prompts that prefer them
+- [x] #7 Store migration handles old persisted state without data loss
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Implement TASK-165 as a narrow Lane C slice: inspect current match scoring/profile/migration consumers; preserve conditional severity in jobMatch scoring with a simple condition-text keyword/substring heuristic; introduce structured SearchProfileFilterEntry plus compatibility helpers so prompt consumers can still get labels; migrate legacy string[] filters to structured entries; add focused tests for conditional apply/non-apply, hard/soft unchanged paths, adapter propagation, prompt compatibility, and legacy persisted state; run targeted tests plus typecheck/lint/build; update Backlog acceptance/DoD honestly and commit only TASK-165 files via cortex git commit.
+<!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented structured SearchProfileFilterEntry support so conditional prioritize/avoid entries retain label, condition, and severity through identity adaptation, persistence hydration, prompt payloads, and match scoring. Conditional scoring now applies only when the condition text matches the JD/search text, while hard and soft behavior remains unchanged. Added compatibility helpers for consumers that still need flat prompt labels.
+
+Verification:
+- npx vitest run src/test/jobMatch.test.ts src/test/identitySearchProfile.test.ts src/test/searchStore.test.ts src/test/deepSearchClient.test.ts src/test/searchExecutor.test.ts src/test/persistence.test.ts src/test/thesisGenerator.test.ts src/test/researchJobs.test.ts src/test/SearchInstancePreferences.editInIdentity.test.tsx src/test/ResearchPage.test.tsx (pass: 311 tests)
+- npm run typecheck (pass)
+- npm run build (pass; existing large chunk warnings)
+- npx eslint proxy/researchJobs.js src/types/search.ts src/types/match.ts src/utils/searchProfileFilters.ts src/utils/searchAssumptions.ts src/utils/identitySearchProfile.ts src/utils/jobMatch.ts src/utils/deepSearchClient.ts src/utils/searchExecutor.ts src/utils/thesisGenerator.ts src/store/searchStore.ts src/routes/research/ResearchPage.tsx src/routes/research/searchWorkspaceComponents.tsx src/test/jobMatch.test.ts src/test/identitySearchProfile.test.ts src/test/searchStore.test.ts src/test/deepSearchClient.test.ts src/test/searchExecutor.test.ts src/test/persistence.test.ts src/test/thesisGenerator.test.ts src/test/researchJobs.test.ts src/test/SearchInstancePreferences.editInIdentity.test.tsx src/test/ResearchPage.test.tsx (pass)
+- npm run format:files -- task/source/test files (pass)
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

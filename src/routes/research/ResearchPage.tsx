@@ -34,6 +34,7 @@ import type {
   DeepResearchIdentityEvidence,
   ResearchJob,
   ResearchUsageSnapshot,
+  SearchAssumption,
   SearchCompanySize,
   SearchProfile,
   SearchRequest,
@@ -73,6 +74,7 @@ import {
   splitTags,
 } from './researchUtils'
 import {
+  SearchAssumptionsDisclosure,
   SearchInstancePreferences,
   SearchSkillsTable,
   SearchThesisWorkspace,
@@ -2529,6 +2531,16 @@ export function ResearchPage() {
     void navigate({ to: '/pipeline' })
   }
 
+  const handleCorrectSearchAssumption = useCallback(
+    (_assumption: SearchAssumption) => {
+      void navigate({
+        to: '/identity',
+        search: { focus: 'preferences', return: '/research' },
+      })
+    },
+    [navigate],
+  )
+
   const groupedResults = groupByTier(activeRun?.results ?? [])
   const feedbackByResultId = useMemo(() => {
     const map = new Map<string, ResultFeedbackBadge>()
@@ -2713,6 +2725,7 @@ export function ResearchPage() {
                   customDirective: directiveDraft,
                 })
               }
+              onCorrectAssumption={handleCorrectSearchAssumption}
             />
 
             <div className="research-grid research-grid-two">
@@ -3112,6 +3125,11 @@ export function ResearchPage() {
               </div>
             ) : (
               <div className="research-stack">
+                <SearchAssumptionsDisclosure
+                  assumptions={thesisDraft.assumptions}
+                  onCorrectAssumption={handleCorrectSearchAssumption}
+                />
+
                 <div className="research-form-grid">
                   <label className="research-field research-field-span">
                     <span>Strategic narrative</span>
@@ -4046,6 +4064,10 @@ export function ResearchPage() {
                 {activeRun.narrative ? (
                   <section className="research-narrative" aria-label="Search narrative">
                     <h3>Run Narrative</h3>
+                    <SearchAssumptionsDisclosure
+                      assumptions={activeRun.narrative.assumptions}
+                      onCorrectAssumption={handleCorrectSearchAssumption}
+                    />
                     <p>
                       <CitationText
                         text={activeRun.narrative.executiveSummary}

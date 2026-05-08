@@ -25,13 +25,15 @@ import {
   stripDurableMetadataPatch,
   touchDurableMetadata,
 } from './durableMetadata'
+import { normalizeSearchProfileFilterEntries } from '../utils/searchProfileFilters'
 
 type SearchProfileInput = Omit<SearchProfile, 'id' | 'inferredAt'> &
   Partial<Pick<SearchProfile, 'id' | 'inferredAt'>>
 
 /** Accepts pre-Phase-C persisted snapshots that still carry profile.vectors so hydration can strip it. */
-type LegacySearchProfileInput = SearchProfileInput & {
+type LegacySearchProfileInput = Omit<SearchProfileInput, 'filters'> & {
   vectors?: unknown
+  filters?: { prioritize?: unknown; avoid?: unknown }
 }
 
 type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt' | 'focusLanes'> &
@@ -190,6 +192,12 @@ const hydrateProfile = (profile: LegacySearchProfileInput): SearchProfile => {
   return {
     ...profileWithoutLegacyVectors,
     constraints: hydrateConstraints(profileWithoutLegacyVectors.constraints),
+    filters: {
+      prioritize: normalizeSearchProfileFilterEntries(
+        profileWithoutLegacyVectors.filters?.prioritize,
+      ),
+      avoid: normalizeSearchProfileFilterEntries(profileWithoutLegacyVectors.filters?.avoid),
+    },
     source: profileWithoutLegacyVectors.source ?? { kind: 'resume', label: 'Resume fallback' },
     id: profileWithoutLegacyVectors.id ?? createId('sprof'),
     inferredAt: profileWithoutLegacyVectors.inferredAt ?? now(),

@@ -24,6 +24,7 @@ import type {
 import { createId } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import { normalizeSearchAssumptions } from './searchAssumptions'
 
 const VALID_COMPANY_SIZES = new Set<SearchCompanySize>([
   'startup',
@@ -459,6 +460,7 @@ export function normalizeGeneratedSearchThesis(
   const timeline = normalizeTimeline(record.timeline)
   const legacyFilters = normalizeLegacyOverrideFilters(record.searchOverrides)
   const overrides = normalizeOverrides(record.searchOverrides)
+  const assumptions = normalizeSearchAssumptions(record.assumptions)
   const feedbackEventIds = new Set(feedbackEvents.map((event) => event.id))
   const feedbackIncorporated = normalizeStringArray(record.feedbackIncorporated).filter((id) =>
     feedbackEventIds.has(id),
@@ -478,6 +480,7 @@ export function normalizeGeneratedSearchThesis(
     ...(timeline ? { timeline } : {}),
     keywordCombinations: normalizeKeywordCombinations(record.keywordCombinations, fallbackLaneId),
     skillDepthMap: normalizeSkillDepthMap(record.skillDepthMap, identity),
+    ...(assumptions.length > 0 ? { assumptions } : {}),
     ...(overrides ? { searchOverrides: overrides } : {}),
     ...(directiveTrimmed ? { customDirective: directiveTrimmed } : {}),
     source: 'generated',
@@ -561,6 +564,7 @@ export async function generateSearchThesisFromIdentity(
     '',
     'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction — it represents intent the identity model does not encode.',
     'If user corrections are provided, weave them into the new thesis without quoting them verbatim, and update overrides to reflect them.',
+    'If any material input is unspecified or ambiguous (visa status, location precision, compensation flexibility, travel willingness, remote/hybrid scope, sponsorship, timeline, etc.) you MUST record the assumption in `assumptions[]`. Do not silently assume. Every filled gap must include claim, source, rationale, confidence, and overridable.',
     'Use only these bank values in searchOverrides constraint arrays:',
     '- industriesToAvoid: ' + formatAllowedValues(INDUSTRY_BANK),
     '- fundingStagesAcceptable: ' + formatAllowedValues(FUNDING_STAGE_BANK),
@@ -579,6 +583,7 @@ export async function generateSearchThesisFromIdentity(
     '  "timeline": { "urgency": "critical|active|exploratory", "deadline": "optional ISO date", "strategyImpact": "string" },',
     '  "keywordCombinations": [{ "query": "string", "lane": "lane id", "noiseLevel": "low|medium|high" }],',
     '  "skillDepthMap": [{ "skill": "string (must match an identity skill name)", "calibration": "optional honest framing per this search" }],',
+    '  "assumptions": [{ "id": "optional", "claim": "string", "source": "inferred|assumed-default|explicit-fallback", "rationale": "string", "confidence": "high|medium|low", "overridable": true }],',
     '  "searchOverrides": {',
     '    "constraints": { "compensation": "string", "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|", "industriesToAvoid": ["string"], "fundingStagesAcceptable": ["string"], "remotePolicies": ["string"], "remotePolicyNote": "string", "employmentTypes": ["string"] },',
     '    "interviewPrefs": { "strongFit": ["string"], "redFlags": ["string"] },',
@@ -594,6 +599,7 @@ export async function generateSearchThesisFromIdentity(
     '- signal severity is hard for non-negotiable constraints, conditional when a qualifier matters, and soft for preferences.',
     '- cover every user skill unless the identity explicitly marks it irrelevant or avoid (emit each as a `skillDepthMap` entry; depth/context/searchSignal will be sourced from identity).',
     '- searchOverrides values must be concrete and tailored to the chosen lanes; leave hiddenSkillIds empty unless the lane choice clearly excludes a skill.',
+    '- assumptions[] must list every material gap you filled and may be omitted only when no gaps were filled.',
   ].join('\n')
 
   const userPrompt = buildThesisGenerationPrompt(identity, feedbackEvents, context)

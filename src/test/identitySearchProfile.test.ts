@@ -267,7 +267,13 @@ describe('identitySearchProfile', () => {
     ]
 
     const profile = adaptIdentityToSearchProfile(identity)
-    expect(profile.filters.avoid).toContain('Kubernetes admin roles')
+    expect(profile.filters.avoid).toEqual([
+      {
+        label: 'Kubernetes admin roles',
+        condition: 'building around k8s is fine, being a k8s admin is not',
+        severity: 'conditional',
+      },
+    ])
   })
 
   it('mirrors identity constraint banks and work model preference into search constraints', () => {

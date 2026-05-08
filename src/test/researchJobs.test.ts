@@ -989,6 +989,8 @@ describe('research job API', () => {
     )
     expect(anthropicMessageContent).toContain('Client output contract')
     expect(anthropicMessageContent).toContain('candidateEdge must be 2-4 sentences')
+    expect(anthropicMessageContent).toContain('assumptions[]')
+    expect(anthropicMessageContent).toContain('Carry forward thesisSnapshot.assumptions[]')
     expect(anthropicMessageContent).toContain('Identity evidence')
     expect(anthropicMessageContent).not.toContain('tokenUsage')
     expect(requestOptions).toMatchObject({

@@ -20,7 +20,7 @@ export type SkillMatchQuality = 'strong' | 'moderate' | 'weak' | 'negative'
 
 export type WatchOutType = 'avoid_skill' | 'filter_risk' | 'awareness_item' | 'comp_concern'
 
-export type WatchOutSeverity = 'hard' | 'soft'
+export type WatchOutSeverity = 'hard' | 'soft' | 'conditional'
 
 export interface MatchRequirement extends AudienceTagged {
   id: string
@@ -51,7 +51,15 @@ export interface SkillMatch extends AudienceTagged {
   skillName: string
   jdRequirement: string
   requirementStrength: SkillRequirementStrength
-  userDepth: 'expert' | 'strong' | 'hands-on-working' | 'architectural' | 'conceptual' | 'working' | 'basic' | 'avoid'
+  userDepth:
+    | 'expert'
+    | 'strong'
+    | 'hands-on-working'
+    | 'architectural'
+    | 'conceptual'
+    | 'working'
+    | 'basic'
+    | 'avoid'
   userPositioning: string
   matchQuality: SkillMatchQuality
   presentationGuidance: string
@@ -67,7 +75,7 @@ export interface FilterTrigger extends AudienceTagged {
 export interface AvoidTrigger extends AudienceTagged {
   filterId: string
   label: string
-  severity: 'hard' | 'soft'
+  severity: WatchOutSeverity
   jdEvidence: string
 }
 

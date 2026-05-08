@@ -39,8 +39,8 @@ const baseProfile: SearchProfile = {
     companySize: '',
   },
   filters: {
-    prioritize: ['platform'],
-    avoid: ['ad tech'],
+    prioritize: [{ label: 'platform', severity: 'soft' }],
+    avoid: [{ label: 'ad tech', severity: 'soft' }],
   },
   interviewPrefs: {
     strongFit: ['staff scope'],
@@ -517,7 +517,9 @@ describe('searchExecutor', () => {
     )
 
     expect(results[0]?.matchReason).toBe('No inline marker here.')
-    expect(results[0]?.citations).toEqual([{ id: 'unused', source: 'Unused Source', type: 'index' }])
+    expect(results[0]?.citations).toEqual([
+      { id: 'unused', source: 'Unused Source', type: 'index' },
+    ])
   })
 
   it('strips citation markers when citations are empty or invalid', () => {
@@ -534,7 +536,8 @@ describe('searchExecutor', () => {
             vectorAlignment: 'backend [cite:nope].',
             risks: [],
             source: 'web',
-            candidateEdge: 'This has no citation array [cite:nope]. It should still render cleanly.',
+            candidateEdge:
+              'This has no citation array [cite:nope]. It should still render cleanly.',
             citations: [{ id: '', source: 'Missing id' }],
           },
         ],
@@ -1016,6 +1019,63 @@ describe('normalizeRunNarrative', () => {
     expect(narrative?.selectionMethodology).toContain('three intersecting criteria')
     expect(narrative?.marketContext).toContain('2024')
     expect(narrative?.executiveSummary).toContain('PostHog')
+  })
+
+  it('parses valid run assumptions and drops malformed entries', () => {
+    const { narrative, violations } = normalizeRunNarrative({
+      ...validNarrativePayload(),
+      assumptions: [
+        {
+          id: 'assumption-visa',
+          claim: 'Candidate can work in the US without sponsorship.',
+          source: 'explicit-fallback',
+          rationale: 'Visa status was not specified in the search profile.',
+          confidence: 'low',
+          overridable: true,
+        },
+        {
+          claim: 'Remote US is acceptable outside Denver.',
+          source: 'inferred',
+          rationale: 'Hybrid constraint only named Denver.',
+          confidence: 'high',
+          overridable: true,
+        },
+        {
+          id: 'assumption-invalid-confidence',
+          claim: 'Malformed confidence should be dropped.',
+          source: 'inferred',
+          confidence: 'guessing',
+          overridable: true,
+        },
+        {
+          id: 'assumption-invalid-overridable',
+          claim: 'Malformed overridable should be dropped.',
+          source: 'inferred',
+          confidence: 'medium',
+          overridable: 'yes',
+        },
+      ],
+    })
+
+    expect(violations).toEqual([])
+    expect(narrative?.assumptions).toEqual([
+      {
+        id: 'assumption-visa',
+        claim: 'Candidate can work in the US without sponsorship.',
+        source: 'explicit-fallback',
+        rationale: 'Visa status was not specified in the search profile.',
+        confidence: 'low',
+        overridable: true,
+      },
+      expect.objectContaining({
+        claim: 'Remote US is acceptable outside Denver.',
+        source: 'inferred',
+        rationale: 'Hybrid constraint only named Denver.',
+        confidence: 'high',
+        overridable: true,
+      }),
+    ])
+    expect(narrative?.assumptions?.[1]?.id).toMatch(/^sassump-/)
   })
 
   it('returns undefined narrative with a violation when payload is not an object', () => {

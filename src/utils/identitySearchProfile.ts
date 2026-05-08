@@ -2,6 +2,7 @@ import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type {
   SearchProfile,
   SearchProfileConstraints,
+  SearchProfileFilterEntry,
   SearchRemotePolicy,
   SearchSkillCategory,
   SearchSkillDepth,
@@ -319,6 +320,20 @@ const buildOpenQuestions = (identity: ProfessionalIdentityV3): string[] =>
     [question.topic, question.action || question.description].filter(Boolean).join(': '),
   )
 
+const buildPrioritizeFilters = (identity: ProfessionalIdentityV3): SearchProfileFilterEntry[] =>
+  identity.preferences.matching.prioritize.map((item) => ({
+    label: item.label,
+    ...(item.condition?.trim() ? { condition: item.condition.trim() } : {}),
+    severity: item.condition?.trim() ? 'conditional' : 'soft',
+  }))
+
+const buildAvoidFilters = (identity: ProfessionalIdentityV3): SearchProfileFilterEntry[] =>
+  identity.preferences.matching.avoid.map((item) => ({
+    label: item.label,
+    ...(item.condition?.trim() ? { condition: item.condition.trim() } : {}),
+    severity: item.severity,
+  }))
+
 export const adaptIdentityToSearchProfile = (
   identity: ProfessionalIdentityV3,
   options: {
@@ -336,8 +351,8 @@ export const adaptIdentityToSearchProfile = (
   openQuestions: options.openQuestions ?? buildOpenQuestions(identity),
   constraints: buildConstraints(identity),
   filters: {
-    prioritize: identity.preferences.matching.prioritize.map((item) => item.label),
-    avoid: identity.preferences.matching.avoid.map((item) => item.label),
+    prioritize: buildPrioritizeFilters(identity),
+    avoid: buildAvoidFilters(identity),
   },
   interviewPrefs: {
     strongFit:

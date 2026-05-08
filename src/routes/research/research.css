@@ -254,8 +254,11 @@
 .research-card {
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
@@ -319,7 +322,11 @@
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--accent-primary) 36%, var(--border-subtle));
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-primary) 12%, transparent), transparent 46%),
+    radial-gradient(
+      circle at top left,
+      color-mix(in srgb, var(--accent-primary) 12%, transparent),
+      transparent 46%
+    ),
     var(--bg-inset);
 }
 
@@ -493,8 +500,16 @@
 
 .research-thesis-card {
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-primary) 14%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--accent-primary) 14%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%,
+      var(--bg-surface) 100%
+    );
 }
 
 .research-thesis-row {
@@ -561,6 +576,62 @@
   margin: 0;
   padding-left: 18px;
   color: var(--text-secondary);
+}
+
+.research-assumptions {
+  grid-column: 1 / -1;
+  border: 1px solid color-mix(in srgb, var(--warning) 26%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-surface));
+  padding: var(--space-3);
+}
+
+.research-assumptions summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.research-assumptions summary span {
+  font-weight: 700;
+}
+
+.research-assumptions summary small {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.research-assumption-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.research-assumption-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.research-assumption-item p {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.research-assumption-item span {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .research-log {
@@ -826,8 +897,16 @@
 
 .research-thesis-workspace {
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-primary) 14%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--accent-primary) 14%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%,
+      var(--bg-surface) 100%
+    );
 }
 
 .research-thesis-empty {
@@ -1064,8 +1143,11 @@
 }
 
 .research-preferences-overrides {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 6%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 6%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   border-color: color-mix(in srgb, var(--accent-primary) 32%, var(--border-subtle));
 }
 

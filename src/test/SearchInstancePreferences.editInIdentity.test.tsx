@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { SearchInstancePreferences } from '../routes/research/searchWorkspaceComponents'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  SearchAssumptionsDisclosure,
+  SearchInstancePreferences,
+  SearchThesisWorkspace,
+} from '../routes/research/searchWorkspaceComponents'
 
 afterEach(() => {
   cleanup()
@@ -194,5 +198,91 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         redFlags: ['noisy on-call'],
       },
     })
+  })
+})
+
+describe('Search assumptions transparency', () => {
+  it('renders assumption claims with Correct actions', () => {
+    const onCorrectAssumption = vi.fn()
+
+    render(
+      <SearchAssumptionsDisclosure
+        assumptions={[
+          {
+            id: 'assumption-visa',
+            claim: 'Candidate can work in the US without sponsorship.',
+            source: 'explicit-fallback',
+            rationale: 'Visa status was not specified.',
+            confidence: 'low',
+            overridable: true,
+          },
+          {
+            id: 'assumption-location',
+            claim: 'Remote US is acceptable outside Denver.',
+            source: 'inferred',
+            confidence: 'high',
+            overridable: false,
+          },
+        ]}
+        onCorrectAssumption={onCorrectAssumption}
+      />,
+    )
+
+    expect(screen.getByText('Assumptions (2)')).toBeTruthy()
+    expect(screen.getByText('Candidate can work in the US without sponsorship.')).toBeTruthy()
+    expect(screen.getByText(/low confidence/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct?' }))
+    expect(onCorrectAssumption).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'assumption-visa' }),
+    )
+  })
+
+  it('shows thesis assumptions at the top of the thesis workspace', () => {
+    render(
+      <SearchThesisWorkspace
+        activeThesis={{
+          id: 'sthesis-assumptions',
+          createdAt: '2026-04-01T00:00:00.000Z',
+          updatedAt: '2026-04-01T00:00:00.000Z',
+          narrative: 'A thesis narrative.',
+          competitiveMoat: 'A strong moat.',
+          unfairAdvantages: [],
+          searchLanes: [],
+          interviewStrategy: 'Lead with platform scope.',
+          lookFor: [],
+          avoid: [],
+          keywordCombinations: [],
+          skillDepthMap: [],
+          assumptions: [
+            {
+              id: 'assumption-comp',
+              claim: 'Compensation floor is a target, not a hard floor.',
+              source: 'assumed-default',
+              confidence: 'medium',
+              overridable: true,
+            },
+          ],
+          source: 'generated',
+          identityVersion: 1,
+          feedbackIncorporated: [],
+        }}
+        isGeneratingThesis={false}
+        isSearching={false}
+        hasIdentity={true}
+        correctionsDraft=""
+        onCorrectionsChange={() => {}}
+        directiveDraft=""
+        onDirectiveChange={() => {}}
+        onRegenerate={() => {}}
+        onCorrectAssumption={() => {}}
+      />,
+    )
+
+    const thesisWorkspace = screen.getByLabelText('Search thesis workspace')
+    expect(within(thesisWorkspace).getByText('Assumptions (1)')).toBeTruthy()
+    expect(
+      within(thesisWorkspace).getByText('Compensation floor is a target, not a hard floor.'),
+    ).toBeTruthy()
   })
 })

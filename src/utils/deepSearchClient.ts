@@ -14,7 +14,8 @@ import type {
 import { readAiProxyError } from './aiProxyErrors'
 import { facetClientEnv } from './facetEnv'
 import { getHostedAccessToken } from './hostedSession'
-import { validateNarrativeCandidateEdges } from './searchExecutor'
+import { normalizeRunNarrative, validateNarrativeCandidateEdges } from './searchExecutor'
+import { formatSearchProfileFilterEntry } from './searchProfileFilters'
 
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 
@@ -23,6 +24,8 @@ export const RESEARCH_JOB_POLL_DELAYS_MS = [2000, 5000, 15000, 30000] as const
 export const DEEP_RESEARCH_OUTPUT_CONTRACT = [
   'Your response must include run-level narrative fields: competitiveMoat, selectionMethodology, marketContext, executiveSummary, surprises[], rejectedCandidates[], nextSteps[], and references[] when factual claims are cited.',
   'Include run-level synthesis when useful: laneSummaries[], objectiveRecommendations[], applicationPlan tied to SearchTimeline.deadline, and Mermaid visualizations[].',
+  'If thesisSnapshot.assumptions[] is present, carry those assumptions forward in narrative.assumptions[] and add any new material assumptions made during deep research. Do not silently assume missing visa status, location precision, compensation flexibility, travel willingness, remote/hybrid scope, sponsorship, or timeline constraints.',
+  'Each narrative.assumptions[] item must include claim, source (inferred|assumed-default|explicit-fallback), rationale, confidence (high|medium|low), and overridable.',
   'Each result must include candidateEdge as 2-4 sentences using candidate fact + company fact + interpretation.',
   'Each result should include interviewProcess, companyIntel, signalGroup, and advantageMatch when evidence is available.',
   'Each result may include jobDescription only when raw job posting text is directly available from a cited/source page; include jobDescriptionSourceUrl with the same-origin source URL and do not infer or synthesize a JD.',
@@ -252,8 +255,10 @@ export function buildDeepResearchIdentityEvidence(
         ...profile.openQuestions.map((question) => `Open question: ${question}`),
       ].slice(0, 16),
       calibrations: [
-        ...profile.filters.prioritize.map((item) => `Prioritize: ${item}`),
-        ...profile.filters.avoid.map((item) => `Avoid: ${item}`),
+        ...profile.filters.prioritize.map(
+          (item) => `Prioritize: ${formatSearchProfileFilterEntry(item)}`,
+        ),
+        ...profile.filters.avoid.map((item) => `Avoid: ${formatSearchProfileFilterEntry(item)}`),
         ...profile.interviewPrefs.strongFit.map((item) => `Strong interview fit: ${item}`),
         ...profile.interviewPrefs.redFlags.map((item) => `Interview red flag: ${item}`),
       ],
@@ -312,16 +317,25 @@ export function hydrateSearchRunFromResearchJob(job: ResearchJob): Partial<Searc
         error: 'Deep research job completed but the result payload was missing.',
       }
     }
+    const narrativeNormalization = normalizeRunNarrative(job.result.narrative)
+    const narrative = narrativeNormalization.narrative ?? job.result.narrative
     const contractViolations = [
       ...(job.result.contractViolations ?? []),
+      ...narrativeNormalization.violations,
       ...validateNarrativeCandidateEdges(job.result.results),
     ]
+    console.info('[research] assumption count', {
+      jobId: job.id,
+      thesisId: job.thesisId,
+      phase: 'deep-research',
+      count: narrative.assumptions?.length ?? 0,
+    })
     return {
       status: 'completed',
       results: job.result.results,
       searchLog: job.progress?.searchQueries ?? [],
       tokenUsage: job.result.tokenUsage,
-      narrative: job.result.narrative,
+      narrative,
       contractViolations,
       error: undefined,
     }

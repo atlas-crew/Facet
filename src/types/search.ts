@@ -148,9 +148,17 @@ export interface SearchProfileConstraints {
   employmentTypes?: SearchEmploymentType[]
 }
 
+export type SearchProfileFilterSeverity = 'hard' | 'soft' | 'conditional'
+
+export interface SearchProfileFilterEntry {
+  label: string
+  condition?: string
+  severity: SearchProfileFilterSeverity
+}
+
 export interface SearchProfileFilters {
-  prioritize: string[]
-  avoid: string[]
+  prioritize: SearchProfileFilterEntry[]
+  avoid: SearchProfileFilterEntry[]
 }
 
 export interface SearchInterviewPrefs {
@@ -322,6 +330,22 @@ export interface SearchRejectedCandidate {
   reason: string
 }
 
+export type SearchAssumptionSource = 'inferred' | 'assumed-default' | 'explicit-fallback'
+
+export type SearchAssumptionConfidence = 'high' | 'medium' | 'low'
+
+export interface SearchAssumption {
+  id: string
+  /** Gap-filled claim the model used while generating search output. */
+  claim: string
+  source: SearchAssumptionSource
+  /** Why this assumption was needed, e.g. an unspecified visa or location field. */
+  rationale?: string
+  confidence: SearchAssumptionConfidence
+  /** Whether the user can correct this through the identity correction flow. */
+  overridable: boolean
+}
+
 export interface SearchNarrativeReference {
   id: string | number
   url: string
@@ -404,6 +428,7 @@ export interface SearchRunNarrative {
   nextSteps?: string[]
   references?: SearchNarrativeReference[]
   citations?: Citation[]
+  assumptions?: SearchAssumption[]
 }
 
 // ── Search Thesis ──────────────────────────────────────────────
@@ -522,6 +547,8 @@ export interface SearchThesis {
   keywordCombinations: SearchKeywordCombination[]
   /** Per-skill semantic depth with context and search guidance. */
   skillDepthMap: SearchSkillDepthEntry[]
+  /** Gap-filled inputs from Phase 1 thesis generation that the user should verify. */
+  assumptions?: SearchAssumption[]
 
   /**
    * Per-search constraints/filters/interview prefs/hidden skills. Inferred by the generator

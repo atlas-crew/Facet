@@ -29,6 +29,7 @@ import {
   stripUnresolvedCitationMarkers,
   stripUnresolvedCitationMarkersWithDiagnostics,
 } from './searchCitations'
+import { normalizeSearchAssumptions } from './searchAssumptions'
 import type { FacetAiFeatureKey } from '../types/hosted'
 
 const REQUEST_TIMEOUT_MS = 120000
@@ -255,10 +256,7 @@ function normalizeCompanyIntel(value: unknown): SearchResultCompanyIntel | undef
   }
 }
 
-const cleanResultCitedText = (
-  value: unknown,
-  citations: readonly Citation[],
-): CleanedCitedText => {
+const cleanResultCitedText = (value: unknown, citations: readonly Citation[]): CleanedCitedText => {
   if (!isString(value)) {
     return { text: '', unresolvedCitationStrippedAllProse: false }
   }
@@ -573,6 +571,8 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
       ? normalizeReferences(record.references)
       : undefined
 
+  const assumptions = normalizeSearchAssumptions(record.assumptions)
+
   const narrative: SearchRunNarrative = {
     competitiveMoat,
     selectionMethodology,
@@ -591,6 +591,7 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
     ...(nextSteps && nextSteps.length > 0 ? { nextSteps } : {}),
     ...(references && references.length > 0 ? { references } : {}),
     ...(citations.length > 0 ? { citations } : {}),
+    ...(assumptions.length > 0 ? { assumptions } : {}),
   }
 
   return { narrative, violations }

@@ -852,7 +852,8 @@ function buildPrompt(job) {
   return [
     'Execute deep job research from this approved search thesis.',
     'Return strict JSON with keys: narrative, results.',
-    'Narrative must include competitiveMoat, selectionMethodology, marketContext, executiveSummary, surprises[], rejectedCandidates[], nextSteps[], and references[] when factual claims are cited.',
+    'Narrative must include competitiveMoat, selectionMethodology, marketContext, executiveSummary, assumptions[], surprises[], rejectedCandidates[], nextSteps[], and references[] when factual claims are cited.',
+    'Carry forward thesisSnapshot.assumptions[] and add any new gap-filled assumptions made during deep research. Each assumption must include claim, source, rationale, confidence, and overridable.',
     'Each result must include candidateEdge with 2-4 sentences using candidate fact + company fact + interpretation.',
     'Include interviewProcess, companyIntel, signalGroup, and advantageMatch on results when evidence is available.',
     'Every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding must use [cite:<id>] markers resolving to citations/references.',
@@ -1201,6 +1202,9 @@ export function createResearchJobService(options) {
         userId: completed?.userId,
         tokenUsage: result.tokenUsage,
         contractViolations: result.contractViolations?.length ?? 0,
+        assumptionCount: Array.isArray(result.narrative?.assumptions)
+          ? result.narrative.assumptions.length
+          : 0,
       })
     } catch (error) {
       if (abortController.signal.aborted || error?.name === 'AbortError') return

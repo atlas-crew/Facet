@@ -40,7 +40,10 @@ const baseProfile: SearchProfile = {
   workSummary: [{ title: 'Platform', summary: 'Owned platform systems.' }],
   openQuestions: ['Which companies allow AI tools?'],
   constraints: { compensation: '$250k', locations: ['Remote'], clearance: '', companySize: '' },
-  filters: { prioritize: ['builder-friendly interviews'], avoid: ['Leetcode-heavy loops'] },
+  filters: {
+    prioritize: [{ label: 'builder-friendly interviews', severity: 'soft' }],
+    avoid: [{ label: 'Leetcode-heavy loops', severity: 'soft' }],
+  },
   interviewPrefs: { strongFit: ['work sample'], redFlags: ['trivia screening'] },
 }
 
@@ -239,6 +242,8 @@ describe('deepSearchClient', () => {
     )
     expect(body.promptContract).toContain('same-origin source URL')
     expect(body.promptContract).toContain('jobDescriptionSourceUrl')
+    expect(body.promptContract).toContain('carry those assumptions forward')
+    expect(body.promptContract).toContain('narrative.assumptions[] item must include claim')
   })
 
   it('rejects async job creation when no thesis focus lanes are selected', async () => {
@@ -454,7 +459,25 @@ describe('deepSearchClient', () => {
           competitiveMoat: 'Deep platform and security moat with real production context.',
           selectionMethodology: 'Filtered roles by platform ownership and security adjacency.',
           marketContext: 'Security platform hiring rewards hands-on edge experience.',
-          executiveSummary: 'A concise but complete summary that is long enough for the contract.',
+          executiveSummary:
+            'A concise but complete summary that is long enough for the contract and keeps this test focused on candidateEdge validation.',
+          assumptions: [
+            {
+              id: 'assumption-remote',
+              claim: 'Remote US roles are acceptable.',
+              source: 'inferred',
+              rationale: 'The approved thesis allowed remote-first searches.',
+              confidence: 'high',
+              overridable: true,
+            },
+            {
+              id: 'assumption-bad',
+              claim: 'Malformed entries are dropped during hydration.',
+              source: 'invalid' as never,
+              confidence: 'medium',
+              overridable: true,
+            },
+          ],
         },
         contractViolations: ['upstream warning'],
         results: [
@@ -478,6 +501,16 @@ describe('deepSearchClient', () => {
 
     expect(patch.status).toBe('completed')
     expect(patch.searchLog).toEqual(['waf remote'])
+    expect(patch.narrative?.assumptions).toEqual([
+      {
+        id: 'assumption-remote',
+        claim: 'Remote US roles are acceptable.',
+        source: 'inferred',
+        rationale: 'The approved thesis allowed remote-first searches.',
+        confidence: 'high',
+        overridable: true,
+      },
+    ])
     expect(patch.contractViolations).toEqual([
       'upstream warning',
       expect.stringContaining('candidateEdge'),

@@ -1,11 +1,14 @@
 import { useId } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import type {
+  SearchAssumption,
   SearchCompanySize,
   SearchInstanceOverrides,
+  SearchProfile,
   SearchThesis,
   SkillCatalogEntry,
 } from '../../types/search'
+import { searchProfileFilterLabels } from '../../utils/searchProfileFilters'
 import { joinTags, splitTags } from './researchUtils'
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
@@ -33,6 +36,50 @@ interface SearchThesisWorkspaceProps {
   directiveDraft: string
   onDirectiveChange: (value: string) => void
   onRegenerate: () => void
+  onCorrectAssumption?: (assumption: SearchAssumption) => void
+}
+
+interface SearchAssumptionsDisclosureProps {
+  assumptions?: readonly SearchAssumption[]
+  onCorrectAssumption?: (assumption: SearchAssumption) => void
+}
+
+export function SearchAssumptionsDisclosure({
+  assumptions,
+  onCorrectAssumption,
+}: SearchAssumptionsDisclosureProps) {
+  if (!assumptions || assumptions.length === 0) return null
+
+  return (
+    <details className="research-assumptions" open>
+      <summary>
+        <span>Assumptions ({assumptions.length})</span>
+        <small>we made these calls because the input was ambiguous</small>
+      </summary>
+      <ul className="research-assumption-list">
+        {assumptions.map((assumption) => (
+          <li key={assumption.id} className="research-assumption-item">
+            <div>
+              <p>{assumption.claim}</p>
+              <span>
+                {assumption.confidence} confidence
+                {assumption.rationale ? <> - {assumption.rationale}</> : null}
+              </span>
+            </div>
+            {assumption.overridable && onCorrectAssumption ? (
+              <button
+                type="button"
+                className="research-btn research-btn-ghost"
+                onClick={() => onCorrectAssumption(assumption)}
+              >
+                Correct?
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
 }
 
 export function SearchThesisWorkspace({
@@ -45,6 +92,7 @@ export function SearchThesisWorkspace({
   directiveDraft,
   onDirectiveChange,
   onRegenerate,
+  onCorrectAssumption,
 }: SearchThesisWorkspaceProps) {
   const busy = isGeneratingThesis || isSearching
   const directiveChanged = (activeThesis?.customDirective ?? '') !== directiveDraft.trim()
@@ -111,6 +159,11 @@ export function SearchThesisWorkspace({
         </div>
       ) : (
         <div className="research-thesis-body">
+          <SearchAssumptionsDisclosure
+            assumptions={activeThesis.assumptions}
+            onCorrectAssumption={onCorrectAssumption}
+          />
+
           <div className="research-thesis-angles">
             <h3 className="research-subtitle">Search Angles</h3>
             {activeThesis.searchLanes.length === 0 ? (
@@ -264,16 +317,7 @@ export function SearchSkillsTable({
 }
 
 interface SearchInstancePreferencesProps {
-  identityBase: {
-    constraints: {
-      compensation: string
-      locations: string[]
-      clearance: string
-      companySize: SearchCompanySize | ''
-    }
-    filters: { prioritize: string[]; avoid: string[] }
-    interviewPrefs: { strongFit: string[]; redFlags: string[] }
-  }
+  identityBase: Pick<SearchProfile, 'constraints' | 'filters' | 'interviewPrefs'>
   activeThesis: SearchThesis | null
   onUpdateOverrides: (patch: Partial<SearchInstanceOverrides>) => void
   onEditThesisSignals: (target: 'lookFor' | 'avoid') => void
@@ -301,7 +345,10 @@ export function SearchInstancePreferences({
         prioritize: activeThesis.lookFor.map((signal) => signal.label),
         avoid: activeThesis.avoid.map((signal) => signal.label),
       }
-    : identityBase.filters
+    : {
+        prioritize: searchProfileFilterLabels(identityBase.filters.prioritize),
+        avoid: searchProfileFilterLabels(identityBase.filters.avoid),
+      }
 
   const companySizeLabel =
     COMPANY_SIZE_OPTIONS.find((option) => option.value === identityBase.constraints.companySize)
@@ -366,7 +413,7 @@ export function SearchInstancePreferences({
               <dt>Prioritize</dt>
               <dd>
                 {identityBase.filters.prioritize.length > 0 ? (
-                  identityBase.filters.prioritize.join(', ')
+                  searchProfileFilterLabels(identityBase.filters.prioritize).join(', ')
                 ) : (
                   <span className="research-muted">—</span>
                 )}
@@ -376,7 +423,7 @@ export function SearchInstancePreferences({
               <dt>Avoid</dt>
               <dd>
                 {identityBase.filters.avoid.length > 0 ? (
-                  identityBase.filters.avoid.join(', ')
+                  searchProfileFilterLabels(identityBase.filters.avoid).join(', ')
                 ) : (
                   <span className="research-muted">—</span>
                 )}

@@ -172,6 +172,10 @@ describe('thesisGenerator', () => {
     expect(responseSchemaBlock).not.toContain('prioritize')
     expect(responseSchemaBlock).not.toContain('searchOverrides.filters')
     expect(systemPrompt).toContain('do not emit duplicate searchOverrides.filters')
+    expect(systemPrompt).toContain('MUST record the assumption in `assumptions[]`')
+    expect(responseSchemaBlock).toContain(
+      '"assumptions": [{ "id": "optional", "claim": "string", "source": "inferred|assumed-default|explicit-fallback"',
+    )
     expect(result.thesis).toMatchObject({
       id: 'sthesis-generated',
       identityVersion: 7,
@@ -427,6 +431,80 @@ describe('thesisGenerator', () => {
     expect(thesis.avoid[0]?.id).toBe('ssig-existing-avoid')
     expect(thesis.lookFor[1]?.id).toMatch(/^ssig-/)
     expect(thesis.avoid[1]?.id).toMatch(/^ssig-/)
+  })
+
+  it('normalizes generated thesis assumptions and drops malformed entries', () => {
+    const identity = cloneIdentityFixture()
+    const thesis = normalizeGeneratedSearchThesis(
+      {
+        narrative,
+        competitiveMoat: 'Kubernetes delivery depth combined with product-aware platform strategy.',
+        unfairAdvantages: [
+          {
+            combination: 'Kubernetes delivery plus product judgment',
+            targetCompanyProfile: 'Platform modernization teams',
+          },
+        ],
+        searchLanes: [
+          {
+            id: 'lane-modernization',
+            title: 'Platform modernization',
+            rationale:
+              'This lane targets strategic platform migration work. It matches the candidate evidence well.',
+            targetSignals: ['platform modernization'],
+          },
+        ],
+        interviewStrategy: 'Anchor on deployment architecture tradeoffs.',
+        lookFor: [],
+        avoid: [],
+        keywordCombinations: [],
+        skillDepthMap: [{ skill: 'Kubernetes', calibration: 'Use as platform evidence.' }],
+        assumptions: [
+          {
+            id: 'assumption-visa',
+            claim: 'Candidate can work in the US without sponsorship.',
+            source: 'explicit-fallback',
+            rationale: 'Visa status was not specified.',
+            confidence: 'low',
+            overridable: true,
+          },
+          {
+            claim: 'Remote US is acceptable outside Denver.',
+            source: 'inferred',
+            rationale: 'Hybrid preference only named Denver.',
+            confidence: 'high',
+            overridable: true,
+          },
+          {
+            id: 'assumption-bad-source',
+            claim: 'Bad source should be dropped.',
+            source: 'guessed',
+            confidence: 'medium',
+            overridable: true,
+          },
+        ],
+      },
+      identity,
+    )
+
+    expect(thesis.assumptions).toEqual([
+      {
+        id: 'assumption-visa',
+        claim: 'Candidate can work in the US without sponsorship.',
+        source: 'explicit-fallback',
+        rationale: 'Visa status was not specified.',
+        confidence: 'low',
+        overridable: true,
+      },
+      expect.objectContaining({
+        claim: 'Remote US is acceptable outside Denver.',
+        source: 'inferred',
+        rationale: 'Hybrid preference only named Denver.',
+        confidence: 'high',
+        overridable: true,
+      }),
+    ])
+    expect(thesis.assumptions?.[1]?.id).toMatch(/^sassump-/)
   })
 
   it('promotes legacy-only override filters into canonical thesis signals', () => {

@@ -210,7 +210,7 @@ const FILTER_AWARENESS_SYSTEM_PROMPT = [
   '  "triggered_avoid": [',
   '    {',
   '      "filter_id": string,',
-  '      "severity": "hard" | "soft",',
+  '      "severity": "hard" | "soft" | "conditional",',
   '      "evidence": string',
   '    }',
   '  ],',
@@ -323,8 +323,7 @@ const tokenizeText = (value: string): string[] =>
     ),
   )
 
-const escapeRegExp = (value: string): string =>
-  value.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&')
+const escapeRegExp = (value: string): string => value.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&')
 
 const containsNormalizedPhrase = (haystack: string, needle: string): boolean => {
   const normalizedNeedle = normalizeSearchText(needle)
@@ -353,27 +352,33 @@ const normalizeRequirement = (value: unknown, index: number): MatchRequirement =
   const record = assertRecord(value, 'requirements[' + index + ']')
 
   return untagged({
-    id: slugify(assertString(record.id, 'requirements[' + index + '].id')) || 'requirement-' + (index + 1),
+    id:
+      slugify(assertString(record.id, 'requirements[' + index + '].id')) ||
+      'requirement-' + (index + 1),
     label: assertString(record.label, 'requirements[' + index + '].label').trim(),
     priority: normalizePriority(record.priority, 'requirements[' + index + '].priority'),
     evidence: assertString(record.evidence, 'requirements[' + index + '].evidence').trim(),
     tags: dedupeNormalized(assertStringArray(record.tags, 'requirements[' + index + '].tags')),
-    keywords: dedupeTrimmed(assertStringArray(record.keywords, 'requirements[' + index + '].keywords')),
+    keywords: dedupeTrimmed(
+      assertStringArray(record.keywords, 'requirements[' + index + '].keywords'),
+    ),
   })
 }
 
-const normalizeAdvantageHypothesis = (
-  value: unknown,
-  index: number,
-): MatchAdvantageHypothesis => {
+const normalizeAdvantageHypothesis = (value: unknown, index: number): MatchAdvantageHypothesis => {
   const record = assertRecord(value, 'advantage_hypotheses[' + index + ']')
 
   return untagged({
-    id: slugify(assertString(record.id, 'advantage_hypotheses[' + index + '].id')) || 'advantage-' + (index + 1),
+    id:
+      slugify(assertString(record.id, 'advantage_hypotheses[' + index + '].id')) ||
+      'advantage-' + (index + 1),
     claim: assertString(record.claim, 'advantage_hypotheses[' + index + '].claim').trim(),
     requirementIds: Array.from(
       new Set(
-        assertStringArray(record.requirement_ids, 'advantage_hypotheses[' + index + '].requirement_ids')
+        assertStringArray(
+          record.requirement_ids,
+          'advantage_hypotheses[' + index + '].requirement_ids',
+        )
           .map((entry) => slugify(entry))
           .filter(Boolean),
       ),
@@ -486,7 +491,10 @@ const flattenIdentityAssets = (identity: ProfessionalIdentityV3): FlattenedMatch
   for (const role of identity.roles) {
     for (const bullet of role.bullets) {
       const label =
-        bullet.impact[0]?.trim() || bullet.outcome.trim() || bullet.action.trim() || bullet.problem.trim()
+        bullet.impact[0]?.trim() ||
+        bullet.outcome.trim() ||
+        bullet.action.trim() ||
+        bullet.problem.trim()
       const text = [bullet.problem, bullet.action, bullet.outcome]
         .map((value) => value.trim())
         .filter(Boolean)
@@ -514,7 +522,9 @@ const flattenIdentityAssets = (identity: ProfessionalIdentityV3): FlattenedMatch
         sourceLabel: group.label,
         text: item.depth ? item.name + ' (' + item.depth + ')' : item.name,
         tags: dedupeNormalized([...item.tags, item.name, group.label]),
-        searchTerms: tokenizeText(group.label + ' ' + item.name + ' ' + (item.depth ?? '') + ' ' + (item.context ?? '')),
+        searchTerms: tokenizeText(
+          group.label + ' ' + item.name + ' ' + (item.depth ?? '') + ' ' + (item.context ?? ''),
+        ),
       })
     }
   }
@@ -569,7 +579,9 @@ const scoreAssetAgainstRequirement = (
   )
 
   const tagCoverage =
-    matchedTags.length === 0 ? 0 : matchedTags.length / Math.max(1, Math.min(requirement.tags.length, 4))
+    matchedTags.length === 0
+      ? 0
+      : matchedTags.length / Math.max(1, Math.min(requirement.tags.length, 4))
   const keywordCoverage =
     matchedKeywords.length === 0
       ? 0
@@ -594,7 +606,10 @@ const rankAssets = (
   requirements: MatchRequirementCoverage[]
   matchScore: number
 } => {
-  const totalWeight = requirements.reduce((sum, requirement) => sum + PRIORITY_WEIGHTS[requirement.priority], 0)
+  const totalWeight = requirements.reduce(
+    (sum, requirement) => sum + PRIORITY_WEIGHTS[requirement.priority],
+    0,
+  )
   const priorityByRequirementId = new Map(
     requirements.map((requirement) => [requirement.id, requirement.priority] as const),
   )
@@ -607,7 +622,8 @@ const rankAssets = (
       const weightedScore = details.reduce(
         (total, detail) =>
           total +
-          detail.rawScore * PRIORITY_WEIGHTS[priorityByRequirementId.get(detail.requirementId) ?? 'supporting'],
+          detail.rawScore *
+            PRIORITY_WEIGHTS[priorityByRequirementId.get(detail.requirementId) ?? 'supporting'],
         0,
       )
 
@@ -657,7 +673,11 @@ const buildGapReason = (requirement: MatchRequirementCoverage): string => {
     return 'No strong evidence found for ' + requirement.label + ' in the current identity model.'
   }
 
-  return 'Only partial evidence was found for ' + requirement.label + '; the identity model may need stronger stories or clearer tags.'
+  return (
+    'Only partial evidence was found for ' +
+    requirement.label +
+    '; the identity model may need stronger stories or clearer tags.'
+  )
 }
 
 const buildGaps = (requirements: MatchRequirementCoverage[]): MatchGap[] =>
@@ -690,9 +710,14 @@ const buildFallbackAdvantages = (
     .map((requirement, index) =>
       untagged({
         id: 'fallback-advantage-' + (index + 1),
-        claim: 'You have credible evidence for ' + requirement.label + ' that can be positioned confidently for this role.',
+        claim:
+          'You have credible evidence for ' +
+          requirement.label +
+          ' that can be positioned confidently for this role.',
         requirementIds: [requirement.id],
-        evidence: assets.filter((asset) => asset.matchedRequirementIds.includes(requirement.id)).slice(0, 3),
+        evidence: assets
+          .filter((asset) => asset.matchedRequirementIds.includes(requirement.id))
+          .slice(0, 3),
       }),
     )
     .filter((advantage) => advantage.evidence.length > 0)
@@ -709,7 +734,9 @@ const buildAdvantages = (
       )
       const evidence = assets
         .filter((asset) =>
-          asset.matchedRequirementIds.some((requirementId) => requirementIds.includes(requirementId)),
+          asset.matchedRequirementIds.some((requirementId) =>
+            requirementIds.includes(requirementId),
+          ),
         )
         .slice(0, 4)
 
@@ -771,6 +798,58 @@ const descriptionMatchesJd = (text: string, description: string): boolean => {
   const overlap = descriptionTokens.filter((token) => normalizedJd.includes(token))
   return overlap.length >= Math.max(2, Math.ceil(descriptionTokens.length * 0.6))
 }
+
+const CONDITION_STOPWORDS = new Set([
+  'about',
+  'around',
+  'being',
+  'build',
+  'building',
+  'fine',
+  'only',
+  'role',
+  'roles',
+  'the',
+  'this',
+  'that',
+  'want',
+  'wants',
+  'with',
+])
+
+const CONDITION_TOKEN_ALIASES: Record<string, string[]> = {
+  k8s: ['k8s', 'kubernetes'],
+  kubernetes: ['kubernetes', 'k8s'],
+}
+
+const conditionKeywords = (condition: string): string[] =>
+  Array.from(
+    new Set(
+      tokenizeText(condition).filter(
+        (token) => token.length >= 3 && !CONDITION_STOPWORDS.has(token),
+      ),
+    ),
+  )
+
+const conditionMatchesJd = (text: string, condition: string): boolean => {
+  const trimmed = condition.trim()
+  if (!trimmed) return true
+  if (descriptionMatchesJd(text, trimmed)) return true
+
+  const normalizedJd = normalizeSearchText(text)
+  const keywords = conditionKeywords(trimmed)
+  if (keywords.length === 0) return false
+
+  const matched = keywords.filter((keyword) =>
+    (CONDITION_TOKEN_ALIASES[keyword] ?? [keyword]).some((alias) => normalizedJd.includes(alias)),
+  )
+  return matched.length >= Math.min(2, keywords.length)
+}
+
+const conditionalFilterAppliesToJd = (
+  condition: string | undefined,
+  prepared: PreparedMatchJobDescription | undefined,
+): boolean => !prepared || conditionMatchesJd(prepared.content, condition ?? '')
 
 const parseSalaryValues = (text: string): number[] => {
   const matches = text.matchAll(/(\$|usd\s*)?(\d{1,3}(?:,\d{3})+|\d+)(\s*[kK])?/gi)
@@ -847,10 +926,18 @@ const buildFallbackSkillGuidance = (
     return signal.trim()
   }
   if (depth === 'avoid') {
-    return 'Do not lead with ' + skillName + '. Acknowledge only if necessary and redirect to adjacent strengths.'
+    return (
+      'Do not lead with ' +
+      skillName +
+      '. Acknowledge only if necessary and redirect to adjacent strengths.'
+    )
   }
   if (depth === 'working' && requirementStrength === 'required') {
-    return 'Mention ' + skillName + ' honestly with a caveat. Position it as working depth, not deep specialization.'
+    return (
+      'Mention ' +
+      skillName +
+      ' honestly with a caveat. Position it as working depth, not deep specialization.'
+    )
   }
   if (depth === 'expert' || depth === 'strong') {
     return 'Lead with ' + skillName + ' as a credible strength for this role.'
@@ -859,7 +946,10 @@ const buildFallbackSkillGuidance = (
   return 'Standard match. Present neutrally.'
 }
 
-const normalizeVectorStrength = (value: unknown, context: string): 'strong' | 'moderate' | 'weak' => {
+const normalizeVectorStrength = (
+  value: unknown,
+  context: string,
+): 'strong' | 'moderate' | 'weak' => {
   const strength = assertString(value, context)
   if (strength === 'strong' || strength === 'moderate' || strength === 'weak') {
     return strength
@@ -868,16 +958,16 @@ const normalizeVectorStrength = (value: unknown, context: string): 'strong' | 'm
   throw new Error(context + ' must be strong, moderate, or weak.')
 }
 
-const normalizeSeverity = (
-  value: unknown,
-  context: string,
-): 'hard' | 'soft' => {
+const normalizeSeverity = (value: unknown, context: string): ProfessionalMatchingSeverity => {
   const severity = assertString(value, context)
   if (severity === 'hard') {
     return 'hard'
   }
-  if (severity === 'soft' || severity === 'conditional') {
+  if (severity === 'soft') {
     return 'soft'
+  }
+  if (severity === 'conditional') {
+    return 'conditional'
   }
 
   throw new Error(context + ' must be hard, soft, or conditional.')
@@ -915,12 +1005,14 @@ export const runHardFilters = (
     if (avoid.severity !== 'hard') continue
     if (!descriptionMatchesJd(prepared.content, avoid.description)) continue
 
-    triggeredAvoid.push(untagged({
-      filterId: avoid.id,
-      label: avoid.label,
-      severity: 'hard' as const,
-      jdEvidence: findMatchingLine(prepared.content, avoid.description),
-    }))
+    triggeredAvoid.push(
+      untagged({
+        filterId: avoid.id,
+        label: avoid.label,
+        severity: 'hard' as const,
+        jdEvidence: findMatchingLine(prepared.content, avoid.description),
+      }),
+    )
     watchOuts.push(
       buildHardFilterWatchOut({
         type: 'filter_risk',
@@ -932,12 +1024,16 @@ export const runHardFilters = (
   }
 
   const clearance = identity.preferences.constraints?.clearance
-  if (clearance?.exclude_required && /clearance|ts\/sci|top secret|secret clearance|public trust/i.test(prepared.content)) {
+  if (
+    clearance?.exclude_required &&
+    /clearance|ts\/sci|top secret|secret clearance|public trust/i.test(prepared.content)
+  ) {
     watchOuts.push(
       buildHardFilterWatchOut({
         type: 'filter_risk',
         referenceId: 'clearance-required',
-        description: 'JD requires security clearance and the current preferences exclude required clearance roles.',
+        description:
+          'JD requires security clearance and the current preferences exclude required clearance roles.',
         action: 'Skip unless the requirement is flexible.',
       }),
     )
@@ -953,7 +1049,10 @@ export const runHardFilters = (
         buildHardFilterWatchOut({
           type: 'comp_concern',
           referenceId: 'comp-floor',
-          description: 'JD top salary band (' + topRange.toLocaleString() + ') sits below the candidate base-floor preference.',
+          description:
+            'JD top salary band (' +
+            topRange.toLocaleString() +
+            ') sits below the candidate base-floor preference.',
           action: 'Skip unless compensation flexibility is confirmed.',
         }),
       )
@@ -977,7 +1076,7 @@ export const runHardFilters = (
   const filterOut = watchOuts.length > 0
   return {
     filterOut,
-    reason: filterOut ? watchOuts[0]?.description ?? 'Hard filter triggered.' : null,
+    reason: filterOut ? (watchOuts[0]?.description ?? 'Hard filter triggered.') : null,
     watchOuts,
     triggeredAvoid,
     warnings,
@@ -1069,11 +1168,19 @@ export const createJobMatchReport = ({
   const flattenedAssets = flattenIdentityAssets(identity)
   const ranked = rankAssets(flattenedAssets, extraction.requirements)
   const gaps = buildGaps(ranked.requirements)
-  const advantages = buildAdvantages(extraction.advantageHypotheses, ranked.requirements, ranked.scoredAssets)
+  const advantages = buildAdvantages(
+    extraction.advantageHypotheses,
+    ranked.requirements,
+    ranked.scoredAssets,
+  )
   const baseWarnings: TaggedNote[] = [
     ...extraction.warnings,
     ...(prepared.truncated
-      ? [untaggedNote('Job description exceeded ' + MAX_JD_WORDS + ' words and was truncated for analysis.')]
+      ? [
+          untaggedNote(
+            'Job description exceeded ' + MAX_JD_WORDS + ' words and was truncated for analysis.',
+          ),
+        ]
       : []),
   ]
 
@@ -1203,7 +1310,9 @@ export const normalizeVectorMatchPayload = ({
   try {
     parsed = JSON.parse(extractJsonBlock(rawResponse))
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Unable to parse vector match response.')
+    throw new Error(
+      error instanceof Error ? error.message : 'Unable to parse vector match response.',
+    )
   }
 
   const root = assertRecord(parsed, 'vector match response')
@@ -1214,7 +1323,10 @@ export const normalizeVectorMatchPayload = ({
 
   for (const [index, entry] of entries.entries()) {
     const record = assertRecord(entry, 'vector_matches[' + index + ']')
-    const vectorId = assertString(record.vector_id, 'vector_matches[' + index + '].vector_id').trim()
+    const vectorId = assertString(
+      record.vector_id,
+      'vector_matches[' + index + '].vector_id',
+    ).trim()
     const vector = vectorById.get(vectorId)
     if (!vector) {
       warnings.push('Dropped unknown vector match id: ' + vectorId + '.')
@@ -1241,19 +1353,22 @@ export const normalizeVectorMatchPayload = ({
       }),
     )
 
-    matchedVectors.push(untagged({
-      vectorId: vector.id,
-      title: vector.title,
-      priority: vector.priority,
-      matchStrength,
-      evidence,
-      thesisApplies: Boolean(record.thesis_applies),
-      thesisFitExplanation: String(record.thesis_fit_explanation ?? '').trim(),
-    }))
+    matchedVectors.push(
+      untagged({
+        vectorId: vector.id,
+        title: vector.title,
+        priority: vector.priority,
+        matchStrength,
+        evidence,
+        thesisApplies: Boolean(record.thesis_applies),
+        thesisFitExplanation: String(record.thesis_fit_explanation ?? '').trim(),
+      }),
+    )
   }
 
   matchedVectors.sort((left, right) => {
-    const priorityDelta = VECTOR_PRIORITY_WEIGHTS[right.priority] - VECTOR_PRIORITY_WEIGHTS[left.priority]
+    const priorityDelta =
+      VECTOR_PRIORITY_WEIGHTS[right.priority] - VECTOR_PRIORITY_WEIGHTS[left.priority]
     if (priorityDelta !== 0) return priorityDelta
     const strengthDelta =
       VECTOR_STRENGTH_SCORES[right.matchStrength] - VECTOR_STRENGTH_SCORES[left.matchStrength]
@@ -1286,11 +1401,15 @@ const buildSkillCandidates = (
             containsRawPhrase(keyword, item.name)
           const keywordAppearsInJd = jdMentionsPhrase(prepared.content, normalizedJd, keyword)
 
-          return keywordMentionsSkill || (keywordAppearsInJd && normalizedTags.includes(normalizeTag(keyword)))
+          return (
+            keywordMentionsSkill ||
+            (keywordAppearsInJd && normalizedTags.includes(normalizeTag(keyword)))
+          )
         })
         const tagHit = requirement.tags.some((tag) => normalizedTags.includes(tag))
         const nameHit = requirement.keywords.some(
-          (keyword) => normalizeTag(keyword) === normalizedName || containsRawPhrase(keyword, item.name),
+          (keyword) =>
+            normalizeTag(keyword) === normalizedName || containsRawPhrase(keyword, item.name),
         )
         return keywordHit || tagHit || nameHit
       })
@@ -1362,19 +1481,26 @@ export const normalizeSkillMatchPayload = ({
   try {
     parsed = JSON.parse(extractJsonBlock(rawResponse))
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Unable to parse skill match response.')
+    throw new Error(
+      error instanceof Error ? error.message : 'Unable to parse skill match response.',
+    )
   }
 
   const root = assertRecord(parsed, 'skill match response')
   const entries = Array.isArray(root.skill_matches) ? root.skill_matches : []
-  const candidateByName = new Map(candidates.map((candidate) => [candidate.name.toLowerCase(), candidate]))
+  const candidateByName = new Map(
+    candidates.map((candidate) => [candidate.name.toLowerCase(), candidate]),
+  )
   const skillMatches: SkillMatch[] = []
   const warnings: string[] = []
   const seen = new Set<string>()
 
   for (const [index, entry] of entries.entries()) {
     const record = assertRecord(entry, 'skill_matches[' + index + ']')
-    const skillName = assertString(record.skill_name, 'skill_matches[' + index + '].skill_name').trim()
+    const skillName = assertString(
+      record.skill_name,
+      'skill_matches[' + index + '].skill_name',
+    ).trim()
     const candidate = candidateByName.get(skillName.toLowerCase())
     if (!candidate) {
       warnings.push('Dropped unknown skill match: ' + skillName + '.')
@@ -1387,51 +1513,56 @@ export const normalizeSkillMatchPayload = ({
     const userDepth = deriveUserDepth(candidate.item)
     const userPositioning = candidate.item.positioning?.trim() ?? ''
 
-    skillMatches.push(untagged({
-      skillName: candidate.name,
-      jdRequirement:
-        String(record.jd_requirement ?? '').trim() ||
-        candidate.relatedRequirements[0]?.evidence ||
-        'JD mentions or implies ' + candidate.name + '.',
-      requirementStrength: candidate.requirementStrength,
-      userDepth,
-      userPositioning,
-      matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
-      presentationGuidance:
-        String(record.presentation_guidance ?? '').trim() ||
-        buildFallbackSkillGuidance(
-          candidate.name,
-          userDepth,
-          candidate.requirementStrength,
-          userPositioning,
-        ),
-    }))
+    skillMatches.push(
+      untagged({
+        skillName: candidate.name,
+        jdRequirement:
+          String(record.jd_requirement ?? '').trim() ||
+          candidate.relatedRequirements[0]?.evidence ||
+          'JD mentions or implies ' + candidate.name + '.',
+        requirementStrength: candidate.requirementStrength,
+        userDepth,
+        userPositioning,
+        matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
+        presentationGuidance:
+          String(record.presentation_guidance ?? '').trim() ||
+          buildFallbackSkillGuidance(
+            candidate.name,
+            userDepth,
+            candidate.requirementStrength,
+            userPositioning,
+          ),
+      }),
+    )
   }
 
   for (const candidate of candidates) {
     if (seen.has(candidate.name.toLowerCase())) continue
     const userDepth = deriveUserDepth(candidate.item)
     const userPositioning = candidate.item.positioning?.trim() ?? ''
-    skillMatches.push(untagged({
-      skillName: candidate.name,
-      jdRequirement:
-        candidate.relatedRequirements[0]?.evidence ||
-        'JD mentions or implies ' + candidate.name + '.',
-      requirementStrength: candidate.requirementStrength,
-      userDepth,
-      userPositioning,
-      matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
-      presentationGuidance: buildFallbackSkillGuidance(
-        candidate.name,
+    skillMatches.push(
+      untagged({
+        skillName: candidate.name,
+        jdRequirement:
+          candidate.relatedRequirements[0]?.evidence ||
+          'JD mentions or implies ' + candidate.name + '.',
+        requirementStrength: candidate.requirementStrength,
         userDepth,
-        candidate.requirementStrength,
         userPositioning,
-      ),
-    }))
+        matchQuality: determineMatchQuality(userDepth, candidate.requirementStrength),
+        presentationGuidance: buildFallbackSkillGuidance(
+          candidate.name,
+          userDepth,
+          candidate.requirementStrength,
+          userPositioning,
+        ),
+      }),
+    )
   }
 
   skillMatches.sort((left, right) => {
-    const qualityDelta = SKILL_MATCH_SCORES[right.matchQuality] - SKILL_MATCH_SCORES[left.matchQuality]
+    const qualityDelta =
+      SKILL_MATCH_SCORES[right.matchQuality] - SKILL_MATCH_SCORES[left.matchQuality]
     if (qualityDelta !== 0) return qualityDelta
     return left.skillName.localeCompare(right.skillName)
   })
@@ -1466,9 +1597,11 @@ const buildFilterAwarenessPrompt = ({
 export const normalizeFilterAwarenessPayload = ({
   rawResponse,
   identity,
+  prepared,
 }: {
   rawResponse: string
   identity: ProfessionalIdentityV3
+  prepared?: PreparedMatchJobDescription
 }): NormalizedFilterAwarenessPass => {
   let parsed: unknown
   try {
@@ -1483,19 +1616,29 @@ export const normalizeFilterAwarenessPayload = ({
   const prioritizeById = new Map(
     (identity.preferences.matching?.prioritize ?? []).map((entry) => [entry.id, entry]),
   )
-  const avoidById = new Map((identity.preferences.matching?.avoid ?? []).map((entry) => [entry.id, entry]))
+  const avoidById = new Map(
+    (identity.preferences.matching?.avoid ?? []).map((entry) => [entry.id, entry]),
+  )
   const awarenessById = new Map(
     (identity.awareness?.open_questions ?? []).map((entry) => [entry.id, entry]),
   )
   const warnings: string[] = []
 
-  const triggeredPrioritize = (Array.isArray(root.triggered_prioritize) ? root.triggered_prioritize : [])
+  const triggeredPrioritize = (
+    Array.isArray(root.triggered_prioritize) ? root.triggered_prioritize : []
+  )
     .map((entry, index) => {
       const record = assertRecord(entry, 'triggered_prioritize[' + index + ']')
-      const filterId = assertString(record.filter_id, 'triggered_prioritize[' + index + '].filter_id').trim()
+      const filterId = assertString(
+        record.filter_id,
+        'triggered_prioritize[' + index + '].filter_id',
+      ).trim()
       const filter = prioritizeById.get(filterId)
       if (!filter) {
         warnings.push('Dropped unknown prioritize filter id: ' + filterId + '.')
+        return null
+      }
+      if (!conditionalFilterAppliesToJd(filter.condition, prepared)) {
         return null
       }
 
@@ -1511,17 +1654,29 @@ export const normalizeFilterAwarenessPayload = ({
   const triggeredAvoid = (Array.isArray(root.triggered_avoid) ? root.triggered_avoid : [])
     .map((entry, index) => {
       const record = assertRecord(entry, 'triggered_avoid[' + index + ']')
-      const filterId = assertString(record.filter_id, 'triggered_avoid[' + index + '].filter_id').trim()
+      const filterId = assertString(
+        record.filter_id,
+        'triggered_avoid[' + index + '].filter_id',
+      ).trim()
       const filter = avoidById.get(filterId)
       if (!filter) {
         warnings.push('Dropped unknown avoid filter id: ' + filterId + '.')
+        return null
+      }
+      if (
+        filter.severity === 'conditional' &&
+        !conditionalFilterAppliesToJd(filter.condition, prepared)
+      ) {
         return null
       }
 
       return untagged({
         filterId,
         label: filter.label,
-        severity: normalizeSeverity(record.severity ?? filter.severity, 'triggered_avoid[' + index + '].severity'),
+        severity: normalizeSeverity(
+          record.severity ?? filter.severity,
+          'triggered_avoid[' + index + '].severity',
+        ),
         jdEvidence: String(record.evidence ?? '').trim() || filter.description,
       }) satisfies AvoidTrigger
     })
@@ -1530,7 +1685,10 @@ export const normalizeFilterAwarenessPayload = ({
   const relevantAwareness = (Array.isArray(root.relevant_awareness) ? root.relevant_awareness : [])
     .map((entry, index) => {
       const record = assertRecord(entry, 'relevant_awareness[' + index + ']')
-      const awarenessId = assertString(record.awareness_id, 'relevant_awareness[' + index + '].awareness_id').trim()
+      const awarenessId = assertString(
+        record.awareness_id,
+        'relevant_awareness[' + index + '].awareness_id',
+      ).trim()
       const awareness = awarenessById.get(awarenessId)
       if (!awareness) {
         warnings.push('Dropped unknown awareness id: ' + awarenessId + '.')
@@ -1563,7 +1721,8 @@ const computeVectorScore = (matchedVectors: MatchedVector[]): number => {
   return clampScore(
     Math.max(
       ...matchedVectors.map(
-        (vector) => VECTOR_PRIORITY_WEIGHTS[vector.priority] * VECTOR_STRENGTH_SCORES[vector.matchStrength],
+        (vector) =>
+          VECTOR_PRIORITY_WEIGHTS[vector.priority] * VECTOR_STRENGTH_SCORES[vector.matchStrength],
       ),
     ),
   )
@@ -1593,7 +1752,10 @@ const computeFilterScore = ({
   triggeredPrioritize,
   triggeredAvoid,
   relevantAwareness,
-}: Pick<VectorAwareMatchResult, 'triggeredPrioritize' | 'triggeredAvoid' | 'relevantAwareness'>): number => {
+}: Pick<
+  VectorAwareMatchResult,
+  'triggeredPrioritize' | 'triggeredAvoid' | 'relevantAwareness'
+>): number => {
   let score = 0.55
 
   for (const trigger of triggeredPrioritize) {
@@ -1715,33 +1877,42 @@ const buildWatchOuts = ({
 
   for (const skillMatch of skillMatches) {
     if (skillMatch.matchQuality !== 'negative') continue
-    watchOuts.push(untagged({
-      type: 'avoid_skill' as const,
-      referenceId: skillMatch.skillName,
-      description: skillMatch.skillName + ' is a red flag for this JD because the current profile treats it as avoid depth.',
-      severity: skillMatch.requirementStrength === 'required' ? ('hard' as const) : ('soft' as const),
-      suggestedAction: skillMatch.presentationGuidance,
-    }))
+    watchOuts.push(
+      untagged({
+        type: 'avoid_skill' as const,
+        referenceId: skillMatch.skillName,
+        description:
+          skillMatch.skillName +
+          ' is a red flag for this JD because the current profile treats it as avoid depth.',
+        severity:
+          skillMatch.requirementStrength === 'required' ? ('hard' as const) : ('soft' as const),
+        suggestedAction: skillMatch.presentationGuidance,
+      }),
+    )
   }
 
   for (const avoid of triggeredAvoid) {
-    watchOuts.push(untagged({
-      type: 'filter_risk' as const,
-      referenceId: avoid.filterId,
-      description: avoid.label + ' appears in the JD.',
-      severity: avoid.severity,
-      suggestedAction: avoid.jdEvidence,
-    }))
+    watchOuts.push(
+      untagged({
+        type: 'filter_risk' as const,
+        referenceId: avoid.filterId,
+        description: avoid.label + ' appears in the JD.',
+        severity: avoid.severity,
+        suggestedAction: avoid.jdEvidence,
+      }),
+    )
   }
 
   for (const awareness of relevantAwareness) {
-    watchOuts.push(untagged({
-      type: 'awareness_item' as const,
-      referenceId: awareness.awarenessId,
-      description: awareness.appliesBecause,
-      severity: awareness.severity === 'high' ? ('hard' as const) : ('soft' as const),
-      suggestedAction: awareness.action,
-    }))
+    watchOuts.push(
+      untagged({
+        type: 'awareness_item' as const,
+        referenceId: awareness.awarenessId,
+        description: awareness.appliesBecause,
+        severity: awareness.severity === 'high' ? ('hard' as const) : ('soft' as const),
+        suggestedAction: awareness.action,
+      }),
+    )
   }
 
   return watchOuts
@@ -1834,13 +2005,19 @@ export const composeVectorAwareMatchResult = ({
     rationale: rationale.trim() || extraction.summary,
     warnings: dedupeTaggedNotes([
       ...warnings,
-      ...(prepared.truncated ? ['Job description exceeded ' + MAX_JD_WORDS + ' words and was truncated for analysis.'] : []),
-      ...(identity.search_vectors?.length ? [] : ['No search vectors defined. Falling back to skill-first analysis.']),
+      ...(prepared.truncated
+        ? ['Job description exceeded ' + MAX_JD_WORDS + ' words and was truncated for analysis.']
+        : []),
+      ...(identity.search_vectors?.length
+        ? []
+        : ['No search vectors defined. Falling back to skill-first analysis.']),
     ]),
   }
 }
 
-const buildRationalePrompt = (analysis: Omit<VectorAwareMatchResult, 'id' | 'generatedAt' | 'identityVersion' | 'rationale'>) =>
+const buildRationalePrompt = (
+  analysis: Omit<VectorAwareMatchResult, 'id' | 'generatedAt' | 'identityVersion' | 'rationale'>,
+) =>
   JSON.stringify(
     {
       overall_fit: analysis.overallFit,
@@ -1909,7 +2086,10 @@ export const adaptVectorAwareMatchToReport = ({
   const positioningRecommendations = dedupeTaggedNotes([
     ...extraction.positioningRecommendations,
     ...analysis.skillMatches
-      .filter((skillMatch) => skillMatch.matchQuality === 'strong' || skillMatch.matchQuality === 'moderate')
+      .filter(
+        (skillMatch) =>
+          skillMatch.matchQuality === 'strong' || skillMatch.matchQuality === 'moderate',
+      )
       .slice(0, 3)
       .map((skillMatch) => skillMatch.presentationGuidance),
   ])
@@ -1974,7 +2154,8 @@ export const analyzeIdentityJobMatch = async ({
             .catch((error) => ({
               matchedVectors: [],
               warnings: [
-                'Vector matching pass failed: ' + (error instanceof Error ? error.message : 'unknown error'),
+                'Vector matching pass failed: ' +
+                  (error instanceof Error ? error.message : 'unknown error'),
               ],
             }))
         : Promise.resolve({ matchedVectors: [], warnings: [] })
@@ -2013,7 +2194,8 @@ export const analyzeIdentityJobMatch = async ({
                 })
               }),
               warnings: [
-                'Skill matching pass failed: ' + (error instanceof Error ? error.message : 'unknown error'),
+                'Skill matching pass failed: ' +
+                  (error instanceof Error ? error.message : 'unknown error'),
               ],
             }))
         : Promise.resolve({ skillMatches: [], warnings: [] })
@@ -2027,6 +2209,7 @@ export const analyzeIdentityJobMatch = async ({
         normalizeFilterAwarenessPayload({
           rawResponse,
           identity,
+          prepared,
         }),
       )
       .catch((error) => ({
@@ -2034,7 +2217,8 @@ export const analyzeIdentityJobMatch = async ({
         triggeredAvoid: [],
         relevantAwareness: [],
         warnings: [
-          'Filter and awareness pass failed: ' + (error instanceof Error ? error.message : 'unknown error'),
+          'Filter and awareness pass failed: ' +
+            (error instanceof Error ? error.message : 'unknown error'),
         ],
       }))
 
@@ -2085,7 +2269,8 @@ export const analyzeIdentityJobMatch = async ({
       })
     } catch (error) {
       warnings.push(
-        'Rationale generation failed: ' + (error instanceof Error ? error.message : 'unknown error'),
+        'Rationale generation failed: ' +
+          (error instanceof Error ? error.message : 'unknown error'),
       )
     }
   }

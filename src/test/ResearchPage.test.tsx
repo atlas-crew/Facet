@@ -473,6 +473,48 @@ describe('ResearchPage', () => {
     expect(entry!.vectorId).toBe('backend')
   }, 10000)
 
+  it('surfaces run-level assumptions and routes corrections to Identity', async () => {
+    useSearchStore.setState((state) => ({
+      ...state,
+      runs: state.runs.map((run) => ({
+        ...run,
+        narrative: {
+          competitiveMoat: 'A durable platform moat grounded in production delivery evidence.',
+          selectionMethodology:
+            'Filtered for platform roles with senior ownership and remote viability.',
+          marketContext: 'Platform hiring remains active for teams modernizing delivery systems.',
+          executiveSummary:
+            'This search prioritizes platform roles where senior backend ownership and deployment architecture matter together, while avoiding roles that reduce the scope to cluster administration.',
+          assumptions: [
+            {
+              id: 'assumption-remote',
+              claim: 'Remote US roles are acceptable outside Denver.',
+              source: 'inferred',
+              rationale: 'Hybrid preference only named Denver.',
+              confidence: 'high',
+              overridable: true,
+            },
+          ],
+        },
+      })),
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+
+    expect(screen.getByText('Assumptions (1)')).toBeTruthy()
+    expect(screen.getByText('Remote US roles are acceptable outside Denver.')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct?' }))
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/identity',
+      search: { focus: 'preferences', return: '/research' },
+    })
+  })
+
   it('shows the stale profile warning when resume data is newer than the inferred profile', async () => {
     useResumeStore.setState((state) => ({
       ...state,

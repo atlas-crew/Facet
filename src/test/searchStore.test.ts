@@ -147,8 +147,8 @@ describe('searchStore', () => {
       companySize: '',
     })
     useSearchStore.getState().updateProfileFilters({
-      prioritize: ['platform'],
-      avoid: ['ad tech'],
+      prioritize: [{ label: 'platform', severity: 'soft' }],
+      avoid: [{ label: 'ad tech', severity: 'hard' }],
     })
     useSearchStore.getState().updateProfileInterviewPrefs({
       strongFit: ['staff scope'],
@@ -158,7 +158,7 @@ describe('searchStore', () => {
     const updated = useSearchStore.getState().profile
     expect(updated?.skills).toHaveLength(1)
     expect(updated?.constraints.compensation).toBe('$250k')
-    expect(updated?.filters.prioritize).toEqual(['platform'])
+    expect(updated?.filters.prioritize).toEqual([{ label: 'platform', severity: 'soft' }])
     expect(updated?.interviewPrefs.strongFit).toEqual(['staff scope'])
     expect(updated?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(updated?.durableMeta?.revision).toBe(4)
@@ -676,7 +676,16 @@ describe('searchStore', () => {
         workSummary: [],
         openQuestions: [],
         constraints: { compensation: '', locations: [], clearance: '', companySize: '' },
-        filters: { prioritize: [], avoid: [] },
+        filters: {
+          prioritize: ['platform ownership'],
+          avoid: [
+            {
+              label: 'Kubernetes admin roles',
+              condition: 'k8s admin',
+              severity: 'conditional',
+            },
+          ],
+        },
         interviewPrefs: { strongFit: [], redFlags: [] },
         inferredFromResumeVersion: 2,
         inferredAt: '2025-02-01T00:00:00.000Z',
@@ -716,6 +725,16 @@ describe('searchStore', () => {
     expect(migrated.profile?.constraints.remotePolicies).toEqual([])
     expect(migrated.profile?.constraints.remotePolicyNote).toBe('')
     expect(migrated.profile?.constraints.employmentTypes).toEqual([])
+    expect(migrated.profile?.filters.prioritize).toEqual([
+      { label: 'platform ownership', severity: 'soft' },
+    ])
+    expect(migrated.profile?.filters.avoid).toEqual([
+      {
+        label: 'Kubernetes admin roles',
+        condition: 'k8s admin',
+        severity: 'conditional',
+      },
+    ])
     expect(migrated.profile).not.toHaveProperty('vectors')
     expect(migrated.requests[0]).not.toHaveProperty(legacyFocusVectorRequestKey)
     expect(migrated.requests[0]).not.toHaveProperty('unknownLegacyField')

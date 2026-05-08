@@ -118,7 +118,8 @@ const identityFixture: ProfessionalIdentityV3 = {
         {
           id: 'platform-migration',
           problem: 'Cloud-only delivery blocked on-prem deployments.',
-          action: 'Ported the platform to Kubernetes-based on-prem installs with Terraform-backed infrastructure.',
+          action:
+            'Ported the platform to Kubernetes-based on-prem installs with Terraform-backed infrastructure.',
           outcome: 'Made the product deployable in customer environments.',
           impact: ['Unlocked on-prem delivery'],
           metrics: { services_ported: 12 },
@@ -128,7 +129,8 @@ const identityFixture: ProfessionalIdentityV3 = {
         {
           id: 'kernel-debug',
           problem: 'Edge deployments were failing under Linux networking constraints.',
-          action: 'Debugged low-level Linux behavior and packet handling issues in production-like environments.',
+          action:
+            'Debugged low-level Linux behavior and packet handling issues in production-like environments.',
           outcome: 'Stabilized the sensor runtime.',
           impact: ['Resolved Linux edge instability'],
           metrics: { incidents_resolved: 4 },
@@ -229,11 +231,14 @@ const buildExtraction = () => ({
   advantageHypotheses: [
     untagged({
       id: 'platform-systems-bridge',
-      claim: 'You have evidence for both platform delivery and Linux debugging, which is a strong combination for this role.',
+      claim:
+        'You have evidence for both platform delivery and Linux debugging, which is a strong combination for this role.',
       requirementIds: ['platform-delivery', 'linux-debugging'],
     }),
   ],
-  positioningRecommendations: [untaggedNote('Lead with the on-prem platform migration and the Linux stabilization story.')],
+  positioningRecommendations: [
+    untaggedNote('Lead with the on-prem platform migration and the Linux stabilization story.'),
+  ],
   gapFocus: [untaggedNote('Do not over-claim AI depth.')],
   warnings: [],
 })
@@ -375,7 +380,9 @@ describe('jobMatch', () => {
   it('scores identity assets and surfaces gaps and advantages', () => {
     const report = createJobMatchReport({
       identity: identityFixture,
-      prepared: prepareMatchJobDescription('Need a platform engineer with Kubernetes, Terraform, Linux debugging, and AI experience.'),
+      prepared: prepareMatchJobDescription(
+        'Need a platform engineer with Kubernetes, Terraform, Linux debugging, and AI experience.',
+      ),
       extraction: buildExtraction(),
     })
 
@@ -385,7 +392,9 @@ describe('jobMatch', () => {
     expect(report.topSkills.some((asset) => asset.label === 'Kubernetes')).toBe(true)
     expect(report.gaps.some((gap) => gap.requirementId === 'ai-systems')).toBe(true)
     expect(report.advantages[0]?.evidence.length).toBeGreaterThan(0)
-    expect(report.requirements.find((entry) => entry.id === 'platform-delivery')?.coverageScore).toBeGreaterThan(0.6)
+    expect(
+      report.requirements.find((entry) => entry.id === 'platform-delivery')?.coverageScore,
+    ).toBeGreaterThan(0.6)
   })
 
   it('truncates long job descriptions and propagates truncation warnings', () => {
@@ -400,9 +409,11 @@ describe('jobMatch', () => {
     expect(prepared.wordCount).toBe(1205)
     expect(prepared.content.split(/\s+/)).toHaveLength(1200)
     expect(prepared.truncated).toBe(true)
-    expect(report.warnings.some((warning) => warning.text.includes('Job description exceeded 1200 words'))).toBe(
-      true,
-    )
+    expect(
+      report.warnings.some((warning) =>
+        warning.text.includes('Job description exceeded 1200 words'),
+      ),
+    ).toBe(true)
   })
 
   it('triggers a hard avoid filter when the JD matches a hard-no description', () => {
@@ -423,7 +434,9 @@ describe('jobMatch', () => {
     )
 
     expect(result.filterOut).toBe(true)
-    expect(result.watchOuts.some((watchOut) => watchOut.referenceId === 'clearance-required')).toBe(true)
+    expect(result.watchOuts.some((watchOut) => watchOut.referenceId === 'clearance-required')).toBe(
+      true,
+    )
   })
 
   it('triggers a comp-floor hard filter when the salary range is too low', () => {
@@ -439,7 +452,9 @@ describe('jobMatch', () => {
   it('ignores unrelated bare numbers when evaluating compensation filters', () => {
     const result = runHardFilters(
       identityFixture,
-      buildPrepared('Join a Fortune 500 team of 150 engineers. Base salary range is $180k to $190k.'),
+      buildPrepared(
+        'Join a Fortune 500 team of 150 engineers. Base salary range is $180k to $190k.',
+      ),
     )
 
     expect(result.filterOut).toBe(true)
@@ -521,10 +536,15 @@ describe('jobMatch', () => {
     })
 
     expect(normalized.warnings).toContain('Dropped unknown skill match: Unknown.')
-    expect(normalized.skillMatches.find((entry) => entry.skillName === 'COBOL')?.matchQuality).toBe('negative')
-    expect(normalized.skillMatches.find((entry) => entry.skillName === 'Terraform')?.userDepth).toBe('working')
+    expect(normalized.skillMatches.find((entry) => entry.skillName === 'COBOL')?.matchQuality).toBe(
+      'negative',
+    )
     expect(
-      normalized.skillMatches.find((entry) => entry.skillName === 'Terraform')?.presentationGuidance,
+      normalized.skillMatches.find((entry) => entry.skillName === 'Terraform')?.userDepth,
+    ).toBe('working')
+    expect(
+      normalized.skillMatches.find((entry) => entry.skillName === 'Terraform')
+        ?.presentationGuidance,
     ).toContain('working depth')
   })
 
@@ -559,6 +579,130 @@ describe('jobMatch', () => {
     expect(normalized.relevantAwareness[0]?.topic).toBe('AI depth')
   })
 
+  it('applies conditional filter triggers when the JD satisfies the condition', () => {
+    const identity = structuredClone(identityFixture)
+    identity.preferences.matching.prioritize.push({
+      id: 'k8s-platform-admin-signal',
+      label: 'Kubernetes admin platform remediation',
+      description: 'Admin-heavy Kubernetes platform remediation work.',
+      weight: 'medium',
+      condition: 'k8s admin',
+    })
+    identity.preferences.matching.avoid.push({
+      id: 'k8s-admin-operator',
+      label: 'Kubernetes admin operator role',
+      description: 'Kubernetes admin operator role.',
+      severity: 'conditional',
+      condition: 'k8s admin',
+    })
+
+    const normalized = normalizeFilterAwarenessPayload({
+      rawResponse: JSON.stringify({
+        triggered_prioritize: [
+          {
+            filter_id: 'k8s-platform-admin-signal',
+            evidence: 'Own Kubernetes admin remediation for platform clusters.',
+          },
+        ],
+        triggered_avoid: [
+          {
+            filter_id: 'k8s-admin-operator',
+            evidence: 'Own Kubernetes admin remediation for platform clusters.',
+          },
+        ],
+        relevant_awareness: [],
+      }),
+      identity,
+      prepared: buildPrepared('Own Kubernetes admin remediation for platform clusters.'),
+    })
+
+    expect(normalized.triggeredPrioritize[0]?.filterId).toBe('k8s-platform-admin-signal')
+    expect(normalized.triggeredAvoid[0]?.severity).toBe('conditional')
+  })
+
+  it('does not apply conditional filter triggers when condition keywords are absent', () => {
+    const identity = structuredClone(identityFixture)
+    identity.preferences.matching.prioritize.push({
+      id: 'k8s-admin-prioritize',
+      label: 'Kubernetes admin platform remediation',
+      description: 'Admin-heavy Kubernetes platform remediation work.',
+      weight: 'medium',
+      condition: 'k8s admin',
+    })
+    identity.preferences.matching.avoid.push({
+      id: 'k8s-admin-avoid',
+      label: 'Kubernetes admin operator role',
+      description: 'Kubernetes admin operator role.',
+      severity: 'conditional',
+      condition: 'k8s admin',
+    })
+
+    const normalized = normalizeFilterAwarenessPayload({
+      rawResponse: JSON.stringify({
+        triggered_prioritize: [
+          {
+            filter_id: 'k8s-admin-prioritize',
+            evidence: 'Build developer platforms on Kubernetes.',
+          },
+        ],
+        triggered_avoid: [
+          {
+            filter_id: 'k8s-admin-avoid',
+            severity: 'conditional',
+            evidence: 'Build developer platforms on Kubernetes.',
+          },
+        ],
+        relevant_awareness: [],
+      }),
+      identity,
+      prepared: buildPrepared(
+        'Build developer platforms on Kubernetes without owning cluster operations.',
+      ),
+    })
+
+    expect(normalized.triggeredPrioritize).toEqual([])
+    expect(normalized.triggeredAvoid).toEqual([])
+  })
+
+  it('lowers scoring for an applicable conditional avoid', () => {
+    const baseArgs = {
+      identity: identityFixture,
+      prepared: buildPrepared('Own Kubernetes admin remediation for platform clusters.'),
+      extraction: buildExtraction(),
+      matchedVectors: [],
+      skillMatches: [],
+      hardFilter: {
+        filterOut: false,
+        reason: null,
+        watchOuts: [],
+        triggeredAvoid: [],
+        warnings: [],
+      },
+      triggeredPrioritize: [],
+      relevantAwareness: [],
+      rationale: 'Fallback rationale.',
+      warnings: [],
+    }
+    const withoutConditional = composeVectorAwareMatchResult({
+      ...baseArgs,
+      triggeredAvoid: [],
+    })
+    const withConditional = composeVectorAwareMatchResult({
+      ...baseArgs,
+      triggeredAvoid: [
+        untagged({
+          filterId: 'k8s-admin-avoid',
+          label: 'Kubernetes admin operator role',
+          severity: 'conditional',
+          jdEvidence: 'Own Kubernetes admin remediation for platform clusters.',
+        }),
+      ],
+    })
+
+    expect(withConditional.fitScore).toBeLessThan(withoutConditional.fitScore)
+    expect(withConditional.watchOuts[0]?.severity).toBe('conditional')
+  })
+
   it('composes a moderate fit with apply recommendation when vectors, skills, and filters are aligned', () => {
     const result = composeVectorAwareMatchResult({
       identity: identityFixture,
@@ -586,7 +730,13 @@ describe('jobMatch', () => {
           presentationGuidance: 'Lead with Kubernetes platform migration stories.',
         }),
       ],
-      hardFilter: { filterOut: false, reason: null, watchOuts: [], triggeredAvoid: [], warnings: [] },
+      hardFilter: {
+        filterOut: false,
+        reason: null,
+        watchOuts: [],
+        triggeredAvoid: [],
+        warnings: [],
+      },
       triggeredPrioritize: [
         untagged({
           filterId: 'platform-ownership',
@@ -672,7 +822,13 @@ describe('jobMatch', () => {
           presentationGuidance: 'Lead with Linux debugging examples.',
         }),
       ],
-      hardFilter: { filterOut: false, reason: null, watchOuts: [], triggeredAvoid: [], warnings: [] },
+      hardFilter: {
+        filterOut: false,
+        reason: null,
+        watchOuts: [],
+        triggeredAvoid: [],
+        warnings: [],
+      },
       triggeredPrioritize: [
         untagged({
           filterId: 'platform-ownership',
@@ -718,7 +874,13 @@ describe('jobMatch', () => {
           presentationGuidance: 'Lead with Kubernetes platform migration stories.',
         }),
       ],
-      hardFilter: { filterOut: false, reason: null, watchOuts: [], triggeredAvoid: [], warnings: [] },
+      hardFilter: {
+        filterOut: false,
+        reason: null,
+        watchOuts: [],
+        triggeredAvoid: [],
+        warnings: [],
+      },
       triggeredPrioritize: [],
       triggeredAvoid: [],
       relevantAwareness: [
@@ -822,7 +984,8 @@ describe('jobMatch', () => {
     const result = await analyzeIdentityJobMatch({
       endpoint: 'https://ai.example/proxy',
       identity: identityFixture,
-      jobDescription: 'Own Kubernetes and Terraform-backed delivery systems. Debug Linux and kernel-adjacent production issues. Some AI platform exposure is preferred.',
+      jobDescription:
+        'Own Kubernetes and Terraform-backed delivery systems. Debug Linux and kernel-adjacent production issues. Some AI platform exposure is preferred.',
     })
 
     expect(result.analysis.matchedVectors[0]?.vectorId).toBe('platform-lead')
@@ -833,20 +996,18 @@ describe('jobMatch', () => {
   })
 
   it('short-circuits after the decomposition pass when a hard filter triggers', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        openAiEnvelope({
-          summary: 'Looks like a strong platform fit.',
-          company: 'Atlas',
-          role: 'Staff Platform Engineer',
-          requirements: buildExtraction().requirements,
-          advantage_hypotheses: [],
-          positioning_recommendations: [],
-          gap_focus: [],
-          warnings: [],
-        }),
-      )
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      openAiEnvelope({
+        summary: 'Looks like a strong platform fit.',
+        company: 'Atlas',
+        role: 'Staff Platform Engineer',
+        requirements: buildExtraction().requirements,
+        advantage_hypotheses: [],
+        positioning_recommendations: [],
+        gap_focus: [],
+        warnings: [],
+      }),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await analyzeIdentityJobMatch({
@@ -961,10 +1122,26 @@ describe('jobMatch', () => {
 
     expect(result.analysis.matchedVectors).toEqual([])
     expect(result.analysis.skillMatches.length).toBeGreaterThan(0)
-    expect(result.analysis.warnings.some((warning) => warning.text.includes('Vector matching pass failed'))).toBe(true)
-    expect(result.analysis.warnings.some((warning) => warning.text.includes('Skill matching pass failed'))).toBe(true)
-    expect(result.analysis.warnings.some((warning) => warning.text.includes('Filter and awareness pass failed'))).toBe(true)
-    expect(result.analysis.warnings.some((warning) => warning.text.includes('Rationale generation failed'))).toBe(true)
+    expect(
+      result.analysis.warnings.some((warning) =>
+        warning.text.includes('Vector matching pass failed'),
+      ),
+    ).toBe(true)
+    expect(
+      result.analysis.warnings.some((warning) =>
+        warning.text.includes('Skill matching pass failed'),
+      ),
+    ).toBe(true)
+    expect(
+      result.analysis.warnings.some((warning) =>
+        warning.text.includes('Filter and awareness pass failed'),
+      ),
+    ).toBe(true)
+    expect(
+      result.analysis.warnings.some((warning) =>
+        warning.text.includes('Rationale generation failed'),
+      ),
+    ).toBe(true)
   })
 
   it('rejects when extraction retries are exhausted by an invalid schema response', async () => {
