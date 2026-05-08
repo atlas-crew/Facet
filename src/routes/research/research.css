@@ -572,6 +572,26 @@
   gap: var(--space-2);
 }
 
+button.research-chip {
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing);
+}
+
+button.research-chip:hover,
+button.research-chip.selected {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+  color: var(--accent-primary);
+}
+
+button.research-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .research-list {
   margin: 0;
   padding-left: 18px;
@@ -1269,6 +1289,81 @@
   width: 100%;
 }
 
+.research-hard-constraints {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-inset) 82%, var(--bg-surface));
+}
+
+.research-hard-constraints summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.research-hard-constraints summary small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.research-hard-constraints-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.research-salary-field,
+.research-chip-field {
+  grid-column: 1 / -1;
+}
+
+.research-salary-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.research-salary-readout {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.research-salary-control label {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 104px;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.research-chip-field {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.research-chip-field legend {
+  padding: 0 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .research-pill {
   display: inline-flex;
   align-items: center;
@@ -1284,6 +1379,16 @@
 
 @media (max-width: 960px) {
   .research-preferences-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .research-hard-constraints-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .research-salary-control label {
     grid-template-columns: minmax(0, 1fr);
   }
 }

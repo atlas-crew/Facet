@@ -1,15 +1,32 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
+import type { SyntheticEvent } from 'react'
 import { Sparkles, X } from 'lucide-react'
+import {
+  EMPLOYMENT_TYPE_BANK,
+  EMPLOYMENT_TYPE_LABELS,
+  FUNDING_STAGE_BANK,
+  FUNDING_STAGE_LABELS,
+  INDUSTRY_BANK,
+  INDUSTRY_LABELS,
+  REMOTE_POLICY_BANK,
+  REMOTE_POLICY_LABELS,
+} from '../../types/search'
 import type {
   SearchAssumption,
   SearchCompanySize,
+  SearchEmploymentType,
+  SearchFundingStage,
+  SearchIndustry,
   SearchInstanceOverrides,
   SearchProfile,
+  SearchProfileConstraints,
+  SearchRemotePolicy,
+  SalaryBand,
   SearchThesis,
   SkillCatalogEntry,
 } from '../../types/search'
 import { searchProfileFilterLabels } from '../../utils/searchProfileFilters'
-import { formatSalaryBand, parseLegacySalaryBand } from '../../utils/searchSalary'
+import { formatSalaryBand } from '../../utils/searchSalary'
 import { joinTags, splitTags } from './researchUtils'
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
@@ -21,6 +38,96 @@ const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string
   { value: 'public', label: 'Public' },
   { value: 'any', label: 'Any size' },
 ]
+
+const HARD_CONSTRAINTS_STORAGE_KEY = 'facet.research.hardConstraintsOpen'
+const SALARY_SLIDER_MAX = 1_000_000
+const SALARY_SLIDER_STEP = 10_000
+
+const CLEARANCE_OPTIONS = [
+  { value: '', label: 'Either' },
+  { value: 'required', label: 'Required' },
+  { value: 'not-required', label: 'Not required' },
+] as const
+
+const buildBankOptions = <Value extends string,>(
+  bank: readonly Value[],
+  labels: Record<Value, string>,
+): Array<{ value: Value; label: string }> =>
+  bank.map((value) => ({
+    value,
+    label: labels[value],
+  }))
+
+const INDUSTRY_OPTIONS = buildBankOptions<SearchIndustry>(INDUSTRY_BANK, INDUSTRY_LABELS)
+const FUNDING_STAGE_OPTIONS = buildBankOptions<SearchFundingStage>(
+  FUNDING_STAGE_BANK,
+  FUNDING_STAGE_LABELS,
+)
+const REMOTE_POLICY_OPTIONS = buildBankOptions<SearchRemotePolicy>(
+  REMOTE_POLICY_BANK,
+  REMOTE_POLICY_LABELS,
+)
+const EMPLOYMENT_TYPE_OPTIONS = buildBankOptions<SearchEmploymentType>(
+  EMPLOYMENT_TYPE_BANK,
+  EMPLOYMENT_TYPE_LABELS,
+)
+
+const toggleChipValue = <Value extends string,>(
+  values: readonly Value[] | undefined,
+  value: Value,
+): Value[] => {
+  const current = values ?? []
+  return current.includes(value)
+    ? current.filter((item) => item !== value)
+    : [...current, value]
+}
+
+const clampSalaryAmount = (value: string | number): number => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 0
+  return Math.min(SALARY_SLIDER_MAX, Math.max(0, Math.round(parsed)))
+}
+
+const formatClearancePreference = (value: string): string =>
+  CLEARANCE_OPTIONS.find((option) => option.value === value)?.label ?? value
+
+interface ConstraintChipGroupProps<Value extends string> {
+  label: string
+  values: readonly Value[] | undefined
+  options: Array<{ value: Value; label: string }>
+  onChange: (values: Value[]) => void
+}
+
+function ConstraintChipGroup<Value extends string>({
+  label,
+  values,
+  options,
+  onChange,
+}: ConstraintChipGroupProps<Value>) {
+  const selectedValues = values ?? []
+
+  return (
+    <fieldset className="research-chip-field">
+      <legend>{label}</legend>
+      <div className="research-chip-list">
+        {options.map((option) => {
+          const selected = selectedValues.includes(option.value)
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={selected ? 'research-chip selected' : 'research-chip'}
+              aria-pressed={selected}
+              onClick={() => onChange(toggleChipValue(selectedValues, option.value))}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
 
 const formatDepthLabel = (depth: SkillCatalogEntry['depth']): string => {
   if (depth === 'avoid') return 'Avoid'
@@ -354,6 +461,44 @@ export function SearchInstancePreferences({
   const companySizeLabel =
     COMPANY_SIZE_OPTIONS.find((option) => option.value === identityBase.constraints.companySize)
       ?.label ?? 'No preference'
+  const [hardConstraintsOpen, setHardConstraintsOpen] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.sessionStorage.getItem(HARD_CONSTRAINTS_STORAGE_KEY) === 'open'
+  })
+  const currentConstraints = effectiveOverrides.constraints
+  const currentSalary = currentConstraints.salary
+  const updateConstraints = (constraints: Partial<SearchProfileConstraints>) =>
+    onUpdateOverrides({
+      constraints: {
+        ...currentConstraints,
+        ...constraints,
+      },
+    })
+  const updateSalary = (salary: SalaryBand) =>
+    updateConstraints({
+      salary: {
+        ...currentSalary,
+        ...salary,
+        currency: currentSalary.currency || salary.currency,
+      },
+    })
+  const updateSalaryMin = (value: string | number) => {
+    const min = clampSalaryAmount(value)
+    const max = Math.max(min, clampSalaryAmount(currentSalary.max))
+    updateSalary({ min, max, currency: currentSalary.currency })
+  }
+  const updateSalaryMax = (value: string | number) => {
+    const max = clampSalaryAmount(value)
+    const min = Math.min(clampSalaryAmount(currentSalary.min), max)
+    updateSalary({ min, max, currency: currentSalary.currency })
+  }
+  const handleHardConstraintsToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    const nextOpen = event.currentTarget.open
+    setHardConstraintsOpen(nextOpen)
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(HARD_CONSTRAINTS_STORAGE_KEY, nextOpen ? 'open' : 'closed')
+    }
+  }
 
   return (
     <section
@@ -405,7 +550,11 @@ export function SearchInstancePreferences({
             <div>
               <dt>Clearance</dt>
               <dd>
-                {identityBase.constraints.clearance || <span className="research-muted">—</span>}
+                {identityBase.constraints.clearance ? (
+                  formatClearancePreference(identityBase.constraints.clearance)
+                ) : (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
             <div>
@@ -462,22 +611,114 @@ export function SearchInstancePreferences({
           </div>
           <fieldset className="research-fieldset" disabled={!activeThesis}>
             <div className="research-form-grid">
-              <label className="research-field">
-                <span>Compensation anchor</span>
-                <input
-                  className="research-input"
-                  value={formatSalaryBand(effectiveOverrides.constraints.salary)}
-                  onChange={(event) =>
-                    onUpdateOverrides({
-                      constraints: {
-                        ...effectiveOverrides.constraints,
-                        salary: parseLegacySalaryBand(event.target.value) ?? { min: 0, max: 0 },
-                      },
-                    })
-                  }
-                  placeholder="$220k-$300k"
-                />
-              </label>
+              <details
+                className="research-hard-constraints"
+                open={hardConstraintsOpen}
+                onToggle={handleHardConstraintsToggle}
+              >
+                <summary>
+                  <span>Hard constraints</span>
+                  <small>salary, work model, exclusions</small>
+                </summary>
+                <div className="research-hard-constraints-body">
+                  <div className="research-field research-salary-field">
+                    <span>Salary band</span>
+                    <div className="research-salary-control" role="group" aria-label="Salary band">
+                      <div className="research-salary-readout">
+                        {formatSalaryBand(currentSalary) || (
+                          <span className="research-muted">No salary constraint</span>
+                        )}
+                      </div>
+                      <label>
+                        <span>Minimum</span>
+                        <input
+                          aria-label="Salary minimum"
+                          type="range"
+                          min={0}
+                          max={SALARY_SLIDER_MAX}
+                          step={SALARY_SLIDER_STEP}
+                          value={currentSalary.min}
+                          onChange={(event) => updateSalaryMin(event.target.value)}
+                        />
+                        <input
+                          aria-label="Salary minimum amount"
+                          className="research-input"
+                          type="number"
+                          min={0}
+                          max={SALARY_SLIDER_MAX}
+                          step={SALARY_SLIDER_STEP}
+                          value={currentSalary.min}
+                          onChange={(event) => updateSalaryMin(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <span>Maximum</span>
+                        <input
+                          aria-label="Salary maximum"
+                          type="range"
+                          min={0}
+                          max={SALARY_SLIDER_MAX}
+                          step={SALARY_SLIDER_STEP}
+                          value={currentSalary.max}
+                          onChange={(event) => updateSalaryMax(event.target.value)}
+                        />
+                        <input
+                          aria-label="Salary maximum amount"
+                          className="research-input"
+                          type="number"
+                          min={0}
+                          max={SALARY_SLIDER_MAX}
+                          step={SALARY_SLIDER_STEP}
+                          value={currentSalary.max}
+                          onChange={(event) => updateSalaryMax(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <label className="research-field">
+                    <span>Clearance requirement</span>
+                    <select
+                      className="research-select"
+                      value={currentConstraints.clearance}
+                      onChange={(event) => updateConstraints({ clearance: event.target.value })}
+                    >
+                      {CLEARANCE_OPTIONS.map((option) => (
+                        <option key={option.value || 'either'} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <ConstraintChipGroup
+                    label="Industries to avoid"
+                    values={currentConstraints.industriesToAvoid}
+                    options={INDUSTRY_OPTIONS}
+                    onChange={(industriesToAvoid) => updateConstraints({ industriesToAvoid })}
+                  />
+                  <ConstraintChipGroup
+                    label="Funding stages acceptable"
+                    values={currentConstraints.fundingStagesAcceptable}
+                    options={FUNDING_STAGE_OPTIONS}
+                    onChange={(fundingStagesAcceptable) =>
+                      updateConstraints({ fundingStagesAcceptable })
+                    }
+                  />
+                  <ConstraintChipGroup
+                    label="Remote policies"
+                    values={currentConstraints.remotePolicies}
+                    options={REMOTE_POLICY_OPTIONS}
+                    onChange={(remotePolicies) => updateConstraints({ remotePolicies })}
+                  />
+                  <ConstraintChipGroup
+                    label="Employment types"
+                    values={currentConstraints.employmentTypes}
+                    options={EMPLOYMENT_TYPE_OPTIONS}
+                    onChange={(employmentTypes) => updateConstraints({ employmentTypes })}
+                  />
+                </div>
+              </details>
 
               <label className="research-field">
                 <span>Preferred locations</span>
@@ -493,23 +734,6 @@ export function SearchInstancePreferences({
                     })
                   }
                   placeholder="Remote, New York, Bay Area"
-                />
-              </label>
-
-              <label className="research-field">
-                <span>Clearance</span>
-                <input
-                  className="research-input"
-                  value={effectiveOverrides.constraints.clearance}
-                  onChange={(event) =>
-                    onUpdateOverrides({
-                      constraints: {
-                        ...effectiveOverrides.constraints,
-                        clearance: event.target.value,
-                      },
-                    })
-                  }
-                  placeholder="None, Public Trust, TS/SCI"
                 />
               </label>
 

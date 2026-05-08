@@ -7,21 +7,58 @@ import {
   SearchInstancePreferences,
   SearchThesisWorkspace,
 } from '../routes/research/searchWorkspaceComponents'
+import type { SearchProfileConstraints, SearchThesis } from '../types/search'
 
 afterEach(() => {
   cleanup()
+  window.sessionStorage.clear()
+})
+
+const buildPreferenceConstraints = (
+  overrides: Partial<SearchProfileConstraints> = {},
+): SearchProfileConstraints => ({
+  salary: { min: 220000, max: 220000, currency: 'USD' },
+  locations: ['Denver'],
+  clearance: '',
+  companySize: '',
+  industriesToAvoid: [],
+  fundingStagesAcceptable: [],
+  remotePolicies: [],
+  remotePolicyNote: '',
+  employmentTypes: [],
+  ...overrides,
 })
 
 const baseIdentity: React.ComponentProps<typeof SearchInstancePreferences>['identityBase'] = {
-  constraints: {
-    salary: { min: 220000, max: 220000, currency: 'USD' },
-    locations: ['Denver'],
-    clearance: '',
-    companySize: '',
-  },
+  constraints: buildPreferenceConstraints(),
   filters: { prioritize: [], avoid: [] },
   interviewPrefs: { strongFit: [], redFlags: [] },
 }
+
+const buildPreferenceThesis = (
+  constraints: Partial<SearchProfileConstraints> = {},
+): SearchThesis => ({
+  id: 'sthesis-preferences',
+  createdAt: '2026-04-01T00:00:00.000Z',
+  updatedAt: '2026-04-01T00:00:00.000Z',
+  narrative: '',
+  competitiveMoat: '',
+  unfairAdvantages: [],
+  searchLanes: [],
+  interviewStrategy: '',
+  lookFor: [],
+  avoid: [],
+  keywordCombinations: [],
+  skillDepthMap: [],
+  searchOverrides: {
+    constraints: buildPreferenceConstraints(constraints),
+    interviewPrefs: { strongFit: [], redFlags: [] },
+    hiddenSkillIds: [],
+  },
+  source: 'generated',
+  identityVersion: 1,
+  feedbackIncorporated: [],
+})
 
 describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
   it('invokes the onNavigateToIdentity callback when the button is clicked', () => {
@@ -198,6 +235,145 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         redFlags: ['noisy on-call'],
       },
     })
+  })
+
+  it('persists hard-constraint chip toggles with bank labels instead of raw values', () => {
+    window.sessionStorage.setItem('facet.research.hardConstraintsOpen', 'open')
+    const onUpdateOverrides = vi.fn()
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={buildPreferenceThesis()}
+        onUpdateOverrides={onUpdateOverrides}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Series A' })).toBeTruthy()
+    expect(screen.queryByText('series-a')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adtech' }))
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ industriesToAvoid: ['adtech'] }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Series A' }))
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ fundingStagesAcceptable: ['series-a'] }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remote friendly' }))
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ remotePolicies: ['remote-friendly'] }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'W-2 full-time' }))
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ employmentTypes: ['w2-fulltime'] }),
+    })
+  })
+
+  it('protects salary min and max edits from crossing', () => {
+    window.sessionStorage.setItem('facet.research.hardConstraintsOpen', 'open')
+    const onUpdateOverrides = vi.fn()
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={buildPreferenceThesis({
+          salary: { min: 200000, max: 300000, currency: 'USD' },
+        })}
+        onUpdateOverrides={onUpdateOverrides}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Salary minimum amount'), {
+      target: { value: '350000' },
+    })
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({
+        salary: { min: 350000, max: 350000, currency: 'USD' },
+      }),
+    })
+
+    fireEvent.change(screen.getByLabelText('Salary maximum amount'), {
+      target: { value: '100000' },
+    })
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({
+        salary: { min: 100000, max: 100000, currency: 'USD' },
+      }),
+    })
+  })
+
+  it('binds clearance to the 3-state selector', () => {
+    window.sessionStorage.setItem('facet.research.hardConstraintsOpen', 'open')
+    const onUpdateOverrides = vi.fn()
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={buildPreferenceThesis()}
+        onUpdateOverrides={onUpdateOverrides}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('Clearance requirement'), {
+      target: { value: 'required' },
+    })
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ clearance: 'required' }),
+    })
+
+    fireEvent.change(screen.getByLabelText('Clearance requirement'), {
+      target: { value: 'not-required' },
+    })
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ clearance: 'not-required' }),
+    })
+
+    fireEvent.change(screen.getByLabelText('Clearance requirement'), {
+      target: { value: '' },
+    })
+    expect(onUpdateOverrides).toHaveBeenLastCalledWith({
+      constraints: expect.objectContaining({ clearance: '' }),
+    })
+  })
+
+  it('persists the hard-constraint disclosure state per browser session', () => {
+    const { unmount } = render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={buildPreferenceThesis()}
+        onUpdateOverrides={() => {}}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    const details = screen.getByText('Hard constraints').closest('details')
+    expect(details?.open).toBe(false)
+
+    if (!details) throw new Error('Hard constraints details did not render')
+    details.open = true
+    fireEvent(details, new Event('toggle'))
+    expect(window.sessionStorage.getItem('facet.research.hardConstraintsOpen')).toBe('open')
+
+    unmount()
+    render(
+      <SearchInstancePreferences
+        identityBase={baseIdentity}
+        activeThesis={buildPreferenceThesis()}
+        onUpdateOverrides={() => {}}
+        onEditThesisSignals={() => {}}
+        onNavigateToIdentity={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('Hard constraints').closest('details')?.open).toBe(true)
   })
 })
 
