@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
-import { useIdentityStore } from '../store/identityStore'
+import { IDENTITY_STORE_STORAGE_KEY, useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
 import type { ResumeScanBulkProgress, ResumeScanResult } from '../types/identity'
 import { parseDeepenIdentityBulletResponse } from '../utils/identityExtraction'
@@ -1187,6 +1187,42 @@ describe('identityStore model_revision', () => {
       draftDocument: '',
       lastError: null,
     })
+  })
+
+  it('rehydrates and blocks current identity mutations when storage has a newer revision', () => {
+    seedCurrent(5)
+    const staleInMemoryName = useIdentityStore.getState().currentIdentity?.identity.name
+    const newerIdentity = cloneIdentityFixture()
+    newerIdentity.model_revision = 7
+    newerIdentity.identity.name = 'Newer Tab Identity'
+    newerIdentity.preferences.work_model = { preference: 'onsite' }
+
+    resolveStorage().setItem(
+      IDENTITY_STORE_STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          currentIdentity: newerIdentity,
+          draft: null,
+          draftDocument: JSON.stringify(newerIdentity, null, 2),
+          scanResult: null,
+          warnings: [],
+          changelog: [],
+        },
+        version: 4,
+      }),
+    )
+
+    useIdentityStore.getState().updateCurrentWorkModel({ preference: 'hybrid' })
+
+    const state = useIdentityStore.getState()
+    expect(staleInMemoryName).not.toBe('Newer Tab Identity')
+    expect(state.currentIdentity?.model_revision).toBe(7)
+    expect(state.currentIdentity?.identity.name).toBe('Newer Tab Identity')
+    expect(state.currentIdentity?.preferences.work_model).toEqual({ preference: 'onsite' })
+    expect(state.lastError).toBe(
+      'Identity was updated in another tab. Review the latest model and retry your change.',
+    )
+    expect(state.draftDocument).toContain('Newer Tab Identity')
   })
 
   it('bumps model_revision and marks depthSource=corrected on saveSkillEnrichment', () => {

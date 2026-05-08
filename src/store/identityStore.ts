@@ -39,6 +39,8 @@ import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils
 import { resolveStorage } from './storage'
 
 export const IDENTITY_STORE_STORAGE_KEY = 'facet-identity-workspace'
+const STALE_IDENTITY_CONFLICT_MESSAGE =
+  'Identity was updated in another tab. Review the latest model and retry your change.'
 
 type EditableScannedProjectField = Extract<
   keyof ProfessionalIdentityV3['projects'][number],
@@ -553,12 +555,48 @@ const unwrapPersistedIdentityState = (
   return persistedState as Partial<IdentityState> & { scanResult?: ResumeScanResult | null }
 }
 
+const readPersistedIdentityState = ():
+  | (Partial<IdentityState> & { scanResult?: ResumeScanResult | null })
+  | null => {
+  const persisted = resolveStorage().getItem(IDENTITY_STORE_STORAGE_KEY)
+  if (typeof persisted !== 'string' || !persisted) return null
+
+  try {
+    return unwrapPersistedIdentityState(JSON.parse(persisted))
+  } catch {
+    return null
+  }
+}
+
+const resolveStaleIdentityConflict = (
+  state: IdentityState,
+): Partial<IdentityState> | null => {
+  const currentRevision = state.currentIdentity?.model_revision ?? 0
+  if (!state.currentIdentity) return null
+
+  const persistedState = readPersistedIdentityState()
+  if (!persistedState?.currentIdentity) return null
+
+  const persistedRevision = persistedState.currentIdentity.model_revision ?? 0
+  if (persistedRevision <= currentRevision) return null
+
+  return {
+    ...normalizePersistedIdentityState(persistedState),
+    lastError: STALE_IDENTITY_CONFLICT_MESSAGE,
+  }
+}
+
 const updateCurrentIdentity = (
   state: IdentityState,
   updater: (identity: ProfessionalIdentityV3) => ProfessionalIdentityV3,
 ) => {
   if (!state.currentIdentity) {
     return {}
+  }
+
+  const staleConflict = resolveStaleIdentityConflict(state)
+  if (staleConflict) {
+    return staleConflict
   }
 
   return syncIdentityDocument(state, updater(state.currentIdentity))

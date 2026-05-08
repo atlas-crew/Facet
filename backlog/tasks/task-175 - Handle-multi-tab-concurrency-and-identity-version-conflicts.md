@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 08:13'
+updated_date: '2026-05-08 08:28'
 labels:
   - shepherding
   - concurrency
@@ -83,7 +83,7 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 identityStore, searchStore, prepStore listen for storage events and re-hydrate on cross-tab writes
-- [ ] #2 Identity mutations check current version from storage before writing; surface conflict if in-memory version is behind
+- [x] #2 Identity mutations check current version from storage before writing; surface conflict if in-memory version is behind
 - [ ] #3 Generation routines (thesis, prep, letter, research job) snapshot identity version at start; final artifact records that version
 - [ ] #4 ResearchJob.identityVersion is compared to current client-side identity version on rehydration; staleness badge shown if drift
 - [ ] #5 Cross-tab identity mutation triggers a non-blocking toast on other tabs
@@ -99,6 +99,8 @@ Lane D plan: implement a narrow first phase for storage-event driven persisted-s
 Lane D progress: implemented storage-event sync for the identity Zustand persistence key and localStorage workspace snapshot rehydration for search/prep runtime state. Added jsdom regression coverage that simulates another tab writing identity, search, and prep state, then observes this tab rehydrate. Remaining TASK-175 ACs cover identity mutation conflict checks, generation snapshot coverage, research-job staleness UI, and toast/TASK-158 links.
 
 Remediation follow-up: tightened storage-event sync typing/behavior, exported the identity storage key for runtime sync, added direct storageEventSync helper coverage, and verified the persistence runtime cross-tab sync tests. Verification: npx vitest run src/test/persistenceRuntime.test.ts src/test/storageEventSync.test.ts passed 29/29; scoped ESLint passed; npm run typecheck passed. TASK-175 remains open for AC #2-#7.
+
+AC #2 advance: current-identity mutations now compare the in-memory model_revision with the persisted identity revision before writing. When storage is newer, the store rehydrates the newer identity, sets a retryable lastError, and skips the attempted stale mutation. Verification: npx vitest run src/test/identityStore.test.ts passed 46/46; focused AC #2 subset passed; scoped ESLint passed; npm run typecheck passed.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
