@@ -30,6 +30,7 @@ Important behavior:
 The Pipeline empty state has **Load Sample Data**. It imports `samplePipelineData` from `src/routes/pipeline/samplePipelineData.ts`.
 
 Use it when you want several fictional job opportunities with statuses, history, response data, and notes for exploring Pipeline workflows.
+The entries include fictional job descriptions and source URLs so JD analysis, resume generation handoff checks, and prep-launch guardrails can be exercised from the sample pipeline.
 
 Important behavior:
 

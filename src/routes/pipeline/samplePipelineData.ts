@@ -4,6 +4,15 @@ import type { PipelineEntry } from '../../types/pipeline'
  * Fictional sample data for development and testing.
  * Contains NO real companies, comp ranges, or personal details.
  */
+export const samplePipelineJobDescriptions = {
+  acme:
+    'Acme Corp is hiring a Staff Platform Engineer to lead the next phase of our internal developer platform. You will own Kubernetes delivery workflows, Terraform module strategy, and CI/CD reliability for more than eighty product services. The role partners closely with infrastructure, security, and product engineering teams to reduce deployment friction, improve observability, and define paved-road standards that product teams actually adopt. Strong candidates have operated production platforms, balanced self-service with guardrails, and used metrics to prove improvements in developer velocity and incident reduction.',
+  initech:
+    'Initech is hiring a Senior Security Engineer to build security automation for a remote-first engineering organization. You will own cloud posture checks, secrets rotation workflows, and CI security controls across AWS, Kubernetes, and GitHub Actions. The team needs an engineer who can turn policy into practical platform capabilities, partner with application teams during design reviews, and write production-quality Python or TypeScript services. Experience with threat modeling, incident response, and infrastructure-as-code guardrails is especially valuable.',
+  globex:
+    'Globex Corporation is hiring a Developer Productivity Engineer to improve build, test, and release systems across a TypeScript-heavy monorepo. You will modernize CI pipelines, reduce flaky test time, improve local development loops, and build internal tooling that helps hundreds of engineers ship safely. The role requires comfort with distributed build systems, observability for delivery workflows, and pragmatic change management across many teams. Bonus points for Go experience, large-scale package management, and hands-on work with developer experience metrics.',
+} as const
+
 export const samplePipelineData: PipelineEntry[] = [
   {
     id: 'pipe-sample-1',
@@ -15,7 +24,8 @@ export const samplePipelineData: PipelineEntry[] = [
     url: 'https://example.com/jobs/1',
     contact: 'Jane Recruiter',
     vectorId: null,
-    jobDescription: '',
+    jobDescription: samplePipelineJobDescriptions.acme,
+    jobDescriptionSourceUrl: 'https://example.com/jobs/1',
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,
@@ -52,7 +62,8 @@ export const samplePipelineData: PipelineEntry[] = [
     url: 'https://example.com/jobs/2',
     contact: '',
     vectorId: null,
-    jobDescription: '',
+    jobDescription: samplePipelineJobDescriptions.initech,
+    jobDescriptionSourceUrl: 'https://example.com/jobs/2',
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,
@@ -87,7 +98,8 @@ export const samplePipelineData: PipelineEntry[] = [
     url: 'https://example.com/jobs/3',
     contact: 'Bob Hiring',
     vectorId: null,
-    jobDescription: '',
+    jobDescription: samplePipelineJobDescriptions.globex,
+    jobDescriptionSourceUrl: 'https://example.com/jobs/3',
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,
