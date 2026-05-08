@@ -21,20 +21,19 @@ Three concurrent lanes plus one in-flight sequence. Inside each lane, ordering i
 Finishing the "Map-only canonical workspace" arc. TASK-202's description is the design artifact; this lane is the execution sequence. ScannedIdentityEditor's keep-worthy features get Map-side homes; scan-only features retire with the editor.
 
 ```
-TASK-202     Strategy D parent (in progress, owns the convergence decision)
+TASK-202     Strategy D parent [done]
    │         (TASK-202.1 — sheet primitive — already closed)
    ▼
-TASK-202.2   Decide which ScannedIdentityEditor features lift to Map  [in progress]
+TASK-202.2   Decide which ScannedIdentityEditor features lift to Map  [done]
    │         (lift/scan-only/retire matrix; each lift is its own atomic commit)
    ▼
-TASK-202.3   Retire or reduce ScannedIdentityEditor after the lift     [med]
+TASK-202.3   Retire or reduce ScannedIdentityEditor after the lift     [done]
    │
    ▼
-DRAFT-2      Decide and execute the import flow's final form factor
-             (route / overlay / sheet — promoted from Draft when 202.1
-              made the sheet feel concrete)
+TASK-243     Decide and execute the import flow's final form factor    [done]
+             (route-but-ephemeral; /identity/import returns to Map after Apply)
    ▼
-TASK-202     Closes when all sub-tasks land
+TASK-202     Closed after all sub-tasks landed
 ```
 
 ### Lane B — Map UX fixes (parallel, anytime)
@@ -42,10 +41,10 @@ TASK-202     Closes when all sub-tasks land
 Discrete user-visible Map issues that don't depend on Lane A. Each is a self-contained fix.
 
 ```
-TASK-218  Fix sel/focus stale-notice interaction on IdentityMapPage   [med]
+TASK-218  Fix sel/focus stale-notice interaction on IdentityMapPage   [done]
           (small scoped UX fix — selection/focus-state interaction bug)
 
-TASK-194  Resolve thesis strength formula                             [med]
+TASK-194  Resolve thesis strength formula                             [done]
           (theory-of-thesis decision: prose-only vs composite-artifact;
            replace text-length proxy with sentence/specificity heuristics;
            coordinates with Lane A on inspector-slot rendering)
@@ -57,10 +56,10 @@ Identity scanner pipeline + identity store regression coverage. Independent of L
 
 ```
 TASK-87    Align scan store field typing and normalization conventions  [med]
-TASK-89    Broaden identityStore scan persistence coverage              [med]
+TASK-89    Broaden identityStore scan persistence coverage              [done]
 TASK-92    Expand medium-priority identity scanner browser fixtures     [med]
-TASK-114.4 Expand skill enrichment wizard regression coverage           [med]
-TASK-114.6 Add case-variant skill dedupe safeguards                     [med]
+TASK-114.4 Expand skill enrichment wizard regression coverage           [done]
+TASK-114.6 Add case-variant skill dedupe safeguards                     [in progress]
 ```
 
 These can all run in parallel with each other and with Lanes A/B.
@@ -80,10 +79,9 @@ TASK-200   Phase 2 sad-path test coverage for identity Map editing [low]
 
 ## Already in flight
 
-- **TASK-202** [in progress] — Strategy D parent
-- **TASK-202.2** [in progress] — ScannedIdentityEditor lift matrix
+- **TASK-114.6** [in progress] — case-variant skill dedupe safeguards
 
-These continue with their owner. Coordinate when each lands.
+This continues with its owner. Coordinate before touching `src/identity/schema.ts`, `src/utils/identityEnrichment.ts`, `src/identity/skillDedupe.ts`, `src/test/identityEnrichmentDedupe.test.ts`, or the TASK-114.6 task file.
 
 ---
 
@@ -101,11 +99,9 @@ These continue with their owner. Coordinate when each lands.
 
 Two coordination points:
 
-1. **Lane B's TASK-194 ↔ Lane A's inspector-slot rendering.**
-   TASK-194's "what is a thesis?" decision (prose-only vs composite-artifact) determines whether the inspector slot's `<Prompt>` block surfaces unset metadata fields. If composite-artifact wins, `BulletInspector` / equivalent slots need to reinstate the guidance. Resolve TASK-194's design decision *before* Lane A's TASK-202.2 finalizes the lift matrix for thesis-related fields, so the matrix can route to a known UI shape.
+1. **Lane B's TASK-194 ↔ Lane A's inspector-slot rendering.** Resolved. TASK-194 closed before the final Lane A closeout and no longer blocks the lift matrix.
 
-2. **Lane A's TASK-202.3 ↔ Lane C's TASK-87 / 89 / 92.**
-   Scan-store typing and persistence coverage may exercise code paths that reach into `ScannedIdentityEditor`. Confirm the Lane C tests don't depend on the soon-to-be-deleted editor. If they do, refactor to test the lifted Map-side equivalent before TASK-202.3 deletes the editor file.
+2. **Lane A's TASK-202.3 ↔ Lane C's TASK-87 / 89 / 92.** TASK-202.3 landed. Future Lane C tests should target `ScanReviewPane`, the identity store, or lifted Map-side equivalents; do not add new source references to `ScannedIdentityEditor`.
 
 ---
 
@@ -128,13 +124,13 @@ Drive Lane A through completion (single-threaded critical path), pull from Lane 
 
 ## Critical path
 
-Lane A's serial chain is the convergence-finishing path:
+Lane A's serial chain was the convergence-finishing path and is now closed:
 
 ```
-TASK-202.2 → 202.3 → DRAFT-2 → TASK-202 closes
+TASK-202.2 → 202.3 → TASK-243 → TASK-202
 ```
 
-Three execution nodes plus the parent close. Each gates the next. Realistic at solo pace: ~3 weeks. With Lane B/C/D filler running in parallel, all 11 tasks close in ~4-5 weeks.
+Remaining doc-40 work is now Lane C hardening plus Lane D coverage. Lane C can run in parallel except for TASK-114.6's active write set; Lane D can start after Lane A because the post-Strategy-D surface is stable.
 
 ---
 
@@ -147,8 +143,8 @@ Three execution nodes plus the parent close. Each gates the next. Realistic at s
 ## Open questions
 
 - **Should this rollout get its own milestone?** Audience tagging got `m-28`; Research (`doc-38`) didn't. With ~11 tasks across 4 lanes, a milestone is borderline worth the bookkeeping. Defer the decision; revisit if multiple agents end up working concurrently.
-- **TASK-194 deserves its own design decision before implementation.** The two theories (prose-only vs composite-artifact) have different downstream UI consequences. Worth a 30-min decision spike before scheduling implementation.
-- **DRAFT-2 (import flow form factor) is not yet a real task** — it's referenced in TASK-202 as a draft. Promote it to a real subtask after TASK-202.1 makes the sheet primitive feel concrete.
+- **TASK-194 design decision is closed.**
+- **DRAFT-2 is closed as TASK-243.**
 
 ---
 
@@ -156,10 +152,11 @@ Three execution nodes plus the parent close. Each gates the next. Realistic at s
 
 - Strategy D decision + pattern guard: `TASK-202` description
 - Identity convergence Phase 1/2: `TASK-195` (Done) — IdentityStrategyWorkbench deletion + Map inspector migration
-- Code surfaces: `src/routes/identity/IdentityMapPage.tsx`, `src/routes/identity/IdentityInspector.tsx`, `src/routes/identity/ScannedIdentityEditor.tsx`, `src/routes/identity/bands/`, `src/routes/identity/inspectorSlots/`, `src/store/identityStore.ts`, `src/utils/identityFillStrength.ts`
+- Code surfaces: `src/routes/identity/IdentityMapPage.tsx`, `src/routes/identity/IdentityInspector.tsx`, `src/routes/identity/ScanReviewPane.tsx`, `src/routes/identity/bands/`, `src/routes/identity/inspectorSlots/`, `src/store/identityStore.ts`, `src/utils/identityFillStrength.ts`
 
 ---
 
 ## Revision history
 
 - **2026-05-07 v1**: initial Strategy D rollout plan. Closed TASK-115.3 (strategy workbench zombie). Out-of-scoped TASK-205 / TASK-201 (research workspace, not identity workspace).
+- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. Lane C has TASK-87, TASK-92, and in-flight TASK-114.6 remaining; Lane D has TASK-100 and TASK-200 remaining.
