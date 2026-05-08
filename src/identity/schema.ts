@@ -1,5 +1,6 @@
 import { EMPLOYMENT_TYPE_BANK, FUNDING_STAGE_BANK, INDUSTRY_BANK } from '../types/search'
 import type { SearchEmploymentType, SearchFundingStage, SearchIndustry } from '../types/search'
+import { dedupeSkillItemsByName } from './skillDedupe'
 
 export type ProfessionalSchemaRevision = '3.1'
 
@@ -441,25 +442,27 @@ export const normalizeRuntimeProfessionalIdentity = (
       ...withCleanInterview.skills,
       groups: groups.map((group) => ({
         ...group,
-        items: group.items.map((item) => {
-          const { search_signal: legacyPositioning, ...rest } = item as ProfessionalSkillItem & {
-            search_signal?: string
-          }
+        items: dedupeSkillItemsByName(
+          group.items.map((item) => {
+            const { search_signal: legacyPositioning, ...rest } = item as ProfessionalSkillItem & {
+              search_signal?: string
+            }
 
-          return {
-            ...rest,
-            ...(rest.positioning !== undefined
-              ? { positioning: rest.positioning }
-              : legacyPositioning !== undefined
-                ? { positioning: legacyPositioning }
+            return {
+              ...rest,
+              ...(rest.positioning !== undefined
+                ? { positioning: rest.positioning }
+                : legacyPositioning !== undefined
+                  ? { positioning: legacyPositioning }
+                  : {}),
+              // Legacy depth values predate provenance tracking. Mark as inferred so future
+              // regeneration may overwrite them; explicit corrections land as 'corrected'.
+              ...(rest.depth !== undefined && rest.depthSource === undefined
+                ? { depthSource: 'inferred' as ProfessionalSkillDepthSource }
                 : {}),
-            // Legacy depth values predate provenance tracking. Mark as inferred so future
-            // regeneration may overwrite them; explicit corrections land as 'corrected'.
-            ...(rest.depth !== undefined && rest.depthSource === undefined
-              ? { depthSource: 'inferred' as ProfessionalSkillDepthSource }
-              : {}),
-          }
-        }),
+            }
+          }),
+        ),
       })),
     },
   }
@@ -1211,9 +1214,15 @@ export const importProfessionalIdentity = (
                 ),
               }
             : {}),
-          items: assertArray(group.items, `skills.groups[${index}].items`).map(
-            (itemEntry, itemIndex) =>
+          items: dedupeSkillItemsByName(
+            assertArray(group.items, `skills.groups[${index}].items`).map((itemEntry, itemIndex) =>
               parseSkillItem(itemEntry, `skills.groups[${index}].items[${itemIndex}]`, warnings),
+            ),
+            ({ canonicalName, duplicateName }) => {
+              warnings.push(
+                `skills.groups[${index}].items: duplicate skill "${duplicateName}" merged into "${canonicalName}".`,
+              )
+            },
           ),
         }
       }),

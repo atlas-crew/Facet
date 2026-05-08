@@ -1,9 +1,14 @@
-import type { ProfessionalIdentityV3, ProfessionalSkillGroup, ProfessionalSkillItem } from '../identity/schema'
+import type {
+  ProfessionalIdentityV3,
+  ProfessionalSkillGroup,
+  ProfessionalSkillItem,
+} from '../identity/schema'
 import type {
   IdentityEnrichmentProgress,
   IdentityEnrichmentSkillRef,
   IdentityEnrichmentStatus,
 } from '../types/identity'
+import { dedupeSkillItemsByName } from '../identity/skillDedupe'
 
 export interface IdentityEnrichmentResolvedSkill extends IdentityEnrichmentSkillRef {
   group: ProfessionalSkillGroup
@@ -11,7 +16,7 @@ export interface IdentityEnrichmentResolvedSkill extends IdentityEnrichmentSkill
 }
 
 export const skillNamesMatch = (left: string, right: string): boolean =>
-  left.localeCompare(right, undefined, { sensitivity: 'accent' }) === 0
+  left.trim().localeCompare(right.trim(), undefined, { sensitivity: 'accent' }) === 0
 
 /**
  * Detect skill-group labels that look like AI-generated placeholders rather
@@ -61,7 +66,9 @@ export const updateIdentityEnrichmentSkill = (
       group.id === groupId
         ? {
             ...group,
-            items: group.items.map((skill) =>
+            // Defensive repair for stale imported state: enrichment updates must
+            // target the canonical skill once, even if old data had case variants.
+            items: dedupeSkillItemsByName(group.items).map((skill) =>
               skillNamesMatch(skill.name, skillName) ? updater(skill) : skill,
             ),
           }
