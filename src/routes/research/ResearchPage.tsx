@@ -62,8 +62,8 @@ import { getReferencedCitations, splitTextByCitationMarkers } from '../../utils/
 import {
   regenerateCoverLetterForEntry,
   resolvePipelineJdAnalysis,
-} from '../../utils/coverLetterRegen'
-import { regeneratePrepDeckForEntry } from '../../utils/prepDeckRegen'
+} from '../../utils/regen/coverLetterRegen'
+import { regeneratePrepDeckForEntry } from '../../utils/regen/prepDeckRegen'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepPipelineEntryContext } from '../../utils/prepPipelineContext'
 import { generateSearchThesisFromIdentity, validateSearchThesis } from '../../utils/thesisGenerator'

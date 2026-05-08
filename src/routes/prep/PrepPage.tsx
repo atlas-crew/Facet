@@ -27,6 +27,7 @@ import { parsePrepImport } from '../../utils/prepImport'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
+import { formatPrepRoundNumberLabel } from '../../utils/prepRoundLabel'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
@@ -176,10 +177,6 @@ function formatPrepRoundTypeLabel(roundType?: PrepDeck['roundType']): string {
       .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
       .join(' ')
   )
-}
-
-function formatPrepRoundNumberLabel(roundNumber?: number): string {
-  return roundNumber ? `Round ${roundNumber}` : 'Round TBD'
 }
 
 function sortPrepRoundDecks(decks: PrepDeck[]): PrepDeck[] {

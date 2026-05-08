@@ -1,6 +1,7 @@
-import { usePrepStore } from '../store/prepStore'
-import type { PrepCard, PrepDeck, PrepGenerationRequest } from '../types/prep'
-import { generateInterviewPrep } from './prepGenerator'
+import { usePrepStore } from '../../store/prepStore'
+import type { PrepCard, PrepDeck, PrepGenerationRequest } from '../../types/prep'
+import { generateInterviewPrep } from '../prepGenerator'
+import { formatPrepRoundNumberLabel } from '../prepRoundLabel'
 
 export interface RegeneratePrepDeckInput {
   endpoint: string
@@ -11,14 +12,6 @@ export interface RegeneratePrepDeckInput {
 export interface RegeneratePrepDeckResult {
   deck: PrepDeck
   generatedAt: string
-}
-
-const formatRoundLabel = (roundNumber?: number): string => {
-  if (!roundNumber || roundNumber <= 0) return ''
-  if (roundNumber === 1) return 'Round 1'
-  if (roundNumber === 2) return 'Round 2'
-  if (roundNumber === 3) return 'Round 3'
-  return `Round ${roundNumber}`
 }
 
 /**
@@ -53,11 +46,10 @@ export async function regeneratePrepDeckForEntry(
   const generatedAt = new Date().toISOString()
 
   const store = usePrepStore.getState()
-  const titleSuffix = formatRoundLabel(deck.roundNumber)
   store.updateDeck(deck.id, {
     title:
-      titleSuffix && deck.roundNumber && deck.roundNumber > 1
-        ? `${result.deckTitle} - ${titleSuffix}`
+      deck.roundNumber && deck.roundNumber > 1
+        ? `${result.deckTitle} - ${formatPrepRoundNumberLabel(deck.roundNumber)}`
         : result.deckTitle,
     rules: result.rules,
     donts: result.donts,

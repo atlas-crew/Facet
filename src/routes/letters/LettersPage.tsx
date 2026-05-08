@@ -29,7 +29,7 @@ import {
   resolveLetterIdentityVersion,
   resolvePipelineJdAnalysis,
   resolveJdAnalysisGenerationIssue,
-} from '../../utils/coverLetterRegen'
+} from '../../utils/regen/coverLetterRegen'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
