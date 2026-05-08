@@ -3,7 +3,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { DeepResearchStreamHandlers } from '../utils/deepSearchClient'
-import type { ResearchJob, SearchThesis, SearchThesisSignal } from '../types/search'
+import type {
+  ResearchJob,
+  SearchResultEntry,
+  SearchThesis,
+  SearchThesisSignal,
+} from '../types/search'
 import { defaultResumeData } from '../store/defaultData'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useIdentityStore } from '../store/identityStore'
@@ -3720,6 +3725,195 @@ describe('ResearchPage', () => {
     ])
   })
 
+  it('binds search launcher overrides into the submitted research request', async () => {
+    seedLaunchThesis({ id: 'thesis-launcher-bindings' })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.change(screen.getByLabelText('Company size override'), {
+      target: { value: 'enterprise' },
+    })
+    fireEvent.change(screen.getByLabelText('Salary anchor override'), {
+      target: { value: '$280k base / $420k total' },
+    })
+    fireEvent.change(screen.getByLabelText('Custom keywords'), {
+      target: { value: 'edge platform, reliability leadership' },
+    })
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: /Expand geography beyond preferred locations when fit is otherwise strong/i,
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Tier 1 max'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Tier 2 max'), { target: { value: '7' } })
+    fireEvent.change(screen.getByLabelText('Tier 3 max'), { target: { value: '11' } })
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+
+    expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].params).toEqual(
+      expect.objectContaining({
+        companySizeOverride: 'enterprise',
+        salaryAnchorOverride: '$280k base / $420k total',
+        customKeywords: 'edge platform, reliability leadership',
+        geoExpand: false,
+        maxResults: { tier1: 3, tier2: 7, tier3: 11 },
+      }),
+    )
+    expect(useSearchStore.getState().requests.at(-1)).toEqual(
+      expect.objectContaining({
+        companySizeOverride: 'enterprise',
+        salaryAnchorOverride: '$280k base / $420k total',
+        customKeywords: 'edge platform, reliability leadership',
+        geoExpand: false,
+        maxResults: { tier1: 3, tier2: 7, tier3: 11 },
+      }),
+    )
+    expect(screen.getByLabelText('Company size override')).toHaveProperty('value', 'enterprise')
+    expect(screen.getByLabelText('Salary anchor override')).toHaveProperty(
+      'value',
+      '$280k base / $420k total',
+    )
+    expect(screen.getByLabelText('Custom keywords')).toHaveProperty(
+      'value',
+      'edge platform, reliability leadership',
+    )
+  })
+
+  it('binds profile editor constraints, signals, interview prefs, and skill visibility to the active thesis', async () => {
+    const baseConstraints = {
+      salary: { min: 210000, max: 320000, currency: 'USD' },
+      locations: ['Remote'],
+      clearance: '',
+      companySize: 'growth' as const,
+      industriesToAvoid: [],
+      fundingStagesAcceptable: [],
+      remotePolicies: [],
+      remotePolicyNote: '',
+      employmentTypes: [],
+    }
+    const baseInterviewPrefs = {
+      strongFit: ['architecture discussion'],
+      redFlags: ['leetcode-heavy loops'],
+    }
+    const thesis = buildTestThesis({
+      id: 'thesis-profile-editor-bindings',
+      lookFor: ['platform modernization'],
+      avoid: ['pure admin'],
+      keywordCombinations: [
+        {
+          id: 'skwd-profile-bindings',
+          query: '"platform modernization"',
+          lane: 'lane-platform',
+          noiseLevel: 'low',
+        },
+      ],
+      searchOverrides: {
+        constraints: baseConstraints,
+        interviewPrefs: baseInterviewPrefs,
+        hiddenSkillIds: [],
+      },
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      profile: {
+        ...state.profile!,
+        skills: [
+          {
+            id: 'skill-k8s',
+            name: 'Kubernetes',
+            category: 'platform',
+            depth: 'strong',
+            context: 'Production platform delivery.',
+          },
+        ],
+        constraints: baseConstraints,
+        filters: {
+          prioritize: [{ label: 'identity prioritize', severity: 'soft' }],
+          avoid: [{ label: 'identity avoid', severity: 'soft' }],
+        },
+        interviewPrefs: baseInterviewPrefs,
+      },
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    const signalReadout = screen.getByRole('group', { name: 'Thesis search signals' })
+    expect(within(signalReadout).getByText(/platform modernization/i)).toBeTruthy()
+    expect(within(signalReadout).getByText(/pure admin/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Hard constraints'))
+    fireEvent.change(screen.getByLabelText('Salary minimum amount'), {
+      target: { value: '240000' },
+    })
+    fireEvent.change(screen.getByLabelText('Salary maximum amount'), {
+      target: { value: '410000' },
+    })
+    fireEvent.change(screen.getByLabelText('Clearance requirement'), {
+      target: { value: 'not-required' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Firearms / defense' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Series B' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remote friendly' }))
+    fireEvent.click(screen.getByRole('button', { name: '1099 contract' }))
+    fireEvent.change(screen.getByLabelText('Preferred locations'), {
+      target: { value: 'Remote, Denver' },
+    })
+    fireEvent.change(screen.getByLabelText('Preferred company size'), {
+      target: { value: 'public' },
+    })
+    fireEvent.change(screen.getByLabelText('Interview prep advantages'), {
+      target: { value: 'system design, platform storytelling' },
+    })
+    fireEvent.change(screen.getByLabelText('Interview process risks'), {
+      target: { value: 'leetcode-only loops, unpaid take-home' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Hide Kubernetes from this search/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit look-for signals' }))
+    fireEvent.change(screen.getByLabelText('Look-for signals'), {
+      target: { value: 'platform modernization, reliability leadership' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
+
+    await waitFor(() => {
+      const updated = useSearchStore
+        .getState()
+        .theses.find((candidate) => candidate.id === thesis.id)
+      expect(updated?.lookFor.map((signal) => signal.label)).toEqual([
+        'platform modernization',
+        'reliability leadership',
+      ])
+      expect(updated?.searchOverrides).toMatchObject({
+        constraints: {
+          salary: { min: 240000, max: 410000, currency: 'USD' },
+          clearance: 'not-required',
+          industriesToAvoid: ['firearms-defense'],
+          fundingStagesAcceptable: ['series-b'],
+          remotePolicies: ['remote-friendly'],
+          employmentTypes: ['1099-contract'],
+          locations: ['Remote', 'Denver'],
+          companySize: 'public',
+        },
+        interviewPrefs: {
+          strongFit: ['system design', 'platform storytelling'],
+          redFlags: ['leetcode-only loops', 'unpaid take-home'],
+        },
+        hiddenSkillIds: ['skill-k8s'],
+      })
+      expect(updated?.searchLanes).toEqual(thesis.searchLanes)
+      expect(updated?.skillDepthMap).toEqual(thesis.skillDepthMap)
+      expect(updated?.keywordCombinations).toEqual(thesis.keywordCombinations)
+      expect(updated?.source).toBe('user-edited')
+    })
+  })
+
   it('switches active runs and shows failed-run details', async () => {
     useSearchStore.setState((state) => ({
       ...state,
@@ -3767,6 +3961,214 @@ describe('ResearchPage', () => {
 
     expect(screen.getByText(/staff platform remote/i)).toBeTruthy()
     expect(screen.getByText(/Tokens: 50/i)).toBeTruthy()
+  })
+
+  it('resyncs the launcher request draft when the active thesis changes', async () => {
+    const firstThesis = seedLaunchThesis({ id: 'thesis-result-edge-first' })
+    const secondThesis = buildTestThesis({
+      id: 'thesis-result-edge-second',
+      searchLanes: [
+        {
+          id: 'lane-security',
+          title: 'Security platform',
+          rationale: 'Find security-platform roles.',
+          targetSignals: ['security platform'],
+        },
+      ],
+      searchOverrides: {
+        constraints: {
+          salary: { min: 240000, max: 410000, currency: 'USD' },
+          locations: ['Remote'],
+          clearance: '',
+          companySize: 'public',
+          industriesToAvoid: [],
+          fundingStagesAcceptable: [],
+          remotePolicies: [],
+          remotePolicyNote: '',
+          employmentTypes: [],
+        },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        hiddenSkillIds: [],
+      },
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [firstThesis, secondThesis],
+      activeThesisId: firstThesis.id,
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    expect(screen.getByLabelText('Company size override')).toHaveProperty('value', '')
+    act(() => {
+      useSearchStore.setState((state) => ({ ...state, activeThesisId: secondThesis.id }))
+    })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Company size override')).toHaveProperty('value', 'public')
+    })
+    expect(screen.getByLabelText('Salary anchor override')).toHaveProperty('value', '$240k-$410k')
+    expect(screen.getByRole('checkbox', { name: 'Security platform' })).toHaveProperty(
+      'checked',
+      true,
+    )
+  })
+
+  it('renders empty log and tier states for a completed run with no results', async () => {
+    useSearchStore.setState((state) => ({
+      ...state,
+      requests: [
+        ...state.requests,
+        {
+          id: 'sreq-empty',
+          createdAt: '2026-03-10T11:05:00.000Z',
+          focusLanes: ['lane-platform'],
+          companySizeOverride: '',
+          salaryAnchorOverride: '',
+          geoExpand: true,
+          customKeywords: '',
+          excludeCompanies: [],
+          maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+        },
+      ],
+      runs: [
+        {
+          id: 'srun-empty',
+          requestId: 'sreq-empty',
+          createdAt: '2026-03-10T11:06:00.000Z',
+          status: 'completed',
+          results: [],
+          searchLog: [],
+          narrativeState: { status: 'pending' },
+        },
+      ],
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    expect(screen.getByText('No query log was returned for this run.')).toBeTruthy()
+    expect(screen.getAllByText('No matches in this tier.')).toHaveLength(3)
+    expect(
+      screen.getAllByText('0').filter((node) => node.className.includes('research-tier-badge')),
+    ).toHaveLength(3)
+  })
+
+  it.each([0, -1, 4] as const)(
+    'rejects pushing a rendered result when its tier is invalid: %s',
+    async (invalidTier) => {
+      let returnInvalidTier = false
+      const invalidTierResult = {
+        ...useSearchStore.getState().runs[0]!.results[0]!,
+      }
+      Object.defineProperty(invalidTierResult, 'tier', {
+        configurable: true,
+        get: () => (returnInvalidTier ? invalidTier : 1),
+      })
+      useSearchStore.setState((state) => ({
+        ...state,
+        runs: [
+          {
+            ...state.runs[0]!,
+            results: [invalidTierResult as SearchResultEntry],
+          },
+        ],
+      }))
+
+      const { ResearchPage } = await import('../routes/research/ResearchPage')
+      render(<ResearchPage />)
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+      fireEvent.change(screen.getByRole('combobox', { name: 'Select search run' }), {
+        target: { value: 'srun-1' },
+      })
+      const addToPipeline = screen.getByRole('button', { name: /Add to Pipeline/i })
+      returnInvalidTier = true
+      fireEvent.click(addToPipeline)
+
+      expect(screen.getByRole('alert').textContent).toContain('Search result tier was invalid')
+      expect(usePipelineStore.getState().entries).toHaveLength(0)
+    },
+  )
+
+  it('selects the next available run when the active run is removed', async () => {
+    useSearchStore.setState((state) => ({
+      ...state,
+      requests: [
+        ...state.requests,
+        {
+          id: 'sreq-empty',
+          createdAt: '2026-03-10T11:05:00.000Z',
+          focusLanes: ['lane-platform'],
+          companySizeOverride: '',
+          salaryAnchorOverride: '',
+          geoExpand: true,
+          customKeywords: '',
+          excludeCompanies: [],
+          maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+        },
+      ],
+      runs: [
+        state.runs[0]!,
+        {
+          id: 'srun-empty',
+          requestId: 'sreq-empty',
+          createdAt: '2026-03-10T11:06:00.000Z',
+          status: 'completed',
+          results: [],
+          searchLog: [],
+          narrativeState: { status: 'pending' },
+        },
+      ],
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Select search run' }), {
+      target: { value: 'srun-1' },
+    })
+
+    act(() => {
+      useSearchStore.setState((state) => ({
+        ...state,
+        runs: state.runs.filter((run) => run.id !== 'srun-1'),
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Select search run' })).toHaveProperty(
+        'value',
+        'srun-empty',
+      )
+    })
+    expect(screen.getByText('No query log was returned for this run.')).toBeTruthy()
+  })
+
+  it('shows the empty results state when the selected run is removed and no runs remain', async () => {
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    expect(screen.getByRole('combobox', { name: 'Select search run' })).toHaveProperty(
+      'value',
+      'srun-1',
+    )
+
+    act(() => {
+      useSearchStore.setState((state) => ({
+        ...state,
+        runs: [],
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('No runs yet')).toBeTruthy()
+    })
+    expect(screen.queryByRole('combobox', { name: 'Select search run' })).toBeNull()
   })
 
   it('records a thumbs-up feedback event without writing back to identity', async () => {
