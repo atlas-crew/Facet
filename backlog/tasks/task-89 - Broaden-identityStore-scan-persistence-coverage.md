@@ -1,11 +1,11 @@
 ---
 id: TASK-89
 title: Broaden identityStore scan persistence coverage
-status: Done
+status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-07 05:00'
-updated_date: '2026-05-08 20:41'
+updated_date: '2026-05-08 20:42'
 labels:
   - scanner
 dependencies: []
@@ -64,6 +64,8 @@ Repo-wide blockers outside TASK-89:
 - npm run typecheck fails in src/test/IdentityEnrichmentSkillPage.test.tsx:793 (Property 'aborted' does not exist on type 'never')
 - npm run lint fails on existing generated/dist files and unrelated source/tests, including .vercel/output, dist-unmin-*, src/hooks/useElapsed.ts, src/routes/identity/inspectorSlots/slotPrimitives.tsx, src/routes/prep/PrepCardView.tsx, tests/hosted/*
 - npm run test fails 16 unrelated tests across src/test/PrepPage.behavior.test.tsx, src/test/facetServer.test.ts, src/test/jdAnalysis.test.ts, src/test/searchRedesignRoundTrip.test.tsx, and src/test/workspaceBackup.test.ts
+
+TASK-89 ACs are complete, but status was kept In Progress because DoD #6 (all tests) and #8 (lint clean) are blocked by unrelated repo-wide failures captured above.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
