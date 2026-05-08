@@ -387,7 +387,9 @@ describe('PrepPage identity generation', () => {
       expect(global.fetch).toHaveBeenCalled()
     })
 
-    const updatedIdentity = JSON.parse(JSON.stringify(prepIdentityFixture)) as ProfessionalIdentityV3
+    const updatedIdentity = JSON.parse(
+      JSON.stringify(prepIdentityFixture),
+    ) as ProfessionalIdentityV3
     updatedIdentity.model_revision = 9
     act(() => {
       useIdentityStore.setState({ currentIdentity: updatedIdentity })
@@ -654,7 +656,7 @@ describe('PrepPage identity generation', () => {
         needs_review: true,
       }),
     ])
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/workbench' })
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/import' })
   })
 
   it('re-generates the active prep set with saved context gap answers', async () => {

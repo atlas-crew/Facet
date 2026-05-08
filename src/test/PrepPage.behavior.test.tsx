@@ -165,7 +165,8 @@ describe('PrepPage behavior follow-ups', () => {
     vi.mocked(generateInterviewPrep)
       .mockResolvedValueOnce({
         deckTitle: 'Acme Staff Engineer Prep',
-        companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+        companyResearchSummary:
+          'Acme is optimizing for platform reliability and developer velocity.',
         rules: [],
         donts: [],
         questionsToAsk: [],
@@ -192,7 +193,8 @@ describe('PrepPage behavior follow-ups', () => {
       } as never)
       .mockResolvedValueOnce({
         deckTitle: 'Acme Staff Engineer Prep',
-        companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+        companyResearchSummary:
+          'Acme is optimizing for platform reliability and developer velocity.',
         rules: [],
         donts: [],
         questionsToAsk: [],
@@ -234,11 +236,16 @@ describe('PrepPage behavior follow-ups', () => {
     // After PR E2, Core Story starts collapsed. Open it before editing the script.
     fireEvent.click(screen.getAllByRole('button', { name: 'Core Story' })[0] as HTMLElement)
     fireEvent.change(screen.getByPlaceholderText('What should the candidate actually say?'), {
-      target: { value: 'I build resilient backend systems and lead platform improvements, with more context.' },
+      target: {
+        value:
+          'I build resilient backend systems and lead platform improvements, with more context.',
+      },
     })
 
     await waitFor(() => {
-      const editedCard = screen.getByDisplayValue('Tell me about yourself, edited').closest('.prep-card') as HTMLElement | null
+      const editedCard = screen
+        .getByDisplayValue('Tell me about yourself, edited')
+        .closest('.prep-card') as HTMLElement | null
       expect(editedCard && within(editedCard).getByText('manual')).toBeTruthy()
     })
 
@@ -261,7 +268,9 @@ describe('PrepPage behavior follow-ups', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Re-generate with answers' }).getAttribute('disabled')).toBeNull()
+      expect(
+        screen.getByRole('button', { name: 'Re-generate with answers' }).getAttribute('disabled'),
+      ).toBeNull()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Re-generate with answers' }))
@@ -276,7 +285,8 @@ describe('PrepPage behavior follow-ups', () => {
         expect.objectContaining({
           title: 'Tell me about yourself, edited',
           source: 'manual',
-          script: 'I build resilient backend systems and lead platform improvements, with more context.',
+          script:
+            'I build resilient backend systems and lead platform improvements, with more context.',
         }),
         expect.objectContaining({
           title: 'Rebuilt AI follow-up',
@@ -326,9 +336,13 @@ describe('PrepPage behavior follow-ups', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Fill in the context gaps' })
     expect(within(dialog).getByText(/Step 1 of 3/)).toBeTruthy()
-    expect(within(dialog).getByRole('button', { name: 'Previous' }).getAttribute('disabled')).not.toBeNull()
+    expect(
+      within(dialog).getByRole('button', { name: 'Previous' }).getAttribute('disabled'),
+    ).not.toBeNull()
     expect(within(dialog).queryByRole('button', { name: 'Skip' })).toBeNull()
-    expect(within(dialog).getByRole('button', { name: 'Next' }).getAttribute('disabled')).not.toBeNull()
+    expect(
+      within(dialog).getByRole('button', { name: 'Next' }).getAttribute('disabled'),
+    ).not.toBeNull()
 
     fireEvent.change(within(dialog).getByPlaceholderText('Add the missing detail.'), {
       target: { value: 'The prep deck already has the answer.' },
@@ -338,34 +352,74 @@ describe('PrepPage behavior follow-ups', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }))
 
     await waitFor(() => {
-      expect(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByText(/Step 2 of 3/)).toBeTruthy()
+      expect(
+        within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByText(
+          /Step 2 of 3/,
+        ),
+      ).toBeTruthy()
     })
 
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', { name: 'Previous' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', {
+        name: 'Previous',
+      }),
+    )
 
     await waitFor(() => {
       const stepOneDialog = screen.getByRole('dialog', { name: 'Fill in the context gaps' })
       expect(within(stepOneDialog).getByText(/Step 1 of 3/)).toBeTruthy()
-      expect(within(stepOneDialog).getByDisplayValue('The prep deck already has the answer.')).toBeTruthy()
+      expect(
+        within(stepOneDialog).getByDisplayValue('The prep deck already has the answer.'),
+      ).toBeTruthy()
     })
 
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', { name: 'Next' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', {
+        name: 'Next',
+      }),
+    )
 
     await waitFor(() => {
-      expect(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByText(/Step 2 of 3/)).toBeTruthy()
+      expect(
+        within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByText(
+          /Step 2 of 3/,
+        ),
+      ).toBeTruthy()
     })
 
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', { name: 'Skip' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', {
+        name: 'Skip',
+      }),
+    )
 
     await waitFor(() => {
-      expect(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByText(/Step 3 of 3/)).toBeTruthy()
+      expect(
+        within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByText(
+          /Step 3 of 3/,
+        ),
+      ).toBeTruthy()
     })
-    expect(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).queryByRole('button', { name: 'Next' })).toBeNull()
+    expect(
+      within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).queryByRole(
+        'button',
+        { name: 'Next' },
+      ),
+    ).toBeNull()
 
-    fireEvent.change(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByPlaceholderText('Add the missing detail.'), {
-      target: { value: 'The final detail is in the prep notes.' },
-    })
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', { name: 'Save answers' }))
+    fireEvent.change(
+      within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByPlaceholderText(
+        'Add the missing detail.',
+      ),
+      {
+        target: { value: 'The final detail is in the prep notes.' },
+      },
+    )
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Fill in the context gaps' })).getByRole('button', {
+        name: 'Save answers',
+      }),
+    )
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Fill in the context gaps' })).toBeNull()
@@ -394,7 +448,8 @@ describe('PrepPage behavior follow-ups', () => {
     vi.mocked(generateInterviewPrep)
       .mockResolvedValueOnce({
         deckTitle: 'Acme Staff Engineer Prep',
-        companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+        companyResearchSummary:
+          'Acme is optimizing for platform reliability and developer velocity.',
         rules: ['Lead with outcomes', 'Stay concise', 'Ground every claim'],
         donts: [],
         questionsToAsk: [],
@@ -406,7 +461,8 @@ describe('PrepPage behavior follow-ups', () => {
           {
             kind: 'missing-intel',
             field: 'cards',
-            message: 'Company research contains named people, but the generated deck did not include a named-person intel card with role inference.',
+            message:
+              'Company research contains named people, but the generated deck did not include a named-person intel card with role inference.',
             severity: 'error',
           },
         ],
@@ -417,13 +473,15 @@ describe('PrepPage behavior follow-ups', () => {
             tags: ['backend'],
             script: 'I build resilient backend systems and lead platform improvements.',
             warning: 'Keep it under 90 seconds.',
-            notes: 'Lead with the systems remit. Close on the kind of platform scope you want next.',
+            notes:
+              'Lead with the systems remit. Close on the kind of platform scope you want next.',
           },
         ],
       } as never)
       .mockResolvedValueOnce({
         deckTitle: 'Acme Staff Engineer Prep',
-        companyResearchSummary: 'Acme is optimizing for platform reliability and developer velocity.',
+        companyResearchSummary:
+          'Acme is optimizing for platform reliability and developer velocity.',
         rules: ['Lead with outcomes', 'Stay concise', 'Ground every claim'],
         donts: [],
         questionsToAsk: [],
@@ -439,7 +497,8 @@ describe('PrepPage behavior follow-ups', () => {
             tags: ['backend'],
             script: 'I build resilient backend systems and lead platform improvements.',
             warning: 'Keep it under 90 seconds.',
-            notes: 'Lead with the systems remit. Close on the kind of platform scope you want next.',
+            notes:
+              'Lead with the systems remit. Close on the kind of platform scope you want next.',
           },
         ],
       } as never)
@@ -485,7 +544,8 @@ describe('PrepPage behavior follow-ups', () => {
         {
           kind: 'missing-intel',
           field: 'cards',
-          message: 'Named people were mentioned, but the deck still needs a role-inference intel card.',
+          message:
+            'Named people were mentioned, but the deck still needs a role-inference intel card.',
           severity: 'error',
         },
       ],
@@ -527,7 +587,9 @@ describe('PrepPage behavior follow-ups', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
     const fileInput = document.querySelector('.import-file-input') as HTMLInputElement
-    const file = new File([JSON.stringify([{ id: 'bad' }])], 'prep.json', { type: 'application/json' })
+    const file = new File([JSON.stringify([{ id: 'bad' }])], 'prep.json', {
+      type: 'application/json',
+    })
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     await waitFor(() => {
@@ -568,7 +630,7 @@ describe('PrepPage behavior follow-ups', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Queue for Identity Review' }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/workbench' })
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/import' })
     })
 
     expect(screen.queryByRole('dialog', { name: 'Replace the current identity draft?' })).toBeNull()
@@ -696,7 +758,7 @@ describe('PrepPage behavior follow-ups', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Replace draft' }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/workbench' })
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/identity/import' })
     })
 
     expect(useIdentityStore.getState().draft).toMatchObject({
@@ -718,9 +780,10 @@ describe('PrepPage behavior follow-ups', () => {
       download: '',
       click: anchorClickSpy,
     } as unknown as HTMLAnchorElement
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation(
-      ((tagName: string) => (tagName === 'a' ? anchorStub : realCreateElement(tagName))) as typeof document.createElement,
-    )
+    const createElementSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation(((tagName: string) =>
+        tagName === 'a' ? anchorStub : realCreateElement(tagName)) as typeof document.createElement)
 
     const importedDeck: PrepDeck = {
       id: 'imported-deck',
@@ -743,7 +806,9 @@ describe('PrepPage behavior follow-ups', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
     const fileInput = document.querySelector('.import-file-input') as HTMLInputElement
-    const file = new File([JSON.stringify([{ id: 'placeholder' }])], 'prep.json', { type: 'application/json' })
+    const file = new File([JSON.stringify([{ id: 'placeholder' }])], 'prep.json', {
+      type: 'application/json',
+    })
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     await waitFor(() => {

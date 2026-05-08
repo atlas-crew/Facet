@@ -28,8 +28,7 @@ import './identityMap.css'
  * `currentIdentity` from the identity store and dispatches `setMapSelection`
  * on click; the inspector reads that selection and renders the matching slot.
  *
- * Topbar action buttons (Import, Generator settings, Generate vectors, Export brief)
- * wire up in Phase D alongside the import overlay and drawers.
+ * Topbar action buttons keep import separate from canonical Map editing.
  */
 export function IdentityMapPage() {
   const identity = useIdentityStore((state) => state.currentIdentity)
@@ -159,7 +158,7 @@ export function IdentityMapPage() {
   const schemaRevision = identity?.schema_revision ?? '—'
 
   const goToImport = () => {
-    void navigate({ to: '/identity/workbench' })
+    void navigate({ to: '/identity/import' })
   }
 
   return (
@@ -190,7 +189,8 @@ export function IdentityMapPage() {
               v<span>{schemaRevision}</span>
             </span>
             <span className="label-tracked identity-map-stat">
-              <span>{roleCount}</span> roles · <span>{bulletCount}</span> bullets · <span>{projectCount}</span> projects
+              <span>{roleCount}</span> roles · <span>{bulletCount}</span> bullets ·{' '}
+              <span>{projectCount}</span> projects
             </span>
             {openQuestions > 0 ? (
               <span className="label-tracked identity-map-stat warn">
@@ -213,12 +213,14 @@ export function IdentityMapPage() {
           </h1>
           {identity ? (
             <p className="label-tracked identity-map-contact">
-              {identity.identity.location} · {identity.identity.remote ? 'Remote' : 'On-site'} · {identity.identity.email}
+              {identity.identity.location} · {identity.identity.remote ? 'Remote' : 'On-site'} ·{' '}
+              {identity.identity.email}
             </p>
           ) : (
             <div className="identity-map-empty-cta">
               <p className="chapter-copy">
-                The Map renders your authored identity. Pull one in from a resume to populate every band — thesis, roles, skills, preferences — in a single pass.
+                The Map renders your authored identity. Pull one in from a resume to populate every
+                band — thesis, roles, skills, preferences — in a single pass.
               </p>
               <button
                 type="button"
@@ -253,8 +255,12 @@ export function IdentityMapPage() {
         <SearchStrategyBand />
 
         <footer className="identity-map-footer">
-          <span className="label-tracked">Workspace<span>: Identity Model</span></span>
-          <span className="label-tracked"><span>Schema {schemaRevision}</span></span>
+          <span className="label-tracked">
+            Workspace<span>: Identity Model</span>
+          </span>
+          <span className="label-tracked">
+            <span>Schema {schemaRevision}</span>
+          </span>
         </footer>
       </main>
 

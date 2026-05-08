@@ -1,10 +1,10 @@
 ---
 id: TASK-243
 title: Decide and execute import flow's final form factor
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-04-30 18:41'
-updated_date: '2026-05-08 20:47'
+updated_date: '2026-05-08 20:53'
 labels:
   - identity
   - map-convergence
@@ -54,12 +54,14 @@ This task is **Draft** until 202.1 lands and we have lived experience with the s
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Form factor decided with reasoning grounded in 202.1's actual experience (not speculation)
-- [ ] #2 Workbench route either renamed to reflect import-only role OR deleted with its functionality moved into a Map-side affordance
-- [ ] #3 Map provides a discoverable Import affordance (topbar button or empty-state CTA) that triggers the import flow in its new form
-- [ ] #4 After Apply, user lands on Map with the new identity visible; no manual nav step required
-- [ ] #5 Import flow's existing async stages (PDF parse → scan review → optional draft → apply) all work in the new form factor; regression-tested
-- [ ] #6 Tests cover the full import → apply → land-on-Map happy path plus the cancel-mid-import case
+- [x] #2 Workbench route either renamed to reflect import-only role OR deleted with its functionality moved into a Map-side affordance
+- [x] #3 Map provides a discoverable Import affordance (topbar button or empty-state CTA) that triggers the import flow in its new form
+- [x] #4 After Apply, user lands on Map with the new identity visible; no manual nav step required
+- [x] #5 Import flow's existing async stages (PDF parse → scan review → optional draft → apply) all work in the new form factor; regression-tested
+- [x] #6 Tests cover the full import → apply → land-on-Map happy path plus the cancel-mid-import case
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
@@ -89,14 +91,36 @@ Reasoning:
 - Keeping import on a focused route preserves the existing tested async lifecycle and avoids stretching the sheet primitive into a wizard/container primitive.
 - Strategy D still holds because the route is import-only: the Map remains the canonical edit surface, and the import route should return users to Map after Apply.
 - The next implementation slice should rename or alias the route to the import-only role, keep the Map topbar import affordance, and auto-navigate to Map after apply.
+
+## Route-but-ephemeral implementation completed (2026-05-08)
+
+Implementation:
+- Renamed the import/review route from /identity/workbench to /identity/import in router.tsx.
+- Updated IdentityMapPage topbar and empty-state import affordances to navigate to /identity/import.
+- Updated Prep identity-draft handoffs to navigate queued drafts to /identity/import.
+- IdentityPage now navigates to /identity after a successful Apply, so the newly applied identity lands on the canonical Map.
+- Updated route comments to remove the deferred import-overlay/search-param language.
+
+Verification:
+- npx vitest run src/test/IdentityMapPage.deepLink.test.tsx: PASS, 23 tests.
+- npx vitest run src/test/IdentityPage.test.tsx -t "uploads a PDF|returns to the Identity Map|does not finalize a bulk|aborts an in-flight|deepens all scanned|cancels bulk|switches the detail|disables bullet": PASS, 8 tests / 19 skipped.
+- npx vitest run src/test/PrepPage.behavior.test.tsx -t "Queue for Identity Review|queues prep answers into the identity draft": PASS, 1 test / 13 skipped.
+- npx vitest run src/test/PrepPage.identityGeneration.test.tsx -t "captures context gap answers and queues an identity draft": PASS, 1 test / 8 skipped.
+- npm run typecheck: PASS.
+- npx eslint on touched route/page/test files: PASS.
+- npm run format:files/check on touched route/page/test files: PASS after formatting.
+- npm run build: PASS, with existing large-chunk warnings.
+
+Full suite note:
+- Repo-wide npm run test was not rerun in this slice because existing unrelated full-suite failures were already documented by TASK-89 and TASK-114.4. The import-flow route/apply/Prep handoff surfaces touched here have targeted passing coverage.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

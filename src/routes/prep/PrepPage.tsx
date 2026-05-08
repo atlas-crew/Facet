@@ -1508,14 +1508,14 @@ export function PrepPage() {
       setGenerationError(null)
       setIsIdentityDraftConfirmOpen(false)
       useIdentityStore.getState().setDraft(draft)
-      // Navigate to /identity/workbench (NOT /identity / Map): the draft is
-      // reviewed in the IdentityPage Workbench component, which reads
+      // Navigate to /identity/import (NOT /identity / Map): the draft is
+      // reviewed in the IdentityPage import component, which reads
       // identityStore.draft and renders the review UI. The Map has no draft
       // awareness. Per TASK-217 retrofit 2 lock (path 2.A), this is a
       // production-bug fix, not a bridge retrofit — no ?return= param, no
-      // breadcrumb. If a future affordance needs deep-link-into-Workbench
+      // breadcrumb. If a future affordance needs deep-link-into-import
       // with return context, file it then with concrete requirements.
-      void navigate({ to: '/identity/workbench' })
+      void navigate({ to: '/identity/import' })
     },
     [navigate],
   )

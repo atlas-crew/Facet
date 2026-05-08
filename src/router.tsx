@@ -80,7 +80,7 @@ const identityRoute = createRoute({
   path: '/identity',
   component: LazyIdentityMapPage,
   // ?sel, ?focus, and ?return are the cross-workspace deep-link bridge (TASK-217).
-  // ?import=1 (Phase D import overlay) extends this same validateSearch when it lands.
+  // Import lives on the dedicated /identity/import route (TASK-243).
   validateSearch: (
     search: Record<string, unknown>,
   ): { sel?: string; focus?: string; return?: string } => {
@@ -92,9 +92,9 @@ const identityRoute = createRoute({
   },
 })
 
-const identityWorkbenchRoute = createRoute({
+const identityImportRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/identity/workbench',
+  path: '/identity/import',
   component: LazyIdentityPage,
 })
 
@@ -203,7 +203,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   buildRoute,
   identityRoute,
-  identityWorkbenchRoute,
+  identityImportRoute,
   identityEnrichmentRoute,
   identityEnrichmentSkillRoute,
   matchRoute,

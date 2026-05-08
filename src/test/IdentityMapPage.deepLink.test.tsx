@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { IdentityMapPage } from '../routes/identity/IdentityMapPage'
 import { useIdentityStore } from '../store/identityStore'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
@@ -66,6 +66,15 @@ afterEach(() => {
 })
 
 describe('IdentityMapPage deep-link forward bridge', () => {
+  it('opens the import-only route from the Map topbar import affordance', () => {
+    seedIdentityWithMatchRule()
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /Import from resume/i }))
+
+    expect(mockNavigate).toHaveBeenCalledWith({ to: '/identity/import' })
+  })
+
   it('honors a valid `?sel=` deep link by dispatching setMapSelection on first hydration', async () => {
     seedIdentityWithMatchRule()
     mockUseSearch.mockReturnValue({ sel: 'match-rule:prioritize:rule-prio-1' })
@@ -432,9 +441,7 @@ describe('IdentityMapPage sel/focus stale-notice interaction (TASK-218)', () => 
     await waitFor(() => {
       const notice = screen.queryByRole('status')
       expect(notice).not.toBeNull()
-      expect(notice?.textContent ?? '').toContain(
-        "That match rule isn't there anymore",
-      )
+      expect(notice?.textContent ?? '').toContain("That match rule isn't there anymore")
     })
     // Focus path still scrolls the band into view.
     const scrollFn = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
@@ -456,9 +463,7 @@ describe('IdentityMapPage sel/focus stale-notice interaction (TASK-218)', () => 
     await waitFor(() => {
       const notice = screen.queryByRole('status')
       expect(notice).not.toBeNull()
-      expect(notice?.textContent ?? '').toContain(
-        "That link target isn't there anymore",
-      )
+      expect(notice?.textContent ?? '').toContain("That link target isn't there anymore")
     })
     // Sel path still dispatches the selection.
     expect(useIdentityStore.getState().mapSelection?.type).toBe('match-rule')
