@@ -1,5 +1,6 @@
 import { usePrepStore } from '../../store/prepStore'
 import type { PrepCard, PrepDeck, PrepGenerationRequest } from '../../types/prep'
+import { collectIdentityFieldsFromJdSkillMatches } from '../identityFieldDeps'
 import { generateInterviewPrep } from '../prepGenerator'
 import { formatPrepRoundNumberLabel } from '../prepRoundLabel'
 
@@ -45,6 +46,7 @@ export async function regeneratePrepDeckForEntry(
   const result = await generateInterviewPrep(endpoint, request)
   const generatedAt = new Date().toISOString()
 
+  const identityFields = collectIdentityFieldsFromJdSkillMatches(request.jdAnalysis)
   const store = usePrepStore.getState()
   store.updateDeck(deck.id, {
     title:
@@ -69,6 +71,7 @@ export async function regeneratePrepDeckForEntry(
     jdTextHash: request.jdAnalysis.jdTextHash,
     generatedAt,
     ...(options.identityVersion != null ? { identityVersion: options.identityVersion } : {}),
+    ...(identityFields ? { identityFields } : {}),
   })
 
   // Preserve user-authored cards (manual / non-AI sources); replace AI cards.

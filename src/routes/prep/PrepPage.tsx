@@ -26,6 +26,7 @@ import { facetClientEnv } from '../../utils/facetEnv'
 import { parsePrepImport } from '../../utils/prepImport'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
+import { collectIdentityFieldsFromJdSkillMatches } from '../../utils/identityFieldDeps'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { formatPrepRoundNumberLabel } from '../../utils/prepRoundLabel'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
@@ -1134,6 +1135,7 @@ export function PrepPage() {
         jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
         identityVersion: generationIdentityVersion,
+        identityFields: collectIdentityFieldsFromJdSkillMatches(jdAnalysis),
         cards: result.cards.map((card) => ({
           ...card,
           company: selectedEntry.company,
@@ -1821,6 +1823,7 @@ export function PrepPage() {
         jdAnalysisModelVersion: jdAnalysis.modelVersion,
         jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
+        identityFields: collectIdentityFieldsFromJdSkillMatches(jdAnalysis),
       })
       // Preserve cards the user authored or pulled from other sources; regenerate only replaces AI cards.
       const preservedCards = latestDeck.cards.filter((card) => card.source !== 'ai')

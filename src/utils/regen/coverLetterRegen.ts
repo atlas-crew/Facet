@@ -8,6 +8,7 @@ import type { ResumeEntity } from '../../types/resume'
 import { resolveCoverLetterCandidateMeta } from '../coverLetterCandidate'
 import { stripResumeVectorContext } from '../coverLetterContext'
 import { generateCoverLetter } from '../coverLetterGenerator'
+import { collectIdentityFieldsFromJdSkillMatches } from '../identityFieldDeps'
 import { createId } from '../idUtils'
 import { getJdAnalysisDriftStatus } from '../jdAnalysis'
 
@@ -147,12 +148,14 @@ export async function regenerateCoverLetterForEntry(
     signOff: generated.signOff,
   }
   const identityVersion = resolveLetterIdentityVersion(resume, identity)
+  const identityFields = collectIdentityFieldsFromJdSkillMatches(jdAnalysis)
   const letter = useCoverLetterStore.getState().upsertLetterForPipelineEntry({
     content,
     pipelineEntryId: entry.id,
     sourceResumeId: resume.id,
     sourceResumeHash: resume.contentHash,
     identityVersion,
+    identityFields,
     generatedAt,
   })
   usePipelineStore.getState().updateEntry(entry.id, {
