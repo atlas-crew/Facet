@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 23:05'
+updated_date: '2026-05-08 23:06'
 labels:
   - prep
   - types
@@ -119,6 +119,8 @@ Keep `companyResearch` free-text field — `companyIntel` is derived from it at 
 Starting TASK-171. Scope will follow current architecture guard: structured company intel derives from pipeline/JD/research; interviewer identities remain gated on user-sourced round.interviewers, with uncertain-person coaching represented only when a targeted round has supplied panel context.
 
 Implemented structured PrepCompanyIntel + extended PrepInterviewer on PrepDeck. Note: AC #5 was adapted to current architecture guard/doc-30: named interviewer identities remain gated to user-sourced pipeline round.interviewers; generator still infers likelyRole from those supplied names/titles and supports the uncertain-interviewer meta entry. Added generator/store sanitization, regen carry-forward, and live-mode structured company/interviewer grids. Verification: prettier format:files passed for touched files; npx vitest run src/test/prepGenerator.test.ts src/test/prepStore.test.ts src/test/PrepLiveMode.test.tsx passed (106 tests); npx eslint on touched files passed; npm run typecheck/build currently fail only in unrelated dirty src/routes/research/ResearchPage.tsx missing runPrepDeckRefresh/unused imports, outside this slice per scoped DoD.
+
+Correction after commit: the prepDeckRegen.ts carry-forward tweak is in the working tree as an untracked/in-flight ResearchPage integration artifact and was not included in commit fe95d0b. The committed TASK-171 slice covers the tracked PrepDeck type/generator/store/live-mode surfaces and focused tests.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
