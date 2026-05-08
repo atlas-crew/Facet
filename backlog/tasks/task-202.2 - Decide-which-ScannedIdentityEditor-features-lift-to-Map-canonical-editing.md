@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@nick'
 created_date: '2026-04-30 18:41'
-updated_date: '2026-05-01 01:02'
+updated_date: '2026-05-08 20:33'
 labels:
   - identity
   - map-convergence
@@ -65,8 +65,8 @@ For each ScannedIdentityEditor feature, the decision is one of:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Definitive feature inventory of ScannedIdentityEditor.tsx recorded in this task's notes (covers every editable surface, with line-number references)
-- [ ] #2 Each feature has a recorded decision (lift / scan-only / retire) with one-sentence reasoning
+- [x] #1 Definitive feature inventory of ScannedIdentityEditor.tsx recorded in this task's notes (covers every editable surface, with line-number references)
+- [x] #2 Each feature has a recorded decision (lift / scan-only / retire) with one-sentence reasoning
 - [ ] #3 Every 'lift' feature has a Map-side home in code (BulletInspector additions for metrics/source_text/deepen; topbar or band actions where appropriate)
 - [ ] #4 Every 'scan-only' feature still works in the scan flow after the lift commits land (regression-tested)
 - [ ] #5 Every 'retire' feature is deleted from the codebase
@@ -114,6 +114,32 @@ During TASK-202.1's canary user-test pass, the missing Deepen affordance on the 
 - Survivor inventory for `ScannedIdentityEditor` post-lifts (AC #7)
 
 The Deepen lift can serve as a template for the metrics lift: same canonical-state slice pattern, same Map-side handler structure, same disabled-with-hint button labelling.
+
+## Definitive ScannedIdentityEditor feature inventory and decisions (2026-05-08)
+
+| Feature / surface | Source lines | Decision | Reasoning |
+|---|---:|---|---|
+| Contact/header fields: name, title, email, phone, location, links, thesis | `ScannedIdentityEditor.tsx:549-631` | Scan-only | These edit the scanResult draft before import; canonical identity/header editing belongs to Map/identity model surfaces after import. |
+| Bullet browser search, focus filters, role grouping, visible-count summary | `ScannedIdentityEditor.tsx:635-780` | Scan-only | This is scan review triage for a transient parsed resume, not a canonical Map editing affordance. |
+| Bullet selection and previous/next navigation | `ScannedIdentityEditor.tsx:782-818` | Scan-only | Map already selects canonical bullets directly; this navigation is only needed inside the scanned review list. |
+| Role scan-staging fields: company, title, dates, subtitle | `ScannedIdentityEditor.tsx:822-879` | Scan-only | RoleInspector is the canonical Map home; scan copies remain only to correct parser output before import. |
+| Per-bullet deepen button | `ScannedIdentityEditor.tsx:923-942`; canonical lift in `BulletInspector.tsx:126-156,238-245,270-277` | Lifted | Useful for improving an existing canonical bullet, not just scan correction; already lifted by the TASK-202.1/202.2 early deepen commits. |
+| Bullet source_text editor | `ScannedIdentityEditor.tsx:945-960`; canonical lift in `BulletInspector.tsx:79-104,183-203,237,269` | Lifted | Raw source is canonical bullet evidence and now has a Map-side InspectorSheet home independent of an active scan. |
+| Parser/deepen guidance: status chips, confidence chips, AI summary, rewrite, assumptions, warnings, guessing fallback, last error | `ScannedIdentityEditor.tsx:910-1035` | Scan-only | These explain transient scan/deepen confidence while reconciling parser output; canonical Map uses current-bullet deepen status/error only. |
+| Bullet text editors: problem, action, outcome | `ScannedIdentityEditor.tsx:1038-1083`; canonical home `BulletInspector.tsx:158-181,206-236` | Retire duplicate | Canonical Map already edits these fields; scan versions only exist until ScannedIdentityEditor is deleted/reduced. |
+| Bullet list editors: impact, technologies, tags | `ScannedIdentityEditor.tsx:1084-1122`; canonical home `BulletInspector.tsx:158-181,222-232` | Retire duplicate | Canonical Map already edits these fields; scan versions are duplicate staging controls. |
+| Bullet metrics JSON editor | `ScannedIdentityEditor.tsx:92-133,314-380,1123-1128` | Lift | Metrics are canonical structured bullet data and should be editable on the Map even without an active scan. |
+| Skill group label and skill item name editors | `ScannedIdentityEditor.tsx:1152-1235` | Retire duplicate | SkillGroupInspector/SkillItemInspector are the canonical homes; scan copies are parser-staging duplicates. |
+| Project name, URL, description editors | `ScannedIdentityEditor.tsx:1238-1335` | Retire duplicate | ProjectInspector is the canonical Map home; scan copies are parser-staging duplicates. |
+| Education school, degree, location, year editors | `ScannedIdentityEditor.tsx:1337-1417` | Retire duplicate | Education belongs in the canonical identity model after import; scan copies are parser-staging duplicates. |
+| Bulk Deepen All / Cancel, progress counts, edited/failed/deepened stats | `ExtractionAgentCard.tsx:237-371`; scan editor consumes `bulkStatus` at `ScannedIdentityEditor.tsx:383-392,923-942` | Scan-only | Bulk deepening is a scan import workflow for catching many weak parsed bullets before import; it should not become a canonical Map-wide rewrite control. |
+| Rescan PDF / Clear Scan | `ExtractionAgentCard.tsx:355-370`; handlers wired at `IdentityPage.tsx:1067-1070` | Scan-only | These are lifecycle controls for the transient uploaded scanResult, not canonical identity editing. |
+| Correction notes / pasted source material / Generate and Regenerate draft | `ExtractionAgentCard.tsx:13-180,401-420` | Scan/import-only | These belong to source-intake and draft generation, outside the canonical Map editing surface. |
+
+Current lift status:
+- Already lifted: source_text sheet and per-bullet Deepen on `BulletInspector`.
+- Still to lift in this task: bullet metrics editor on `BulletInspector`, with tests.
+- Left in `ScannedIdentityEditor` after lifts: scan-stage contact/role/bullet/skill/project/education correction, parser/deepen guidance, scan browser/filtering, and scan lifecycle controls. That means TASK-202.3 can safely decide between deleting the whole scan editor in favor of an import-only flow or retaining a reduced scan-review-only component; no canonical-only capability should remain stranded there after metrics lands.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
