@@ -3,9 +3,10 @@ id: TASK-221
 title: >-
   Rewrite docs/reference/vector-resume-v0.2-feature-reference.md (or replace
   with current feature inventory)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-06 03:58'
+updated_date: '2026-05-08 23:25'
 labels:
   - docs
   - stale
@@ -101,6 +102,12 @@ NAVIGATOR.md needs its Reference table updated to point to the new file.
 - [ ] #7 `docs/NAVIGATOR.md` Reference section is updated to point to the new doc; old slug is removed or archived
 - [ ] #8 Old file is either rewritten in place or moved to `docs/archive/` (per implementer judgment) with no orphaned NAVIGATOR entries
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed as duplicate during 2026-05-08 backlog staleness audit. Merged into TASK-44 'Reconcile stale documentation: PIPELINE_PREP_SPEC + vector-resume-v0.2-feature-reference', which now holds the unified scope (both stale docs + the audit provenance + combined ACs). TASK-44 lives in m-9 (Docs & Release Hygiene), the right milestone home for this work.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

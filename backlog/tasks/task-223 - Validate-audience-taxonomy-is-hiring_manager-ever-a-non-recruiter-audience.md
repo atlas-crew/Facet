@@ -1,10 +1,10 @@
 ---
 id: TASK-223
 title: 'Validate audience taxonomy: is hiring_manager ever a non-recruiter audience?'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-06 07:33'
-updated_date: '2026-05-06 20:29'
+updated_date: '2026-05-07 22:31'
 labels:
   - audience-tagging
   - design
@@ -45,3 +45,29 @@ Audit all uses of `'hiring_manager'` in the audience defaults and enrichment hoo
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Audited every reference to `'hiring_manager'` in `src/utils/audienceRules.ts` and `src/types/audience.ts`.
+
+**Findings:**
+- 5 defaults include both `'recruiter'` and `'hiring_manager'`: requirements, skill matches, evidence, advantages, strength notes.
+- 1 default includes `'recruiter'` but NOT `'hiring_manager'`: positioning recommendations (the pitch playbook).
+- 3 enrichment hooks promote to `'recruiter'` but NOT `'hiring_manager'`: high-severity gaps, high-severity relevant awareness, hard avoid triggers.
+- 1 enrichment hook deletes both together when skill matchQuality is negative/weak.
+- 0 places where `'hiring_manager'` appears without `'recruiter'`.
+
+**Conclusion:** `hiring_manager` is currently a **strict subset of `recruiter`** (HM ⊂ recruiter). The asymmetry exists because recruiter, as the candidate's advocate, needs the pitch playbook + risk warnings; HM, as the eventual reader, gets only the substantive case.
+
+**Decision: keep the split.** The asymmetry encodes real editorial intent that downstream artifacts depend on — cover letters (HM-shaped) take a substantive-only projection, recruiter cards take the strict superset. Collapsing now would force re-introduction when Phase 5 (TASK-222) enables LLM-asserted HM-specific tags for content the rules engine can't distinguish.
+
+**No code changes:** no `AUDIENCE_RULES_VERSION` bump, no fixture migration, no type change.
+
+**Documentation:** added a "Taxonomy validation: `hiring_manager` vs `recruiter`" section to `docs/architecture/audience-tagging.md` capturing the findings, the decision, and three "when to revisit" signals (Phase 5 ships and LLM collapses the split in practice; a new HM-projecting artifact returns empty content; the taxonomy expands to `panel` or `peer`).
+
+All 3 ACs met:
+- AC #1: audit document lists every divergence point ✓
+- AC #2: decision documented (keep) ✓
+- AC #3: collapse path not taken, so version bump / type change / fixture migration not required ✓
+<!-- SECTION:FINAL_SUMMARY:END -->

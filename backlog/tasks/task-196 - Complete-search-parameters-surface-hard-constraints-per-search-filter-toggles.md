@@ -3,10 +3,10 @@ id: TASK-196
 title: >-
   Complete search parameters surface (hard constraints + per-search filter
   toggles)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-29 08:40'
-updated_date: '2026-05-07 20:02'
+updated_date: '2026-05-08 19:35'
 labels:
   - search-redesign
   - identity-model
@@ -44,15 +44,13 @@ Design decisions, bank members, migration logic, and override semantics are docu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Surviving hard-constraint subtasks are completed and merged
-- [ ] #2 User can edit hard constraints (industries, funding, remote, employment, salary, clearance) in SearchInstancePreferences and have edits persist
-- [ ] #3 Any per-search look-for/avoid disabling that remains in scope references canonical SearchThesisSignal ids and does not mutate canonical thesis signals
-- [ ] #4 Legacy searchOverrides.filters.prioritize/avoid arrays are not revived as canonical storage
-- [ ] #5 Migration handles existing persisted state without data loss
-- [ ] #6 No raw enum values appear in the UI — all bank values render with display labels
+- [x] #1 Surviving hard-constraint subtasks are completed and merged
+- [x] #2 User can edit hard constraints (industries, funding, remote, employment, salary, clearance) in SearchInstancePreferences and have edits persist
+- [x] #3 Any per-search look-for/avoid disabling that remains in scope references canonical SearchThesisSignal ids and does not mutate canonical thesis signals
+- [x] #4 Legacy searchOverrides.filters.prioritize/avoid arrays are not revived as canonical storage
+- [x] #5 Migration handles existing persisted state without data loss
+- [x] #6 No raw enum values appear in the UI — all bank values render with display labels
 <!-- AC:END -->
-
-
 
 ## Implementation Notes
 
@@ -89,12 +87,29 @@ doc-39 and TASK-204.1/TASK-204.3 supersede the original TASK-196 filter-toggle s
 The hard-constraints portion of TASK-196 remains unaffected: industries, funding, remote, employment, salary, clearance, company size, and the SearchInstancePreferences hard-constraint controls continue under TASK-196.4 / surviving parent scope.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed as bookkeeping after all five subtasks landed.
+
+Subtask outcomes:
+- TASK-196.1 — schema foundation (bank enums, identity prefs, adapter mirroring, salt for legacy state). Done.
+- TASK-196.2 — structured SalaryBand min/max replaced free-form compensation strings with idempotent migration. Done.
+- TASK-196.3 — explicitly de-scoped after doc-39/TASK-204.1 made canonical SearchThesisSignal ids stable; per-search signal disablement is not implemented and legacy searchOverrides.filters arrays were not revived. Done.
+- TASK-196.4 — hard-constraints UI in SearchInstancePreferences shipped: bank-label chip groups for industries/funding/remote/employment, dual-handle salary controls, clearance 3-state selector, per-session disclosure persistence. Done.
+- TASK-196.5 — explicitly de-scoped after canonical thesis-signal cleanup; SearchInstancePreferences renders thesis signals read-only and routes edits to the Search Thesis editor instead of restoring legacy free-text Prioritize/Avoid inputs. Done.
+
+The hard-constraints scope (.1, .2, .4) shipped as planned. The filter-toggle scope (.3, .5) was rationally de-scoped because TASK-204.1 made the underlying storage shape obsolete — building toggles against canonical thesis signals would have duplicated the Search Thesis editor surface that TASK-204.3 already routes to.
+
+Doc-38 Lane C is now closed; rollout-level closure recorded in doc-38 v3 revision history.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

@@ -1,10 +1,10 @@
 ---
 id: TASK-195
 title: Close Map editing gaps so workbench can retire as import-only
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-29 08:15'
-updated_date: '2026-04-30 07:47'
+updated_date: '2026-05-08 23:15'
 labels:
   - identity
   - map-convergence
@@ -176,6 +176,12 @@ Also retired: `src/test/strategyEditorAutofill.test.ts` (2 cases on bulk-fill fr
 
 Phase 2 changes added zero new lint issues. The project carries 683 pre-existing problems that predate this task. Either treated as scope-creep here or filed as a separate cleanup task. Not blocking AC sign-off.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Status flipped to Done on 2026-05-08 during backlog staleness audit. All 9 ACs are checked; only DoD #5 (linter clean) remains unticked because of 683 pre-existing repo-wide lint problems unrelated to this task — explicitly called out in implementation notes as scope-creep, not blocking. doc-40 v2 already references TASK-195 as Done in its history.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

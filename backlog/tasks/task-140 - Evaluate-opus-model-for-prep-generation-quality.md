@@ -4,6 +4,7 @@ title: Evaluate opus model for prep generation quality
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:12'
+updated_date: '2026-05-08 23:19'
 labels:
   - prep
   - generation
@@ -11,6 +12,7 @@ labels:
 milestone: m-18
 dependencies:
   - TASK-134
+  - TASK-208
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B10
   - src/utils/prepGenerator.ts
@@ -20,11 +22,23 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+## Status Update (2026-05-08 — backlog staleness audit)
+
+**REDIRECTED per task-208 Workstream 1 audit (2026-05-04).**
+
+Now that `prepGenerator.ts` consumes canonical JDAnalysis (task-208 closed 2026-05-05), the model evaluation must compare **canonical-JDAnalysis projection quality**, not raw-JD prompt quality. The original methodology (compare sonnet vs opus on raw JD prompt) no longer reflects the production input shape.
+
+**Re-run the comparison against the post-task-208 baseline:** generate prep for 2-3 real pipeline entries with the canonical-JDAnalysis input contract, sonnet and opus, and compare downstream artifact quality.
+
+The original task body below describes the evaluation protocol, which still applies once the input shape is corrected.
+
+---
+
 Evaluate whether switching from sonnet to opus for prep generation produces meaningfully better content. The MVP shipped with sonnet — this is the quality assessment.
 
-**Evaluation approach:**
-1. Generate prep for 2-3 real pipeline entries using the current sonnet prompt
-2. Re-generate the same entries with opus (same prompt, same context)
+**Evaluation approach (REDIRECTED — uses canonical JDAnalysis input):**
+1. Generate prep for 2-3 real pipeline entries using the current sonnet prompt **with canonical JDAnalysis as the structured input**
+2. Re-generate the same entries with opus (same prompt, same canonical JDAnalysis)
 3. Compare across these dimensions:
    - Story block quality: Are problem/solution/result narratives more specific and rehearsal-ready?
    - Don'ts quality: Are they personalized to the candidate/company gap, or generic?

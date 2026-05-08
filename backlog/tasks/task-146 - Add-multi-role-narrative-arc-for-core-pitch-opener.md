@@ -4,7 +4,7 @@ title: Add multi-role narrative arc for core pitch opener
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:15'
-updated_date: '2026-05-08 07:49'
+updated_date: '2026-05-08 23:20'
 labels:
   - prep
   - generation
@@ -12,7 +12,7 @@ labels:
   - content
 milestone: m-18
 dependencies:
-  - TASK-170
+  - TASK-208
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B11
   - src/identity/schema.ts
@@ -23,6 +23,18 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+## Status Update (2026-05-08 — backlog staleness audit)
+
+**REDIRECTED per task-208 Workstream 1 audit (2026-05-04).**
+
+The 3-act multi-role narrative arc structure survives. **What changes is the relevance ranking source:** role relevance must be seeded by `JDAnalysis.evidenceMapping` (`topProjects`, `topBullets` matched to requirements via `matchedRequirementIds`), NOT by Prep re-ranking roles from raw JD text.
+
+After task-208 closed (2026-05-05), `prepGenerator.ts` accepts canonical JDAnalysis as structured input. The detect-when-3+-roles-are-relevant logic should consume canonical evidence-to-requirement mapping rather than asking the model to re-evaluate roles against raw JD.
+
+The original task body below describes the narrative pattern, which still ships.
+
+---
+
 When the candidate has 3+ relevant roles in the identity model, generate the "Tell me about yourself" opener as a 3-act narrative arc rather than a single-role pitch.
 
 **Pattern from Unanet reference:**
@@ -32,16 +44,16 @@ When the candidate has 3+ relevant roles in the identity model, generate the "Te
 - Act 3: Modernize at speed (most recent)
 - Connection: explicitly tied back to the target role's JD
 
-**Implementation:**
+**Implementation (REDIRECTED — uses canonical evidence mapping):**
 - Maps to a single opener card with `storyBlocks` where each block is an act
 - storyBlock labels: `note` for the thesis, then 3x `solution` (or a new act-specific label) for each act, `closer` for the connection
-- The generation prompt should detect when identity has 3+ roles relevant to the target vector and request the arc structure
-- When <3 roles: falls back to standard single-role opener
+- Detect 3+-relevant-roles by reading `JDAnalysis.evidenceMapping.topProjects` and `topBullets` distinct `sourceLabel` count, filtered by `matchedRequirementIds` strength — NOT by re-ranking identity roles against the raw JD
+- When canonical evidence shows fewer than 3 distinct role contexts: fall back to standard single-role opener
 
 **Identity data needed:**
-- Roles filtered to target vector relevance
-- Key accomplishment from each role (from bullet with highest priority for the vector)
-- The connecting thread across roles
+- Roles whose strongest bullets/projects appear in the JDAnalysis evidence mapping
+- Key accomplishment from each role (the bullet/project entry already ranked by `score` in evidenceMapping)
+- The connecting thread across roles (read from `JDAnalysis.strengthsToLead`)
 
 **This depends on TASK-145 (openers as standalone sections) being in place.**
 <!-- SECTION:DESCRIPTION:END -->

@@ -4,13 +4,13 @@ title: Add one-liner quotable takeaways to prep generation
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:11'
-updated_date: '2026-05-08 07:49'
+updated_date: '2026-05-08 23:19'
 labels:
   - prep
   - generation
 milestone: m-18
 dependencies:
-  - TASK-170
+  - TASK-208
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B12
   - src/utils/prepGenerator.ts
@@ -20,12 +20,25 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+## Status Update (2026-05-08 — backlog staleness audit)
+
+**REDIRECTED per task-208 Workstream 1 audit (2026-05-04).**
+
+One-liner takeaways still ship as Prep-original `scriptLabel` / closer copy. **What changes is where role/company specificity comes from:** the one-liner content must derive from `JDAnalysis.strengthsToLead` and `JDAnalysis.positioningRecommendations`, NOT from raw-JD re-inference.
+
+After task-208 closed (2026-05-05), `prepGenerator.ts` accepts canonical JDAnalysis as structured input. The prompt update should anchor one-liner specificity to canonical interpretation rather than asking the model to re-derive role/company framing from raw JD text.
+
+The original task body below describes the user-facing capability, which still ships.
+
+---
+
 Request 1-2 memorable one-sentence takeaways per major story/project card. These are standalone quotable moments the user can grab during the interview.
 
 **Approach:** Uses the existing `scriptLabel` field — no new types needed. The generation prompt requests cards or script blocks with `scriptLabel: "The One-Liner"` or similar contextual labels.
 
-**Generation prompt update:**
+**Generation prompt update (REDIRECTED):**
 - For behavioral and project cards that have storyBlocks, request an additional one-liner as a separate script block or as a closer storyBlock
+- Anchor the one-liner's specificity to `JDAnalysis.strengthsToLead` and `JDAnalysis.positioningRecommendations` for canonical role/company framing
 - One-liners should be concrete and specific, not generic motivational quotes
 - Example: "The job isn't building from scratch — it's making the existing platform something teams actually want to use."
 

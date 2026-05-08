@@ -4,13 +4,13 @@ title: Bootstrap admin auth and webhooks view
 status: To Do
 assignee: []
 created_date: '2026-04-22 03:28'
-updated_date: '2026-05-07 19:23'
+updated_date: '2026-05-08 23:20'
 labels:
   - admin
   - auth
   - proxy
   - frontend
-milestone: Wave 1 Hosted Accounts Platform
+milestone: m-12
 dependencies: []
 references:
   - proxy/

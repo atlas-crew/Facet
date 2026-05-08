@@ -4,14 +4,14 @@ title: Add alternative narrative support to prep cards
 status: To Do
 assignee: []
 created_date: '2026-04-16 13:11'
-updated_date: '2026-05-08 07:49'
+updated_date: '2026-05-08 23:19'
 labels:
   - prep
   - content
   - rendering
 milestone: m-18
 dependencies:
-  - TASK-170
+  - TASK-208
 references:
   - docs/development/plans/live-cheatsheet-content-v2.md#B5
   - src/types/prep.ts
@@ -23,6 +23,18 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+## Status Update (2026-05-08 — backlog staleness audit)
+
+**REDIRECTED per task-208 Workstream 1 audit (2026-05-04).**
+
+The PrepCard `alternativeTitle` / `alternativeScript` fields, the collapsible rendering, edit-mode UI, and store sanitization all remain in scope and unchanged. **What changes is the generator's source of truth:** alternative narratives must be sourced from `JDAnalysis.evidenceMapping` and `JDAnalysis.advantages` (matched against identity stories), NOT from raw-JD re-inference.
+
+After task-208 closed (2026-05-05), `prepGenerator.ts` accepts canonical JDAnalysis as structured input. The prompt update for this task should pull alternative-story candidates from `evidenceMapping.topBullets` / `topProjects` filtered by `matchedRequirementIds` rather than asking the model to re-rank stories from raw JD text.
+
+The original task body below describes the user-facing capability, which still ships.
+
+---
+
 Add backup story support to behavioral/project cards. Prevents story brittleness — if the interviewer's follow-up doesn't fit the primary narrative, the user has a labeled alternative.
 
 **Type changes:**
@@ -35,8 +47,9 @@ Add to PrepCard:
 - Visually secondary (muted border, slightly smaller text)
 - Collapsed by default — user expands only when they need the backup
 
-**Generation prompt update:**
-- Request one alternative narrative for each behavioral card when the candidate has multiple relevant stories for the same theme
+**Generation prompt update (REDIRECTED):**
+- Source alternative-story candidates from `JDAnalysis.evidenceMapping.topBullets` / `topProjects` filtered by `matchedRequirementIds`, NOT from raw JD inference
+- Request one alternative narrative for each behavioral card when canonical evidence has multiple stories supporting the same requirement
 
 **Edit mode:**
 - Two optional fields in the card editor: "Alternative title" input + "Alternative script" textarea

@@ -3,9 +3,10 @@ id: TASK-194
 title: >-
   Resolve thesis strength formula: define what a thesis is, then replace length
   with quality heuristics
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-28 09:34'
+updated_date: '2026-05-07 21:40'
 labels:
   - identity
   - design-decision
@@ -77,6 +78,35 @@ If the formula doesn't rank A > B > C (under prose-only) or doesn't produce a co
 - [ ] #6 Three sample-thesis test fixtures land alongside the formula change. Test asserts they rank in the intuitive order under whichever theory is chosen.
 - [ ] #7 Strength label vocabulary (Strong / Solid / Sparse / Empty) reads coherently against the chosen theory — e.g., Strong under prose-only means "this is a well-written claim", not "all fields are filled"
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Picked **prose-only theory**: the thesis is the load-bearing claim itself; origin/elaboration are private scaffolding (useful for interview prep, not for "thesis is strong" judgment). This aligned with the post-Map-redesign UI shift that had already removed unset-field labels from the card.
+
+**Formula rewritten** in `src/utils/identityFillStrength.ts`:
+- Removed: origin/elaboration scoring (the 50/25/25 split)
+- Removed: pure character-count proxy (gameable; bloat scored higher than specificity)
+- Added three quality signals:
+  - **Sentence count floor**: 3+ sentences = 50pts; 2 = 30; 1 = 10; 0 = 0
+  - **Specificity signal**: count of named systems / acronyms / CamelCase identifiers, capped at 40pts (8 per match)
+  - **Kill-list penalty**: corporate-vocabulary terms (leverage, synergy, stakeholder, ecosystem, paradigm, transformational, etc.) + hedging phrases (i think, sort of, perhaps, maybe), capped at -30pts
+
+**UI updated**: `src/routes/identity/inspectorSlots/ThesisInspector.tsx` removed the "Origin and elaboration help interview prep…" Prompt block (the last guilt-meter pattern). Origin/title still visible as MetaRows when set.
+
+**LLM-scored `deepScoreThesis`** (AC #5) intentionally deferred as a future on-demand action; documented in the file's header comment. Live meter is local-only and zero-latency.
+
+**Test fixtures**: three reference samples ranked in the intuitive A > B > C order — specific-tight (Strong), generic-bloat-but-long (Sparse), short-with-metadata (Empty regardless of metadata). Plus dedicated tests for specificity reward, kill-list penalty, origin/elaboration non-effect, and the under-5-words floor.
+
+**Verification:**
+- `npx tsc --noEmit -p tsconfig.app.json` — 0 errors
+- `npx eslint` on touched files — clean
+- `npx vitest run src/test/identityFillStrength.test.ts` — 20 tests pass (was 14; added 6)
+
+All 7 ACs met. Theory documented at top of `thesisFillStrength`. Strength label vocabulary (Strong/Solid/Sparse/Empty) now reads coherently against the prose-only theory: "Strong" means a well-written, specific, multi-sentence claim — not "all metadata fields are filled."
+
+Per the task's "related architectural cleanup" note, the `useMemo` derivation refactor of `staleNotice` (eliminating eslint-disable annotations) is NOT folded in; defer to a separate hygiene task as the brief suggested when Path A was chosen for TASK-218 and Path A here.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

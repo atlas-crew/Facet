@@ -4,12 +4,12 @@ title: Broaden hosted AppShell coverage for Wave 1 recovery and workspace flows
 status: To Do
 assignee: []
 created_date: '2026-04-08 08:28'
-updated_date: '2026-05-07 19:23'
+updated_date: '2026-05-08 23:20'
 labels:
   - test
   - hosted
   - wave-1
-milestone: Wave 1 Hosted Accounts Launch Readiness
+milestone: m-13
 dependencies: []
 references:
   - ./.agents/reviews/test-audit-20260408-042346.md

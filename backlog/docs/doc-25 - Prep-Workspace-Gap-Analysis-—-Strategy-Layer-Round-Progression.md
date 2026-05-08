@@ -37,6 +37,24 @@ The prep workspace is significantly further along than the search workspace. Wha
 
 **The architecture doesn't need changes.** The data model (`PrepDeck`, `PrepCard`), store (`prepStore`), generator (`prepGenerator.ts`), and all three mode UIs are sound. The existing fields (`notes`, `warning`, `scriptLabel`, `categoryGuidance`, `conditionals`) can hold the missing content — the AI just needs to be instructed to generate it.
 
+### Appendix: Stack Alignment Confidence Mapping
+
+Prep generation uses the five-level `PrepStackAlignmentConfidence` scale for the stack alignment table. When that table is grounded in identity or search skill depth, the deterministic mapping is:
+
+| Identity/search depth | Prep confidence | Rule |
+|---|---|---|
+| `expert` | Strong | Deep production ownership. |
+| `strong` | Strong | Confident production use. |
+| `hands-on-working` | Solid | Hands-on delivery without expert positioning. |
+| `architectural` | Solid | Architecture and tradeoff fluency without implying operator depth. |
+| `working` | Working knowledge | Bounded working use. |
+| `conceptual` | Adjacent experience | Conceptual or transferable knowledge only. |
+| `basic` | Adjacent experience | Basic familiarity unless calibration says the evidence is not direct. |
+| `avoid` | Gap | Do not claim this skill. |
+| missing depth | Gap | No identity evidence. |
+
+Calibration notes are part of the mapping. Anti-overselling guidance such as "not a K8s admin, builds platforms around K8s" softens Strong to Solid. Basic depth with explicit non-direct calibration maps to Gap. The prep prompt treats this mapping as the source of truth and does not let the model invent a different translation during regeneration.
+
 ---
 
 ## Gaps: The Strategy/Meta-Coaching Layer

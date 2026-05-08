@@ -4,13 +4,13 @@ title: Adapt entitlement state model to pass lifecycle (active / expired / refun
 status: To Do
 assignee: []
 created_date: '2026-05-07 21:11'
-updated_date: '2026-05-07 21:12'
+updated_date: '2026-05-08 23:20'
 labels:
   - billing
   - wave-1
   - design-decision
   - 'follow-up:task-227'
-milestone: Wave 1 Hosted Accounts Launch Readiness
+milestone: m-13
 dependencies:
   - TASK-227
   - TASK-240

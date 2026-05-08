@@ -1,9 +1,10 @@
 ---
 id: TASK-201
 title: 'Profile Editor Skills card: improve hide/restore layout and spatial efficiency'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-30 11:43'
+updated_date: '2026-05-08 23:18'
 labels:
   - research
   - profile-editor
@@ -51,3 +52,9 @@ User feedback on the Profile Editor → Skills card (`<SearchSkillsTable>` in `s
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed as moot during 2026-05-08 backlog staleness audit. TASK-205 Phase 4 plans to delete the entire `<SearchSkillsTable>` component from the Profile Editor (the card this task was polishing). The underlying user need (hidden-skill restore affordance) is absorbed into TASK-205 Phase 3, which moves hidden-skill toggles into the Thesis Map's Preferences band. Polishing a component planned for deletion is wasted motion.
+<!-- SECTION:FINAL_SUMMARY:END -->

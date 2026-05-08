@@ -7,6 +7,8 @@ updated_date: '2026-05-06 23:52'
 ---
 # Research Workspace — Non-UI Rollout Plan
 
+> **Status: Complete (2026-05-08).** All four lanes closed. See `## Revision history` v3 below for closure details. Retained as a historical artifact; do not re-open without explicit milestone owner approval.
+
 Companion to `doc-24` (design) and `doc-39` (Search Thesis Signal Canonicalization Design — TASK-204 decision artifact). Doc-24 captures *what* changes; doc-39 captures *the canonical-shape decision* for thesis signals; this doc captures *in what order* the rollout lands.
 
 Scope is the open Research/Search backlog excluding visual/layout UI work. Visual UI redesign of the Research workspace is **not in scope here** and is currently neither tasked nor documented (separate from `TASK-64` which is code decomposition).
@@ -231,3 +233,4 @@ Week 7:  Lane B (TASK-199, closes)         │  Cleanup: TASK-64 (after TASK-62)
   - Out-of-scoped TASK-194 (identity Map territory, not SearchThesis).
   - Pointers expanded with doc-39 and doc-34.
   - Realistic estimate: 5 → 7 weeks solo / 2-3 → 3-4 weeks parallel.
+- **2026-05-08 v3**: rollout complete. All 28 named tasks across all four lanes are Done. TASK-196 parent closed as bookkeeping after all five subtasks landed. Two Lane C subtasks (TASK-196.3 per-search signal disablement, TASK-196.5 per-item toggle UI) closed via explicit de-scope after TASK-204.1 made the underlying storage shape obsolete — building toggles against canonical thesis signals would have duplicated the Search Thesis editor surface that TASK-204.3 already routes to. TASK-206 audit reclassified the resume-mode `inferSearchProfile` path as live-not-dead, deferring retirement to TASK-238/TASK-239. Actual elapsed time from v1 → completion: ~48 hours of intense parallel work (vs. the 7-week solo estimate), driven by multiple concurrent agents. Doc retained as historical artifact.

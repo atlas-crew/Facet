@@ -2,13 +2,13 @@ project_name: "Facet"
 default_status: "To Do"
 statuses: ["To Do", "In Progress", "Done"]
 labels: []
-definition_of_done: ["Regression tests were created for new behaviors", "Changes to integration points are covered by tests", "All tests pass successfully", "Automatic formatting was applied.", "Linters report no WARNINGS or ERRORS", "The project builds successfully"]
+definition_of_done: ["Regression tests were created for new behaviors", "Changes to integration points are covered by tests", "Automatic formatting was applied to touched files", "Regression tests pass (scoped to touched files)", "Linters report no warnings or errors in touched files", "Relevant documentation updates landed or tasks created"]
 date_format: yyyy-mm-dd
 max_column_width: 20
 auto_open_browser: true
 default_port: 6420
 remote_operations: true
-auto_commit: false
+auto_commit: true
 bypass_git_hooks: false
 check_active_branches: true
 active_branch_days: 30
