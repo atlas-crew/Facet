@@ -1,9 +1,11 @@
 ---
 id: TASK-245.1
 title: Add Maya golden fixture data artifacts
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-08 23:27'
+updated_date: '2026-05-08 23:50'
 labels:
   - feature
 milestone: m-29
@@ -28,6 +30,12 @@ Extend the Maya Patel fixture set with production-shaped artifacts needed for a 
 - [ ] #2 Maya fixture includes linked cover letter, recruiter, LinkedIn, debrief, and research artifacts without inventing candidate-only facts outside Identity.
 - [ ] #3 Existing persona fixture validation is expanded or supplemented to catch dangling IDs across the new artifact types.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Extend Maya persona types/exports with downstream artifact arrays for JDAnalysis, cover letters, LinkedIn drafts, recruiter cards, debrief sessions, and research workspace data.\n2. Add fictional, identity-grounded Maya/Pillar artifacts and wire IDs back to the existing Pillar pipeline entry.\n3. Expand persona validation to catch dangling references across the new artifact types.\n4. Run focused persona fixture validation, typecheck/lint on touched files, independent review/audit, then commit the slice atomically.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
