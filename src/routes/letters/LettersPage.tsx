@@ -15,22 +15,24 @@ import {
   X,
 } from 'lucide-react'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
-import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import type { CoverLetter, CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
-import type { JDAnalysis, JDAnalysisDriftStatus } from '../../types/jdAnalysis'
 import type { PipelineEntry } from '../../types/pipeline'
 import type { ResumeEntity } from '../../types/resume'
 import { resolveCoverLetterCandidateMeta } from '../../utils/coverLetterCandidate'
-import { stripResumeVectorContext } from '../../utils/coverLetterContext'
+import {
+  regenerateCoverLetterForEntry,
+  resolveLetterIdentityVersion,
+  resolvePipelineJdAnalysis,
+  resolveJdAnalysisGenerationIssue,
+} from '../../utils/coverLetterRegen'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
-import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
-import { generateCoverLetter, refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
+import { refineCoverLetterParagraph } from '../../utils/coverLetterGenerator'
 import { renderLetterAsPdf } from '../../utils/letterPdfRenderer'
 import { buildCoverLetterDocxFileName, buildCoverLetterPdfFileName } from '../../utils/pdfFormatting'
 import { downloadBlob } from '../../utils/downloadBlob'
@@ -55,13 +57,6 @@ function buildResearchDraft(positioning: string, notes: string, url: string) {
   return [positioning, notes, url].filter(Boolean).join('\n\n')
 }
 
-function resolveLetterIdentityVersion(
-  resume: Pick<ResumeEntity, 'identityVersion'>,
-  identity: Pick<ProfessionalIdentityV3, 'model_revision'> | null,
-) {
-  return identity?.model_revision ?? resume.identityVersion ?? null
-}
-
 function composeLetterText(template: CoverLetterTemplate): string {
   return [
     template.header,
@@ -72,16 +67,6 @@ function composeLetterText(template: CoverLetterTemplate): string {
     .map((section) => section.trim())
     .filter(Boolean)
     .join('\n\n')
-}
-
-function buildJobPromptContext(value: unknown) {
-  const stripped = stripResumeVectorContext(value)
-  if (!stripped || typeof stripped !== 'object' || Array.isArray(stripped)) {
-    return stripped
-  }
-
-  const { jobDescription: _jobDescription, ...rest } = stripped as Record<string, unknown>
-  return rest
 }
 
 function getLetterCreatedAt(template: CoverLetterTemplate) {
@@ -145,58 +130,6 @@ function resolveDefaultResumeId(
 ) {
   const resumeIds = new Set(resumes.map((resume) => resume.id))
   return [entryResumeId, activeResumeId, resumes[0]?.id].find((id) => !!id && resumeIds.has(id)) ?? ''
-}
-
-function resolvePipelineJdAnalysis(entry: PipelineEntry | null, analyses: JDAnalysis[]): JDAnalysis | null {
-  if (!entry) return null
-  if (entry.jdAnalysisId) {
-    const referencedAnalysis = analyses.find(
-      (analysis) => analysis.id === entry.jdAnalysisId && analysis.pipelineEntryId === entry.id,
-    )
-    return referencedAnalysis ?? null
-  }
-
-  return analyses.find((analysis) => analysis.pipelineEntryId === entry.id) ?? null
-}
-
-function resolveGenerationIdentityVersion(
-  analysis: JDAnalysis,
-  resume: Pick<ResumeEntity, 'identityVersion'> | null,
-  identity: Pick<ProfessionalIdentityV3, 'model_revision'> | null,
-) {
-  return identity?.model_revision ?? resume?.identityVersion ?? analysis.identityVersion
-}
-
-function formatJdAnalysisDriftReason(reasons: JDAnalysisDriftStatus['reasons']): string {
-  const labels: Record<JDAnalysisDriftStatus['reasons'][number], string> = {
-    'jd-text': 'job description changed',
-    'identity-version': 'identity model changed',
-    'model-version': 'analysis model changed',
-  }
-  return reasons.map((reason) => labels[reason]).join(', ')
-}
-
-function resolveJdAnalysisGenerationIssue(
-  entry: PipelineEntry | null,
-  resume: ResumeEntity | null,
-  identity: ProfessionalIdentityV3 | null,
-  analysis: JDAnalysis | null,
-): string | null {
-  if (!entry || !resume || !entry.jobDescription.trim()) return null
-  if (!analysis) return 'Analyze this pipeline JD before generating a cover letter.'
-
-  const identityVersion = resolveGenerationIdentityVersion(analysis, resume, identity)
-
-  const drift = getJdAnalysisDriftStatus(analysis, {
-    jobDescription: entry.jobDescription,
-    identityVersion,
-  })
-  if (!drift.stale) return null
-
-  const reasonText = formatJdAnalysisDriftReason(drift.reasons)
-  return reasonText
-    ? 'Refresh JD analysis before generating a cover letter (' + reasonText + ').'
-    : 'Refresh JD analysis before generating a cover letter.'
 }
 
 function resolveGenerationHelperMessage({
@@ -288,7 +221,7 @@ function LettersDisclosure({
 }
 
 export function LettersPage() {
-  const { letters, templates, createLetter, upsertLetterForPipelineEntry, updateTemplate, deleteTemplate } = useCoverLetterStore()
+  const { letters, templates, createLetter, updateTemplate, deleteTemplate } = useCoverLetterStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const updatePipelineEntry = usePipelineStore((state) => state.updateEntry)
   const jdAnalyses = useJDAnalysisStore((state) => state.analyses)
@@ -779,75 +712,18 @@ export function LettersPage() {
         setGenerationError('The selected pipeline entry does not have a job description yet.')
         return
       }
-      const generationIdentityVersion = resolveLetterIdentityVersion(freshResume, freshIdentity)
       const freshAnalyses = useJDAnalysisStore.getState().analyses
       const freshJdAnalysis = resolvePipelineJdAnalysis(
         freshEntry,
         Array.isArray(freshAnalyses) ? freshAnalyses : [],
       )
-      const jdAnalysisIssue = resolveJdAnalysisGenerationIssue(
-        freshEntry,
-        freshResume,
-        freshIdentity,
-        freshJdAnalysis,
-      )
-      if (jdAnalysisIssue) {
-        setGenerationError(jdAnalysisIssue)
-        return
-      }
-
-      const resumeContent = freshResume.content
-      const candidateMeta = resolveCoverLetterCandidateMeta(resumeContent.meta, freshIdentity)
-      const fullResumeContext = {
-        ...(stripResumeVectorContext(resumeContent) as Record<string, unknown>),
-        meta: candidateMeta,
-      }
-
-      const generated = await generateCoverLetter(aiEndpoint, {
-        company: freshEntry.company,
-        role: freshEntry.role,
-        contact: freshEntry.contact || undefined,
-        companyUrl: freshEntry.url || undefined,
-        skillMatch: freshEntry.skillMatch || undefined,
-        positioning: freshEntry.positioning || undefined,
-        notes: freshEntry.notes || undefined,
+      const { letter } = await regenerateCoverLetterForEntry({
+        endpoint: aiEndpoint,
+        entry: freshEntry,
+        resume: freshResume,
+        identity: freshIdentity,
+        jdAnalysis: freshJdAnalysis,
         companyResearch: researchDraft || undefined,
-        jobDescription: freshEntry.jobDescription,
-        jdAnalysis: freshJdAnalysis ?? undefined,
-        resumeContext: {
-          candidate: candidateMeta,
-          assembled: {
-            resume: fullResumeContext,
-            pipelineEntry: buildJobPromptContext(freshEntry),
-          },
-          identity: freshIdentity,
-        },
-      })
-
-      const generatedAt = new Date().toISOString()
-      const content: CoverLetterContent = {
-        name: generated.name,
-        header: generated.header,
-        greeting: generated.greeting,
-        paragraphs: generated.paragraphs.map((paragraph) => ({
-          id: createId('clp'),
-          label: paragraph.label,
-          text: paragraph.text,
-          vectors: {},
-        })),
-        signOff: generated.signOff,
-      }
-      const letter = upsertLetterForPipelineEntry({
-        content,
-        pipelineEntryId: freshEntry.id,
-        sourceResumeId: freshResume.id,
-        sourceResumeHash: freshResume.contentHash,
-        identityVersion: generationIdentityVersion,
-        generatedAt,
-      })
-      updatePipelineEntry(freshEntry.id, {
-        coverLetterId: letter.id,
-        resumeId: freshResume.id,
       })
       cancelEditing()
       setSelectedTemplateId(letter.id)

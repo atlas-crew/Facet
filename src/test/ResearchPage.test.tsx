@@ -35,6 +35,7 @@ const {
   mockStreamDeepResearchJob,
   mockGenerateSearchThesisFromIdentity,
   mockFetchAiProxyCapabilities,
+  mockGenerateCoverLetter,
 } = vi.hoisted(() => ({
   mockInferSearchProfile: vi.fn(),
   mockCreateDeepResearchJob: vi.fn(),
@@ -44,6 +45,7 @@ const {
   mockStreamDeepResearchJob: vi.fn(),
   mockGenerateSearchThesisFromIdentity: vi.fn(),
   mockFetchAiProxyCapabilities: vi.fn(),
+  mockGenerateCoverLetter: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', async () => {
@@ -95,6 +97,17 @@ vi.mock('../utils/thesisGenerator', async () => {
     generateSearchThesisFromIdentity: (
       ...args: Parameters<typeof actual.generateSearchThesisFromIdentity>
     ) => mockGenerateSearchThesisFromIdentity(...args),
+  }
+})
+
+vi.mock('../utils/coverLetterGenerator', async () => {
+  const actual = await vi.importActual<typeof import('../utils/coverLetterGenerator')>(
+    '../utils/coverLetterGenerator',
+  )
+  return {
+    ...actual,
+    generateCoverLetter: (...args: Parameters<typeof actual.generateCoverLetter>) =>
+      mockGenerateCoverLetter(...args),
   }
 })
 
@@ -241,6 +254,7 @@ describe('ResearchPage', () => {
     mockStreamDeepResearchJob.mockReset()
     mockGenerateSearchThesisFromIdentity.mockReset()
     mockFetchAiProxyCapabilities.mockReset()
+    mockGenerateCoverLetter.mockReset()
     mockStreamDeepResearchJob.mockReturnValue({ close: vi.fn() })
     mockFetchAiProxyCapabilities.mockResolvedValue({
       modelCapabilities: {
@@ -1018,7 +1032,9 @@ describe('ResearchPage', () => {
         name: 'Save not stale decision for Acme cover letter',
       }),
     )
-    expect(stalenessReview.textContent).toContain('thesis refresh is available')
+    expect(stalenessReview.textContent).toContain(
+      'Thesis and cover-letter refresh are available',
+    )
     expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
       decision: 'accepted-current',
       reviewedIdentityVersion: 3,
@@ -1217,6 +1233,28 @@ describe('ResearchPage', () => {
     expect(
       screen.getByText(/Saved search thesis refreshed with the latest Identity context/),
     ).toBeTruthy()
+  })
+
+  it('routes the cover letter refresh button to the cover letter handler (TASK-158 AC #6)', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    // The cover letter is created with a pipelineEntryId that has no matching entry seeded,
+    // so the dispatch should land in runCoverLetterRefresh and surface the "no pipeline entry"
+    // notice rather than the legacy "Refresh pending" / no-op for non-thesis types.
+    const refreshButton = within(stalenessReview).getByRole('button', {
+      name: 'Refresh Acme cover letter with latest Identity',
+    })
+    expect(refreshButton).toBeTruthy()
+    fireEvent.click(refreshButton)
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Acme cover letter cannot be refreshed because its pipeline entry is no longer available/,
+        ),
+      ).toBeTruthy()
+    })
+    // Confirm the button label is type-specific and the action did NOT call generateCoverLetter
+    // (the missing-entry guard fires before the AI call).
+    expect(mockGenerateCoverLetter).not.toHaveBeenCalled()
   })
 
   it('discards a thesis refresh result when Identity changes mid-refresh', async () => {

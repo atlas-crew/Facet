@@ -18,6 +18,7 @@ import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { usePrepStore } from '../../store/prepStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useSearchStore } from '../../store/searchStore'
 import {
@@ -58,6 +59,10 @@ import {
 } from '../../utils/deepSearchClient'
 import type { CitationRenderMode } from '../../utils/searchCitations'
 import { getReferencedCitations, splitTextByCitationMarkers } from '../../utils/searchCitations'
+import {
+  regenerateCoverLetterForEntry,
+  resolvePipelineJdAnalysis,
+} from '../../utils/coverLetterRegen'
 import { generateSearchThesisFromIdentity, validateSearchThesis } from '../../utils/thesisGenerator'
 import { fetchAiProxyCapabilities } from '../../utils/llmProxy'
 import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
@@ -2036,6 +2041,112 @@ export function ResearchPage() {
     setThesisNotice(`${artifact.label} staleness decision saved.`)
   }
 
+  const runCoverLetterRefresh = async (
+    artifact: DownstreamImpact['artifactsAffected'][number],
+    artifactKey: string,
+  ) => {
+    if (
+      !currentIdentity ||
+      !stalenessReviewImpact ||
+      currentIdentityRevision === null ||
+      stalenessReviewIdentityRevision !== currentIdentityRevision
+    ) {
+      setThesisNotice(
+        'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
+      )
+      return
+    }
+    const letters = useCoverLetterStore.getState().letters
+    const targetLetter = letters.find((letter) => letter.id === artifact.artifactId)
+    if (!targetLetter) {
+      setThesisNotice(`${artifact.label} is no longer available, so it was not refreshed.`)
+      return
+    }
+    const targetEntry = usePipelineStore
+      .getState()
+      .entries.find((entry) => entry.id === targetLetter.pipelineEntryId && !entry.deletedAt)
+    if (!targetEntry) {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed because its pipeline entry is no longer available.`,
+      )
+      return
+    }
+    const sourceResume = useResumeStore
+      .getState()
+      .resumes.find((resume) => resume.id === targetLetter.sourceResumeId)
+    if (!sourceResume) {
+      setThesisNotice(
+        `${artifact.label} cannot be refreshed because its source resume is no longer available.`,
+      )
+      return
+    }
+    const analyses = useJDAnalysisStore.getState().analyses
+    const jdAnalysis = resolvePipelineJdAnalysis(
+      targetEntry,
+      Array.isArray(analyses) ? analyses : [],
+    )
+
+    try {
+      ensureEndpoint()
+      setPageError(null)
+      setThesisNotice(null)
+      refreshingStalenessArtifactKeyRef.current = artifactKey
+      setRefreshingStalenessArtifactKey(artifactKey)
+      const refreshStartedIdentityRevision = currentIdentityRevision
+      const refreshStartedImpact = stalenessReviewImpact
+      const refreshStartedMutation = refreshStartedImpact.mutation
+      const { letter: refreshedLetter } = await regenerateCoverLetterForEntry({
+        endpoint: aiEndpoint,
+        entry: targetEntry,
+        resume: sourceResume,
+        identity: currentIdentity,
+        jdAnalysis,
+      })
+
+      const latestIdentityRevision =
+        useIdentityStore.getState().currentIdentity?.model_revision ?? null
+      const reviewSnapshotStillOpen = stalenessReviewImpactRef.current === refreshStartedImpact
+      if (
+        latestIdentityRevision !== refreshStartedIdentityRevision ||
+        stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
+        !reviewSnapshotStillOpen
+      ) {
+        setThesisNotice(
+          'Identity or review context changed during cover letter refresh. The regenerated letter was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
+        )
+        return
+      }
+
+      const refreshReview = sanitizeArtifactStalenessReview({
+        decision: 'accepted-current',
+        reviewedAt: new Date().toISOString(),
+        reviewedIdentityVersion: refreshStartedIdentityRevision,
+        artifactIdentityVersionAtReview: refreshedLetter.identityVersion ?? refreshStartedIdentityRevision,
+        mutationLabel: refreshStartedMutation.label,
+        mutationFields: [...refreshStartedMutation.fields],
+        mutationFromRevision: refreshStartedMutation.fromRevision,
+        mutationToRevision: refreshStartedMutation.toRevision,
+        reason: artifact.reason || 'Refreshed with latest Identity context.',
+      } satisfies ArtifactStalenessReview)
+      if (refreshReview) {
+        useCoverLetterStore.getState().updateLetter(refreshedLetter.id, {
+          stalenessReview: refreshReview,
+        })
+      }
+
+      setRefreshedStalenessArtifactKeys((current) => ({
+        ...current,
+        [artifactKey]: true,
+      }))
+      setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Cover letter refresh failed.')
+    } finally {
+      refreshingStalenessArtifactKeyRef.current = null
+      setRefreshingStalenessArtifactKey(null)
+    }
+  }
+
   const handleRefreshStalenessArtifact = async (
     artifact: DownstreamImpact['artifactsAffected'][number],
     artifactKey: string,
@@ -2047,9 +2158,9 @@ export function ResearchPage() {
       return
     }
 
-    if (artifact.artifactType !== 'thesis') {
+    if (artifact.artifactType !== 'thesis' && artifact.artifactType !== 'cover-letter') {
       setThesisNotice(
-        `${artifact.label} cannot be refreshed yet. Thesis refresh is available first; run, prep, and cover-letter refresh generators are still pending.`,
+        `${artifact.label} cannot be refreshed yet. Thesis and cover-letter refresh are available; run and prep deck refresh generators are still pending.`,
       )
       return
     }
@@ -2063,6 +2174,11 @@ export function ResearchPage() {
       setThesisNotice(
         'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
       )
+      return
+    }
+
+    if (artifact.artifactType === 'cover-letter') {
+      await runCoverLetterRefresh(artifact, artifactKey)
       return
     }
 
@@ -3106,12 +3222,11 @@ export function ResearchPage() {
               >
                 <strong id="staleness-review-title">Batch staleness review</strong>
                 <p>
-                  {stalenessReviewImpact.summary} Review each artifact now. Artifact-specific thesis
-                  refresh is available; run, prep, and cover-letter refresh generators are still
-                  pending.
+                  {stalenessReviewImpact.summary} Review each artifact now. Thesis and cover-letter
+                  refresh are available; run and prep deck refresh generators are still pending.
                 </p>
                 <p>
-                  Choices are saved on each reviewed artifact. Refreshing a thesis regenerates it
+                  Choices are saved on each reviewed artifact. Refreshing regenerates the artifact
                   against the latest Identity context and records it as reviewed.
                 </p>
                 {stalenessReviewImpact.mutation.valueChanges &&
@@ -3140,15 +3255,19 @@ export function ResearchPage() {
                     )
                     const decision = getPersistedStalenessDecision(artifact)
                     const wasRefreshed = Boolean(refreshedStalenessArtifactKeys[artifactKey])
-                    const isRefreshSupported = artifact.artifactType === 'thesis'
+                    const isRefreshSupported =
+                      artifact.artifactType === 'thesis' ||
+                      artifact.artifactType === 'cover-letter'
                     const isRefreshing = refreshingStalenessArtifactKey === artifactKey
                     const isRefreshDisabled =
                       !isRefreshSupported || refreshingStalenessArtifactKey !== null
+                    const refreshNoun =
+                      artifact.artifactType === 'cover-letter' ? 'cover letter' : 'thesis'
                     const refreshButtonLabel = !isRefreshSupported
                       ? 'Refresh pending'
                       : isRefreshing
-                        ? 'Refreshing thesis...'
-                        : 'Refresh thesis'
+                        ? `Refreshing ${refreshNoun}...`
+                        : `Refresh ${refreshNoun}`
                     return (
                       <li key={key}>
                         <strong>{artifact.label}</strong>: {artifact.reason}{' '}
