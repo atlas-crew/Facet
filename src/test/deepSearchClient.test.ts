@@ -48,7 +48,6 @@ const baseRequest: SearchRequest = {
   id: 'sreq-1',
   createdAt: '2026-03-10T10:05:00.000Z',
   focusLanes: ['security-platform'],
-  focusVectors: ['security-platform'],
   companySizeOverride: '',
   salaryAnchorOverride: '',
   geoExpand: true,

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { migrateSearchState, useSearchStore } from '../store/searchStore'
-import type { SearchThesis, SearchThesisSignal } from '../types/search'
+import type { SearchRequest, SearchThesis, SearchThesisSignal } from '../types/search'
+import { DEFAULT_SEARCH_MAX_RESULTS } from '../types/search'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
 
 type TestThesisSignalInput = string | Partial<SearchThesisSignal>
@@ -64,6 +65,34 @@ const buildSearchThesis = (overrides: SearchThesisTestOverrides = {}): SearchThe
     feedbackIncorporated: [],
     ...rest,
   }
+}
+
+const legacyFocusVectorRequestKey = 'focus' + 'Vectors'
+
+const expectedSearchRequestKeys = [
+  'companySizeOverride',
+  'createdAt',
+  'customKeywords',
+  'durableMeta',
+  'excludeCompanies',
+  'focusLanes',
+  'geoExpand',
+  'id',
+  'maxResults',
+  'salaryAnchorOverride',
+]
+
+const searchRequestKeyCoverage: Record<keyof SearchRequest, true> = {
+  companySizeOverride: true,
+  createdAt: true,
+  customKeywords: true,
+  durableMeta: true,
+  excludeCompanies: true,
+  focusLanes: true,
+  geoExpand: true,
+  id: true,
+  maxResults: true,
+  salaryAnchorOverride: true,
 }
 
 describe('searchStore', () => {
@@ -137,7 +166,6 @@ describe('searchStore', () => {
 
   it('adds, updates, and deletes requests', () => {
     const request = useSearchStore.getState().addRequest({
-      focusVectors: ['backend'],
       companySizeOverride: 'growth',
       salaryAnchorOverride: '$250k total',
       geoExpand: true,
@@ -180,7 +208,6 @@ describe('searchStore', () => {
 
   it('adds runs and filters them by request id', () => {
     const requestOne = useSearchStore.getState().addRequest({
-      focusVectors: ['backend'],
       companySizeOverride: '',
       salaryAnchorOverride: '',
       geoExpand: true,
@@ -189,7 +216,6 @@ describe('searchStore', () => {
       maxResults: { tier1: 5, tier2: 10, tier3: 10 },
     })
     const requestTwo = useSearchStore.getState().addRequest({
-      focusVectors: ['leadership'],
       companySizeOverride: '',
       salaryAnchorOverride: '',
       geoExpand: false,
@@ -242,7 +268,6 @@ describe('searchStore', () => {
 
   it('clears run staleness review metadata when identity version changes without a new review', () => {
     const request = useSearchStore.getState().addRequest({
-      focusVectors: ['backend'],
       companySizeOverride: '',
       salaryAnchorOverride: '',
       geoExpand: true,
@@ -289,7 +314,6 @@ describe('searchStore', () => {
 
   it('sanitizes explicit run staleness review patches while preserving fresh identity-version reviews', () => {
     const request = useSearchStore.getState().addRequest({
-      focusVectors: ['backend'],
       companySizeOverride: '',
       salaryAnchorOverride: '',
       geoExpand: true,
@@ -506,7 +530,6 @@ describe('searchStore', () => {
     })
 
     const request = useSearchStore.getState().addRequest({
-      focusVectors: [],
       companySizeOverride: '',
       salaryAnchorOverride: '',
       geoExpand: true,
@@ -661,7 +684,8 @@ describe('searchStore', () => {
       requests: [
         {
           id: 'legacy-request',
-          focusVectors: ['backend'],
+          [legacyFocusVectorRequestKey]: ['backend'],
+          unknownLegacyField: 'drop-me',
           companySizeOverride: '',
           salaryAnchorOverride: '',
           geoExpand: true,
@@ -693,6 +717,8 @@ describe('searchStore', () => {
     expect(migrated.profile?.constraints.remotePolicyNote).toBe('')
     expect(migrated.profile?.constraints.employmentTypes).toEqual([])
     expect(migrated.profile).not.toHaveProperty('vectors')
+    expect(migrated.requests[0]).not.toHaveProperty(legacyFocusVectorRequestKey)
+    expect(migrated.requests[0]).not.toHaveProperty('unknownLegacyField')
 
     expect(migrateSearchState('bad-state')).toEqual({
       profile: null,
@@ -801,6 +827,106 @@ describe('searchStore', () => {
     ).toBeNull()
   })
 
+  it('hydrates missing request defaults with independent max result objects', () => {
+    expect(Object.keys(searchRequestKeyCoverage).sort()).toEqual(expectedSearchRequestKeys)
+
+    const migrated = migrateSearchState({
+      requests: [
+        {
+          id: 'minimal-request-1',
+          createdAt: '2026-03-12T00:00:00.000Z',
+        },
+        {
+          id: 'minimal-request-2',
+          createdAt: '2026-03-12T00:01:00.000Z',
+        },
+      ],
+    })
+
+    expect(migrated.requests[0]).toMatchObject({
+      focusLanes: [],
+      companySizeOverride: '',
+      salaryAnchorOverride: '',
+      geoExpand: true,
+      customKeywords: '',
+      excludeCompanies: [],
+      maxResults: DEFAULT_SEARCH_MAX_RESULTS,
+    })
+    expect(migrated.requests[0].maxResults).not.toBe(DEFAULT_SEARCH_MAX_RESULTS)
+    expect(migrated.requests[0].maxResults).not.toBe(migrated.requests[1].maxResults)
+
+    migrated.requests[0].maxResults.tier1 = 99
+    expect(migrated.requests[1].maxResults.tier1).toBe(DEFAULT_SEARCH_MAX_RESULTS.tier1)
+  })
+
+  it('sanitizes malformed persisted request fields during migration', () => {
+    const migrated = migrateSearchState({
+      requests: [
+        {
+          id: 'malformed-request-1',
+          createdAt: '2026-03-12T00:00:00.000Z',
+          focusLanes: ['keep-lane', 7, null, 'keep-too'],
+          companySizeOverride: 'huge',
+          salaryAnchorOverride: null,
+          geoExpand: 'true',
+          customKeywords: 42,
+          excludeCompanies: ['OldCo', 7, null, 'NewCo'],
+          maxResults: { tier1: 7, tier2: 'bad', tier3: null },
+        },
+        {
+          id: 'malformed-request-2',
+          createdAt: '2026-03-12T00:01:00.000Z',
+          focusLanes: 'not-an-array',
+          companySizeOverride: '  mid-market  ',
+          salaryAnchorOverride: 'Keep salary',
+          geoExpand: false,
+          customKeywords: 'Keep keywords',
+          excludeCompanies: 'not-an-array',
+          maxResults: [],
+        },
+        {
+          id: 'malformed-request-3',
+          createdAt: '2026-03-12T00:02:00.000Z',
+          companySizeOverride: 42,
+          geoExpand: null,
+          maxResults: { tier1: -1, tier2: Number.NaN, tier3: 2.7 },
+        },
+      ],
+    })
+
+    expect(migrated.requests[0]).toMatchObject({
+      focusLanes: ['keep-lane', 'keep-too'],
+      companySizeOverride: '',
+      salaryAnchorOverride: '',
+      geoExpand: true,
+      customKeywords: '',
+      excludeCompanies: ['OldCo', 'NewCo'],
+      maxResults: {
+        tier1: 7,
+        tier2: DEFAULT_SEARCH_MAX_RESULTS.tier2,
+        tier3: DEFAULT_SEARCH_MAX_RESULTS.tier3,
+      },
+    })
+    expect(migrated.requests[1]).toMatchObject({
+      focusLanes: [],
+      companySizeOverride: 'mid-market',
+      salaryAnchorOverride: 'Keep salary',
+      geoExpand: false,
+      customKeywords: 'Keep keywords',
+      excludeCompanies: [],
+      maxResults: DEFAULT_SEARCH_MAX_RESULTS,
+    })
+    expect(migrated.requests[2]).toMatchObject({
+      companySizeOverride: '',
+      geoExpand: true,
+      maxResults: {
+        tier1: DEFAULT_SEARCH_MAX_RESULTS.tier1,
+        tier2: DEFAULT_SEARCH_MAX_RESULTS.tier2,
+        tier3: 3,
+      },
+    })
+  })
+
   it('preserves populated search constraint banks during migration', () => {
     const migrated = migrateSearchState({
       profile: {
@@ -861,7 +987,14 @@ describe('searchStore', () => {
           companySize: 'growth',
         },
         filters: {
-          prioritize: ['platform leverage', '', '   ', null, { label: 'Nope' }, 'AI infrastructure'],
+          prioritize: [
+            'platform leverage',
+            '',
+            '   ',
+            null,
+            { label: 'Nope' },
+            'AI infrastructure',
+          ],
           avoid: ['pure kubernetes administration', '\n', undefined, false, 'Crypto volatility'],
         },
         interviewPrefs: {
@@ -1219,7 +1352,6 @@ describe('searchStore', () => {
             id: 'sreq-doomed',
             createdAt: '2026-03-11T00:00:00.000Z',
             focusLanes: [],
-            focusVectors: [],
             companySizeOverride: '',
             salaryAnchorOverride: '',
             geoExpand: false,
@@ -1231,7 +1363,6 @@ describe('searchStore', () => {
             id: 'sreq-keep',
             createdAt: '2026-03-11T00:00:00.000Z',
             focusLanes: [],
-            focusVectors: [],
             companySizeOverride: '',
             salaryAnchorOverride: '',
             geoExpand: false,

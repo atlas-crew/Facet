@@ -1329,26 +1329,29 @@ export function ResearchPage() {
     }
   }
 
-  const focusThesisSignalsEditor = useCallback((target: ThesisSignalEditTarget) => {
-    if (!activeThesis) return
+  const focusThesisSignalsEditor = useCallback(
+    (target: ThesisSignalEditTarget) => {
+      if (!activeThesis) return
 
-    const currentDraft = thesisDraftRef.current
-    if (currentDraft?.id !== activeThesis.id) {
-      const nextDraft = structuredClone(activeThesis)
-      const lookForText = thesisSignalText(nextDraft.lookFor)
-      setThesisDraft(nextDraft)
-      setThesisLookForText(lookForText)
-      setThesisLookForBaselineText(lookForText)
-      setThesisDraftIsDirty(false)
-    }
+      const currentDraft = thesisDraftRef.current
+      if (currentDraft?.id !== activeThesis.id) {
+        const nextDraft = structuredClone(activeThesis)
+        const lookForText = thesisSignalText(nextDraft.lookFor)
+        setThesisDraft(nextDraft)
+        setThesisLookForText(lookForText)
+        setThesisLookForBaselineText(lookForText)
+        setThesisDraftIsDirty(false)
+      }
 
-    nextThesisSignalsFocusRequestIdRef.current += 1
-    setActiveTab('search')
-    setThesisSignalsFocusRequest({
-      id: nextThesisSignalsFocusRequestIdRef.current,
-      target,
-    })
-  }, [activeThesis])
+      nextThesisSignalsFocusRequestIdRef.current += 1
+      setActiveTab('search')
+      setThesisSignalsFocusRequest({
+        id: nextThesisSignalsFocusRequestIdRef.current,
+        target,
+      })
+    },
+    [activeThesis],
+  )
 
   useEffect(() => {
     if (
@@ -2284,7 +2287,15 @@ export function ResearchPage() {
       setActiveTab('profile')
       return
     }
+    // Mirror the proxy's lanes-only contract before a deep-research job is submitted.
     if (requestDraft.focusLanes.length === 0) {
+      if (laneOptions.length === 0) {
+        setPageError(
+          'Add at least one thesis lane before launching search. Edit the thesis to add lanes.',
+        )
+        focusThesisSignalsEditor('lookFor')
+        return
+      }
       setPageError('Select at least one thesis lane before launching search.')
       setActiveTab('search')
       return
@@ -3557,7 +3568,9 @@ export function ResearchPage() {
                   {!activeThesis ? (
                     <p className="research-muted">Generate Thesis before launching search.</p>
                   ) : laneOptions.length === 0 ? (
-                    <p className="research-muted">Add at least one thesis lane before launching search.</p>
+                    <p className="research-muted">
+                      Add at least one thesis lane before launching search.
+                    </p>
                   ) : (
                     <div className="research-checkbox-grid">
                       {laneOptions.map((lane) => (
@@ -4012,9 +4025,7 @@ export function ResearchPage() {
                       <div className="research-result-list">
                         {group.items.map((result) => {
                           const selectedVector =
-                            resultVectorSelections[result.id] ??
-                            vectorOptions[0]?.id ??
-                            ''
+                            resultVectorSelections[result.id] ?? vectorOptions[0]?.id ?? ''
                           const feedbackBadge = feedbackByResultId.get(result.id) ?? null
                           const isFeedbackOpen = feedbackPanel?.resultId === result.id
                           const resultCitations = result.citations ?? []

@@ -128,7 +128,6 @@ describe('researchUtils', () => {
   it('builds a request draft from thesis lanes', () => {
     expect(buildRequestDraft(baseProfile, baseThesis)).toEqual({
       focusLanes: ['backend-lane', 'security-lane'],
-      focusVectors: [],
       companySizeOverride: '',
       salaryAnchorOverride: '$250k',
       geoExpand: true,

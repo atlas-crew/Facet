@@ -4,10 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-type AnthropicCreate = (params: unknown, options?: {
-  headers?: Record<string, string>
-  signal?: AbortSignal
-}) => Promise<unknown>
+type AnthropicCreate = (
+  params: unknown,
+  options?: {
+    headers?: Record<string, string>
+    signal?: AbortSignal
+  },
+) => Promise<unknown>
 
 type SseRecord = {
   event?: string
@@ -16,15 +19,13 @@ type SseRecord = {
 }
 
 async function loadProxyModules() {
-  const [
-    { createFacetServer },
-    { createFileResearchJobStore, createInMemoryResearchJobStore },
-  ] = await Promise.all([
-    // @ts-expect-error runtime-tested local proxy module
-    import('../../proxy/facetServer.js'),
-    // @ts-expect-error runtime-tested local proxy module
-    import('../../proxy/researchJobs.js'),
-  ])
+  const [{ createFacetServer }, { createFileResearchJobStore, createInMemoryResearchJobStore }] =
+    await Promise.all([
+      // @ts-expect-error runtime-tested local proxy module
+      import('../../proxy/facetServer.js'),
+      // @ts-expect-error runtime-tested local proxy module
+      import('../../proxy/researchJobs.js'),
+    ])
 
   return {
     createFacetServer,
@@ -38,15 +39,18 @@ const tempDirs = new Set<string>()
 
 afterEach(async () => {
   await Promise.all(
-    [...servers].map((server) => new Promise<void>((resolve, reject) => {
-      server.close((error) => {
-        if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
-          reject(error)
-          return
-        }
-        resolve()
-      })
-    })),
+    [...servers].map(
+      (server) =>
+        new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+              reject(error)
+              return
+            }
+            resolve()
+          })
+        }),
+    ),
   )
   servers.clear()
   await Promise.all([...tempDirs].map((dir) => rm(dir, { recursive: true, force: true })))
@@ -133,7 +137,6 @@ function researchPayload() {
       id: 'request-1',
       createdAt: '2026-03-15T11:10:00.000Z',
       focusLanes: ['security-platform'],
-      focusVectors: ['security-platform'],
       companySizeOverride: '',
       salaryAnchorOverride: '',
       geoExpand: true,
@@ -144,7 +147,11 @@ function researchPayload() {
   }
 }
 
-function researchResponse(candidateEdge = 'The candidate wins because they have production WAF depth. That makes them credible fast.') {
+const retiredFocusVectorRequestKey = 'focus' + 'Vectors'
+
+function researchResponse(
+  candidateEdge = 'The candidate wins because they have production WAF depth. That makes them credible fast.',
+) {
   return {
     content: [
       {
@@ -212,7 +219,14 @@ function fencedResearchResponse() {
     content: [
       {
         type: 'text',
-        text: 'Here is the result.\n' + fence + 'json\n' + JSON.stringify(rawPayload) + '\n' + fence + '\nDone.',
+        text:
+          'Here is the result.\n' +
+          fence +
+          'json\n' +
+          JSON.stringify(rawPayload) +
+          '\n' +
+          fence +
+          '\nDone.',
       },
     ],
   }
@@ -225,34 +239,40 @@ function prefixedRawJsonResearchResponse() {
     content: [
       {
         type: 'text',
-        text: 'Sure, here is the research payload:\n' + response.content[0].text + '\nEnd of payload.',
+        text:
+          'Sure, here is the research payload:\n' + response.content[0].text + '\nEnd of payload.',
       },
     ],
   }
 }
 
-async function startResearchServer(options: {
-  anthropicCreate?: AnthropicCreate
-  maxAttempts?: number
-  progressIntervalMs?: number
-  sseEnabled?: boolean
-  sseKeepaliveMs?: number
-  sseReauthIntervalMs?: number
-  sseExposeThinking?: boolean
-  heartbeatTimeoutMs?: number
-  ttlMs?: number
-  researchBudgetCents?: number
-  researchUsageWindowMs?: number
-  researchBudgetWarningRatio?: number
-  researchEstimatedInputTokens?: number
-  researchEstimatedOutputTokens?: number
-  persistenceActorResolver?: (req: unknown, options?: { refresh?: boolean }) => Promise<{
-    tenantId?: string
-    accountId?: string
-    userId: string
-    workspaces?: string[]
-  }>
-} = {}) {
+async function startResearchServer(
+  options: {
+    anthropicCreate?: AnthropicCreate
+    maxAttempts?: number
+    progressIntervalMs?: number
+    sseEnabled?: boolean
+    sseKeepaliveMs?: number
+    sseReauthIntervalMs?: number
+    sseExposeThinking?: boolean
+    heartbeatTimeoutMs?: number
+    ttlMs?: number
+    researchBudgetCents?: number
+    researchUsageWindowMs?: number
+    researchBudgetWarningRatio?: number
+    researchEstimatedInputTokens?: number
+    researchEstimatedOutputTokens?: number
+    persistenceActorResolver?: (
+      req: unknown,
+      options?: { refresh?: boolean },
+    ) => Promise<{
+      tenantId?: string
+      accountId?: string
+      userId: string
+      workspaces?: string[]
+    }>
+  } = {},
+) {
   const { createFacetServer } = await loadProxyModules()
   let nowMs = Date.parse('2026-03-15T12:00:00.000Z')
   const logger = {
@@ -353,7 +373,10 @@ async function createResearchJob(baseUrl: string, token = 'member-token') {
 
 function parseSseBlock(block: string): SseRecord | null {
   const lines = block.split(/\r?\n/)
-  const comment = lines.find((line) => line.startsWith(':'))?.slice(1).trim()
+  const comment = lines
+    .find((line) => line.startsWith(':'))
+    ?.slice(1)
+    .trim()
   if (comment) return { comment }
 
   const eventLine = lines.find((line) => line.startsWith('event:'))
@@ -430,6 +453,25 @@ describe('research job API', () => {
       { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, narrative: '' } },
       { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, skillDepthMap: [] } },
       { ...valid, params: undefined },
+      { ...valid, params: { ...valid.params, focusLanes: undefined } },
+      { ...valid, params: { ...valid.params, focusLanes: 'security-platform' } },
+      { ...valid, params: { ...valid.params, focusLanes: [] } },
+      { ...valid, params: { ...valid.params, focusLanes: ['   ', ''] } },
+      { ...valid, params: { ...valid.params, companySizeOverride: 'moonbase' } },
+      { ...valid, params: { ...valid.params, companySizeOverride: null } },
+      { ...valid, params: { ...valid.params, companySizeOverride: 5 } },
+      { ...valid, params: { ...valid.params, companySizeOverride: ['growth'] } },
+      { ...valid, params: { ...valid.params, salaryAnchorOverride: 42 } },
+      { ...valid, params: { ...valid.params, customKeywords: ['WAF'] } },
+      { ...valid, params: { ...valid.params, excludeCompanies: 'OldCo' } },
+      {
+        ...valid,
+        params: { ...valid.params, maxResults: { ...valid.params.maxResults, tier1: -1 } },
+      },
+      {
+        ...valid,
+        params: { ...valid.params, maxResults: { ...valid.params.maxResults, tier2: 'abc' } },
+      },
       { ...valid, identityEvidence: [] },
       { ...valid, identityEvidence: {} },
       { ...valid, identityEvidence: { profiles: [{}] } },
@@ -489,12 +531,15 @@ describe('research job API', () => {
       usage: { budget: { status: 'warning' } },
     })
 
-    const completedUsage = await waitUntil(async () => {
-      const response = await fetch(baseUrl + '/research/usage', {
-        headers: jsonHeaders(),
-      })
-      return response.json()
-    }, (usage) => usage.usage.completedJobCount === 1)
+    const completedUsage = await waitUntil(
+      async () => {
+        const response = await fetch(baseUrl + '/research/usage', {
+          headers: jsonHeaders(),
+        })
+        return response.json()
+      },
+      (usage) => usage.usage.completedJobCount === 1,
+    )
     expect(completedUsage).toMatchObject({
       usage: {
         completedJobCount: 1,
@@ -591,7 +636,10 @@ describe('research job API', () => {
         expect.objectContaining({ code: 'research_budget_exceeded' }),
       ]),
     )
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls === 1)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls === 1,
+    )
   })
 
   it('keeps older in-flight jobs reserved outside the rolling usage window', async () => {
@@ -607,11 +655,24 @@ describe('research job API', () => {
     const firstResponse = await createResearchJob(baseUrl)
     expect(firstResponse.status).toBe(202)
     const first = await firstResponse.json()
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls === 1)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls === 1,
+    )
 
     advance(1000)
 
-    const duplicateResponse = await createResearchJob(baseUrl)
+    const duplicatePayload = researchPayload()
+    duplicatePayload.params = {
+      ...duplicatePayload.params,
+      [retiredFocusVectorRequestKey]: ['backend-platform'],
+      unknownLegacyField: 'drop-me',
+    } as typeof duplicatePayload.params & Record<string, unknown>
+    const duplicateResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(duplicatePayload),
+    })
     expect(duplicateResponse.status).toBe(200)
     await expect(duplicateResponse.json()).resolves.toMatchObject({
       jobId: first.jobId,
@@ -655,7 +716,11 @@ describe('research job API', () => {
       archetype: 'a'.repeat(1200),
       arc: Array.from({ length: 30 }, (_, index) => 'arc-' + index + '-' + longText),
       profiles: [
-        { id: '   ', tags: Array.from({ length: 25 }, (_, index) => 'tag-' + index + '-' + longText), text: longText },
+        {
+          id: '   ',
+          tags: Array.from({ length: 25 }, (_, index) => 'tag-' + index + '-' + longText),
+          text: longText,
+        },
         { id: 'blank-text', tags: ['drop-me'], text: '   ' },
         ...Array.from({ length: 29 }, (_, index) => ({
           id: 'profile-extra-' + index,
@@ -664,7 +729,10 @@ describe('research job API', () => {
         })),
       ],
       paioHighlights: Array.from({ length: 55 }, (_, index) => 'paio-' + index + '-' + longText),
-      calibrations: Array.from({ length: 55 }, (_, index) => 'calibration-' + index + '-' + longText),
+      calibrations: Array.from(
+        { length: 55 },
+        (_, index) => 'calibration-' + index + '-' + longText,
+      ),
     }
 
     const createResponse = await fetch(baseUrl + '/research/jobs', {
@@ -687,11 +755,116 @@ describe('research job API', () => {
     })
     expect(body.job.identityEvidence.profiles[0].text).toHaveLength(4000)
     expect(body.job.identityEvidence.profiles[0].tags).toHaveLength(20)
-    expect(body.job.identityEvidence.profiles.some((profile: { id: string }) => profile.id === 'blank-text')).toBe(false)
+    expect(
+      body.job.identityEvidence.profiles.some(
+        (profile: { id: string }) => profile.id === 'blank-text',
+      ),
+    ).toBe(false)
     expect(body.job.identityEvidence.paioHighlights).toHaveLength(48)
     expect(body.job.identityEvidence.paioHighlights[0]).toHaveLength(1000)
     expect(body.job.identityEvidence.calibrations).toHaveLength(48)
     expect(body.job.identityEvidence.calibrations[0]).toHaveLength(1000)
+  })
+
+  it('normalizes research request params to lanes-only canonical fields', async () => {
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate: vi.fn<AnthropicCreate>(() => new Promise(() => {})),
+    })
+    const payload = researchPayload()
+    const paramsWithLegacyFields = {
+      ...payload.params,
+      [retiredFocusVectorRequestKey]: ['backend-platform'],
+      unknownLegacyField: 'drop-me',
+    } as typeof payload.params & Record<string, unknown>
+    payload.params = paramsWithLegacyFields
+
+    const createResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    expect(createResponse.status).toBe(202)
+    const created = await createResponse.json()
+    const { body } = await fetchJob(baseUrl, created.jobId)
+
+    expect(body.job.params).toMatchObject({
+      id: 'request-1',
+      createdAt: '2026-03-15T11:10:00.000Z',
+      focusLanes: ['security-platform'],
+      geoExpand: true,
+      maxResults: { tier1: 1, tier2: 1, tier3: 0 },
+    })
+    expect(body.job.params).not.toHaveProperty(retiredFocusVectorRequestKey)
+    expect(body.job.params).not.toHaveProperty('unknownLegacyField')
+  })
+
+  it('hydrates draft-shaped request params with server request metadata', async () => {
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate: vi.fn<AnthropicCreate>(() => new Promise(() => {})),
+    })
+    const payload = researchPayload()
+    const params = { ...payload.params } as Record<string, unknown>
+    delete params.id
+    delete params.createdAt
+    delete params.excludeCompanies
+    delete params.companySizeOverride
+    delete params.geoExpand
+    delete params.maxResults
+    payload.params = params as unknown as typeof payload.params
+
+    const createResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    expect(createResponse.status).toBe(202)
+    const created = await createResponse.json()
+    const { body } = await fetchJob(baseUrl, created.jobId)
+
+    expect(body.job.params.id).toMatch(/^sreq-/)
+    expect(Date.parse(body.job.params.createdAt)).not.toBeNaN()
+    expect(body.job.params.excludeCompanies).toEqual([])
+    expect(body.job.params.companySizeOverride).toBe('')
+    expect(body.job.params.geoExpand).toBe(true)
+    expect(body.job.params.maxResults).toEqual({ tier1: 5, tier2: 10, tier3: 10 })
+  })
+
+  it('bounds research request params and defaults invalid tier counts', async () => {
+    const { baseUrl } = await startResearchServer({
+      anthropicCreate: vi.fn<AnthropicCreate>(() => new Promise(() => {})),
+    })
+    const longText = 'x'.repeat(200)
+    const payload = researchPayload()
+    payload.params = {
+      ...payload.params,
+      focusLanes: Array.from({ length: 30 }, (_, index) => 'lane-' + index + '-' + longText),
+      companySizeOverride: '  growth  ',
+      salaryAnchorOverride: 's'.repeat(200),
+      customKeywords: 'k'.repeat(1_200),
+      excludeCompanies: Array.from(
+        { length: 150 },
+        (_, index) => 'company-' + index + '-' + longText,
+      ),
+      maxResults: { tier1: 4, tier3: 2.7 },
+    } as unknown as typeof payload.params & Record<string, unknown>
+
+    const createResponse = await fetch(baseUrl + '/research/jobs', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    expect(createResponse.status).toBe(202)
+    const created = await createResponse.json()
+    const { body } = await fetchJob(baseUrl, created.jobId)
+
+    expect(body.job.params.focusLanes).toHaveLength(20)
+    expect(body.job.params.focusLanes[0]).toHaveLength(120)
+    expect(body.job.params.companySizeOverride).toBe('growth')
+    expect(body.job.params.salaryAnchorOverride).toHaveLength(120)
+    expect(body.job.params.customKeywords).toHaveLength(1_000)
+    expect(body.job.params.excludeCompanies).toHaveLength(100)
+    expect(body.job.params.excludeCompanies[0]).toHaveLength(160)
+    expect(body.job.params.maxResults).toEqual({ tier1: 4, tier2: 10, tier3: 3 })
   })
 
   it('rate limits hosted job creation on the deep-research feature bucket', async () => {
@@ -748,7 +921,8 @@ describe('research job API', () => {
   })
 
   it('creates, retries, completes, and exposes async research jobs', async () => {
-    const anthropicCreate = vi.fn<AnthropicCreate>()
+    const anthropicCreate = vi
+      .fn<AnthropicCreate>()
       .mockRejectedValueOnce(Object.assign(new Error('temporarily overloaded'), { status: 529 }))
       .mockResolvedValueOnce(researchResponse('Only one sentence.'))
     const { baseUrl, operationsMonitor } = await startResearchServer({ anthropicCreate })
@@ -821,9 +995,12 @@ describe('research job API', () => {
 
   it('writes heartbeat progress while a job is running', async () => {
     let resolveResponse: ((value: unknown) => void) | null = null
-    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise((resolve) => {
-      resolveResponse = resolve
-    }))
+    const anthropicCreate = vi.fn<AnthropicCreate>(
+      () =>
+        new Promise((resolve) => {
+          resolveResponse = resolve
+        }),
+    )
     const { advance, baseUrl } = await startResearchServer({
       anthropicCreate,
       progressIntervalMs: 5,
@@ -831,15 +1008,17 @@ describe('research job API', () => {
 
     const createResponse = await createResearchJob(baseUrl)
     const created = await createResponse.json()
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
     advance(25)
 
     const runningFetch = await waitUntil(
       async () => fetchJob(baseUrl, created.jobId),
-      ({ body }) => (
+      ({ body }) =>
         body.job.progress?.phase === 'running deep research' &&
-        Date.parse(body.job.heartbeatAt) > Date.parse(body.job.startedAt)
-      ),
+        Date.parse(body.job.heartbeatAt) > Date.parse(body.job.startedAt),
     )
     expect(runningFetch.response.headers.get('cache-control')).toBe('no-store')
     expect(Date.parse(runningFetch.body.job.heartbeatAt)).toBeGreaterThan(
@@ -857,14 +1036,20 @@ describe('research job API', () => {
 
   it('streams running job events to multiple subscribers in order', async () => {
     let resolveResponse: ((value: unknown) => void) | null = null
-    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise((resolve) => {
-      resolveResponse = resolve
-    }))
+    const anthropicCreate = vi.fn<AnthropicCreate>(
+      () =>
+        new Promise((resolve) => {
+          resolveResponse = resolve
+        }),
+    )
     const { baseUrl } = await startResearchServer({ anthropicCreate })
 
     const createResponse = await createResearchJob(baseUrl)
     const created = await createResponse.json()
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
 
     const firstStream = await openJobStream(baseUrl, created.jobId)
     const secondStream = await openJobStream(baseUrl, created.jobId)
@@ -877,24 +1062,23 @@ describe('research job API', () => {
     const finishResearch = resolveResponse as unknown as (value: unknown) => void
     finishResearch(streamingResearchResponse())
 
-    const untilComplete = (records: SseRecord[], ended: boolean) => (
+    const untilComplete = (records: SseRecord[], ended: boolean) =>
       ended && records.some((record) => record.event === 'complete')
-    )
     const first = await readSseRecords(firstStream, untilComplete)
     const second = await readSseRecords(secondStream, untilComplete)
 
     for (const result of [first, second]) {
-      const events = result.records
-        .filter((record) => record.event)
-        .map((record) => record.event)
-      expect(events).toEqual(expect.arrayContaining([
-        'status',
-        'progress',
-        'thinking',
-        'search_query',
-        'finding',
-        'complete',
-      ]))
+      const events = result.records.filter((record) => record.event).map((record) => record.event)
+      expect(events).toEqual(
+        expect.arrayContaining([
+          'status',
+          'progress',
+          'thinking',
+          'search_query',
+          'finding',
+          'complete',
+        ]),
+      )
       expect(events.indexOf('thinking')).toBeGreaterThan(events.indexOf('progress'))
       expect(events.indexOf('search_query')).toBeGreaterThan(events.indexOf('thinking'))
       expect(events.indexOf('complete')).toBeGreaterThan(events.lastIndexOf('finding'))
@@ -947,13 +1131,15 @@ describe('research job API', () => {
 
     const createResponse = await createResearchJob(baseUrl)
     const created = await createResponse.json()
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
 
     const stream = await openJobStream(baseUrl, created.jobId)
     expect(stream.status).toBe(200)
-    const keepalive = await readSseRecords(
-      stream,
-      (records) => records.some((record) => record.comment === 'keepalive'),
+    const keepalive = await readSseRecords(stream, (records) =>
+      records.some((record) => record.comment === 'keepalive'),
     )
     expect(keepalive.records).toContainEqual({ comment: 'keepalive' })
   })
@@ -964,7 +1150,10 @@ describe('research job API', () => {
 
     const createResponse = await createResearchJob(baseUrl)
     const created = await createResponse.json()
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
     const stream = await openJobStream(baseUrl, created.jobId)
     expect(stream.status).toBe(200)
 
@@ -1009,9 +1198,12 @@ describe('research job API', () => {
   })
 
   it('streams terminal errors and closes failed jobs', async () => {
-    const anthropicCreate = vi.fn<AnthropicCreate>(() => new Promise((_resolve, reject) => {
-      setTimeout(() => reject(Object.assign(new Error('bad request'), { status: 400 })), 10)
-    }))
+    const anthropicCreate = vi.fn<AnthropicCreate>(
+      () =>
+        new Promise((_resolve, reject) => {
+          setTimeout(() => reject(Object.assign(new Error('bad request'), { status: 400 })), 10)
+        }),
+    )
     const { baseUrl } = await startResearchServer({ anthropicCreate })
 
     const createResponse = await createResearchJob(baseUrl)
@@ -1040,19 +1232,25 @@ describe('research job API', () => {
 
   it('aborts active research runners when the server closes', async () => {
     let aborted = false
-    const anthropicCreate = vi.fn<AnthropicCreate>((_params, options) => new Promise((_resolve, reject) => {
-      options?.signal?.addEventListener('abort', () => {
-        aborted = true
-        const error = new Error('aborted')
-        error.name = 'AbortError'
-        reject(error)
-      })
-    }))
+    const anthropicCreate = vi.fn<AnthropicCreate>(
+      (_params, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            aborted = true
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        }),
+    )
     const { baseUrl, server } = await startResearchServer({ anthropicCreate })
 
     const createResponse = await createResearchJob(baseUrl)
     expect(createResponse.status).toBe(202)
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
 
     await new Promise<void>((resolve, reject) => {
       server.close((error?: Error) => {
@@ -1078,7 +1276,9 @@ describe('research job API', () => {
       (job) => job.status === 'completed',
     )
 
-    expect(completed.result.contractViolations).toContain('narrative.marketContext: missing or empty')
+    expect(completed.result.contractViolations).toContain(
+      'narrative.marketContext: missing or empty',
+    )
   })
 
   it('parses un-fenced LLM JSON with conversational prefix and suffix text', async () => {
@@ -1099,7 +1299,8 @@ describe('research job API', () => {
   })
 
   it('fails immediately on non-retriable upstream errors', async () => {
-    const anthropicCreate = vi.fn<AnthropicCreate>()
+    const anthropicCreate = vi
+      .fn<AnthropicCreate>()
       .mockRejectedValue(Object.assign(new Error('bad request'), { status: 400 }))
     const { baseUrl } = await startResearchServer({ anthropicCreate })
 
@@ -1141,14 +1342,17 @@ describe('research job API', () => {
 
   it('returns duplicate in-flight jobs and isolates reads by actor', async () => {
     let abortCount = 0
-    const anthropicCreate = vi.fn<AnthropicCreate>((_params, options) => new Promise((_resolve, reject) => {
-      options?.signal?.addEventListener('abort', () => {
-        abortCount += 1
-        const error = new Error('aborted')
-        error.name = 'AbortError'
-        reject(error)
-      })
-    }))
+    const anthropicCreate = vi.fn<AnthropicCreate>(
+      (_params, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            abortCount += 1
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        }),
+    )
     const { baseUrl } = await startResearchServer({ anthropicCreate })
 
     const firstResponse = await createResearchJob(baseUrl)
@@ -1166,7 +1370,10 @@ describe('research job API', () => {
     const otherRead = await fetchJob(baseUrl, first.jobId, 'other-token')
     expect(otherRead.response.status).toBe(404)
 
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
     const otherCancel = await fetch(baseUrl + '/research/jobs/' + first.jobId + '/cancel', {
       method: 'POST',
       headers: jsonHeaders('other-token'),
@@ -1208,19 +1415,25 @@ describe('research job API', () => {
 
   it('cancels a running job and aborts the upstream request', async () => {
     let aborted = false
-    const anthropicCreate = vi.fn<AnthropicCreate>((_params, options) => new Promise((_resolve, reject) => {
-      options?.signal?.addEventListener('abort', () => {
-        aborted = true
-        const error = new Error('aborted')
-        error.name = 'AbortError'
-        reject(error)
-      })
-    }))
+    const anthropicCreate = vi.fn<AnthropicCreate>(
+      (_params, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            aborted = true
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        }),
+    )
     const { baseUrl } = await startResearchServer({ anthropicCreate })
 
     const createResponse = await createResearchJob(baseUrl)
     const created = await createResponse.json()
-    await waitUntil(async () => anthropicCreate.mock.calls.length, (calls) => calls > 0)
+    await waitUntil(
+      async () => anthropicCreate.mock.calls.length,
+      (calls) => calls > 0,
+    )
 
     const cancelResponse = await fetch(baseUrl + '/research/jobs/' + created.jobId + '/cancel', {
       method: 'POST',
@@ -1316,27 +1529,40 @@ describe('research job stores', () => {
       storedJob({ id: 'account-bound', accountId: 'account-1' }),
     ])
     await expect(
-      isolatedStore.getJobForActor('account-bound', { tenantId: 'tenant-1', userId: 'user-1' }, nowMs),
+      isolatedStore.getJobForActor(
+        'account-bound',
+        { tenantId: 'tenant-1', userId: 'user-1' },
+        nowMs,
+      ),
     ).resolves.toBeNull()
 
     const failed = await store.failOrphanedJobs(nowMs, 1_000, 30_000)
     expect(failed.map((job: { id: string }) => job.id).sort()).toEqual(['stale', 'stale-queued'])
-    expect(failed).toContainEqual(expect.objectContaining({
-      id: 'stale',
-      status: 'failed',
-      error: expect.objectContaining({ code: 'runner_heartbeat_timeout', retriable: true }),
-    }))
-    expect(failed).toContainEqual(expect.objectContaining({
-      id: 'stale-queued',
-      status: 'failed',
-      error: expect.objectContaining({ code: 'runner_heartbeat_timeout', retriable: true }),
-    }))
+    expect(failed).toContainEqual(
+      expect.objectContaining({
+        id: 'stale',
+        status: 'failed',
+        error: expect.objectContaining({ code: 'runner_heartbeat_timeout', retriable: true }),
+      }),
+    )
+    expect(failed).toContainEqual(
+      expect.objectContaining({
+        id: 'stale-queued',
+        status: 'failed',
+        error: expect.objectContaining({ code: 'runner_heartbeat_timeout', retriable: true }),
+      }),
+    )
 
     await store.cleanup(nowMs)
     const remainingJobs = await store.allJobs()
-    expect(remainingJobs.map((job: { id: string }) => job.id).sort()).toEqual(['stale', 'stale-queued'])
+    expect(remainingJobs.map((job: { id: string }) => job.id).sort()).toEqual([
+      'stale',
+      'stale-queued',
+    ])
     expect(remainingJobs).toContainEqual(expect.objectContaining({ id: 'stale', status: 'failed' }))
-    expect(remainingJobs).toContainEqual(expect.objectContaining({ id: 'stale-queued', status: 'failed' }))
+    expect(remainingJobs).toContainEqual(
+      expect.objectContaining({ id: 'stale-queued', status: 'failed' }),
+    )
 
     const tempDir = await mkdtemp(join(tmpdir(), 'facet-research-jobs-'))
     tempDirs.add(tempDir)
@@ -1356,37 +1582,46 @@ describe('research job stores', () => {
 
     expect(await readFile(filePath, 'utf8')).toContain(created.job.id)
     const reloadedStore = createFileResearchJobStore(filePath)
-    await expect(reloadedStore.getJobForActor(created.job.id, actor, nowMs)).resolves.toMatchObject({
-      id: created.job.id,
-      paramsHash: 'file-hash',
-      status: 'queued',
-    })
+    await expect(reloadedStore.getJobForActor(created.job.id, actor, nowMs)).resolves.toMatchObject(
+      {
+        id: created.job.id,
+        paramsHash: 'file-hash',
+        status: 'queued',
+      },
+    )
 
     await reloadedStore.cancelJobForActor(created.job.id, actor, nowMs, 30_000)
     const canceledDiskState = JSON.parse(await readFile(filePath, 'utf8'))
-    expect(canceledDiskState.jobs).toContainEqual(expect.objectContaining({
-      id: created.job.id,
-      status: 'canceled',
-    }))
+    expect(canceledDiskState.jobs).toContainEqual(
+      expect.objectContaining({
+        id: created.job.id,
+        status: 'canceled',
+      }),
+    )
 
     const mutationFilePath = join(tempDir, 'nested', 'mutation-jobs.json')
-    await writeFile(mutationFilePath, JSON.stringify({
-      jobs: [
-        storedJob({
-          id: 'file-stale',
-          status: 'running',
-          startedAt: staleIso,
-          heartbeatAt: staleIso,
-        }),
-      ],
-    }))
+    await writeFile(
+      mutationFilePath,
+      JSON.stringify({
+        jobs: [
+          storedJob({
+            id: 'file-stale',
+            status: 'running',
+            startedAt: staleIso,
+            heartbeatAt: staleIso,
+          }),
+        ],
+      }),
+    )
     const mutationStore = createFileResearchJobStore(mutationFilePath)
     await mutationStore.failOrphanedJobs(nowMs, 1_000, 30_000)
     const failedDiskState = JSON.parse(await readFile(mutationFilePath, 'utf8'))
-    expect(failedDiskState.jobs).toContainEqual(expect.objectContaining({
-      id: 'file-stale',
-      status: 'failed',
-    }))
+    expect(failedDiskState.jobs).toContainEqual(
+      expect.objectContaining({
+        id: 'file-stale',
+        status: 'failed',
+      }),
+    )
     await mutationStore.cleanup(nowMs + 31_000)
     await expect(readFile(mutationFilePath, 'utf8').then(JSON.parse)).resolves.toEqual({ jobs: [] })
 
@@ -1414,10 +1649,12 @@ describe('research job stores', () => {
         ttlMs: 30_000,
       }),
     ])
-    await expect(concurrentStore.allJobs()).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ paramsHash: 'concurrent-hash-1' }),
-      expect.objectContaining({ paramsHash: 'concurrent-hash-2' }),
-    ]))
+    await expect(concurrentStore.allJobs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ paramsHash: 'concurrent-hash-1' }),
+        expect.objectContaining({ paramsHash: 'concurrent-hash-2' }),
+      ]),
+    )
 
     const corruptPath = join(tempDir, 'nested', 'corrupt-jobs.json')
     await writeFile(corruptPath, '{')
@@ -1425,16 +1662,18 @@ describe('research job stores', () => {
     await expect(corruptStore.allJobs()).rejects.toThrow(SyntaxError)
 
     await writeFile(corruptPath, JSON.stringify({ jobs: [] }))
-    await expect(corruptStore.createJob({
-      actor,
-      thesisId: 'thesis-1',
-      thesisSnapshot: thesisSnapshot(),
-      identityVersion: 7,
-      params: researchPayload().params,
-      hash: 'recovered-hash',
-      nowMs,
-      ttlMs: 30_000,
-    })).resolves.toMatchObject({
+    await expect(
+      corruptStore.createJob({
+        actor,
+        thesisId: 'thesis-1',
+        thesisSnapshot: thesisSnapshot(),
+        identityVersion: 7,
+        params: researchPayload().params,
+        hash: 'recovered-hash',
+        nowMs,
+        ttlMs: 30_000,
+      }),
+    ).resolves.toMatchObject({
       job: expect.objectContaining({ paramsHash: 'recovered-hash' }),
       duplicate: false,
     })

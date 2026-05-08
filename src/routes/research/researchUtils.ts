@@ -57,6 +57,7 @@ export function buildRequestDraft(
   profile: Pick<SearchProfile, 'constraints'> | null,
   thesis?: Pick<SearchThesis, 'searchLanes' | 'searchOverrides'> | null,
 ): Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'> {
+  // Phase D finalized Research requests as thesis-lanes-only.
   const focusLanes = thesis?.searchLanes.map((lane) => lane.id).filter(Boolean) ?? []
 
   // Per-search overrides take precedence over identity-derived profile defaults: the user
@@ -65,11 +66,11 @@ export function buildRequestDraft(
   const overrideConstraints = thesis?.searchOverrides?.constraints
   const compensation =
     overrideConstraints?.compensation?.trim() || profile?.constraints.compensation || ''
-  const companySize = overrideConstraints?.companySize ?? ''
+  const companySize =
+    typeof overrideConstraints?.companySize === 'string' ? overrideConstraints.companySize : ''
 
   return {
     focusLanes,
-    focusVectors: [],
     companySizeOverride: companySize,
     salaryAnchorOverride: compensation,
     geoExpand: true,

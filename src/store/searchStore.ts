@@ -13,7 +13,7 @@ import type {
   SearchThesisSignal,
   SkillCatalogEntry,
 } from '../types/search'
-import { EMPTY_SEARCH_INSTANCE_OVERRIDES } from '../types/search'
+import { DEFAULT_SEARCH_MAX_RESULTS, EMPTY_SEARCH_INSTANCE_OVERRIDES } from '../types/search'
 import { createId } from '../utils/idUtils'
 import {
   type ArtifactStalenessReview,
@@ -34,8 +34,11 @@ type LegacySearchProfileInput = SearchProfileInput & {
   vectors?: unknown
 }
 
-type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt' | 'focusLanes' | 'focusVectors'> &
-  Partial<Pick<SearchRequest, 'id' | 'createdAt' | 'focusLanes' | 'focusVectors'>>
+type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt' | 'focusLanes'> &
+  Partial<Pick<SearchRequest, 'id' | 'createdAt' | 'focusLanes'>>
+
+/** Accepts pre-Phase-D persisted requests that still carry retired fields. */
+type LegacySearchRequestInput = SearchRequestInput & Record<string, unknown>
 
 type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt'> &
   Partial<Pick<SearchRun, 'id' | 'createdAt'>>
@@ -149,14 +152,61 @@ const hydrateProfile = (profile: LegacySearchProfileInput): SearchProfile => {
   }
 }
 
-const hydrateRequest = (request: SearchRequestInput): SearchRequest => ({
-  ...request,
-  focusLanes: request.focusLanes ?? [],
-  focusVectors: request.focusVectors ?? [],
-  id: request.id ?? createId('sreq'),
-  createdAt: request.createdAt ?? now(),
-  durableMeta: ensureDurableMetadata(request.durableMeta, request.createdAt ?? now()),
-})
+const hydrateString = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+const searchCompanySizeOverrides = new Set<SearchRequest['companySizeOverride']>([
+  '',
+  'startup',
+  'growth',
+  'mid-market',
+  'enterprise',
+  'public',
+  'any',
+])
+
+const hydrateCompanySizeOverride = (value: unknown): SearchRequest['companySizeOverride'] => {
+  const normalized = hydrateString(value).trim()
+  return searchCompanySizeOverrides.has(normalized as SearchRequest['companySizeOverride'])
+    ? (normalized as SearchRequest['companySizeOverride'])
+    : ''
+}
+
+const hydrateBoolean = (value: unknown, fallback: boolean): boolean =>
+  typeof value === 'boolean' ? value : fallback
+
+const hydrateStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+
+const hydrateNonNegativeInteger = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : fallback
+
+const hydrateMaxResults = (value: unknown): SearchRequest['maxResults'] => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ...DEFAULT_SEARCH_MAX_RESULTS }
+  }
+  const maxResults = value as Partial<Record<keyof SearchRequest['maxResults'], unknown>>
+  return {
+    tier1: hydrateNonNegativeInteger(maxResults.tier1, DEFAULT_SEARCH_MAX_RESULTS.tier1),
+    tier2: hydrateNonNegativeInteger(maxResults.tier2, DEFAULT_SEARCH_MAX_RESULTS.tier2),
+    tier3: hydrateNonNegativeInteger(maxResults.tier3, DEFAULT_SEARCH_MAX_RESULTS.tier3),
+  }
+}
+
+const hydrateRequest = (request: LegacySearchRequestInput): SearchRequest => {
+  // Explicit enumeration drops unknown persisted request fields, including Phase-D retired keys.
+  return {
+    focusLanes: hydrateStringArray(request.focusLanes),
+    companySizeOverride: hydrateCompanySizeOverride(request.companySizeOverride),
+    salaryAnchorOverride: hydrateString(request.salaryAnchorOverride),
+    geoExpand: hydrateBoolean(request.geoExpand, true),
+    customKeywords: hydrateString(request.customKeywords),
+    excludeCompanies: hydrateStringArray(request.excludeCompanies),
+    maxResults: hydrateMaxResults(request.maxResults),
+    id: request.id ?? createId('sreq'),
+    createdAt: request.createdAt ?? now(),
+    durableMeta: ensureDurableMetadata(request.durableMeta, request.createdAt ?? now()),
+  }
+}
 
 const hydrateRun = (run: SearchRunInput): SearchRun => ({
   ...run,
@@ -323,7 +373,8 @@ export const migrateSearchState = (persistedState: unknown) => {
     typeof persistedState === 'object' && persistedState !== null
       ? (persistedState as {
           profile?: LegacySearchProfileInput | null
-          requests?: SearchRequest[]
+          // hydrateRequest drops retired request fields while preserving the canonical shape.
+          requests?: LegacySearchRequestInput[]
           runs?: SearchRun[]
           theses?: SearchThesis[]
           activeThesisId?: string | null

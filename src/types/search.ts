@@ -183,7 +183,6 @@ export interface SearchRequest {
   durableMeta?: DurableMetadata
   createdAt: string
   focusLanes: string[]
-  focusVectors: string[]
   companySizeOverride: SearchCompanySize | ''
   salaryAnchorOverride: string
   geoExpand: boolean

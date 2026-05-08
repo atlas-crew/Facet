@@ -52,7 +52,6 @@ const baseRequest: SearchRequest = {
   id: 'sreq-1',
   createdAt: '2026-03-10T10:05:00.000Z',
   focusLanes: ['backend-platform'],
-  focusVectors: ['backend'],
   companySizeOverride: '',
   salaryAnchorOverride: '$250k',
   geoExpand: true,
@@ -752,7 +751,7 @@ describe('searchExecutor', () => {
   it('builds prompts with search inputs and without avoid-depth skills or profile vectors', () => {
     const prompt = buildSearchPrompt(baseProfile, baseRequest)
 
-    expect(prompt).toContain('"focusVectors": [')
+    expect(prompt).toContain('"focusLanes": [')
     expect(prompt).toContain('"name": "TypeScript"')
     expect(prompt).toContain('"jobDescription": "optional raw job posting text')
     expect(prompt).toContain(
@@ -763,7 +762,6 @@ describe('searchExecutor', () => {
 
     const promptWithAllVectors = buildSearchPrompt(baseProfile, {
       ...baseRequest,
-      focusVectors: [],
     })
     expect(promptWithAllVectors).not.toContain('"vectorId": "backend"')
   })

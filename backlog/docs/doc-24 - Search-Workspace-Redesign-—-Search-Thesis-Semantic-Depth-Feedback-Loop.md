@@ -422,6 +422,11 @@ This shape is non-negotiable for a 10-20 minute operation. A single long-held fe
 
 #### Job Record (Durable)
 
+Phase D of the lanes migration finalized SearchRequest as lanes-only: durable job
+params carry focusLanes[] from the approved thesis, and legacy request-level focus
+vector fields are stripped during hydration/import. Resume vectors remain a Build
+workspace assembly concept, not a Research request angle.
+
 ```typescript
 interface ResearchJob {
   id: string

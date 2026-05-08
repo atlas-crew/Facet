@@ -372,7 +372,6 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
           id: 'sreq-rt',
           createdAt: '2026-03-10T10:05:00.000Z',
           focusLanes: ['lane-platform'],
-          focusVectors: ['backend'],
           companySizeOverride: '',
           salaryAnchorOverride: '',
           geoExpand: true,
