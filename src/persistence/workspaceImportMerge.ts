@@ -20,10 +20,7 @@ import type {
 } from '../types/search'
 import { cloneValue } from './clone'
 import type { FacetWorkspaceSnapshot } from './contracts'
-import {
-  normalizeResumeWorkspacePayload,
-  updateResumeEntityContent,
-} from '../utils/resumeEntities'
+import { normalizeResumeWorkspacePayload, updateResumeEntityContent } from '../utils/resumeEntities'
 import {
   createEmptyDebriefArtifactSnapshot,
   createEmptyJDAnalysisArtifactSnapshot,
@@ -68,10 +65,7 @@ const mergePrepDecks = (existing: PrepDeck[], incoming: PrepDeck[]): PrepDeck[] 
   return next
 }
 
-const mergeCoverLetters = (
-  existing: CoverLetter[],
-  incoming: CoverLetter[],
-): CoverLetter[] => {
+const mergeCoverLetters = (existing: CoverLetter[], incoming: CoverLetter[]): CoverLetter[] => {
   const existingById = new Map(existing.map((letter) => [letter.id, letter]))
   const next = existing.map((letter) => cloneValue(letter))
   const nextIndexById = new Map(next.map((letter, index) => [letter.id, index]))
@@ -124,10 +118,8 @@ const mergeCoverLetters = (
   return next
 }
 
-const mergeLinkedInDrafts = (
-  existing: LinkedInProfileDraft[],
-  incoming: LinkedInProfileDraft[],
-) => mergeById(existing, incoming)
+const mergeLinkedInDrafts = (existing: LinkedInProfileDraft[], incoming: LinkedInProfileDraft[]) =>
+  mergeById(existing, incoming)
 
 const mergeRecruiterCards = (existing: RecruiterCard[], incoming: RecruiterCard[]) =>
   mergeById(existing, incoming)
@@ -150,7 +142,9 @@ const mergeResumeWorkspacePayloads = (
     [existing.activeResumeId, incoming.activeResumeId].find(
       (id): id is string =>
         typeof id === 'string' && mergedResumes.some((resume) => resume.id === id),
-    ) ?? mergedResumes[0]?.id ?? null
+    ) ??
+    mergedResumes[0]?.id ??
+    null
   const synchronizedResumes = mergedResumes.map((resume) =>
     updateResumeEntityContent(resume, mergeResumeData(resume.content, mergedData)),
   )
@@ -171,7 +165,8 @@ const normalizeComparableText = (value: string | undefined | null) => value?.tri
 const isSamePipelineEntry = (current: PipelineEntry, imported: PipelineEntry): boolean =>
   normalizeComparableText(current.company) === normalizeComparableText(imported.company) &&
   normalizeComparableText(current.role) === normalizeComparableText(imported.role) &&
-  normalizeComparableText(current.jobDescription) === normalizeComparableText(imported.jobDescription)
+  normalizeComparableText(current.jobDescription) ===
+    normalizeComparableText(imported.jobDescription)
 
 const isImportedAnalysisNewer = (imported: JDAnalysis, current: JDAnalysis): boolean => {
   const importedTime = Date.parse(imported.updatedAt)
@@ -199,8 +194,12 @@ const mergeJDAnalyses = ({
   const indexByPipelineEntryId = new Map(
     next.map((analysis, index) => [analysis.pipelineEntryId, index]),
   )
-  const existingPipelineEntryById = new Map(existingPipelineEntries.map((entry) => [entry.id, entry]))
-  const incomingPipelineEntryById = new Map(incomingPipelineEntries.map((entry) => [entry.id, entry]))
+  const existingPipelineEntryById = new Map(
+    existingPipelineEntries.map((entry) => [entry.id, entry]),
+  )
+  const incomingPipelineEntryById = new Map(
+    incomingPipelineEntries.map((entry) => [entry.id, entry]),
+  )
 
   for (const imported of incoming) {
     const currentPipelineEntry = existingPipelineEntryById.get(imported.pipelineEntryId)
@@ -263,10 +262,9 @@ const mergeSearchTheses = (existing: SearchThesis[], incoming: SearchThesis[]) =
 
 /**
  * Feedback events are mutated post-creation by `markFeedbackApplied` and
- * `markFeedbackReflectedInThesis`. A plain mergeById (which keeps the local
- * copy on id collision) would silently drop progress-state updates carried
- * in an imported snapshot. Merge field-by-field, taking the strictly-more-
- * progressed value for each mutable field.
+ * `markFeedbackReflectedInThesis`. Prefer the copy with the later updatedAt
+ * for mutable progress fields. Legacy snapshots may not have updatedAt, so
+ * timestamp ties/missing values fall back to the non-regressing merge rules.
  *
  * Progress semantics:
  *   - appliedToIdentity only flips false → true → prefer true.
@@ -280,10 +278,64 @@ const mergeSearchTheses = (existing: SearchThesis[], incoming: SearchThesis[]) =
  * Identity fields (id, runId, resultId, rating, reason, dimensions, createdAt)
  * are immutable after creation — keep the local copy.
  */
+const parseFeedbackUpdatedAt = (event: SearchFeedbackEvent): number | null => {
+  if (!event.updatedAt) return null
+  const parsed = Date.parse(event.updatedAt)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const newerFeedbackEvent = (
+  local: SearchFeedbackEvent,
+  imported: SearchFeedbackEvent,
+): SearchFeedbackEvent | null => {
+  const localUpdatedAt = parseFeedbackUpdatedAt(local)
+  const importedUpdatedAt = parseFeedbackUpdatedAt(imported)
+  if (
+    localUpdatedAt === null ||
+    importedUpdatedAt === null ||
+    localUpdatedAt === importedUpdatedAt
+  ) {
+    return null
+  }
+  return importedUpdatedAt > localUpdatedAt ? imported : local
+}
+
+const latestFeedbackUpdatedAt = (
+  local: SearchFeedbackEvent,
+  imported: SearchFeedbackEvent,
+): string | undefined => {
+  const localUpdatedAt = parseFeedbackUpdatedAt(local)
+  const importedUpdatedAt = parseFeedbackUpdatedAt(imported)
+  if (localUpdatedAt !== null && importedUpdatedAt !== null) {
+    return importedUpdatedAt > localUpdatedAt ? imported.updatedAt : local.updatedAt
+  }
+  return local.updatedAt ?? imported.updatedAt
+}
+
 const mergeFeedbackEventState = (
   local: SearchFeedbackEvent,
   imported: SearchFeedbackEvent,
 ): SearchFeedbackEvent => {
+  const {
+    appliedToIdentity: _localAppliedToIdentity,
+    appliedAtVersion: _localAppliedAtVersion,
+    reflectedInThesisId: _localReflectedInThesisId,
+    updatedAt: _localUpdatedAt,
+    ...immutableLocal
+  } = local
+  const newer = newerFeedbackEvent(local, imported)
+  if (newer) {
+    return {
+      ...immutableLocal,
+      appliedToIdentity: newer.appliedToIdentity,
+      ...(newer.appliedAtVersion !== undefined ? { appliedAtVersion: newer.appliedAtVersion } : {}),
+      ...(newer.reflectedInThesisId !== undefined
+        ? { reflectedInThesisId: newer.reflectedInThesisId }
+        : {}),
+      ...(newer.updatedAt !== undefined ? { updatedAt: newer.updatedAt } : {}),
+    }
+  }
+
   const appliedToIdentity = local.appliedToIdentity || imported.appliedToIdentity
   const appliedAtVersion =
     local.appliedAtVersion !== undefined && imported.appliedAtVersion !== undefined
@@ -291,14 +343,15 @@ const mergeFeedbackEventState = (
       : (local.appliedAtVersion ?? imported.appliedAtVersion)
   // Non-regressing: local wins when both defined. Falls back to imported only
   // when local has no reflected thesis recorded yet.
-  const reflectedInThesisId =
-    local.reflectedInThesisId ?? imported.reflectedInThesisId
+  const reflectedInThesisId = local.reflectedInThesisId ?? imported.reflectedInThesisId
+  const updatedAt = latestFeedbackUpdatedAt(local, imported)
 
   return {
-    ...local,
+    ...immutableLocal,
     appliedToIdentity,
     ...(appliedAtVersion !== undefined ? { appliedAtVersion } : {}),
     ...(reflectedInThesisId !== undefined ? { reflectedInThesisId } : {}),
+    ...(updatedAt !== undefined ? { updatedAt } : {}),
   }
 }
 

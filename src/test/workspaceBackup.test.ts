@@ -765,6 +765,71 @@ describe('workspace backup merge helpers', () => {
       expect(events[0].appliedAtVersion).toBe(5)
     })
 
+    it('takes the max appliedAtVersion from the import when both legacy copies have versions', () => {
+      const merged = mergeWithSeededEvents(
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 2 })],
+        [baseEvent({ appliedToIdentity: true, appliedAtVersion: 5 })],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0].appliedAtVersion).toBe(5)
+    })
+
+    it('prefers imported mutable feedback fields when imported updatedAt is newer', () => {
+      const merged = mergeWithSeededEvents(
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 3,
+            reflectedInThesisId: 'sthesis-local-old',
+            updatedAt: '2026-03-11T12:00:00.000Z',
+          }),
+        ],
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 4,
+            reflectedInThesisId: 'sthesis-imported-current',
+            updatedAt: '2026-03-11T12:05:00.000Z',
+          }),
+        ],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0]).toMatchObject({
+        appliedToIdentity: true,
+        appliedAtVersion: 4,
+        reflectedInThesisId: 'sthesis-imported-current',
+        updatedAt: '2026-03-11T12:05:00.000Z',
+      })
+    })
+
+    it('prefers local mutable feedback fields when local updatedAt is newer', () => {
+      const merged = mergeWithSeededEvents(
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 6,
+            reflectedInThesisId: 'sthesis-local-current',
+            updatedAt: '2026-03-11T12:10:00.000Z',
+          }),
+        ],
+        [
+          baseEvent({
+            appliedToIdentity: true,
+            appliedAtVersion: 7,
+            reflectedInThesisId: 'sthesis-imported-old',
+            updatedAt: '2026-03-11T12:05:00.000Z',
+          }),
+        ],
+      )
+      const events = merged.artifacts.research.payload.feedbackEvents ?? []
+      expect(events[0]).toMatchObject({
+        appliedToIdentity: true,
+        appliedAtVersion: 6,
+        reflectedInThesisId: 'sthesis-local-current',
+        updatedAt: '2026-03-11T12:10:00.000Z',
+      })
+    })
+
     it('keeps local reflectedInThesisId over imported when both defined (non-regressing)', () => {
       // Protects against "import older backup into newer workspace" regressing
       // a locally-current thesis reflection back to a stale id, which would make

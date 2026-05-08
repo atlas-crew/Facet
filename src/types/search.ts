@@ -614,6 +614,8 @@ export interface SearchFeedbackEvent {
   /** Id of the first thesis that was regenerated with this event incorporated. */
   reflectedInThesisId?: string
   createdAt: string
+  /** Most recent mutation time for merge conflict resolution. Optional for legacy snapshots. */
+  updatedAt?: string
 }
 
 // ── Research Job (TASK-161 storage + runner; type definition lives here) ─────

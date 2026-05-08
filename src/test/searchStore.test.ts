@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { migrateSearchState, useSearchStore } from '../store/searchStore'
 import type { SearchRequest, SearchThesis, SearchThesisSignal } from '../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../types/search'
@@ -1142,6 +1142,7 @@ describe('searchStore', () => {
 
       expect(event.id).toMatch(/^sfe-/)
       expect(event.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+      expect(event.updatedAt).toBe(event.createdAt)
       expect(event.runId).toBe('srun-1')
       expect(event.rating).toBe('down')
       expect(event.appliedToIdentity).toBe(false)
@@ -1163,13 +1164,22 @@ describe('searchStore', () => {
     })
 
     it('marks a feedback event as applied with the identity version that absorbed it', () => {
-      const event = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(new Date('2026-04-20T10:00:00.000Z'))
+        const event = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+        expect(event.updatedAt).toBe('2026-04-20T10:00:00.000Z')
 
-      useSearchStore.getState().markFeedbackApplied(event.id, 7)
+        vi.setSystemTime(new Date('2026-04-20T10:05:00.000Z'))
+        useSearchStore.getState().markFeedbackApplied(event.id, 7)
 
-      const stored = useSearchStore.getState().feedbackEvents[0]
-      expect(stored.appliedToIdentity).toBe(true)
-      expect(stored.appliedAtVersion).toBe(7)
+        const stored = useSearchStore.getState().feedbackEvents[0]
+        expect(stored.appliedToIdentity).toBe(true)
+        expect(stored.appliedAtVersion).toBe(7)
+        expect(stored.updatedAt).toBe('2026-04-20T10:05:00.000Z')
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('does not touch other events when marking one as applied', () => {
@@ -1187,21 +1197,31 @@ describe('searchStore', () => {
     })
 
     it('marks a batch of events as reflected in a thesis', () => {
-      const a = useSearchStore.getState().addFeedbackEvent(baseEventInput)
-      const b = useSearchStore
-        .getState()
-        .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
-      const c = useSearchStore
-        .getState()
-        .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-3' })
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(new Date('2026-04-20T11:00:00.000Z'))
+        const a = useSearchStore.getState().addFeedbackEvent(baseEventInput)
+        const b = useSearchStore
+          .getState()
+          .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-2' })
+        const c = useSearchStore
+          .getState()
+          .addFeedbackEvent({ ...baseEventInput, resultId: 'sres-3' })
 
-      useSearchStore.getState().markFeedbackReflectedInThesis([a.id, c.id], 'sthesis-42')
+        vi.setSystemTime(new Date('2026-04-20T11:07:00.000Z'))
+        useSearchStore.getState().markFeedbackReflectedInThesis([a.id, c.id], 'sthesis-42')
 
-      const events = useSearchStore.getState().feedbackEvents
-      const byId = Object.fromEntries(events.map((e) => [e.id, e]))
-      expect(byId[a.id].reflectedInThesisId).toBe('sthesis-42')
-      expect(byId[b.id].reflectedInThesisId).toBeUndefined()
-      expect(byId[c.id].reflectedInThesisId).toBe('sthesis-42')
+        const events = useSearchStore.getState().feedbackEvents
+        const byId = Object.fromEntries(events.map((e) => [e.id, e]))
+        expect(byId[a.id].reflectedInThesisId).toBe('sthesis-42')
+        expect(byId[a.id].updatedAt).toBe('2026-04-20T11:07:00.000Z')
+        expect(byId[b.id].reflectedInThesisId).toBeUndefined()
+        expect(byId[b.id].updatedAt).toBe('2026-04-20T11:00:00.000Z')
+        expect(byId[c.id].reflectedInThesisId).toBe('sthesis-42')
+        expect(byId[c.id].updatedAt).toBe('2026-04-20T11:07:00.000Z')
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('getUnreflectedFeedback returns only applied events not yet reflected in the current thesis', () => {

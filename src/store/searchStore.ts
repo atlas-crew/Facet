@@ -62,8 +62,8 @@ type SearchThesisInput = Omit<
     searchOverrides?: SearchInstanceOverridesInput
   }
 
-/** Caller supplies every feedback-event field except the store-generated id and timestamp. */
-export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt'>
+/** Caller supplies every feedback-event field except store-generated identity/timestamps. */
+export type SearchFeedbackEventInput = Omit<SearchFeedbackEvent, 'id' | 'createdAt' | 'updatedAt'>
 
 interface SearchState {
   profile: SearchProfile | null
@@ -711,20 +711,28 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
   },
 
   addFeedbackEvent: (input) => {
+    const timestamp = now()
     const event: SearchFeedbackEvent = {
       ...input,
       id: createId('sfe'),
-      createdAt: now(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
     }
     set((state) => ({ feedbackEvents: [...state.feedbackEvents, event] }))
     return event
   },
 
   markFeedbackApplied: (id, identityVersion) => {
+    const timestamp = now()
     set((state) => ({
       feedbackEvents: state.feedbackEvents.map((event) =>
         event.id === id
-          ? { ...event, appliedToIdentity: true, appliedAtVersion: identityVersion }
+          ? {
+              ...event,
+              appliedToIdentity: true,
+              appliedAtVersion: identityVersion,
+              updatedAt: timestamp,
+            }
           : event,
       ),
     }))
@@ -732,9 +740,12 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
 
   markFeedbackReflectedInThesis: (ids, thesisId) => {
     const idSet = new Set(ids)
+    const timestamp = now()
     set((state) => ({
       feedbackEvents: state.feedbackEvents.map((event) =>
-        idSet.has(event.id) ? { ...event, reflectedInThesisId: thesisId } : event,
+        idSet.has(event.id)
+          ? { ...event, reflectedInThesisId: thesisId, updatedAt: timestamp }
+          : event,
       ),
     }))
   },
