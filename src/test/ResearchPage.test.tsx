@@ -548,23 +548,27 @@ describe('ResearchPage', () => {
       ...state,
       runs: state.runs.map((run) => ({
         ...run,
-        narrative: {
-          competitiveMoat: 'A durable platform moat grounded in production delivery evidence.',
-          selectionMethodology:
-            'Filtered for platform roles with senior ownership and remote viability.',
-          marketContext: 'Platform hiring remains active for teams modernizing delivery systems.',
-          executiveSummary:
-            'This search prioritizes platform roles where senior backend ownership and deployment architecture matter together, while avoiding roles that reduce the scope to cluster administration.',
-          assumptions: [
-            {
-              id: 'assumption-remote',
-              claim: 'Remote US roles are acceptable outside Denver.',
-              source: 'inferred',
-              rationale: 'Hybrid preference only named Denver.',
-              confidence: 'high',
-              overridable: true,
-            },
-          ],
+        narrativeState: {
+          status: 'ready',
+          contractViolations: [],
+          narrative: {
+            competitiveMoat: 'A durable platform moat grounded in production delivery evidence.',
+            selectionMethodology:
+              'Filtered for platform roles with senior ownership and remote viability.',
+            marketContext: 'Platform hiring remains active for teams modernizing delivery systems.',
+            executiveSummary:
+              'This search prioritizes platform roles where senior backend ownership and deployment architecture matter together, while avoiding roles that reduce the scope to cluster administration.',
+            assumptions: [
+              {
+                id: 'assumption-remote',
+                claim: 'Remote US roles are acceptable outside Denver.',
+                source: 'inferred',
+                rationale: 'Hybrid preference only named Denver.',
+                confidence: 'high',
+                overridable: true,
+              },
+            ],
+          },
         },
       })),
     }))
