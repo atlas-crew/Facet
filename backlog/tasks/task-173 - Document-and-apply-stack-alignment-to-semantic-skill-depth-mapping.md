@@ -1,11 +1,11 @@
 ---
 id: TASK-173
 title: Document and apply stack alignment ↔ semantic skill depth mapping
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-08 23:43'
 labels:
   - prep
   - identity-model
@@ -19,6 +19,17 @@ references:
   - src/identity/schema.ts
 documentation:
   - 'backlog doc-25: current state'
+modified_files:
+  - src/utils/prepSkillDepthMapping.ts
+  - src/utils/prepGenerator.ts
+  - src/test/prepSkillDepthMapping.test.ts
+  - src/test/prepGenerator.test.ts
+  - >-
+    backlog/docs/doc-25 -
+    Prep-Workspace-Gap-Analysis-—-Strategy-Layer-Round-Progression.md
+  - >-
+    backlog/docs/doc-41 -
+    Prep-V2-—-PrepDeck-Foundation-Content-Extensions-Rollout-Plan.md
 priority: medium
 ---
 
@@ -69,13 +80,13 @@ Prep generation against identity happens per-deck. A lossy mapping means "my ide
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 mapSkillDepthToStackConfidence() function added with documented mapping for all 7 depth levels
-- [ ] #2 Calibration text influences the mapping (anti-overselling softens Strong → Solid)
-- [ ] #3 prepGenerator uses the mapping explicitly when reading identity skills against JD
-- [ ] #4 Prompt instruction references the mapping as the source of truth, not free-form AI translation
-- [ ] #5 Tests cover each depth level, calibration-aware softening, undefined depth
-- [ ] #6 Mapping documented in doc-25 as an appendix or subsection
-- [ ] #7 Generation tests: regeneration produces the same confidence levels (no drift across runs)
+- [x] #1 mapSkillDepthToStackConfidence() function added with documented mapping for all 7 depth levels
+- [x] #2 Calibration text influences the mapping (anti-overselling softens Strong → Solid)
+- [x] #3 prepGenerator uses the mapping explicitly when reading identity skills against JD
+- [x] #4 Prompt instruction references the mapping as the source of truth, not free-form AI translation
+- [x] #5 Tests cover each depth level, calibration-aware softening, undefined depth
+- [x] #6 Mapping documented in doc-25 as an appendix or subsection
+- [x] #7 Generation tests: regeneration produces the same confidence levels (no drift across runs)
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -87,15 +98,15 @@ Starting TASK-173. Plan: document the explicit identity skill depth → PrepStac
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Closed as fully subsumed during 2026-05-08 backlog staleness audit. Per task-208 Workstream 1 audit (2026-05-04): canonical JDAnalysis.skillMatches already produces `userDepth`, `requirementStrength`, `matchQuality`, and `presentationGuidance` directly. After task-208 shipped (2026-05-05), prepGenerator.ts reads those fields from the canonical projection rather than translating from raw identity skills, so the proposed mapping function has no source-to-target translation step left to perform. If a render-time `SkillMatch → PrepStackAlignmentConfidence` labeller is wanted later (display-only, not generation), file as a small new task.
+Implemented explicit identity/search skill depth to PrepStackAlignmentConfidence mapping in src/utils/prepSkillDepthMapping.ts. Prep generation now annotates Canonical JD Analysis skillMatches with prepStackConfidence, gives the prompt the mapping as source of truth, and caps returned stackAlignment confidence from the mapped skill ceiling. Documented the mapping in doc-25 and marked TASK-173 done in doc-41. Verification: npm run format:files -- src/utils/prepSkillDepthMapping.ts src/utils/prepGenerator.ts src/test/prepSkillDepthMapping.test.ts src/test/prepGenerator.test.ts backlog/docs/doc-25...; npx vitest run src/test/prepSkillDepthMapping.test.ts src/test/prepGenerator.test.ts (30 tests); npx eslint src/utils/prepSkillDepthMapping.ts src/utils/prepGenerator.ts src/test/prepSkillDepthMapping.test.ts src/test/prepGenerator.test.ts; npm run typecheck; npm run build. Review: specialist-review.sh --git -- src/utils/prepSkillDepthMapping.ts src/utils/prepGenerator.ts, final validated pass was followed by additional hardening for non-blocking review notes.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
