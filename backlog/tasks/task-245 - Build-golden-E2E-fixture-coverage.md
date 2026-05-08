@@ -1,10 +1,11 @@
 ---
 id: TASK-245
 title: Build golden E2E fixture coverage
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-08 23:27'
-updated_date: '2026-05-08 23:29'
+updated_date: '2026-05-08 23:50'
 labels:
   - feature
 milestone: m-29
@@ -26,6 +27,12 @@ Parent task for milestone m-29. Deliver one coherent, fictional golden workspace
 - [x] #2 All child tasks keep Pipeline as canonical owner of per-job context and keep candidate-only data sourced from Identity.
 - [ ] #3 The milestone can close only after at least one deterministic test proves the golden workspace hydrates and renders across multiple workspaces without live AI.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Started TASK-245 by taking the first executable slice, TASK-245.1. Parallel exploration is covering Maya fixture/validator shape, downstream artifact type fixtures, and workspace snapshot/hosted hydration paths.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
