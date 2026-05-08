@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generatePrepDeck } from '../utils/prepGenerator'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import { untaggedNote } from '../types/audience'
@@ -8,10 +8,7 @@ const { callLlmProxyMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../utils/llmProxy', async () => {
-  const actual =
-    await vi.importActual<typeof import('../utils/llmProxy')>(
-      '../utils/llmProxy',
-    )
+  const actual = await vi.importActual<typeof import('../utils/llmProxy')>('../utils/llmProxy')
   return {
     ...actual,
     callLlmProxy: callLlmProxyMock,
@@ -67,8 +64,15 @@ const testJdAnalysis: JDAnalysis = {
 }
 
 describe('prep contract validation', () => {
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     callLlmProxyMock.mockReset()
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore()
   })
 
   it('reports contract violations when the generated output misses required coaching and coverage', async () => {
@@ -170,9 +174,7 @@ describe('prep contract validation', () => {
       }),
     )
 
-    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(
-      true,
-    )
+    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
     expect(result.contractViolations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'missing-field', field: 'rules' }),
@@ -189,6 +191,28 @@ describe('prep contract validation', () => {
         expect.objectContaining({ kind: 'missing-coaching', field: 'notes' }),
       ]),
     )
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[prepGenerator] contract violations',
+      expect.objectContaining({
+        feature: 'prep.generate',
+        hasPipelineContext: true,
+        pipelineRoundId: 'round-1',
+        violationCount: result.contractViolations.length,
+        severities: expect.objectContaining({
+          error: expect.any(Number),
+          warning: expect.any(Number),
+        }),
+        kinds: expect.objectContaining({
+          'missing-field': expect.any(Number),
+          'missing-coaching': expect.any(Number),
+        }),
+        fields: expect.arrayContaining(['rules', 'categoryGuidance', 'cards']),
+      }),
+    )
+    const loggedPayload = (consoleWarnSpy.mock.calls as unknown[][]).find(
+      (call: unknown[]) => call[0] === '[prepGenerator] contract violations',
+    )?.[1] as { fields?: string[] } | undefined
+    expect(loggedPayload?.fields).toHaveLength(new Set(loggedPayload?.fields).size)
   })
 
   it('accepts a deck that satisfies the validation contract', async () => {
@@ -202,18 +226,12 @@ describe('prep contract validation', () => {
           'Keep the proof concrete.',
         ],
         categoryGuidance: {
-          opener:
-            'They reached out to you, so keep this conversational and specific.',
-          behavioral:
-            'Be conversational and give them proof without sounding performative.',
-          technical:
-            'Convince them with concrete examples and earn attention quickly.',
-          project:
-            'Use a specific company detail to make the answer feel earned.',
-          metrics:
-            'Keep the numbers concrete and defensible.',
-          situational:
-            'Earn attention by answering directly and then bridging to the evidence.',
+          opener: 'They reached out to you, so keep this conversational and specific.',
+          behavioral: 'Be conversational and give them proof without sounding performative.',
+          technical: 'Convince them with concrete examples and earn attention quickly.',
+          project: 'Use a specific company detail to make the answer feel earned.',
+          metrics: 'Keep the numbers concrete and defensible.',
+          situational: 'Earn attention by answering directly and then bridging to the evidence.',
         },
         stackAlignment: [
           {
@@ -229,8 +247,7 @@ describe('prep contract validation', () => {
             tags: ['opener'],
             notes:
               'This opener is specific to the role. It keeps the through-line tight. It makes the first impression feel deliberate.',
-            warning:
-              'Keep this under 90 seconds or 2 minutes max. It is a trailer, not the movie.',
+            warning: 'Keep this under 90 seconds or 2 minutes max. It is a trailer, not the movie.',
             script:
               'I build backend systems that reduce operational load and make product delivery more reliable for the teams that use them.',
           },
@@ -240,8 +257,7 @@ describe('prep contract validation', () => {
             tags: ['opener'],
             notes:
               'This answer is rare because it ties the company move to a concrete working style. Most candidates stay generic here, which makes the fit feel weaker.',
-            warning:
-              'Keep this under 2 minutes max and stay focused on why this move is specific.',
+            warning: 'Keep this under 2 minutes max and stay focused on why this move is specific.',
             script:
               'This role fits because the team needs the kind of systems judgment I have already used to reduce operational toil.',
           },
@@ -264,13 +280,15 @@ describe('prep contract validation', () => {
             category: 'technical',
             title: "What you know, what you don't: Go",
             tags: ['gap-framing'],
-            notes:
-              'I have adjacent experience with distributed systems work and can ramp quickly.',
+            notes: 'I have adjacent experience with distributed systems work and can ramp quickly.',
             warning:
               "Don't fake direct ownership; if asked, name the boundary and the bounded ramp plan.",
             storyBlocks: [
               { label: 'problem', text: 'I have not led Go production directly.' },
-              { label: 'solution', text: 'I have adjacent service-debugging experience that transfers.' },
+              {
+                label: 'solution',
+                text: 'I have adjacent service-debugging experience that transfers.',
+              },
               { label: 'result', text: 'I can close the gap quickly without overselling it.' },
             ],
             keyPoints: [
@@ -353,8 +371,10 @@ describe('prep contract validation', () => {
     })
 
     expect(result.contractViolations).toEqual([])
-    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(
-      true,
+    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
+    expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+      '[prepGenerator] contract violations',
+      expect.anything(),
     )
   })
 
@@ -368,7 +388,7 @@ describe('prep contract validation', () => {
         vectorId: 'backend',
         vectorLabel: 'Backend',
         jobDescription: 'Build distributed systems and platform tooling.',
-      jdAnalysis: testJdAnalysis,
+        jdAnalysis: testJdAnalysis,
         pipelineEntryContext: {
           company: 'Acme',
           role: 'Staff Engineer',
@@ -404,7 +424,7 @@ describe('prep contract validation', () => {
         vectorId: 'backend',
         vectorLabel: 'Backend',
         jobDescription: 'Build distributed systems and platform tooling.',
-      jdAnalysis: testJdAnalysis,
+        jdAnalysis: testJdAnalysis,
         pipelineEntryContext: {
           company: 'Acme',
           role: 'Staff Engineer',
@@ -488,18 +508,12 @@ describe('prep contract validation', () => {
           'Keep the proof concrete.',
         ],
         categoryGuidance: {
-          opener:
-            'They reached out to you, so keep this conversational and specific.',
-          behavioral:
-            'Be conversational and give them proof without sounding performative.',
-          technical:
-            'Convince them with concrete examples and earn attention quickly.',
-          project:
-            'Use a specific company detail to make the answer feel earned.',
-          metrics:
-            'Keep the numbers concrete and defensible.',
-          situational:
-            'Earn attention by answering directly and then bridging to the evidence.',
+          opener: 'They reached out to you, so keep this conversational and specific.',
+          behavioral: 'Be conversational and give them proof without sounding performative.',
+          technical: 'Convince them with concrete examples and earn attention quickly.',
+          project: 'Use a specific company detail to make the answer feel earned.',
+          metrics: 'Keep the numbers concrete and defensible.',
+          situational: 'Earn attention by answering directly and then bridging to the evidence.',
         },
         stackAlignment: [
           {
@@ -515,8 +529,7 @@ describe('prep contract validation', () => {
             tags: ['opener'],
             notes:
               'This opener is specific to the role. It keeps the through-line tight. It makes the first impression feel deliberate.',
-            warning:
-              'Keep this under 90 seconds or 2 minutes max. It is a trailer, not the movie.',
+            warning: 'Keep this under 90 seconds or 2 minutes max. It is a trailer, not the movie.',
             script:
               'I build backend systems that reduce operational load and make product delivery more reliable for the teams that use them.',
           },
@@ -526,8 +539,7 @@ describe('prep contract validation', () => {
             tags: ['opener'],
             notes:
               'This answer is rare because it ties the company move to a concrete working style. Most candidates stay generic here, which makes the fit feel weaker.',
-            warning:
-              'Keep this under 2 minutes max and stay focused on why this move is specific.',
+            warning: 'Keep this under 2 minutes max and stay focused on why this move is specific.',
             script:
               'This role fits because the team needs the kind of systems judgment I have already used to reduce operational toil.',
           },
@@ -550,13 +562,15 @@ describe('prep contract validation', () => {
             category: 'technical',
             title: "What you know, what you don't: Go",
             tags: ['gap-framing'],
-            notes:
-              'I have adjacent experience with distributed systems work and can ramp quickly.',
+            notes: 'I have adjacent experience with distributed systems work and can ramp quickly.',
             warning:
               "Don't fake direct ownership; if asked, name the boundary and the bounded ramp plan.",
             storyBlocks: [
               { label: 'problem', text: 'I have not led Go production directly.' },
-              { label: 'solution', text: 'I have adjacent service-debugging experience that transfers.' },
+              {
+                label: 'solution',
+                text: 'I have adjacent service-debugging experience that transfers.',
+              },
               { label: 'result', text: 'I can close the gap quickly without overselling it.' },
             ],
             keyPoints: [
@@ -575,7 +589,10 @@ describe('prep contract validation', () => {
               "Don't fake direct ownership; if asked, name the boundary and the bounded ramp plan.",
             storyBlocks: [
               { label: 'problem', text: 'I have not led Kubernetes directly in this role.' },
-              { label: 'solution', text: 'I have adjacent platform debugging and delivery experience.' },
+              {
+                label: 'solution',
+                text: 'I have adjacent platform debugging and delivery experience.',
+              },
               { label: 'result', text: 'I can ramp quickly without overstating the match.' },
             ],
             keyPoints: [
@@ -624,9 +641,7 @@ describe('prep contract validation', () => {
           id: 'round-1',
           label: 'HM panel',
           format: 'hm-screen',
-          interviewers: [
-            { id: 'iv-jordan', name: 'Jordan Lee', title: 'Director of Platform' },
-          ],
+          interviewers: [{ id: 'iv-jordan', name: 'Jordan Lee', title: 'Director of Platform' }],
         },
       },
       resumeContext: {
@@ -637,9 +652,7 @@ describe('prep contract validation', () => {
     })
 
     expect(result.contractViolations).toEqual([])
-    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(
-      true,
-    )
+    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
   })
 
   it('reports a contract violation when the model omits the cards array entirely', async () => {
@@ -650,42 +663,38 @@ describe('prep contract validation', () => {
     )
 
     const result = await generatePrepDeck('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      pipelineEntryContext: {
         company: 'Acme',
         role: 'Staff Engineer',
-        vectorId: 'backend',
-        vectorLabel: 'Backend',
-        jobDescription: 'Build distributed systems and platform tooling.',
-      jdAnalysis: testJdAnalysis,
-        pipelineEntryContext: {
-          company: 'Acme',
-          role: 'Staff Engineer',
-          tier: '1',
-          status: 'interviewing',
-          appMethod: 'direct-apply',
-          response: 'interview-scheduled',
-          formats: ['hm-screen'],
-          research: {
-            status: 'investigated',
-            summary: 'Still mapping the team.',
-            interviewSignals: [],
-            sources: [],
-            searchQueries: [],
-          },
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['hm-screen'],
+        research: {
+          status: 'investigated',
+          summary: 'Still mapping the team.',
+          interviewSignals: [],
+          sources: [],
+          searchQueries: [],
         },
-        resumeContext: {
-          resume: {
-            basics: { name: 'Alex Example' },
-          },
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
         },
+      },
     })
 
     expect(result.contractViolations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: 'missing-field', field: 'cards' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ kind: 'missing-field', field: 'cards' })]),
     )
-    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(
-      true,
-    )
+    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
   })
 })

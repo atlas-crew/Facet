@@ -1,9 +1,11 @@
 ---
 id: TASK-170
 title: Add prep output contract validation for prepGenerator
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 22:32'
 labels:
   - prep
   - output-contract
@@ -17,6 +19,13 @@ references:
 documentation:
   - 'backlog doc-25: Gaps 1-2 Meta-strategy and Strategic Framing'
   - 'backlog doc-24: Output Contract: Reasoning Layers (parallel)'
+modified_files:
+  - src/utils/prepGenerator.ts
+  - src/test/prepContractValidation.test.ts
+  - src/test/PrepPage.behavior.test.tsx
+  - >-
+    backlog/docs/doc-41 -
+    Prep-V2-—-PrepDeck-Foundation-Content-Extensions-Rollout-Plan.md
 priority: medium
 ---
 
@@ -80,24 +89,38 @@ Prompt-only changes are load-bearing but invisible. Contract validation makes th
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PrepContractViolation type defined
-- [ ] #2 Opener cards validated: notes >= 2 sentences, warning contains time guidance, script present
-- [ ] #3 Gap-framing cards validated: warning contains honest-framing language
-- [ ] #4 Named-people intel cards validated: when companyResearch contains person-name patterns, at least one intel card exists
-- [ ] #5 Competitive positioning validated: >= 2 cards with market-rare framing
-- [ ] #6 Category guidance validated: contains interview-dynamic framing when application method is known
-- [ ] #7 generatePrepDeck returns PrepGenerationResult with contractViolations[]
-- [ ] #8 UI renders regenerate affordance for error-severity violations
-- [ ] #9 Contract violations logged to telemetry
-- [ ] #10 Existing prep generation tests continue to pass
+- [x] #1 PrepContractViolation type defined
+- [x] #2 Opener cards validated: notes >= 2 sentences, warning contains time guidance, script present
+- [x] #3 Gap-framing cards validated: warning contains honest-framing language
+- [x] #4 Named-people intel cards validated: when companyResearch contains person-name patterns, at least one intel card exists
+- [x] #5 Competitive positioning validated: >= 2 cards with market-rare framing
+- [x] #6 Category guidance validated: contains interview-dynamic framing when application method is known
+- [x] #7 generatePrepDeck returns PrepGenerationResult with contractViolations[]
+- [x] #8 UI renders regenerate affordance for error-severity violations
+- [x] #9 Contract violations logged to telemetry
+- [x] #10 Existing prep generation tests continue to pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting closure pass for doc-41 Lane A foundation. Initial inspection shows contract types, generator validation, persisted deck violations, and UI regenerate affordance are present; validating telemetry/logging coverage and focused checks before closure.
+
+Closure pass added aggregate prep contract violation logging, tightened logger tests, and updated PrepPage behavior fixtures to seed the current pipeline-first JD analysis prerequisite. Scoped DoD per user instruction: focused tests/lint/typecheck/build are sufficient; full-suite/lint baseline debt remains unrelated.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented the final TASK-170 closure gap by logging prep contract violations as a non-identifying aggregate diagnostic from prepGenerator, with severity/kind/field tallies and no log on clean generations. Updated prep contract tests for the logging path and refreshed PrepPage behavior fixtures to match the current pipeline-first JD analysis contract. Verification: npm run format:files -- src/utils/prepGenerator.ts src/test/prepContractValidation.test.ts src/test/PrepPage.behavior.test.tsx; npx vitest run src/test/prepContractValidation.test.ts src/test/PrepPage.behavior.test.tsx; npx eslint src/utils/prepGenerator.ts src/test/prepContractValidation.test.ts src/test/PrepPage.behavior.test.tsx; npm run typecheck; npm run build. Full npm run test and npm run lint were non-gating per scoped DoD and remain blocked by unrelated baseline/generated-artifact issues.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->

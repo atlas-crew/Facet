@@ -21,7 +21,7 @@ Four concurrent lanes. Lane A is foundation and gates Lane C; Lanes B and D are 
 Locks down the PrepDeck output contract and adds structured types before content surface area expands. Without this, content extensions ship without validation and produce a moving target for future regressions.
 
 ```
-TASK-170  Add prep output contract validation for prepGenerator   [med]
+TASK-170  Add prep output contract validation for prepGenerator   [done]
    │      (validation gates the deck shape; lands first so 171 has something to validate)
    ▼
 TASK-171  Add structured PrepCompanyIntel and PrepInterviewer to PrepDeck  [med]

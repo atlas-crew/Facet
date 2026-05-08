@@ -30,12 +30,7 @@ import type {
 } from '../types/prep'
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
-import {
-  callLlmProxy,
-  extractJsonBlock,
-  JsonExtractionError,
-  isString,
-} from './llmProxy'
+import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 /** Model used for interview prep — needs creative, detailed output. */
 const PREP_MODEL = 'sonnet'
@@ -76,31 +71,21 @@ interface PrepInterviewPrepResult {
   contractViolations: PrepContractViolation[]
 }
 
-const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<
-  PrepStackAlignmentConfidence,
-  readonly string[]
-> = {
-  Strong: ['strong'],
-  Solid: ['solid'],
-  'Working knowledge': [
-    'working knowledge',
-    'working-knowledge',
-    'working',
-    'familiar',
-  ],
-  'Adjacent experience': [
-    'adjacent experience',
-    'adjacent-experience',
-    'adjacent',
-    'transferable',
-  ],
-  Gap: ['gap', 'missing', 'none'],
-}
+const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<PrepStackAlignmentConfidence, readonly string[]> =
+  {
+    Strong: ['strong'],
+    Solid: ['solid'],
+    'Working knowledge': ['working knowledge', 'working-knowledge', 'working', 'familiar'],
+    'Adjacent experience': [
+      'adjacent experience',
+      'adjacent-experience',
+      'adjacent',
+      'transferable',
+    ],
+    Gap: ['gap', 'missing', 'none'],
+  }
 
-const GAP_FRAMING_CONFIDENCE_ORDER: Record<
-  PrepStackAlignmentConfidence,
-  number
-> = {
+const GAP_FRAMING_CONFIDENCE_ORDER: Record<PrepStackAlignmentConfidence, number> = {
   Gap: 0,
   'Adjacent experience': 1,
   'Working knowledge': 2,
@@ -109,10 +94,7 @@ const GAP_FRAMING_CONFIDENCE_ORDER: Record<
 }
 
 const STORY_BLOCK_LABEL_ALIASES: Array<[PrepStoryBlockLabel, string[]]> = [
-  [
-    'problem',
-    ['problem', 'problem statement', 'challenge', 'context', 'situation'],
-  ],
+  ['problem', ['problem', 'problem statement', 'challenge', 'context', 'situation']],
   ['solution', ['solution', 'action', 'approach', 'what i did']],
   ['result', ['result', 'outcome', 'impact', 'what happened']],
   ['closer', ['closer', 'close', 'wrap-up', 'wrap up', 'takeaway']],
@@ -147,11 +129,7 @@ function normalizeMetricList(value: unknown): PrepMetric[] | undefined {
 
 function normalizeTimeBudgetMinutes(value: unknown): number | undefined {
   const numericValue =
-    typeof value === 'number'
-      ? value
-      : isString(value)
-        ? Number(value.trim())
-        : Number.NaN
+    typeof value === 'number' ? value : isString(value) ? Number(value.trim()) : Number.NaN
 
   if (!Number.isFinite(numericValue) || numericValue <= 0) return undefined
 
@@ -159,8 +137,7 @@ function normalizeTimeBudgetMinutes(value: unknown): number | undefined {
 }
 
 function normalizeNumbersToKnow(value: unknown): PrepNumbersToKnow | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
   const candidate = normalizeMetricList(record.candidate)
   const company = normalizeMetricList(record.company)
@@ -187,49 +164,32 @@ function normalizeStackAlignmentConfidence(
   return undefined
 }
 
-function normalizeStackAlignment(
-  value: unknown,
-): PrepStackAlignmentRow[] | undefined {
+function normalizeStackAlignment(value: unknown): PrepStackAlignmentRow[] | undefined {
   if (!Array.isArray(value)) return undefined
   const seenTech = new Set<string>()
   const rows = value
     .flatMap((entry) => {
       if (!entry || typeof entry !== 'object') return []
       const record = entry as Record<string, unknown>
-      const theirTech = isString(record.theirTech)
-        ? record.theirTech.trim()
-        : ''
-      const yourMatch = isString(record.yourMatch)
-        ? record.yourMatch.trim()
-        : ''
+      const theirTech = isString(record.theirTech) ? record.theirTech.trim() : ''
+      const yourMatch = isString(record.yourMatch) ? record.yourMatch.trim() : ''
       const confidence = normalizeStackAlignmentConfidence(record.confidence)
       const normalizedTech = theirTech.toLowerCase()
-      if (
-        !theirTech ||
-        !yourMatch ||
-        !confidence ||
-        seenTech.has(normalizedTech)
-      ) {
+      if (!theirTech || !yourMatch || !confidence || seenTech.has(normalizedTech)) {
         return []
       }
       seenTech.add(normalizedTech)
-      return theirTech && yourMatch && confidence
-        ? [{ theirTech, yourMatch, confidence }]
-        : []
+      return theirTech && yourMatch && confidence ? [{ theirTech, yourMatch, confidence }] : []
     })
     .slice(0, 20)
   return rows.length > 0 ? rows : undefined
 }
 
-function normalizeStoryBlockLabel(
-  value: unknown,
-): PrepStoryBlockLabel | undefined {
+function normalizeStoryBlockLabel(value: unknown): PrepStoryBlockLabel | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
   if (!normalized) return undefined
-  if (
-    (PREP_STORY_BLOCK_LABEL_VALUES as readonly string[]).includes(normalized)
-  ) {
+  if ((PREP_STORY_BLOCK_LABEL_VALUES as readonly string[]).includes(normalized)) {
     return normalized as PrepStoryBlockLabel
   }
 
@@ -255,36 +215,40 @@ function stripCandidateMetricsFromIdentityContext(
 }
 
 function formatJdAnalysisForPrompt(analysis: PrepGenerationRequest['jdAnalysis']): string {
-  return JSON.stringify({
-    id: analysis.id,
-    pipelineEntryId: analysis.pipelineEntryId,
-    generatedAt: analysis.generatedAt,
-    modelVersion: analysis.modelVersion,
-    jdTextHash: analysis.jdTextHash,
-    summary: analysis.summary,
-    oneLineSummary: analysis.oneLineSummary,
-    recommendation: analysis.recommendation,
-    confidence: analysis.confidence,
-    fitScore: analysis.fitScore,
-    rationale: analysis.rationale,
-    requirements: analysis.requirements,
-    skillMatches: analysis.skillMatches,
-    matchedVectors: analysis.matchedVectors,
-    primaryVectorId: analysis.primaryVectorId,
-    strengthsToLead: analysis.strengthsToLead,
-    advantages: analysis.advantages,
-    gaps: analysis.gaps,
-    gapFocus: analysis.gapFocus,
-    watchOuts: analysis.watchOuts,
-    triggeredPrioritize: analysis.triggeredPrioritize,
-    triggeredAvoid: analysis.triggeredAvoid,
-    relevantAwareness: analysis.relevantAwareness,
-    positioningRecommendations: analysis.positioningRecommendations,
-    evidenceMapping: analysis.evidenceMapping,
-    requirementCoverageScore: analysis.requirementCoverageScore,
-    matchedRequirementIds: analysis.matchedRequirementIds,
-    matchedKeywords: analysis.matchedKeywords,
-  }, null, 2)
+  return JSON.stringify(
+    {
+      id: analysis.id,
+      pipelineEntryId: analysis.pipelineEntryId,
+      generatedAt: analysis.generatedAt,
+      modelVersion: analysis.modelVersion,
+      jdTextHash: analysis.jdTextHash,
+      summary: analysis.summary,
+      oneLineSummary: analysis.oneLineSummary,
+      recommendation: analysis.recommendation,
+      confidence: analysis.confidence,
+      fitScore: analysis.fitScore,
+      rationale: analysis.rationale,
+      requirements: analysis.requirements,
+      skillMatches: analysis.skillMatches,
+      matchedVectors: analysis.matchedVectors,
+      primaryVectorId: analysis.primaryVectorId,
+      strengthsToLead: analysis.strengthsToLead,
+      advantages: analysis.advantages,
+      gaps: analysis.gaps,
+      gapFocus: analysis.gapFocus,
+      watchOuts: analysis.watchOuts,
+      triggeredPrioritize: analysis.triggeredPrioritize,
+      triggeredAvoid: analysis.triggeredAvoid,
+      relevantAwareness: analysis.relevantAwareness,
+      positioningRecommendations: analysis.positioningRecommendations,
+      evidenceMapping: analysis.evidenceMapping,
+      requirementCoverageScore: analysis.requirementCoverageScore,
+      matchedRequirementIds: analysis.matchedRequirementIds,
+      matchedKeywords: analysis.matchedKeywords,
+    },
+    null,
+    2,
+  )
 }
 
 /**
@@ -306,9 +270,7 @@ function readIdentityMetricCandidates(
   key: 'candidate_metrics' | 'fallback_candidate_metrics',
 ): PrepIdentityMetricCandidate[] | undefined {
   const candidate = value?.[key]
-  return Array.isArray(candidate)
-    ? (candidate as PrepIdentityMetricCandidate[])
-    : undefined
+  return Array.isArray(candidate) ? (candidate as PrepIdentityMetricCandidate[]) : undefined
 }
 
 function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
@@ -323,9 +285,7 @@ function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
   return storyBlocks.length > 0 ? storyBlocks : undefined
 }
 
-function normalizeQuestionsToAsk(
-  value: unknown,
-): PrepQuestionToAsk[] | undefined {
+function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefined {
   if (!Array.isArray(value)) return undefined
   const questions = value.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
@@ -340,9 +300,7 @@ function normalizeQuestionsToAsk(
 function normalizeContextGapPriority(value: unknown): PrepContextGapPriority {
   if (!isString(value)) return 'recommended'
   const normalized = value.trim().toLowerCase()
-  return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(
-    normalized as PrepContextGapPriority,
-  )
+  return PREP_CONTEXT_GAP_PRIORITY_VALUES.includes(normalized as PrepContextGapPriority)
     ? (normalized as PrepContextGapPriority)
     : 'recommended'
 }
@@ -356,9 +314,7 @@ function normalizeContextGaps(value: unknown): PrepContextGap[] | undefined {
     const section = isString(record.section) ? record.section.trim() : ''
     const question = isString(record.question) ? record.question.trim() : ''
     const why = isString(record.why) ? record.why.trim() : ''
-    const feedbackTarget = isString(record.feedbackTarget)
-      ? record.feedbackTarget.trim()
-      : ''
+    const feedbackTarget = isString(record.feedbackTarget) ? record.feedbackTarget.trim() : ''
     if (!section || !question || !why) return []
     return [
       {
@@ -374,14 +330,10 @@ function normalizeContextGaps(value: unknown): PrepContextGap[] | undefined {
   return gaps.length > 0 ? gaps : undefined
 }
 
-function normalizeConditionalTone(
-  value: unknown,
-): PrepConditionalTone | undefined {
+function normalizeConditionalTone(value: unknown): PrepConditionalTone | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
-  return PREP_CONDITIONAL_TONE_VALUES.includes(
-    normalized as PrepConditionalTone,
-  )
+  return PREP_CONDITIONAL_TONE_VALUES.includes(normalized as PrepConditionalTone)
     ? (normalized as PrepConditionalTone)
     : undefined
 }
@@ -399,22 +351,17 @@ function normalizeConditionals(value: unknown): PrepConditional[] | undefined {
   return conditionals.length > 0 ? conditionals : undefined
 }
 
-function normalizeCategoryGuidance(
-  value: unknown,
-): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return undefined
-  const entries = Object.entries(value as Record<string, unknown>).flatMap(
-    ([key, guidance]) => {
-      const normalizedKey = key.trim()
-      const normalizedGuidance = isString(guidance) ? guidance.trim() : ''
-      return normalizedKey &&
-        normalizedGuidance &&
-        (PREP_CATEGORY_VALUES as readonly string[]).includes(normalizedKey)
-        ? [[normalizedKey, normalizedGuidance] as const]
-        : []
-    },
-  )
+function normalizeCategoryGuidance(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, guidance]) => {
+    const normalizedKey = key.trim()
+    const normalizedGuidance = isString(guidance) ? guidance.trim() : ''
+    return normalizedKey &&
+      normalizedGuidance &&
+      (PREP_CATEGORY_VALUES as readonly string[]).includes(normalizedKey)
+      ? [[normalizedKey, normalizedGuidance] as const]
+      : []
+  })
 
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
@@ -424,9 +371,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
     if (!card || typeof card !== 'object') return []
     const record = card as Record<string, unknown>
     if (!isString(record.title) || !isString(record.category)) return []
-    if (
-      !(PREP_CATEGORY_VALUES as readonly string[]).includes(record.category)
-    ) {
+    if (!(PREP_CATEGORY_VALUES as readonly string[]).includes(record.category)) {
       return []
     }
     const category = record.category as PrepCategory
@@ -489,19 +434,14 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         tableData:
           record.tableData && typeof record.tableData === 'object'
             ? {
-                headers: Array.isArray(
-                  (record.tableData as { headers?: unknown[] }).headers,
-                )
-                  ? ((
-                      record.tableData as { headers: unknown[] }
-                    ).headers.filter(isString) as string[])
+                headers: Array.isArray((record.tableData as { headers?: unknown[] }).headers)
+                  ? ((record.tableData as { headers: unknown[] }).headers.filter(
+                      isString,
+                    ) as string[])
                   : [],
-                rows: Array.isArray(
-                  (record.tableData as { rows?: unknown[] }).rows,
-                )
-                  ? (record.tableData as { rows: unknown[] }).rows.flatMap(
-                      (row) =>
-                        Array.isArray(row) && row.every(isString) ? [row] : [],
+                rows: Array.isArray((record.tableData as { rows?: unknown[] }).rows)
+                  ? (record.tableData as { rows: unknown[] }).rows.flatMap((row) =>
+                      Array.isArray(row) && row.every(isString) ? [row] : [],
                     )
                   : [],
               }
@@ -577,11 +517,7 @@ const RARITY_FRAMING_PATTERN =
 const ROLE_INFERENCE_PATTERN =
   /(?:likely|probably|most likely|may be|seems|likely interviewer|hiring manager|sign-off|not the interviewer)/i
 
-const INBOUND_APP_METHODS = new Set([
-  'referral',
-  'recruiter-inbound',
-  'recruiter-outbound',
-])
+const INBOUND_APP_METHODS = new Set(['referral', 'recruiter-inbound', 'recruiter-outbound'])
 
 const COLD_APP_METHODS = new Set(['direct-apply', 'cold-email', 'linkedin'])
 
@@ -600,8 +536,7 @@ function countWords(text: string): number {
     .trim()
     .split(/\s+/)
     .map((entry) => entry.trim())
-    .filter(Boolean)
-    .length
+    .filter(Boolean).length
 }
 
 function getCardValidationText(card: PrepCard): string {
@@ -643,22 +578,44 @@ function isPrepIntelCard(card: PrepCard): boolean {
   return card.tags?.some((tag) => tag.trim().toLowerCase() === 'intel') ?? false
 }
 
-function addViolation(
-  violations: PrepContractViolation[],
-  violation: PrepContractViolation,
-): void {
+function addViolation(violations: PrepContractViolation[], violation: PrepContractViolation): void {
   violations.push(violation)
+}
+
+function logPrepContractViolations(
+  request: PrepGenerationRequest,
+  violations: PrepContractViolation[],
+): void {
+  if (violations.length === 0) return
+
+  const severities: Record<PrepContractViolation['severity'], number> = {
+    error: 0,
+    warning: 0,
+  }
+  const kinds: Record<string, number> = {}
+
+  for (const violation of violations) {
+    severities[violation.severity] += 1
+    kinds[violation.kind] = (kinds[violation.kind] ?? 0) + 1
+  }
+
+  // Dev diagnostic only: keep this payload aggregate so it is safe to forward
+  // later without leaking company, role, or interviewer identifiers.
+  console.warn('[prepGenerator] contract violations', {
+    feature: 'prep.generate',
+    hasPipelineContext: Boolean(request.pipelineEntryContext),
+    pipelineRoundId: request.pipelineEntryContext?.round?.id,
+    violationCount: violations.length,
+    severities,
+    kinds,
+    fields: Array.from(new Set(violations.map((violation) => violation.field))),
+  })
 }
 
 function validatePrepGenerationContract(params: {
   deck: Pick<
     PrepDeck,
-    | 'title'
-    | 'rules'
-    | 'cards'
-    | 'stackAlignment'
-    | 'categoryGuidance'
-    | 'contextGaps'
+    'title' | 'rules' | 'cards' | 'stackAlignment' | 'categoryGuidance' | 'contextGaps'
   >
   generatedCards: PrepCard[]
   hasParsedCards: boolean
@@ -725,7 +682,8 @@ function validatePrepGenerationContract(params: {
         kind: 'short-prose',
         cardId: card.id,
         field: 'notes',
-        message: 'Opener cards need at least 2 sentences in notes to explain why the opener is framed this way.',
+        message:
+          'Opener cards need at least 2 sentences in notes to explain why the opener is framed this way.',
         severity: 'error',
       })
     }
@@ -748,7 +706,8 @@ function validatePrepGenerationContract(params: {
         kind: 'missing-field',
         cardId: card.id,
         field: 'script',
-        message: 'Opener scripts need to be non-trivial and grounded enough to deliver as a real answer.',
+        message:
+          'Opener scripts need to be non-trivial and grounded enough to deliver as a real answer.',
         severity: 'error',
       })
     }
@@ -762,14 +721,13 @@ function validatePrepGenerationContract(params: {
         cardId: card.id,
         field: 'warning',
         message:
-          "Gap-framing cards need honest-framing language such as \"don't fake\", \"if asked\", or \"bounded\".",
+          'Gap-framing cards need honest-framing language such as "don\'t fake", "if asked", or "bounded".',
         severity: 'error',
       })
     }
 
     const hasRampStructure =
-      (card.storyBlocks?.length ?? 0) > 0 ||
-      (card.keyPoints?.length ?? 0) >= 3
+      (card.storyBlocks?.length ?? 0) > 0 || (card.keyPoints?.length ?? 0) >= 3
 
     if (!hasRampStructure) {
       addViolation(violations, {
@@ -820,15 +778,13 @@ function validatePrepGenerationContract(params: {
     addViolation(violations, {
       kind: 'missing-coaching',
       field: 'notes',
-      message:
-        'Expected at least 2 cards with market-rarity framing in notes or deep dives.',
+      message: 'Expected at least 2 cards with market-rarity framing in notes or deep dives.',
       severity: 'warning',
     })
   }
 
   const hasDepthGaps = (deck.stackAlignment ?? []).some(
-    (row) =>
-      row.confidence === 'Gap' || row.confidence === 'Adjacent experience',
+    (row) => row.confidence === 'Gap' || row.confidence === 'Adjacent experience',
   )
   if (hasDepthGaps) {
     const depthCoverageCount = generatedCards.filter(
@@ -854,10 +810,7 @@ function buildGapFramingFallbackCards(
   if (!stackAlignment) return []
 
   const rows = stackAlignment
-    .filter(
-      (row) =>
-        row.confidence === 'Gap' || row.confidence === 'Adjacent experience',
-    )
+    .filter((row) => row.confidence === 'Gap' || row.confidence === 'Adjacent experience')
     .sort((left, right) => {
       return (
         GAP_FRAMING_CONFIDENCE_ORDER[left.confidence] -
@@ -879,8 +832,7 @@ function buildGapFramingFallbackCards(
         ? `That is a focused ramp-up area, not a fundamental mismatch.`
         : `That is a depth gap I can close quickly because the underlying patterns already show up in my work.`
     const transferableProof = row.yourMatch.replace(/[.!?]+$/u, '')
-    const techTag =
-      slugify(row.theirTech) || slugify(row.yourMatch) || `gap-${index + 1}`
+    const techTag = slugify(row.theirTech) || slugify(row.yourMatch) || `gap-${index + 1}`
     const warning =
       row.confidence === 'Gap'
         ? `Do not imply direct ${row.theirTech} ownership. Lean on the transferable proof instead.`
@@ -894,9 +846,7 @@ function buildGapFramingFallbackCards(
       id: createId('prep-card'),
       category: 'technical',
       title: `What you know, what you don't: ${row.theirTech}`,
-      tags: Array.from(
-        new Set(['gap-framing', 'transferable-experience', techTag]),
-      ),
+      tags: Array.from(new Set(['gap-framing', 'transferable-experience', techTag])),
       notes: acknowledgement,
       scriptLabel: 'Bridge This Gap',
       script: `I want to be direct: ${acknowledgement} What transfers well is ${transferableProof}. ${boundedRamp}`,
@@ -922,9 +872,7 @@ function ensureGapFramingCards(
           category: 'technical' as const,
           tags: Array.from(
             new Set([
-              ...card.tags.filter(
-                (tag) => tag.trim().toLowerCase() !== 'gap-framing',
-              ),
+              ...card.tags.filter((tag) => tag.trim().toLowerCase() !== 'gap-framing'),
               'gap-framing',
             ]),
           ),
@@ -1030,9 +978,11 @@ function buildLandmineFallbackCards(
         category: 'technical',
         title: 'Landmine: overstate ' + techName,
         notes: confidenceLabel,
-        warning: 'Do not imply direct ' + techName + ' ownership if your closest evidence is adjacent.',
+        warning:
+          'Do not imply direct ' + techName + ' ownership if your closest evidence is adjacent.',
         script:
-          'If they dig into ' + techName +
+          'If they dig into ' +
+          techName +
           ', name exactly what you ran, exactly what you observed, and exactly where the boundary is. Then bridge to the closest transferable proof.',
         keyPoints: [
           'State the boundary clearly.',
@@ -1051,16 +1001,14 @@ function buildLandmineFallbackCards(
         category: 'metrics',
         title: 'Landmine: cite a number you cannot defend',
         notes: strongestMetric
-          ? 'Keep the source, denominator, and time window ready for ' + strongestMetric.suggestedLabel + '.'
+          ? 'Keep the source, denominator, and time window ready for ' +
+            strongestMetric.suggestedLabel +
+            '.'
           : 'A number only helps if you can explain where it came from and what moved.',
         warning: 'Do not volunteer a metric unless you can back it up on the next follow-up.',
         script:
           'If you use a number, be ready to explain the source, the denominator, and the specific change that made it move.',
-        keyPoints: [
-          'Know the source.',
-          'Know the denominator.',
-          'Know what changed.',
-        ],
+        keyPoints: ['Know the source.', 'Know the denominator.', 'Know what changed.'],
       }),
     )
   }
@@ -1101,11 +1049,7 @@ function buildLandmineFallbackCards(
         warning: 'Do not vent about the last company, manager, or team.',
         script:
           'Keep the transition short and neutral, explain what you want next, and pivot back to the work you want to do here.',
-        keyPoints: [
-          'Keep it brief.',
-          'Stay neutral.',
-          'End on what you want next.',
-        ],
+        keyPoints: ['Keep it brief.', 'Stay neutral.', 'End on what you want next.'],
       }),
     )
   }
@@ -1119,11 +1063,7 @@ function buildLandmineFallbackCards(
         warning: 'Do not let we-language erase your own contribution.',
         script:
           'Name the decision you made, the constraint you handled, and the outcome you influenced.',
-        keyPoints: [
-          'Name your decision.',
-          'State the constraint.',
-          'Make the outcome audible.',
-        ],
+        keyPoints: ['Name your decision.', 'State the constraint.', 'Make the outcome audible.'],
       }),
     )
   }
@@ -1135,7 +1075,8 @@ function buildLandmineFallbackCards(
         title: 'Landmine: pretend the org chart is settled',
         notes:
           'Useful interviewer intel should be grounded in the research you actually have, not guessed from titles.',
-        warning: 'Do not state a manager, interviewer, or sign-off path as fact unless the research supports it.',
+        warning:
+          'Do not state a manager, interviewer, or sign-off path as fact unless the research supports it.',
         script:
           'If you mention the team, speak in probabilities and cite the evidence you actually have.',
         keyPoints: [
@@ -1151,9 +1092,11 @@ function buildLandmineFallbackCards(
     buildLandmineCard({
       category: 'situational',
       title: 'Landmine: answer the question you wished they asked',
-      notes: 'The safer answer is usually the one that directly addresses the question in front of you.',
+      notes:
+        'The safer answer is usually the one that directly addresses the question in front of you.',
       warning: 'Do not drift into a different question just because it is easier to answer.',
-      script: 'Pause, answer the exact question, then add one short bridge back to the evidence you want to emphasize.',
+      script:
+        'Pause, answer the exact question, then add one short bridge back to the evidence you want to emphasize.',
       keyPoints: [
         'Answer the exact question.',
         'Add one short bridge.',
@@ -1165,24 +1108,19 @@ function buildLandmineFallbackCards(
       title: 'Landmine: over-explain the setup',
       notes: 'A long setup can make a sharp answer feel evasive.',
       warning: 'Do not spend the first minute on backstory before the point lands.',
-      script: 'Lead with the point first, then give just enough context to make the answer believable.',
-      keyPoints: [
-        'Lead with the point.',
-        'Keep the context short.',
-        'Land the answer fast.',
-      ],
+      script:
+        'Lead with the point first, then give just enough context to make the answer believable.',
+      keyPoints: ['Lead with the point.', 'Keep the context short.', 'Land the answer fast.'],
     }),
     buildLandmineCard({
       category: 'situational',
       title: 'Landmine: sound vague when they want a concrete example',
       notes: 'Vagueness usually reads like missing ownership or missing memory.',
-      warning: 'Do not answer with abstract principles when the interviewer is asking for a real example.',
-      script: 'Name one real example, one decision, and one result before you zoom out to the pattern.',
-      keyPoints: [
-        'Use one real example.',
-        'Name one decision.',
-        'End with one result.',
-      ],
+      warning:
+        'Do not answer with abstract principles when the interviewer is asking for a real example.',
+      script:
+        'Name one real example, one decision, and one result before you zoom out to the pattern.',
+      keyPoints: ['Use one real example.', 'Name one decision.', 'End with one result.'],
     }),
   ]
 
@@ -1217,15 +1155,10 @@ function ensureLandmineCards(
       .map((card) => card.id),
   )
 
-  return mergedCards.filter(
-    (card) => !isTaggedCard(card, LANDMINE_TAG) || landmineIds.has(card.id),
-  )
+  return mergedCards.filter((card) => !isTaggedCard(card, LANDMINE_TAG) || landmineIds.has(card.id))
 }
 
-function readLatestRoundState(
-  card: PrepCard,
-  roundNumber: number | undefined,
-) {
+function readLatestRoundState(card: PrepCard, roundNumber: number | undefined) {
   const states = [...(card.perRoundState ?? [])]
     .filter((state) => !roundNumber || state.round < roundNumber)
     .sort((left, right) => right.round - left.round)
@@ -1252,9 +1185,7 @@ function detectRoundContradictions(
 
   const contradictions = debriefs.flatMap((debrief) => {
     const intel = debrief.intel ?? {}
-    const questionsAsked = Array.isArray(debrief.questionsAsked)
-      ? debrief.questionsAsked
-      : []
+    const questionsAsked = Array.isArray(debrief.questionsAsked) ? debrief.questionsAsked : []
     const surprises = Array.isArray(debrief.surprises) ? debrief.surprises : []
     const newIntel = Array.isArray(debrief.newIntel) ? debrief.newIntel : []
     const openerSignals = [
@@ -1265,21 +1196,13 @@ function detectRoundContradictions(
     ]
       .join(' ')
       .toLowerCase()
-    const interruptionSignals = [
-      ...questionsAsked,
-      ...surprises,
-      ...newIntel,
-    ]
+    const interruptionSignals = [...questionsAsked, ...surprises, ...newIntel]
       .join(' ')
       .toLowerCase()
 
     if (
-      /(opener worked|opener went well|opener successful|opener landed)/.test(
-        openerSignals,
-      ) &&
-      /(cut (me )?off|cut you off|interrupted|stopped me short)/.test(
-        interruptionSignals,
-      )
+      /(opener worked|opener went well|opener successful|opener landed)/.test(openerSignals) &&
+      /(cut (me )?off|cut you off|interrupted|stopped me short)/.test(interruptionSignals)
     ) {
       return [
         `Round ${debrief.round}: debrief says the opener worked, but the follow-up notes mention the interviewer cutting the answer off.`,
@@ -1304,8 +1227,7 @@ function ensureRoundAwareRemediationCards(
       const latestState = readLatestRoundState(card, request.roundNumber)
       if (
         !latestState ||
-        (latestState.status !== 'fumbled' &&
-          latestState.status !== PRACTICE_THIS_TAG)
+        (latestState.status !== 'fumbled' && latestState.status !== PRACTICE_THIS_TAG)
       ) {
         return []
       }
@@ -1326,16 +1248,12 @@ function ensureRoundAwareRemediationCards(
     return {
       ...card,
       tags: Array.from(new Set([...(card.tags ?? []), PRACTICE_THIS_TAG])),
-      notes: [remediationLead, match.latestState.notes, card.notes]
-        .filter(Boolean)
-        .join(' '),
+      notes: [remediationLead, match.latestState.notes, card.notes].filter(Boolean).join(' '),
     }
   })
 
   const existingTitles = new Set(
-    normalizedCards
-      .map((card) => card.title?.trim().toLowerCase() ?? '')
-      .filter(Boolean),
+    normalizedCards.map((card) => card.title?.trim().toLowerCase() ?? '').filter(Boolean),
   )
   const fallbackCards: PrepCard[] = []
 
@@ -1344,8 +1262,7 @@ function ensureRoundAwareRemediationCards(
     if (existingTitles.has(title)) continue
     if (
       fallbackCards.some(
-        (card) =>
-          card.title.trim().toLowerCase() === remediationTitle.toLowerCase(),
+        (card) => card.title.trim().toLowerCase() === remediationTitle.toLowerCase(),
       )
     ) {
       continue
@@ -1361,9 +1278,7 @@ function ensureRoundAwareRemediationCards(
       id: createId('prep-card'),
       category: match.card.category,
       title: remediationTitle,
-      tags: Array.from(
-        new Set([...(match.card.tags ?? []), PRACTICE_THIS_TAG]),
-      ),
+      tags: Array.from(new Set([...(match.card.tags ?? []), PRACTICE_THIS_TAG])),
       timeBudgetMinutes: match.card.timeBudgetMinutes,
       notes:
         match.latestState.status === 'fumbled'
@@ -1401,12 +1316,8 @@ export async function generateInterviewPrep(
     request.identityContext,
   )
   const structuredPipelineEntryContext = request.pipelineEntryContext
-  const priorRoundCardContext = buildPriorRoundCardPromptContext(
-    request.priorRoundCards,
-  )
-  const roundContradictions = detectRoundContradictions(
-    request.priorRoundDebriefs,
-  )
+  const priorRoundCardContext = buildPriorRoundCardPromptContext(request.priorRoundCards)
+  const roundContradictions = detectRoundContradictions(request.priorRoundDebriefs)
 
   const systemPrompt = `You are an expert interview coach and career strategist. Return JSON only.
 Generate a strong interview prep pack from a candidate's resume context, a job description, structured pipeline entry research, company research notes, and (when provided) a target vector to orient the framing.
@@ -1637,11 +1548,7 @@ Return JSON only (inside the tags).`
       extraction,
       'Interview prep response',
     ).data
-    if (
-      !parsedResult ||
-      typeof parsedResult !== 'object' ||
-      Array.isArray(parsedResult)
-    ) {
+    if (!parsedResult || typeof parsedResult !== 'object' || Array.isArray(parsedResult)) {
       throw new Error('Interview prep response must be a JSON object.')
     }
     parsed = parsedResult
@@ -1677,12 +1584,10 @@ Return JSON only (inside the tags).`
     hasParsedCards: Array.isArray(parsed.cards),
     request,
   })
+  logPrepContractViolations(request, contractViolations)
   const cards = ensureRoundAwareRemediationCards(
     ensureLandmineCards(
-      ensureGapFramingCards(
-        generatedCards,
-        stackAlignment,
-      ),
+      ensureGapFramingCards(generatedCards, stackAlignment),
       request,
       stackAlignment,
       candidateMetrics,
@@ -1699,8 +1604,7 @@ Return JSON only (inside the tags).`
   // specific round with at least one user-supplied name. If the round has no
   // interviewers (or no round was targeted), the AI may still have emitted
   // speculative records — drop them at this boundary rather than trust them.
-  const roundHasInterviewers =
-    readRoundInterviewers(request.pipelineEntryContext).length > 0
+  const roundHasInterviewers = readRoundInterviewers(request.pipelineEntryContext).length > 0
   const deck: PrepDeck = {
     id: createId('prep-deck'),
     title: parsed.deckTitle.trim(),
@@ -1715,9 +1619,7 @@ Return JSON only (inside the tags).`
     roundType: request.roundType,
     notes: request.notes,
     companyResearch: request.companyResearch,
-    interviewers: roundHasInterviewers
-      ? normalizeInterviewers(parsed.interviewers)
-      : undefined,
+    interviewers: roundHasInterviewers ? normalizeInterviewers(parsed.interviewers) : undefined,
     jobDescription: request.jobDescription,
     jdAnalysisId: request.jdAnalysis.id,
     jdAnalysisGeneratedAt: request.jdAnalysis.generatedAt,
@@ -1749,9 +1651,7 @@ Return JSON only (inside the tags).`
     numbersToKnow: deck.numbersToKnow,
     stackAlignment: deck.stackAlignment,
     contextGaps: deck.contextGaps,
-    categoryGuidance: deck.categoryGuidance as
-      | Partial<Record<PrepCategory, string>>
-      | undefined,
+    categoryGuidance: deck.categoryGuidance as Partial<Record<PrepCategory, string>> | undefined,
     cards: deck.cards,
     deck,
     contractViolations,

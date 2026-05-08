@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { PrepPage } from '../routes/prep/PrepPage'
 import { useIdentityStore } from '../store/identityStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -13,7 +14,10 @@ import { defaultResumeData } from '../store/defaultData'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { parsePrepImport } from '../utils/prepImport'
 import { generateInterviewPrep } from '../utils/prepGenerator'
+import { hashJobDescriptionText } from '../utils/jdAnalysis'
+import { untaggedNote } from '../types/audience'
 import type { IdentityExtractionDraft } from '../types/identity'
+import type { JDAnalysis } from '../types/jdAnalysis'
 import type { PipelineEntry } from '../types/pipeline'
 import type { PrepDeck } from '../types/prep'
 
@@ -42,6 +46,7 @@ const createPipelineEntry = (): PipelineEntry => ({
   url: 'https://acme.example/jobs/1',
   contact: '',
   vectorId: 'backend',
+  jdAnalysisId: 'jd-analysis-1',
   jobDescription: 'Build distributed systems and platform tooling.',
   presetId: null,
   resumeVariant: '',
@@ -65,6 +70,57 @@ const createPipelineEntry = (): PipelineEntry => ({
   history: [],
 })
 
+function createTestJdAnalysis(): JDAnalysis {
+  const jobDescription = 'Build distributed systems and platform tooling.'
+  return {
+    id: 'jd-analysis-1',
+    pipelineEntryId: 'pipe-1',
+    jdTextHash: hashJobDescriptionText(jobDescription),
+    identityVersion: 0,
+    modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+    audienceRulesVersion: 'audience-rules.v1',
+    generatedAt: '2026-04-20T12:00:00.000Z',
+    updatedAt: '2026-04-20T12:00:00.000Z',
+    warnings: [],
+    company: 'Acme Corp',
+    role: 'Staff Engineer',
+    summary: 'Distributed systems and platform tooling.',
+    analyzedJobDescription: jobDescription,
+    jobDescriptionWordCount: 6,
+    jobDescriptionTruncated: false,
+    requirements: [],
+    overallFit: 'strong',
+    fitScore: 0.82,
+    confidence: 'high',
+    recommendation: 'apply',
+    oneLineSummary: 'Strong platform fit.',
+    rationale: 'The role maps to backend platform evidence.',
+    matchedVectors: [],
+    primaryVectorId: 'backend',
+    skillMatches: [],
+    evidenceMapping: {
+      topBullets: [],
+      topSkills: [],
+      topProjects: [],
+      topProfiles: [],
+      topPhilosophy: [],
+    },
+    strengthsToLead: [untaggedNote('Distributed systems')],
+    advantages: [],
+    advantageHypotheses: [],
+    gaps: [],
+    gapFocus: [],
+    watchOuts: [],
+    triggeredPrioritize: [],
+    triggeredAvoid: [],
+    relevantAwareness: [],
+    positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
+    requirementCoverageScore: 0.8,
+    matchedRequirementIds: [],
+    matchedKeywords: ['distributed systems', 'platform tooling'],
+  }
+}
+
 const createIdentityDraft = (identity = cloneIdentityFixture()): IdentityExtractionDraft => ({
   generatedAt: '2026-04-22T00:00:00.000Z',
   summary: 'Existing identity draft',
@@ -80,6 +136,7 @@ beforeEach(() => {
   resolveStorage().removeItem('vector-resume-data')
   navigateMock.mockClear()
   usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'edit' })
+  useJDAnalysisStore.setState({ analyses: [createTestJdAnalysis()] })
   useMatchStore.setState({ jobDescription: '', currentReport: null, warnings: [], history: [] })
   useResumeStore.setState({
     data: JSON.parse(JSON.stringify(defaultResumeData)),
@@ -875,7 +932,7 @@ describe('PrepPage behavior follow-ups', () => {
   })
 
   it('shows generation validation error banners when the pipeline source is incomplete', async () => {
-    usePipelineStore.setState({ entries: [] })
+    useJDAnalysisStore.setState({ analyses: [] })
 
     render(<PrepPage />)
 
@@ -883,7 +940,7 @@ describe('PrepPage behavior follow-ups', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate with AI' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Choose a pipeline entry before generating prep.')).toBeTruthy()
+      expect(screen.getByText('Analyze this pipeline JD before generating prep.')).toBeTruthy()
     })
   })
 
