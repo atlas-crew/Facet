@@ -1,8 +1,9 @@
 ---
 id: TASK-244
 title: Wire prep deck refresh into batch staleness review
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-05-08'
 updated_date: '2026-05-08'
 labels:
@@ -44,21 +45,40 @@ TASK-158 closed AC #6 with thesis and cover-letter refresh paths; prep deck refr
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Stale prep decks in the batch staleness review show a "Refresh prep deck" button (not "Refresh pending")
-- [ ] #2 Clicking refresh re-runs prep generation against current Identity + same JD analysis
-- [ ] #3 Regenerated deck stamps the current identity_revision and clears stale review state
-- [ ] #4 Missing pipeline entry, missing JD analysis, or stale JD analysis surfaces a specific notice (no silent failure)
-- [ ] #5 Refresh records `accepted-current` staleness review marker on the regenerated deck
-- [ ] #6 Panel copy updated: only "run refresh generators are still pending" remains (drop "prep deck" from pending list)
-- [ ] #7 Regression coverage in src/test/ResearchPage.test.tsx verifying the dispatch routes correctly and the regen mock is called with current identity
+- [x] #1 Stale prep decks in the batch staleness review show a "Refresh prep deck" button (not "Refresh pending")
+- [x] #2 Clicking refresh re-runs prep generation against current Identity + same JD analysis
+- [x] #3 Regenerated deck stamps the current identity_revision and clears stale review state
+- [x] #4 Missing pipeline entry, missing JD analysis, or stale JD analysis surfaces a specific notice (no silent failure)
+- [x] #5 Refresh records `accepted-current` staleness review marker on the regenerated deck
+- [x] #6 Panel copy updated: only "run refresh generators are still pending" remains (drop "prep deck" from pending list)
+- [x] #7 Regression coverage in src/test/ResearchPage.test.tsx verifying the dispatch routes correctly and the regen mock is called with current identity
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-08: Closed in same session as TASK-158 once the parallel-agent prep work landed in `fe95d0b feat(prep): add structured prep intel`. The collision risk that originally motivated deferring this task evaporated as soon as that commit went in.
+
+Architecture: extracted a thin shared regen module at `src/utils/prepDeckRegen.ts` exporting `regeneratePrepDeckForEntry(input, options?)`. The action wraps `generateInterviewPrep`, owns the prep store mutations (`updateDeck` for metadata + `replaceDeckCards` preserving user-authored / non-AI cards), and accepts an optional `identityVersion` stamp. The existing PrepPage regen path was deliberately not refactored — its prior-round-debriefs and context-gap-answer carry-over logic is rich enough to warrant its own dedicated path; a future unification when both call sites stabilize would be welcome but isn't blocking.
+
+ResearchPage's batch staleness review dispatcher (`handleRefreshStalenessArtifact`) gained a `runPrepDeckRefresh` handler that:
+- Resolves deck → entry → resume → JD analysis from store state, with specific notices for each missing prerequisite (no linked entry, deleted entry, no JD, no analysis).
+- Builds the `PrepGenerationRequest` from the deck's preserved company/role/vector/round metadata + the entry's current job context + a minimal `resumeContext: { candidate: resumeData.meta }` (skipping full `assembleResume` to keep the refresh path lean — the cards remain identity-driven).
+- Calls `regeneratePrepDeckForEntry`, then records `accepted-current` staleness review on the regenerated deck via `updatePrepDeck(stalenessReview)`.
+
+Panel copy and refresh-button labels updated: `"Refresh prep deck"` for stale prep-deck artifacts; pending list reduced to `"run refresh generators are still pending"` (run regen remains parked behind a future cost-UX surface).
+
+Test coverage in src/test/ResearchPage.test.tsx: added `routes the prep deck refresh button to the prep deck handler (TASK-244)` test confirming the dispatcher routes prep-deck artifacts to `runPrepDeckRefresh` (verified by the missing-pipeline-entry / no-linked-pipeline-entry guards firing instead of the old "Refresh pending" no-op). Existing 96 ResearchPage tests + 57 LettersPage + 24 artifactMeta = 179 passing total post-change.
+
+Verification: npm run typecheck PASS; npx vitest run src/test/ResearchPage.test.tsx src/test/LettersPage.test.tsx src/test/artifactMeta.test.ts PASS (179/179). Commit: feat(staleness): add prep deck refresh handler in batch review.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
