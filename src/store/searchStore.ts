@@ -248,7 +248,28 @@ const hydrateMaxResults = (value: unknown): SearchRequest['maxResults'] => {
   }
 }
 
+const hydrateResumeVariants = (value: unknown): SearchRequest['resumeVariants'] => {
+  if (!Array.isArray(value)) return undefined
+  const variants = value.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const record = item as Record<string, unknown>
+    const id = hydrateString(record.id).trim()
+    const label = hydrateString(record.label).trim()
+    if (!id || !label) return []
+    const description = hydrateString(record.description).trim()
+    return [
+      {
+        id,
+        label,
+        ...(description ? { description } : {}),
+      },
+    ]
+  })
+  return variants.length > 0 ? variants : undefined
+}
+
 const hydrateRequest = (request: LegacySearchRequestInput): SearchRequest => {
+  const resumeVariants = hydrateResumeVariants(request.resumeVariants)
   // Explicit enumeration drops unknown persisted request fields, including Phase-D retired keys.
   return {
     focusLanes: hydrateStringArray(request.focusLanes),
@@ -258,6 +279,7 @@ const hydrateRequest = (request: LegacySearchRequestInput): SearchRequest => {
     customKeywords: hydrateString(request.customKeywords),
     excludeCompanies: hydrateStringArray(request.excludeCompanies),
     maxResults: hydrateMaxResults(request.maxResults),
+    ...(resumeVariants ? { resumeVariants } : {}),
     id: request.id ?? createId('sreq'),
     createdAt: request.createdAt ?? now(),
     durableMeta: ensureDurableMetadata(request.durableMeta, request.createdAt ?? now()),

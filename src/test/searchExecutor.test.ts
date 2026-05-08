@@ -215,10 +215,30 @@ describe('searchExecutor', () => {
             },
             signalGroup: 'every signal aligns',
             advantageMatch: 'Platform + Security + Fleet Management',
+            recommendedVariant: 'platform',
+            bulletEdits: [
+              {
+                emphasis: 'lead',
+                text: 'I led a 4-platform consolidation that cut release toil 32% for product teams.',
+                rationale: 'The posting stresses platform consolidation and release ownership.',
+              },
+              {
+                emphasis: 'supporting',
+                text: 'I hardened developer workflows across 18 services while improving deployment confidence.',
+              },
+            ],
+            keywordsToInclude: ['platform consolidation', 'release ownership', 'developer workflows'],
           },
         ],
       },
-      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+      {
+        ...baseRequest,
+        maxResults: { tier1: 5, tier2: 5, tier3: 5 },
+        resumeVariants: [
+          { id: 'platform', label: 'Platform' },
+          { id: 'security-platform', label: 'Security Platform' },
+        ],
+      },
     )
 
     expect(results).toHaveLength(1)
@@ -235,10 +255,115 @@ describe('searchExecutor', () => {
     expect(results[0]?.companyIntel?.openRoleCount).toBe(27)
     expect(results[0]?.signalGroup).toBe('every signal aligns')
     expect(results[0]?.advantageMatch).toBe('Platform + Security + Fleet Management')
+    expect(results[0]?.recommendedVariant).toBe('platform')
+    expect(results[0]?.bulletEdits).toEqual([
+      {
+        emphasis: 'lead',
+        text: 'I led a 4-platform consolidation that cut release toil 32% for product teams.',
+        rationale: 'The posting stresses platform consolidation and release ownership.',
+      },
+      {
+        emphasis: 'supporting',
+        text: 'I hardened developer workflows across 18 services while improving deployment confidence.',
+      },
+    ])
+    expect(results[0]?.keywordsToInclude).toEqual([
+      'platform consolidation',
+      'release ownership',
+      'developer workflows',
+    ])
     expect(results[0]?.jobDescription).toBe(
       'Own product analytics infrastructure and improve developer platform reliability.',
     )
     expect(results[0]?.jobDescriptionSourceUrl).toBe('https://posthog.com/careers/platform')
+  })
+
+  it('drops absent or malformed resume directive fields without crashing', () => {
+    const results = normalizeResultEntries(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'NoDirectives',
+            title: 'Staff Engineer',
+            url: 'https://example.com/no-directives',
+            matchScore: 88,
+            matchReason: 'Strong fit',
+            vectorAlignment: 'backend',
+            risks: [],
+            source: 'web',
+          },
+          {
+            tier: 1,
+            company: 'MalformedDirectives',
+            title: 'Platform Lead',
+            url: 'https://example.com/malformed',
+            matchScore: 87,
+            matchReason: 'Strong fit',
+            vectorAlignment: 'platform',
+            risks: [],
+            source: 'web',
+            recommendedVariant: 'unknown',
+            bulletEdits: [
+              { emphasis: 'lead', text: '' },
+              { emphasis: 'primary', text: 'Invalid emphasis.' },
+              'not an edit',
+            ],
+            keywordsToInclude: { keyword: 'platform' },
+          },
+        ],
+      },
+      {
+        ...baseRequest,
+        maxResults: { tier1: 5, tier2: 5, tier3: 5 },
+        resumeVariants: [{ id: 'platform', label: 'Platform' }],
+      },
+    )
+
+    expect(results).toHaveLength(2)
+    expect(results[0]?.recommendedVariant).toBeUndefined()
+    expect(results[0]?.bulletEdits).toBeUndefined()
+    expect(results[0]?.keywordsToInclude).toBeUndefined()
+    expect(results[1]?.recommendedVariant).toBeUndefined()
+    expect(results[1]?.bulletEdits).toBeUndefined()
+    expect(results[1]?.keywordsToInclude).toBeUndefined()
+  })
+
+  it('keeps partial resume directive output when individual fields are valid', () => {
+    const results = normalizeResultEntries(
+      {
+        results: [
+          {
+            tier: 1,
+            company: 'PartialDirectives',
+            title: 'Staff Platform Engineer',
+            url: 'https://example.com/partial',
+            matchScore: 91,
+            matchReason: 'Strong fit',
+            vectorAlignment: 'platform',
+            risks: [],
+            source: 'web',
+            bulletEdits: [
+              {
+                emphasis: 'supporting',
+                text: 'I improved platform observability and reduced incident triage time 28%.',
+              },
+            ],
+            keywordsToInclude: ['observability ownership', 42, 'incident triage'],
+          },
+        ],
+      },
+      { ...baseRequest, maxResults: { tier1: 5, tier2: 5, tier3: 5 } },
+    )
+
+    expect(results[0]?.recommendedVariant).toBeUndefined()
+    expect(results[0]?.bulletEdits).toEqual([
+      {
+        emphasis: 'supporting',
+        text: 'I improved platform observability and reduced incident triage time 28%.',
+      },
+    ])
+    expect(results[0]?.keywordsToInclude).toEqual(['observability ownership', 'incident triage'])
   })
 
   it('normalizes resolved citation markers and citation metadata', () => {
@@ -760,6 +885,12 @@ describe('searchExecutor', () => {
     expect(prompt).toContain(
       '"jobDescriptionSourceUrl": "optional same-origin source URL required when jobDescription is present"',
     )
+    expect(prompt).toContain(
+      'If Search request.resumeVariants is non-empty, assign each top result a recommendedVariant',
+    )
+    expect(prompt).toContain('"recommendedVariant": "optional id from Search request.resumeVariants')
+    expect(prompt).toContain('"bulletEdits"')
+    expect(prompt).toContain('"keywordsToInclude"')
     expect(prompt).not.toContain('"name": "On-call"')
     expect(prompt).not.toContain('"vectorId": "backend"')
 

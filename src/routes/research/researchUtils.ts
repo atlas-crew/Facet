@@ -163,6 +163,26 @@ export function buildInterviewProcessSignals(
   return signals
 }
 
+function formatResumeDirectiveNotes(entry: SearchResultEntry): string[] {
+  const notes: string[] = []
+  if (entry.bulletEdits && entry.bulletEdits.length > 0) {
+    notes.push(
+      [
+        'Top-of-resume edits:',
+        ...entry.bulletEdits.map((edit, index) => {
+          const label = edit.emphasis === 'lead' ? 'Lead bullet' : 'Supporting bullet ' + (index + 1)
+          const rationale = edit.rationale?.trim() ? '\n  Rationale: ' + edit.rationale.trim() : ''
+          return '- [ ] ' + label + ': ' + edit.text.trim() + rationale
+        }),
+      ].join('\n'),
+    )
+  }
+  if (entry.keywordsToInclude && entry.keywordsToInclude.length > 0) {
+    notes.push('Keywords to include: ' + entry.keywordsToInclude.join(', '))
+  }
+  return notes
+}
+
 export function createPipelineEntryDraft(
   entry: SearchResultEntry,
   vectorId: string,
@@ -198,6 +218,7 @@ export function createPipelineEntryDraft(
       notesParts.push(intelLines.join('\n'))
     }
   }
+  notesParts.push(...formatResumeDirectiveNotes(entry))
   if (entry.risks.length > 0) {
     notesParts.push('Risks:\n' + entry.risks.map((risk) => '- ' + risk).join('\n'))
   }
@@ -221,7 +242,7 @@ export function createPipelineEntryDraft(
     jobDescriptionSourceUrl,
     jdAnalysisId: null,
     presetId: null,
-    resumeVariant: '',
+    resumeVariant: entry.recommendedVariant?.trim() ?? '',
     resumeGeneration: null,
     positioning,
     skillMatch,

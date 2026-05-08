@@ -237,6 +237,9 @@ describe('deepSearchClient', () => {
     expect(body.thesisSnapshot).toMatchObject({ id: thesisSnapshot.id })
     expect(body.identityEvidence.archetype).toBe(identity.identity.thesis)
     expect(body.promptContract).toContain('candidateEdge as 2-4 sentences')
+    expect(body.promptContract).toContain('params.resumeVariants is non-empty')
+    expect(body.promptContract).toContain('exactly 3 bulletEdits')
+    expect(body.promptContract).toContain('keywordsToInclude must contain 8-12')
     expect(body.promptContract).toContain(
       'jobDescription only when raw job posting text is directly available',
     )

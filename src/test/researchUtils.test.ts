@@ -475,6 +475,41 @@ describe('researchUtils', () => {
     ).toBe('Risks: Comp unclear')
   })
 
+  it('maps resume directives into pipeline drafts', () => {
+    const draft = createPipelineEntryDraft(
+      {
+        ...searchResult,
+        recommendedVariant: 'security-platform',
+        bulletEdits: [
+          {
+            emphasis: 'lead',
+            text: 'I led WAF platform delivery that cut false positives 31% across edge traffic.',
+            rationale: 'The posting asks for WAF ownership and platform delivery.',
+          },
+          {
+            emphasis: 'supporting',
+            text: 'I partnered with security teams to ship incident playbooks across 12 services.',
+          },
+        ],
+        keywordsToInclude: ['WAF platform', 'edge traffic', 'incident playbooks'],
+      },
+      'backend',
+    )
+
+    expect(draft?.resumeVariant).toBe('security-platform')
+    expect(draft?.notes).toContain('Top-of-resume edits:')
+    expect(draft?.notes).toContain(
+      '- [ ] Lead bullet: I led WAF platform delivery that cut false positives 31% across edge traffic.',
+    )
+    expect(draft?.notes).toContain(
+      'Rationale: The posting asks for WAF ownership and platform delivery.',
+    )
+    expect(draft?.notes).toContain(
+      '- [ ] Supporting bullet 2: I partnered with security teams to ship incident playbooks across 12 services.',
+    )
+    expect(draft?.notes).toContain('Keywords to include: WAF platform, edge traffic, incident playbooks')
+  })
+
   it('maps search results into pipeline drafts without mutating the source result', () => {
     const enriched: SearchResultEntry = {
       ...searchResult,

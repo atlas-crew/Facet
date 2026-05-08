@@ -9,6 +9,7 @@ import type {
   SearchProfile,
   SearchRejectedCandidate,
   SearchRequest,
+  SearchResultBulletEdit,
   SearchResultCompanyIntel,
   SearchResultEntry,
   SearchResultInterviewProcess,
@@ -254,6 +255,45 @@ function normalizeCompanyIntel(value: unknown): SearchResultCompanyIntel | undef
         ? Math.max(0, Math.round(record.openRoleCount))
         : undefined,
   }
+}
+
+function normalizeRecommendedVariant(
+  value: unknown,
+  request: SearchRequest,
+): string | undefined {
+  if (!isString(value)) return undefined
+  const variant = value.trim()
+  if (!variant) return undefined
+  const allowedVariantIds = new Set((request.resumeVariants ?? []).map((item) => item.id.trim()))
+  return allowedVariantIds.has(variant) ? variant : undefined
+}
+
+function normalizeBulletEdits(value: unknown): SearchResultBulletEdit[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const edits = value.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const record = item as Record<string, unknown>
+    const emphasis: SearchResultBulletEdit['emphasis'] | null =
+      record.emphasis === 'lead' || record.emphasis === 'supporting'
+        ? record.emphasis
+        : null
+    const text = isString(record.text) ? record.text.trim() : ''
+    if (!emphasis || !text) return []
+    const rationale = isString(record.rationale) ? record.rationale.trim() : ''
+    return [
+      {
+        emphasis,
+        text,
+        ...(rationale ? { rationale } : {}),
+      },
+    ]
+  })
+  return edits.length > 0 ? edits : undefined
+}
+
+function normalizeKeywordsToInclude(value: unknown): string[] | undefined {
+  const keywords = collectStringArray(value)
+  return keywords.length > 0 ? keywords : undefined
 }
 
 const cleanResultCitedText = (value: unknown, citations: readonly Citation[]): CleanedCitedText => {
@@ -755,6 +795,9 @@ export function normalizeResultsWithContractViolations(
               : undefined,
             jobDescription,
             jobDescriptionSourceUrl: jobDescription ? jobDescriptionSourceUrl : undefined,
+            recommendedVariant: normalizeRecommendedVariant(item.recommendedVariant, request),
+            bulletEdits: normalizeBulletEdits(item.bulletEdits),
+            keywordsToInclude: normalizeKeywordsToInclude(item.keywordsToInclude),
           },
           violations: resultViolations,
         },
@@ -837,6 +880,10 @@ Search targets:
 - Tier 3 should be interesting stretch or adjacent roles.
 - Attribute every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding with [cite:<id>] markers.
 - Each [cite:<id>] marker must resolve to an entry in the result's citations array. Do not make factual claims you cannot cite.
+- If Search request.resumeVariants is non-empty, assign each top result a recommendedVariant matching one provided variant id.
+- If Search request.resumeVariants is non-empty, include exactly 3 bulletEdits per top result: #1 with emphasis "lead", #2 and #3 with emphasis "supporting".
+- Each bulletEdits[].text must be a complete paste-ready resume bullet, written in first-person past-tense, with metrics, and under 30 words.
+- keywordsToInclude must contain 8-12 posting-specific phrases, mirroring the posting's language rather than generic skills.
 
 Wrap your final JSON output with <result> and </result> tags on their own lines.
 Any reasoning, narrative, or prose may appear outside these tags — parsers look
@@ -863,6 +910,9 @@ Return JSON only (inside the tags) with this schema:
       "candidateEdge": "optional 2-4 sentence narrative using candidate fact + company fact + interpretation with [cite:<id>] markers for factual company claims",
       "jobDescription": "optional raw job posting text; include only when directly available from a source, never inferred",
       "jobDescriptionSourceUrl": "optional same-origin source URL required when jobDescription is present",
+      "recommendedVariant": "optional id from Search request.resumeVariants when variants are provided",
+      "bulletEdits": [{ "emphasis": "lead|supporting", "text": "complete first-person past-tense bullet with metrics, under 30 words", "rationale": "optional posting-language rationale" }],
+      "keywordsToInclude": ["8-12 posting-specific phrases to mirror in the resume"],
       "citations": [{ "id": "source slug matching [cite:<id>]", "source": "string", "url": "optional string", "type": "careers|public|review|index|github|news|other", "claim": "optional supported claim" }],
       "source": "string"
     }

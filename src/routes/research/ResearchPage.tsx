@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
   BriefcaseBusiness,
+  Copy,
   RefreshCcw,
   Search,
   Sparkles,
@@ -4162,6 +4163,17 @@ export function ResearchPage() {
                             [result.matchReason, result.vectorAlignment, result.candidateEdge],
                             resultCitations,
                           )
+                          const recommendedVariantLabel = result.recommendedVariant
+                            ? (activeRequest?.resumeVariants?.find(
+                                (variant) => variant.id === result.recommendedVariant,
+                              )?.label ?? result.recommendedVariant)
+                            : ''
+                          const bulletEdits = result.bulletEdits ?? []
+                          const keywordsToInclude = result.keywordsToInclude ?? []
+                          const hasDirectivePanel =
+                            Boolean(recommendedVariantLabel) ||
+                            bulletEdits.length > 0 ||
+                            keywordsToInclude.length > 0
 
                           return (
                             <article key={result.id} className="research-result-card">
@@ -4253,6 +4265,66 @@ export function ResearchPage() {
                                       : ''}
                                   </p>
                                 </div>
+                              ) : null}
+
+                              {hasDirectivePanel ? (
+                                <details className="research-result-directives">
+                                  <summary>
+                                    Resume directives
+                                    {recommendedVariantLabel ? (
+                                      <span className="research-pill research-directive-variant">
+                                        {recommendedVariantLabel}
+                                      </span>
+                                    ) : null}
+                                  </summary>
+                                  <div className="research-result-directive-body">
+                                    {bulletEdits.length > 0 ? (
+                                      <div className="research-result-block">
+                                        <strong>Top-of-resume edits</strong>
+                                        <ul className="research-directive-list">
+                                          {bulletEdits.map((edit, index) => (
+                                            <li key={result.id + '-bullet-edit-' + index}>
+                                              <div>
+                                                <span className="research-directive-emphasis">
+                                                  {edit.emphasis === 'lead' ? 'Lead' : 'Supporting'}
+                                                </span>
+                                                <p>{edit.text}</p>
+                                                {edit.rationale ? <small>{edit.rationale}</small> : null}
+                                              </div>
+                                              <button
+                                                type="button"
+                                                className="research-btn research-directive-copy"
+                                                aria-label={'Copy resume bullet for ' + result.company}
+                                                onClick={() => {
+                                                  void navigator.clipboard?.writeText(edit.text)
+                                                }}
+                                              >
+                                                <Copy size={14} />
+                                                <span>Copy</span>
+                                              </button>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    ) : null}
+
+                                    {keywordsToInclude.length > 0 ? (
+                                      <div className="research-result-block">
+                                        <strong>Keywords to include</strong>
+                                        <div className="research-chip-list">
+                                          {keywordsToInclude.map((keyword) => (
+                                            <span
+                                              key={result.id + '-keyword-' + keyword}
+                                              className="research-chip"
+                                            >
+                                              {keyword}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </details>
                               ) : null}
 
                               <CitationFootnotes

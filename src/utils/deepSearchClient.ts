@@ -28,6 +28,9 @@ export const DEEP_RESEARCH_OUTPUT_CONTRACT = [
   'Each narrative.assumptions[] item must include claim, source (inferred|assumed-default|explicit-fallback), rationale, confidence (high|medium|low), and overridable.',
   'Each result must include candidateEdge as 2-4 sentences using candidate fact + company fact + interpretation.',
   'Each result should include interviewProcess, companyIntel, signalGroup, and advantageMatch when evidence is available.',
+  'When params.resumeVariants is non-empty, each top result must include recommendedVariant matching one params.resumeVariants[].id.',
+  'When params.resumeVariants is non-empty, each top result must include exactly 3 bulletEdits: one lead edit followed by two supporting edits; each bullet text must be paste-ready, first-person past-tense, metric-bearing, and under 30 words.',
+  'keywordsToInclude must contain 8-12 posting-specific phrases from the source posting, not generic skills.',
   'Each result may include jobDescription only when raw job posting text is directly available from a cited/source page; include jobDescriptionSourceUrl with the same-origin source URL and do not infer or synthesize a JD.',
   'Every factual claim about interview process, compensation, company size, team structure, hiring status, policies, or funding must use [cite:<id>] markers resolving to a Citation in result.citations[] or narrative.citations[].',
   'Citation objects must include id, source, optional url, optional type (' +

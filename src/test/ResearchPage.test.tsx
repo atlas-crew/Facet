@@ -473,6 +473,70 @@ describe('ResearchPage', () => {
     expect(entry!.vectorId).toBe('backend')
   }, 10000)
 
+  it('renders resume directives and copies bullet text from result cards', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      requests: state.requests.map((request) => ({
+        ...request,
+        resumeVariants: [
+          { id: 'platform', label: 'Platform' },
+          { id: 'security-platform', label: 'Security Platform' },
+        ],
+      })),
+      runs: state.runs.map((run) => ({
+        ...run,
+        results: run.results.map((result) => ({
+          ...result,
+          recommendedVariant: 'security-platform',
+          bulletEdits: [
+            {
+              emphasis: 'lead',
+              text: 'I led platform security delivery that cut edge incident triage 31%.',
+              rationale: 'The posting asks for platform security ownership.',
+            },
+            {
+              emphasis: 'supporting',
+              text: 'I partnered across product and infra teams to ship reliable developer workflows.',
+            },
+          ],
+          keywordsToInclude: ['platform security', 'edge incident triage', 'developer workflows'],
+        })),
+      })),
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.click(screen.getByText('Resume directives'))
+
+    expect(screen.getByText('Security Platform')).toBeTruthy()
+    expect(screen.getByText('Top-of-resume edits')).toBeTruthy()
+    expect(screen.getByText('Lead')).toBeTruthy()
+    expect(screen.getByText('platform security')).toBeTruthy()
+    expect(screen.getByText('edge incident triage')).toBeTruthy()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Copy resume bullet for Acme Corp/i })[0]!)
+    expect(writeText).toHaveBeenCalledWith(
+      'I led platform security delivery that cut edge incident triage 31%.',
+    )
+  })
+
+  it('omits the resume directive panel when optional directive fields are absent', async () => {
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+
+    expect(screen.queryByText('Resume directives')).toBeNull()
+  })
+
   it('surfaces run-level assumptions and routes corrections to Identity', async () => {
     useSearchStore.setState((state) => ({
       ...state,

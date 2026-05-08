@@ -79,6 +79,7 @@ const expectedSearchRequestKeys = [
   'geoExpand',
   'id',
   'maxResults',
+  'resumeVariants',
   'salaryAnchorOverride',
 ]
 
@@ -92,6 +93,7 @@ const searchRequestKeyCoverage: Record<keyof SearchRequest, true> = {
   geoExpand: true,
   id: true,
   maxResults: true,
+  resumeVariants: true,
   salaryAnchorOverride: true,
 }
 

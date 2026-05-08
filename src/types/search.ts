@@ -186,6 +186,12 @@ export interface SearchRequestMaxResults {
   tier3: number
 }
 
+export interface SearchResumeVariant {
+  id: string
+  label: string
+  description?: string
+}
+
 export interface SearchRequest {
   id: string
   durableMeta?: DurableMetadata
@@ -197,6 +203,7 @@ export interface SearchRequest {
   customKeywords: string
   excludeCompanies: string[]
   maxResults: SearchRequestMaxResults
+  resumeVariants?: SearchResumeVariant[]
 }
 
 export interface SearchResultInterviewProcess {
@@ -211,6 +218,12 @@ export interface SearchResultCompanyIntel {
   aiCulture: string
   remotePolicy: string
   openRoleCount?: number
+}
+
+export interface SearchResultBulletEdit {
+  emphasis: 'lead' | 'supporting'
+  text: string
+  rationale?: string
 }
 
 export const CITATION_TYPE_VALUES = [
@@ -266,6 +279,12 @@ export interface SearchResultEntry {
   jobDescription?: string
   /** Same-origin source URL required for jobDescription to be preserved. */
   jobDescriptionSourceUrl?: string
+  /** Which request-provided resume variant the model recommends for this role. */
+  recommendedVariant?: string
+  /** Paste-ready top-of-resume bullet rewrites tailored to this posting. */
+  bulletEdits?: SearchResultBulletEdit[]
+  /** Posting-specific phrases to carry into resume tailoring. */
+  keywordsToInclude?: string[]
 }
 
 export interface SearchTokenUsage {
