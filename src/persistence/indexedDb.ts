@@ -11,6 +11,9 @@ const LOCAL_PREFERENCES_STORE = 'localPreferences'
 const LOCAL_WORKSPACE_KEY_PREFIX = 'facet-workspace-snapshot:'
 let databasePromise: Promise<IDBDatabase> | null = null
 
+export const getLocalStorageWorkspaceSnapshotKey = (workspaceId: string) =>
+  `${LOCAL_WORKSPACE_KEY_PREFIX}${workspaceId}`
+
 const indexedDbAvailable = () => typeof globalThis.indexedDB !== 'undefined'
 
 const openDatabase = (): Promise<IDBDatabase> => {
@@ -23,10 +26,7 @@ const openDatabase = (): Promise<IDBDatabase> => {
   }
 
   databasePromise = new Promise((resolve, reject) => {
-    const request = globalThis.indexedDB.open(
-      FACET_PERSISTENCE_DB,
-      FACET_PERSISTENCE_DB_VERSION,
-    )
+    const request = globalThis.indexedDB.open(FACET_PERSISTENCE_DB, FACET_PERSISTENCE_DB_VERSION)
 
     request.onupgradeneeded = () => {
       const db = request.result
@@ -161,16 +161,13 @@ export const createIndexedDbPersistenceBackend = (): PersistenceBackend => ({
     return result ? cloneValue(result) : null
   },
   saveWorkspaceSnapshot: async (snapshot) => {
-    const current = (await withStore<FacetWorkspaceSnapshot | undefined>(
-      WORKSPACE_STORE,
-      'readonly',
-      (store) => store.get(snapshot.workspace.id),
-    )) ?? null
+    const current =
+      (await withStore<FacetWorkspaceSnapshot | undefined>(WORKSPACE_STORE, 'readonly', (store) =>
+        store.get(snapshot.workspace.id),
+      )) ?? null
     const saved = createAuthoritativeWorkspaceSnapshot(snapshot, current)
-    await withStore(
-      WORKSPACE_STORE,
-      'readwrite',
-      (store) => store.put(saved, snapshot.workspace.id),
+    await withStore(WORKSPACE_STORE, 'readwrite', (store) =>
+      store.put(saved, snapshot.workspace.id),
     )
     return cloneValue(saved)
   },
@@ -190,26 +187,20 @@ export const createIndexedDbLocalPreferencesBackend = (): LocalPreferencesBacken
     return result ? cloneValue(result) : null
   },
   saveLocalPreferencesSnapshot: async (snapshot) => {
-    await withStore(
-      LOCAL_PREFERENCES_STORE,
-      'readwrite',
-      (store) => store.put(snapshot, snapshot.workspaceId),
+    await withStore(LOCAL_PREFERENCES_STORE, 'readwrite', (store) =>
+      store.put(snapshot, snapshot.workspaceId),
     )
     return cloneValue(snapshot)
   },
   deleteLocalPreferencesSnapshot: async (workspaceId) => {
-    await withStore(
-      LOCAL_PREFERENCES_STORE,
-      'readwrite',
-      (store) => store.delete(workspaceId),
-    )
+    await withStore(LOCAL_PREFERENCES_STORE, 'readwrite', (store) => store.delete(workspaceId))
   },
 })
 
 export const createLocalStorageWorkspacePersistenceBackend = (): PersistenceBackend => ({
   kind: 'localStorage',
   loadWorkspaceSnapshot: (workspaceId) => {
-    const raw = resolveStorage().getItem(`${LOCAL_WORKSPACE_KEY_PREFIX}${workspaceId}`)
+    const raw = resolveStorage().getItem(getLocalStorageWorkspaceSnapshotKey(workspaceId))
     if (typeof raw !== 'string') {
       return null
     }
@@ -222,7 +213,7 @@ export const createLocalStorageWorkspacePersistenceBackend = (): PersistenceBack
   },
   saveWorkspaceSnapshot: (snapshot) => {
     const currentRaw = resolveStorage().getItem(
-      `${LOCAL_WORKSPACE_KEY_PREFIX}${snapshot.workspace.id}`,
+      getLocalStorageWorkspaceSnapshotKey(snapshot.workspace.id),
     )
     const current =
       typeof currentRaw === 'string'
@@ -236,13 +227,13 @@ export const createLocalStorageWorkspacePersistenceBackend = (): PersistenceBack
         : null
     const saved = createAuthoritativeWorkspaceSnapshot(snapshot, current)
     resolveStorage().setItem(
-      `${LOCAL_WORKSPACE_KEY_PREFIX}${snapshot.workspace.id}`,
+      getLocalStorageWorkspaceSnapshotKey(snapshot.workspace.id),
       JSON.stringify(saved),
     )
     return cloneValue(saved)
   },
   deleteWorkspaceSnapshot: (workspaceId) => {
-    resolveStorage().removeItem(`${LOCAL_WORKSPACE_KEY_PREFIX}${workspaceId}`)
+    resolveStorage().removeItem(getLocalStorageWorkspaceSnapshotKey(workspaceId))
   },
 })
 

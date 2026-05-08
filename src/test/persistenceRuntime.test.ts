@@ -5,6 +5,7 @@ import { waitFor } from '@testing-library/react'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
 import { defaultResumeData } from '../store/defaultData'
+import { useIdentityStore } from '../store/identityStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -21,9 +22,11 @@ import {
   type FacetWorkspaceSnapshot,
   type FacetLocalPreferencesSnapshot,
 } from '../persistence/contracts'
+import { createInMemoryLocalPreferencesBackend } from '../persistence/localPreferences'
 import {
-  createInMemoryLocalPreferencesBackend,
-} from '../persistence/localPreferences'
+  createLocalStorageWorkspacePersistenceBackend,
+  getLocalStorageWorkspaceSnapshotKey,
+} from '../persistence/indexedDb'
 import {
   createPersistenceRuntime,
   getPersistenceRuntime,
@@ -31,6 +34,7 @@ import {
 } from '../persistence/runtime'
 import { FacetApiError } from '../utils/facetApiErrors'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const LEGACY_KEYS = [
   'vector-resume-data',
@@ -49,6 +53,8 @@ const clearLegacyStorage = () => {
   for (const key of LEGACY_KEYS) {
     storage.removeItem(key)
   }
+  storage.removeItem('facet-identity-workspace')
+  storage.removeItem(getLocalStorageWorkspaceSnapshotKey('ws-1'))
 }
 
 const localPreferencesSnapshot: FacetLocalPreferencesSnapshot = {
@@ -111,9 +117,22 @@ describe('persistence runtime', () => {
       sortDir: 'asc',
       filters: { tier: 'all', status: 'all', search: '' },
     })
+    useIdentityStore.setState({
+      intakeMode: 'upload',
+      sourceMaterial: '',
+      correctionNotes: '',
+      currentIdentity: null,
+      draft: null,
+      draftDocument: '',
+      scanResult: null,
+      warnings: [],
+      changelog: [],
+      lastError: null,
+    })
     usePrepStore.setState({
       decks: [],
       activeDeckId: null,
+      activeMode: 'edit',
     })
     useCoverLetterStore.setState({
       templates: [],
@@ -134,6 +153,10 @@ describe('persistence runtime', () => {
       profile: null,
       requests: [],
       runs: [],
+      theses: [],
+      activeThesisId: null,
+      feedbackEvents: [],
+      activeResearchJob: null,
     })
     useUiStore.setState({
       selectedVector: 'all',
@@ -316,8 +339,8 @@ describe('persistence runtime', () => {
         updatedAt: '2026-03-11T12:00:00.000Z',
       },
     })
-    delete ((legacySnapshot.artifacts as unknown) as { recruiter?: unknown }).recruiter
-    delete ((legacySnapshot.artifacts as unknown) as { linkedin?: unknown }).linkedin
+    delete (legacySnapshot.artifacts as unknown as { recruiter?: unknown }).recruiter
+    delete (legacySnapshot.artifacts as unknown as { linkedin?: unknown }).linkedin
 
     const legacyPreferences = {
       ...localPreferencesSnapshot,
@@ -329,7 +352,9 @@ describe('persistence runtime', () => {
     delete (legacyPreferences as { linkedin?: { selectedDraftId: string | null } }).linkedin
 
     await workspaceBackend.saveWorkspaceSnapshot(legacySnapshot)
-    await preferencesBackend.saveLocalPreferencesSnapshot(legacyPreferences as FacetLocalPreferencesSnapshot)
+    await preferencesBackend.saveLocalPreferencesSnapshot(
+      legacyPreferences as FacetLocalPreferencesSnapshot,
+    )
 
     const runtime = createPersistenceRuntime({
       workspaceId: 'ws-1',
@@ -507,6 +532,114 @@ describe('persistence runtime', () => {
     runtime.dispose()
   })
 
+  it('rehydrates identity, search, and prep stores from cross-tab localStorage writes', async () => {
+    const storage = resolveStorage()
+    const workspaceKey = getLocalStorageWorkspaceSnapshotKey('ws-1')
+
+    const externalDeckId = usePrepStore.getState().createDeck({
+      title: 'Cross-tab Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      cards: [],
+    })
+    const externalDeck = usePrepStore.getState().decks.find((deck) => deck.id === externalDeckId)!
+    const externalRequest = useSearchStore.getState().addRequest({
+      companySizeOverride: 'growth',
+      salaryAnchorOverride: '$250k total',
+      geoExpand: true,
+      customKeywords: 'platform leadership',
+      excludeCompanies: [],
+      maxResults: { tier1: 4, tier2: 8, tier3: 12 },
+    })
+
+    usePrepStore.setState({
+      decks: [],
+      activeDeckId: null,
+      activeMode: 'edit',
+    })
+    useSearchStore.setState({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [],
+      activeThesisId: null,
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+
+    const runtime = createPersistenceRuntime({
+      workspaceId: 'ws-1',
+      backend: createLocalStorageWorkspacePersistenceBackend(),
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+      saveDebounceMs: 1,
+    })
+    await runtime.start()
+
+    try {
+      const identity = cloneIdentityFixture()
+      identity.identity.name = 'Cross Tab Candidate'
+      const identityPayload = JSON.stringify({
+        state: {
+          currentIdentity: identity,
+          draftDocument: JSON.stringify(identity, null, 2),
+        },
+        version: 4,
+      })
+      storage.setItem('facet-identity-workspace', identityPayload)
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'facet-identity-workspace',
+          newValue: identityPayload,
+        }),
+      )
+
+      await waitFor(() => {
+        expect(useIdentityStore.getState().currentIdentity?.identity.name).toBe(
+          'Cross Tab Candidate',
+        )
+      })
+
+      const baseSnapshot = buildWorkspaceSnapshot()
+      const crossTabSnapshot = {
+        ...baseSnapshot,
+        artifacts: {
+          ...baseSnapshot.artifacts,
+          prep: {
+            ...baseSnapshot.artifacts.prep,
+            payload: { decks: [externalDeck] },
+          },
+          research: {
+            ...baseSnapshot.artifacts.research,
+            payload: {
+              profile: null,
+              requests: [externalRequest],
+              runs: [],
+              theses: [],
+              activeThesisId: null,
+              feedbackEvents: [],
+              activeResearchJob: null,
+            },
+          },
+        },
+      }
+      const workspacePayload = JSON.stringify(crossTabSnapshot)
+      storage.setItem(workspaceKey, workspacePayload)
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: workspaceKey,
+          newValue: workspacePayload,
+        }),
+      )
+
+      await waitFor(() => {
+        expect(usePrepStore.getState().decks[0]?.title).toBe('Cross-tab Prep')
+        expect(useSearchStore.getState().requests[0]?.customKeywords).toBe('platform leadership')
+      })
+    } finally {
+      runtime.dispose()
+    }
+  })
+
   it('flushes through bootstrap when called before an explicit start', async () => {
     const workspaceBackend = createInMemoryPersistenceBackend()
     const baseSnapshot = buildWorkspaceSnapshot()
@@ -565,7 +698,9 @@ describe('persistence runtime', () => {
     useUiStore.getState().setAppearance('dark')
     await runtime.flush()
 
-    const savedPreferences = resolveStorage().getItem('facet-local-preferences:facet-local-workspace')
+    const savedPreferences = resolveStorage().getItem(
+      'facet-local-preferences:facet-local-workspace',
+    )
     expect(savedPreferences).toContain('"appearance":"dark"')
 
     runtime.dispose()

@@ -1,9 +1,11 @@
 ---
 id: TASK-175
 title: Handle multi-tab concurrency and identity-version conflicts
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@myself'
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-08 08:02'
 labels:
   - shepherding
   - concurrency
@@ -17,7 +19,9 @@ references:
   - src/store/searchStore.ts
   - src/store/prepStore.ts
 documentation:
-  - 'backlog doc-26: Shepherding Principles (implicit — no concurrency story today)'
+  - >-
+    backlog doc-26: Shepherding Principles (implicit — no concurrency story
+    today)
 priority: low
 ---
 
@@ -78,7 +82,7 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 identityStore, searchStore, prepStore listen for storage events and re-hydrate on cross-tab writes
+- [x] #1 identityStore, searchStore, prepStore listen for storage events and re-hydrate on cross-tab writes
 - [ ] #2 Identity mutations check current version from storage before writing; surface conflict if in-memory version is behind
 - [ ] #3 Generation routines (thesis, prep, letter, research job) snapshot identity version at start; final artifact records that version
 - [ ] #4 ResearchJob.identityVersion is compared to current client-side identity version on rehydration; staleness badge shown if drift
@@ -86,6 +90,14 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 - [ ] #6 Toast links to TASK-158 batch staleness review
 - [ ] #7 Tests: simulate 2-tab sequence (write in A → observe in B, generation in A while mutation in B, etc.)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Lane D plan: implement a narrow first phase for storage-event driven persisted-store rehydration and focused tests, avoiding ResearchPage/result-enrichment files touched by parallel TASK-183/TASK-196 lanes. I will not mark TASK-175 Done unless all AC/DoD are genuinely satisfied.
+
+Lane D progress: implemented storage-event sync for the identity Zustand persistence key and localStorage workspace snapshot rehydration for search/prep runtime state. Added jsdom regression coverage that simulates another tab writing identity, search, and prep state, then observes this tab rehydrate. Remaining TASK-175 ACs cover identity mutation conflict checks, generation snapshot coverage, research-job staleness UI, and toast/TASK-158 links.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

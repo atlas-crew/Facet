@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
+import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -24,6 +25,7 @@ import {
 import {
   createDefaultWorkspacePersistenceBackend,
   createIndexedDbLocalPreferencesBackend,
+  getLocalStorageWorkspaceSnapshotKey,
 } from './indexedDb'
 import {
   createLocalStorageLocalPreferencesBackend,
@@ -34,14 +36,13 @@ import {
   createWorkspaceSnapshotFromStores,
 } from './snapshot'
 import { normalizeLocalPreferencesSnapshot } from './normalization'
+import { installStorageEventSync } from './storageEventSync'
 import type { FacetWorkspaceSnapshot } from './contracts'
-import {
-  mergeWorkspaceSnapshots,
-  scopeWorkspaceSnapshotToWorkspace,
-} from './workspaceImportMerge'
+import { mergeWorkspaceSnapshots, scopeWorkspaceSnapshotToWorkspace } from './workspaceImportMerge'
 import { isFacetApiError } from '../utils/facetApiErrors'
 
 const DEFAULT_SAVE_DEBOUNCE_MS = 150
+const IDENTITY_STORAGE_KEY = 'facet-identity-workspace'
 
 const resolveRuntimeFailurePhase = (error: unknown): PersistenceStatus['phase'] =>
   isFacetApiError(error) && error.code === 'offline' ? 'offline' : 'error'
@@ -117,6 +118,7 @@ export const createPersistenceRuntime = (
   let suppressSaves = false
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let subscriptions: Array<() => void> = []
+  let storageSyncUnsubscribe: (() => void) | null = null
   let activePersistenceWrite: Promise<unknown> | null = null
 
   const syncRuntimeState = (patch: Partial<PersistenceRuntimeState>) => {
@@ -194,10 +196,7 @@ export const createPersistenceRuntime = (
           status: {
             ...coordinator.getStatus(),
             phase: resolveRuntimeFailurePhase(error),
-            lastError: resolveRuntimeFailureMessage(
-              error,
-              'Failed to persist workspace runtime',
-            ),
+            lastError: resolveRuntimeFailureMessage(error, 'Failed to persist workspace runtime'),
           },
         })
       })
@@ -217,6 +216,75 @@ export const createPersistenceRuntime = (
       useSearchStore.subscribe(() => schedulePersist()),
       useUiStore.subscribe(() => schedulePersist()),
     ]
+  }
+
+  const rehydrateWorkspaceFromStorage = async () => {
+    if (disposed || backend.kind !== 'localStorage') {
+      return
+    }
+
+    suppressSaves = true
+    try {
+      const snapshot = await coordinator.loadWorkspace(workspaceId)
+      if (!snapshot || disposed) {
+        syncStatusFromCoordinator()
+        return
+      }
+
+      applyWorkspaceSnapshotToStores(snapshot)
+      if (disposed) {
+        return
+      }
+
+      const localPreferences =
+        await localPreferencesBackend.loadLocalPreferencesSnapshot(workspaceId)
+      if (localPreferences && !disposed) {
+        applyLocalPreferencesSnapshotToStores(normalizeLocalPreferencesSnapshot(localPreferences))
+      }
+
+      if (!disposed) {
+        syncRuntimeState({
+          hydrated: true,
+          usingLegacyMigration: false,
+          status: coordinator.getStatus(),
+        })
+      }
+    } catch (error) {
+      if (!disposed) {
+        syncRuntimeState({
+          status: {
+            ...coordinator.getStatus(),
+            phase: resolveRuntimeFailurePhase(error),
+            lastError: resolveRuntimeFailureMessage(
+              error,
+              'Failed to rehydrate workspace from cross-tab storage update',
+            ),
+          },
+        })
+      }
+    } finally {
+      suppressSaves = false
+    }
+  }
+
+  const installCrossTabStorageSync = () => {
+    const targets = [
+      {
+        key: IDENTITY_STORAGE_KEY,
+        rehydrate: () => {
+          void useIdentityStore.persist.rehydrate()
+        },
+      },
+    ]
+
+    if (backend.kind === 'localStorage') {
+      targets.push({
+        key: getLocalStorageWorkspaceSnapshotKey(workspaceId),
+        rehydrate: rehydrateWorkspaceFromStorage,
+      })
+    }
+
+    storageSyncUnsubscribe = installStorageEventSync(targets)
   }
 
   const runtime: PersistenceRuntime = {
@@ -273,6 +341,7 @@ export const createPersistenceRuntime = (
 
           started = true
           installSubscriptions()
+          installCrossTabStorageSync()
           syncRuntimeState({
             hydrated: true,
             usingLegacyMigration: usedLegacyMigration,
@@ -369,6 +438,8 @@ export const createPersistenceRuntime = (
       clearSaveTimer()
       subscriptions.forEach((unsubscribe) => unsubscribe())
       subscriptions = []
+      storageSyncUnsubscribe?.()
+      storageSyncUnsubscribe = null
       started = false
       starting = null
       syncRuntimeState({
@@ -415,24 +486,25 @@ export const replacePersistenceRuntime = async (
   return runtimeSingleton
 }
 
-export const captureLocalWorkspaceSnapshotForMigration = async (): Promise<FacetWorkspaceSnapshot | null> => {
-  const runtime = createPersistenceRuntime({
-    workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
-    workspaceName: DEFAULT_LOCAL_WORKSPACE_NAME,
-  })
+export const captureLocalWorkspaceSnapshotForMigration =
+  async (): Promise<FacetWorkspaceSnapshot | null> => {
+    const runtime = createPersistenceRuntime({
+      workspaceId: DEFAULT_LOCAL_WORKSPACE_ID,
+      workspaceName: DEFAULT_LOCAL_WORKSPACE_NAME,
+    })
 
-  try {
-    await runtime.start()
-    const runtimeState = usePersistenceRuntimeStore.getState()
-    const hasCapturedLocalState =
-      runtimeState.usingLegacyMigration || runtimeState.status.lastHydratedAt !== null
+    try {
+      await runtime.start()
+      const runtimeState = usePersistenceRuntimeStore.getState()
+      const hasCapturedLocalState =
+        runtimeState.usingLegacyMigration || runtimeState.status.lastHydratedAt !== null
 
-    if (!hasCapturedLocalState) {
-      return null
+      if (!hasCapturedLocalState) {
+        return null
+      }
+
+      return runtime.exportWorkspaceSnapshot()
+    } finally {
+      runtime.dispose()
     }
-
-    return runtime.exportWorkspaceSnapshot()
-  } finally {
-    runtime.dispose()
   }
-}
