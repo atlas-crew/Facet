@@ -1,11 +1,11 @@
 ---
 id: TASK-62
 title: Harden ResearchPage form and state coverage
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-11 04:02'
-updated_date: '2026-05-08 09:42'
+updated_date: '2026-05-08 09:50'
 labels:
   - test-gap
   - research
@@ -48,7 +48,15 @@ Follow-up from ResearchPage audit to close remaining form/state coverage gaps af
 - Verification passed: npx vitest run src/test/ResearchPage.test.tsx (96 tests), npx eslint src/test/ResearchPage.test.tsx, npm run typecheck, npx prettier --write src/test/ResearchPage.test.tsx.
 - Test gap audit completed via agent-loops diff-test-audit: .agents/reviews/test-audit-20260508-054006.md. Claude returned an invalid contract artifact, then Gemini fallback produced the accepted audit artifact with no P0/P1/P2 gaps.
 - npm run build was attempted and failed in unrelated dirty production work: src/store/searchStore.ts redeclares validThesisIds at lines 189 and 208. TASK-62 did not modify that file.
+
+Post-worker reconciliation: the reported build blocker was the concurrent TASK-172 transient validThesisIds redeclare in src/store/searchStore.ts, now fixed and committed in feat(feedback): unify cross-domain event contract. Re-ran npm run build successfully on 2026-05-08 with only existing chunk-size warnings. Closing per owner guidance; full npm run test remains unrelated baseline debt, so DoD #6 remains unchecked. Docs-architect approval is not applicable because this was a test-only coverage slice with no documentation changes.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-62 is complete: ResearchPage form/state coverage now pins launcher bindings, profile editor bindings, and result-view edge states, with focused ResearchPage tests, typecheck, eslint, test audit, formatting, and build receipts.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
@@ -56,9 +64,9 @@ Follow-up from ResearchPage audit to close remaining form/state coverage gaps af
 - [x] #2 Documentation has been created/modified/removed as needed.
 - [ ] #3 Documentation changes were approved by the docs-architect (8/10 score required)
 - [x] #4 Test changes were approved by a test gap analysis review
-- [ ] #5 Changes to integration points are covered by tests
+- [x] #5 Changes to integration points are covered by tests
 - [ ] #6 All tests pass successfully
 - [x] #7 Automatic formatting was applied.
 - [x] #8 Linters report no WARNINGS or ERRORS
-- [ ] #9 The project builds successfully
+- [x] #9 The project builds successfully
 <!-- DOD:END -->
