@@ -2647,7 +2647,11 @@ export function ResearchPage() {
     return map
   }, [activeRun, feedbackEvents])
   const visibleResearchJob =
-    activeResearchJob && activeRun?.id === activeResearchJob.runId ? observedResearchJob : null
+    activeResearchJob && activeRun?.id === activeResearchJob.runId
+      ? observedResearchJob
+      : observedResearchJob && activeRun?.jobId === observedResearchJob.id
+        ? observedResearchJob
+        : null
   const visibleJobProgress = visibleResearchJob?.progress
   const visibleJobStartedAt = visibleResearchJob?.startedAt ?? visibleResearchJob?.createdAt
   const visibleJobEndedAt = visibleResearchJob?.completedAt ?? visibleResearchJob?.heartbeatAt
@@ -2661,6 +2665,15 @@ export function ResearchPage() {
     visibleResearchJob !== null &&
     visibleResearchJob !== undefined &&
     !TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status)
+  const visibleResearchJobIdentityVersion =
+    typeof visibleResearchJob?.identityVersion === 'number' &&
+    Number.isFinite(visibleResearchJob.identityVersion)
+      ? visibleResearchJob.identityVersion
+      : null
+  const visibleResearchJobIsStale =
+    visibleResearchJobIdentityVersion !== null &&
+    currentIdentityRevision !== null &&
+    visibleResearchJobIdentityVersion < currentIdentityRevision
   const activeRunNarrativeState = activeRun?.narrativeState
   const activeRunNarrative =
     activeRunNarrativeState?.status === 'ready' ? activeRunNarrativeState.narrative : null
@@ -4129,6 +4142,26 @@ export function ResearchPage() {
                       >
                         Cancel deep research
                       </button>
+                    ) : null}
+                    {visibleResearchJobIsStale ? (
+                      <div className="research-warning" role="status">
+                        <strong>Research job used an earlier Identity version</strong>
+                        <p>
+                          This search ran against identity v{visibleResearchJobIdentityVersion}; the
+                          current identity model is v{currentIdentityRevision}. Rerun from the
+                          preserved thesis when you want the latest profile context.
+                        </p>
+                        {activeRun.thesisSnapshot ? (
+                          <button
+                            type="button"
+                            className="research-btn"
+                            onClick={() => void handleRetryActiveRun()}
+                            disabled={isSearching}
+                          >
+                            Rerun with current Identity
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </section>
                 ) : null}

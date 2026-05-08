@@ -2846,6 +2846,12 @@ describe('ResearchPage', () => {
   })
 
   it('passes excluded companies into launched searches and stores successful results', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 2
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
     usePipelineStore.setState((state) => ({
       ...state,
       entries: [
@@ -3038,6 +3044,10 @@ describe('ResearchPage', () => {
     ).toBeTruthy()
     expect(screen.getByText('Architecture screen and work sample · 3 weeks')).toBeTruthy()
     expect(screen.getByText('candidateEdge for NewCo is shorter than expected.')).toBeTruthy()
+    expect(screen.getByText('Research job used an earlier Identity version')).toBeTruthy()
+    expect(
+      screen.getByText(/This search ran against identity v0; the current identity model is v2/),
+    ).toBeTruthy()
   })
 
   it('shows an error when AI endpoint configuration is missing', async () => {
