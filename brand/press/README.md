@@ -72,6 +72,23 @@ For other image options — atmospheric banners, bold heroes, the
 methodology one-pager, the manifesto card — see the parent
 [`brand/exports/`](../exports/) directory.
 
+## Designer reference
+
+In `swatch/`. A one-page designer-handoff card showing the lockup
+specimens, color swatches with hex codes, and typography specimens
+with weights and roles. Use this when handing the brand to an
+external designer building UI, slides, or marketing surfaces — it's
+the single PNG that captures the visual primitives.
+
+| File | Format | Aspect |
+|---|---|---|
+| `facet-swatch.png` | PNG 1584×1224 | Letter landscape, 144 DPI, light-bg |
+
+A printable letter-portrait brand summary poster (color palette +
+typography + locked phrases on a single page) is also rendered to
+[`brand/exports/poster/`](../exports/poster/) — both dark and light
+variants. Re-render either via `just brand-swatch` or `just brand-poster`.
+
 ---
 
 ## Founder bio

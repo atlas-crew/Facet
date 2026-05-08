@@ -202,7 +202,7 @@ clean:
 
 # Render every brand category and convert to WebP (PNGs removed).
 # To produce a one-off PNG without conversion, use a single-render recipe.
-brand: brand-concepts brand-banners brand-social brand-email brand-carousel brand-story brand-principle brand-promo brand-reference brand-manifesto brand-method brand-readme brand-webp brand-composites
+brand: brand-concepts brand-banners brand-social brand-email brand-carousel brand-story brand-principle brand-promo brand-reference brand-manifesto brand-method brand-readme brand-poster brand-swatch brand-webp brand-composites
     @echo ""
     @echo "All brand assets rendered to brand/exports/ (WebP-only)"
 
@@ -392,6 +392,39 @@ brand-readme:
     echo ""
     echo "Rendered 2 readme variants"
 
+# Render brand summary poster (1224×1584 letter portrait, dark+light).
+# Designer-handoff one-pager: wordmark + colors + typography + locked
+# phrases + footer. Letter-portrait at 144 DPI prints clean on letter/A4.
+brand-poster:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p brand/exports/poster
+    for theme in dark light; do
+      out="brand/exports/poster/facet-poster-${theme}.png"
+      npx --yes playwright screenshot \
+        --viewport-size="1224,1584" \
+        "file://$(pwd)/brand/_source/html/poster.html#poster-${theme}" "$out" 2>/dev/null
+      printf "  ✓ %s\n" "$out"
+    done
+    echo ""
+    echo "Rendered 2 poster variants"
+
+# Render designer swatch sheet (1584×1224 letter landscape, light only).
+# Standard designer-kit reference: lockup specimens · color swatches ·
+# typography. Print-default light-bg. Output also copied to brand/press/
+# swatch/ for journalists and external designers.
+brand-swatch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p brand/exports/swatch
+    out="brand/exports/swatch/facet-swatch.png"
+    npx --yes playwright screenshot \
+      --viewport-size="1584,1224" \
+      "file://$(pwd)/brand/_source/html/swatch.html#swatch" "$out" 2>/dev/null
+    printf "  ✓ %s\n" "$out"
+    echo ""
+    echo "Rendered designer swatch sheet"
+
 # Render principle / quote cards (3 variants × dark+light at 1080×1080).
 # Repostable engagement content for IG / LinkedIn feeds.
 brand-principle:
@@ -563,7 +596,7 @@ brand-webp:
 # This recipe deletes ONLY the specific files the Playwright+cwebp pipeline
 # produces, enumerated below per category. Files not in the enumeration are
 # preserved.
-brand-webp-clean: brand-clean-concepts brand-clean-banners brand-clean-social brand-clean-email brand-clean-carousel brand-clean-story brand-clean-principle brand-clean-promo brand-clean-reference brand-clean-composite brand-clean-method brand-clean-manifesto brand-clean-readme
+brand-webp-clean: brand-clean-concepts brand-clean-banners brand-clean-social brand-clean-email brand-clean-carousel brand-clean-story brand-clean-principle brand-clean-promo brand-clean-reference brand-clean-composite brand-clean-method brand-clean-manifesto brand-clean-readme brand-clean-poster brand-clean-swatch
     # Remove only thumbs/ directories that are now empty (other thumbs may belong to AI exports)
     @find brand/exports -type d -name 'thumbs' -empty -delete 2>/dev/null || true
     @echo "Removed pipeline-rendered WebP files; AI exports preserved"
@@ -586,6 +619,8 @@ brand-clean: brand-webp-clean
     @find brand/exports -name 'facet-*.png' -path '*/method/*' -delete 2>/dev/null || true
     @find brand/exports -name 'facet-*.png' -path '*/manifesto/*' -delete 2>/dev/null || true
     @find brand/exports -name 'facet-*.png' -path '*/readme/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/poster/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/swatch/*' -delete 2>/dev/null || true
     @echo "Cleaned pipeline-rendered brand exports; AI exports preserved"
 
 # Per-category clean recipes. Each enumerates the exact files that recipe's
@@ -697,3 +732,15 @@ brand-clean-readme:
       rm -f "brand/exports/readme/facet-readme-${theme}.webp"
       rm -f "brand/exports/readme/thumbs/facet-readme-${theme}.webp"
     done
+
+brand-clean-poster:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/poster/facet-poster-${theme}.webp"
+      rm -f "brand/exports/poster/thumbs/facet-poster-${theme}.webp"
+    done
+
+brand-clean-swatch:
+    #!/usr/bin/env bash
+    rm -f brand/exports/swatch/facet-swatch.webp
+    rm -f brand/exports/swatch/thumbs/facet-swatch.webp
