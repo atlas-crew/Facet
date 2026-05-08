@@ -2209,6 +2209,17 @@ export function ResearchPage() {
       )
       return
     }
+    if (targetEntry.resumeId) {
+      const sourceResume = useResumeStore
+        .getState()
+        .resumes.find((resume) => resume.id === targetEntry.resumeId)
+      if (!sourceResume) {
+        setThesisNotice(
+          `${artifact.label} cannot be refreshed because its source resume is no longer available.`,
+        )
+        return
+      }
+    }
     const analyses = useJDAnalysisStore.getState().analyses
     const jdAnalysis = resolvePipelineJdAnalysis(
       targetEntry,
