@@ -42,9 +42,14 @@ export const IDENTITY_STORE_STORAGE_KEY = 'facet-identity-workspace'
 const STALE_IDENTITY_CONFLICT_MESSAGE =
   'Identity was updated in another tab. Review the latest model and retry your change.'
 
-type EditableScannedProjectField = Extract<
-  keyof ProfessionalIdentityV3['projects'][number],
+type EditableScannedProjectField = keyof Pick<
+  ProfessionalIdentityV3['projects'][number],
   'name' | 'description' | 'url'
+>
+
+type EditableScannedEducationField = keyof Pick<
+  ProfessionalIdentityV3['education'][number],
+  'school' | 'location' | 'degree' | 'year'
 >
 
 interface IdentityState {
@@ -114,7 +119,7 @@ interface IdentityState {
   ) => void
   updateScannedEducationEntry: (
     educationIndex: number,
-    field: keyof ProfessionalIdentityV3['education'][number],
+    field: EditableScannedEducationField,
     value: string,
   ) => void
   updateCurrentIdentityCore: (updates: Partial<ProfessionalIdentityCore>) => void
@@ -391,6 +396,7 @@ const recalculateScanCounts = (
     status: progress.bullets[getScanBulletKey(roleId, bulletId)]?.status ?? 'idle',
     bullet,
   }))
+  // Primary counts intentionally follow ResumeScanCounts order for easier scan debugging.
   return {
     roles: identity.roles.length,
     bullets: bullets.length,
@@ -462,16 +468,32 @@ const updateScanBulletById = (
   ),
 })
 
-const normalizeScannedProjectFieldValue = (
-  field: EditableScannedProjectField,
+const optionalScannedProjectFields = new Set<EditableScannedProjectField>(['url'])
+const optionalScannedEducationFields = new Set<EditableScannedEducationField>(['year'])
+
+const normalizeOptionalScannedFieldValue = <Field extends string>(
+  field: Field,
   value: string,
+  optionalFields: ReadonlySet<Field>,
 ): string | undefined => {
-  if (field === 'url' && !value.trim()) {
+  if (optionalFields.has(field) && !value.trim()) {
     return undefined
   }
 
   return value
 }
+
+const normalizeScannedProjectFieldValue = (
+  field: EditableScannedProjectField,
+  value: string,
+): string | undefined =>
+  normalizeOptionalScannedFieldValue(field, value, optionalScannedProjectFields)
+
+const normalizeScannedEducationFieldValue = (
+  field: EditableScannedEducationField,
+  value: string,
+): string | undefined =>
+  normalizeOptionalScannedFieldValue(field, value, optionalScannedEducationFields)
 
 const syncIdentityDocument = (
   state: IdentityState,
@@ -568,9 +590,7 @@ const readPersistedIdentityState = ():
   }
 }
 
-const resolveStaleIdentityConflict = (
-  state: IdentityState,
-): Partial<IdentityState> | null => {
+const resolveStaleIdentityConflict = (state: IdentityState): Partial<IdentityState> | null => {
   const currentRevision = state.currentIdentity?.model_revision ?? 0
   if (!state.currentIdentity) return null
 
@@ -1255,7 +1275,7 @@ export const useIdentityStore = create<IdentityState>()(
               index === educationIndex
                 ? {
                     ...entry,
-                    [field]: value,
+                    [field]: normalizeScannedEducationFieldValue(field, value),
                   }
                 : entry,
             ),

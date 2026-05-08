@@ -193,6 +193,24 @@ describe('identityStore scan progress', () => {
     })
   })
 
+  it('keeps scan count keys in primary-then-derived order for debugging', () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+
+    expect(Object.keys(useIdentityStore.getState().scanResult?.counts ?? {})).toEqual([
+      'roles',
+      'bullets',
+      'projects',
+      'skillGroups',
+      'education',
+      'extractedBullets',
+      'decomposedBullets',
+      'scannedBullets',
+      'deepenedBullets',
+      'editedBullets',
+      'failedBullets',
+    ])
+  })
+
   it('initializes scan progress for every role and bullet when a multi-role result is loaded', () => {
     useIdentityStore.getState().setScanResult(createMultiBulletScanResult())
 
@@ -377,6 +395,76 @@ describe('identityStore scan progress', () => {
 
     const state = useIdentityStore.getState().scanResult
     expect(state?.identity.projects[0]?.url).toBeUndefined()
+  })
+
+  it('updates scanned education fields and normalizes cleared optional years', () => {
+    const scanResult = createScanResult()
+    scanResult.identity.education = [
+      {
+        school: 'State University',
+        location: 'Ann Arbor, MI',
+        degree: 'BS Computer Science',
+        year: '2014',
+      },
+    ]
+
+    useIdentityStore.getState().setScanResult(scanResult)
+    useIdentityStore.getState().updateScannedEducationEntry(0, 'school', 'State Tech')
+    useIdentityStore.getState().updateScannedEducationEntry(0, 'degree', 'BS Computer Engineering')
+    useIdentityStore.getState().updateScannedEducationEntry(0, 'location', 'Detroit, MI')
+    useIdentityStore.getState().updateScannedEducationEntry(0, 'year', '   ')
+
+    const state = useIdentityStore.getState().scanResult
+    expect(state?.identity.education[0]).toEqual({
+      school: 'State Tech',
+      location: 'Detroit, MI',
+      degree: 'BS Computer Engineering',
+    })
+    expect(state?.counts.education).toBe(1)
+  })
+
+  it('preserves whitespace-only required scanned education fields', () => {
+    const scanResult = createScanResult()
+    scanResult.identity.education = [
+      {
+        school: 'State University',
+        location: 'Ann Arbor, MI',
+        degree: 'BS Computer Science',
+        year: '2014',
+      },
+    ]
+
+    useIdentityStore.getState().setScanResult(scanResult)
+    useIdentityStore.getState().updateScannedEducationEntry(0, 'school', '   ')
+    useIdentityStore.getState().updateScannedEducationEntry(0, 'degree', '  ')
+
+    expect(useIdentityStore.getState().scanResult?.identity.education[0]).toMatchObject({
+      school: '   ',
+      degree: '  ',
+      year: '2014',
+    })
+  })
+
+  it('keeps scanned education unchanged when updates target an out-of-bounds index', () => {
+    const scanResult = createScanResult()
+    scanResult.identity.education = [
+      {
+        school: 'State University',
+        location: 'Ann Arbor, MI',
+        degree: 'BS Computer Science',
+        year: '2014',
+      },
+    ]
+    useIdentityStore.getState().setScanResult(scanResult)
+
+    const before = structuredClone(useIdentityStore.getState().scanResult)
+    expect(() => {
+      useIdentityStore.getState().updateScannedEducationEntry(99, 'school', 'Corrupted School')
+    }).not.toThrow()
+
+    const state = useIdentityStore.getState().scanResult
+    expect(state?.identity.education).toEqual(before?.identity.education)
+    expect(state?.counts.education).toBe(1)
   })
 
   it('keeps scanned projects unchanged when updates target an out-of-bounds index', () => {
