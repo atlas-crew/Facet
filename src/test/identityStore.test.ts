@@ -136,6 +136,24 @@ const createDeepenedBullet = (roleId = 'contoso', bulletId = 'platform-migration
   warnings: [],
 })
 
+const readPersistedIdentityState = async () => {
+  const persisted = await resolveStorage().getItem(IDENTITY_STORE_STORAGE_KEY)
+  expect(persisted).toEqual(expect.any(String))
+  return JSON.parse(persisted ?? '{}') as {
+    state: {
+      intakeMode?: string
+      sourceMaterial?: string
+      correctionNotes?: string
+      draft?: unknown
+      draftDocument?: string
+      scanResult?: ResumeScanResult | null
+      warnings?: string[]
+      mapSelection?: unknown
+    }
+    version: number
+  }
+}
+
 beforeEach(() => {
   resolveStorage().removeItem('facet-identity-workspace')
   useIdentityStore.setState({
@@ -175,6 +193,49 @@ describe('identityStore scan progress', () => {
     })
   })
 
+  it('initializes scan progress for every role and bullet when a multi-role result is loaded', () => {
+    useIdentityStore.getState().setScanResult(createMultiBulletScanResult())
+
+    const state = useIdentityStore.getState().scanResult
+    expect(Object.keys(state?.progress.bullets ?? {}).sort()).toEqual([
+      'contoso::observability-rollout',
+      'contoso::platform-migration',
+      'northwind::release-automation',
+    ])
+    expect(state?.progress.bullets).toMatchObject({
+      'contoso::platform-migration': {
+        status: 'idle',
+        confidence: 'stated',
+        lastError: null,
+      },
+      'contoso::observability-rollout': {
+        status: 'idle',
+        confidence: 'stated',
+        lastError: null,
+      },
+      'northwind::release-automation': {
+        status: 'idle',
+        confidence: 'stated',
+        lastError: null,
+      },
+    })
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'idle',
+      total: 3,
+      completed: 0,
+      currentBulletKey: null,
+    })
+    expect(state?.counts).toMatchObject({
+      roles: 2,
+      bullets: 3,
+      extractedBullets: 3,
+      scannedBullets: 3,
+      deepenedBullets: 0,
+      editedBullets: 0,
+      failedBullets: 0,
+    })
+  })
+
   it('clamps stale persisted bulk completion counts to the current scan total', () => {
     const scanResult = createScanResult()
     scanResult.progress.bulk = {
@@ -197,8 +258,7 @@ describe('identityStore scan progress', () => {
 
   it('normalizes numeric schema_revision values during live scan ingestion', () => {
     const scanResult = createScanResult()
-    ;(scanResult.identity as { schema_revision: string | number }).schema_revision =
-      3.1
+    ;(scanResult.identity as { schema_revision: string | number }).schema_revision = 3.1
 
     useIdentityStore.getState().setScanResult(scanResult)
 
@@ -229,8 +289,7 @@ describe('identityStore scan progress', () => {
 
   it('normalizes numeric schema_revision values when a stale scan identity is edited in place', () => {
     const scanResult = createScanResult()
-    ;(scanResult.identity as { schema_revision: string | number }).schema_revision =
-      3.1
+    ;(scanResult.identity as { schema_revision: string | number }).schema_revision = 3.1
 
     useIdentityStore.setState({
       scanResult,
@@ -242,9 +301,7 @@ describe('identityStore scan progress', () => {
 
     useIdentityStore.getState().updateScannedProjectEntry(0, 'name', 'Facet OSS')
 
-    expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe(
-      '3.1',
-    )
+    expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe('3.1')
   })
 
   it('marks a scanned bullet as deepened and updates counts', () => {
@@ -290,19 +347,19 @@ describe('identityStore scan progress', () => {
 
     useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
 
-    expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe(
-      '3.1',
-    )
+    expect(useIdentityStore.getState().scanResult?.identity.schema_revision).toBe('3.1')
   })
 
   it('updates scanned project fields and keeps project counts in sync', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().updateScannedProjectEntry(0, 'name', 'Facet OSS')
-    useIdentityStore.getState().updateScannedProjectEntry(
-      0,
-      'description',
-      'Targeted resume generation and pipeline tracking.',
-    )
+    useIdentityStore
+      .getState()
+      .updateScannedProjectEntry(
+        0,
+        'description',
+        'Targeted resume generation and pipeline tracking.',
+      )
     useIdentityStore.getState().updateScannedProjectEntry(0, 'url', 'https://facet.example.dev')
 
     const state = useIdentityStore.getState().scanResult
@@ -338,11 +395,9 @@ describe('identityStore scan progress', () => {
   it('records scanned bullet failure state before any later overwrite', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
 
-    useIdentityStore.getState().failScannedBulletDeepen(
-      'contoso',
-      'platform-migration',
-      'Timed out while deepening.',
-    )
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen('contoso', 'platform-migration', 'Timed out while deepening.')
 
     const state = useIdentityStore.getState().scanResult
     expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
@@ -557,17 +612,91 @@ describe('identityStore scan progress', () => {
       status: 'cancelling',
       currentBulletKey: 'contoso::platform-migration',
     })
+
+    useIdentityStore.getState().finishScanBulkDeepen()
+    state = useIdentityStore.getState().scanResult
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'idle',
+      completed: 0,
+      currentBulletKey: null,
+    })
+  })
+
+  it('persists the cancellation intermediate state until finish resets bulk progress', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-05T00:00:00.000Z'))
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().startScanBulkDeepen()
+    useIdentityStore.getState().updateScanBulkProgress('contoso::platform-migration')
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
+    useIdentityStore.getState().requestCancelScanBulkDeepen()
+
+    let persisted = await readPersistedIdentityState()
+    expect(persisted.state.scanResult?.progress.bulk).toMatchObject({
+      status: 'cancelling',
+      completed: 0,
+      currentBulletKey: 'contoso::platform-migration',
+      lastUpdatedAt: '2026-04-05T00:00:01.000Z',
+    })
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:02.000Z'))
+    useIdentityStore.getState().finishScanBulkDeepen()
+
+    persisted = await readPersistedIdentityState()
+    expect(persisted.state.scanResult?.progress.bulk).toMatchObject({
+      status: 'idle',
+      completed: 0,
+      currentBulletKey: null,
+      lastUpdatedAt: '2026-04-05T00:00:02.000Z',
+    })
+  })
+
+  it('clears scan result state and persists the reset storage shape', async () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().clearScanResult()
+
+    let persisted = await readPersistedIdentityState()
+    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(useIdentityStore.getState().draftDocument).toBe('')
+    expect(useIdentityStore.getState().warnings).toEqual([])
+    expect(persisted).toMatchObject({
+      version: 4,
+      state: {
+        scanResult: null,
+        draftDocument: '',
+        warnings: [],
+      },
+    })
+
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().setScanResult(null)
+
+    persisted = await readPersistedIdentityState()
+    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(useIdentityStore.getState().draftDocument).toBe('')
+    expect(useIdentityStore.getState().warnings).toEqual([])
+    expect(persisted).toMatchObject({
+      version: 4,
+      state: {
+        scanResult: null,
+        draftDocument: '',
+        warnings: [],
+      },
+    })
   })
 
   it('keeps mixed multi-bullet scan counts consistent across deepen fail and edit states', () => {
     useIdentityStore.getState().setScanResult(createMultiBulletScanResult())
 
     useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
-    useIdentityStore.getState().failScannedBulletDeepen(
-      'contoso',
-      'observability-rollout',
-      'Could not infer enough evidence.',
-    )
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen(
+        'contoso',
+        'observability-rollout',
+        'Could not infer enough evidence.',
+      )
     useIdentityStore.getState().markScannedBulletEdited('northwind', 'release-automation')
 
     const state = useIdentityStore.getState().scanResult
@@ -592,11 +721,9 @@ describe('identityStore scan progress', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().startScanBulkDeepen()
     useIdentityStore.getState().updateScanBulkProgress('contoso::platform-migration')
-    useIdentityStore.getState().failScannedBulletDeepen(
-      'contoso',
-      'platform-migration',
-      'Timed out while deepening.',
-    )
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen('contoso', 'platform-migration', 'Timed out while deepening.')
     useIdentityStore.getState().markScannedBulletEdited('contoso', 'platform-migration')
     useIdentityStore.getState().requestCancelScanBulkDeepen()
     useIdentityStore.getState().finishScanBulkDeepen()
@@ -613,6 +740,76 @@ describe('identityStore scan progress', () => {
     expect(state?.counts).toMatchObject({
       editedBullets: 1,
       failedBullets: 0,
+    })
+  })
+})
+
+describe('identityStore non-scan field setters', () => {
+  it('updates intake source fields directly', async () => {
+    useIdentityStore.getState().setIntakeMode('paste')
+    useIdentityStore.getState().setSourceMaterial('Resume pasted from source.')
+    useIdentityStore.getState().setCorrectionNotes('Keep platform/security emphasis.')
+
+    expect(useIdentityStore.getState()).toMatchObject({
+      intakeMode: 'paste',
+      sourceMaterial: 'Resume pasted from source.',
+      correctionNotes: 'Keep platform/security emphasis.',
+    })
+
+    const persisted = await readPersistedIdentityState()
+    expect(persisted.state).toMatchObject({
+      intakeMode: 'paste',
+      sourceMaterial: 'Resume pasted from source.',
+      correctionNotes: 'Keep platform/security emphasis.',
+    })
+  })
+
+  it('validates map selections without persisting UI ephemera', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({ currentIdentity: identity })
+
+    useIdentityStore.getState().setMapSelection({ type: 'role', id: 'contoso' })
+
+    expect(useIdentityStore.getState().mapSelection).toEqual({ type: 'role', id: 'contoso' })
+
+    const persisted = await readPersistedIdentityState()
+    expect(persisted.state).not.toHaveProperty('mapSelection')
+
+    useIdentityStore.getState().setMapSelection({ type: 'role', id: 'missing-role' })
+    expect(useIdentityStore.getState().mapSelection).toBeNull()
+
+    useIdentityStore.getState().setMapSelection(null)
+    expect(useIdentityStore.getState().mapSelection).toBeNull()
+  })
+
+  it('updates and clears draft/error fields directly', () => {
+    const identity = cloneIdentityFixture()
+
+    useIdentityStore.getState().setDraft({
+      generatedAt: '2026-04-05T00:00:00.000Z',
+      summary: 'Generated identity draft.',
+      followUpQuestions: ['Which platform migration had the largest impact?'],
+      identity,
+      bullets: [],
+      warnings: ['Needs metric follow-up.'],
+    })
+    useIdentityStore.getState().setDraftDocument('manual draft edits')
+    useIdentityStore.setState({ lastError: 'Temporary import failure.' })
+    useIdentityStore.getState().clearLastError()
+
+    expect(useIdentityStore.getState()).toMatchObject({
+      draftDocument: 'manual draft edits',
+      warnings: ['Needs metric follow-up.'],
+      lastError: null,
+    })
+
+    useIdentityStore.setState({ lastError: 'Draft parse failed.' })
+    useIdentityStore.getState().clearDraft()
+
+    expect(useIdentityStore.getState()).toMatchObject({
+      draft: null,
+      draftDocument: '',
+      lastError: null,
     })
   })
 })
@@ -652,9 +849,7 @@ describe('identityStore skill enrichment', () => {
     })
 
     expect(useIdentityStore.getState().draft?.identity.schema_revision).toBe('3.1')
-    expect(useIdentityStore.getState().draftDocument).toContain(
-      '"schema_revision": "3.1"',
-    )
+    expect(useIdentityStore.getState().draftDocument).toContain('"schema_revision": "3.1"')
   })
 
   it('normalizes numeric schema_revision values when current identity updates run on stale state', () => {
@@ -671,9 +866,7 @@ describe('identityStore skill enrichment', () => {
       preference: 'hybrid',
     })
 
-    expect(useIdentityStore.getState().currentIdentity?.schema_revision).toBe(
-      '3.1',
-    )
+    expect(useIdentityStore.getState().currentIdentity?.schema_revision).toBe('3.1')
     expect(useIdentityStore.getState().currentIdentity?.preferences.work_model).toEqual({
       preference: 'hybrid',
     })
@@ -868,9 +1061,9 @@ describe('identityStore skill enrichment', () => {
 
     useIdentityStore.getState().removeSkillFromCurrentIdentity('platform', 'Docker')
     expect(
-      useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items.some(
-        (skill) => skill.name === 'Docker',
-      ),
+      useIdentityStore
+        .getState()
+        .currentIdentity?.skills.groups[0]?.items.some((skill) => skill.name === 'Docker'),
     ).toBe(false)
   })
 
@@ -922,7 +1115,8 @@ describe('identityStore skill enrichment', () => {
 
   it('migrates legacy search_signal enrichment data into positioning on rehydrate', async () => {
     const legacyIdentity = createIdentity()
-    const legacySkill = legacyIdentity.skills.groups[0]!.items[0] as typeof legacyIdentity.skills.groups[0]['items'][number] & {
+    const legacySkill = legacyIdentity.skills.groups[0]!
+      .items[0] as (typeof legacyIdentity.skills.groups)[0]['items'][number] & {
       search_signal?: string
     }
     legacySkill.search_signal = 'Legacy positioning copy.'
@@ -954,12 +1148,15 @@ describe('identityStore skill enrichment', () => {
 
     const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
     expect(skill?.positioning).toBe('Legacy positioning copy.')
-    expect(useIdentityStore.getState().draftDocument).toContain('"positioning": "Legacy positioning copy."')
+    expect(useIdentityStore.getState().draftDocument).toContain(
+      '"positioning": "Legacy positioning copy."',
+    )
   })
 
   it('refreshes draftDocument when a persisted draft still uses search_signal', async () => {
     const legacyDraftIdentity = createIdentity()
-    const legacyDraftSkill = legacyDraftIdentity.skills.groups[0]!.items[0] as typeof legacyDraftIdentity.skills.groups[0]['items'][number] & {
+    const legacyDraftSkill = legacyDraftIdentity.skills.groups[0]!
+      .items[0] as (typeof legacyDraftIdentity.skills.groups)[0]['items'][number] & {
       search_signal?: string
     }
     legacyDraftSkill.search_signal = 'Legacy draft positioning.'
@@ -997,10 +1194,12 @@ describe('identityStore skill enrichment', () => {
 
     await useIdentityStore.persist.rehydrate()
 
-    expect(useIdentityStore.getState().draft?.identity.skills.groups[0]?.items[0]?.positioning).toBe(
-      'Legacy draft positioning.',
+    expect(
+      useIdentityStore.getState().draft?.identity.skills.groups[0]?.items[0]?.positioning,
+    ).toBe('Legacy draft positioning.')
+    expect(useIdentityStore.getState().draftDocument).toContain(
+      '"positioning": "Legacy draft positioning."',
     )
-    expect(useIdentityStore.getState().draftDocument).toContain('"positioning": "Legacy draft positioning."')
     expect(useIdentityStore.getState().draftDocument).not.toContain('"search_signal"')
   })
 
@@ -1126,7 +1325,12 @@ describe('identityStore model_revision', () => {
     useIdentityStore.getState().updateCurrentMatching({
       prioritize: [],
       avoid: [
-        { id: 'k8s-admin', label: 'Pure K8s admin roles', description: 'Avoid', severity: 'conditional' },
+        {
+          id: 'k8s-admin',
+          label: 'Pure K8s admin roles',
+          description: 'Avoid',
+          severity: 'conditional',
+        },
       ],
     })
 
@@ -1261,9 +1465,7 @@ describe('identityStore model_revision', () => {
 
     const currentRevision = useIdentityStore.getState().currentIdentity?.model_revision
     expect(currentRevision).toBe(3)
-    expect(
-      findStaleArtifacts(currentRevision ?? 0, { theses: [thesisBeforeChange] }),
-    ).toEqual([
+    expect(findStaleArtifacts(currentRevision ?? 0, { theses: [thesisBeforeChange] })).toEqual([
       { artifactType: 'thesis', artifactId: 'thesis-1', identityVersion: 2 },
     ])
   })
@@ -1283,9 +1485,7 @@ describe('identityStore model_revision', () => {
 
     const currentRevision = useIdentityStore.getState().currentIdentity?.model_revision
     expect(currentRevision).toBe(3)
-    expect(
-      findStaleArtifacts(currentRevision ?? 0, { theses: [thesisBeforeChange] }),
-    ).toEqual([
+    expect(findStaleArtifacts(currentRevision ?? 0, { theses: [thesisBeforeChange] })).toEqual([
       { artifactType: 'thesis', artifactId: 'thesis-1', identityVersion: 2 },
     ])
   })
