@@ -1,10 +1,10 @@
 ---
-id: DRAFT-2
+id: TASK-243
 title: Decide and execute import flow's final form factor
-status: Draft
+status: In Progress
 assignee: []
 created_date: '2026-04-30 18:41'
-updated_date: '2026-04-30 19:36'
+updated_date: '2026-05-08 20:47'
 labels:
   - identity
   - map-convergence
@@ -53,7 +53,7 @@ This task is **Draft** until 202.1 lands and we have lived experience with the s
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Form factor decided with reasoning grounded in 202.1's actual experience (not speculation)
+- [x] #1 Form factor decided with reasoning grounded in 202.1's actual experience (not speculation)
 - [ ] #2 Workbench route either renamed to reflect import-only role OR deleted with its functionality moved into a Map-side affordance
 - [ ] #3 Map provides a discoverable Import affordance (topbar button or empty-state CTA) that triggers the import flow in its new form
 - [ ] #4 After Apply, user lands on Map with the new identity visible; no manual nav step required
@@ -79,6 +79,16 @@ This task is **Draft** until 202.1 lands and we have lived experience with the s
 - `decision-maker` — same shape of choice as TASK-202.2: options × criteria × reasoning
 
 **Note:** This task is **Draft** because the form-factor decision genuinely depends on TASK-202.1's lived experience with the sheet primitive. Don't activate until 202.1 has landed and someone has used the sheet for source_text editing in real conditions.
+
+## Form-factor decision (2026-05-08)
+
+Decision: route-but-ephemeral.
+
+Reasoning:
+- The InspectorSheet primitive has worked well for one focused high-content field next to an already-selected Map entity, but the import flow is multi-stage async work: upload, parse progress, scan review, optional draft generation, apply, and cancellation.
+- Keeping import on a focused route preserves the existing tested async lifecycle and avoids stretching the sheet primitive into a wizard/container primitive.
+- Strategy D still holds because the route is import-only: the Map remains the canonical edit surface, and the import route should return users to Map after Apply.
+- The next implementation slice should rename or alias the route to the import-only role, keep the Map topbar import affordance, and auto-navigate to Map after apply.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
