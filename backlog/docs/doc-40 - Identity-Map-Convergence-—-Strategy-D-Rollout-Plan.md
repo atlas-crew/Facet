@@ -55,7 +55,7 @@ TASK-194  Resolve thesis strength formula                             [done]
 Identity scanner pipeline + identity store regression coverage. Independent of Lane A's editor-deletion arc.
 
 ```
-TASK-87    Align scan store field typing and normalization conventions  [med]
+TASK-87    Align scan store field typing and normalization conventions  [done]
 TASK-89    Broaden identityStore scan persistence coverage              [done]
 TASK-92    Expand medium-priority identity scanner browser fixtures     [med]
 TASK-114.4 Expand skill enrichment wizard regression coverage           [done]
@@ -159,4 +159,4 @@ Remaining doc-40 work is now Lane C hardening plus TASK-200 coverage. Lane C can
 ## Revision history
 
 - **2026-05-07 v1**: initial Strategy D rollout plan. Closed TASK-115.3 (strategy workbench zombie). Out-of-scoped TASK-205 / TASK-201 (research workspace, not identity workspace).
-- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. TASK-100 closed. Lane C has TASK-87, TASK-92, and in-flight TASK-114.6 remaining; Lane D has TASK-200 remaining.
+- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. TASK-87 and TASK-100 closed. Lane C has TASK-92 and in-flight TASK-114.6 remaining; Lane D has TASK-200 remaining.
