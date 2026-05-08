@@ -19,8 +19,13 @@ import {
   Sun,
   Monitor,
   Home,
+  X,
 } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
+import { useCoverLetterStore } from '../store/coverLetterStore'
+import { IDENTITY_STORE_STORAGE_KEY } from '../store/identityStore'
+import { usePrepStore } from '../store/prepStore'
+import { useSearchStore } from '../store/searchStore'
 import type { FacetWorkspaceSnapshot } from '../persistence'
 import {
   captureLocalWorkspaceSnapshotForMigration,
@@ -35,6 +40,7 @@ import { facetClientEnv } from '../utils/facetEnv'
 import { getHostedPersistenceEndpoint } from '../utils/hostedApi'
 import { reloadPage } from '../utils/windowLocation'
 import { signInWithGitHub } from '../utils/hostedSession'
+import { findStaleArtifacts } from '../types/artifactMeta'
 import { FacetWordmark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
 import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
@@ -47,6 +53,8 @@ const AI_ROUTES: ReadonlySet<string> = new Set([
 ])
 const HELP_ROUTE = '/help' as const
 const HOME_ROUTE = '/' as const
+const CROSS_TAB_IDENTITY_REVIEW_HREF = '/research?review=stale'
+const CROSS_TAB_IDENTITY_TOAST_MS = 8000
 
 const NAV_ITEMS = [
   {
@@ -167,6 +175,36 @@ const NAV_GROUPS = [
 const isRouteActive = (currentPath: string, route: string) =>
   currentPath === route || currentPath.startsWith(`${route}/`)
 
+type CrossTabIdentityToast = {
+  id: number
+  fromRevision: number
+  toRevision: number
+  staleArtifactCount: number
+}
+
+const parsePersistedIdentityRevision = (value: string | null): number | null => {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as {
+      state?: { currentIdentity?: { model_revision?: unknown } | null }
+      currentIdentity?: { model_revision?: unknown } | null
+    }
+    const revision =
+      parsed.state?.currentIdentity?.model_revision ?? parsed.currentIdentity?.model_revision
+    return typeof revision === 'number' && Number.isFinite(revision) ? revision : null
+  } catch {
+    return null
+  }
+}
+
+const countStaleArtifactsForIdentityRevision = (identityRevision: number): number =>
+  findStaleArtifacts(identityRevision, {
+    theses: useSearchStore.getState().theses,
+    runs: useSearchStore.getState().runs,
+    prepDecks: usePrepStore.getState().decks,
+    coverLetters: useCoverLetterStore.getState().templates,
+  }).length
+
 export function AppShell() {
   const { appearance, setAppearance } = useUiStore()
   const persistenceState = usePersistenceRuntimeStore()
@@ -284,6 +322,8 @@ export function AppShell() {
   const [hostedRuntimeErrorReason, setHostedRuntimeErrorReason] = useState<string | null>(null)
   const [activeHostedWorkspaceId, setActiveHostedWorkspaceId] = useState<string | null>(null)
   const [hostedRuntimeRetryToken, setHostedRuntimeRetryToken] = useState(0)
+  const [crossTabIdentityToast, setCrossTabIdentityToast] =
+    useState<CrossTabIdentityToast | null>(null)
   const configuredHostedWorkspaceKeyRef = useRef<string | null>(null)
   const pendingMigrationRef = useRef<{
     workspaceId: string
@@ -326,6 +366,39 @@ export function AppShell() {
       root.style.removeProperty('--app-topbar-height')
     }
   }, [])
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== IDENTITY_STORE_STORAGE_KEY) return
+      if (event.storageArea && event.storageArea !== globalThis.localStorage) return
+
+      const fromRevision = parsePersistedIdentityRevision(event.oldValue)
+      const toRevision = parsePersistedIdentityRevision(event.newValue)
+      if (fromRevision === null || toRevision === null || toRevision <= fromRevision) {
+        return
+      }
+
+      setCrossTabIdentityToast({
+        id: Date.now(),
+        fromRevision,
+        toRevision,
+        staleArtifactCount: countStaleArtifactsForIdentityRevision(toRevision),
+      })
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
+
+  useEffect(() => {
+    if (!crossTabIdentityToast) return
+    const timeout = window.setTimeout(() => {
+      setCrossTabIdentityToast((current) =>
+        current?.id === crossTabIdentityToast.id ? null : current,
+      )
+    }, CROSS_TAB_IDENTITY_TOAST_MS)
+    return () => window.clearTimeout(timeout)
+  }, [crossTabIdentityToast])
 
   useEffect(() => {
     let cancelled = false
@@ -930,6 +1003,32 @@ export function AppShell() {
         onDeleteWorkspace={handleDeleteHostedWorkspace}
       />
       <WorkspaceBackupDialog open={backupOpen} onClose={() => setBackupOpen(false)} />
+      {crossTabIdentityToast ? (
+        <div
+          className="toast info"
+          role="status"
+          aria-live="polite"
+          title={`Identity changed from v${crossTabIdentityToast.fromRevision} to v${crossTabIdentityToast.toRevision}.`}
+        >
+          <span className="toast-message">
+            Identity updated in another tab.{' '}
+            {crossTabIdentityToast.staleArtifactCount === 1
+              ? '1 artifact may need refresh.'
+              : `${crossTabIdentityToast.staleArtifactCount} artifacts may need refresh.`}
+          </span>
+          <a className="toast-action" href={CROSS_TAB_IDENTITY_REVIEW_HREF}>
+            Review
+          </a>
+          <button
+            className="toast-dismiss"
+            type="button"
+            aria-label="Dismiss notification"
+            onClick={() => setCrossTabIdentityToast(null)}
+          >
+            <X size={14} strokeWidth={1.75} />
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -104,6 +104,8 @@ const researchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/research',
   component: LazyResearchPage,
+  validateSearch: (search: Record<string, unknown>): { review?: 'stale' } =>
+    search.review === 'stale' ? { review: 'stale' } : {},
 })
 
 const prepRoute = createRoute({

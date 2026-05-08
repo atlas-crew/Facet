@@ -3030,6 +3030,16 @@ select.component-input {
   flex: 1;
 }
 
+.toast-action {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.toast-action:hover {
+  text-decoration: underline;
+}
+
 .toast-dismiss {
   display: flex;
   align-items: center;
@@ -3059,6 +3069,13 @@ select.component-input {
   border-left-color: var(--success);
   background: color-mix(in srgb, var(--success) 4%, var(--bg-surface));
   color: var(--success);
+}
+
+.toast.info {
+  border-color: color-mix(in srgb, var(--accent-primary) 35%, var(--border-default));
+  border-left-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
+  color: var(--text-primary);
 }
 
 .toast.error {

@@ -5,9 +5,15 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { ReactNode } from 'react'
 import { AppShell } from '../components/AppShell'
 import { usePersistenceRuntimeStore } from '../persistence/runtime'
+import { IDENTITY_STORE_STORAGE_KEY } from '../store/identityStore'
+import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useHostedAppStore } from '../store/hostedAppStore'
+import { usePrepStore } from '../store/prepStore'
+import { useSearchStore } from '../store/searchStore'
 import { useUiStore } from '../store/uiStore'
+import type { SearchThesis } from '../types/search'
 import { FacetApiError } from '../utils/facetApiErrors'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
 const routerMocks = vi.hoisted(() => ({
@@ -115,6 +121,40 @@ const baseWorkspace = {
   updatedAt: '2026-03-14T12:00:00.000Z',
   role: 'owner' as const,
   isDefault: true,
+}
+
+const buildShellThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
+  id: 'thesis-stale',
+  createdAt: '2026-03-14T11:00:00.000Z',
+  updatedAt: '2026-03-14T11:00:00.000Z',
+  narrative: 'Stale test thesis.',
+  competitiveMoat: 'Platform execution.',
+  unfairAdvantages: [],
+  searchLanes: [
+    {
+      id: 'lane-platform',
+      title: 'Platform modernization',
+      rationale: 'Targets platform modernization roles.',
+      targetSignals: ['platform'],
+    },
+  ],
+  interviewStrategy: 'Lead with platform execution.',
+  lookFor: [],
+  avoid: [],
+  keywordCombinations: [],
+  skillDepthMap: [],
+  source: 'generated',
+  identityVersion: 1,
+  feedbackIncorporated: [],
+  ...overrides,
+})
+
+const persistedIdentityValue = (modelRevision: number) => {
+  const identity = {
+    ...cloneIdentityFixture(),
+    model_revision: modelRevision,
+  }
+  return JSON.stringify({ state: { currentIdentity: identity }, version: 4 })
 }
 
 const setPersistenceHydration = (hydrated: boolean, activeWorkspaceId = 'facet-local-workspace') => {
@@ -471,6 +511,52 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
     expect(runtimeMocks.captureLocalWorkspaceSnapshotForMigration).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /hosted workspaces/i })).toBeNull()
+  })
+
+  it('shows a non-blocking cross-tab Identity toast with a staleness review link', () => {
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(true, 'facet-local-workspace')
+    runtimeMocks.getPersistenceRuntimeStart.mockResolvedValue(undefined)
+    useSearchStore.setState({
+      theses: [buildShellThesis({ identityVersion: 2 })],
+      runs: [],
+    })
+    usePrepStore.setState({ decks: [] })
+    useCoverLetterStore.setState({ templates: [] })
+
+    render(<AppShell />)
+
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: IDENTITY_STORE_STORAGE_KEY,
+        oldValue: persistedIdentityValue(2),
+        newValue: persistedIdentityValue(3),
+      }),
+    )
+
+    expect(screen.getByText(/Identity updated in another tab/)).toBeTruthy()
+    expect(screen.getByText(/1 artifact may need refresh/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Review' }).getAttribute('href')).toBe(
+      '/research?review=stale',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /dismiss notification/i }))
+
+    expect(screen.queryByText(/Identity updated in another tab/)).toBeNull()
   })
 
   it('shows bootstrap loading while hosted account context is still connecting', () => {

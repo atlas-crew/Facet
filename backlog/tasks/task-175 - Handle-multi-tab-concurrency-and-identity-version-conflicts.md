@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 08:48'
+updated_date: '2026-05-08 09:00'
 labels:
   - shepherding
   - concurrency
@@ -86,8 +86,8 @@ When a tab detects another tab wrote to the identity store, show a brief toast: 
 - [x] #2 Identity mutations check current version from storage before writing; surface conflict if in-memory version is behind
 - [x] #3 Generation routines (thesis, prep, letter, research job) snapshot identity version at start; final artifact records that version
 - [ ] #4 ResearchJob.identityVersion is compared to current client-side identity version on rehydration; staleness badge shown if drift
-- [ ] #5 Cross-tab identity mutation triggers a non-blocking toast on other tabs
-- [ ] #6 Toast links to TASK-158 batch staleness review
+- [x] #5 Cross-tab identity mutation triggers a non-blocking toast on other tabs
+- [x] #6 Toast links to TASK-158 batch staleness review
 - [ ] #7 Tests: simulate 2-tab sequence (write in A → observe in B, generation in A while mutation in B, etc.)
 <!-- AC:END -->
 
@@ -103,6 +103,8 @@ Remediation follow-up: tightened storage-event sync typing/behavior, exported th
 AC #2 advance: current-identity mutations now compare the in-memory model_revision with the persisted identity revision before writing. When storage is newer, the store rehydrates the newer identity, sets a retryable lastError, and skips the attempted stale mutation. Verification: npx vitest run src/test/identityStore.test.ts passed 46/46; focused AC #2 subset passed; scoped ESLint passed; npm run typecheck passed.
 
 AC #3 advance: thesis, prep, cover-letter, and deep-research launch paths now snapshot the identity model revision at generation/launch start and write that revision to the final artifact/run even if Identity changes while the async request is in flight. Added mid-flight drift regressions for ResearchPage thesis + research job, PrepPage deck generation, and LettersPage AI generation. Verification: focused generation-start vitest cases passed; PrepPage.identityGeneration full file passed 9/9; LettersPage full file passed 57/57; ResearchPage focused generation/launch cases passed 2/2; scoped ESLint passed; npm run typecheck passed; npm run build passed. Full ResearchPage suite reached 85/86 with the existing pushes-a-result test timing out under suite load; that exact test passed alone.
+
+AC #5/#6 advance: AppShell now listens for cross-tab identity localStorage writes, shows a non-blocking toast in other tabs when model_revision advances, counts currently stale generated artifacts, and links the toast to /research?review=stale. ResearchPage now treats that route flag as a request to open the existing TASK-158 batch staleness review against stale artifacts for the current Identity revision. Verification: npx vitest run src/test/AppShell.test.tsx --testNamePattern "cross-tab Identity toast" passed; npx vitest run src/test/ResearchPage.test.tsx --testNamePattern "routed stale-review request" passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large-chunk warnings.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
