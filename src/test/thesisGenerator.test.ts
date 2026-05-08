@@ -185,13 +185,71 @@ describe('thesisGenerator', () => {
     expect(result.thesis.avoid).toEqual([
       expect.objectContaining({
         label: 'Pure Kubernetes administration',
-        condition:
-          'Building around Kubernetes is fine; owning clusters as the whole job is not.',
+        condition: 'Building around Kubernetes is fine; owning clusters as the whole job is not.',
         severity: 'conditional',
       }),
     ])
     expect(result.thesis.searchOverrides).toBeUndefined()
     expect(result.contractViolations).toEqual([])
+  })
+
+  it('tags user-accepted Sonnet fallback theses and sends the proxy fallback marker', async () => {
+    const identity = cloneIdentityFixture()
+    mockCallLlmProxy.mockResolvedValueOnce(
+      '<result>' +
+        JSON.stringify({
+          narrative,
+          competitiveMoat:
+            'Kubernetes delivery depth combined with product-aware platform strategy and customer deployment evidence.',
+          unfairAdvantages: [
+            {
+              combination: 'Kubernetes delivery plus product judgment',
+              targetCompanyProfile: 'Platform modernization teams',
+            },
+          ],
+          searchLanes: [
+            {
+              id: 'lane-modernization',
+              title: 'Platform modernization',
+              rationale:
+                'This lane is strong because deployment architecture has become strategically important. It fits the identity evidence without reducing the role to cluster administration.',
+              targetSignals: ['on-prem delivery', 'installability'],
+            },
+          ],
+          interviewStrategy:
+            'Anchor on deployment architecture tradeoffs and product delivery outcomes.',
+          lookFor: ['platform modernization'],
+          avoid: [],
+          keywordCombinations: [
+            {
+              query: '"platform modernization" Kubernetes',
+              lane: 'lane-modernization',
+              noiseLevel: 'low',
+            },
+          ],
+          skillDepthMap: [{ skill: 'Kubernetes' }],
+        }) +
+        '</result>',
+    )
+
+    const result = await generateSearchThesisFromIdentity(
+      identity,
+      'https://ai.example/proxy',
+      [],
+      { modelFallback: 'sonnet' },
+    )
+
+    expect(mockCallLlmProxy).toHaveBeenCalledWith(
+      'https://ai.example/proxy',
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        feature: 'research.thesis',
+        model: 'sonnet',
+        capabilityFallback: 'opus_unavailable',
+      }),
+    )
+    expect(result.thesis.source).toBe('generated-fallback')
   })
 
   it('fails before calling the proxy when identity context is too large', async () => {
@@ -287,9 +345,7 @@ describe('thesisGenerator', () => {
     expect(result.thesis.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
     expect(result.thesis.searchOverrides?.constraints.companySize).toBe('growth')
     expect(result.thesis.searchOverrides?.constraints.industriesToAvoid).toEqual(['adtech'])
-    expect(result.thesis.searchOverrides?.constraints.fundingStagesAcceptable).toEqual([
-      'series-a',
-    ])
+    expect(result.thesis.searchOverrides?.constraints.fundingStagesAcceptable).toEqual(['series-a'])
     expect(result.thesis.searchOverrides?.constraints.remotePolicies).toEqual(['remote-only'])
     expect(result.thesis.searchOverrides?.constraints.remotePolicyNote).toBe(
       'Remote-first outside Tampa Bay.',
@@ -316,8 +372,7 @@ describe('thesisGenerator', () => {
     const thesis = normalizeGeneratedSearchThesis(
       {
         narrative,
-        competitiveMoat:
-          'Kubernetes delivery depth combined with product-aware platform strategy.',
+        competitiveMoat: 'Kubernetes delivery depth combined with product-aware platform strategy.',
         unfairAdvantages: [
           {
             combination: 'Kubernetes delivery plus product judgment',
@@ -379,8 +434,7 @@ describe('thesisGenerator', () => {
     const thesis = normalizeGeneratedSearchThesis(
       {
         narrative,
-        competitiveMoat:
-          'Kubernetes delivery depth combined with product-aware platform strategy.',
+        competitiveMoat: 'Kubernetes delivery depth combined with product-aware platform strategy.',
         unfairAdvantages: [
           {
             combination: 'Kubernetes delivery plus product judgment',
@@ -426,8 +480,7 @@ describe('thesisGenerator', () => {
     const thesis = normalizeGeneratedSearchThesis(
       {
         narrative,
-        competitiveMoat:
-          'Kubernetes delivery depth combined with product-aware platform strategy.',
+        competitiveMoat: 'Kubernetes delivery depth combined with product-aware platform strategy.',
         unfairAdvantages: [
           {
             combination: 'Kubernetes delivery plus product judgment',
@@ -472,8 +525,7 @@ describe('thesisGenerator', () => {
   it('tolerates malformed legacy override filters and one-sided legacy filter payloads', () => {
     const basePayload = {
       narrative,
-      competitiveMoat:
-        'Kubernetes delivery depth combined with product-aware platform strategy.',
+      competitiveMoat: 'Kubernetes delivery depth combined with product-aware platform strategy.',
       unfairAdvantages: [
         {
           combination: 'Kubernetes delivery plus product judgment',

@@ -77,4 +77,28 @@ describe('readAiProxyError', () => {
     expect((error as FacetAiProxyError).reason).toBe('rate_limited')
     expect((error as FacetAiProxyError).status).toBe(429)
   })
+
+  it('preserves explicit Opus capability errors from the proxy', async () => {
+    const response = new Response(
+      JSON.stringify({
+        error: 'Opus is currently unavailable.',
+        code: 'ai_capability_unavailable',
+        reason: 'opus_unavailable',
+        feature: 'research.thesis',
+      }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
+
+    const error = await readAiProxyError(response)
+
+    expect(error).toBeInstanceOf(FacetAiProxyError)
+    expect(error.message).toBe('Opus is currently unavailable.')
+    expect((error as FacetAiProxyError).code).toBe('ai_capability_unavailable')
+    expect((error as FacetAiProxyError).reason).toBe('opus_unavailable')
+    expect((error as FacetAiProxyError).feature).toBe('research.thesis')
+    expect((error as FacetAiProxyError).status).toBe(503)
+  })
 })

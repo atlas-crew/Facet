@@ -140,6 +140,8 @@ export interface ThesisGenerationContext {
   userCorrections?: string
   /** Persistent custom-search directive that steers angle selection. */
   customDirective?: string
+  /** User-accepted lower-quality fallback when Opus is unavailable. */
+  modelFallback?: 'sonnet'
 }
 
 export function buildThesisGenerationPrompt(
@@ -605,12 +607,14 @@ export async function generateSearchThesisFromIdentity(
     )
   }
 
+  const usingSonnetFallback = context.modelFallback === 'sonnet'
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'research.thesis',
-    model: 'opus',
+    model: usingSonnetFallback ? 'sonnet' : 'opus',
     timeoutMs: THESIS_GENERATION_TIMEOUT_MS,
     maxTokens: THESIS_GENERATION_MAX_TOKENS,
     thinkingBudget: THESIS_GENERATION_THINKING_BUDGET,
+    ...(usingSonnetFallback ? { capabilityFallback: 'opus_unavailable' } : {}),
   })
 
   try {
@@ -623,6 +627,9 @@ export async function generateSearchThesisFromIdentity(
       undefined,
       context,
     )
+    if (usingSonnetFallback) {
+      thesis.source = 'generated-fallback'
+    }
     return {
       thesis,
       contractViolations: validateSearchThesis(thesis, identity),

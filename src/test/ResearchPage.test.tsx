@@ -12,6 +12,7 @@ import { usePrepStore } from '../store/prepStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
+import { FacetAiProxyError } from '../utils/aiProxyErrors'
 import { adaptIdentityToSearchProfile } from '../utils/identitySearchProfile'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
@@ -27,6 +28,7 @@ const {
   mockCancelDeepResearchJob,
   mockStreamDeepResearchJob,
   mockGenerateSearchThesisFromIdentity,
+  mockFetchAiProxyCapabilities,
 } = vi.hoisted(() => ({
   mockInferSearchProfile: vi.fn(),
   mockCreateDeepResearchJob: vi.fn(),
@@ -35,6 +37,7 @@ const {
   mockCancelDeepResearchJob: vi.fn(),
   mockStreamDeepResearchJob: vi.fn(),
   mockGenerateSearchThesisFromIdentity: vi.fn(),
+  mockFetchAiProxyCapabilities: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', async () => {
@@ -85,6 +88,15 @@ vi.mock('../utils/thesisGenerator', async () => {
     generateSearchThesisFromIdentity: (
       ...args: Parameters<typeof actual.generateSearchThesisFromIdentity>
     ) => mockGenerateSearchThesisFromIdentity(...args),
+  }
+})
+
+vi.mock('../utils/llmProxy', async () => {
+  const actual = await vi.importActual<typeof import('../utils/llmProxy')>('../utils/llmProxy')
+  return {
+    ...actual,
+    fetchAiProxyCapabilities: (...args: Parameters<typeof actual.fetchAiProxyCapabilities>) =>
+      mockFetchAiProxyCapabilities(...args),
   }
 })
 
@@ -220,7 +232,20 @@ describe('ResearchPage', () => {
     mockCancelDeepResearchJob.mockReset()
     mockStreamDeepResearchJob.mockReset()
     mockGenerateSearchThesisFromIdentity.mockReset()
+    mockFetchAiProxyCapabilities.mockReset()
     mockStreamDeepResearchJob.mockReturnValue({ close: vi.fn() })
+    mockFetchAiProxyCapabilities.mockResolvedValue({
+      modelCapabilities: {
+        opus: {
+          available: true,
+          model: 'claude-opus-4-7',
+          phase1FallbackModel: 'claude-sonnet-4-6',
+          phase2Required: true,
+        },
+        sonnet: { available: true, model: 'claude-sonnet-4-6' },
+        haiku: { available: true, model: 'claude-haiku-4-5-20251001' },
+      },
+    })
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       value: 'visible',
@@ -603,6 +628,100 @@ describe('ResearchPage', () => {
     expect(savedThesis?.searchLanes[0]).toMatchObject({
       id: 'lane-devex',
       title: 'Developer platform modernization',
+    })
+  })
+
+  it('offers and accepts a Sonnet fallback when Opus thesis generation is unavailable', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    mockGenerateSearchThesisFromIdentity
+      .mockRejectedValueOnce(
+        new FacetAiProxyError('Opus is currently unavailable.', {
+          status: 503,
+          code: 'ai_capability_unavailable',
+          reason: 'opus_unavailable',
+          feature: 'research.thesis',
+        }),
+      )
+      .mockResolvedValueOnce({
+        thesis: buildTestThesis({
+          id: 'thesis-sonnet-fallback',
+          source: 'generated-fallback',
+        }),
+        contractViolations: [],
+      })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate Thesis/i }))
+
+    const fallbackButton = await screen.findByRole('button', { name: 'Use Sonnet fallback' })
+    fireEvent.click(fallbackButton)
+
+    await waitFor(() => {
+      expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(2)
+    })
+    expect(mockGenerateSearchThesisFromIdentity.mock.calls[1]?.[3]).toEqual(
+      expect.objectContaining({ modelFallback: 'sonnet' }),
+    )
+    expect(useSearchStore.getState().theses.at(-1)?.source).toBe('generated-fallback')
+    expect(screen.getByText('Generated with Sonnet fallback')).toBeTruthy()
+  })
+
+  it('lets the user decline the Sonnet fallback when Opus is unavailable', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    mockGenerateSearchThesisFromIdentity.mockRejectedValueOnce(
+      new FacetAiProxyError('Opus is currently unavailable.', {
+        status: 503,
+        code: 'ai_capability_unavailable',
+        reason: 'opus_unavailable',
+        feature: 'research.thesis',
+      }),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate Thesis/i }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Wait for Opus' }))
+
+    expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Use Sonnet fallback' })).toBeNull()
+    expect(screen.getByText('Thesis generation paused until Opus is available.')).toBeTruthy()
+  })
+
+  it('shows Regenerate with Opus when a fallback thesis exists and Opus returns', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    seedLaunchThesis({ id: 'thesis-fallback-existing', source: 'generated-fallback' })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Regenerate with Opus' }))
+
+    await waitFor(() => {
+      expect(mockGenerateSearchThesisFromIdentity).toHaveBeenCalledWith(
+        identity,
+        'https://ai.example/proxy',
+        [],
+        {},
+      )
     })
   })
 
@@ -1421,6 +1540,41 @@ describe('ResearchPage', () => {
     expect(launchedRun?.identityFields).toContain('skills.Kubernetes.depth')
   })
 
+  it('surfaces Phase 2 Opus unavailability without dropping the preserved thesis', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = seedLaunchThesis({ id: 'thesis-phase-2-preserved' })
+    mockCreateDeepResearchJob.mockRejectedValueOnce(
+      new FacetAiProxyError(
+        'Deep research requires Opus, which is currently unavailable. Your reviewed thesis is preserved; try again when Opus returns.',
+        {
+          status: 503,
+          code: 'ai_capability_unavailable',
+          reason: 'opus_unavailable',
+          feature: 'research.deep-search',
+        },
+      ),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('alert').textContent).toContain('Deep research requires Opus')
+    })
+    const failedRun = useSearchStore.getState().runs.at(-1)
+    expect(failedRun?.status).toBe('failed')
+    expect(failedRun?.thesisSnapshot?.id).toBe(thesis.id)
+    expect(useSearchStore.getState().activeThesisId).toBe(thesis.id)
+  })
+
   it('propagates per-search overrides from the active thesis into both request params and snapshot', async () => {
     const identity = cloneIdentityFixture()
     useIdentityStore.setState({
@@ -2052,7 +2206,9 @@ describe('ResearchPage', () => {
   it('routes preference-panel look-for signal edits to the thesis strategy surface', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-preference-signal-route',
-      lookFor: [{ id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' }],
+      lookFor: [
+        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
+      ],
       avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin', severity: 'soft' }],
     })
     useSearchStore.setState((state) => ({
@@ -2083,7 +2239,9 @@ describe('ResearchPage', () => {
   it('routes preference-panel avoid signal edits to the thesis avoid editor', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-preference-avoid-route',
-      lookFor: [{ id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' }],
+      lookFor: [
+        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
+      ],
       avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin', severity: 'soft' }],
     })
     useSearchStore.setState((state) => ({
@@ -2109,7 +2267,9 @@ describe('ResearchPage', () => {
   it('routes an empty avoid list to the add avoid action in the thesis editor', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-preference-empty-avoid-route',
-      lookFor: [{ id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' }],
+      lookFor: [
+        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
+      ],
       avoid: [],
     })
     useSearchStore.setState((state) => ({

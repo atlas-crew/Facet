@@ -361,6 +361,13 @@ A focused API call where the model analyzes the identity model and produces a se
 **Duration:** ~30-90 seconds
 **API:** Standard `callLlmProxy()` with extended thinking
 
+If Opus is unavailable, Phase 1 may continue only after an explicit user choice to use
+Sonnet. The proxy reports `ai_capability_unavailable` / `opus_unavailable`; the
+client shows a quality warning, sends `capability_fallback: 'opus_unavailable'`, and
+saves the resulting thesis with `source: 'generated-fallback'`. Fallback theses remain
+draft-quality artifacts and show a "Regenerate with Opus" action once the proxy capability
+endpoint reports Opus available again.
+
 ```typescript
 {
   model: 'opus',
@@ -405,6 +412,12 @@ This shape is non-negotiable for a 10-20 minute operation. A single long-held fe
 **Model:** Opus (claude-opus-4-7)
 **Duration:** 10-20 minutes expected
 **API (runner-side):** Task Budgets beta with web search + extended thinking
+
+Phase 2 is Opus-required. The research job endpoint checks Opus capability before
+enqueueing; when Opus is unavailable, `POST /research/jobs` returns a clear
+`ai_capability_unavailable` response and does not create a job. There is no Sonnet
+fallback for deep research because the user still pays for the run while the quality loss
+would be highest. The reviewed thesis is preserved for retry.
 
 #### Job Lifecycle
 
@@ -954,6 +967,8 @@ Without this contract, the model compresses to fragments, skips citations, and t
 - **Identity writeback precedence** — user-corrected depth must not be overwritten by AI inference on identity regeneration (see Identity Model Lifecycle section)
 - **Thesis staleness detection** — requires `identity.version` counter; without it, fresh-context critique triggers can't fire
 - **Output contract enforcement** — models collapse reasoning to fragments unless prompts explicitly demand prose (see Output Contract: Reasoning Layers)
+- **Opus availability** — Phase 1 has an explicit Sonnet fallback path tagged
+  `generated-fallback`; Phase 2 fails before enqueue with the reviewed thesis preserved.
 - **Web search freshness** — results should be timestamped, treated as perishable
 - **Identity schema migration** — new depth levels/fields need migration logic (shipped in task-150; schema is backward-compatible)
 

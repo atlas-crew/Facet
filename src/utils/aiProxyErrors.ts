@@ -6,6 +6,7 @@ type FacetAiProxyErrorCode =
   | 'ai_rate_limited'
   | 'auth_required'
   | 'auth_internal_error'
+  | 'ai_capability_unavailable'
   | 'research_budget_exceeded'
 
 type FacetAiProxyErrorReason =
@@ -13,6 +14,7 @@ type FacetAiProxyErrorReason =
   | 'auth_required'
   | 'temporary_capacity'
   | 'rate_limited'
+  | 'opus_unavailable'
   | 'budget_ceiling'
 
 interface FacetAiProxyErrorPayload {
@@ -115,14 +117,11 @@ export async function readAiProxyError(response: Response): Promise<Error> {
 
   const payload = isRecord(parsed) ? (parsed as FacetAiProxyErrorPayload) : null
   const errorMessage =
-    (
-      payload &&
-      (
-        (typeof payload.error === 'string' && payload.error.trim()) ||
+    (payload &&
+      ((typeof payload.error === 'string' && payload.error.trim()) ||
         readNestedMessage(payload.error) ||
-        (typeof payload.message === 'string' && payload.message.trim())
-      )
-    ) || text.trim()
+        (typeof payload.message === 'string' && payload.message.trim()))) ||
+    text.trim()
 
   const code =
     payload?.code === 'ai_access_denied' ||
@@ -130,6 +129,7 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     payload?.code === 'ai_rate_limited' ||
     payload?.code === 'auth_required' ||
     payload?.code === 'auth_internal_error' ||
+    payload?.code === 'ai_capability_unavailable' ||
     payload?.code === 'research_budget_exceeded'
       ? payload.code
       : null
@@ -140,13 +140,15 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     payload?.reason === 'self_hosted_proxy_unavailable' ||
     payload?.reason === 'temporary_capacity' ||
     payload?.reason === 'rate_limited' ||
+    payload?.reason === 'opus_unavailable' ||
     payload?.reason === 'budget_ceiling' ||
     payload?.reason === 'auth_required'
       ? payload.reason
       : code === 'auth_required'
         ? 'auth_required'
         : null
-  const feature = typeof payload?.feature === 'string' ? (payload.feature as FacetAiFeatureKey) : null
+  const feature =
+    typeof payload?.feature === 'string' ? (payload.feature as FacetAiFeatureKey) : null
 
   if (code) {
     return new FacetAiProxyError(
@@ -184,7 +186,10 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     )
   }
 
-  if (response.status === 529 || (response.status >= 500 && isTemporaryCapacityMessage(errorMessage))) {
+  if (
+    response.status === 529 ||
+    (response.status >= 500 && isTemporaryCapacityMessage(errorMessage))
+  ) {
     return new FacetAiProxyError(
       'AI provider is temporarily overloaded. Please try again in a moment.',
       {
@@ -196,5 +201,7 @@ export async function readAiProxyError(response: Response): Promise<Error> {
     )
   }
 
-  return new Error(toErrorText(response.status, errorMessage || response.statusText || 'Unknown error'))
+  return new Error(
+    toErrorText(response.status, errorMessage || response.statusText || 'Unknown error'),
+  )
 }

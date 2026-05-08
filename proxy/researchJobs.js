@@ -910,6 +910,7 @@ export function createResearchJobService(options) {
   const sseExposeThinking = options.sseExposeThinking ?? true
   const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
   const retryBaseDelayMs = options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS
+  const opusAvailable = options.opusAvailable ?? true
   const onEvent = options.onEvent ?? (() => {})
   const logger = options.logger ?? console
   const activeRunners = new Map()
@@ -1241,6 +1242,18 @@ export function createResearchJobService(options) {
   }
   const createJob = async (req, res) => {
     const actor = await resolveActor(req)
+    if (!opusAvailable) {
+      options.sendJson(res, 503, {
+        error:
+          'Deep research requires Opus, which is currently unavailable. Your reviewed thesis is preserved; try again when Opus returns.',
+        code: 'ai_capability_unavailable',
+        reason: 'opus_unavailable',
+        capability: 'opus',
+        feature: 'research.deep-search',
+        phase: 'phase_2',
+      })
+      return
+    }
     const body = await options.readBody(req)
     const validation = validateCreatePayload(body)
     if (validation.error) {

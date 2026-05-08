@@ -17,6 +17,21 @@ import { getHostedAccessToken } from './hostedSession'
 const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 
+export interface AiProxyModelCapability {
+  available: boolean
+  model: string
+  phase1FallbackModel?: string
+  phase2Required?: boolean
+}
+
+export interface AiProxyCapabilities {
+  modelCapabilities: {
+    opus: AiProxyModelCapability
+    sonnet: AiProxyModelCapability
+    haiku: AiProxyModelCapability
+  }
+}
+
 /**
  * Failure classification for `extractJsonBlock`. Consumers read `kind` to decide
  * whether to surface a retry affordance vs a hard error.
@@ -135,10 +150,7 @@ export function extractJsonBlock(text: string): string {
       diagnostic,
     )
   }
-  console.warn(
-    '[extractJsonBlock] no sentinel, fenced block, or balanced braces found',
-    diagnostic,
-  )
+  console.warn('[extractJsonBlock] no sentinel, fenced block, or balanced braces found', diagnostic)
   throw new JsonExtractionError(
     'Could not find JSON block in AI response (no <result> sentinel, fenced block, or balanced braces).',
     'no-json-found',
@@ -166,6 +178,8 @@ export interface LlmProxyOptions {
   outputConfig?: Record<string, unknown>
   /** Optional Facet proxy thinking budget; the proxy translates this to Anthropic thinking. */
   thinkingBudget?: number
+  /** Narrow Phase 1 escape hatch when Opus is unavailable and the user accepts Sonnet fallback. */
+  capabilityFallback?: 'opus_unavailable'
   /** Optional Anthropic beta names; proxy forwards them as anthropic-beta. */
   betas?: string[]
   /** Optional API key header. */
@@ -223,7 +237,10 @@ export async function callLlmProxy(
         ...(options.model ? { model: options.model } : {}),
         ...(options.feature ? { feature: options.feature } : {}),
         ...(typeof options.maxTokens === 'number' ? { max_tokens: options.maxTokens } : {}),
-        ...(typeof options.thinkingBudget === 'number' ? { thinking_budget: options.thinkingBudget } : {}),
+        ...(typeof options.thinkingBudget === 'number'
+          ? { thinking_budget: options.thinkingBudget }
+          : {}),
+        ...(options.capabilityFallback ? { capability_fallback: options.capabilityFallback } : {}),
         ...(options.outputConfig ? { output_config: options.outputConfig } : {}),
         ...(options.betas ? { betas: options.betas } : {}),
       }),
@@ -270,4 +287,31 @@ export async function callLlmProxy(
     options.signal?.removeEventListener('abort', onAbort)
     globalThis.clearTimeout(timeoutId)
   }
+}
+
+function resolveProxyPath(endpoint: string, path: string): string {
+  const origin = globalThis.location?.origin ?? 'http://localhost'
+  const base = new URL(endpoint, origin)
+  const basePath = base.pathname === '/' ? '' : base.pathname.replace(/\/+$/, '')
+  return new URL(basePath + path, base.origin).toString()
+}
+
+export async function fetchAiProxyCapabilities(endpoint: string): Promise<AiProxyCapabilities> {
+  const bearerToken = await getHostedAccessToken()
+  const configuredProxyApiKey = facetClientEnv.anthropicProxyApiKey || undefined
+  const resolvedProxyApiKey =
+    configuredProxyApiKey ?? (bearerToken ? undefined : DEFAULT_PROXY_API_KEY)
+  const response = await fetch(resolveProxyPath(endpoint, '/capabilities'), {
+    method: 'GET',
+    headers: {
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+      ...(resolvedProxyApiKey ? { 'X-Proxy-API-Key': resolvedProxyApiKey } : {}),
+    },
+  })
+
+  if (!response.ok) {
+    throw await readAiProxyError(response)
+  }
+
+  return (await response.json()) as AiProxyCapabilities
 }

@@ -35,6 +35,7 @@ async function loadProxyModules() {
 async function startServer(options?: {
   maxBodyBytes?: number
   staticDir?: string
+  opusAvailable?: boolean
 }) {
   const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
   const store = createInMemoryWorkspaceStore()
@@ -42,6 +43,7 @@ async function startServer(options?: {
     allowedOrigins: ['http://localhost:5173'],
     maxBodyBytes: options?.maxBodyBytes,
     proxyApiKey: 'proxy-key',
+    opusAvailable: options?.opusAvailable,
     persistenceAuthTokens: [
       {
         token: 'member-token',
@@ -112,8 +114,7 @@ async function createHostedSessionToken(
     builder = builder.setJti(options.jti)
   }
 
-  return builder
-    .sign(privateKey)
+  return builder.sign(privateKey)
 }
 
 async function startHostedServer(options?: {
@@ -126,10 +127,10 @@ async function startHostedServer(options?: {
   } | null
   includeDefaultWorkspace?: boolean
   hostedRateLimits?: {
-    ai?: { max: number, windowMs: number }
-    aiFeatures?: Record<string, { max: number, windowMs: number }>
-    billingMutations?: { max: number, windowMs: number }
-    persistenceMutations?: { max: number, windowMs: number }
+    ai?: { max: number; windowMs: number }
+    aiFeatures?: Record<string, { max: number; windowMs: number }>
+    billingMutations?: { max: number; windowMs: number }
+    persistenceMutations?: { max: number; windowMs: number }
   }
   usageStore?: {
     recordCall: (record: Record<string, unknown>) => Promise<void>
@@ -205,10 +206,12 @@ async function startHostedServer(options?: {
     billingStore,
     anthropicClient: {
       messages: {
-        create: options?.anthropicCreate ?? (async () => ({
-          content: [{ type: 'text', text: '{"ok":true}' }],
-          usage: options?.anthropicUsage ?? { input_tokens: 0, output_tokens: 0 },
-        })),
+        create:
+          options?.anthropicCreate ??
+          (async () => ({
+            content: [{ type: 'text', text: '{"ok":true}' }],
+            usage: options?.anthropicUsage ?? { input_tokens: 0, output_tokens: 0 },
+          })),
       },
     },
     usageStore: options?.usageStore,
@@ -244,27 +247,31 @@ describe('facetServer persistence API', () => {
 
   afterEach(async () => {
     await Promise.all(
-      [...servers].map((server) => new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })),
+      [...servers].map(
+        (server) =>
+          new Promise<void>((resolve, reject) => {
+            server.close((error) => {
+              if (error) {
+                reject(error)
+                return
+              }
+              resolve()
+            })
+          }),
+      ),
     )
     servers.clear()
-    await Promise.all(
-      [...tempDirs].map((dir) => rm(dir, { recursive: true, force: true })),
-    )
+    await Promise.all([...tempDirs].map((dir) => rm(dir, { recursive: true, force: true })))
     tempDirs.clear()
   })
 
   it('serves static files with cache headers and blocks symlink escapes', async () => {
     const staticDir = await mkdtemp(join(tmpdir(), 'facet-static-'))
     tempDirs.add(staticDir)
-    await writeFile(join(staticDir, 'index.html'), '<!doctype html><html><body>Facet static shell</body></html>')
+    await writeFile(
+      join(staticDir, 'index.html'),
+      '<!doctype html><html><body>Facet static shell</body></html>',
+    )
     await mkdir(join(staticDir, 'assets'), { recursive: true })
     await writeFile(join(staticDir, 'assets', 'app.js'), 'console.log("facet-static")')
     await writeFile(join(staticDir, 'hello world.txt'), 'Facet encoded path')
@@ -330,6 +337,95 @@ describe('facetServer persistence API', () => {
     await expect(blocked.json()).resolves.toEqual({
       error: 'Origin not allowed',
     })
+  })
+
+  it('exposes Opus capability status and blocks Opus requests when unavailable', async () => {
+    const calls: unknown[] = []
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      opusAvailable: false,
+      anthropicClient: {
+        messages: {
+          create: async (params: unknown) => {
+            calls.push(params)
+            return {
+              content: [{ type: 'text', text: '{"ok":true}' }],
+              usage: { input_tokens: 1, output_tokens: 1 },
+            }
+          },
+        },
+      },
+    })
+    servers.add(server)
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind capability test server.')
+    }
+    const baseUrl = `http://127.0.0.1:${address.port}`
+
+    const capabilityResponse = await fetch(baseUrl + '/capabilities', {
+      headers: {
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+    })
+    expect(capabilityResponse.status).toBe(200)
+    await expect(capabilityResponse.json()).resolves.toMatchObject({
+      modelCapabilities: {
+        opus: {
+          available: false,
+          model: 'claude-opus-4-7',
+          phase1FallbackModel: 'claude-sonnet-4-6',
+          phase2Required: true,
+        },
+      },
+    })
+
+    const blocked = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.thesis',
+        model: 'opus',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Generate a thesis.' }],
+      }),
+    })
+    expect(blocked.status).toBe(503)
+    await expect(blocked.json()).resolves.toMatchObject({
+      code: 'ai_capability_unavailable',
+      reason: 'opus_unavailable',
+      feature: 'research.thesis',
+    })
+
+    const fallback = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.thesis',
+        model: 'sonnet',
+        capability_fallback: 'opus_unavailable',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Generate a fallback thesis.' }],
+      }),
+    })
+    expect(fallback.status).toBe(200)
+    expect(fallback.headers.get('X-Facet-Resolved-Model')).toBe('claude-sonnet-4-6')
+    expect(calls).toHaveLength(1)
   })
 
   it('returns client errors for malformed and oversized JSON bodies', async () => {
@@ -1057,10 +1153,12 @@ describe('facetServer persistence API', () => {
           body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>,
         })
         res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({
-          content: [{ type: 'text', text: '{"ok":true}' }],
-          usage: { input_tokens: 0, output_tokens: 0 },
-        }))
+        res.end(
+          JSON.stringify({
+            content: [{ type: 'text', text: '{"ok":true}' }],
+            usage: { input_tokens: 0, output_tokens: 0 },
+          }),
+        )
       })
     })
     servers.add(upstream)
@@ -1149,20 +1247,21 @@ describe('facetServer persistence API', () => {
       throw new Error('Failed to bind invalid task-budget option test server.')
     }
 
-    const post = (body: Record<string, unknown>) => fetch(`http://127.0.0.1:${address.port}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'http://localhost:5173',
-        'X-Proxy-API-Key': 'proxy-key',
-      },
-      body: JSON.stringify({
-        feature: 'research.deep-search',
-        model: 'sonnet',
-        messages: [{ role: 'user', content: 'Run deep research.' }],
-        ...body,
-      }),
-    })
+    const post = (body: Record<string, unknown>) =>
+      fetch(`http://127.0.0.1:${address.port}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+          'X-Proxy-API-Key': 'proxy-key',
+        },
+        body: JSON.stringify({
+          feature: 'research.deep-search',
+          model: 'sonnet',
+          messages: [{ role: 'user', content: 'Run deep research.' }],
+          ...body,
+        }),
+      })
 
     const invalidOutputConfig = await post({ output_config: ['not-an-object'] })
     expect(invalidOutputConfig.status).toBe(400)
@@ -1378,8 +1477,9 @@ describe('facetServer persistence API', () => {
         model: 'claude-opus-4-7',
       }),
     )
-    const [routedCall1, routedCall2] =
-      messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    const [routedCall1, routedCall2] = messagesCreate.mock.calls as unknown as Array<
+      [Record<string, unknown>]
+    >
     expect(routedCall1).not.toHaveProperty('temperature')
     expect(routedCall2).not.toHaveProperty('temperature')
   })
@@ -1544,8 +1644,7 @@ describe('facetServer persistence API', () => {
         model: 'claude-opus-4-7',
       }),
     )
-    const [overrideCall] =
-      messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    const [overrideCall] = messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
     expect(overrideCall).not.toHaveProperty('temperature')
   })
 
@@ -1653,8 +1752,7 @@ describe('facetServer persistence API', () => {
         model: 'claude-sonnet-4-6',
       }),
     )
-    const [overrideCall] =
-      messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
+    const [overrideCall] = messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
     expect(overrideCall).not.toHaveProperty('temperature')
   })
 
@@ -1936,16 +2034,17 @@ describe('facetServer persistence API', () => {
       Origin: 'http://localhost:5173',
     }
 
-    const postAi = (feature: string) => fetch(baseUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        feature,
-        model: 'haiku',
-        system: 'Return JSON only.',
-        messages: [{ role: 'user', content: 'Generate.' }],
-      }),
-    })
+    const postAi = (feature: string) =>
+      fetch(baseUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          feature,
+          model: 'haiku',
+          system: 'Return JSON only.',
+          messages: [{ role: 'user', content: 'Generate.' }],
+        }),
+      })
 
     expect((await postAi('prep.generate')).status).toBe(200)
 
@@ -1966,7 +2065,8 @@ describe('facetServer persistence API', () => {
   })
 
   it('enforces configured daily feature caps through the usage store', async () => {
-    const reserveDailyFeatureCall = vi.fn()
+    const reserveDailyFeatureCall = vi
+      .fn()
       .mockResolvedValueOnce({ allowed: true, count: 1 })
       .mockResolvedValueOnce({ allowed: false, count: 1 })
     const recordCall = vi.fn().mockResolvedValue(undefined)
@@ -1991,20 +2091,21 @@ describe('facetServer persistence API', () => {
     })
     servers.add(server)
 
-    const request = () => fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Origin: 'http://localhost:5173',
-      },
-      body: JSON.stringify({
-        feature: 'prep.generate',
-        model: 'haiku',
-        system: 'Return JSON only.',
-        messages: [{ role: 'user', content: 'Prepare me.' }],
-      }),
-    })
+    const request = () =>
+      fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({
+          feature: 'prep.generate',
+          model: 'haiku',
+          system: 'Return JSON only.',
+          messages: [{ role: 'user', content: 'Prepare me.' }],
+        }),
+      })
 
     expect((await request()).status).toBe(200)
     const capped = await request()
@@ -2298,20 +2399,21 @@ describe('facetServer persistence API', () => {
     })
     servers.add(server)
 
-    const request = () => fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Origin: 'http://localhost:5173',
-      },
-      body: JSON.stringify({
-        feature: 'research.search',
-        model: 'haiku',
-        system: 'Return JSON only.',
-        messages: [{ role: 'user', content: 'Find jobs.' }],
-      }),
-    })
+    const request = () =>
+      fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({
+          feature: 'research.search',
+          model: 'haiku',
+          system: 'Return JSON only.',
+          messages: [{ role: 'user', content: 'Find jobs.' }],
+        }),
+      })
 
     expect((await request()).status).toBe(200)
     now += 1_000
@@ -2350,20 +2452,21 @@ describe('facetServer persistence API', () => {
     })
     servers.add(server)
 
-    const request = () => fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Origin: 'http://localhost:5173',
-      },
-      body: JSON.stringify({
-        feature: 'research.search',
-        model: 'haiku',
-        system: 'Return JSON only.',
-        messages: [{ role: 'user', content: 'Find jobs.' }],
-      }),
-    })
+    const request = () =>
+      fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({
+          feature: 'research.search',
+          model: 'haiku',
+          system: 'Return JSON only.',
+          messages: [{ role: 'user', content: 'Find jobs.' }],
+        }),
+      })
 
     const responses = Promise.all([request(), request(), request()])
     await vi.waitFor(() => {
@@ -2405,20 +2508,21 @@ describe('facetServer persistence API', () => {
     })
     servers.add(server)
 
-    const request = () => fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Origin: 'http://localhost:5173',
-      },
-      body: JSON.stringify({
-        feature: 'research.search',
-        model: 'haiku',
-        system: 'Return JSON only.',
-        messages: [{ role: 'user', content: 'Find jobs.' }],
-      }),
-    })
+    const request = () =>
+      fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({
+          feature: 'research.search',
+          model: 'haiku',
+          system: 'Return JSON only.',
+          messages: [{ role: 'user', content: 'Find jobs.' }],
+        }),
+      })
 
     expect((await request()).status).toBe(200)
     const denied = await request()
@@ -2433,8 +2537,7 @@ describe('facetServer persistence API', () => {
   })
 
   it('fails closed with a billing_state_error when hosted billing state cannot be loaded', async () => {
-    const { createFacetServer, createInMemoryHostedWorkspaceStore } =
-      await loadProxyModules()
+    const { createFacetServer, createInMemoryHostedWorkspaceStore } = await loadProxyModules()
     const hosted = await buildHostedAuthFixture()
     const workspaceStore = createInMemoryHostedWorkspaceStore({
       actors: [
@@ -2682,31 +2785,37 @@ describe('facetServer persistence API', () => {
   it('rejects invalid hosted AI feature rate-limit env configuration', async () => {
     const { createEnvFacetServer } = await loadProxyModules()
 
-    expect(() => createEnvFacetServer({
-      FACET_AUTH_MODE: 'hosted',
-      FACET_ENVIRONMENT: 'local',
-      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
-      HOSTED_BILLING_FILE: './hosted-billing.example.json',
-      HOSTED_AI_FEATURE_RATE_LIMITS_JSON: '{not-json',
-    })).toThrow(/HOSTED_AI_FEATURE_RATE_LIMITS_JSON must be valid JSON object syntax/)
-
-    expect(() => createEnvFacetServer({
-      FACET_AUTH_MODE: 'hosted',
-      FACET_ENVIRONMENT: 'local',
-      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
-      HOSTED_BILLING_FILE: './hosted-billing.example.json',
-      HOSTED_AI_DAILY_FEATURE_CAPS_JSON: '{not-json',
-    })).toThrow(/HOSTED_AI_DAILY_FEATURE_CAPS_JSON must be valid JSON object syntax/)
-
-    expect(() => createEnvFacetServer({
-      FACET_AUTH_MODE: 'hosted',
-      FACET_ENVIRONMENT: 'local',
-      HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
-      HOSTED_BILLING_FILE: './hosted-billing.example.json',
-      HOSTED_AI_FEATURE_RATE_LIMITS_JSON: JSON.stringify({
-        'typo.feature': { max: 1, windowMs: 60_000 },
+    expect(() =>
+      createEnvFacetServer({
+        FACET_AUTH_MODE: 'hosted',
+        FACET_ENVIRONMENT: 'local',
+        HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+        HOSTED_BILLING_FILE: './hosted-billing.example.json',
+        HOSTED_AI_FEATURE_RATE_LIMITS_JSON: '{not-json',
       }),
-    })).toThrow(/unknown AI feature "typo.feature"/)
+    ).toThrow(/HOSTED_AI_FEATURE_RATE_LIMITS_JSON must be valid JSON object syntax/)
+
+    expect(() =>
+      createEnvFacetServer({
+        FACET_AUTH_MODE: 'hosted',
+        FACET_ENVIRONMENT: 'local',
+        HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+        HOSTED_BILLING_FILE: './hosted-billing.example.json',
+        HOSTED_AI_DAILY_FEATURE_CAPS_JSON: '{not-json',
+      }),
+    ).toThrow(/HOSTED_AI_DAILY_FEATURE_CAPS_JSON must be valid JSON object syntax/)
+
+    expect(() =>
+      createEnvFacetServer({
+        FACET_AUTH_MODE: 'hosted',
+        FACET_ENVIRONMENT: 'local',
+        HOSTED_WORKSPACE_FILE: './hosted-workspaces.example.json',
+        HOSTED_BILLING_FILE: './hosted-billing.example.json',
+        HOSTED_AI_FEATURE_RATE_LIMITS_JSON: JSON.stringify({
+          'typo.feature': { max: 1, windowMs: 60_000 },
+        }),
+      }),
+    ).toThrow(/unknown AI feature "typo.feature"/)
   })
 
   it('rejects hosted staging persistence token maps and transitional file stores without an explicit override', async () => {

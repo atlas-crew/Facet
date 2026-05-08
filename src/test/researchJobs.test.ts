@@ -262,6 +262,7 @@ async function startResearchServer(
     researchBudgetWarningRatio?: number
     researchEstimatedInputTokens?: number
     researchEstimatedOutputTokens?: number
+    opusAvailable?: boolean
     persistenceActorResolver?: (
       req: unknown,
       options?: { refresh?: boolean },
@@ -318,6 +319,7 @@ async function startResearchServer(
     researchBudgetWarningRatio: options.researchBudgetWarningRatio,
     researchEstimatedInputTokens: options.researchEstimatedInputTokens,
     researchEstimatedOutputTokens: options.researchEstimatedOutputTokens,
+    opusAvailable: options.opusAvailable,
     logger,
   })
 
@@ -490,6 +492,33 @@ describe('research job API', () => {
       })
     }
     expect(anthropicCreate).not.toHaveBeenCalled()
+  })
+
+  it('hard-fails Phase 2 job creation when Opus is unavailable', async () => {
+    const anthropicCreate = vi.fn<AnthropicCreate>(async () => researchResponse())
+    const { baseUrl, researchJobStore } = await startResearchServer({
+      anthropicCreate,
+      opusAvailable: false,
+    })
+
+    const response = await createResearchJob(baseUrl)
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining('Deep research requires Opus'),
+      code: 'ai_capability_unavailable',
+      reason: 'opus_unavailable',
+      capability: 'opus',
+      feature: 'research.deep-search',
+      phase: 'phase_2',
+    })
+    expect(anthropicCreate).not.toHaveBeenCalled()
+    await expect(
+      researchJobStore.listJobsForActor({
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+      }),
+    ).resolves.toEqual([])
   })
 
   it('reports rolling research usage, warns near the ceiling, and rejects over budget', async () => {

@@ -408,7 +408,7 @@ export interface SearchRunNarrative {
 
 // ── Search Thesis ──────────────────────────────────────────────
 
-export type SearchThesisSource = 'generated' | 'user-edited'
+export type SearchThesisSource = 'generated' | 'generated-fallback' | 'user-edited'
 
 export type SearchUrgency = 'critical' | 'active' | 'exploratory'
 

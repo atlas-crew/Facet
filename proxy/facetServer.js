@@ -20,13 +20,8 @@ import {
   isFacetAiFeatureKey,
   resolveHostedAiAccess,
 } from './aiAccess.js'
-import {
-  createFileHostedBillingStore,
-  createInMemoryHostedBillingStore,
-} from './billingState.js'
-import {
-  createHostedSessionActorResolver,
-} from './hostedAuth.js'
+import { createFileHostedBillingStore, createInMemoryHostedBillingStore } from './billingState.js'
+import { createHostedSessionActorResolver } from './hostedAuth.js'
 import {
   createFileHostedWorkspaceStore,
   createInMemoryHostedWorkspaceStore,
@@ -60,8 +55,21 @@ const DEFAULT_MODEL = CURRENT_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 const TASK_BUDGET_FEATURE_MAX_TOKENS = 128_000
-const TASK_BUDGET_FEATURES = new Set(['research.deep-search', 'research.thesis', 'letters.generate'])
-const TEXT_UTF8_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.map', '.svg', '.txt', '.xml'])
+const TASK_BUDGET_FEATURES = new Set([
+  'research.deep-search',
+  'research.thesis',
+  'letters.generate',
+])
+const TEXT_UTF8_EXTENSIONS = new Set([
+  '.css',
+  '.html',
+  '.js',
+  '.json',
+  '.map',
+  '.svg',
+  '.txt',
+  '.xml',
+])
 const STATIC_CONTENT_TYPES = {
   '.css': 'text/css',
   '.gif': 'image/gif',
@@ -85,6 +93,14 @@ const MODEL_ALIASES = {
   haiku: CURRENT_HAIKU_MODEL,
   sonnet: CURRENT_SONNET_MODEL,
   opus: CURRENT_OPUS_MODEL,
+}
+
+const OPUS_UNAVAILABLE_ERROR = {
+  error:
+    'Opus is currently unavailable. Phase 1 can use a lower-quality Sonnet fallback; Phase 2 deep research requires Opus and cannot start until Opus returns.',
+  code: 'ai_capability_unavailable',
+  reason: 'opus_unavailable',
+  capability: 'opus',
 }
 
 // Per-feature model tiering (see backlog doc-24 for product context):
@@ -172,7 +188,9 @@ function createUnauthenticatedAnthropicCompatClient({ baseURL }) {
           const message =
             typeof payload === 'string'
               ? payload
-              : payload?.error?.message ?? payload?.message ?? 'Anthropic-compatible upstream error'
+              : (payload?.error?.message ??
+                payload?.message ??
+                'Anthropic-compatible upstream error')
           const error = new Error(message)
           error.status = response.status
           error.payload = payload
@@ -378,11 +396,7 @@ function monitorScopeForBucket(bucket) {
 
 function secondsUntilNextUtcDay(nowMs) {
   const current = new Date(nowMs)
-  const next = Date.UTC(
-    current.getUTCFullYear(),
-    current.getUTCMonth(),
-    current.getUTCDate() + 1,
-  )
+  const next = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate() + 1)
   return Math.max(1, Math.ceil((next - nowMs) / 1000))
 }
 
@@ -407,8 +421,7 @@ function normalizeTimestampMs(value, fallback = Date.now()) {
 
 function isHostedAiUsagePolicyEnabled(policy) {
   return (
-    Object.keys(policy.dailyFeatureCaps).length > 0 ||
-    policy.globalSpendCircuitBreaker.maxCents > 0
+    Object.keys(policy.dailyFeatureCaps).length > 0 || policy.globalSpendCircuitBreaker.maxCents > 0
   )
 }
 
@@ -424,9 +437,7 @@ function createHostedOperationsMonitor({
 
   return {
     record(scope, result, details = {}) {
-      const counterKey = [scope, result, details.code, details.reason]
-        .filter(Boolean)
-        .join('.')
+      const counterKey = [scope, result, details.code, details.reason].filter(Boolean).join('.')
       counters.set(counterKey, (counters.get(counterKey) ?? 0) + 1)
 
       const event = {
@@ -455,7 +466,9 @@ function createHostedOperationsMonitor({
           [...counters.entries()].sort(([left], [right]) => left.localeCompare(right)),
         ),
         recentEvents: Array.from({ length: recentEventCount }, (_, index) => {
-          const offset = (nextRecentEventIndex - recentEventCount + index + recentEvents.length) % recentEvents.length
+          const offset =
+            (nextRecentEventIndex - recentEventCount + index + recentEvents.length) %
+            recentEvents.length
           return recentEvents[offset]
         }).filter(Boolean),
         rateLimits,
@@ -470,10 +483,7 @@ function createFixedWindowRateLimiter({
 } = {}) {
   const windows = new Map()
   const configs = listRateLimitConfigs(limits)
-  const cleanupIntervalMs = Math.max(
-    1_000,
-    Math.min(...configs.map((config) => config.windowMs)),
-  )
+  const cleanupIntervalMs = Math.max(1_000, Math.min(...configs.map((config) => config.windowMs)))
   const cleanupExpired = () => {
     const currentTime = now()
     for (const [existingKey, entry] of windows.entries()) {
@@ -506,10 +516,7 @@ function createFixedWindowRateLimiter({
       if (currentWindow.count >= config.max) {
         return {
           allowed: false,
-          retryAfterSeconds: Math.max(
-            1,
-            Math.ceil((currentWindow.expiresAt - currentTime) / 1000),
-          ),
+          retryAfterSeconds: Math.max(1, Math.ceil((currentWindow.expiresAt - currentTime) / 1000)),
         }
       }
 
@@ -529,10 +536,7 @@ function resolveHostedRateLimitBucket(req, pathname) {
     return 'ai'
   }
 
-  if (
-    pathname === '/api/billing/customer' ||
-    pathname === '/api/billing/checkout-session'
-  ) {
+  if (pathname === '/api/billing/customer' || pathname === '/api/billing/checkout-session') {
     return 'billingMutations'
   }
 
@@ -590,8 +594,54 @@ function resolveFeatureModel(requested, feature, defaultModel) {
   return MODEL_ALIASES[requested] ? featureDefaultModel : resolvedRequestedModel
 }
 
+function normalizeBooleanCapability(value, fallback = true) {
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return fallback
+  const normalized = value.trim().toLowerCase()
+  if (['false', '0', 'no', 'off', 'unavailable'].includes(normalized)) return false
+  if (['true', '1', 'yes', 'on', 'available'].includes(normalized)) return true
+  return fallback
+}
+
+function createModelCapabilities(options = {}) {
+  const opusAvailable = normalizeBooleanCapability(
+    options.opusAvailable ?? options.modelCapabilities?.opus?.available,
+    true,
+  )
+  return {
+    opus: {
+      available: opusAvailable,
+      model: CURRENT_OPUS_MODEL,
+      phase1FallbackModel: CURRENT_SONNET_MODEL,
+      phase2Required: true,
+    },
+    sonnet: {
+      available: true,
+      model: CURRENT_SONNET_MODEL,
+    },
+    haiku: {
+      available: true,
+      model: CURRENT_HAIKU_MODEL,
+    },
+  }
+}
+
+function modelRequiresOpus(model) {
+  return model === CURRENT_OPUS_MODEL
+}
+
+function isApprovedOpusFallback({ feature, requestedModel, capabilityFallback }) {
+  return (
+    feature === 'research.thesis' &&
+    requestedModel === 'sonnet' &&
+    capabilityFallback === 'opus_unavailable'
+  )
+}
+
 function maxRequestTokensForFeature(feature, defaultCap) {
-  return TASK_BUDGET_FEATURES.has(feature) ? Math.max(defaultCap, TASK_BUDGET_FEATURE_MAX_TOKENS) : defaultCap
+  return TASK_BUDGET_FEATURES.has(feature)
+    ? Math.max(defaultCap, TASK_BUDGET_FEATURE_MAX_TOKENS)
+    : defaultCap
 }
 
 function normalizeOutputConfig(outputConfig) {
@@ -624,12 +674,16 @@ function normalizeBetas(betas) {
 }
 
 function hasValidMessages(messages) {
-  return Array.isArray(messages) && messages.every((message) => (
-    message &&
-    typeof message === 'object' &&
-    typeof message.role === 'string' &&
-    (typeof message.content === 'string' || Array.isArray(message.content))
-  ))
+  return (
+    Array.isArray(messages) &&
+    messages.every(
+      (message) =>
+        message &&
+        typeof message === 'object' &&
+        typeof message.role === 'string' &&
+        (typeof message.content === 'string' || Array.isArray(message.content)),
+    )
+  )
 }
 
 function normalizeTools(tools) {
@@ -651,10 +705,7 @@ function normalizeTools(tools) {
           : undefined,
     }
 
-    if (
-      !ALLOWED_TOOL_TYPES.has(normalized.type) ||
-      normalized.name !== 'web_search'
-    ) {
+    if (!ALLOWED_TOOL_TYPES.has(normalized.type) || normalized.name !== 'web_search') {
       return []
     }
 
@@ -846,28 +897,25 @@ async function tryServeStatic(staticRoot, req, res, url) {
 export function createFacetServer(options = {}) {
   const allowedOrigins = options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS
   const defaultModel = options.defaultModel ?? DEFAULT_MODEL
+  const modelCapabilities = createModelCapabilities(options)
   const defaultMaxTokens = options.defaultMaxTokens ?? 4096
   const maxRequestTokens = options.maxRequestTokens ?? defaultMaxTokens
   const maxBodyBytes = options.maxBodyBytes ?? 1048576
   const staticDir = options.staticDir ? resolve(options.staticDir) : null
-  const staticRootPromise = staticDir
-    ? realpath(staticDir).catch(() => resolve(staticDir))
-    : null
+  const staticRootPromise = staticDir ? realpath(staticDir).catch(() => resolve(staticDir)) : null
   const defaultTemperature = options.defaultTemperature
   const defaultThinkingBudget = options.defaultThinkingBudget ?? 0
   const proxyApiKey = options.proxyApiKey ?? DEFAULT_PROXY_API_KEY
   const anthropicClient =
     options.anthropicClient ??
-    (
-      options.anthropicBaseUrl && !options.anthropicApiKey
-        ? createUnauthenticatedAnthropicCompatClient({
-            baseURL: options.anthropicBaseUrl,
-          })
-        : new Anthropic({
-            ...(options.anthropicApiKey ? { apiKey: options.anthropicApiKey } : {}),
-            ...(options.anthropicBaseUrl ? { baseURL: options.anthropicBaseUrl } : {}),
-          })
-    )
+    (options.anthropicBaseUrl && !options.anthropicApiKey
+      ? createUnauthenticatedAnthropicCompatClient({
+          baseURL: options.anthropicBaseUrl,
+        })
+      : new Anthropic({
+          ...(options.anthropicApiKey ? { apiKey: options.anthropicApiKey } : {}),
+          ...(options.anthropicBaseUrl ? { baseURL: options.anthropicBaseUrl } : {}),
+        }))
   const allowedModelValues = new Set([
     defaultModel,
     ...Object.keys(MODEL_ALIASES),
@@ -909,15 +957,12 @@ export function createFacetServer(options = {}) {
     (authMode === 'hosted' ? hostedWorkspaceStore : createInMemoryWorkspaceStore())
   const persistenceActorResolver =
     options.persistenceActorResolver ??
-    (
-      authMode === 'hosted'
-        ? createHostedSessionActorResolver({
-            ...(options.hostedAuth ?? {}),
-            membershipStore:
-              options.hostedAuth?.membershipStore ?? hostedWorkspaceStore,
-          })
-        : createTokenActorResolver(persistenceAuthTokens)
-    )
+    (authMode === 'hosted'
+      ? createHostedSessionActorResolver({
+          ...(options.hostedAuth ?? {}),
+          membershipStore: options.hostedAuth?.membershipStore ?? hostedWorkspaceStore,
+        })
+      : createTokenActorResolver(persistenceAuthTokens))
   const requestActorSymbol = Symbol('facet.requestActor')
   const resolveRequestActor = async (req, { refresh = false } = {}) => {
     if (!refresh && req[requestActorSymbol]) {
@@ -950,9 +995,7 @@ export function createFacetServer(options = {}) {
         : undefined,
   })
   const billingStore =
-    authMode === 'hosted'
-      ? (options.billingStore ?? createInMemoryHostedBillingStore())
-      : null
+    authMode === 'hosted' ? (options.billingStore ?? createInMemoryHostedBillingStore()) : null
   // Fire-and-forget per-call usage logger. Absent in local mode (no actor
   // identity) and absent in hosted mode when no store is configured — the
   // instrumentation point tolerates a null store.
@@ -991,7 +1034,8 @@ export function createFacetServer(options = {}) {
       const since = new Date(nowMs - breaker.windowMs).toISOString()
       let spendCents = globalSpendCache.spendCents
       if (globalSpendCache.expiresAt <= nowMs) {
-        globalSpendRefreshPromise ??= usageStore.getSpendCentsSince({ since })
+        globalSpendRefreshPromise ??= usageStore
+          .getSpendCentsSince({ since })
           .then((freshSpendCents) => {
             globalSpendCache = {
               expiresAt: nowMs + Math.min(GLOBAL_SPEND_CACHE_TTL_MS, breaker.windowMs),
@@ -1017,7 +1061,8 @@ export function createFacetServer(options = {}) {
           feature,
         })
         sendJson(res, 503, {
-          error: 'Hosted AI is temporarily paused because the global spend circuit breaker is open.',
+          error:
+            'Hosted AI is temporarily paused because the global spend circuit breaker is open.',
           code: 'ai_spend_circuit_open',
         })
         return false
@@ -1074,19 +1119,21 @@ export function createFacetServer(options = {}) {
   }
   const stripeClient =
     options.stripeClient ??
-    (
-      options.stripeSecretKey
-        ? createStripeBillingClient({
-            secretKey: options.stripeSecretKey,
-          })
-        : null
-    )
+    (options.stripeSecretKey
+      ? createStripeBillingClient({
+          secretKey: options.stripeSecretKey,
+        })
+      : null)
 
   if (authMode === 'hosted' && !stripeClient) {
-    console.warn('[proxy] hosted mode: Stripe client not configured; billing checkout will be unavailable')
+    console.warn(
+      '[proxy] hosted mode: Stripe client not configured; billing checkout will be unavailable',
+    )
   }
   if (authMode === 'hosted' && !options.stripePriceId) {
-    console.warn('[proxy] hosted mode: Stripe price id not configured; billing checkout will be unavailable')
+    console.warn(
+      '[proxy] hosted mode: Stripe price id not configured; billing checkout will be unavailable',
+    )
   }
 
   const billingApi =
@@ -1096,8 +1143,12 @@ export function createFacetServer(options = {}) {
           billingStore,
           stripeClient,
           stripePriceId: options.stripePriceId,
-          successUrl: options.billingSuccessUrl ?? `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/success`,
-          cancelUrl: options.billingCancelUrl ?? `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/cancel`,
+          successUrl:
+            options.billingSuccessUrl ??
+            `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/success`,
+          cancelUrl:
+            options.billingCancelUrl ??
+            `${allowedOrigins[0] ?? 'http://localhost:5173'}/settings/billing/cancel`,
           onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
         })
       : null
@@ -1113,14 +1164,11 @@ export function createFacetServer(options = {}) {
       : null
   const researchJobStore =
     options.researchJobStore ??
-    (
-      options.researchJobStoreFile
-        ? createFileResearchJobStore(options.researchJobStoreFile)
-        : createInMemoryResearchJobStore()
-    )
+    (options.researchJobStoreFile
+      ? createFileResearchJobStore(options.researchJobStoreFile)
+      : createInMemoryResearchJobStore())
   const researchJobNow =
-    options.researchJobNow ??
-    (() => normalizeTimestampMs(options.now?.(), Date.now()))
+    options.researchJobNow ?? (() => normalizeTimestampMs(options.now?.(), Date.now()))
   const researchJobApi = createResearchJobService({
     actorResolver: resolveResearchJobActor,
     anthropicClient,
@@ -1142,6 +1190,7 @@ export function createFacetServer(options = {}) {
     warningRatio: options.researchBudgetWarningRatio,
     estimatedInputTokens: options.researchEstimatedInputTokens,
     estimatedOutputTokens: options.researchEstimatedOutputTokens,
+    opusAvailable: modelCapabilities.opus.available,
     model: CURRENT_OPUS_MODEL,
     logger: options.logger ?? console,
     onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
@@ -1259,8 +1308,7 @@ export function createFacetServer(options = {}) {
 
     const hasValidProxyApiKey = req.headers['x-proxy-api-key'] === proxyApiKey
     const hasHostedBearerToken =
-      authMode === 'hosted' &&
-      Boolean(extractBearerToken(req.headers.authorization))
+      authMode === 'hosted' && Boolean(extractBearerToken(req.headers.authorization))
 
     if (!hasValidProxyApiKey && !hasHostedBearerToken) {
       sendJson(res, 401, {
@@ -1273,20 +1321,15 @@ export function createFacetServer(options = {}) {
     try {
       // Keep the explicit billing routes ahead of the generic AI handler.
       if (billingApi?.canHandle(req)) {
-        if (!await enforceHostedRouteRateLimit(req, res, url.pathname)) {
+        if (!(await enforceHostedRouteRateLimit(req, res, url.pathname))) {
           return
         }
-        await billingApi.handle(
-          req,
-          res,
-          (request) => readBody(request, maxBodyBytes),
-          sendJson,
-        )
+        await billingApi.handle(req, res, (request) => readBody(request, maxBodyBytes), sendJson)
         return
       }
 
       if (persistenceApi.canHandle(req)) {
-        if (!await enforceHostedRouteRateLimit(req, res, url.pathname)) {
+        if (!(await enforceHostedRouteRateLimit(req, res, url.pathname))) {
           return
         }
         await persistenceApi.handle(
@@ -1298,8 +1341,18 @@ export function createFacetServer(options = {}) {
         return
       }
 
+      if (url.pathname === '/capabilities') {
+        if (req.method !== 'GET') {
+          sendJson(res, 405, { error: 'Method not allowed' })
+          return
+        }
+        res.setHeader('Cache-Control', 'no-store')
+        sendJson(res, 200, { modelCapabilities })
+        return
+      }
+
       if (researchJobApi.canHandle(url.pathname)) {
-        if (!await enforceHostedRouteRateLimit(req, res, url.pathname)) {
+        if (!(await enforceHostedRouteRateLimit(req, res, url.pathname))) {
           return
         }
         await researchJobApi.handle(req, res, url)
@@ -1328,6 +1381,7 @@ export function createFacetServer(options = {}) {
         feature,
         output_config,
         betas,
+        capability_fallback,
       } = body
 
       if (!hasValidMessages(messages)) {
@@ -1455,16 +1509,34 @@ export function createFacetServer(options = {}) {
           return
         }
 
-        if (!await enforceHostedAiUsagePolicy(res, actor, feature, (reservation) => {
-          dailyUsageReservation = reservation
-        })) {
+        if (
+          !(await enforceHostedAiUsagePolicy(res, actor, feature, (reservation) => {
+            dailyUsageReservation = reservation
+          }))
+        ) {
           return
         }
       }
 
-      const resolvedModel = resolveFeatureModel(model, feature, defaultModel)
+      const requestedModel = typeof model === 'string' ? model : undefined
+      const isOpusFallback = isApprovedOpusFallback({
+        feature,
+        requestedModel,
+        capabilityFallback: capability_fallback,
+      })
+      const resolvedModel = isOpusFallback
+        ? CURRENT_SONNET_MODEL
+        : resolveFeatureModel(model, feature, defaultModel)
       if (!allowedModelValues.has(resolvedModel)) {
         sendJson(res, 400, { error: 'Requested model is not allowed' })
+        return
+      }
+      if (modelRequiresOpus(resolvedModel) && !modelCapabilities.opus.available) {
+        sendJson(res, 503, {
+          ...OPUS_UNAVAILABLE_ERROR,
+          feature: feature ?? null,
+          phase: feature === 'research.deep-search' ? 'phase_2' : 'phase_1',
+        })
         return
       }
 
@@ -1523,7 +1595,10 @@ export function createFacetServer(options = {}) {
         params.temperature = resolvedTemp
       } else if (temperature !== undefined) {
         // Only warn on caller-supplied temperature. Omitting a server default is expected.
-        console.warn('[proxy] omitting temperature because it is not accepted by model', resolvedModel)
+        console.warn(
+          '[proxy] omitting temperature because it is not accepted by model',
+          resolvedModel,
+        )
       }
 
       // Map thinking_budget magnitude → effort on adaptive-thinking models when the
@@ -1542,10 +1617,7 @@ export function createFacetServer(options = {}) {
 
       // Strip output_config.effort if the resolved model rejects it (Haiku 4.5 / Sonnet 4.5).
       // Without this guard, callers' effort flags silently 400 the request upstream.
-      if (
-        params.output_config?.effort !== undefined &&
-        !MODELS_ACCEPT_EFFORT.has(resolvedModel)
-      ) {
+      if (params.output_config?.effort !== undefined && !MODELS_ACCEPT_EFFORT.has(resolvedModel)) {
         console.warn('[proxy] stripping output_config.effort; not accepted by model', resolvedModel)
         const { effort: _stripped, ...rest } = params.output_config
         if (Object.keys(rest).length > 0) {
@@ -1556,16 +1628,19 @@ export function createFacetServer(options = {}) {
       }
 
       const start = Date.now()
-      const requestOptions = normalizedBetas.length > 0
-        ? { headers: { 'anthropic-beta': normalizedBetas.join(',') } }
-        : undefined
+      const requestOptions =
+        normalizedBetas.length > 0
+          ? { headers: { 'anthropic-beta': normalizedBetas.join(',') } }
+          : undefined
       const result = requestOptions
         ? await anthropicClient.messages.create(params, requestOptions)
         : await anthropicClient.messages.create(params)
       const elapsed = Date.now() - start
 
       const thinkingSuffix = params.thinking?.type ? ` thinking=${params.thinking.type}` : ''
-      const effortSuffix = params.output_config?.effort ? ` effort=${params.output_config.effort}` : ''
+      const effortSuffix = params.output_config?.effort
+        ? ` effort=${params.output_config.effort}`
+        : ''
       console.log(
         `[proxy] ${resolvedModel} ${result.usage?.input_tokens ?? '?'}in/${result.usage?.output_tokens ?? '?'}out ${elapsed}ms${thinkingSuffix}${effortSuffix}`,
       )
@@ -1658,14 +1733,10 @@ export function createEnvFacetServer(env = process.env) {
     rawEnvironment !== 'staging' &&
     rawEnvironment !== 'production'
   ) {
-    throw new Error(
-      'Hosted mode requires FACET_ENVIRONMENT=local|staging|production.',
-    )
+    throw new Error('Hosted mode requires FACET_ENVIRONMENT=local|staging|production.')
   }
   const environment =
-    rawEnvironment === 'production' || rawEnvironment === 'staging'
-      ? rawEnvironment
-      : 'local'
+    rawEnvironment === 'production' || rawEnvironment === 'staging' ? rawEnvironment : 'local'
   const allowedOrigins = (env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
     .split(',')
     .map((origin) => origin.trim())
@@ -1680,25 +1751,19 @@ export function createEnvFacetServer(env = process.env) {
         ? createPostgresWorkspaceStore(hostedPool)
         : createFileHostedWorkspaceStore(env.HOSTED_WORKSPACE_FILE)
       : undefined
-  const hostedAuth = authMode === 'hosted'
-    ? {
-        issuer:
-          env.SUPABASE_JWT_ISSUER ??
-          (
-            env.SUPABASE_URL
-              ? `${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1`
-              : undefined
-          ),
-        audience: env.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
-        jwksUrl: env.SUPABASE_JWKS_URL,
-        membershipStore: hostedWorkspaceStore,
-      }
-    : undefined
+  const hostedAuth =
+    authMode === 'hosted'
+      ? {
+          issuer:
+            env.SUPABASE_JWT_ISSUER ??
+            (env.SUPABASE_URL ? `${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1` : undefined),
+          audience: env.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
+          jwksUrl: env.SUPABASE_JWKS_URL,
+          membershipStore: hostedWorkspaceStore,
+        }
+      : undefined
   const billingBaseUrl =
-    env.BILLING_APP_URL ??
-    env.PUBLIC_APP_URL ??
-    allowedOrigins[0] ??
-    'http://localhost:5173'
+    env.BILLING_APP_URL ?? env.PUBLIC_APP_URL ?? allowedOrigins[0] ?? 'http://localhost:5173'
   const billingStore =
     authMode === 'hosted'
       ? hostedPool
@@ -1709,21 +1774,15 @@ export function createEnvFacetServer(env = process.env) {
   // transitional hosted mode), usage observability is off for that
   // deployment — the instrumentation point no-ops on null.
   const usageStore =
-    authMode === 'hosted' && hostedPool
-      ? createPostgresUsageStore(hostedPool)
-      : undefined
+    authMode === 'hosted' && hostedPool ? createPostgresUsageStore(hostedPool) : undefined
 
   if (authMode === 'hosted' && environment !== 'local') {
     if ((env.PROXY_API_KEY ?? DEFAULT_PROXY_API_KEY) === DEFAULT_PROXY_API_KEY) {
-      throw new Error(
-        'Hosted staging/production must not rely on the default PROXY_API_KEY.',
-      )
+      throw new Error('Hosted staging/production must not rely on the default PROXY_API_KEY.')
     }
 
     if (env.PERSISTENCE_AUTH_TOKENS) {
-      throw new Error(
-        'Hosted staging/production must not use PERSISTENCE_AUTH_TOKENS.',
-      )
+      throw new Error('Hosted staging/production must not use PERSISTENCE_AUTH_TOKENS.')
     }
 
     const usingTransitionalFileStores = Boolean(
@@ -1747,13 +1806,11 @@ export function createEnvFacetServer(env = process.env) {
     maxBodyBytes: parseInt(env.MAX_BODY_BYTES ?? '1048576', 10),
     defaultTemperature: parseFloat(env.DEFAULT_TEMPERATURE ?? ''),
     defaultThinkingBudget: parseInt(env.THINKING_BUDGET ?? '0', 10),
+    opusAvailable: env.FACET_OPUS_AVAILABLE,
     proxyApiKey: env.PROXY_API_KEY ?? DEFAULT_PROXY_API_KEY,
     hostedRateLimits: {
       ai: {
-        max: parsePositiveInteger(
-          env.HOSTED_AI_RATE_LIMIT_MAX,
-          DEFAULT_HOSTED_RATE_LIMITS.ai.max,
-        ),
+        max: parsePositiveInteger(env.HOSTED_AI_RATE_LIMIT_MAX, DEFAULT_HOSTED_RATE_LIMITS.ai.max),
         windowMs: parsePositiveInteger(
           env.HOSTED_AI_RATE_LIMIT_WINDOW_MS,
           DEFAULT_HOSTED_RATE_LIMITS.ai.windowMs,
@@ -1782,9 +1839,7 @@ export function createEnvFacetServer(env = process.env) {
       },
     },
     persistenceAuthTokens:
-      authMode === 'hosted'
-        ? undefined
-        : parsePersistenceAuthTokens(env.PERSISTENCE_AUTH_TOKENS),
+      authMode === 'hosted' ? undefined : parsePersistenceAuthTokens(env.PERSISTENCE_AUTH_TOKENS),
     hostedWorkspaceStore,
     hostedAuth,
     billingStore,
@@ -1795,8 +1850,14 @@ export function createEnvFacetServer(env = process.env) {
     researchUsageWindowMs: parsePositiveInteger(env.RESEARCH_USAGE_WINDOW_MS, undefined),
     researchBudgetCents: parseNonNegativeInteger(env.RESEARCH_BUDGET_CENTS, undefined),
     researchBudgetWarningRatio: parseRatio(env.RESEARCH_BUDGET_WARNING_RATIO, undefined),
-    researchEstimatedInputTokens: parsePositiveInteger(env.RESEARCH_ESTIMATED_INPUT_TOKENS, undefined),
-    researchEstimatedOutputTokens: parsePositiveInteger(env.RESEARCH_ESTIMATED_OUTPUT_TOKENS, undefined),
+    researchEstimatedInputTokens: parsePositiveInteger(
+      env.RESEARCH_ESTIMATED_INPUT_TOKENS,
+      undefined,
+    ),
+    researchEstimatedOutputTokens: parsePositiveInteger(
+      env.RESEARCH_ESTIMATED_OUTPUT_TOKENS,
+      undefined,
+    ),
     hostedAiUsagePolicy: parseHostedAiUsagePolicy(env),
     stripeSecretKey: env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,

@@ -56,6 +56,7 @@ import {
 import type { CitationRenderMode } from '../../utils/searchCitations'
 import { getReferencedCitations, splitTextByCitationMarkers } from '../../utils/searchCitations'
 import { generateSearchThesisFromIdentity, validateSearchThesis } from '../../utils/thesisGenerator'
+import { fetchAiProxyCapabilities } from '../../utils/llmProxy'
 import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
 import {
   inferSearchProfile,
@@ -99,6 +100,11 @@ type PendingThesisSkillWriteback = {
   impactArtifacts: ImpactArtifactInput[]
 }
 type StalenessReviewDecision = 'accepted' | 'rejected'
+type ThesisFallbackOffer = {
+  userCorrections?: string
+  customDirective?: string
+  switchToSearchTab?: boolean
+}
 
 /**
  * State for the per-result feedback panel. Only one panel is open at a time so the user
@@ -660,6 +666,8 @@ export function ResearchPage() {
   const [researchJobTransport, setResearchJobTransport] = useState<'polling' | 'sse'>('polling')
   const [researchUsage, setResearchUsage] = useState<ResearchUsageSnapshot | null>(null)
   const [researchBudgetNotice, setResearchBudgetNotice] = useState<string | null>(null)
+  const [opusAvailable, setOpusAvailable] = useState<boolean | null>(null)
+  const [thesisFallbackOffer, setThesisFallbackOffer] = useState<ThesisFallbackOffer | null>(null)
   const [feedbackPanel, setFeedbackPanel] = useState<ResultFeedbackPanelState | null>(null)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const identityProfileRef = useRef({
@@ -1039,6 +1047,21 @@ export function ResearchPage() {
   useEffect(() => {
     void refreshResearchUsage()
   }, [refreshResearchUsage])
+
+  const refreshAiCapabilities = useCallback(async () => {
+    if (!aiEndpoint) return
+    try {
+      const capabilities = await fetchAiProxyCapabilities(aiEndpoint)
+      setOpusAvailable(capabilities.modelCapabilities.opus.available)
+    } catch (error) {
+      console.warn('[research] failed to refresh AI capabilities', error)
+      setOpusAvailable(null)
+    }
+  }, [aiEndpoint])
+
+  useEffect(() => {
+    void refreshAiCapabilities()
+  }, [refreshAiCapabilities])
 
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -1442,6 +1465,7 @@ export function ResearchPage() {
     options: {
       userCorrections?: string
       customDirective?: string
+      modelFallback?: 'sonnet'
       switchToSearchTab?: boolean
     } = {},
   ) => {
@@ -1458,6 +1482,7 @@ export function ResearchPage() {
       }
       ensureEndpoint()
       setPageError(null)
+      setThesisFallbackOffer(null)
       setLatestIdentityImpact(null)
       resetStalenessReview()
       setIsGeneratingThesis(true)
@@ -1472,6 +1497,7 @@ export function ResearchPage() {
         {
           ...(corrections ? { userCorrections: corrections } : {}),
           ...(directive ? { customDirective: directive } : {}),
+          ...(options.modelFallback ? { modelFallback: options.modelFallback } : {}),
         },
       )
       const saved = addThesis({
@@ -1501,6 +1527,17 @@ export function ResearchPage() {
         setActiveTab('search')
       }
     } catch (error) {
+      if (!options.modelFallback && isOpusCapabilityError(error)) {
+        setOpusAvailable(false)
+        setThesisFallbackOffer({
+          ...(options.userCorrections ? { userCorrections: options.userCorrections } : {}),
+          ...(options.customDirective ? { customDirective: options.customDirective } : {}),
+          ...(options.switchToSearchTab ? { switchToSearchTab: options.switchToSearchTab } : {}),
+        })
+        setPageError(null)
+        void refreshAiCapabilities()
+        return
+      }
       setPageError(error instanceof Error ? error.message : 'Thesis generation failed.')
     } finally {
       setIsGeneratingThesis(false)
@@ -2276,6 +2313,18 @@ export function ResearchPage() {
     return true
   }
 
+  const isOpusCapabilityError = (error: unknown): error is FacetAiProxyError =>
+    error instanceof FacetAiProxyError &&
+    error.code === 'ai_capability_unavailable' &&
+    error.reason === 'opus_unavailable'
+
+  const handleResearchCapabilityError = (error: unknown): boolean => {
+    if (!isOpusCapabilityError(error)) return false
+    setOpusAvailable(false)
+    void refreshAiCapabilities()
+    return true
+  }
+
   const handleLaunchSearch = async () => {
     if (!activeThesis) {
       setPageError('Generate a thesis before launching deep research.')
@@ -2331,6 +2380,7 @@ export function ResearchPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search execution failed.'
       if (!handleResearchBudgetError(error, message)) {
+        handleResearchCapabilityError(error)
         setPageError(message)
       }
       setIsSearching(false)
@@ -2359,6 +2409,7 @@ export function ResearchPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Retry failed.'
       if (!handleResearchBudgetError(error, message)) {
+        handleResearchCapabilityError(error)
         setPageError(message)
       }
       setIsSearching(false)
@@ -2776,6 +2827,62 @@ export function ResearchPage() {
             {thesisNotice ? (
               <div className="research-warning" role="status">
                 {thesisNotice}
+              </div>
+            ) : null}
+
+            {thesisFallbackOffer ? (
+              <div className="research-warning" role="status">
+                <strong>Opus is unavailable</strong>
+                <p>
+                  Phase 1 can continue with Sonnet, but the thesis may need Opus regeneration before
+                  you trust it for an expensive deep-research run.
+                </p>
+                <div className="research-thesis-actions">
+                  <button
+                    type="button"
+                    className="research-btn research-btn-primary"
+                    onClick={() =>
+                      void handleGenerateThesis({
+                        ...thesisFallbackOffer,
+                        modelFallback: 'sonnet',
+                      })
+                    }
+                    disabled={isGeneratingThesis || isSearching}
+                  >
+                    Use Sonnet fallback
+                  </button>
+                  <button
+                    type="button"
+                    className="research-btn"
+                    onClick={() => {
+                      setThesisFallbackOffer(null)
+                      setThesisNotice('Thesis generation paused until Opus is available.')
+                    }}
+                  >
+                    Wait for Opus
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {activeThesis?.source === 'generated-fallback' ? (
+              <div className="research-warning" role="status">
+                <strong>Generated with Sonnet fallback</strong>
+                <p>
+                  Treat this as a draft-quality thesis. Phase 2 still requires Opus for deep
+                  research.
+                </p>
+                {opusAvailable ? (
+                  <button
+                    type="button"
+                    className="research-btn"
+                    onClick={() => void handleGenerateThesis({ switchToSearchTab: true })}
+                    disabled={isGeneratingThesis || isSearching || thesisDraftIsDirty}
+                  >
+                    <RefreshCcw size={14} />
+                    Regenerate with Opus
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
