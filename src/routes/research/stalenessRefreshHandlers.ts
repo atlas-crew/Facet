@@ -58,6 +58,39 @@ const checkIdentityValid = (deps: StalenessRefreshDeps): boolean => {
 }
 
 /**
+ * Wraps a refresh-handler body with the shared mechanical shell:
+ * - clears prior page error and notice
+ * - records the running artifact key (and clears it in finally)
+ * - catches errors and routes them to setPageError with a per-handler default
+ *
+ * Handlers retain their lookup/validation/persistence/drift logic; the HOF
+ * just removes the boilerplate. Each call site already owns its identity
+ * sanity check via checkIdentityValid before invoking this wrapper.
+ */
+const withStaleArtifactRefreshGuards = async (
+  deps: StalenessRefreshDeps,
+  artifactKey: string,
+  options: { failureLabel: string },
+  body: () => Promise<void>,
+): Promise<void> => {
+  try {
+    deps.ensureEndpoint()
+    deps.setPageError(null)
+    deps.setThesisNotice(null)
+    deps.refreshingStalenessArtifactKeyRef.current = artifactKey
+    deps.setRefreshingStalenessArtifactKey(artifactKey)
+    await body()
+  } catch (error) {
+    deps.setPageError(
+      error instanceof Error ? error.message : `${options.failureLabel} failed.`,
+    )
+  } finally {
+    deps.refreshingStalenessArtifactKeyRef.current = null
+    deps.setRefreshingStalenessArtifactKey(null)
+  }
+}
+
+/**
  * Factory for the cover-letter refresh handler.
  *
  * Drift semantic: cover letter regen persists the new letter via
@@ -109,67 +142,62 @@ export const createCoverLetterRefreshHandler =
       Array.isArray(analyses) ? analyses : [],
     )
 
-    try {
-      deps.ensureEndpoint()
-      deps.setPageError(null)
-      deps.setThesisNotice(null)
-      deps.refreshingStalenessArtifactKeyRef.current = artifactKey
-      deps.setRefreshingStalenessArtifactKey(artifactKey)
-      const refreshStartedIdentityRevision = currentIdentityRevision
-      const refreshStartedImpact = stalenessReviewImpact
-      const refreshStartedMutation = refreshStartedImpact.mutation
-      const { letter: refreshedLetter } = await regenerateCoverLetterForEntry({
-        endpoint: deps.aiEndpoint,
-        entry: targetEntry,
-        resume: sourceResume,
-        identity: currentIdentity,
-        jdAnalysis,
-      })
-
-      const latestIdentityRevision =
-        useIdentityStore.getState().currentIdentity?.model_revision ?? null
-      const reviewSnapshotStillOpen =
-        deps.stalenessReviewImpactRef.current === refreshStartedImpact
-      if (
-        latestIdentityRevision !== refreshStartedIdentityRevision ||
-        deps.stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
-        !reviewSnapshotStillOpen
-      ) {
-        deps.setThesisNotice(
-          'Identity or review context changed during cover letter refresh. The regenerated letter was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
-        )
-        return
-      }
-
-      const refreshReview = sanitizeArtifactStalenessReview({
-        decision: 'accepted-current',
-        reviewedAt: new Date().toISOString(),
-        reviewedIdentityVersion: refreshStartedIdentityRevision,
-        artifactIdentityVersionAtReview:
-          refreshedLetter.identityVersion ?? refreshStartedIdentityRevision,
-        mutationLabel: refreshStartedMutation.label,
-        mutationFields: [...refreshStartedMutation.fields],
-        mutationFromRevision: refreshStartedMutation.fromRevision,
-        mutationToRevision: refreshStartedMutation.toRevision,
-        reason: artifact.reason || 'Refreshed with latest Identity context.',
-      } satisfies ArtifactStalenessReview)
-      if (refreshReview) {
-        useCoverLetterStore.getState().updateLetter(refreshedLetter.id, {
-          stalenessReview: refreshReview,
+    await withStaleArtifactRefreshGuards(
+      deps,
+      artifactKey,
+      { failureLabel: 'Cover letter refresh' },
+      async () => {
+        const refreshStartedIdentityRevision = currentIdentityRevision
+        const refreshStartedImpact = stalenessReviewImpact
+        const refreshStartedMutation = refreshStartedImpact.mutation
+        const { letter: refreshedLetter } = await regenerateCoverLetterForEntry({
+          endpoint: deps.aiEndpoint,
+          entry: targetEntry,
+          resume: sourceResume,
+          identity: currentIdentity,
+          jdAnalysis,
         })
-      }
 
-      deps.setRefreshedStalenessArtifactKeys((current) => ({
-        ...current,
-        [artifactKey]: true,
-      }))
-      deps.setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
-    } catch (error) {
-      deps.setPageError(error instanceof Error ? error.message : 'Cover letter refresh failed.')
-    } finally {
-      deps.refreshingStalenessArtifactKeyRef.current = null
-      deps.setRefreshingStalenessArtifactKey(null)
-    }
+        const latestIdentityRevision =
+          useIdentityStore.getState().currentIdentity?.model_revision ?? null
+        const reviewSnapshotStillOpen =
+          deps.stalenessReviewImpactRef.current === refreshStartedImpact
+        if (
+          latestIdentityRevision !== refreshStartedIdentityRevision ||
+          deps.stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
+          !reviewSnapshotStillOpen
+        ) {
+          deps.setThesisNotice(
+            'Identity or review context changed during cover letter refresh. The regenerated letter was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
+          )
+          return
+        }
+
+        const refreshReview = sanitizeArtifactStalenessReview({
+          decision: 'accepted-current',
+          reviewedAt: new Date().toISOString(),
+          reviewedIdentityVersion: refreshStartedIdentityRevision,
+          artifactIdentityVersionAtReview:
+            refreshedLetter.identityVersion ?? refreshStartedIdentityRevision,
+          mutationLabel: refreshStartedMutation.label,
+          mutationFields: [...refreshStartedMutation.fields],
+          mutationFromRevision: refreshStartedMutation.fromRevision,
+          mutationToRevision: refreshStartedMutation.toRevision,
+          reason: artifact.reason || 'Refreshed with latest Identity context.',
+        } satisfies ArtifactStalenessReview)
+        if (refreshReview) {
+          useCoverLetterStore.getState().updateLetter(refreshedLetter.id, {
+            stalenessReview: refreshReview,
+          })
+        }
+
+        deps.setRefreshedStalenessArtifactKeys((current) => ({
+          ...current,
+          [artifactKey]: true,
+        }))
+        deps.setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
+      },
+    )
   }
 
 /**
@@ -241,90 +269,85 @@ export const createPrepDeckRefreshHandler =
       return
     }
 
-    try {
-      deps.ensureEndpoint()
-      deps.setPageError(null)
-      deps.setThesisNotice(null)
-      deps.refreshingStalenessArtifactKeyRef.current = artifactKey
-      deps.setRefreshingStalenessArtifactKey(artifactKey)
-      const refreshStartedIdentityRevision = currentIdentityRevision
-      const refreshStartedImpact = stalenessReviewImpact
-      const refreshStartedMutation = refreshStartedImpact.mutation
-      const vector = targetDeck.vectorId
-        ? deps.resumeData.vectors.find((item) => item.id === targetDeck.vectorId)
-        : undefined
-      const prepIdentityContext = buildPrepIdentityContext(
-        currentIdentity,
-        vector?.id,
-        vector?.label,
-      )
-      const { deck: refreshedDeck } = await regeneratePrepDeckForEntry(
-        {
-          endpoint: deps.aiEndpoint,
-          deck: targetDeck,
-          request: {
-            company: targetDeck.company,
-            role: targetDeck.role,
-            vectorId: vector?.id,
-            vectorLabel: vector?.label,
-            roundNumber: targetDeck.roundNumber,
-            roundType: targetDeck.roundType,
-            companyUrl: targetEntry.url || undefined,
-            skillMatch: targetEntry.skillMatch || undefined,
-            positioning: targetEntry.positioning || undefined,
-            notes: targetEntry.notes || undefined,
-            companyResearch: targetDeck.companyResearch || undefined,
-            jobDescription: targetEntry.jobDescription,
-            jdAnalysis,
-            identityContext: prepIdentityContext,
-            pipelineEntryContext: buildPrepPipelineEntryContext(targetEntry),
-            priorRoundDebriefs: targetDeck.roundDebriefs,
-            resumeContext: { candidate: deps.resumeData.meta },
-          },
-        },
-        { identityVersion: currentIdentity.model_revision },
-      )
-
-      const latestIdentityRevision =
-        useIdentityStore.getState().currentIdentity?.model_revision ?? null
-      const reviewSnapshotStillOpen =
-        deps.stalenessReviewImpactRef.current === refreshStartedImpact
-      if (
-        latestIdentityRevision !== refreshStartedIdentityRevision ||
-        deps.stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
-        !reviewSnapshotStillOpen
-      ) {
-        deps.setThesisNotice(
-          'Identity or review context changed during prep deck refresh. The regenerated deck was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
+    await withStaleArtifactRefreshGuards(
+      deps,
+      artifactKey,
+      { failureLabel: 'Prep deck refresh' },
+      async () => {
+        const refreshStartedIdentityRevision = currentIdentityRevision
+        const refreshStartedImpact = stalenessReviewImpact
+        const refreshStartedMutation = refreshStartedImpact.mutation
+        const vector = targetDeck.vectorId
+          ? deps.resumeData.vectors.find((item) => item.id === targetDeck.vectorId)
+          : undefined
+        const prepIdentityContext = buildPrepIdentityContext(
+          currentIdentity,
+          vector?.id,
+          vector?.label,
         )
-        return
-      }
+        const { deck: refreshedDeck } = await regeneratePrepDeckForEntry(
+          {
+            endpoint: deps.aiEndpoint,
+            deck: targetDeck,
+            request: {
+              company: targetDeck.company,
+              role: targetDeck.role,
+              vectorId: vector?.id,
+              vectorLabel: vector?.label,
+              roundNumber: targetDeck.roundNumber,
+              roundType: targetDeck.roundType,
+              companyUrl: targetEntry.url || undefined,
+              skillMatch: targetEntry.skillMatch || undefined,
+              positioning: targetEntry.positioning || undefined,
+              notes: targetEntry.notes || undefined,
+              companyResearch: targetDeck.companyResearch || undefined,
+              jobDescription: targetEntry.jobDescription,
+              jdAnalysis,
+              identityContext: prepIdentityContext,
+              pipelineEntryContext: buildPrepPipelineEntryContext(targetEntry),
+              priorRoundDebriefs: targetDeck.roundDebriefs,
+              resumeContext: { candidate: deps.resumeData.meta },
+            },
+          },
+          { identityVersion: currentIdentity.model_revision },
+        )
 
-      const refreshReview = sanitizeArtifactStalenessReview({
-        decision: 'accepted-current',
-        reviewedAt: new Date().toISOString(),
-        reviewedIdentityVersion: refreshStartedIdentityRevision,
-        artifactIdentityVersionAtReview:
-          refreshedDeck.identityVersion ?? refreshStartedIdentityRevision,
-        mutationLabel: refreshStartedMutation.label,
-        mutationFields: [...refreshStartedMutation.fields],
-        mutationFromRevision: refreshStartedMutation.fromRevision,
-        mutationToRevision: refreshStartedMutation.toRevision,
-        reason: artifact.reason || 'Refreshed with latest Identity context.',
-      } satisfies ArtifactStalenessReview)
-      if (refreshReview) {
-        updatePrepDeck(refreshedDeck.id, { stalenessReview: refreshReview })
-      }
+        const latestIdentityRevision =
+          useIdentityStore.getState().currentIdentity?.model_revision ?? null
+        const reviewSnapshotStillOpen =
+          deps.stalenessReviewImpactRef.current === refreshStartedImpact
+        if (
+          latestIdentityRevision !== refreshStartedIdentityRevision ||
+          deps.stalenessReviewIdentityRevisionRef.current !== refreshStartedIdentityRevision ||
+          !reviewSnapshotStillOpen
+        ) {
+          deps.setThesisNotice(
+            'Identity or review context changed during prep deck refresh. The regenerated deck was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
+          )
+          return
+        }
 
-      deps.setRefreshedStalenessArtifactKeys((current) => ({
-        ...current,
-        [artifactKey]: true,
-      }))
-      deps.setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
-    } catch (error) {
-      deps.setPageError(error instanceof Error ? error.message : 'Prep deck refresh failed.')
-    } finally {
-      deps.refreshingStalenessArtifactKeyRef.current = null
-      deps.setRefreshingStalenessArtifactKey(null)
-    }
+        const refreshReview = sanitizeArtifactStalenessReview({
+          decision: 'accepted-current',
+          reviewedAt: new Date().toISOString(),
+          reviewedIdentityVersion: refreshStartedIdentityRevision,
+          artifactIdentityVersionAtReview:
+            refreshedDeck.identityVersion ?? refreshStartedIdentityRevision,
+          mutationLabel: refreshStartedMutation.label,
+          mutationFields: [...refreshStartedMutation.fields],
+          mutationFromRevision: refreshStartedMutation.fromRevision,
+          mutationToRevision: refreshStartedMutation.toRevision,
+          reason: artifact.reason || 'Refreshed with latest Identity context.',
+        } satisfies ArtifactStalenessReview)
+        if (refreshReview) {
+          updatePrepDeck(refreshedDeck.id, { stalenessReview: refreshReview })
+        }
+
+        deps.setRefreshedStalenessArtifactKeys((current) => ({
+          ...current,
+          [artifactKey]: true,
+        }))
+        deps.setThesisNotice(`${artifact.label} refreshed with the latest Identity context.`)
+      },
+    )
   }
