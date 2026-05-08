@@ -10,6 +10,8 @@ import type {
   SearchProfileFilters,
   SearchRequest,
   SearchRun,
+  SearchRunNarrative,
+  SearchRunNarrativeState,
   ActiveResearchJobState,
   SalaryBand,
   SearchThesis,
@@ -56,8 +58,14 @@ type SearchRequestInput = Omit<SearchRequest, 'id' | 'createdAt' | 'focusLanes'>
 /** Accepts pre-Phase-D persisted requests that still carry retired fields. */
 type LegacySearchRequestInput = SearchRequestInput & Record<string, unknown>
 
-type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt'> &
-  Partial<Pick<SearchRun, 'id' | 'createdAt'>>
+type SearchRunInput = Omit<SearchRun, 'id' | 'createdAt' | 'narrativeState'> &
+  Partial<Pick<SearchRun, 'id' | 'createdAt' | 'narrativeState'>>
+
+type LegacySearchRunInput = SearchRunInput & {
+  narrative?: unknown
+  contractViolations?: unknown
+  narrativeState?: unknown
+}
 
 type LegacySearchThesisSignalInput = string | Partial<SearchThesisSignal>
 
@@ -342,13 +350,76 @@ const hydrateRequest = (request: LegacySearchRequestInput): SearchRequest => {
   }
 }
 
-const hydrateRun = (run: SearchRunInput): SearchRun => ({
-  ...run,
-  id: run.id ?? createId('srun'),
-  createdAt: run.createdAt ?? now(),
-  stalenessReview: sanitizeArtifactStalenessReview(run.stalenessReview),
-  durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
-})
+const hydrateRunNarrativeState = (run: LegacySearchRunInput): SearchRunNarrativeState => {
+  const state = run.narrativeState
+  if (state && typeof state === 'object' && !Array.isArray(state)) {
+    const record = state as Record<string, unknown>
+    if (record.status === 'pending' || record.status === 'generating') {
+      return { status: record.status }
+    }
+    if (record.status === 'failed') {
+      return {
+        status: 'failed',
+        error:
+          typeof record.error === 'string' && record.error.trim()
+            ? record.error
+            : 'Run narrative payload failed validation.',
+        contractViolations: hydrateStringArray(record.contractViolations),
+      }
+    }
+    if (
+      record.status === 'ready' &&
+      record.narrative &&
+      typeof record.narrative === 'object' &&
+      !Array.isArray(record.narrative)
+    ) {
+      return {
+        status: 'ready',
+        narrative: record.narrative as SearchRunNarrative,
+        contractViolations: hydrateStringArray(record.contractViolations),
+      }
+    }
+  }
+
+  if (run.narrative && typeof run.narrative === 'object' && !Array.isArray(run.narrative)) {
+    return {
+      status: 'ready',
+      narrative: run.narrative as SearchRunNarrative,
+      contractViolations: hydrateStringArray(run.contractViolations),
+    }
+  }
+
+  const legacyViolations = hydrateStringArray(run.contractViolations)
+  if (legacyViolations.length > 0) {
+    return {
+      status: 'failed',
+      error: 'Migrated run narrative failed validation.',
+      contractViolations: legacyViolations,
+    }
+  }
+
+  return { status: 'pending' }
+}
+
+const hydrateRun = (run: LegacySearchRunInput): SearchRun => {
+  const {
+    narrative: _legacyNarrative,
+    contractViolations: _legacyContractViolations,
+    narrativeState: _legacyNarrativeState,
+    ...runWithoutLegacyNarrative
+  } = run
+  void _legacyNarrative
+  void _legacyContractViolations
+  void _legacyNarrativeState
+  return {
+    ...runWithoutLegacyNarrative,
+    narrativeState: hydrateRunNarrativeState(run),
+    id: run.id ?? createId('srun'),
+    createdAt: run.createdAt ?? now(),
+    stalenessReview: sanitizeArtifactStalenessReview(run.stalenessReview),
+    durableMeta: ensureDurableMetadata(run.durableMeta, run.createdAt ?? now()),
+  }
+}
 
 const hydrateFeedbackApplicationState = (
   event: LegacySearchFeedbackEventInput,
@@ -539,7 +610,7 @@ export const migrateSearchState = (persistedState: unknown) => {
           profile?: LegacySearchProfileInput | null
           // hydrateRequest drops retired request fields while preserving the canonical shape.
           requests?: LegacySearchRequestInput[]
-          runs?: SearchRun[]
+          runs?: LegacySearchRunInput[]
           theses?: SearchThesis[]
           activeThesisId?: string | null
           feedbackEvents?: LegacySearchFeedbackEventInput[]

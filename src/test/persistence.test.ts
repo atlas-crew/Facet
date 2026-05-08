@@ -747,6 +747,7 @@ describe('persistence foundation', () => {
       status: 'running' as const,
       results: [],
       searchLog: [],
+      narrativeState: { status: 'generating' as const },
     }
     const activeThesis = {
       id: 'sthesis-active',

@@ -509,7 +509,9 @@ describe('deepSearchClient', () => {
 
     expect(patch.status).toBe('completed')
     expect(patch.searchLog).toEqual(['waf remote'])
-    expect(patch.narrative?.assumptions).toEqual([
+    expect(patch.narrativeState?.status).toBe('ready')
+    if (patch.narrativeState?.status !== 'ready') throw new Error('Expected ready narrative state')
+    expect(patch.narrativeState.narrative.assumptions).toEqual([
       {
         id: 'assumption-remote',
         claim: 'Remote US roles are acceptable.',
@@ -519,7 +521,7 @@ describe('deepSearchClient', () => {
         overridable: true,
       },
     ])
-    expect(patch.contractViolations).toEqual([
+    expect(patch.narrativeState.contractViolations).toEqual([
       'upstream warning',
       expect.stringContaining('candidateEdge'),
     ])

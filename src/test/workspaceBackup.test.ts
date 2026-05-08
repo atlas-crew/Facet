@@ -655,6 +655,7 @@ describe('workspace backup merge helpers', () => {
         status: 'running',
         results: [],
         searchLog: [],
+        narrativeState: { status: 'generating' },
       },
     ]
     current.artifacts.research.payload.theses = [buildSearchThesis({ id: 'sthesis-current' })]
@@ -679,6 +680,7 @@ describe('workspace backup merge helpers', () => {
         status: 'running',
         results: [],
         searchLog: [],
+        narrativeState: { status: 'generating' },
       },
     ]
     imported.artifacts.research.payload.theses = [buildSearchThesis({ id: 'sthesis-imported' })]
@@ -849,6 +851,7 @@ describe('workspace backup merge helpers', () => {
           status: 'completed' as const,
           results: [],
           searchLog: [],
+          narrativeState: { status: 'pending' as const },
         })),
         feedbackEvents: events,
       })
@@ -1040,6 +1043,7 @@ describe('workspace backup merge helpers', () => {
       status: 'completed' as const,
       results: [],
       searchLog: [],
+      narrativeState: { status: 'pending' as const },
     })
 
     const feedback = (id: string, runId: string): SearchFeedbackEvent => ({

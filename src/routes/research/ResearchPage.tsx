@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -607,6 +607,7 @@ const getLaunchSearchLabel = ({
 
 export function ResearchPage() {
   const navigate = useNavigate()
+  const researchSearch = useSearch({ from: '/research' })
   const resumeData = useResumeStore((state) => state.data)
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const saveSkillEnrichment = useIdentityStore((state) => state.saveSkillEnrichment)
@@ -710,6 +711,7 @@ export function ResearchPage() {
   const thesisAddAvoidButtonRef = useRef<HTMLButtonElement | null>(null)
   const nextThesisSignalsFocusRequestIdRef = useRef(0)
   const focusedThesisSignalsRequestRef = useRef(0)
+  const routedStalenessReviewKeyRef = useRef<string | null>(null)
   const thesisDraftRef = useRef<SearchThesis | null>(null)
   const activeResearchJobId = activeResearchJob?.jobId
   const activeResearchRunId = activeResearchJob?.runId
@@ -1142,8 +1144,13 @@ export function ResearchPage() {
       if (activeResearchJob?.runId) {
         const runPatch = hydrateSearchRunFromResearchJob(job)
         updateRun(activeResearchJob.runId, runPatch)
-        if (runPatch.contractViolations?.length) {
-          console.warn('[research] deep research contract violations', runPatch.contractViolations)
+        const narrativeViolations =
+          runPatch.narrativeState?.status === 'ready' ||
+          runPatch.narrativeState?.status === 'failed'
+            ? runPatch.narrativeState.contractViolations
+            : []
+        if (narrativeViolations.length) {
+          console.warn('[research] deep research contract violations', narrativeViolations)
         }
       }
 
@@ -1238,6 +1245,7 @@ export function ResearchPage() {
       status: 'running',
       results: [],
       searchLog: [],
+      narrativeState: { status: 'generating' },
       thesisId: thesisSnapshot.id,
       thesisSnapshot,
       identityVersion: runIdentityVersion,
@@ -1786,6 +1794,58 @@ export function ResearchPage() {
     setRefreshedStalenessArtifactKeys({})
     setLatestIdentityImpact(null)
   }
+
+  useEffect(() => {
+    if (researchSearch.review !== 'stale') return
+    if (currentIdentityRevision === null) {
+      if (routedStalenessReviewKeyRef.current !== 'missing-identity') {
+        routedStalenessReviewKeyRef.current = 'missing-identity'
+        setThesisNotice('Load an Identity model before reviewing stale artifacts.')
+      }
+      return
+    }
+
+    const staleArtifacts = downstreamImpactArtifacts.filter(
+      (artifact) =>
+        typeof artifact.identityVersion === 'number' &&
+        Number.isFinite(artifact.identityVersion) &&
+        artifact.identityVersion < currentIdentityRevision,
+    )
+    const routeKey = JSON.stringify([
+      currentIdentityRevision,
+      staleArtifacts.map((artifact) => [artifact.artifactType, artifact.artifactId]),
+    ])
+    if (routedStalenessReviewKeyRef.current === routeKey) return
+    routedStalenessReviewKeyRef.current = routeKey
+
+    if (staleArtifacts.length === 0) {
+      setThesisNotice('No stale generated artifacts were found for the current Identity version.')
+      return
+    }
+
+    const fromRevision = Math.min(
+      ...staleArtifacts.map((artifact) => artifact.identityVersion ?? currentIdentityRevision),
+    )
+    const impact = describeImpact(
+      {
+        label: 'Cross-tab Identity update',
+        fields: [],
+        fromRevision,
+        toRevision: currentIdentityRevision,
+      },
+      staleArtifacts.map((artifact) => ({ ...artifact, identityFields: undefined })),
+    )
+    if (impact.totalCount === 0) {
+      setThesisNotice('No stale generated artifacts were found for the current Identity version.')
+      return
+    }
+
+    setActiveTab('search')
+    setStalenessReviewImpact(cloneDownstreamImpact(impact))
+    setStalenessReviewIdentityRevision(currentIdentityRevision)
+    setRefreshedStalenessArtifactKeys({})
+    setLatestIdentityImpact(null)
+  }, [currentIdentityRevision, downstreamImpactArtifacts, researchSearch.review])
 
   const isStalenessArtifactPresent = (
     artifact: DownstreamImpact['artifactsAffected'][number],
@@ -2601,7 +2661,13 @@ export function ResearchPage() {
     visibleResearchJob !== null &&
     visibleResearchJob !== undefined &&
     !TERMINAL_RESEARCH_JOB_STATUSES.has(visibleResearchJob.status)
-  const activeRunContractViolations = activeRun?.contractViolations ?? []
+  const activeRunNarrativeState = activeRun?.narrativeState
+  const activeRunNarrative =
+    activeRunNarrativeState?.status === 'ready' ? activeRunNarrativeState.narrative : null
+  const activeRunContractViolations =
+    activeRunNarrativeState?.status === 'ready' || activeRunNarrativeState?.status === 'failed'
+      ? activeRunNarrativeState.contractViolations
+      : []
 
   return (
     <div className="research-page">
@@ -4092,17 +4158,17 @@ export function ResearchPage() {
                   </div>
                 ) : null}
 
-                {activeRun.narrative ? (
+                {activeRunNarrative ? (
                   <section className="research-narrative" aria-label="Search narrative">
                     <h3>Run Narrative</h3>
                     <SearchAssumptionsDisclosure
-                      assumptions={activeRun.narrative.assumptions}
+                      assumptions={activeRunNarrative.assumptions}
                       onCorrectAssumption={handleCorrectSearchAssumption}
                     />
                     <p>
                       <CitationText
-                        text={activeRun.narrative.executiveSummary}
-                        citations={activeRun.narrative.citations}
+                        text={activeRunNarrative.executiveSummary}
+                        citations={activeRunNarrative.citations}
                       />
                     </p>
                     <div className="research-narrative-grid">
@@ -4110,8 +4176,8 @@ export function ResearchPage() {
                         <strong>Competitive moat</strong>
                         <p>
                           <CitationText
-                            text={activeRun.narrative.competitiveMoat}
-                            citations={activeRun.narrative.citations}
+                            text={activeRunNarrative.competitiveMoat}
+                            citations={activeRunNarrative.citations}
                           />
                         </p>
                       </div>
@@ -4119,8 +4185,8 @@ export function ResearchPage() {
                         <strong>Selection methodology</strong>
                         <p>
                           <CitationText
-                            text={activeRun.narrative.selectionMethodology}
-                            citations={activeRun.narrative.citations}
+                            text={activeRunNarrative.selectionMethodology}
+                            citations={activeRunNarrative.citations}
                           />
                         </p>
                       </div>
@@ -4128,8 +4194,8 @@ export function ResearchPage() {
                         <strong>Market context</strong>
                         <p>
                           <CitationText
-                            text={activeRun.narrative.marketContext}
-                            citations={activeRun.narrative.citations}
+                            text={activeRunNarrative.marketContext}
+                            citations={activeRunNarrative.citations}
                           />
                         </p>
                       </div>
@@ -4137,13 +4203,13 @@ export function ResearchPage() {
                     <CitationFootnotes
                       citations={getReferencedCitations(
                         [
-                          activeRun.narrative.executiveSummary,
-                          activeRun.narrative.competitiveMoat,
-                          activeRun.narrative.selectionMethodology,
-                          activeRun.narrative.marketContext,
-                          activeRun.narrative.landscapeTrends,
+                          activeRunNarrative.executiveSummary,
+                          activeRunNarrative.competitiveMoat,
+                          activeRunNarrative.selectionMethodology,
+                          activeRunNarrative.marketContext,
+                          activeRunNarrative.landscapeTrends,
                         ],
-                        activeRun.narrative.citations ?? [],
+                        activeRunNarrative.citations ?? [],
                       )}
                       idPrefix="narrative-citation"
                       headingLevel="h4"

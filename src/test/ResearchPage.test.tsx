@@ -16,8 +16,9 @@ import { FacetAiProxyError } from '../utils/aiProxyErrors'
 import { adaptIdentityToSearchProfile } from '../utils/identitySearchProfile'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
-const { mockNavigate } = vi.hoisted(() => ({
+const { mockNavigate, mockResearchSearch } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
+  mockResearchSearch: { review: undefined as 'stale' | undefined },
 }))
 
 const {
@@ -46,6 +47,7 @@ vi.mock('@tanstack/react-router', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
+    useSearch: () => mockResearchSearch,
   }
 })
 
@@ -225,6 +227,7 @@ describe('ResearchPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
     mockNavigate.mockReset()
+    mockResearchSearch.review = undefined
     mockInferSearchProfile.mockReset()
     mockCreateDeepResearchJob.mockReset()
     mockFetchDeepResearchJob.mockReset()
@@ -334,6 +337,7 @@ describe('ResearchPage', () => {
           createdAt: '2026-03-10T10:06:00.000Z',
           status: 'completed',
           searchLog: ['staff platform engineer remote'],
+          narrativeState: { status: 'pending' },
           results: [
             {
               id: 'sres-1',
@@ -1029,6 +1033,41 @@ describe('ResearchPage', () => {
     )
     expect(screen.queryByText('Batch staleness review')).toBeNull()
     expect(screen.getByText(/Decisions were saved on reviewed artifacts/)).toBeTruthy()
+  })
+
+  it('opens the batch staleness review from the routed stale-review request', async () => {
+    mockResearchSearch.review = 'stale'
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 5
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [
+        buildTestThesis({
+          id: 'thesis-route-stale',
+          identityVersion: 3,
+          identityFields: ['skills.Kubernetes.depth'],
+        }),
+      ],
+      activeThesisId: null,
+      runs: [],
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    const stalenessReview = await screen.findByText('Batch staleness review')
+    const reviewRegion = stalenessReview.closest('[role="region"]') as HTMLElement
+    expect(reviewRegion.textContent).toContain(
+      '1 downstream artifact may need review: 1 search thesis.',
+    )
+    expect(reviewRegion.textContent).toContain('Saved search thesis')
+    expect(reviewRegion.textContent).toContain(
+      'Generated from identity v3 before this correction moves identity to v5',
+    )
   })
 
   it('records the generation-start identity version when Identity changes during thesis generation', async () => {
@@ -3686,6 +3725,7 @@ describe('ResearchPage', () => {
           status: 'failed',
           results: [],
           searchLog: ['staff platform remote'],
+          narrativeState: { status: 'pending' },
           error: 'Rate limit hit',
           tokenUsage: { inputTokens: 50, outputTokens: 0, totalTokens: 50 },
         },

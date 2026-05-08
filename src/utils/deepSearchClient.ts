@@ -321,8 +321,6 @@ export function hydrateSearchRunFromResearchJob(job: ResearchJob): Partial<Searc
       }
     }
     const narrativeNormalization = normalizeRunNarrative(job.result.narrative)
-    const narrative =
-      narrativeNormalization.status === 'ready' ? narrativeNormalization.narrative : job.result.narrative
     const contractViolations = [
       ...(job.result.contractViolations ?? []),
       ...narrativeNormalization.contractViolations,
@@ -332,15 +330,28 @@ export function hydrateSearchRunFromResearchJob(job: ResearchJob): Partial<Searc
       jobId: job.id,
       thesisId: job.thesisId,
       phase: 'deep-research',
-      count: narrative.assumptions?.length ?? 0,
+      count:
+        narrativeNormalization.status === 'ready'
+          ? (narrativeNormalization.narrative.assumptions?.length ?? 0)
+          : 0,
     })
     return {
       status: 'completed',
       results: job.result.results,
       searchLog: job.progress?.searchQueries ?? [],
       tokenUsage: job.result.tokenUsage,
-      narrative,
-      contractViolations,
+      narrativeState:
+        narrativeNormalization.status === 'ready'
+          ? {
+              status: 'ready',
+              narrative: narrativeNormalization.narrative,
+              contractViolations,
+            }
+          : {
+              status: 'failed',
+              error: narrativeNormalization.error,
+              contractViolations,
+            },
       error: undefined,
     }
   }

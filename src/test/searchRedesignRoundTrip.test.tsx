@@ -486,8 +486,12 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
       expect(run?.results.length ?? 0).toBeGreaterThan(0)
     })
     const completedRun = useSearchStore.getState().runs.at(-1)!
-    expect(completedRun.narrative?.executiveSummary.length ?? 0).toBeGreaterThan(20)
-    expect(completedRun.narrative?.competitiveMoat.length ?? 0).toBeGreaterThan(20)
+    expect(completedRun.narrativeState.status).toBe('ready')
+    if (completedRun.narrativeState.status !== 'ready') {
+      throw new Error('Expected ready narrative state')
+    }
+    expect(completedRun.narrativeState.narrative.executiveSummary.length).toBeGreaterThan(20)
+    expect(completedRun.narrativeState.narrative.competitiveMoat.length).toBeGreaterThan(20)
     const enrichedResult = completedRun.results[0]!
     expect(enrichedResult.signalGroup).toBe('every signal aligns')
     expect(enrichedResult.tier).toBe(1)

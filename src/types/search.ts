@@ -310,8 +310,8 @@ export interface SearchRun {
   error?: string
   tokenUsage?: SearchTokenUsage
 
-  /** Run-level reasoning narrative (5-layer structure from doc-24 Output Contract). */
-  narrative?: SearchRunNarrative
+  /** Run-level reasoning narrative lifecycle (doc-24 Output Contract). */
+  narrativeState: SearchRunNarrativeState
   /** Links to the ResearchJob record that produced this run (for rejoin after tab close). */
   jobId?: string
   /** Thesis id this run was generated from. */
@@ -327,12 +327,6 @@ export interface SearchRun {
   identityFields?: string[]
   /** Last batch staleness review decision recorded for this artifact. */
   stalenessReview?: ArtifactStalenessReview
-  /**
-   * Output-contract violations flagged during normalization. Consumers surface these as
-   * quality warnings and offer a "regenerate" affordance. An empty or omitted array means
-   * the narrative and results satisfied the contract.
-   */
-  contractViolations?: string[]
 }
 
 // ── Run-Level Narrative (doc-24 Output Contract: Reasoning Layers) ─────────────
@@ -455,6 +449,17 @@ export interface SearchRunNarrative {
   citations?: Citation[]
   assumptions?: SearchAssumption[]
 }
+
+export type SearchRunNarrativeState =
+  | { status: 'pending' }
+  | { status: 'generating' }
+  | { status: 'failed'; error: string; contractViolations: string[] }
+  | {
+      status: 'ready'
+      narrative: SearchRunNarrative
+      /** Usable narrative quality warnings surfaced to the user. */
+      contractViolations: string[]
+    }
 
 // ── Search Thesis ──────────────────────────────────────────────
 
@@ -693,7 +698,7 @@ export interface ResearchJobResult {
   narrative: SearchRunNarrative
   results: SearchResultEntry[]
   tokenUsage: SearchTokenUsage
-  /** Output-contract issues found after the model response was normalized. */
+  /** Legacy output-contract issues found after the model response was normalized. */
   contractViolations?: string[]
 }
 

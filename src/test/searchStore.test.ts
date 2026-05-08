@@ -1543,6 +1543,7 @@ describe('searchStore', () => {
             status: 'completed',
             results: [],
             searchLog: [],
+            narrativeState: { status: 'pending' },
           },
           {
             id: 'srun-doomed',
@@ -1551,6 +1552,7 @@ describe('searchStore', () => {
             status: 'completed',
             results: [],
             searchLog: [],
+            narrativeState: { status: 'pending' },
           },
         ],
         theses: [
@@ -1582,6 +1584,7 @@ describe('searchStore', () => {
             status: 'completed',
             results: [],
             searchLog: [],
+            narrativeState: { status: 'pending' },
           },
           {
             id: 'srun-b',
@@ -1590,6 +1593,7 @@ describe('searchStore', () => {
             status: 'completed',
             results: [],
             searchLog: [],
+            narrativeState: { status: 'pending' },
           },
           {
             id: 'srun-c',
@@ -1598,6 +1602,7 @@ describe('searchStore', () => {
             status: 'completed',
             results: [],
             searchLog: [],
+            narrativeState: { status: 'pending' },
           },
         ],
         requests: [
@@ -1753,6 +1758,86 @@ describe('searchStore', () => {
       ])
       expect(migrated.feedbackEvents[0]).not.toHaveProperty('appliedAtVersion')
       expect(migrated.feedbackEvents[1]).not.toHaveProperty('appliedAtVersion')
+    })
+
+    it('migrates legacy run narrative fields into tagged lifecycle states', () => {
+      const request = {
+        id: 'sreq-legacy',
+        createdAt: '2026-03-11T00:00:00.000Z',
+        focusLanes: [],
+        companySizeOverride: '',
+        salaryAnchorOverride: '',
+        geoExpand: false,
+        customKeywords: '',
+        excludeCompanies: [],
+        maxResults: { tier1: 5, tier2: 10, tier3: 10 },
+      }
+      const migrated = migrateSearchState({
+        profile: null,
+        requests: [request],
+        runs: [
+          {
+            id: 'srun-ready',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+            narrative: {
+              competitiveMoat: 'Durable platform moat.',
+              selectionMethodology: 'Filtered for platform ownership.',
+              marketContext: 'Platform hiring remains active.',
+              executiveSummary: 'Best fit summary.',
+            },
+            contractViolations: ['candidateEdge warning'],
+          },
+          {
+            id: 'srun-failed',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+            contractViolations: ['narrative.executiveSummary: missing or empty'],
+          },
+          {
+            id: 'srun-pending',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'completed',
+            results: [],
+            searchLog: [],
+          },
+          {
+            id: 'srun-generating',
+            requestId: 'sreq-legacy',
+            createdAt: '2026-03-11T00:00:00.000Z',
+            status: 'running',
+            results: [],
+            searchLog: [],
+            narrativeState: { status: 'generating' },
+          },
+        ],
+      })
+
+      expect(migrated.runs.find((run) => run.id === 'srun-ready')?.narrativeState).toMatchObject({
+        status: 'ready',
+        contractViolations: ['candidateEdge warning'],
+        narrative: { executiveSummary: 'Best fit summary.' },
+      })
+      expect(migrated.runs.find((run) => run.id === 'srun-failed')?.narrativeState).toEqual({
+        status: 'failed',
+        error: 'Migrated run narrative failed validation.',
+        contractViolations: ['narrative.executiveSummary: missing or empty'],
+      })
+      expect(migrated.runs.find((run) => run.id === 'srun-pending')?.narrativeState).toEqual({
+        status: 'pending',
+      })
+      expect(migrated.runs.find((run) => run.id === 'srun-generating')?.narrativeState).toEqual({
+        status: 'generating',
+      })
+      expect(migrated.runs[0]).not.toHaveProperty('narrative')
+      expect(migrated.runs[0]).not.toHaveProperty('contractViolations')
     })
 
     it('prunes orphaned feedback and thesis feedback references during migration', () => {

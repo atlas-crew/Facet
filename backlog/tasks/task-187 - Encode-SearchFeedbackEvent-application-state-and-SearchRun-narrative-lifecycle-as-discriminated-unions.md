@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-04-20 07:07'
-updated_date: '2026-05-08 08:47'
+updated_date: '2026-05-08 09:00'
 labels:
   - search-redesign
   - types
@@ -101,14 +101,14 @@ Coordinate with TASK-186 — if both land, prefer shipping 186 first (smaller sc
 <!-- AC:BEGIN -->
 - [x] #1 SearchFeedbackEvent uses discriminated union for application state (appliedToIdentity: false | true + required appliedAtVersion)
 - [x] #2 Illegal states unrepresentable in type — TypeScript rejects { appliedToIdentity: true } without appliedAtVersion
-- [ ] #3 SearchRun narrative encoded as tagged lifecycle (pending | generating | failed | ready)
-- [ ] #4 contractViolations migrates into the failed variant as a required field
-- [ ] #5 migrateSearchState handles all four legacy shapes (applied-no-version, applied-with-version, narrative-present, violations-present)
-- [ ] #6 Store mutations (addFeedbackEvent, markFeedbackApplied, addRun, updateRun) produce only valid variants
+- [x] #3 SearchRun narrative encoded as tagged lifecycle (pending | generating | failed | ready)
+- [x] #4 contractViolations migrates into the failed variant as a required field
+- [x] #5 migrateSearchState handles all four legacy shapes (applied-no-version, applied-with-version, narrative-present, violations-present)
+- [x] #6 Store mutations (addFeedbackEvent, markFeedbackApplied, addRun, updateRun) produce only valid variants
 - [x] #7 workspaceImportMerge mergeFeedbackEventState dispatches on the tag rather than checking optional fields
 - [x] #8 searchExecutor normalizeRunNarrative returns the discriminated union instead of separate narrative/violations
-- [ ] #9 All !== undefined guards on appliedAtVersion and narrative fields removed (type checker does the work)
-- [ ] #10 Regression tests cover migration of each legacy shape
+- [x] #9 All !== undefined guards on appliedAtVersion and narrative fields removed (type checker does the work)
+- [x] #10 Regression tests cover migration of each legacy shape
 - [ ] #11 Existing 1324 tests still pass after the refactor
 <!-- AC:END -->
 
@@ -118,14 +118,16 @@ Coordinate with TASK-186 — if both land, prefer shipping 186 first (smaller sc
 TASK-187 sub-slice committed scope: SearchFeedbackEvent application state now uses FeedbackApplicationState discriminated union; migrateSearchState drops false+version and coerces true-without-version to pending; workspace import merge now dispatches on appliedToIdentity tag and preserves monotonic applied versions. SearchRun narrative lifecycle remains open.
 
 Second TASK-187 sub-slice: normalizeRunNarrative now returns a tagged ready/failed result with contractViolations instead of the old narrative?/violations pair; deep search hydration consumes the tag while preserving existing SearchRun persistence fields for a later lifecycle slice. Verification: focused normalizeRunNarrative/deepSearchClient Vitest passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large chunk warnings.
+
+Final lifecycle slice: SearchRun now persists narrativeState as pending/generating/failed/ready instead of loose narrative/contractViolations fields. hydrateRun migrates legacy ready narratives, failed validation payloads, pending no-narrative records, and existing tagged states; deep research hydration writes ready/failed narrative states; ResearchPage renders narrative and output warnings through the tag. Verification: npx vitest run src/test/searchStore.test.ts passed 38/38; deepSearchClient passed 15/15; normalizeRunNarrative focused tests passed 14; ResearchPage focused narrative/job tests passed; persistence activeResearchJob focused test passed; workspaceBackup research/feedback focused tests passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing chunk warnings. Did not check AC #11 because the full suite was not run; an unrelated router-harness failure remains in searchRedesignRoundTrip when run directly.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
 - [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
