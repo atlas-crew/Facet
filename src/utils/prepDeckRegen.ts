@@ -26,6 +26,15 @@ const formatRoundLabel = (roundNumber?: number): string => {
  * user-authored cards. Mirrors PrepPage's "regenerate latest deck" path
  * with a thinner contract: callers build the PrepGenerationRequest themselves
  * and the shared action owns the AI call and store mutations.
+ *
+ * NOTE: PrepPage's existing regen path (PrepPage.tsx around line 1746) is NOT
+ * yet unified onto this action. PrepPage carries additional logic that this
+ * shared module deliberately does not implement:
+ *   - context-gap-answer carry-over (matching previous gap IDs by content key)
+ *   - sophisticated prior-round-debriefs filtering via collectPrepRoundDebriefHistory
+ * Unify when those carry-over rules can be lifted into a parameterized option
+ * here, or accept that the two paths intentionally diverge (PrepPage = rich
+ * carry-over; staleness-review refresh = stripped-down identity-driven regen).
  */
 export async function regeneratePrepDeckForEntry(
   input: RegeneratePrepDeckInput,

@@ -2044,6 +2044,15 @@ export function ResearchPage() {
     setThesisNotice(`${artifact.label} staleness decision saved.`)
   }
 
+  // Drift semantic: cover letter regen persists the new letter via
+  // upsertLetterForPipelineEntry inside regenerateCoverLetterForEntry, BEFORE
+  // the post-flight identity-drift check below. If identity drifts mid-flight,
+  // the regenerated letter remains saved (stamped with the pre-drift identity
+  // version), but the staleness review marker is not recorded — so the panel
+  // will surface the letter as stale on next render. This differs from the
+  // thesis path, where regeneration is discarded on drift; the difference
+  // exists because cover letter regen is a single store transaction baked into
+  // the shared regen action.
   const runCoverLetterRefresh = async (
     artifact: DownstreamImpact['artifactsAffected'][number],
     artifactKey: string,
@@ -2150,6 +2159,12 @@ export function ResearchPage() {
     }
   }
 
+  // Drift semantic: prep deck regen persists the new deck via
+  // updateDeck + replaceDeckCards inside regeneratePrepDeckForEntry, BEFORE
+  // the post-flight identity-drift check below. If identity drifts mid-flight,
+  // the regenerated deck remains saved (stamped with the pre-drift identity
+  // version), but the staleness review marker is not recorded. Same trade-off
+  // as runCoverLetterRefresh — see that handler's note for rationale.
   const runPrepDeckRefresh = async (
     artifact: DownstreamImpact['artifactsAffected'][number],
     artifactKey: string,
@@ -2299,7 +2314,7 @@ export function ResearchPage() {
   ) => {
     if (refreshingStalenessArtifactKeyRef.current !== null) {
       setThesisNotice(
-        'A thesis refresh is already running. Wait for it to finish before starting another.',
+        'A refresh is already running. Wait for it to finish before starting another.',
       )
       return
     }
@@ -2310,7 +2325,7 @@ export function ResearchPage() {
       artifact.artifactType !== 'prep-deck'
     ) {
       setThesisNotice(
-        `${artifact.label} cannot be refreshed yet. Thesis, cover-letter, and prep deck refresh are available; run refresh generators are still pending.`,
+        `${artifact.label} cannot be refreshed yet. Thesis, cover-letter, and prep deck refresh are available; run-level refresh isn't available yet.`,
       )
       return
     }
@@ -3378,7 +3393,7 @@ export function ResearchPage() {
                 <strong id="staleness-review-title">Batch staleness review</strong>
                 <p>
                   {stalenessReviewImpact.summary} Review each artifact now. Thesis, cover-letter,
-                  and prep deck refresh are available; run refresh generators are still pending.
+                  and prep deck refresh are available; run-level refresh isn&apos;t available yet.
                 </p>
                 <p>
                   Choices are saved on each reviewed artifact. Refreshing regenerates the artifact

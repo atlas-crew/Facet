@@ -1743,6 +1743,12 @@ export function PrepPage() {
           }).resume
         : undefined
 
+      // REGEN-DRIFT-ALERT: this inline regen path is intentionally NOT unified
+      // onto src/utils/prepDeckRegen.ts. The shared module does not yet
+      // implement this path's context-gap-answer carry-over and prior-round
+      // debriefs filtering. If you are about to add behavior here, consider
+      // whether it should also live in the shared module so the staleness
+      // review refresh stays in sync.
       const result = await generateInterviewPrep(aiEndpoint, {
         company: latestDeck.company,
         role: latestDeck.role,
