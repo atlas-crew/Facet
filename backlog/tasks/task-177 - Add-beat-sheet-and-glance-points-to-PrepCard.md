@@ -1,10 +1,11 @@
 ---
 id: TASK-177
 title: Add beat sheet and glance points to PrepCard
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 23:19'
+updated_date: '2026-05-08 23:57'
 labels:
   - prep
   - types
@@ -68,7 +69,11 @@ Original AC was Option A (keep keyPoints[] as the single field; update generator
 - [ ] #3 If wording changes are needed, ship the prompt update with focused tests for the projection-input shape (no type or UI changes in scope)
 <!-- AC:END -->
 
+## Implementation Notes
 
+<!-- SECTION:NOTES:BEGIN -->
+Starting narrowed TASK-177 after read-only audit. Scope: tiny prepGenerator prompt/test patch tying keyPoints beat-sheet/glance-points generation to Canonical JDAnalysis.requirements and evidenceMapping, with no type/UI changes.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
