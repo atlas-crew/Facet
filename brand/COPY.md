@@ -211,7 +211,7 @@ name (Resume, Cover Letter, etc).
 
 ## Concept names
 
-The seven concept sheets in `sheets/concepts/`. Each names a structural
+The seven concept sheets in `_source/html/`. Each names a structural
 claim about Facet — use these as **defined units of brand thinking**
 that can be linked, cited, or referenced in long-form copy.
 
@@ -226,7 +226,7 @@ that can be linked, cited, or referenced in long-form copy.
 
 > *The Search Loop* concept has been retired. The diamond-centric
 > carousel narrative replaced it. The source HTML is preserved in
-> `brand/sheets/_archive/loop.html` for reference.
+> `brand/_source/html/_archive/loop.html` for reference.
 
 ### How to use a concept name in copy
 
@@ -315,7 +315,7 @@ structured rather than enumerated when you list them in copy.
 > canonical; brand sheets follow.
 
 The substrate has its own dedicated concept sheet at
-[`brand/sheets/substrate.html`](sheets/substrate.html) — a 1200×630
+[`brand/_source/html/substrate.html`](_source/html/substrate.html) — a 1200×630
 poster that visualizes the three pairs as numbered rows. Use it when a
 text list won't carry the structural claim alone (landing-page hero,
 methodology section, share asset).
@@ -416,7 +416,7 @@ gets written into the right doc rather than ad-libbed in your asset.
 ## Asset → phrase index
 
 If you change a phrase, here's where it appears so you know what to
-update. Sources of truth are the HTML sheets in `brand/sheets/`.
+update. Sources of truth are the HTML sheets in `brand/_source/html/`.
 
 ### Tagline (`Same diamond · Different face`)
 

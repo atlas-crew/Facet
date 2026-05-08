@@ -65,7 +65,7 @@ slides, partner blog header.
 | `facet-readme-light.webp` | WebP | 1600×800 (rendered from 1280×640 source) |
 
 If you need a different format (PNG, JPEG), render the source
-sheet at [`brand/sheets/readme.html`](../sheets/readme.html) using
+sheet at [`brand/_source/html/readme.html`](../_source/html/readme.html) using
 the project's render pipeline (`just brand-readme`).
 
 For other image options — atmospheric banners, bold heroes, the

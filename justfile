@@ -191,7 +191,7 @@ clean:
 
 # ─── Brand asset rendering ───────────────────────────────────────────
 #
-# Render HTML brand sheets in brand/sheets/ to PNG via Playwright
+# Render HTML brand sheets in brand/_source/html/ to PNG via Playwright
 # headless screenshot. Each sheet contains multiple variants addressed
 # by URL hash; the in-page render-mode <script> isolates the targeted
 # variant so a viewport screenshot captures only that variant.
@@ -221,7 +221,7 @@ brand-concepts:
         out="brand/exports/concepts/facet-${id}.png"
         npx --yes playwright screenshot \
           --viewport-size="1200,630" \
-          "file://$(pwd)/brand/sheets/${sheet}.html#${id}" "$out" 2>/dev/null
+          "file://$(pwd)/brand/_source/html/${sheet}.html#${id}" "$out" 2>/dev/null
         printf "  ✓ %s\n" "$out"
       done
     done
@@ -243,7 +243,7 @@ brand-banners:
       out="brand/exports/banners/facet-${name}.png"
       npx --yes playwright screenshot \
         --viewport-size="1200,630" \
-        "file://$(pwd)/brand/sheets/banners.html#${id}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/banners.html#${id}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     # editorial.html — direct ID → filename
@@ -251,7 +251,7 @@ brand-banners:
       out="brand/exports/banners/facet-hero-editorial-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1200,630" \
-        "file://$(pwd)/brand/sheets/editorial.html#editorial-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/editorial.html#editorial-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -273,7 +273,7 @@ brand-social:
       out="brand/exports/social/facet-${name}.png"
       npx --yes playwright screenshot \
         --viewport-size="${size}" \
-        "file://$(pwd)/brand/sheets/social.html#${id}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/social.html#${id}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     # square.html — 1080×1080 for Instagram / LinkedIn feed
@@ -281,7 +281,7 @@ brand-social:
       out="brand/exports/social/facet-square-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1080" \
-        "file://$(pwd)/brand/sheets/square.html#square-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/square.html#square-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -296,7 +296,7 @@ brand-email:
       out="brand/exports/email/facet-email-header-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1200,400" \
-        "file://$(pwd)/brand/sheets/email.html#email-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/email.html#email-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -313,13 +313,13 @@ brand-carousel:
       out="brand/exports/carousel/facet-carousel-${i}.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1350" \
-        "file://$(pwd)/brand/sheets/carousel.html#carousel-${i}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/carousel.html#carousel-${i}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
       # light (new — adds -light suffix only)
       out="brand/exports/carousel/facet-carousel-${i}-light.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1350" \
-        "file://$(pwd)/brand/sheets/carousel.html#carousel-${i}-light" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/carousel.html#carousel-${i}-light" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -335,7 +335,7 @@ brand-story:
       out="brand/exports/story/facet-story-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1920" \
-        "file://$(pwd)/brand/sheets/story.html#story-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/story.html#story-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -352,7 +352,7 @@ brand-manifesto:
       out="brand/exports/manifesto/facet-manifesto-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1350" \
-        "file://$(pwd)/brand/sheets/manifesto.html#manifesto-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/manifesto.html#manifesto-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -369,7 +369,7 @@ brand-method:
       out="brand/exports/method/facet-method-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1600,900" \
-        "file://$(pwd)/brand/sheets/method.html#method-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/method.html#method-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -386,7 +386,7 @@ brand-readme:
       out="brand/exports/readme/facet-readme-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1280,640" \
-        "file://$(pwd)/brand/sheets/readme.html#readme-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/readme.html#readme-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -403,13 +403,13 @@ brand-principle:
       out="brand/exports/principle/facet-principle-${variant}.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1080" \
-        "file://$(pwd)/brand/sheets/principle.html#principle-${variant}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/principle.html#principle-${variant}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
       # light
       out="brand/exports/principle/facet-principle-${variant}-light.png"
       npx --yes playwright screenshot \
         --viewport-size="1080,1080" \
-        "file://$(pwd)/brand/sheets/principle.html#principle-${variant}-light" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/principle.html#principle-${variant}-light" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -424,7 +424,7 @@ brand-promo:
       out="brand/exports/promo/facet-promo-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1200,630" \
-        "file://$(pwd)/brand/sheets/promo.html#promo-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/promo.html#promo-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
     echo ""
@@ -439,7 +439,7 @@ brand-reference:
     # 1. brand reference card — variable height, full-page
     npx --yes playwright screenshot \
       --viewport-size="1200,1400" --full-page \
-      "file://$(pwd)/brand/sheets/reference.html#refcard" \
+      "file://$(pwd)/brand/_source/html/reference.html#refcard" \
       "brand/exports/reference/facet-brand-refcard.png" 2>/dev/null
     printf "  ✓ %s\n" "brand/exports/reference/facet-brand-refcard.png"
     # 2. lockup specimens — 1200×630, dark + light
@@ -447,7 +447,7 @@ brand-reference:
       out="brand/exports/reference/facet-lockups-${theme}.png"
       npx --yes playwright screenshot \
         --viewport-size="1200,630" \
-        "file://$(pwd)/brand/sheets/lockups.html#lockups-${theme}" "$out" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/lockups.html#lockups-${theme}" "$out" 2>/dev/null
       printf "  ✓ %s\n" "$out"
     done
 
@@ -458,7 +458,7 @@ brand-concept sheet theme="dark":
     @mkdir -p brand/exports/concepts
     npx --yes playwright screenshot \
       --viewport-size="1200,630" \
-      "file://$(pwd)/brand/sheets/{{ sheet }}.html#{{ sheet }}-{{ theme }}" \
+      "file://$(pwd)/brand/_source/html/{{ sheet }}.html#{{ sheet }}-{{ theme }}" \
       "brand/exports/concepts/facet-{{ sheet }}-{{ theme }}.png" 2>/dev/null
     @echo "  ✓ brand/exports/concepts/facet-{{ sheet }}-{{ theme }}.png"
 
@@ -469,22 +469,22 @@ brand-banner variant:
     @mkdir -p brand/exports/banners
     npx --yes playwright screenshot \
       --viewport-size="1200,630" \
-      "file://$(pwd)/brand/sheets/banners.html#{{ variant }}" \
+      "file://$(pwd)/brand/_source/html/banners.html#{{ variant }}" \
       "brand/exports/banners/facet-{{ variant }}.png" 2>/dev/null
     @echo "  ✓ brand/exports/banners/facet-{{ variant }}.png"
 
 # Open all brand sheets in the default browser for visual review (no rendering).
 brand-review:
-    open brand/sheets/banners.html brand/sheets/social.html \
-         brand/sheets/editorial.html brand/sheets/square.html \
-         brand/sheets/system.html brand/sheets/identity.html \
-         brand/sheets/extraction.html \
-         brand/sheets/iterative.html brand/sheets/vectors.html \
-         brand/sheets/episodic.html brand/sheets/reference.html \
-         brand/sheets/lockups.html brand/sheets/email.html \
-         brand/sheets/carousel.html brand/sheets/story.html \
-         brand/sheets/principle.html brand/sheets/promo.html \
-         brand/sheets/composite.html
+    open brand/_source/html/banners.html brand/_source/html/social.html \
+         brand/_source/html/editorial.html brand/_source/html/square.html \
+         brand/_source/html/system.html brand/_source/html/identity.html \
+         brand/_source/html/extraction.html \
+         brand/_source/html/iterative.html brand/_source/html/vectors.html \
+         brand/_source/html/episodic.html brand/_source/html/reference.html \
+         brand/_source/html/lockups.html brand/_source/html/email.html \
+         brand/_source/html/carousel.html brand/_source/html/story.html \
+         brand/_source/html/principle.html brand/_source/html/promo.html \
+         brand/_source/html/composite.html
 
 # Render per-category composite "contact sheets" — smaller-scale grids
 # showing every variant in a category, with caption labels. Each
@@ -509,7 +509,7 @@ brand-composites:
       # Render PNG, convert to WebP, remove PNG
       npx --yes playwright screenshot \
         --viewport-size="${size}" \
-        "file://$(pwd)/brand/sheets/composite.html#composite-${id}" "$png" 2>/dev/null
+        "file://$(pwd)/brand/_source/html/composite.html#composite-${id}" "$png" 2>/dev/null
       cwebp -quiet -q 90 -resize 1600 0 "$png" -o "$webp"
       cwebp -quiet -q 80 -resize 800 0 "$png" -o "$thumb"
       rm "$png"
@@ -557,16 +557,143 @@ brand-webp:
       echo "Converted $converted PNGs → WebP (full + thumb), PNGs removed"
     fi
 
-# Remove all WebP files (full + thumbs) — PNGs untouched
-brand-webp-clean:
-    @find brand/exports -type f -name '*.webp' -delete 2>/dev/null || true
+# Remove WebP renders produced by the brand-* render pipeline.
+# IMPORTANT: brand/exports/ also contains Adobe Illustrator exports (e.g.,
+# facet-beam-striking-crystal-social.webp) that share the facet-* prefix.
+# This recipe deletes ONLY the specific files the Playwright+cwebp pipeline
+# produces, enumerated below per category. Files not in the enumeration are
+# preserved.
+brand-webp-clean: brand-clean-concepts brand-clean-banners brand-clean-social brand-clean-email brand-clean-carousel brand-clean-story brand-clean-principle brand-clean-promo brand-clean-reference brand-clean-composite brand-clean-method brand-clean-manifesto brand-clean-readme
+    # Remove only thumbs/ directories that are now empty (other thumbs may belong to AI exports)
     @find brand/exports -type d -name 'thumbs' -empty -delete 2>/dev/null || true
-    @echo "Removed all WebP files (PNGs preserved)"
+    @echo "Removed pipeline-rendered WebP files; AI exports preserved"
 
-# Clean all rendered brand exports (HTML sources untouched)
-brand-clean:
-    rm -rf brand/exports/concepts brand/exports/banners brand/exports/social \
-           brand/exports/email brand/exports/carousel brand/exports/story \
-           brand/exports/principle brand/exports/promo brand/exports/reference \
-           brand/exports/composite
-    @echo "Cleaned brand/exports/"
+# Clean all rendered brand exports (HTML sources untouched).
+# Same enumeration as brand-webp-clean but also removes the .png renders
+# that linger if a render was interrupted before WebP conversion. Adobe
+# Illustrator exports and any other non-pipeline files in brand/exports/
+# are preserved.
+brand-clean: brand-webp-clean
+    @find brand/exports -name 'facet-*.png' -path '*/concepts/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/banners/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/email/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/carousel/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/story/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/principle/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/promo/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/reference/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/composite/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/method/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/manifesto/*' -delete 2>/dev/null || true
+    @find brand/exports -name 'facet-*.png' -path '*/readme/*' -delete 2>/dev/null || true
+    @echo "Cleaned pipeline-rendered brand exports; AI exports preserved"
+
+# Per-category clean recipes. Each enumerates the exact files that recipe's
+# render produces. Add to brand-webp-clean above when adding a new category.
+
+brand-clean-concepts:
+    #!/usr/bin/env bash
+    for slug in system identity extraction iterative vectors episodic substrate; do
+      for theme in dark light; do
+        rm -f "brand/exports/concepts/facet-${slug}-${theme}.webp"
+        rm -f "brand/exports/concepts/thumbs/facet-${slug}-${theme}.webp"
+      done
+    done
+
+brand-clean-banners:
+    #!/usr/bin/env bash
+    for style in bold atmospheric editorial; do
+      for theme in dark light; do
+        rm -f "brand/exports/banners/facet-hero-${style}-${theme}.webp"
+        rm -f "brand/exports/banners/thumbs/facet-hero-${style}-${theme}.webp"
+      done
+    done
+
+brand-clean-social:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/social/facet-og-image-${theme}.webp"
+      rm -f "brand/exports/social/facet-square-${theme}.webp"
+      rm -f "brand/exports/social/thumbs/facet-og-image-${theme}.webp"
+      rm -f "brand/exports/social/thumbs/facet-square-${theme}.webp"
+    done
+    rm -f brand/exports/social/facet-twitter-banner.webp
+    rm -f brand/exports/social/facet-github-banner.webp
+    rm -f brand/exports/social/thumbs/facet-twitter-banner.webp
+    rm -f brand/exports/social/thumbs/facet-github-banner.webp
+
+brand-clean-email:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/email/facet-email-header-${theme}.webp"
+      rm -f "brand/exports/email/thumbs/facet-email-header-${theme}.webp"
+    done
+
+brand-clean-carousel:
+    #!/usr/bin/env bash
+    for i in 1 2 3 4 5; do
+      rm -f "brand/exports/carousel/facet-carousel-${i}.webp"
+      rm -f "brand/exports/carousel/facet-carousel-${i}-light.webp"
+      rm -f "brand/exports/carousel/thumbs/facet-carousel-${i}.webp"
+      rm -f "brand/exports/carousel/thumbs/facet-carousel-${i}-light.webp"
+    done
+
+brand-clean-story:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/story/facet-story-${theme}.webp"
+      rm -f "brand/exports/story/thumbs/facet-story-${theme}.webp"
+    done
+
+brand-clean-principle:
+    #!/usr/bin/env bash
+    for variant in tagline method thesis; do
+      rm -f "brand/exports/principle/facet-principle-${variant}.webp"
+      rm -f "brand/exports/principle/facet-principle-${variant}-light.webp"
+      rm -f "brand/exports/principle/thumbs/facet-principle-${variant}.webp"
+      rm -f "brand/exports/principle/thumbs/facet-principle-${variant}-light.webp"
+    done
+
+brand-clean-promo:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/promo/facet-promo-${theme}.webp"
+      rm -f "brand/exports/promo/thumbs/facet-promo-${theme}.webp"
+    done
+
+brand-clean-reference:
+    #!/usr/bin/env bash
+    rm -f brand/exports/reference/facet-brand-refcard.webp
+    rm -f brand/exports/reference/thumbs/facet-brand-refcard.webp
+    for theme in dark light; do
+      rm -f "brand/exports/reference/facet-lockups-${theme}.webp"
+      rm -f "brand/exports/reference/thumbs/facet-lockups-${theme}.webp"
+    done
+
+brand-clean-composite:
+    #!/usr/bin/env bash
+    for cat in banners concepts social email carousel story principle manifesto method readme promo reference; do
+      rm -f "brand/exports/composite/facet-composite-${cat}.webp"
+      rm -f "brand/exports/composite/thumbs/facet-composite-${cat}.webp"
+    done
+
+brand-clean-method:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/method/facet-method-${theme}.webp"
+      rm -f "brand/exports/method/thumbs/facet-method-${theme}.webp"
+    done
+
+brand-clean-manifesto:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/manifesto/facet-manifesto-${theme}.webp"
+      rm -f "brand/exports/manifesto/thumbs/facet-manifesto-${theme}.webp"
+    done
+
+brand-clean-readme:
+    #!/usr/bin/env bash
+    for theme in dark light; do
+      rm -f "brand/exports/readme/facet-readme-${theme}.webp"
+      rm -f "brand/exports/readme/thumbs/facet-readme-${theme}.webp"
+    done

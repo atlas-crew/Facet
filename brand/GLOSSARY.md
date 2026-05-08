@@ -128,7 +128,7 @@ the pass closes.
 search-and-prep cycle. Retired in favor of the diamond-centric
 carousel narrative (intro → model → faces → refinement → close).
 The source HTML for the old concept is preserved in
-`brand/sheets/_archive/loop.html` for reference.
+`brand/_source/html/_archive/loop.html` for reference.
 
 - ❌ Don't introduce *search loop* in new copy.
 - ✅ When describing the iterative cycle in new contexts, reach for
@@ -136,7 +136,7 @@ The source HTML for the old concept is preserved in
   arc directly: *build the model, recut for each opportunity, prep
   per round, debrief, sharpen*.
 
-**See also:** [`brand/sheets/method.html`](sheets/method.html) for
+**See also:** [`brand/_source/html/method.html`](_source/html/method.html) for
 the current cycle visual.
 
 ## Career Operating System
@@ -159,5 +159,5 @@ the concept.
   [`COPY.md`](COPY.md#what-not-to-use))
 
 **See also:** *substrate*, *model*, and the
-[`system.html`](sheets/system.html) concept sheet for the visual
+[`system.html`](_source/html/system.html) concept sheet for the visual
 treatment.

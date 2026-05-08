@@ -160,7 +160,7 @@ purposes.
 
 ## File Inventory
 
-Source HTML lives in `sheets/` (one consolidated file per graphic
+Source HTML lives in `_source/html/` (one consolidated file per graphic
 type). Each sheet contains every variant of its type stacked
 vertically, with each variant scoped to a unique element ID so it
 can be screenshotted by selector. Rendered PNGs live in `exports/`
@@ -177,31 +177,33 @@ brand/
 ├── GLOSSARY.md                       ← term definitions (recut, model, substrate, vector, pass, …)
 ├── TONE.md                           ← register-by-surface guide (support / release / tweet / blog / email)
 ├── press/                            ← press-kit folder (README + logos/ + hero/) — single URL for journalists / partners
-├── sheets/
-│   ├── banners.html                  ← #bold-dark · #bold-light · #atm-dark · #atm-light  (1200×630)
-│   ├── editorial.html                ← #editorial-dark · #editorial-light  (1200×630, typography-led hero)
-│   ├── social.html                   ← #og-dark · #og-light (1200×630) · #twitter (1500×500) · #github (1280×320)
-│   ├── square.html                   ← #square-dark · #square-light  (1080×1080, IG/LinkedIn feed)
-│   ├── email.html                    ← #email-dark · #email-light  (1200×400 newsletter masthead)
-│   ├── carousel.html                 ← #carousel-1..5 + -light  (1080×1350, 5-slide diamond-centric deck)
-│   ├── story.html                    ← #story-dark · #story-light  (1080×1920 IG/Snap vertical)
-│   ├── principle.html                ← #principle-{tagline,method,thesis}  (1080×1080 quote cards)
-│   ├── promo.html                    ← #promo-dark · #promo-light  (1200×630 launch banner)
-│   ├── system.html                   ← #system-dark · #system-light  (1200×630, "Career Operating System")
-│   ├── identity.html                 ← #identity-dark · #identity-light  (1200×630, "Professional Identity Model")
-│   ├── extraction.html               ← #extraction-dark · #extraction-light  (1200×630, "Identity Extraction")
-│   ├── iterative.html                ← #iterative-dark · #iterative-light  (1200×630, "Iterative Identity")
-│   ├── vectors.html                  ← #vectors-dark · #vectors-light  (1200×630, "Vector Mapping")
-│   ├── episodic.html                 ← #episodic-dark · #episodic-light  (1200×630, "Episodic by Design")
-│   ├── substrate.html                ← #substrate-dark · #substrate-light  (1200×630, model substrate · Manifesto · 01)
-│   ├── manifesto.html                ← #manifesto-dark · #manifesto-light  (1080×1350 portrait, "What Facet isn't" · Manifesto · 02)
-│   ├── method.html                   ← #method-dark · #method-light  (1600×900 widescreen, methodology one-pager · The Method · 01)
-│   ├── readme.html                   ← #readme-dark · #readme-light  (1280×640 2:1 banner, GitHub repo hero)
-│   ├── reference.html                ← #refcard (brand card) · #fontcompare (wordmark exploration)
-│   ├── lockups.html                  ← #lockups-dark · #lockups-light  (1200×630, lockup specimens)
-│   ├── composite.html                ← 12 per-category #composite-{cat} contact sheets
-│   └── _archive/
-│       └── loop.html                 ← The Search Loop (retired — replaced by diamond-centric carousel)
+├── _source/                          ← brand asset sources (HTML, Adobe Illustrator, etc.)
+│   ├── html/
+│   │   ├── banners.html              ← #bold-dark · #bold-light · #atm-dark · #atm-light  (1200×630)
+│   │   ├── editorial.html            ← #editorial-dark · #editorial-light  (1200×630, typography-led hero)
+│   │   ├── social.html               ← #og-dark · #og-light (1200×630) · #twitter (1500×500) · #github (1280×320)
+│   │   ├── square.html               ← #square-dark · #square-light  (1080×1080, IG/LinkedIn feed)
+│   │   ├── email.html                ← #email-dark · #email-light  (1200×400 newsletter masthead)
+│   │   ├── carousel.html             ← #carousel-1..5 + -light  (1080×1350, 5-slide diamond-centric deck)
+│   │   ├── story.html                ← #story-dark · #story-light  (1080×1920 IG/Snap vertical)
+│   │   ├── principle.html            ← #principle-{tagline,method,thesis}  (1080×1080 quote cards)
+│   │   ├── promo.html                ← #promo-dark · #promo-light  (1200×630 launch banner)
+│   │   ├── system.html               ← #system-dark · #system-light  (1200×630, "Career Operating System")
+│   │   ├── identity.html             ← #identity-dark · #identity-light  (1200×630, "Professional Identity Model")
+│   │   ├── extraction.html           ← #extraction-dark · #extraction-light  (1200×630, "Identity Extraction")
+│   │   ├── iterative.html            ← #iterative-dark · #iterative-light  (1200×630, "Iterative Identity")
+│   │   ├── vectors.html              ← #vectors-dark · #vectors-light  (1200×630, "Vector Mapping")
+│   │   ├── episodic.html             ← #episodic-dark · #episodic-light  (1200×630, "Episodic by Design")
+│   │   ├── substrate.html            ← #substrate-dark · #substrate-light  (1200×630, model substrate · Manifesto · 01)
+│   │   ├── manifesto.html            ← #manifesto-dark · #manifesto-light  (1080×1350 portrait, "What Facet isn't" · Manifesto · 02)
+│   │   ├── method.html               ← #method-dark · #method-light  (1600×900 widescreen, methodology one-pager · The Method · 01)
+│   │   ├── readme.html               ← #readme-dark · #readme-light  (1280×640 2:1 banner, GitHub repo hero)
+│   │   ├── reference.html            ← #refcard (brand card) · #fontcompare (wordmark exploration)
+│   │   ├── lockups.html              ← #lockups-dark · #lockups-light  (1200×630, lockup specimens)
+│   │   ├── composite.html            ← 12 per-category #composite-{cat} contact sheets
+│   │   └── _archive/
+│   │       └── loop.html             ← The Search Loop (retired — replaced by diamond-centric carousel)
+│   └── ai/                           ← Adobe Illustrator sources (.ai files for hero illustrations / mascots)
 ├── exports/                          ← WebP-only (generated by `just brand`)
 │   ├── concepts/                     ← 14 thesis-led concept variants (1200×630)
 │   │   ├── facet-system-{dark,light}.webp         ← Career Operating System
@@ -295,7 +297,7 @@ between states. The theme context should determine the base palette.
 
 ## Rendering
 
-Brand sheets are HTML source files in `sheets/`. PNG exports in
+Brand sheets are HTML source files in `_source/html/`. PNG exports in
 `exports/` are generated via `just brand` (or category recipes) using
 Playwright headless screenshot. Each sheet contains an in-page
 `<script>` that responds to URL hashes — when a hash like
@@ -357,7 +359,7 @@ These produce PNG only and skip the WebP conversion.
 
 ### Adding a new sheet
 
-1. Create `sheets/{name}.html` following the existing pattern (per-variant
+1. Create `_source/html/{name}.html` following the existing pattern (per-variant
    ID-scoped CSS, render-mode `<script>` block at the bottom).
 2. If it's a concept sheet (1200×630, dark+light), add `{name}` to the
    `sheets="..."` list in the `brand-concepts` recipe — that's it.
