@@ -508,6 +508,21 @@ const serializeIdentityProfile = (profile: SerializableIdentityProfile) =>
     source: profile.source,
   })
 
+type SearchRequestDraft = Omit<SearchRequest, 'id' | 'createdAt' | 'excludeCompanies'>
+
+const sameStringList = (left: readonly string[], right: readonly string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index])
+
+const sameRequestDraft = (left: SearchRequestDraft, right: SearchRequestDraft) =>
+  left.companySizeOverride === right.companySizeOverride &&
+  left.salaryAnchorOverride === right.salaryAnchorOverride &&
+  left.geoExpand === right.geoExpand &&
+  left.customKeywords === right.customKeywords &&
+  sameStringList(left.focusLanes, right.focusLanes) &&
+  left.maxResults.tier1 === right.maxResults.tier1 &&
+  left.maxResults.tier2 === right.maxResults.tier2 &&
+  left.maxResults.tier3 === right.maxResults.tier3
+
 const getReadinessCopy = ({
   effectiveProfile,
   currentIdentity,
@@ -635,6 +650,7 @@ export function ResearchPage() {
     const initialThesis = theses.find((thesis) => thesis.id === activeThesisId) ?? null
     return buildRequestDraft(profile, initialThesis)
   })
+  const requestDraftRef = useRef(requestDraft)
   const [activeRunId, setActiveRunId] = useState<string | null>(runs.at(-1)?.id ?? null)
   const [resultVectorSelections, setResultVectorSelections] = useState<Record<string, string>>({})
   const [isInferring, setIsInferring] = useState(false)
@@ -677,6 +693,7 @@ export function ResearchPage() {
     id: createId('sprof'),
     inferredAt: new Date().toISOString(),
   })
+  const lastIdentityProfileSyncKeyRef = useRef<string | null>(null)
   const preservedResumeProfileRef = useRef<SearchProfile | null>(null)
   const preservedTimelineRef = useRef<SearchThesis['timeline']>(null)
   const pollTimerRef = useRef<number | null>(null)
@@ -788,6 +805,9 @@ export function ResearchPage() {
   useEffect(() => {
     thesisDraftRef.current = thesisDraft
   }, [thesisDraft])
+  useEffect(() => {
+    requestDraftRef.current = requestDraft
+  }, [requestDraft])
   useEffect(() => {
     stalenessReviewImpactRef.current = stalenessReviewImpact
   }, [stalenessReviewImpact])
@@ -961,7 +981,10 @@ export function ResearchPage() {
     // Refresh request defaults when either the source profile or the active thesis (and thus its
     // override layer) changes. Switching theses is a context switch — request knobs should track
     // the new search rather than carry over the previous one's edits.
-    setRequestDraft(buildRequestDraft(effectiveProfile, activeThesis))
+    const nextDraft = buildRequestDraft(effectiveProfile, activeThesis)
+    if (!sameRequestDraft(requestDraftRef.current, nextDraft)) {
+      setRequestDraft(nextDraft)
+    }
   }, [effectiveProfile, activeThesis])
 
   useEffect(() => {
@@ -1008,14 +1031,19 @@ export function ResearchPage() {
       id: profile?.id ?? identityProfileRef.current.id,
       inferredAt: profile?.inferredAt ?? identityProfileRef.current.inferredAt,
     }
+    const nextSerialized = serializeIdentityProfile(syncedIdentityProfile)
 
     if (profileSourceKind !== 'identity') {
+      lastIdentityProfileSyncKeyRef.current = nextSerialized
       setProfile(syncedIdentityProfile)
       return
     }
 
-    const nextSerialized = serializeIdentityProfile(syncedIdentityProfile)
-    if (identityProfileKey !== nextSerialized) {
+    if (
+      identityProfileKey !== nextSerialized &&
+      lastIdentityProfileSyncKeyRef.current !== nextSerialized
+    ) {
+      lastIdentityProfileSyncKeyRef.current = nextSerialized
       setProfile(syncedIdentityProfile)
     }
   }, [
@@ -4289,12 +4317,16 @@ export function ResearchPage() {
                                                   {edit.emphasis === 'lead' ? 'Lead' : 'Supporting'}
                                                 </span>
                                                 <p>{edit.text}</p>
-                                                {edit.rationale ? <small>{edit.rationale}</small> : null}
+                                                {edit.rationale ? (
+                                                  <small>{edit.rationale}</small>
+                                                ) : null}
                                               </div>
                                               <button
                                                 type="button"
                                                 className="research-btn research-directive-copy"
-                                                aria-label={'Copy resume bullet for ' + result.company}
+                                                aria-label={
+                                                  'Copy resume bullet for ' + result.company
+                                                }
                                                 onClick={() => {
                                                   void navigator.clipboard?.writeText(edit.text)
                                                 }}

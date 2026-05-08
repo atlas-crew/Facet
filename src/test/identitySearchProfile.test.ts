@@ -8,6 +8,19 @@ const invalidIndustry: SearchIndustry = 'general-tech'
 void invalidIndustry
 
 describe('identitySearchProfile', () => {
+  it('maps identity compensation preferences into a structured salary band', () => {
+    const identity = cloneIdentityFixture()
+    identity.preferences.compensation.base_floor = 220000
+    identity.preferences.compensation.base_target = 300000
+
+    const profile = adaptIdentityToSearchProfile(identity)
+    expect(profile.constraints.salary).toEqual({
+      min: 220000,
+      max: 300000,
+      currency: 'USD',
+    })
+  })
+
   it('does not infer depth from word-boundary false positives', () => {
     const identity = cloneIdentityFixture()
     identity.skills.groups[0]!.items = [{ name: 'Rust', tags: ['rust'] }]

@@ -73,7 +73,7 @@ const buildResearchProfile = (overrides: Partial<SearchProfile> = {}): SearchPro
   workSummary: [],
   openQuestions: [],
   constraints: {
-    compensation: '$250k',
+    salary: { min: 250000, max: 250000, currency: 'USD' },
     locations: ['Remote'],
     clearance: '',
     companySize: '',

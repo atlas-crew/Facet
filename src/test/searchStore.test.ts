@@ -116,7 +116,7 @@ describe('searchStore', () => {
       workSummary: [],
       openQuestions: [],
       constraints: {
-        compensation: '',
+        salary: { min: 0, max: 0 },
         locations: [],
         clearance: '',
         companySize: '',
@@ -143,7 +143,7 @@ describe('searchStore', () => {
       },
     ])
     useSearchStore.getState().updateProfileConstraints({
-      compensation: '$250k',
+      salary: { min: 250000, max: 250000, currency: 'USD' },
       locations: ['Remote'],
       clearance: '',
       companySize: '',
@@ -159,7 +159,7 @@ describe('searchStore', () => {
 
     const updated = useSearchStore.getState().profile
     expect(updated?.skills).toHaveLength(1)
-    expect(updated?.constraints.compensation).toBe('$250k')
+    expect(updated?.constraints.salary).toEqual({ min: 250000, max: 250000, currency: 'USD' })
     expect(updated?.filters.prioritize).toEqual([{ label: 'platform', severity: 'soft' }])
     expect(updated?.interviewPrefs.strongFit).toEqual(['staff scope'])
     expect(updated?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
@@ -516,7 +516,12 @@ describe('searchStore', () => {
       ])
     useSearchStore
       .getState()
-      .updateProfileConstraints({ compensation: '', locations: [], clearance: '', companySize: '' })
+      .updateProfileConstraints({
+        salary: { min: 0, max: 0 },
+        locations: [],
+        clearance: '',
+        companySize: '',
+      })
     useSearchStore.getState().updateProfileFilters({ prioritize: [], avoid: [] })
     useSearchStore.getState().updateProfileInterviewPrefs({ strongFit: [], redFlags: [] })
     expect(useSearchStore.getState().profile).toBeNull()
@@ -525,7 +530,7 @@ describe('searchStore', () => {
       skills: [],
       workSummary: [],
       openQuestions: [],
-      constraints: { compensation: '', locations: [], clearance: '', companySize: '' },
+      constraints: { salary: { min: 0, max: 0 }, locations: [], clearance: '', companySize: '' },
       filters: { prioritize: [], avoid: [] },
       interviewPrefs: { strongFit: [], redFlags: [] },
       inferredFromResumeVersion: 1,
@@ -622,7 +627,7 @@ describe('searchStore', () => {
 
     const updated = useSearchStore.getState().updateThesisOverrides(thesis.id, {
       constraints: {
-        compensation: '$240k base / $340k total',
+        salary: { min: 240000, max: 340000, currency: 'USD' },
         locations: ['Tampa Bay'],
         clearance: '',
         companySize: 'mid-market',
@@ -630,7 +635,11 @@ describe('searchStore', () => {
       },
     })
 
-    expect(updated?.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
+    expect(updated?.searchOverrides?.constraints.salary).toEqual({
+      min: 240000,
+      max: 340000,
+      currency: 'USD',
+    })
     expect(updated?.searchOverrides?.constraints.remotePolicyNote).toBe(
       'Distributed team with quarterly retreats',
     )
@@ -677,7 +686,7 @@ describe('searchStore', () => {
         vectors: [{ vectorId: 'legacy-backend' }],
         workSummary: [],
         openQuestions: [],
-        constraints: { compensation: '', locations: [], clearance: '', companySize: '' },
+        constraints: { salary: { min: 0, max: 0 }, locations: [], clearance: '', companySize: '' },
         filters: {
           prioritize: ['platform ownership'],
           avoid: [
@@ -978,7 +987,7 @@ describe('searchStore', () => {
         workSummary: [],
         openQuestions: [],
         constraints: {
-          compensation: '',
+          salary: { min: 0, max: 0 },
           locations: [],
           clearance: '',
           companySize: '',
@@ -1002,6 +1011,77 @@ describe('searchStore', () => {
       remotePolicyNote: 'Open to distributed teams',
       employmentTypes: ['w2-fulltime'],
     })
+  })
+
+  it('migrates legacy profile compensation strings into salary bands', () => {
+    const migrated = migrateSearchState({
+      profile: {
+        id: 'profile-with-legacy-compensation',
+        skills: [],
+        workSummary: [],
+        openQuestions: [],
+        constraints: {
+          compensation: '$120k-$160k',
+          locations: [],
+          clearance: '',
+          companySize: '',
+        },
+        filters: { prioritize: [], avoid: [] },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        inferredFromResumeVersion: 2,
+        inferredAt: '2025-02-01T00:00:00.000Z',
+      },
+    })
+
+    expect(migrated.profile?.constraints).not.toHaveProperty('compensation')
+    expect(migrated.profile?.constraints.salary).toEqual({
+      min: 120000,
+      max: 160000,
+      currency: 'USD',
+    })
+  })
+
+  it('falls back once when legacy compensation strings cannot be parsed', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const migrated = migrateSearchState({
+      profile: {
+        id: 'profile-with-malformed-compensation',
+        skills: [],
+        workSummary: [],
+        openQuestions: [],
+        constraints: {
+          compensation: 'competitive enough',
+          locations: [],
+          clearance: '',
+          companySize: '',
+        },
+        filters: { prioritize: [], avoid: [] },
+        interviewPrefs: { strongFit: [], redFlags: [] },
+        inferredFromResumeVersion: 2,
+        inferredAt: '2025-02-01T00:00:00.000Z',
+      },
+      theses: [
+        buildSearchThesis({
+          id: 'sthesis-malformed-compensation',
+          searchOverrides: {
+            constraints: {
+              compensation: 'market-based',
+              locations: [],
+              clearance: '',
+              companySize: '',
+            },
+            interviewPrefs: { strongFit: [], redFlags: [] },
+            hiddenSkillIds: [],
+          } as unknown as SearchThesis['searchOverrides'],
+        }),
+      ],
+    })
+
+    expect(migrated.profile?.constraints.salary).toEqual({ min: 0, max: 0 })
+    expect(migrated.theses[0]?.searchOverrides?.constraints.salary).toEqual({ min: 0, max: 0 })
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    warnSpy.mockRestore()
   })
 
   it('migrates legacy thesis filters into canonical signal entries idempotently', () => {
@@ -1077,7 +1157,11 @@ describe('searchStore', () => {
       ]),
     )
     expect(migrated?.searchOverrides).not.toHaveProperty('filters')
-    expect(migrated?.searchOverrides?.constraints.compensation).toBe('$240k base')
+    expect(migrated?.searchOverrides?.constraints.salary).toEqual({
+      min: 240000,
+      max: 240000,
+      currency: 'USD',
+    })
     expect(migrated?.searchOverrides?.interviewPrefs.strongFit).toEqual(['systems design'])
     expect(migrated?.searchOverrides?.hiddenSkillIds).toEqual(['skl-rust'])
 
@@ -1114,7 +1198,7 @@ describe('searchStore', () => {
       ],
       searchOverrides: {
         constraints: {
-          compensation: '$240k base',
+          salary: { min: 240000, max: 240000, currency: 'USD' },
           locations: ['Remote US'],
           clearance: '',
           companySize: 'growth',

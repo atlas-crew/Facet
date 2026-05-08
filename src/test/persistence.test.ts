@@ -64,7 +64,7 @@ const buildResearchProfile = (overrides: Partial<SearchProfile> = {}): SearchPro
   workSummary: [],
   openQuestions: [],
   constraints: {
-    compensation: '$250k',
+    salary: { min: 250000, max: 250000, currency: 'USD' },
     locations: ['Remote'],
     clearance: '',
     companySize: '',
@@ -294,7 +294,7 @@ describe('persistence foundation', () => {
         workSummary: [],
         openQuestions: [],
         constraints: {
-          compensation: '$250k',
+          salary: { min: 250000, max: 250000, currency: 'USD' },
           locations: ['Remote'],
           clearance: '',
           companySize: '',
@@ -691,7 +691,7 @@ describe('persistence foundation', () => {
       workSummary: [],
       openQuestions: [],
       constraints: {
-        compensation: '',
+        salary: { min: 0, max: 0 },
         locations: [],
         clearance: '',
         companySize: '',

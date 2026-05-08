@@ -1,5 +1,6 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type {
+  SalaryBand,
   SearchProfile,
   SearchProfileConstraints,
   SearchProfileFilterEntry,
@@ -211,27 +212,20 @@ const inferSkillCategory = (groupLabel: string, tags: string[]): SearchSkillCate
   return match?.category ?? 'other'
 }
 
-const formatCompensation = (identity: ProfessionalIdentityV3): string => {
+const buildSalaryBand = (identity: ProfessionalIdentityV3): SalaryBand => {
   const { base_floor: baseFloor, base_target: baseTarget } = identity.preferences.compensation
-  const formatter = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  })
-
-  if (typeof baseFloor === 'number' && typeof baseTarget === 'number') {
-    return `${formatter.format(baseFloor)} floor / ${formatter.format(baseTarget)} target`
+  const min = typeof baseFloor === 'number' && Number.isFinite(baseFloor) ? baseFloor : 0
+  const max =
+    typeof baseTarget === 'number' && Number.isFinite(baseTarget)
+      ? baseTarget
+      : typeof baseFloor === 'number' && Number.isFinite(baseFloor)
+        ? baseFloor
+        : 0
+  return {
+    min,
+    max,
+    ...(min > 0 || max > 0 ? { currency: 'USD' } : {}),
   }
-
-  if (typeof baseTarget === 'number') {
-    return formatter.format(baseTarget)
-  }
-
-  if (typeof baseFloor === 'number') {
-    return `${formatter.format(baseFloor)} floor`
-  }
-
-  return identity.preferences.compensation.notes?.trim() ?? ''
 }
 
 const normalizeRemotePolicy = (
@@ -270,7 +264,7 @@ const buildConstraints = (identity: ProfessionalIdentityV3): SearchProfileConstr
   const remotePolicy = normalizeRemotePolicy(identity.preferences.work_model.preference)
 
   return {
-    compensation: formatCompensation(identity),
+    salary: buildSalaryBand(identity),
     locations: identity.identity.location ? [identity.identity.location] : [],
     clearance: constraints?.clearance?.status ?? '',
     companySize: '',

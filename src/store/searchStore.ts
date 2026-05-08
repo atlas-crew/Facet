@@ -9,6 +9,7 @@ import type {
   SearchRequest,
   SearchRun,
   ActiveResearchJobState,
+  SalaryBand,
   SearchThesis,
   SearchThesisSignal,
   SkillCatalogEntry,
@@ -26,12 +27,23 @@ import {
   touchDurableMetadata,
 } from './durableMetadata'
 import { normalizeSearchProfileFilterEntries } from '../utils/searchProfileFilters'
+import {
+  EMPTY_SALARY_BAND,
+  normalizeSalaryBand,
+  parseLegacySalaryBand,
+} from '../utils/searchSalary'
 
 type SearchProfileInput = Omit<SearchProfile, 'id' | 'inferredAt'> &
   Partial<Pick<SearchProfile, 'id' | 'inferredAt'>>
 
+type LegacySearchProfileConstraintsInput = Partial<Omit<SearchProfileConstraints, 'salary'>> & {
+  salary?: unknown
+  compensation?: unknown
+}
+
 /** Accepts pre-Phase-C persisted snapshots that still carry profile.vectors so hydration can strip it. */
-type LegacySearchProfileInput = Omit<SearchProfileInput, 'filters'> & {
+type LegacySearchProfileInput = Omit<SearchProfileInput, 'constraints' | 'filters'> & {
+  constraints: LegacySearchProfileConstraintsInput
   vectors?: unknown
   filters?: { prioritize?: unknown; avoid?: unknown }
 }
@@ -50,7 +62,8 @@ type LegacySearchThesisSignalInput = string | Partial<SearchThesisSignal>
 type LegacySearchThesisAvoidInput = string | Partial<SearchThesisSignal>
 
 /** Legacy persisted snapshots may still carry filters; new code must write canonical signals. */
-type SearchInstanceOverridesInput = SearchInstanceOverrides & {
+type SearchInstanceOverridesInput = Omit<SearchInstanceOverrides, 'constraints'> & {
+  constraints?: LegacySearchProfileConstraintsInput
   filters?: { prioritize?: unknown; avoid?: unknown }
 }
 
@@ -173,19 +186,51 @@ export const pruneOrphans = <TState extends SearchOrphanPrunableState>(state: TS
   }
 }
 
+let warnedLegacySalaryParseFailure = false
+
+const warnLegacySalaryParseFailure = () => {
+  if (warnedLegacySalaryParseFailure) return
+  warnedLegacySalaryParseFailure = true
+  console.warn(
+    'Facet could not migrate a legacy search compensation string into a salary band. Resetting it to { min: 0, max: 0 }.',
+  )
+}
+
+const hydrateSalary = (
+  constraints: LegacySearchProfileConstraintsInput | undefined,
+): SalaryBand => {
+  if (constraints?.salary !== undefined) return normalizeSalaryBand(constraints.salary)
+  if (constraints?.compensation === undefined) return { ...EMPTY_SALARY_BAND }
+  if (typeof constraints.compensation === 'string') {
+    const parsed = parseLegacySalaryBand(constraints.compensation)
+    if (parsed) return parsed
+    if (constraints.compensation.trim()) warnLegacySalaryParseFailure()
+    return { ...EMPTY_SALARY_BAND }
+  }
+  warnLegacySalaryParseFailure()
+  return { ...EMPTY_SALARY_BAND }
+}
+
 // Spread first preserves additive fields; explicit defaults coerce known undefined fields.
-const hydrateConstraints = (constraints: SearchProfileConstraints): SearchProfileConstraints => ({
-  ...constraints,
-  compensation: constraints.compensation ?? '',
-  locations: constraints.locations ?? [],
-  clearance: constraints.clearance ?? '',
-  companySize: constraints.companySize ?? '',
-  industriesToAvoid: constraints.industriesToAvoid ?? [],
-  fundingStagesAcceptable: constraints.fundingStagesAcceptable ?? [],
-  remotePolicies: constraints.remotePolicies ?? [],
-  remotePolicyNote: constraints.remotePolicyNote ?? '',
-  employmentTypes: constraints.employmentTypes ?? [],
-})
+const hydrateConstraints = (
+  constraints: LegacySearchProfileConstraintsInput | undefined,
+): SearchProfileConstraints => {
+  const { compensation: _legacyCompensation, salary: _legacySalary, ...rest } = constraints ?? {}
+  void _legacyCompensation
+  void _legacySalary
+  return {
+    ...rest,
+    salary: hydrateSalary(constraints),
+    locations: constraints?.locations ?? [],
+    clearance: constraints?.clearance ?? '',
+    companySize: constraints?.companySize ?? '',
+    industriesToAvoid: constraints?.industriesToAvoid ?? [],
+    fundingStagesAcceptable: constraints?.fundingStagesAcceptable ?? [],
+    remotePolicies: constraints?.remotePolicies ?? [],
+    remotePolicyNote: constraints?.remotePolicyNote ?? '',
+    employmentTypes: constraints?.employmentTypes ?? [],
+  }
+}
 
 const hydrateProfile = (profile: LegacySearchProfileInput): SearchProfile => {
   const { vectors: _legacyVectors, ...profileWithoutLegacyVectors } = profile
@@ -392,10 +437,17 @@ const hydrateOverrides = (
   overrides: SearchInstanceOverridesInput | undefined,
 ): SearchInstanceOverrides | undefined => {
   if (!overrides) return undefined
+  const {
+    compensation: _legacyCompensation,
+    salary: _legacySalary,
+    ...constraintOverrides
+  } = overrides.constraints ?? {}
+  void _legacyCompensation
+  void _legacySalary
   return {
     constraints: {
-      ...overrides.constraints,
-      compensation: overrides.constraints?.compensation ?? '',
+      ...constraintOverrides,
+      salary: hydrateSalary(overrides.constraints),
       locations: overrides.constraints?.locations ?? [],
       clearance: overrides.constraints?.clearance ?? '',
       companySize: overrides.constraints?.companySize ?? '',
@@ -420,8 +472,10 @@ const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
   // hydrateOverrides intentionally drops filters so repeated hydration is a no-op.
   const legacyFilters = thesis.searchOverrides?.filters
   const hydratedOverrides = hydrateOverrides(thesis.searchOverrides)
+  const { searchOverrides: _legacySearchOverrides, ...thesisWithoutLegacyOverrides } = thesis
+  void _legacySearchOverrides
   return {
-    ...thesis,
+    ...thesisWithoutLegacyOverrides,
     narrative: thesis.narrative ?? '',
     competitiveMoat: thesis.competitiveMoat ?? '',
     unfairAdvantages: (thesis.unfairAdvantages ?? []).map((advantage) => ({

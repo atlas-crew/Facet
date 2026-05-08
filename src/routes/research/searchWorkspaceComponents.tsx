@@ -9,6 +9,7 @@ import type {
   SkillCatalogEntry,
 } from '../../types/search'
 import { searchProfileFilterLabels } from '../../utils/searchProfileFilters'
+import { formatSalaryBand, parseLegacySalaryBand } from '../../utils/searchSalary'
 import { joinTags, splitTags } from './researchUtils'
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string }> = [
@@ -386,7 +387,9 @@ export function SearchInstancePreferences({
             <div>
               <dt>Compensation anchor</dt>
               <dd>
-                {identityBase.constraints.compensation || <span className="research-muted">—</span>}
+                {formatSalaryBand(identityBase.constraints.salary) || (
+                  <span className="research-muted">—</span>
+                )}
               </dd>
             </div>
             <div>
@@ -463,16 +466,16 @@ export function SearchInstancePreferences({
                 <span>Compensation anchor</span>
                 <input
                   className="research-input"
-                  value={effectiveOverrides.constraints.compensation}
+                  value={formatSalaryBand(effectiveOverrides.constraints.salary)}
                   onChange={(event) =>
                     onUpdateOverrides({
                       constraints: {
                         ...effectiveOverrides.constraints,
-                        compensation: event.target.value,
+                        salary: parseLegacySalaryBand(event.target.value) ?? { min: 0, max: 0 },
                       },
                     })
                   }
-                  placeholder="$220k base / $300k total"
+                  placeholder="$220k-$300k"
                 />
               </label>
 

@@ -359,7 +359,7 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
         workSummary: [],
         openQuestions: [],
         constraints: {
-          compensation: '',
+          salary: { min: 0, max: 0 },
           locations: [],
           clearance: '',
           companySize: '',

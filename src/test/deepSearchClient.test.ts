@@ -39,7 +39,12 @@ const baseProfile: SearchProfile = {
   ],
   workSummary: [{ title: 'Platform', summary: 'Owned platform systems.' }],
   openQuestions: ['Which companies allow AI tools?'],
-  constraints: { compensation: '$250k', locations: ['Remote'], clearance: '', companySize: '' },
+  constraints: {
+    salary: { min: 250000, max: 250000, currency: 'USD' },
+    locations: ['Remote'],
+    clearance: '',
+    companySize: '',
+  },
   filters: {
     prioritize: [{ label: 'builder-friendly interviews', severity: 'soft' }],
     avoid: [{ label: 'Leetcode-heavy loops', severity: 'soft' }],

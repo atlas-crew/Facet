@@ -33,7 +33,7 @@ const baseProfile: SearchProfile = {
   workSummary: [{ title: 'Recent scope', summary: 'Built backend and platform systems.' }],
   openQuestions: [],
   constraints: {
-    compensation: '$250k',
+    salary: { min: 250000, max: 250000, currency: 'USD' },
     locations: ['Remote'],
     clearance: '',
     companySize: '',
@@ -227,7 +227,11 @@ describe('searchExecutor', () => {
                 text: 'I hardened developer workflows across 18 services while improving deployment confidence.',
               },
             ],
-            keywordsToInclude: ['platform consolidation', 'release ownership', 'developer workflows'],
+            keywordsToInclude: [
+              'platform consolidation',
+              'release ownership',
+              'developer workflows',
+            ],
           },
         ],
       },
@@ -888,7 +892,9 @@ describe('searchExecutor', () => {
     expect(prompt).toContain(
       'If Search request.resumeVariants is non-empty, assign each top result a recommendedVariant',
     )
-    expect(prompt).toContain('"recommendedVariant": "optional id from Search request.resumeVariants')
+    expect(prompt).toContain(
+      '"recommendedVariant": "optional id from Search request.resumeVariants',
+    )
     expect(prompt).toContain('"bulletEdits"')
     expect(prompt).toContain('"keywordsToInclude"')
     expect(prompt).not.toContain('"name": "On-call"')

@@ -25,6 +25,7 @@ import { createId } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 import { normalizeSearchAssumptions } from './searchAssumptions'
+import { EMPTY_SALARY_BAND, normalizeSalaryBand, parseLegacySalaryBand } from './searchSalary'
 
 const VALID_COMPANY_SIZES = new Set<SearchCompanySize>([
   'startup',
@@ -365,9 +366,15 @@ const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined
   const companySize = VALID_COMPANY_SIZES.has(companySizeRaw as SearchCompanySize)
     ? (companySizeRaw as SearchCompanySize)
     : ''
+  const salary =
+    constraintsRecord.salary !== undefined
+      ? normalizeSalaryBand(constraintsRecord.salary)
+      : (parseLegacySalaryBand(normalizeString(constraintsRecord.compensation)) ?? {
+          ...EMPTY_SALARY_BAND,
+        })
   return {
     constraints: {
-      compensation: normalizeString(constraintsRecord.compensation),
+      salary,
       locations: normalizeStringArray(constraintsRecord.locations),
       clearance: normalizeString(constraintsRecord.clearance),
       companySize,
@@ -552,7 +559,7 @@ export async function generateSearchThesisFromIdentity(
     'Use Opus-level reasoning. The thesis is the user decision artifact before an expensive deep-research job.',
     'Do not introduce uncited external factual claims. If you include factual claims from supplied reference material, mark them with [cite:<id>] and ensure downstream deep-research prompts can resolve that id to a Citation with id, source, optional url/type/claim.',
     '',
-    'Per-search overrides (`searchOverrides`): infer plausible per-search values from identity context and the chosen lanes. These are starting points the user will correct, NOT static placeholders. Better to make a confident guess that teaches the user what the field means than to leave fields blank. Concrete > abstract: prefer "$240k base / $340k total" over "competitive comp"; prefer "Tampa Bay (Remote-friendly)" over "Remote".',
+    'Per-search overrides (`searchOverrides`): infer plausible per-search values from identity context and the chosen lanes. These are starting points the user will correct, NOT static placeholders. Better to make a confident guess that teaches the user what the field means than to leave fields blank. Concrete > abstract: prefer { "salary": { "min": 240000, "max": 340000, "currency": "USD" } } over "competitive comp"; prefer "Tampa Bay (Remote-friendly)" over "Remote".',
     '',
     'Identity-canonical fields (do NOT generate; these are sourced from identity at normalization):',
     '- `skillDepthMap[].depth`, `skillDepthMap[].context`, `skillDepthMap[].searchSignal` come from `identity.skills.*.depth`, `.context`, and `.positioning`. Emit only the `skill` name (must match an identity skill — by name or alias) and an optional per-thesis `calibration` framing.',
@@ -585,7 +592,7 @@ export async function generateSearchThesisFromIdentity(
     '  "skillDepthMap": [{ "skill": "string (must match an identity skill name)", "calibration": "optional honest framing per this search" }],',
     '  "assumptions": [{ "id": "optional", "claim": "string", "source": "inferred|assumed-default|explicit-fallback", "rationale": "string", "confidence": "high|medium|low", "overridable": true }],',
     '  "searchOverrides": {',
-    '    "constraints": { "compensation": "string", "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|", "industriesToAvoid": ["string"], "fundingStagesAcceptable": ["string"], "remotePolicies": ["string"], "remotePolicyNote": "string", "employmentTypes": ["string"] },',
+    '    "constraints": { "salary": { "min": number, "max": number, "currency": "optional string" }, "locations": ["string"], "clearance": "string", "companySize": "startup|growth|mid-market|enterprise|public|any|", "industriesToAvoid": ["string"], "fundingStagesAcceptable": ["string"], "remotePolicies": ["string"], "remotePolicyNote": "string", "employmentTypes": ["string"] },',
     '    "interviewPrefs": { "strongFit": ["string"], "redFlags": ["string"] },',
     '    "hiddenSkillIds": []',
     '  },',

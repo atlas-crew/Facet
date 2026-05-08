@@ -14,6 +14,7 @@ import type {
 } from '../../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS } from '../../types/search'
 import { createSeededPipelineResearchSnapshot } from '../../utils/pipelineResearch'
+import { formatSalaryBand } from '../../utils/searchSalary'
 
 export function splitTags(value: string): string[] {
   return value
@@ -36,7 +37,7 @@ export function emptyProfile(resumeVersion: number): Omit<SearchProfile, 'id' | 
     workSummary: [],
     openQuestions: [],
     constraints: {
-      compensation: '',
+      salary: { min: 0, max: 0 },
       locations: [],
       clearance: '',
       companySize: '',
@@ -65,7 +66,7 @@ export function buildRequestDraft(
   // fallback when no thesis (or no override value) exists.
   const overrideConstraints = thesis?.searchOverrides?.constraints
   const compensation =
-    overrideConstraints?.compensation?.trim() || profile?.constraints.compensation || ''
+    formatSalaryBand(overrideConstraints?.salary) || formatSalaryBand(profile?.constraints.salary)
   const companySize =
     typeof overrideConstraints?.companySize === 'string' ? overrideConstraints.companySize : ''
 
@@ -170,7 +171,8 @@ function formatResumeDirectiveNotes(entry: SearchResultEntry): string[] {
       [
         'Top-of-resume edits:',
         ...entry.bulletEdits.map((edit, index) => {
-          const label = edit.emphasis === 'lead' ? 'Lead bullet' : 'Supporting bullet ' + (index + 1)
+          const label =
+            edit.emphasis === 'lead' ? 'Lead bullet' : 'Supporting bullet ' + (index + 1)
           const rationale = edit.rationale?.trim() ? '\n  Rationale: ' + edit.rationale.trim() : ''
           return '- [ ] ' + label + ': ' + edit.text.trim() + rationale
         }),

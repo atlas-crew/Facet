@@ -314,7 +314,7 @@ describe('thesisGenerator', () => {
           ],
           searchOverrides: {
             constraints: {
-              compensation: '$240k base / $340k total',
+              salary: { min: 240000, max: 340000, currency: 'USD' },
               locations: ['Tampa Bay'],
               clearance: 'None',
               companySize: 'growth',
@@ -346,7 +346,11 @@ describe('thesisGenerator', () => {
       { customDirective: 'Adjacent CTO roles at platform-modernization startups.' },
     )
 
-    expect(result.thesis.searchOverrides?.constraints.compensation).toBe('$240k base / $340k total')
+    expect(result.thesis.searchOverrides?.constraints.salary).toEqual({
+      min: 240000,
+      max: 340000,
+      currency: 'USD',
+    })
     expect(result.thesis.searchOverrides?.constraints.companySize).toBe('growth')
     expect(result.thesis.searchOverrides?.constraints.industriesToAvoid).toEqual(['adtech'])
     expect(result.thesis.searchOverrides?.constraints.fundingStagesAcceptable).toEqual(['series-a'])

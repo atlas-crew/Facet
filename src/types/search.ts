@@ -136,8 +136,14 @@ export interface SearchWorkSummaryEntry {
   summary: string
 }
 
+export interface SalaryBand {
+  min: number
+  max: number
+  currency?: string
+}
+
 export interface SearchProfileConstraints {
-  compensation: string
+  salary: SalaryBand
   locations: string[]
   clearance: string
   companySize: SearchCompanySize | ''
@@ -800,7 +806,7 @@ export const DEFAULT_SEARCH_MAX_RESULTS: SearchRequestMaxResults = {
 
 export const EMPTY_SEARCH_INSTANCE_OVERRIDES: SearchInstanceOverrides = {
   constraints: {
-    compensation: '',
+    salary: { min: 0, max: 0 },
     locations: [],
     clearance: '',
     companySize: '',

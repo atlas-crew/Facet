@@ -300,7 +300,7 @@ describe('ResearchPage', () => {
         workSummary: [],
         openQuestions: [],
         constraints: {
-          compensation: '',
+          salary: { min: 0, max: 0 },
           locations: [],
           clearance: '',
           companySize: '',
@@ -521,7 +521,9 @@ describe('ResearchPage', () => {
     expect(screen.getByText('platform security')).toBeTruthy()
     expect(screen.getByText('edge incident triage')).toBeTruthy()
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Copy resume bullet for Acme Corp/i })[0]!)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /Copy resume bullet for Acme Corp/i })[0]!,
+    )
     expect(writeText).toHaveBeenCalledWith(
       'I led platform security delivery that cut edge incident triage 31%.',
     )
@@ -1700,7 +1702,7 @@ describe('ResearchPage', () => {
           avoid: ['ad tech'],
           searchOverrides: {
             constraints: {
-              compensation: '$340k total',
+              salary: { min: 340000, max: 340000, currency: 'USD' },
               locations: ['Tampa Bay'],
               clearance: 'None',
               companySize: 'growth',
@@ -1729,11 +1731,11 @@ describe('ResearchPage', () => {
     const submitted = mockCreateDeepResearchJob.mock.calls[0]?.[0]
     // P1.1 — request params reflect the per-search overrides, not the identity defaults.
     expect(submitted?.params.companySizeOverride).toBe('growth')
-    expect(submitted?.params.salaryAnchorOverride).toBe('$340k total')
+    expect(submitted?.params.salaryAnchorOverride).toBe('$340k')
     // P1.2 — thesisSnapshot preserves the full override layer for downstream LLM context.
     expect(submitted?.thesisSnapshot.searchOverrides).toEqual({
       constraints: {
-        compensation: '$340k total',
+        salary: { min: 340000, max: 340000, currency: 'USD' },
         locations: ['Tampa Bay'],
         clearance: 'None',
         companySize: 'growth',

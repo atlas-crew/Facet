@@ -14,7 +14,7 @@ afterEach(() => {
 
 const baseIdentity: React.ComponentProps<typeof SearchInstancePreferences>['identityBase'] = {
   constraints: {
-    compensation: '$220k base',
+    salary: { min: 220000, max: 220000, currency: 'USD' },
     locations: ['Denver'],
     clearance: '',
     companySize: '',

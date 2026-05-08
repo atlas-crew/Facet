@@ -26,7 +26,7 @@ const baseProfile: SearchProfile = {
   workSummary: [],
   openQuestions: [],
   constraints: {
-    compensation: '$250k',
+    salary: { min: 250000, max: 250000, currency: 'USD' },
     locations: ['Remote'],
     clearance: '',
     companySize: '',
@@ -103,7 +103,7 @@ describe('researchUtils', () => {
         label: 'Resume fallback',
       },
       constraints: {
-        compensation: '',
+        salary: { min: 0, max: 0 },
         locations: [],
         clearance: '',
         companySize: '',
@@ -147,7 +147,7 @@ describe('researchUtils', () => {
       ...baseThesis,
       searchOverrides: {
         constraints: {
-          compensation: '$340k total',
+          salary: { min: 340000, max: 340000, currency: 'USD' },
           locations: ['Tampa Bay'],
           clearance: '',
           companySize: 'growth',
@@ -157,16 +157,16 @@ describe('researchUtils', () => {
       },
     })
 
-    expect(draftFromThesis.salaryAnchorOverride).toBe('$340k total')
+    expect(draftFromThesis.salaryAnchorOverride).toBe('$340k')
     expect(draftFromThesis.companySizeOverride).toBe('growth')
     expect(draftFromThesis).not.toHaveProperty('locations')
 
-    // When the override compensation is empty/whitespace, fall back to profile.
+    // When the override salary is empty, fall back to profile.
     const draftWithEmptyOverride = buildRequestDraft(baseProfile, {
       ...baseThesis,
       searchOverrides: {
         constraints: {
-          compensation: '   ',
+          salary: { min: 0, max: 0 },
           locations: [],
           clearance: '',
           companySize: '',
@@ -507,7 +507,9 @@ describe('researchUtils', () => {
     expect(draft?.notes).toContain(
       '- [ ] Supporting bullet 2: I partnered with security teams to ship incident playbooks across 12 services.',
     )
-    expect(draft?.notes).toContain('Keywords to include: WAF platform, edge traffic, incident playbooks')
+    expect(draft?.notes).toContain(
+      'Keywords to include: WAF platform, edge traffic, incident playbooks',
+    )
   })
 
   it('maps search results into pipeline drafts without mutating the source result', () => {
