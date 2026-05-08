@@ -321,10 +321,11 @@ export function hydrateSearchRunFromResearchJob(job: ResearchJob): Partial<Searc
       }
     }
     const narrativeNormalization = normalizeRunNarrative(job.result.narrative)
-    const narrative = narrativeNormalization.narrative ?? job.result.narrative
+    const narrative =
+      narrativeNormalization.status === 'ready' ? narrativeNormalization.narrative : job.result.narrative
     const contractViolations = [
       ...(job.result.contractViolations ?? []),
-      ...narrativeNormalization.violations,
+      ...narrativeNormalization.contractViolations,
       ...validateNarrativeCandidateEdges(job.result.results),
     ]
     console.info('[research] assumption count', {

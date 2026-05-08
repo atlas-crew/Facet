@@ -1148,10 +1148,24 @@ describe('normalizeRunNarrative', () => {
       'The top five matches cluster around builder-friendly interview cultures with AI-augmented development norms. Each offers an almost-exact stack overlap and avoids algorithm gatekeeping. PostHog stands out for its paid work-sample process.',
   })
 
-  it('returns a narrative with all required layers when the payload is valid', () => {
-    const { narrative, violations } = normalizeRunNarrative(validNarrativePayload())
+  const expectReadyNarrative = (payload: unknown) => {
+    const result = normalizeRunNarrative(payload)
+    expect(result.status).toBe('ready')
+    if (result.status !== 'ready') throw new Error(result.error)
+    return result
+  }
 
-    expect(violations).toEqual([])
+  const expectFailedNarrative = (payload: unknown) => {
+    const result = normalizeRunNarrative(payload)
+    expect(result.status).toBe('failed')
+    if (result.status !== 'failed') throw new Error('Expected failed narrative normalization')
+    return result
+  }
+
+  it('returns a narrative with all required layers when the payload is valid', () => {
+    const { narrative, contractViolations } = expectReadyNarrative(validNarrativePayload())
+
+    expect(contractViolations).toEqual([])
     expect(narrative?.competitiveMoat).toContain('platform engineering')
     expect(narrative?.selectionMethodology).toContain('three intersecting criteria')
     expect(narrative?.marketContext).toContain('2024')
@@ -1159,7 +1173,7 @@ describe('normalizeRunNarrative', () => {
   })
 
   it('parses valid run assumptions and drops malformed entries', () => {
-    const { narrative, violations } = normalizeRunNarrative({
+    const { narrative, contractViolations } = expectReadyNarrative({
       ...validNarrativePayload(),
       assumptions: [
         {
@@ -1194,7 +1208,7 @@ describe('normalizeRunNarrative', () => {
       ],
     })
 
-    expect(violations).toEqual([])
+    expect(contractViolations).toEqual([])
     expect(narrative?.assumptions).toEqual([
       {
         id: 'assumption-visa',
@@ -1217,40 +1231,43 @@ describe('normalizeRunNarrative', () => {
 
   it('returns undefined narrative with a violation when payload is not an object', () => {
     expect(normalizeRunNarrative(null)).toEqual({
-      violations: ['narrative: payload is not an object'],
+      status: 'failed',
+      error: 'Run narrative payload failed validation.',
+      contractViolations: ['narrative: payload is not an object'],
     })
     expect(normalizeRunNarrative('string')).toEqual({
-      violations: ['narrative: payload is not an object'],
+      status: 'failed',
+      error: 'Run narrative payload failed validation.',
+      contractViolations: ['narrative: payload is not an object'],
     })
     expect(normalizeRunNarrative([])).toEqual({
-      violations: ['narrative: payload is not an object'],
+      status: 'failed',
+      error: 'Run narrative payload failed validation.',
+      contractViolations: ['narrative: payload is not an object'],
     })
   })
 
   it('returns undefined narrative when executiveSummary is missing', () => {
     const payload = validNarrativePayload() as Record<string, unknown>
     delete payload.executiveSummary
-    const result = normalizeRunNarrative(payload)
-    expect(result.narrative).toBeUndefined()
-    expect(result.violations).toContain('narrative.executiveSummary: missing or empty')
+    const result = expectFailedNarrative(payload)
+    expect(result.contractViolations).toContain('narrative.executiveSummary: missing or empty')
   })
 
   it('returns undefined narrative when competitiveMoat is empty', () => {
     const payload = { ...validNarrativePayload(), competitiveMoat: '   ' }
-    const result = normalizeRunNarrative(payload)
-    expect(result.narrative).toBeUndefined()
-    expect(result.violations).toContain('narrative.competitiveMoat: missing or empty')
+    const result = expectFailedNarrative(payload)
+    expect(result.contractViolations).toContain('narrative.competitiveMoat: missing or empty')
   })
 
   it('returns undefined narrative with a violation when required text strips to empty', () => {
-    const result = normalizeRunNarrative({
+    const result = expectFailedNarrative({
       ...validNarrativePayload(),
       executiveSummary: '[cite:missing]',
       citations: [],
     })
 
-    expect(result.narrative).toBeUndefined()
-    expect(result.violations).toContain(
+    expect(result.contractViolations).toContain(
       'narrative.executiveSummary: empty after stripping unresolved citation markers',
     )
   })
@@ -1261,10 +1278,9 @@ describe('normalizeRunNarrative', () => {
       competitiveMoat: 'Short.',
       executiveSummary: 'Too brief.',
     }
-    const result = normalizeRunNarrative(payload)
-    expect(result.narrative).toBeDefined()
-    expect(result.violations.some((v) => v.includes('competitiveMoat: too short'))).toBe(true)
-    expect(result.violations.some((v) => v.includes('executiveSummary: too short'))).toBe(true)
+    const result = expectReadyNarrative(payload)
+    expect(result.contractViolations.some((v) => v.includes('competitiveMoat: too short'))).toBe(true)
+    expect(result.contractViolations.some((v) => v.includes('executiveSummary: too short'))).toBe(true)
   })
 
   it('parses optional closing layers when present', () => {
@@ -1297,9 +1313,9 @@ describe('normalizeRunNarrative', () => {
         { id: '2', url: 'https://example.com/2', title: 'Job Posting' },
       ],
     }
-    const { narrative, violations } = normalizeRunNarrative(payload)
+    const { narrative, contractViolations } = expectReadyNarrative(payload)
 
-    expect(violations).toEqual([])
+    expect(contractViolations).toEqual([])
     expect(narrative?.landscapeTrends).toContain('Sourcegraph')
     expect(narrative?.scoringRubric).toHaveLength(3)
     expect(narrative?.laneSummaries?.[0]).toMatchObject({ lane: 'security-platform' })
@@ -1314,7 +1330,7 @@ describe('normalizeRunNarrative', () => {
   })
 
   it('omits optional fields when absent', () => {
-    const { narrative } = normalizeRunNarrative(validNarrativePayload())
+    const { narrative } = expectReadyNarrative(validNarrativePayload())
     expect(narrative?.landscapeTrends).toBeUndefined()
     expect(narrative?.scoringRubric).toBeUndefined()
     expect(narrative?.laneSummaries).toBeUndefined()
@@ -1339,7 +1355,7 @@ describe('normalizeRunNarrative', () => {
         },
       ],
     }
-    const { narrative } = normalizeRunNarrative(payload)
+    const { narrative } = expectReadyNarrative(payload)
     expect(narrative?.visualizations?.[0]?.source).toBe(mermaid)
     expect(narrative?.visualizations?.[0]?.type).toBe('mermaid-gantt')
   })
@@ -1349,7 +1365,7 @@ describe('normalizeRunNarrative', () => {
       ...validNarrativePayload(),
       visualizations: [{ type: 'bogus-type', source: 'graph TD\n  A --> B\n' }],
     }
-    const { narrative } = normalizeRunNarrative(payload)
+    const { narrative } = expectReadyNarrative(payload)
     expect(narrative?.visualizations?.[0]?.type).toBe('mermaid-other')
   })
 
@@ -1380,8 +1396,8 @@ describe('normalizeRunNarrative', () => {
         mermaidDiagram: 'gantt\n  dateFormat YYYY-MM-DD\n',
       },
     }
-    const { narrative, violations } = normalizeRunNarrative(payload)
-    expect(violations).toEqual([])
+    const { narrative, contractViolations } = expectReadyNarrative(payload)
+    expect(contractViolations).toEqual([])
     expect(narrative?.applicationPlan?.phases).toHaveLength(2)
     expect(narrative?.applicationPlan?.phases[0]?.tasks[1]?.dependencies).toEqual([
       'Finalize Platform variant',
@@ -1395,9 +1411,9 @@ describe('normalizeRunNarrative', () => {
       ...validNarrativePayload(),
       applicationPlan: { phases: [] },
     }
-    const { narrative, violations } = normalizeRunNarrative(payload)
+    const { narrative, contractViolations } = expectReadyNarrative(payload)
     expect(narrative?.applicationPlan).toBeUndefined()
-    expect(violations).toContain(
+    expect(contractViolations).toContain(
       'narrative.applicationPlan: malformed (missing startDate or not an object)',
     )
   })
@@ -1418,7 +1434,7 @@ describe('normalizeRunNarrative', () => {
         { id: 1, url: 'https://example.com/ok' },
       ],
     }
-    const { narrative } = normalizeRunNarrative(payload)
+    const { narrative } = expectReadyNarrative(payload)
     expect(narrative?.laneSummaries).toHaveLength(1)
     expect(narrative?.rejectedCandidates).toHaveLength(1)
     expect(narrative?.references).toHaveLength(1)

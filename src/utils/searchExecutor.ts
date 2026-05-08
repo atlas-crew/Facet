@@ -348,12 +348,18 @@ const MIN_PROSE_LENGTH = 40
 const MIN_EXECUTIVE_SUMMARY_LENGTH = 80
 const MIN_CANDIDATE_EDGE_SENTENCES = 2
 
-export interface SearchRunNarrativeNormalization {
-  /** Narrative when all required layers parsed; `undefined` when input is unusable. */
-  narrative?: SearchRunNarrative
-  /** Contract violations — empty array means the narrative met the contract. */
-  violations: string[]
-}
+export type SearchRunNarrativeNormalization =
+  | {
+      status: 'failed'
+      error: string
+      contractViolations: string[]
+    }
+  | {
+      status: 'ready'
+      narrative: SearchRunNarrative
+      /** Contract violations — empty array means the narrative met the contract. */
+      contractViolations: string[]
+    }
 
 const VISUALIZATION_TYPES: readonly SearchVisualizationType[] = [
   'mermaid-gantt',
@@ -509,11 +515,12 @@ function normalizeApplicationPlan(value: unknown): ApplicationPlan | null {
 /**
  * Parse and validate a run-level narrative from AI output.
  *
- * Returns `{ narrative: undefined, violations: [...] }` when any of the four required
+ * Returns `{ status: 'failed', contractViolations: [...] }` when any of the four required
  * layers (competitiveMoat, selectionMethodology, marketContext, executiveSummary) is
  * missing or empty — the narrative is unusable without them.
  *
- * Returns `{ narrative, violations: [...] }` when required layers are present; optional
+ * Returns `{ status: 'ready', narrative, contractViolations: [...] }` when required
+ * layers are present; optional
  * fields are parsed best-effort and violations flag length or structural issues that
  * consumers should surface as quality warnings (but the narrative is still usable).
  */
@@ -521,7 +528,11 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
   const violations: string[] = []
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     violations.push('narrative: payload is not an object')
-    return { violations }
+    return {
+      status: 'failed',
+      error: 'Run narrative payload failed validation.',
+      contractViolations: violations,
+    }
   }
 
   const record = value as Record<string, unknown>
@@ -548,7 +559,11 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
   const executiveSummary = readRequired('executiveSummary')
 
   if (!competitiveMoat || !selectionMethodology || !marketContext || !executiveSummary) {
-    return { violations }
+    return {
+      status: 'failed',
+      error: 'Run narrative is missing required layers.',
+      contractViolations: violations,
+    }
   }
 
   const flagShort = (field: string, text: string, min: number) => {
@@ -634,7 +649,7 @@ export function normalizeRunNarrative(value: unknown): SearchRunNarrativeNormali
     ...(assumptions.length > 0 ? { assumptions } : {}),
   }
 
-  return { narrative, violations }
+  return { status: 'ready', narrative, contractViolations: violations }
 }
 
 /**

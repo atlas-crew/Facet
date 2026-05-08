@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-04-20 07:07'
-updated_date: '2026-05-08 08:44'
+updated_date: '2026-05-08 08:47'
 labels:
   - search-redesign
   - types
@@ -22,12 +22,9 @@ references:
   - src/utils/searchExecutor.ts
   - src/persistence/workspaceImportMerge.ts
 modified_files:
-  - src/types/search.ts
-  - src/store/searchStore.ts
-  - src/persistence/workspaceImportMerge.ts
-  - src/test/searchStore.test.ts
-  - src/test/workspaceBackup.test.ts
-  - src/test/ResearchPage.test.tsx
+  - src/utils/searchExecutor.ts
+  - src/utils/deepSearchClient.ts
+  - src/test/searchExecutor.test.ts
 priority: medium
 ---
 
@@ -109,7 +106,7 @@ Coordinate with TASK-186 — if both land, prefer shipping 186 first (smaller sc
 - [ ] #5 migrateSearchState handles all four legacy shapes (applied-no-version, applied-with-version, narrative-present, violations-present)
 - [ ] #6 Store mutations (addFeedbackEvent, markFeedbackApplied, addRun, updateRun) produce only valid variants
 - [x] #7 workspaceImportMerge mergeFeedbackEventState dispatches on the tag rather than checking optional fields
-- [ ] #8 searchExecutor normalizeRunNarrative returns the discriminated union instead of separate narrative/violations
+- [x] #8 searchExecutor normalizeRunNarrative returns the discriminated union instead of separate narrative/violations
 - [ ] #9 All !== undefined guards on appliedAtVersion and narrative fields removed (type checker does the work)
 - [ ] #10 Regression tests cover migration of each legacy shape
 - [ ] #11 Existing 1324 tests still pass after the refactor
@@ -119,6 +116,8 @@ Coordinate with TASK-186 — if both land, prefer shipping 186 first (smaller sc
 
 <!-- SECTION:NOTES:BEGIN -->
 TASK-187 sub-slice committed scope: SearchFeedbackEvent application state now uses FeedbackApplicationState discriminated union; migrateSearchState drops false+version and coerces true-without-version to pending; workspace import merge now dispatches on appliedToIdentity tag and preserves monotonic applied versions. SearchRun narrative lifecycle remains open.
+
+Second TASK-187 sub-slice: normalizeRunNarrative now returns a tagged ready/failed result with contractViolations instead of the old narrative?/violations pair; deep search hydration consumes the tag while preserving existing SearchRun persistence fields for a later lifecycle slice. Verification: focused normalizeRunNarrative/deepSearchClient Vitest passed; scoped ESLint passed; npm run typecheck passed; npm run build passed with existing large chunk warnings.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
