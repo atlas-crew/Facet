@@ -69,7 +69,7 @@ These can all run in parallel with each other and with Lanes A/B.
 Sad-path / failure-path coverage on the surfaces Strategy D leaves canonical.
 
 ```
-TASK-100   Harden IdentityPage failure-path and bulk-flow tests   [med]
+TASK-100   Harden IdentityPage failure-path and bulk-flow tests   [done]
 TASK-200   Phase 2 sad-path test coverage for identity Map editing [low]
 ```
 
@@ -130,7 +130,7 @@ Lane A's serial chain was the convergence-finishing path and is now closed:
 TASK-202.2 → 202.3 → TASK-243 → TASK-202
 ```
 
-Remaining doc-40 work is now Lane C hardening plus Lane D coverage. Lane C can run in parallel except for TASK-114.6's active write set; Lane D can start after Lane A because the post-Strategy-D surface is stable.
+Remaining doc-40 work is now Lane C hardening plus TASK-200 coverage. Lane C can run in parallel except for TASK-114.6's active write set; TASK-200 can run now that Lane A's post-Strategy-D surface is stable.
 
 ---
 
@@ -159,4 +159,4 @@ Remaining doc-40 work is now Lane C hardening plus Lane D coverage. Lane C can r
 ## Revision history
 
 - **2026-05-07 v1**: initial Strategy D rollout plan. Closed TASK-115.3 (strategy workbench zombie). Out-of-scoped TASK-205 / TASK-201 (research workspace, not identity workspace).
-- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. Lane C has TASK-87, TASK-92, and in-flight TASK-114.6 remaining; Lane D has TASK-100 and TASK-200 remaining.
+- **2026-05-08 v2**: Lane A closed through TASK-202.2, TASK-202.3, TASK-243, and parent TASK-202. Lane B closed. TASK-100 closed. Lane C has TASK-87, TASK-92, and in-flight TASK-114.6 remaining; Lane D has TASK-200 remaining.
