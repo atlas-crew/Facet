@@ -359,6 +359,15 @@ describe('generateInterviewPrep', () => {
       'Generate dedicated opener cards for the predictable opening questions',
     )
     expect(userPrompt).toContain('Always include a "Tell me about yourself" opener card')
+    expect(userPrompt).toContain('make the "Tell me about yourself" opener a 3-act career arc')
+    expect(userPrompt).toContain('union of distinct sourceLabel values')
+    expect(userPrompt).toContain('one "note" thesis')
+    expect(userPrompt).toContain('three "solution" act blocks')
+    expect(userPrompt).toContain('one "closer" tying the arc back to the target role')
+    expect(userPrompt).toContain('Use keyPoints as one beat per act plus the closer')
+    expect(userPrompt).toContain('Keep the opener closer around 20 words')
+    expect(userPrompt).toContain('Do not re-rank roles from Original Job Description Source Text')
+    expect(userPrompt).toContain('Otherwise, keep the standard single-role opener')
     expect(userPrompt).toContain(
       'use it as the source of truth for company, process, and interviewer intel',
     )
