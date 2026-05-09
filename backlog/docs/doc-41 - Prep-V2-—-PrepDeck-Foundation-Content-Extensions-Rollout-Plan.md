@@ -46,9 +46,9 @@ PrepCard surface expansions. Each is a discrete content addition; they paralleli
 ```
 TASK-136  Add alternative narrative support to prep cards         [med]
 TASK-139  Add technical drills with answer template               [med]
-TASK-137  Add one-liner quotable takeaways                        [low]
+TASK-137  Add one-liner quotable takeaways                        [done]
 TASK-146  Add multi-role narrative arc for core pitch opener      [low]
-TASK-177  Add beat sheet and glance points to PrepCard            [low]
+TASK-177  Add beat sheet and glance points to PrepCard            [done]
 TASK-179  Add multi-story support to PrepCard via storyVariants   [low]
 TASK-180  Add "if they push" pushback script to PrepCard          [low]
 ```

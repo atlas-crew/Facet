@@ -327,6 +327,15 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt.match(/"metricKey": "aws_savings_monthly"/g)).toHaveLength(1)
     expect(userPrompt).toContain('use it as the source of truth for candidate evidence')
     expect(userPrompt).toContain('Target Round Type: hm-screen')
+    expect(userPrompt).toContain('For opener cards, make keyPoints a beat sheet')
+    expect(userPrompt).toContain('do not prefix items with ordinals, bullets, or labels')
+    expect(userPrompt).toContain('including landmine and intel-tag people cards')
+    expect(userPrompt).toContain('around 10 words')
+    expect(userPrompt).toContain('Example: "38% incident reduction"')
+    expect(userPrompt).toContain('Canonical JD Analysis requirements and evidenceMapping')
+    expect(userPrompt).toContain(
+      'Do not infer keyPoints directly from Original Job Description Source Text',
+    )
     expect(userPrompt).toContain('outside the vector slice')
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('return a stackAlignment table')

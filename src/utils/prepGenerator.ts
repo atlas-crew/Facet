@@ -1757,6 +1757,9 @@ Do not claim named-person intel unless it is grounded in a user-supplied round.i
 Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
+For opener cards, make keyPoints a beat sheet: ordered fallback cues that follow the candidate's through-line and the target role connection. Keep each cue around 8 words and do not prefix items with ordinals, bullets, or labels. Example: "Anchor identity in platform reliability"
+For all non-opener cards, including landmine and intel-tag people cards, make keyPoints glance points: compact noun-phrase bullets for recall, not alternate scripts or full sentences. Keep each glance point around 10 words. Example: "38% incident reduction"
+Build both beat sheets and glance points from Canonical JD Analysis requirements and evidenceMapping plus structured identity evidence. Do not infer keyPoints directly from Original Job Description Source Text except for source wording when canonical analysis omits a detail.
 Generate dedicated opener cards for the predictable opening questions instead of a single generic opener bucket.
 - Always include a "Tell me about yourself" opener card. If identity context is too thin for a trustworthy script, use [[fill-in: your through-line]] instead of inventing one.
 - Always include a "Why this role/company?" opener card grounded in the job description and company research. If the motivation proof is thin, use [[needs-review]] or [[fill-in: why this company now]] instead of guessing.
