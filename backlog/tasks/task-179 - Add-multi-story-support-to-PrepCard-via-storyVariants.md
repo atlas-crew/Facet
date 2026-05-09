@@ -96,6 +96,12 @@ Starting TASK-179 after TASK-180 closure. Plan: add PrepStoryVariant type and sa
 Implemented PrepStoryVariant across the prep type, generator normalization/schema/prompt, sanitized persistence/import/export, live-mode story option rendering/search, and practice-mode per-variant review keys. Remediated review findings around stable variant IDs, encoded practice keys, stale progress pruning, fallback/single-variant semantics, and draft preservation. Verification: focused prep Vitest suite passed 5 files / 172 tests; scoped ESLint passed; npm run build passed.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added multi-story PrepCard support via storyVariants, including generator output support, sanitized persistence, live-mode story option rendering/search, and practice-mode per-variant confidence tracking. Existing storyBlocks remain the fallback when variants are absent or a single variant is paired with a top-level story; a single variant with no fallback story still renders to avoid hidden generated content. Added regression coverage for generator, store, helper, live, and practice surfaces.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 Regression tests were created for new behaviors
