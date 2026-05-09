@@ -7,10 +7,13 @@ import {
   filterPrepConditionals,
   filterPrepKeyPoints,
   filterPrepStoryBlocks,
+  filterPrepStoryVariants,
   getPrepDisplayText,
+  getPrepRenderableStoryVariants,
   PREP_PUSHBACK_DEFAULT_LABEL,
   getPrepPushbackLabel,
   getPrepPushbackPracticeKey,
+  getPrepStoryVariantPracticeKey,
   hasPrepCardNeedsReviewContent,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
@@ -41,6 +44,12 @@ type HomeworkQueueEntry =
       id: string
       kind: 'pushback'
       cardId: string
+    }
+  | {
+      id: string
+      kind: 'story_variant'
+      cardId: string
+      variantId: string
     }
 
 const HOMEWORK_FILTER_LABELS: Record<HomeworkFilter, string> = {
@@ -100,27 +109,60 @@ function selectCardsForFilter(
     return cards.filter((card) => {
       const progress = studyProgress?.[card.id]
       const pushbackProgress = studyProgress?.[getPrepPushbackPracticeKey(card.id)]
+      const variantNeedsWork = filterPrepStoryVariants(card.storyVariants).some((variant) => {
+        const variantProgress = studyProgress?.[getPrepStoryVariantPracticeKey(card.id, variant.id)]
+        return (
+          (variantProgress?.needsWorkCount ?? 0) > 0 || variantProgress?.confidence === 'needs_work'
+        )
+      })
       return (
         (progress?.needsWorkCount ?? 0) > 0 ||
         progress?.confidence === 'needs_work' ||
         (pushbackProgress?.needsWorkCount ?? 0) > 0 ||
-        pushbackProgress?.confidence === 'needs_work'
+        pushbackProgress?.confidence === 'needs_work' ||
+        variantNeedsWork
       )
     })
   }
-  return cards.filter((card) => !studyProgress?.[card.id])
+  return cards.filter((card) => {
+    const variants = getPrepRenderableStoryVariants(card)
+    if (variants.length > 0) {
+      return (
+        !studyProgress?.[card.id] &&
+        variants.some(
+          (variant) => !studyProgress?.[getPrepStoryVariantPracticeKey(card.id, variant.id)],
+        )
+      )
+    }
+    return !studyProgress?.[card.id]
+  })
+}
+
+function createInitialHomeworkEntries(card: PrepCard, index: number): HomeworkQueueEntry[] {
+  const variants = getPrepRenderableStoryVariants(card)
+  if (variants.length > 0) {
+    return variants.map((variant, variantIndex) => ({
+      id: `story-variant:${card.id}:${variant.id}:initial:${index}:${variantIndex}`,
+      kind: 'story_variant',
+      cardId: card.id,
+      variantId: variant.id,
+    }))
+  }
+  return [
+    {
+      id: `card:${card.id}:initial:${index}`,
+      kind: 'card',
+      cardId: card.id,
+    },
+  ]
 }
 
 function createInitialHomeworkQueue(
   cards: readonly PrepCard[],
   studyProgress: Record<string, PrepCardStudyState> | undefined,
 ): HomeworkQueueEntry[] {
-  return fisherYatesShuffle(selectCardsForFilter(cards, studyProgress, 'all')).map(
-    (card, index) => ({
-      id: `card:${card.id}:initial:${index}`,
-      kind: 'card',
-      cardId: card.id,
-    }),
+  return fisherYatesShuffle(selectCardsForFilter(cards, studyProgress, 'all')).flatMap(
+    createInitialHomeworkEntries,
   )
 }
 
@@ -167,6 +209,19 @@ export function PrepPracticeMode({
       cardId,
     }
   }, [])
+
+  const createHomeworkStoryVariantEntry = useCallback(
+    (cardId: string, variantId: string): HomeworkQueueEntry => {
+      queueEntryCounterRef.current += 1
+      return {
+        id: `story-variant:${cardId}:${variantId}:${queueEntryCounterRef.current}`,
+        kind: 'story_variant',
+        cardId,
+        variantId,
+      }
+    },
+    [],
+  )
 
   const eligibleCards = useMemo(
     () => cards.filter((card) => !hasPrepCardNeedsReviewContent(card)),
@@ -245,6 +300,13 @@ export function PrepPracticeMode({
         continue
       }
       if (entry.kind === 'pushback' && !card.pushbackScript?.trim()) continue
+      if (
+        entry.kind === 'story_variant' &&
+        !filterPrepStoryVariants(card.storyVariants).some(
+          (variant) => variant.id === entry.variantId,
+        )
+      )
+        continue
       return index
     }
     return queue.length
@@ -265,11 +327,25 @@ export function PrepPracticeMode({
   const currentPushbackLabel = currentCard
     ? getPrepPushbackLabel(currentCard)
     : PREP_PUSHBACK_DEFAULT_LABEL
-  const currentStoryBlocks = useMemo(
-    () => filterPrepStoryBlocks(currentCard?.storyBlocks),
+  const currentStoryVariants = useMemo(
+    () => filterPrepStoryVariants(currentCard?.storyVariants),
     [currentCard],
   )
-  const currentKeyPoints = useMemo(() => filterPrepKeyPoints(currentCard?.keyPoints), [currentCard])
+  const currentStoryVariant =
+    currentEntry?.kind === 'story_variant'
+      ? (currentStoryVariants.find((variant) => variant.id === currentEntry.variantId) ?? null)
+      : null
+  const currentStoryBlocks = useMemo(
+    () =>
+      currentStoryVariant
+        ? filterPrepStoryBlocks(currentStoryVariant.storyBlocks)
+        : filterPrepStoryBlocks(currentCard?.storyBlocks),
+    [currentCard, currentStoryVariant],
+  )
+  const currentKeyPoints = useMemo(
+    () => filterPrepKeyPoints(currentStoryVariant?.keyPoints ?? currentCard?.keyPoints),
+    [currentCard, currentStoryVariant],
+  )
   const keyPointsPresentation = currentCard ? getKeyPointsPresentation(currentCard.category) : null
   const shouldRenderReadOnlyAnswer =
     currentEntry?.kind === 'card' && currentKeyPoints.length > 0 && currentStoryBlocks.length === 0
@@ -293,9 +369,20 @@ export function PrepPracticeMode({
         return
       }
       if (currentEntry.kind === 'pushback' && !livePushbackScript) return
+      const liveStoryVariant =
+        currentEntry.kind === 'story_variant'
+          ? filterPrepStoryVariants(liveCard.storyVariants).find(
+              (variant) => variant.id === currentEntry.variantId,
+            )
+          : null
+      if (currentEntry.kind === 'story_variant' && !liveStoryVariant) return
 
       const reviewKey =
-        currentEntry.kind === 'pushback' ? getPrepPushbackPracticeKey(liveCard.id) : liveCard.id
+        currentEntry.kind === 'pushback'
+          ? getPrepPushbackPracticeKey(liveCard.id)
+          : currentEntry.kind === 'story_variant'
+            ? getPrepStoryVariantPracticeKey(liveCard.id, currentEntry.variantId)
+            : liveCard.id
       const accepted = onRecordReview(reviewKey, confidence)
       if (accepted === false) {
         setCurrentIndex(activeIndex + 1)
@@ -330,7 +417,9 @@ export function PrepPracticeMode({
               ? createHomeworkCardEntry(liveCard.id)
               : currentEntry.kind === 'pushback'
                 ? createHomeworkPushbackEntry(liveCard.id)
-                : createHomeworkConditionalEntry(liveCard.id, currentEntry.conditionalIndex)
+                : currentEntry.kind === 'story_variant'
+                  ? createHomeworkStoryVariantEntry(liveCard.id, currentEntry.variantId)
+                  : createHomeworkConditionalEntry(liveCard.id, currentEntry.conditionalIndex)
           const insertedFollowUpCount =
             currentEntry.kind === 'card'
               ? liveConditionals.length + (livePushbackScript ? 1 : 0)
@@ -349,6 +438,7 @@ export function PrepPracticeMode({
       createHomeworkCardEntry,
       createHomeworkConditionalEntry,
       createHomeworkPushbackEntry,
+      createHomeworkStoryVariantEntry,
       currentCard,
       currentEntry,
       onRecordReview,
@@ -640,7 +730,9 @@ export function PrepPracticeMode({
                 ? `${currentCard.title} follow-up`
                 : currentEntry.kind === 'pushback'
                   ? `${currentCard.title} - ${currentPushbackLabel}`
-                  : currentCard.title}
+                  : currentEntry.kind === 'story_variant' && currentStoryVariant
+                    ? `${currentCard.title} - ${getPrepDisplayText(currentStoryVariant.label)}`
+                    : currentCard.title}
             </h2>
             <div className="prep-practice-meta">
               <span className={`prep-category prep-category-${currentCard.category}`}>
@@ -654,6 +746,11 @@ export function PrepPracticeMode({
               {currentEntry.kind === 'pushback' ? (
                 <span className="prep-conditional-label prep-practice-tone">
                   {currentPushbackLabel}
+                </span>
+              ) : null}
+              {currentEntry.kind === 'story_variant' && currentStoryVariant ? (
+                <span className="prep-conditional-label prep-practice-tone">
+                  {currentStoryVariant.roleContext ?? currentStoryVariant.label}
                 </span>
               ) : null}
             </div>
@@ -672,6 +769,10 @@ export function PrepPracticeMode({
             ) : currentEntry.kind === 'pushback' ? (
               <p className="prep-practice-parent">
                 Practice the deeper version only after the interviewer asks for more detail.
+              </p>
+            ) : currentEntry.kind === 'story_variant' && currentStoryVariant ? (
+              <p className="prep-practice-parent">
+                {currentStoryVariant.when ?? 'Practice this story option as its own answer.'}
               </p>
             ) : (
               <>

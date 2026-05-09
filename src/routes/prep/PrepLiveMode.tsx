@@ -19,6 +19,7 @@ import {
   getPrepDefaultText,
   getPrepParagraphs,
   getPrepDisplayText,
+  getPrepRenderableStoryVariants,
   PREP_PUSHBACK_DEFAULT_LABEL,
   getPrepPushbackLabel,
   getPrepSourceAwareText,
@@ -330,6 +331,7 @@ function getKeyPointsPresentation(category: PrepCard['category']) {
 function buildCardSearchText(card: PrepCard): string {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const storyVariants = getPrepRenderableStoryVariants(card)
   const metrics = filterPrepMetrics(card.metrics)
   const followUps = filterPrepFollowUps(card.followUps)
   const deepDives = filterPrepDeepDives(card.deepDives)
@@ -354,6 +356,13 @@ function buildCardSearchText(card: PrepCard): string {
     card.notes ?? '',
     ...keyPoints,
     ...storyBlocks.flatMap((block) => [block.label, block.text]),
+    ...storyVariants.flatMap((variant) => [
+      variant.label,
+      variant.roleContext ?? '',
+      variant.when ?? '',
+      ...(variant.keyPoints ?? []),
+      ...variant.storyBlocks.flatMap((block) => [block.label, block.text]),
+    ]),
     ...metrics.flatMap((metric) => [metric.value, metric.label]),
     ...followUps.flatMap((followUp) => [
       followUp.question,
@@ -2023,6 +2032,8 @@ function renderCardBlock(
 ) {
   const keyPoints = filterPrepKeyPoints(card.keyPoints)
   const storyBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const storyVariants = getPrepRenderableStoryVariants(card)
+  const fallbackStoryBlocks = storyVariants.length > 0 ? [] : storyBlocks
   const followUps = filterPrepFollowUps(card.followUps)
   const deepDives = filterPrepDeepDives(card.deepDives)
   const conditionals = filterPrepConditionals(card.conditionals)
@@ -2175,9 +2186,52 @@ function renderCardBlock(
           ))}
       </div>
 
-      {!compactMode && storyBlocks.length > 0 ? (
+      {!compactMode && storyVariants.length > 0 ? (
+        <div className="prep-live-story-variants">
+          {storyVariants.map((variant, variantIndex) => {
+            const variantKeyPoints = filterPrepKeyPoints(variant.keyPoints)
+            return (
+              <details
+                key={variant.id}
+                className="prep-live-story-variant"
+                open={variantIndex === 0}
+              >
+                <summary>
+                  <span>{variantIndex === 0 ? 'Primary story' : `Option ${variantIndex + 1}`}</span>
+                  <strong>{getPrepDisplayText(variant.label)}</strong>
+                </summary>
+                {variant.roleContext || variant.when ? (
+                  <p className="prep-live-story-variant-meta">
+                    {[variant.roleContext, variant.when].filter(Boolean).join(' - ')}
+                  </p>
+                ) : null}
+                {variantKeyPoints.length > 0 ? (
+                  <ul className="prep-live-story-variant-points">
+                    {variantKeyPoints.map((point) => (
+                      <li key={point}>{getPrepDisplayText(point)}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="prep-live-story-blocks">
+                  {filterPrepStoryBlocks(variant.storyBlocks).map((storyBlock, index) => (
+                    <div
+                      key={`${storyBlock.label}-${index}`}
+                      className={`prep-live-story-block prep-live-story-block-${storyBlock.label}`}
+                    >
+                      <span className="prep-live-story-block-label">{storyBlock.label}</span>
+                      <p>{getPrepSourceAwareText(storyBlock.text, card.source)}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )
+          })}
+        </div>
+      ) : null}
+
+      {!compactMode && fallbackStoryBlocks.length > 0 ? (
         <div className="prep-live-story-blocks">
-          {storyBlocks.map((storyBlock, index) => (
+          {fallbackStoryBlocks.map((storyBlock, index) => (
             <div
               key={`${card.id}-story-${storyBlock.label}-${storyBlock.text}-${index}`}
               className={`prep-live-story-block prep-live-story-block-${storyBlock.label}`}

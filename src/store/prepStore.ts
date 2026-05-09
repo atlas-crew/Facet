@@ -24,6 +24,7 @@ import type {
   PrepStackAlignmentRow,
   PrepStoryBlock,
   PrepStoryBlockLabel,
+  PrepStoryVariant,
   PrepWorkspaceMode,
 } from '../types/prep'
 import {
@@ -47,14 +48,19 @@ import {
   touchDurableMetadata,
 } from './durableMetadata'
 import { resolveStorage } from './storage'
-import { createId } from '../utils/idUtils'
+import { createId, slugify } from '../utils/idUtils'
 import {
   sanitizeArtifactStalenessReview,
   sanitizeIdentityFields,
   sanitizeIdentityVersion,
 } from '../types/artifactMeta'
 import { normalizePrepAnswerTemplate } from '../utils/prepAnswerTemplate'
-import { getPrepPushbackPracticeCardId, isPrepPushbackPracticeKey } from '../utils/prepCardContent'
+import {
+  getPrepPushbackPracticeCardId,
+  isPrepPushbackPracticeKey,
+  isPrepStoryVariantPracticeKey,
+  parsePrepStoryVariantPracticeKey,
+} from '../utils/prepCardContent'
 
 const LEGACY_STORAGE_KEY = 'facet-prep-data'
 
@@ -173,6 +179,7 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     alternativeScript: partial.alternativeScript?.trim() || undefined,
     warning: partial.warning?.trim() || undefined,
     storyBlocks: sanitizeStoryBlocks(partial.storyBlocks),
+    storyVariants: sanitizeStoryVariants(partial.storyVariants),
     keyPoints: sanitizeStringList(partial.keyPoints),
     followUps: sanitizeFollowUps(partial.followUps),
     deepDives: sanitizeDeepDives(partial.deepDives),
@@ -333,6 +340,57 @@ function sanitizeStoryBlocks(
     return [{ label, text }]
   })
   return sanitized && sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeStoryVariants(
+  variants?: PrepStoryVariant[],
+  options: SanitizeOptions = {},
+): PrepStoryVariant[] | undefined {
+  if (!Array.isArray(variants)) return undefined
+  const seenIds = new Set<string>()
+  const sanitized = variants.flatMap((variant) => {
+    if (!variant || typeof variant !== 'object') return []
+    const record = variant as Partial<PrepStoryVariant>
+    const storyBlocks = sanitizeStoryBlocks(record.storyBlocks, options)
+    const label = typeof record.label === 'string' ? record.label.trim() : ''
+    if ((!storyBlocks && !options.preserveDrafts) || (!options.preserveDrafts && !label)) {
+      return []
+    }
+    const stableId = slugify(
+      [label, typeof record.roleContext === 'string' ? record.roleContext.trim() : '']
+        .filter(Boolean)
+        .join(' '),
+    )
+    const baseId =
+      typeof record.id === 'string' && record.id.trim().length > 0
+        ? record.id.trim()
+        : stableId
+          ? `prep-story-variant-${stableId}`
+          : createId('prep-story-variant')
+    const id = getUniqueStoryVariantId(baseId, seenIds)
+    return [
+      {
+        id,
+        label: label || (options.preserveDrafts ? '' : 'Story option'),
+        storyBlocks: storyBlocks ?? [],
+        keyPoints: sanitizeStringList(record.keyPoints, options),
+        roleContext: sanitizeText(record.roleContext, options),
+        when: sanitizeText(record.when, options),
+      },
+    ]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function getUniqueStoryVariantId(baseId: string, seenIds: Set<string>): string {
+  let id = baseId
+  let suffix = 2
+  while (seenIds.has(id)) {
+    id = `${baseId}-${suffix}`
+    suffix += 1
+  }
+  seenIds.add(id)
+  return id
 }
 
 function sanitizeQuestionsToAsk(
@@ -755,6 +813,7 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
     alternativeTitle: sanitizeText(card.alternativeTitle, options),
     alternativeScript: sanitizeText(card.alternativeScript, options),
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks, options),
+    storyVariants: sanitizeStoryVariants(card.storyVariants, options),
     keyPoints: sanitizeStringList(card.keyPoints, options),
     followUps: sanitizeFollowUps(card.followUps, options)?.map((item) => ({
       ...item,
@@ -782,6 +841,12 @@ function shouldKeepStudyProgressEntry(
   cardsById: Map<string, PrepCard>,
   reviewKey: string,
 ): boolean {
+  const storyVariantKey = parsePrepStoryVariantPracticeKey(reviewKey)
+  if (storyVariantKey) {
+    const card = cardsById.get(storyVariantKey.cardId)
+    return Boolean(card?.storyVariants?.some((variant) => variant.id === storyVariantKey.variantId))
+  }
+  if (isPrepStoryVariantPracticeKey(reviewKey)) return false
   const card = cardsById.get(getPrepPushbackPracticeCardId(reviewKey))
   if (!card) return false
   return !isPrepPushbackPracticeKey(reviewKey) || Boolean(card.pushbackScript?.trim())
@@ -900,6 +965,7 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
         ? Math.round(card.timeBudgetMinutes * 10) / 10
         : undefined,
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
+    storyVariants: sanitizeStoryVariants(card.storyVariants),
     keyPoints: sanitizeStringList(card.keyPoints),
     followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
       ...item,

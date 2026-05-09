@@ -7,6 +7,7 @@ import type {
   PrepFollowUp,
   PrepMetric,
   PrepStoryBlock,
+  PrepStoryVariant,
 } from '../types/prep'
 
 const PREP_NEEDS_REVIEW_PATTERN = /\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]/i
@@ -315,8 +316,29 @@ export function filterPrepStoryBlocks(blocks: PrepStoryBlock[] | undefined): Pre
   return filterPrepContent(blocks, hasPrepStoryBlockContent)
 }
 
+export function hasPrepStoryVariantContent(variant: PrepStoryVariant): boolean {
+  return variant.label.trim().length > 0 && filterPrepStoryBlocks(variant.storyBlocks).length > 0
+}
+
+export function filterPrepStoryVariants(
+  variants: PrepStoryVariant[] | undefined,
+): PrepStoryVariant[] {
+  return filterPrepContent(variants, hasPrepStoryVariantContent)
+}
+
+export function getPrepRenderableStoryVariants(
+  card: Pick<PrepCard, 'storyBlocks' | 'storyVariants'>,
+): PrepStoryVariant[] {
+  const variants = filterPrepStoryVariants(card.storyVariants)
+  if (variants.length > 1) return variants
+  return variants.length === 1 && filterPrepStoryBlocks(card.storyBlocks).length === 0
+    ? variants
+    : []
+}
+
 export const PREP_PUSHBACK_DEFAULT_LABEL = 'If they push'
 const PREP_PUSHBACK_PRACTICE_KEY_PREFIX = 'pushback::'
+const PREP_STORY_VARIANT_PRACTICE_KEY_PREFIX = 'story-variant::'
 
 export function getPrepPushbackLabel(card: Pick<PrepCard, 'pushbackLabel'>): string {
   return card.pushbackLabel?.trim() || PREP_PUSHBACK_DEFAULT_LABEL
@@ -334,6 +356,43 @@ export function getPrepPushbackPracticeCardId(cardId: string): string {
   return isPrepPushbackPracticeKey(cardId)
     ? cardId.slice(PREP_PUSHBACK_PRACTICE_KEY_PREFIX.length)
     : cardId
+}
+
+export function getPrepStoryVariantPracticeKey(cardId: string, variantId: string): string {
+  return (
+    PREP_STORY_VARIANT_PRACTICE_KEY_PREFIX +
+    encodeURIComponent(cardId) +
+    '::' +
+    encodeURIComponent(variantId)
+  )
+}
+
+export function isPrepStoryVariantPracticeKey(reviewKey: string): boolean {
+  return reviewKey.startsWith(PREP_STORY_VARIANT_PRACTICE_KEY_PREFIX)
+}
+
+export function parsePrepStoryVariantPracticeKey(
+  reviewKey: string,
+): { cardId: string; variantId: string } | null {
+  if (!isPrepStoryVariantPracticeKey(reviewKey)) return null
+  const rest = reviewKey.slice(PREP_STORY_VARIANT_PRACTICE_KEY_PREFIX.length)
+  const separatorIndex = rest.indexOf('::')
+  if (separatorIndex <= 0 || separatorIndex + 2 >= rest.length) return null
+  const cardId = decodePracticeKeyPart(rest.slice(0, separatorIndex))
+  const variantId = decodePracticeKeyPart(rest.slice(separatorIndex + 2))
+  if (!cardId || !variantId) return null
+  return {
+    cardId,
+    variantId,
+  }
+}
+
+function decodePracticeKeyPart(value: string): string | null {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return null
+  }
 }
 
 export function hasPrepMetricContent(metric: PrepMetric): boolean {
@@ -416,6 +475,7 @@ export function hasPrepCardNeedsReviewContent(
     | 'alternativeScript'
     | 'keyPoints'
     | 'storyBlocks'
+    | 'storyVariants'
     | 'conditionals'
     | 'metrics'
     | 'followUps'
@@ -435,6 +495,15 @@ export function hasPrepCardNeedsReviewContent(
     hasPrepNeedsReviewText(card.alternativeScript) ||
     (card.keyPoints ?? []).some((point) => hasPrepNeedsReviewText(point)) ||
     (card.storyBlocks ?? []).some((block) => hasPrepStoryBlockNeedsReview(block)) ||
+    (card.storyVariants ?? []).some(
+      (variant) =>
+        !variant.label.trim() ||
+        hasPrepNeedsReviewText(variant.label) ||
+        hasPrepNeedsReviewText(variant.roleContext) ||
+        hasPrepNeedsReviewText(variant.when) ||
+        (variant.keyPoints ?? []).some((point) => hasPrepNeedsReviewText(point)) ||
+        variant.storyBlocks.some((block) => hasPrepStoryBlockNeedsReview(block)),
+    ) ||
     (card.conditionals ?? []).some((conditional) => hasPrepConditionalNeedsReview(conditional)) ||
     (card.metrics ?? []).some((metric) => hasPrepMetricNeedsReview(metric)) ||
     (card.followUps ?? []).some((followUp) => hasPrepFollowUpNeedsReview(followUp)) ||

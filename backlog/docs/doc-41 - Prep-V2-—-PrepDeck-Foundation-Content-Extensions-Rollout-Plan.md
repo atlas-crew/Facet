@@ -49,7 +49,7 @@ TASK-139  Add technical drills with answer template               [done]
 TASK-137  Add one-liner quotable takeaways                        [done]
 TASK-146  Add multi-role narrative arc for core pitch opener      [done]
 TASK-177  Add beat sheet and glance points to PrepCard            [done]
-TASK-179  Add multi-story support to PrepCard via storyVariants   [low]
+TASK-179  Add multi-story support to PrepCard via storyVariants   [done]
 TASK-180  Add "if they push" pushback script to PrepCard          [done]
 ```
 

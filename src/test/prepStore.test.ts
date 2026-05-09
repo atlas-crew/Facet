@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { migratePrepState, usePrepStore } from '../store/prepStore'
 import { resolveStorage } from '../store/storage'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
-import { getPrepPushbackPracticeKey, isPrepPushbackPracticeKey } from '../utils/prepCardContent'
+import {
+  getPrepPushbackPracticeKey,
+  getPrepStoryVariantPracticeKey,
+  isPrepPushbackPracticeKey,
+} from '../utils/prepCardContent'
 
 describe('prepStore', () => {
   beforeEach(() => {
@@ -355,6 +359,45 @@ describe('prepStore', () => {
     usePrepStore.getState().removeCard(deckId, cardId)
     deck = usePrepStore.getState().decks[0]
     expect(deck.studyProgress).toEqual({})
+  })
+
+  it('tracks story variant practice progress separately', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [
+        {
+          id: 'story-card',
+          title: 'Influence without authority',
+          category: 'behavioral',
+          tags: ['influence'],
+          storyVariants: [
+            {
+              id: 'primary',
+              label: 'Primary — Northwind',
+              storyBlocks: [{ label: 'problem', text: 'Northwind needed alignment.' }],
+            },
+            {
+              id: 'alt',
+              label: 'Alternative — A10',
+              storyBlocks: [{ label: 'solution', text: 'A10 needed a demo.' }],
+            },
+          ],
+        },
+      ],
+    })
+    const variantKey = getPrepStoryVariantPracticeKey('story-card', 'alt')
+
+    expect(usePrepStore.getState().recordCardReview(deckId, variantKey, 'okay')).toBe(true)
+    expect(usePrepStore.getState().decks[0].studyProgress?.[variantKey]).toMatchObject({
+      confidence: 'okay',
+      attempts: 1,
+    })
+
+    usePrepStore.getState().updateCard(deckId, 'story-card', { storyVariants: [] })
+    expect(usePrepStore.getState().decks[0].studyProgress?.[variantKey]).toBeUndefined()
   })
 
   it('ignores review updates for cards that are not in the deck', () => {

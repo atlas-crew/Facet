@@ -203,6 +203,60 @@ describe('PrepPracticeMode', () => {
     ])
   })
 
+  it('practices each story variant with its own progress key', () => {
+    const handleRecordReview = vi.fn()
+    render(
+      <PrepPracticeMode
+        cards={[
+          {
+            id: 'variant-card',
+            category: 'behavioral',
+            title: 'Influence without authority',
+            tags: ['influence'],
+            storyVariants: [
+              {
+                id: 'primary',
+                label: 'Primary — Northwind',
+                roleContext: 'Northwind',
+                when: 'Use when they care about adoption.',
+                keyPoints: ['Adoption plan'],
+                storyBlocks: [{ label: 'problem', text: 'Northwind teams were not aligned.' }],
+              },
+              {
+                id: 'alt',
+                label: 'Alternative — A10',
+                storyBlocks: [{ label: 'solution', text: 'A10 demo created executive trust.' }],
+              },
+            ],
+          },
+        ]}
+        onExit={() => {}}
+        onRecordReview={handleRecordReview}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Influence without authority - Primary — Northwind',
+    )
+    expect(screen.getByText('Use when they care about adoption.')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    expect(screen.getByText('Northwind teams were not aligned.')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
+
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Influence without authority - Alternative — A10',
+    )
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    expect(screen.getByText('A10 demo created executive trust.')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
+
+    expect(handleRecordReview.mock.calls).toEqual([
+      ['story-variant::variant-card::primary', 'okay'],
+      ['story-variant::variant-card::alt', 'nailed_it'],
+    ])
+  })
+
   it('skips a pushback drill when the review callback rejects a stale key', () => {
     const handleRecordReview = vi.fn((reviewKey: string) => !reviewKey.startsWith('pushback::'))
     render(

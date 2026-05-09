@@ -31,6 +31,7 @@ import type {
   PrepStackAlignmentRow,
   PrepStoryBlock,
   PrepStoryBlockLabel,
+  PrepStoryVariant,
 } from '../types/prep'
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
@@ -467,6 +468,54 @@ function normalizeStoryBlocks(value: unknown): PrepStoryBlock[] | undefined {
   return storyBlocks.length > 0 ? storyBlocks : undefined
 }
 
+function normalizeStoryVariants(value: unknown): PrepStoryVariant[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const seenIds = new Set<string>()
+  const variants = value.flatMap((variant) => {
+    if (!variant || typeof variant !== 'object') return []
+    const record = variant as Record<string, unknown>
+    const label = isString(record.label) ? record.label.trim() : ''
+    const storyBlocks = normalizeStoryBlocks(record.storyBlocks)
+    if (!label || !storyBlocks) return []
+    const stableId = slugify(
+      [label, isString(record.roleContext) ? record.roleContext.trim() : '']
+        .filter(Boolean)
+        .join(' '),
+    )
+    const baseId =
+      isString(record.id) && record.id.trim()
+        ? record.id.trim()
+        : stableId
+          ? `prep-story-variant-${stableId}`
+          : createId('prep-story-variant')
+    const id = getUniqueStoryVariantId(baseId, seenIds)
+    return [
+      {
+        id,
+        label,
+        storyBlocks,
+        keyPoints: normalizeStringList(record.keyPoints),
+        roleContext: isString(record.roleContext)
+          ? record.roleContext.trim() || undefined
+          : undefined,
+        when: isString(record.when) ? record.when.trim() || undefined : undefined,
+      },
+    ]
+  })
+  return variants.length > 0 ? variants : undefined
+}
+
+function getUniqueStoryVariantId(baseId: string, seenIds: Set<string>): string {
+  let id = baseId
+  let suffix = 2
+  while (seenIds.has(id)) {
+    id = `${baseId}-${suffix}`
+    suffix += 1
+  }
+  seenIds.add(id)
+  return id
+}
+
 function normalizeQuestionsToAsk(value: unknown): PrepQuestionToAsk[] | undefined {
   if (!Array.isArray(value)) return undefined
   const questions = value.flatMap((entry) => {
@@ -591,6 +640,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
           : undefined,
         warning: isString(record.warning) ? record.warning.trim() : undefined,
         storyBlocks: normalizeStoryBlocks(record.storyBlocks),
+        storyVariants: normalizeStoryVariants(record.storyVariants),
         keyPoints: normalizeStringList(record.keyPoints),
         followUps: Array.isArray(record.followUps)
           ? record.followUps.flatMap((followUp) => {
@@ -820,6 +870,13 @@ function getCardValidationText(card: PrepCard): string {
     card.pushbackScript,
     ...(card.keyPoints ?? []),
     ...(card.storyBlocks ?? []).map((block) => block.text),
+    ...(card.storyVariants ?? []).flatMap((variant) => [
+      variant.label,
+      variant.roleContext,
+      variant.when,
+      ...(variant.keyPoints ?? []),
+      ...variant.storyBlocks.map((block) => block.text),
+    ]),
     ...(card.deepDives ?? []).map((deepDive) =>
       [deepDive.title, deepDive.content].filter(Boolean).join(' '),
     ),
@@ -1708,6 +1765,7 @@ Response schema:
       "alternativeScript": "optional string",
       "warning": "optional string",
       "storyBlocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }],
+      "storyVariants": [{ "id": "string", "label": "string", "roleContext": "optional string", "when": "optional string", "keyPoints": ["string"], "storyBlocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }] }],
       "keyPoints": ["string"],
       "followUps": [{ "question": "string", "answer": "string" }],
       "deepDives": [{ "title": "string", "content": "string" }],
@@ -1805,6 +1863,7 @@ For behavioral and project cards with storyBlocks:
 - Anchor the closer in Canonical JD Analysis strengthsToLead and positioningRecommendations plus structured candidate evidence from identity bullets, candidate metrics, and skillMatches; do not derive it by raw-job re-inference.
 - Only use scriptLabel "The One-Liner" when the card script itself is the standalone takeaway instead of a full answer.
 - Keep every one-liner concrete, role-specific, and evidence-backed, never generic motivational copy.
+For behavioral cards where Canonical JD Analysis evidenceMapping shows multiple credible stories for the same question, add storyVariants with 2 to 3 options instead of forcing every story into the top-level storyBlocks. The first storyVariants entry is the primary/default. Give each variant a concise label, optional roleContext, optional when guidance, its own storyBlocks, and optional keyPoints. If only one credible story exists, omit storyVariants and use storyBlocks.
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
 For cards where the first script intentionally stays concise or omits deeper context, add pushbackScript as the full expanded same-question answer the candidate should give only if the interviewer presses for more detail. Use this for why-leaving, failure, nuanced motivation, and technical gap-framing cards. pushbackScript must be honest, more specific than the primary script, and not evasive; pushbackLabel defaults to "If they push" unless a more precise label helps. Do not use pushbackScript for short Q&A follow-ups; those belong in conditionals.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.

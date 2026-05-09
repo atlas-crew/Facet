@@ -466,8 +466,10 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('Only use scriptLabel "The One-Liner"')
     expect(systemPrompt).toContain('"pushbackScript": "optional string"')
     expect(systemPrompt).toContain('"pushbackLabel": "optional string"')
+    expect(systemPrompt).toContain('"storyVariants"')
     expect(userPrompt).toContain('add pushbackScript as the full expanded same-question answer')
     expect(userPrompt).toContain('Do not use pushbackScript for short Q&A follow-ups')
+    expect(userPrompt).toContain('add storyVariants with 2 to 3 options')
     expect(userPrompt).toContain(
       'Generate dedicated opener cards for the predictable opening questions',
     )
@@ -860,6 +862,26 @@ describe('generateInterviewPrep', () => {
               { label: 'Outcome', text: 'Reduced incidents by 38%.' },
               { label: 'Unknown', text: 'Drop this malformed label.' },
             ],
+            storyVariants: [
+              {
+                id: 'primary-northwind',
+                label: ' Primary — Northwind Incident ',
+                roleContext: ' Northwind ',
+                when: ' Use when they ask about operations. ',
+                keyPoints: ['Incident command', 'Rollback plan'],
+                storyBlocks: [
+                  { label: 'problem', text: 'Northwind had a production incident.' },
+                  { label: 'solution', text: 'I led the rollback and recovery plan.' },
+                ],
+              },
+              {
+                label: 'Alternative — A10 Demo',
+                storyBlocks: [
+                  { label: 'problem', text: 'A10 needed executive confidence.' },
+                  { label: 'result', text: 'The demo landed the platform direction.' },
+                ],
+              },
+            ],
             conditionals: [
               {
                 trigger: ' If they push on ownership ',
@@ -981,6 +1003,27 @@ describe('generateInterviewPrep', () => {
       { label: 'problem', text: 'Latency spiked during peak load.' },
       { label: 'solution', text: 'Redesigned the request pipeline.' },
       { label: 'result', text: 'Reduced incidents by 38%.' },
+    ])
+    expect(result.cards[0].storyVariants).toEqual([
+      {
+        id: 'primary-northwind',
+        label: 'Primary — Northwind Incident',
+        roleContext: 'Northwind',
+        when: 'Use when they ask about operations.',
+        keyPoints: ['Incident command', 'Rollback plan'],
+        storyBlocks: [
+          { label: 'problem', text: 'Northwind had a production incident.' },
+          { label: 'solution', text: 'I led the rollback and recovery plan.' },
+        ],
+      },
+      expect.objectContaining({
+        id: expect.stringMatching(/^prep-story-variant-/),
+        label: 'Alternative — A10 Demo',
+        storyBlocks: [
+          { label: 'problem', text: 'A10 needed executive confidence.' },
+          { label: 'result', text: 'The demo landed the platform direction.' },
+        ],
+      }),
     ])
     expect(result.cards[0].conditionals).toEqual([
       {

@@ -3,8 +3,11 @@ import {
   getPrepPushbackLabel,
   getPrepPushbackPracticeCardId,
   getPrepPushbackPracticeKey,
+  getPrepRenderableStoryVariants,
+  getPrepStoryVariantPracticeKey,
   hasPrepCardNeedsReviewContent,
   hasPrepNeedsReviewText,
+  parsePrepStoryVariantPracticeKey,
   resolvePrepConditionalTone,
 } from '../utils/prepCardContent'
 
@@ -18,6 +21,98 @@ describe('resolvePrepConditionalTone', () => {
     expect(resolvePrepConditionalTone({ tone: 'pivot' })).toBe('pivot')
     expect(resolvePrepConditionalTone({ tone: 'trap' })).toBe('trap')
     expect(resolvePrepConditionalTone({ tone: 'escalation' })).toBe('escalation')
+  })
+})
+
+describe('prep story variant helpers', () => {
+  it('uses story variants only when they should replace fallback story blocks', () => {
+    expect(
+      getPrepRenderableStoryVariants({
+        storyBlocks: [{ label: 'problem', text: 'Fallback story' }],
+        storyVariants: [
+          {
+            id: 'primary',
+            label: 'Primary',
+            storyBlocks: [{ label: 'problem', text: 'Primary story' }],
+          },
+        ],
+      }),
+    ).toEqual([])
+
+    expect(
+      getPrepRenderableStoryVariants({
+        storyVariants: [
+          {
+            id: 'primary',
+            label: 'Primary',
+            storyBlocks: [{ label: 'problem', text: 'Primary story' }],
+          },
+        ],
+      }),
+    ).toHaveLength(1)
+
+    expect(
+      getPrepRenderableStoryVariants({
+        storyVariants: [
+          {
+            id: 'primary',
+            label: 'Primary',
+            storyBlocks: [{ label: 'problem', text: 'Primary story' }],
+          },
+          {
+            id: 'alt',
+            label: 'Alternative',
+            storyBlocks: [{ label: 'solution', text: 'Alternative story' }],
+          },
+        ],
+      }),
+    ).toHaveLength(2)
+    expect(getPrepStoryVariantPracticeKey('card-1', 'alt')).toBe('story-variant::card-1::alt')
+    expect(parsePrepStoryVariantPracticeKey(getPrepStoryVariantPracticeKey('card-1', 'a'))).toEqual({
+      cardId: 'card-1',
+      variantId: 'a',
+    })
+    expect(
+      parsePrepStoryVariantPracticeKey(getPrepStoryVariantPracticeKey('card::legacy', 'a')),
+    ).toEqual({
+      cardId: 'card::legacy',
+      variantId: 'a',
+    })
+  })
+
+  it('detects needs-review markers in story variants', () => {
+    expect(
+      hasPrepCardNeedsReviewContent({
+        title: 'Influence story',
+        script: 'Pick the right story.',
+        storyVariants: [
+          {
+            id: 'primary',
+            label: 'Primary',
+            storyBlocks: [{ label: 'problem', text: 'Stable story' }],
+          },
+          {
+            id: 'alt',
+            label: 'Alternative',
+            when: '[[needs-review]] choose when this is appropriate',
+            storyBlocks: [{ label: 'solution', text: 'Alternative story' }],
+          },
+        ],
+      }),
+    ).toBe(true)
+    expect(
+      hasPrepCardNeedsReviewContent({
+        title: 'Influence story',
+        script: 'Pick the right story.',
+        storyVariants: [
+          {
+            id: 'draft',
+            label: '',
+            storyBlocks: [{ label: 'problem', text: 'Stable story' }],
+          },
+        ],
+      }),
+    ).toBe(true)
   })
 })
 

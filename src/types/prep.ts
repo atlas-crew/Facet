@@ -339,6 +339,15 @@ export interface PrepCardRoundState {
   notes?: string
 }
 
+export interface PrepStoryVariant {
+  id: string
+  label: string
+  storyBlocks: PrepStoryBlock[]
+  keyPoints?: string[]
+  roleContext?: string
+  when?: string
+}
+
 export interface PrepCard {
   id: string
   deckId?: string
@@ -370,6 +379,7 @@ export interface PrepCard {
   alternativeScript?: string
   warning?: string
   storyBlocks?: PrepStoryBlock[]
+  storyVariants?: PrepStoryVariant[]
   keyPoints?: string[]
   followUps?: PrepFollowUp[]
   deepDives?: PrepDeepDive[]

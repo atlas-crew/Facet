@@ -1280,6 +1280,21 @@ describe('PrepLiveMode', () => {
           pushbackScript:
             'If they ask for the fuller answer, explain the honest context behind the transition.',
           pushbackLabel: 'If they ask for more',
+          storyVariants: [
+            {
+              id: 'variant-primary',
+              label: 'Primary — Northwind launch',
+              roleContext: 'Northwind',
+              when: 'Use this when they care about rollout leadership.',
+              keyPoints: ['Launch alignment'],
+              storyBlocks: [{ label: 'problem', text: 'Northwind launch was drifting.' }],
+            },
+            {
+              id: 'variant-alt',
+              label: 'Alternative — A10 demo',
+              storyBlocks: [{ label: 'solution', text: 'A10 demo reset executive confidence.' }],
+            },
+          ],
           conditionals: [
             {
               id: 'conditional-1',
@@ -1307,6 +1322,11 @@ describe('PrepLiveMode', () => {
     expect(pushback?.hasAttribute('open')).toBe(false)
     expect(pushback?.textContent).toContain('If they ask for more')
     expect(pushback?.textContent).toContain('honest context behind the transition')
+    const variants = openerSection?.querySelectorAll('details.prep-live-story-variant')
+    expect(variants).toHaveLength(2)
+    expect(variants?.[0]?.hasAttribute('open')).toBe(true)
+    expect(openerSection?.textContent).toContain('Primary — Northwind launch')
+    expect(openerSection?.textContent).toContain('A10 demo reset executive confidence')
     expect(openerSection?.textContent).toContain('Signal')
     expect(openerSection?.textContent).toContain('pager spike')
 
@@ -1332,6 +1352,11 @@ describe('PrepLiveMode', () => {
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'honest context behind the transition' },
+    })
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'A10 demo reset executive confidence' },
     })
     expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
   })
