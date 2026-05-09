@@ -3,12 +3,13 @@ const FACET_WORKSPACE_SNAPSHOT_VERSION = 1
 const FACET_ARTIFACT_TYPES = [
   'resume',
   'pipeline',
+  'jdAnalysis',
   'prep',
   'coverLetters',
-  'research',
   'linkedin',
   'recruiter',
   'debrief',
+  'research',
 ]
 
 export const DEFAULT_PERSISTENCE_AUTH_TOKENS = [
@@ -165,7 +166,8 @@ function assertValidArtifactPayload(artifactType, payload) {
 
   switch (artifactType) {
     case 'resume':
-      if (!isRecord(payload.meta) || !Array.isArray(payload.vectors)) {
+      // ResumeWorkspaceData = { data, resumes, snapshots, activeResumeId }
+      if (!isRecord(payload.data) || !Array.isArray(payload.resumes)) {
         throw new Error('Workspace snapshot has invalid artifacts.resume.payload shape.')
       }
       break
@@ -174,14 +176,20 @@ function assertValidArtifactPayload(artifactType, payload) {
         throw new Error('Workspace snapshot has invalid artifacts.pipeline.payload.entries.')
       }
       break
+    case 'jdAnalysis':
+      if (!Array.isArray(payload.analyses)) {
+        throw new Error('Workspace snapshot has invalid artifacts.jdAnalysis.payload.analyses.')
+      }
+      break
     case 'prep':
       if (!Array.isArray(payload.decks)) {
         throw new Error('Workspace snapshot has invalid artifacts.prep.payload.decks.')
       }
       break
     case 'coverLetters':
-      if (!Array.isArray(payload.templates)) {
-        throw new Error('Workspace snapshot has invalid artifacts.coverLetters.payload.templates.')
+      // CoverLetterWorkspaceData = { letters, snapshots }
+      if (!Array.isArray(payload.letters)) {
+        throw new Error('Workspace snapshot has invalid artifacts.coverLetters.payload.letters.')
       }
       break
     case 'research':
