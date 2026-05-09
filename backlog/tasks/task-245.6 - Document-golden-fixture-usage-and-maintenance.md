@@ -1,9 +1,11 @@
 ---
 id: TASK-245.6
 title: Document golden fixture usage and maintenance
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-08 23:28'
+updated_date: '2026-05-09 04:48'
 labels:
   - documentation
 milestone: m-29
