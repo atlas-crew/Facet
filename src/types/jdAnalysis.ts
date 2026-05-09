@@ -16,6 +16,8 @@ import type {
   WatchOut,
 } from './match'
 
+export type { SkillMatch } from './match'
+
 export const JD_ANALYSIS_MODEL_VERSION = 'jd-analysis.v1.match-multipass-sonnet'
 
 export interface JdAnalysisEvidenceMapping {
