@@ -1,9 +1,11 @@
 ---
 id: TASK-245.5
 title: Add optional dev demo workspace loader
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-08 23:28'
+updated_date: '2026-05-09 04:45'
 labels:
   - feature
 milestone: m-29
