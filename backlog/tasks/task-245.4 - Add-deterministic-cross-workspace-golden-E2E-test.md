@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-08 23:27'
-updated_date: '2026-05-09 04:43'
+updated_date: '2026-05-09 04:45'
 labels:
   - feature
 milestone: m-29
@@ -43,12 +43,14 @@ Add a deterministic integration test that uses the golden fixture to prove Ident
 
 <!-- SECTION:NOTES:BEGIN -->
 Added a contract-style golden workspace graph test that loads buildMayaPatelGoldenWorkspace() and verifies cross-workspace links across Pipeline, JDAnalysis, resume/build, letters, prep round/deck/cards, research run/result plus Pipeline research promotion snapshot, and debrief identity references. Added a seeded Pipeline research snapshot to Maya's Pillar entry so promotion context is covered. Verification: npx vitest run src/test/fixtures/goldenWorkspace.test.ts src/test/fixtures/personas/validate.test.ts src/test/fixtures/personas/validate.negative.test.ts passed (3 files, 27 tests); npx eslint focused files passed; npm run format:files applied; independent review CLEAN after remediation.
+
+Implemented a cross-workspace golden fixture contract test that verifies the Pillar pipeline entry connects to its JD analysis, resume snapshot, letter snapshot, prep deck/cards, research run/result, and debrief identity references. Added pipeline-entry research summary/source/query data so Pipeline promotion context is covered directly. Verification: npx vitest run src/test/fixtures/goldenWorkspace.test.ts src/test/fixtures/personas/validate.test.ts src/test/fixtures/personas/validate.negative.test.ts; npx eslint src/test/fixtures/goldenWorkspace.test.ts src/test/fixtures/personas/mayaPatel.ts; npm run typecheck -- --pretty false; git diff --check -- src/test/fixtures/goldenWorkspace.test.ts src/test/fixtures/personas/mayaPatel.ts. Independent review: CLEAN after remediation.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added deterministic golden cross-workspace contract coverage without duplicating fixture literals or brittle full-text snapshots. The test now catches broken links across research, pipeline, JD analysis, resume, cover letters, prep, and debrief identity references.
+Golden workspace cross-links are now enforced by a contract test and the Pillar pipeline entry carries seeded research promotion context.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
