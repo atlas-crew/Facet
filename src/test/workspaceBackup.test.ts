@@ -829,6 +829,16 @@ describe('workspace backup merge helpers', () => {
 
     const seedSearchStore = (events: SearchFeedbackEvent[]) => {
       const runIds = Array.from(new Set(events.map((event) => event.runId)))
+      // searchStore normalization drops reflectedInThesisId values that don't
+      // correspond to a known thesis. Seed minimal theses for every referenced
+      // id so the fixture preserves the test's reflection semantics.
+      const referencedThesisIds = Array.from(
+        new Set(
+          events
+            .flatMap((event) => [event.reflectedInThesisId, event.reflectedInArtifactId])
+            .filter((id): id is string => typeof id === 'string' && id.length > 0),
+        ),
+      )
       useSearchStore.setState({
         profile: null,
         requests: [
@@ -853,6 +863,7 @@ describe('workspace backup merge helpers', () => {
           searchLog: [],
           narrativeState: { status: 'pending' as const },
         })),
+        theses: referencedThesisIds.map((id) => buildSearchThesis({ id })),
         feedbackEvents: events,
       })
     }
