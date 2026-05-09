@@ -102,6 +102,8 @@ const USER_OWNED_PREP_CARD_FIELDS: Array<keyof PrepCard> = [
   'notes',
   'script',
   'scriptLabel',
+  'alternativeTitle',
+  'alternativeScript',
   'warning',
   'keyPoints',
   'storyBlocks',

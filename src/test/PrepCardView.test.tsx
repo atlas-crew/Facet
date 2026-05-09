@@ -31,7 +31,11 @@ function EditableHarness({ initialCard }: { initialCard?: PrepCard }) {
   )
 }
 
-function ControlledSectionHarness({ onToggle = vi.fn() }: { onToggle?: (nextOpen: boolean) => void }) {
+function ControlledSectionHarness({
+  onToggle = vi.fn(),
+}: {
+  onToggle?: (nextOpen: boolean) => void
+}) {
   const [isOpen, setIsOpen] = useState(true)
 
   return (
@@ -56,7 +60,9 @@ function ControlledSectionHarness({ onToggle = vi.fn() }: { onToggle?: (nextOpen
  * that is currently aria-expanded=false, opening all of them in one call.
  */
 function expandAllSections() {
-  const toggles = document.querySelectorAll<HTMLButtonElement>('button.prep-section-toggle[aria-expanded="false"]')
+  const toggles = document.querySelectorAll<HTMLButtonElement>(
+    'button.prep-section-toggle[aria-expanded="false"]',
+  )
   for (const toggle of Array.from(toggles)) {
     fireEvent.click(toggle)
   }
@@ -75,7 +81,9 @@ describe('PrepCardView', () => {
     expect(screen.queryByPlaceholderText('behavioral, scale, leadership')).toBeNull()
     fireEvent.click(toggle)
 
-    expect(screen.getByRole('button', { name: 'Collapse details' }).getAttribute('aria-expanded')).toBe('true')
+    expect(
+      screen.getByRole('button', { name: 'Collapse details' }).getAttribute('aria-expanded'),
+    ).toBe('true')
     expect(screen.getByPlaceholderText('behavioral, scale, leadership')).toBeTruthy()
   })
 
@@ -92,17 +100,31 @@ describe('PrepCardView', () => {
 
     expect(container.querySelector('.prep-card-preview')?.textContent).toBe('Line one Line two')
 
-    rerender(<PrepCardView card={makeCard({ notes: 'Use the note fallback.', script: undefined })} />)
-    expect(container.querySelector('.prep-card-preview')?.textContent).toBe('Use the note fallback.')
+    rerender(
+      <PrepCardView card={makeCard({ notes: 'Use the note fallback.', script: undefined })} />,
+    )
+    expect(container.querySelector('.prep-card-preview')?.textContent).toBe(
+      'Use the note fallback.',
+    )
 
-    rerender(<PrepCardView card={makeCard({ warning: 'Use the warning fallback.', script: undefined, notes: undefined })} />)
-    expect(container.querySelector('.prep-card-preview')?.textContent).toBe('Use the warning fallback.')
+    rerender(
+      <PrepCardView
+        card={makeCard({
+          warning: 'Use the warning fallback.',
+          script: undefined,
+          notes: undefined,
+        })}
+      />,
+    )
+    expect(container.querySelector('.prep-card-preview')?.textContent).toBe(
+      'Use the warning fallback.',
+    )
 
     const exactly180 = 'a'.repeat(180)
     rerender(<PrepCardView card={makeCard({ script: exactly180 })} />)
     expect(container.querySelector('.prep-card-preview')?.textContent).toBe(exactly180)
 
-    const withTrailingWhitespaceAtBoundary = ('word '.repeat(40)).slice(0, 181)
+    const withTrailingWhitespaceAtBoundary = 'word '.repeat(40).slice(0, 181)
     rerender(<PrepCardView card={makeCard({ script: withTrailingWhitespaceAtBoundary })} />)
     expect(container.querySelector('.prep-card-preview')?.textContent?.endsWith(' ...')).toBe(false)
     expect(container.querySelector('.prep-card-preview')?.textContent?.endsWith('...')).toBe(true)
@@ -111,7 +133,9 @@ describe('PrepCardView', () => {
     expect(container.querySelector('.prep-card-preview')?.textContent).toHaveLength(180)
     expect(container.querySelector('.prep-card-preview')?.textContent?.endsWith('...')).toBe(true)
 
-    rerender(<PrepCardView card={makeCard({ script: undefined, notes: undefined, warning: undefined })} />)
+    rerender(
+      <PrepCardView card={makeCard({ script: undefined, notes: undefined, warning: undefined })} />,
+    )
     expect(container.querySelector('.prep-card-preview')?.textContent).toBe(
       'Open this card to shape the spoken answer, coaching notes, and supporting proof points.',
     )
@@ -143,16 +167,24 @@ describe('PrepCardView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     // Test exercises section-toggle behavior; do NOT pre-expand sections.
-    expect(screen.queryByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.')).toBeNull()
+    expect(
+      screen.queryByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.'),
+    ).toBeNull()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Notes & Risks' })[0] as HTMLElement)
 
-    expect(screen.getByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.')).toBeTruthy()
-    expect(screen.getByPlaceholderText('What should the candidate avoid saying or overclaiming?')).toBeTruthy()
+    expect(
+      screen.getByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.'),
+    ).toBeTruthy()
+    expect(
+      screen.getByPlaceholderText('What should the candidate avoid saying or overclaiming?'),
+    ).toBeTruthy()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Notes & Risks' })[0] as HTMLElement)
 
-    expect(screen.queryByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.')).toBeNull()
+    expect(
+      screen.queryByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.'),
+    ).toBeNull()
   })
 
   it('opens the follow-up section when a new follow-up is added', () => {
@@ -162,10 +194,14 @@ describe('PrepCardView', () => {
     expandAllSections()
     expect(screen.queryByPlaceholderText('Likely follow-up question')).toBeNull()
 
-    const followUpsSection = screen.getAllByRole('button', { name: 'Follow-Ups' })[0]?.closest('section')
+    const followUpsSection = screen
+      .getAllByRole('button', { name: 'Follow-Ups' })[0]
+      ?.closest('section')
 
     expect(followUpsSection).toBeTruthy()
-    fireEvent.click(within(followUpsSection as HTMLElement).getByRole('button', { name: 'Add follow-up' }))
+    fireEvent.click(
+      within(followUpsSection as HTMLElement).getByRole('button', { name: 'Add follow-up' }),
+    )
 
     expect(screen.getByPlaceholderText('Likely follow-up question')).toBeTruthy()
     expect(screen.getByPlaceholderText('Answer outline')).toBeTruthy()
@@ -173,7 +209,12 @@ describe('PrepCardView', () => {
 
   it('stamps generated ids when adding follow-ups, deep dives, conditionals, and metrics', () => {
     const onUpdateCard = vi.fn()
-    render(<PrepCardView card={makeCard({ followUps: [], deepDives: [], conditionals: [], metrics: [] })} onUpdateCard={onUpdateCard} />)
+    render(
+      <PrepCardView
+        card={makeCard({ followUps: [], deepDives: [], conditionals: [], metrics: [] })}
+        onUpdateCard={onUpdateCard}
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
@@ -182,10 +223,18 @@ describe('PrepCardView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add conditional' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add metric' }))
 
-    const followUpsPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { followUps?: unknown[] }).followUps))?.[1] as { followUps?: Array<{ id?: string }> } | undefined
-    const deepDivesPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { deepDives?: unknown[] }).deepDives))?.[1] as { deepDives?: Array<{ id?: string }> } | undefined
-    const conditionalsPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { conditionals?: unknown[] }).conditionals))?.[1] as { conditionals?: Array<{ id?: string }> } | undefined
-    const metricsPatch = onUpdateCard.mock.calls.find(([, patch]) => Array.isArray((patch as { metrics?: unknown[] }).metrics))?.[1] as { metrics?: Array<{ id?: string }> } | undefined
+    const followUpsPatch = onUpdateCard.mock.calls.find(([, patch]) =>
+      Array.isArray((patch as { followUps?: unknown[] }).followUps),
+    )?.[1] as { followUps?: Array<{ id?: string }> } | undefined
+    const deepDivesPatch = onUpdateCard.mock.calls.find(([, patch]) =>
+      Array.isArray((patch as { deepDives?: unknown[] }).deepDives),
+    )?.[1] as { deepDives?: Array<{ id?: string }> } | undefined
+    const conditionalsPatch = onUpdateCard.mock.calls.find(([, patch]) =>
+      Array.isArray((patch as { conditionals?: unknown[] }).conditionals),
+    )?.[1] as { conditionals?: Array<{ id?: string }> } | undefined
+    const metricsPatch = onUpdateCard.mock.calls.find(([, patch]) =>
+      Array.isArray((patch as { metrics?: unknown[] }).metrics),
+    )?.[1] as { metrics?: Array<{ id?: string }> } | undefined
 
     expect(followUpsPatch?.followUps?.[0]?.id).toMatch(/^prep-follow-up-/)
     expect(deepDivesPatch?.deepDives?.[0]?.id).toMatch(/^prep-deep-dive-/)
@@ -214,13 +263,56 @@ describe('PrepCardView', () => {
 
     fireEvent.change(screen.getByDisplayValue('Lead With'), { target: { value: 'The One-Liner' } })
     fireEvent.change(screen.getByLabelText('Story block label 1'), { target: { value: 'result' } })
-    fireEvent.change(screen.getByDisplayValue('The service was unstable.'), { target: { value: 'Reduced incidents by 38%.' } })
-    fireEvent.change(screen.getByLabelText('Key point 1'), { target: { value: 'Close with the metric' } })
+    fireEvent.change(screen.getByDisplayValue('The service was unstable.'), {
+      target: { value: 'Reduced incidents by 38%.' },
+    })
+    fireEvent.change(screen.getByLabelText('Key point 1'), {
+      target: { value: 'Close with the metric' },
+    })
 
     expect(screen.getByDisplayValue('The One-Liner')).toBeTruthy()
     expect((screen.getByLabelText('Story block label 1') as HTMLSelectElement).value).toBe('result')
     expect(screen.getByDisplayValue('Reduced incidents by 38%.')).toBeTruthy()
-    expect((screen.getByLabelText('Key point 1') as HTMLInputElement).value).toBe('Close with the metric')
+    expect((screen.getByLabelText('Key point 1') as HTMLInputElement).value).toBe(
+      'Close with the metric',
+    )
+  })
+
+  it('renders and edits the alternative story section', () => {
+    render(
+      <EditableHarness
+        initialCard={makeCard({
+          alternativeTitle: 'Alternative: migration story',
+          alternativeScript: 'Use the migration proof if ownership is the angle.',
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    const alternativeSection = screen
+      .getAllByRole('button', { name: 'Alternative Story' })[0]
+      ?.closest('section')
+
+    expect(alternativeSection).toBeTruthy()
+    expect(alternativeSection?.textContent).toContain('Use the migration proof')
+
+    fireEvent.click(
+      within(alternativeSection as HTMLElement).getByRole('button', { name: 'Alternative Story' }),
+    )
+    fireEvent.change(screen.getByDisplayValue('Alternative: migration story'), {
+      target: { value: 'Alternative: incident story' },
+    })
+    fireEvent.change(
+      screen.getByDisplayValue('Use the migration proof if ownership is the angle.'),
+      {
+        target: { value: 'Use the incident proof if reliability is the angle.' },
+      },
+    )
+
+    expect(screen.getByDisplayValue('Alternative: incident story')).toBeTruthy()
+    expect(
+      screen.getByDisplayValue('Use the incident proof if reliability is the angle.'),
+    ).toBeTruthy()
   })
 
   it('renders the full category and story block label option sets', () => {
@@ -232,22 +324,30 @@ describe('PrepCardView', () => {
       />,
     )
 
-    const categoryOptions = Array.from(screen.getByLabelText('Card category').querySelectorAll('option')).map((option) => option.getAttribute('value'))
-    expect(categoryOptions).toEqual(['opener', 'behavioral', 'technical', 'project', 'metrics', 'situational'])
+    const categoryOptions = Array.from(
+      screen.getByLabelText('Card category').querySelectorAll('option'),
+    ).map((option) => option.getAttribute('value'))
+    expect(categoryOptions).toEqual([
+      'opener',
+      'behavioral',
+      'technical',
+      'project',
+      'metrics',
+      'situational',
+    ])
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
-    const storyLabelOptions = Array.from(screen.getByLabelText('Story block label 1').querySelectorAll('option')).map((option) => option.getAttribute('value'))
+    const storyLabelOptions = Array.from(
+      screen.getByLabelText('Story block label 1').querySelectorAll('option'),
+    ).map((option) => option.getAttribute('value'))
     expect(storyLabelOptions).toEqual(['problem', 'solution', 'result', 'closer', 'note'])
   })
 
   it('sends script edits through onUpdateCard', () => {
     const onUpdateCard = vi.fn()
     render(
-      <PrepCardView
-        card={makeCard({ script: 'Original script' })}
-        onUpdateCard={onUpdateCard}
-      />,
+      <PrepCardView card={makeCard({ script: 'Original script' })} onUpdateCard={onUpdateCard} />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
@@ -281,7 +381,9 @@ describe('PrepCardView', () => {
 
     expect((screen.getByLabelText('Card title') as HTMLInputElement).value).toBe('Updated story')
     expect((screen.getByLabelText('Card category') as HTMLSelectElement).value).toBe('technical')
-    expect((screen.getByPlaceholderText('behavioral, scale, leadership') as HTMLInputElement).value).toBe('architecture, scale, systems')
+    expect(
+      (screen.getByPlaceholderText('behavioral, scale, leadership') as HTMLInputElement).value,
+    ).toBe('architecture, scale, systems')
   })
 
   it('normalizes tag patches before sending them upstream', () => {
@@ -299,7 +401,9 @@ describe('PrepCardView', () => {
 
   it('documents that commas inside tag values split into separate tags', () => {
     const onUpdateCard = vi.fn()
-    render(<PrepCardView card={makeCard({ tags: ['scale, leadership'] })} onUpdateCard={onUpdateCard} />)
+    render(
+      <PrepCardView card={makeCard({ tags: ['scale, leadership'] })} onUpdateCard={onUpdateCard} />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
@@ -317,7 +421,11 @@ describe('PrepCardView', () => {
   })
 
   it('keeps the flat script editor available when a card has no story blocks', () => {
-    render(<EditableHarness initialCard={makeCard({ script: 'Keep it simple.', storyBlocks: undefined })} />)
+    render(
+      <EditableHarness
+        initialCard={makeCard({ script: 'Keep it simple.', storyBlocks: undefined })}
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
@@ -357,7 +465,9 @@ describe('PrepCardView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
-    fireEvent.change(screen.getByLabelText('Key point 1'), { target: { value: 'Lead with the impact' } })
+    fireEvent.change(screen.getByLabelText('Key point 1'), {
+      target: { value: 'Lead with the impact' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Collapse details' }))
 
     expect(screen.getByText('1 key point')).toBeTruthy()
@@ -371,7 +481,14 @@ describe('PrepCardView', () => {
           keyPoints: ['First', 'Second'],
           followUps: [{ id: 'follow-1', question: 'Follow-up?', answer: 'Answer.' }],
           deepDives: [{ id: 'deep-1', title: 'Architecture', content: 'Details' }],
-          conditionals: [{ id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name your direct decisions.', tone: 'pivot' }],
+          conditionals: [
+            {
+              id: 'conditional-1',
+              trigger: 'If they push on ownership',
+              response: 'Name your direct decisions.',
+              tone: 'pivot',
+            },
+          ],
           metrics: [{ id: 'metric-1', value: '38%', label: 'incident reduction' }],
           storyBlocks: [{ label: 'problem', text: 'A hard problem' }],
           tableData: {
@@ -396,7 +513,13 @@ describe('PrepCardView', () => {
     render(
       <EditableHarness
         initialCard={makeCard({
-          followUps: [{ id: 'follow-1', question: 'How did you align teams?', answer: 'Weekly review cadence.' }],
+          followUps: [
+            {
+              id: 'follow-1',
+              question: 'How did you align teams?',
+              answer: 'Weekly review cadence.',
+            },
+          ],
         })}
       />,
     )
@@ -414,7 +537,11 @@ describe('PrepCardView', () => {
         readOnly
         card={makeCard({
           followUps: [
-            { id: 'follow-1', question: 'How did you align teams?', answer: 'Weekly review cadence.' },
+            {
+              id: 'follow-1',
+              question: 'How did you align teams?',
+              answer: 'Weekly review cadence.',
+            },
             { id: 'follow-2', question: '', answer: '' },
           ],
           deepDives: [
@@ -422,7 +549,12 @@ describe('PrepCardView', () => {
             { id: 'deep-2', title: '', content: '' },
           ],
           conditionals: [
-            { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name your decision.', tone: 'pivot' },
+            {
+              id: 'conditional-1',
+              trigger: 'If they push on ownership',
+              response: 'Name your decision.',
+              tone: 'pivot',
+            },
             { id: 'conditional-2', trigger: '', response: '', tone: 'trap' },
           ],
           metrics: [
@@ -440,7 +572,9 @@ describe('PrepCardView', () => {
   })
 
   it('hides editable controls in read-only mode', () => {
-    const { container } = render(<PrepCardView readOnly card={makeCard({ notes: 'Keep it tight.' })} />)
+    const { container } = render(
+      <PrepCardView readOnly card={makeCard({ notes: 'Keep it tight.' })} />,
+    )
 
     expect(screen.queryByRole('button', { name: 'Edit details' })).toBeNull()
     expect(screen.queryByTitle('Delete card')).toBeNull()
@@ -538,9 +672,7 @@ describe('PrepCardView', () => {
       interviewerIds: ['iv-1'],
     })
 
-    const { container } = render(
-      <PrepCardView readOnly card={card} interviewers={[interviewer]} />,
-    )
+    const { container } = render(<PrepCardView readOnly card={card} interviewers={[interviewer]} />)
 
     expect(container.querySelector('.prep-intel-card')).toBeTruthy()
     expect(screen.getByText('Sample Panelist')).toBeTruthy()
@@ -551,9 +683,7 @@ describe('PrepCardView', () => {
     expect(screen.getByText('Developer velocity, not infra aesthetics')).toBeTruthy()
     expect(screen.getByText('Line that lands for Sample Panelist')).toBeTruthy()
     expect(
-      screen.getByText(
-        'My first month is not shipping — it is sitting with the pod leads.',
-      ),
+      screen.getByText('My first month is not shipping — it is sitting with the pod leads.'),
     ).toBeTruthy()
     // Intel-only layout — generic meta grid should be absent.
     expect(screen.queryByText('Key points')).toBeNull()
@@ -592,9 +722,7 @@ describe('PrepCardView', () => {
       interviewerIds: ['iv-2'],
     })
 
-    const { container } = render(
-      <PrepCardView readOnly card={card} interviewers={[interviewer]} />,
-    )
+    const { container } = render(<PrepCardView readOnly card={card} interviewers={[interviewer]} />)
 
     expect(container.querySelectorAll('.prep-intel-row')).toHaveLength(1)
     expect(screen.getByText('What they care about')).toBeTruthy()
@@ -621,7 +749,11 @@ describe('PrepCardView', () => {
     expect(screen.getByText('Why this role')).toBeTruthy()
     expect(screen.getByText('Fill in: exact product area')).toBeTruthy()
     expect(screen.getByText('tighten the role-specific proof.')).toBeTruthy()
-    expect(screen.getByText('This looks like a cold application from the notes, so lead with a crisp why-this-role answer.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'This looks like a cold application from the notes, so lead with a crisp why-this-role answer.',
+      ),
+    ).toBeTruthy()
     expect(screen.queryByText('[[needs-review]]')).toBeNull()
     expect(screen.queryByText('no inbound signal noted')).toBeNull()
   })
@@ -638,6 +770,41 @@ describe('PrepCardView', () => {
 
     expect(container.querySelector('details > summary')?.textContent).toBe('Architecture')
     expect(screen.getByText('Queue per tenant.')).toBeTruthy()
+  })
+
+  it('renders read-only alternative stories as collapsed details', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          alternativeTitle: 'Alternative: migration story',
+          alternativeScript: 'Use the migration proof if ownership is the angle.',
+        })}
+      />,
+    )
+
+    const details = container.querySelector('details.prep-alternative-story')
+    expect(details).toBeTruthy()
+    expect(details?.hasAttribute('open')).toBe(false)
+    expect(details?.textContent).toContain('Alternative: migration story')
+    expect(details?.textContent).toContain('Use the migration proof')
+  })
+
+  it('renders read-only alternative stories when only the title is filled', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          alternativeTitle: 'Alternative: migration story',
+          alternativeScript: undefined,
+        })}
+      />,
+    )
+
+    const details = container.querySelector('details.prep-alternative-story')
+    expect(details).toBeTruthy()
+    expect(details?.hasAttribute('open')).toBe(false)
+    expect(details?.textContent).toContain('Alternative: migration story')
   })
 
   it('renders read-only metrics with both value and label inside the metric container', () => {
@@ -660,15 +827,29 @@ describe('PrepCardView', () => {
         readOnly
         card={makeCard({
           conditionals: [
-            { id: 'conditional-1', trigger: 'If they push on ownership', response: 'Name the decision you owned.', tone: 'pivot' },
-            { id: 'conditional-2', trigger: 'Were you reacting late?', response: 'Name the signal, decision, and prevention step.', tone: 'trap' },
+            {
+              id: 'conditional-1',
+              trigger: 'If they push on ownership',
+              response: 'Name the decision you owned.',
+              tone: 'pivot',
+            },
+            {
+              id: 'conditional-2',
+              trigger: 'Were you reacting late?',
+              response: 'Name the signal, decision, and prevention step.',
+              tone: 'trap',
+            },
           ],
         })}
       />,
     )
 
-    expect(container.querySelector('.prep-conditionals')?.textContent).toContain('If they push on ownership')
-    expect(container.querySelector('.prep-conditionals')?.textContent).toContain('Name the decision you owned.')
+    expect(container.querySelector('.prep-conditionals')?.textContent).toContain(
+      'If they push on ownership',
+    )
+    expect(container.querySelector('.prep-conditionals')?.textContent).toContain(
+      'Name the decision you owned.',
+    )
     expect(container.querySelector('.prep-conditionals')?.textContent).toContain('Trap')
     expect(container.querySelector('.prep-conditionals')?.textContent).toContain('Reframe')
   })
@@ -695,12 +876,18 @@ describe('PrepCardView', () => {
     // Open Notes & Risks specifically — pre-expanding-all would re-toggle
     // it closed when the next line clicks the section header.
     fireEvent.click(screen.getAllByRole('button', { name: 'Notes & Risks' })[0] as HTMLElement)
-    fireEvent.change(screen.getByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.'), {
-      target: { value: 'Lead with the operating context.' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('What should the candidate avoid saying or overclaiming?'), {
-      target: { value: 'Do not skip the tradeoffs.' },
-    })
+    fireEvent.change(
+      screen.getByPlaceholderText('Internal prep notes, interviewer signals, or framing ideas.'),
+      {
+        target: { value: 'Lead with the operating context.' },
+      },
+    )
+    fireEvent.change(
+      screen.getByPlaceholderText('What should the candidate avoid saying or overclaiming?'),
+      {
+        target: { value: 'Do not skip the tradeoffs.' },
+      },
+    )
 
     expect(screen.getByDisplayValue('Lead with the operating context.')).toBeTruthy()
     expect(screen.getByDisplayValue('Do not skip the tradeoffs.')).toBeTruthy()
@@ -729,8 +916,12 @@ describe('PrepCardView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
-    fireEvent.change(screen.getByDisplayValue('Second question'), { target: { value: 'Updated follow-up' } })
-    fireEvent.change(screen.getByDisplayValue('Second answer'), { target: { value: 'Updated answer' } })
+    fireEvent.change(screen.getByDisplayValue('Second question'), {
+      target: { value: 'Updated follow-up' },
+    })
+    fireEvent.change(screen.getByDisplayValue('Second answer'), {
+      target: { value: 'Updated answer' },
+    })
     fireEvent.click(screen.getAllByTitle('Remove follow-up')[1] as HTMLElement)
 
     expect(screen.getByDisplayValue('First question')).toBeTruthy()
@@ -774,10 +965,16 @@ describe('PrepCardView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
-    fireEvent.change(screen.getByDisplayValue('Architecture'), { target: { value: 'Updated architecture' } })
-    fireEvent.change(screen.getByDisplayValue('Original detail'), { target: { value: 'Updated detail' } })
+    fireEvent.change(screen.getByDisplayValue('Architecture'), {
+      target: { value: 'Updated architecture' },
+    })
+    fireEvent.change(screen.getByDisplayValue('Original detail'), {
+      target: { value: 'Updated detail' },
+    })
     fireEvent.change(screen.getByDisplayValue('20%'), { target: { value: '38%' } })
-    fireEvent.change(screen.getByDisplayValue('latency improvement'), { target: { value: 'incident reduction' } })
+    fireEvent.change(screen.getByDisplayValue('latency improvement'), {
+      target: { value: 'incident reduction' },
+    })
 
     expect(screen.getByDisplayValue('Updated architecture')).toBeTruthy()
     expect(screen.getByDisplayValue('Updated detail')).toBeTruthy()
@@ -790,8 +987,18 @@ describe('PrepCardView', () => {
       <EditableHarness
         initialCard={makeCard({
           conditionals: [
-            { id: 'conditional-1', trigger: 'Initial trigger', response: 'Initial response', tone: 'pivot' },
-            { id: 'conditional-2', trigger: 'Trap trigger', response: 'Trap response', tone: 'trap' },
+            {
+              id: 'conditional-1',
+              trigger: 'Initial trigger',
+              response: 'Initial response',
+              tone: 'pivot',
+            },
+            {
+              id: 'conditional-2',
+              trigger: 'Trap trigger',
+              response: 'Trap response',
+              tone: 'trap',
+            },
           ],
         })}
       />,
@@ -799,15 +1006,23 @@ describe('PrepCardView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
-    fireEvent.change(screen.getByDisplayValue('Initial trigger'), { target: { value: 'Updated trigger' } })
-    fireEvent.change(screen.getByDisplayValue('Initial response'), { target: { value: 'Updated response' } })
-    fireEvent.change(screen.getByLabelText('Conditional tone 1'), { target: { value: 'escalation' } })
+    fireEvent.change(screen.getByDisplayValue('Initial trigger'), {
+      target: { value: 'Updated trigger' },
+    })
+    fireEvent.change(screen.getByDisplayValue('Initial response'), {
+      target: { value: 'Updated response' },
+    })
+    fireEvent.change(screen.getByLabelText('Conditional tone 1'), {
+      target: { value: 'escalation' },
+    })
     fireEvent.click(screen.getAllByTitle('Remove conditional')[1] as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'Add conditional' }))
 
     expect(screen.getByDisplayValue('Updated trigger')).toBeTruthy()
     expect(screen.getByDisplayValue('Updated response')).toBeTruthy()
-    expect((screen.getByLabelText('Conditional tone 1') as HTMLSelectElement).value).toBe('escalation')
+    expect((screen.getByLabelText('Conditional tone 1') as HTMLSelectElement).value).toBe(
+      'escalation',
+    )
     expect(screen.queryByDisplayValue('Trap trigger')).toBeNull()
     expect(screen.getAllByPlaceholderText('If they push on...')).toHaveLength(1)
     expect(screen.getByText('Escalation trigger')).toBeTruthy()
@@ -1031,8 +1246,16 @@ describe('PrepCardView', () => {
       <EditableHarness
         initialCard={makeCard({
           followUps: [
-            { id: 'follow-1', question: 'How did you align teams?', answer: 'Weekly review cadence.' },
-            { id: 'follow-2', question: 'How did you track progress?', answer: 'Weekly scorecards.' },
+            {
+              id: 'follow-1',
+              question: 'How did you align teams?',
+              answer: 'Weekly review cadence.',
+            },
+            {
+              id: 'follow-2',
+              question: 'How did you track progress?',
+              answer: 'Weekly scorecards.',
+            },
           ],
         })}
       />,
@@ -1094,7 +1317,10 @@ describe('PrepCardView', () => {
     expect(onUpdateCard).toHaveBeenCalledWith('card-1', {
       tableData: {
         headers: ['Signal', 'Response'],
-        rows: [['first', 'second'], ['third', '']],
+        rows: [
+          ['first', 'second'],
+          ['third', ''],
+        ],
       },
     })
   })
@@ -1165,7 +1391,7 @@ describe('PrepCardView', () => {
     expect(screen.getByText('Uncontrolled content')).toBeTruthy()
   })
 
-  it('opens the table section when table data arrives after mount', () => {
+  it('opens the table section when table data arrives after mount', async () => {
     const { rerender } = render(<PrepCardView card={makeCard({ tableData: undefined })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
@@ -1183,7 +1409,41 @@ describe('PrepCardView', () => {
       />,
     )
 
+    expect(await screen.findByDisplayValue('Prompt, Evidence')).toBeTruthy()
+  })
+
+  it('keeps a manually collapsed table closed across table edits', () => {
+    const { rerender } = render(
+      <PrepCardView
+        card={makeCard({
+          tableData: {
+            headers: ['Prompt', 'Evidence'],
+            rows: [['fresh prompt', 'fresh evidence']],
+          },
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    expandAllSections()
+    const tableToggle = screen.getByRole('button', { name: 'Table' })
     expect(screen.getByDisplayValue('Prompt, Evidence')).toBeTruthy()
+
+    fireEvent.click(tableToggle)
+    expect(screen.queryByDisplayValue('Prompt, Evidence')).toBeNull()
+
+    rerender(
+      <PrepCardView
+        card={makeCard({
+          tableData: {
+            headers: ['Prompt', 'Evidence'],
+            rows: [['updated prompt', 'updated evidence']],
+          },
+        })}
+      />,
+    )
+
+    expect(screen.queryByDisplayValue('Prompt, Evidence')).toBeNull()
   })
 
   it('fires duplicate and remove callbacks from the card controls', () => {
@@ -1230,10 +1490,18 @@ describe('PrepCardView', () => {
     expect(() => fireEvent.click(screen.getByTitle('Delete card'))).not.toThrow()
     fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
     expandAllSections()
-    expect(() => fireEvent.click(screen.getByRole('button', { name: 'Duplicate for Another Angle' }))).not.toThrow()
-    expect(() => fireEvent.change(screen.getByLabelText('Card title'), { target: { value: 'Safe edit' } })).not.toThrow()
-    expect(() => fireEvent.change(screen.getByLabelText('Card category'), { target: { value: 'technical' } })).not.toThrow()
-    expect(() => fireEvent.click(screen.getByRole('button', { name: 'Add follow-up' }))).not.toThrow()
+    expect(() =>
+      fireEvent.click(screen.getByRole('button', { name: 'Duplicate for Another Angle' })),
+    ).not.toThrow()
+    expect(() =>
+      fireEvent.change(screen.getByLabelText('Card title'), { target: { value: 'Safe edit' } }),
+    ).not.toThrow()
+    expect(() =>
+      fireEvent.change(screen.getByLabelText('Card category'), { target: { value: 'technical' } }),
+    ).not.toThrow()
+    expect(() =>
+      fireEvent.click(screen.getByRole('button', { name: 'Add follow-up' })),
+    ).not.toThrow()
   })
 
   it('copies the script and resets the copied state after the timeout', async () => {
@@ -1273,7 +1541,9 @@ describe('PrepCardView', () => {
       value: { writeText },
     })
 
-    const { container } = render(<PrepCardView readOnly card={makeCard({ script: 'Read-only copy.' })} />)
+    const { container } = render(
+      <PrepCardView readOnly card={makeCard({ script: 'Read-only copy.' })} />,
+    )
 
     await act(async () => {
       fireEvent.click(screen.getByTitle('Copy script'))
@@ -1293,7 +1563,9 @@ describe('PrepCardView', () => {
       value: { writeText },
     })
 
-    const { rerender, container } = render(<EditableHarness initialCard={makeCard({ script: undefined })} />)
+    const { rerender, container } = render(
+      <EditableHarness initialCard={makeCard({ script: undefined })} />,
+    )
     expect((screen.getByTitle('Copy script') as HTMLButtonElement).disabled).toBe(true)
 
     rerender(
@@ -1334,7 +1606,9 @@ describe('PrepCardView', () => {
       value: undefined,
     })
 
-    const { container } = render(<EditableHarness initialCard={makeCard({ script: 'No clipboard API.' })} />)
+    const { container } = render(
+      <EditableHarness initialCard={makeCard({ script: 'No clipboard API.' })} />,
+    )
 
     await act(async () => {
       expect(() => fireEvent.click(screen.getByTitle('Copy script'))).not.toThrow()

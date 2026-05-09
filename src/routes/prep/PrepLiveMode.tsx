@@ -337,6 +337,8 @@ function buildCardSearchText(card: PrepCard): string {
     card.title,
     card.script ?? '',
     card.scriptLabel ?? '',
+    card.alternativeTitle ?? '',
+    card.alternativeScript ?? '',
     card.warning ?? '',
     card.notes ?? '',
     ...keyPoints,
@@ -1978,7 +1980,13 @@ function renderCardBlock(
   const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || undefined
   const displayNotes = getPrepSourceAwareText(card.notes, card.source)
   const displayScript = getPrepSourceAwareText(card.script, card.source)
+  const customAlternativeTitle = getPrepSourceAwareText(card.alternativeTitle, card.source)
+  const displayAlternativeTitle = customAlternativeTitle || 'Backup narrative'
+  const displayAlternativeScript = getPrepSourceAwareText(card.alternativeScript, card.source)
   const displayWarning = getPrepSourceAwareText(card.warning, card.source)
+  const renderedAlternativeScript =
+    displayAlternativeScript === 'Needs review' ? '' : displayAlternativeScript
+  const hasAlternativeStory = Boolean(customAlternativeTitle || renderedAlternativeScript)
   // Compact mode hides Context once the main spoken answer and risk callout are both present.
   const showContext = Boolean(displayNotes) && (!compactMode || !displayScript)
 
@@ -2017,6 +2025,20 @@ function renderCardBlock(
               'spoken',
             )}
           </section>
+        ) : null}
+
+        {hasAlternativeStory ? (
+          <details className="prep-live-alternative prep-live-callout-fullwidth">
+            <summary>
+              <span>Alternative Story</span>
+              <strong>{displayAlternativeTitle}</strong>
+            </summary>
+            {renderPrepParagraphBlocks(
+              renderedAlternativeScript || customAlternativeTitle,
+              'prep-live-alternative-copy',
+              'spoken',
+            )}
+          </details>
         ) : null}
 
         {!compactMode && keyPoints.length > 0 ? (

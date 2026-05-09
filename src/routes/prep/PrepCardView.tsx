@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
 import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
-import type { PrepCard, PrepConditional, PrepDeepDive, PrepFollowUp, PrepInterviewer, PrepMetric, PrepStoryBlock } from '../../types/prep'
+import type {
+  PrepCard,
+  PrepConditional,
+  PrepDeepDive,
+  PrepFollowUp,
+  PrepInterviewer,
+  PrepMetric,
+  PrepStoryBlock,
+} from '../../types/prep'
 import { createId } from '../../utils/idUtils'
 import { PrepCollapsibleSection, type PrepSectionTone } from './PrepCollapsibleSection'
 import {
@@ -14,6 +22,7 @@ import {
   getPrepCopyText,
   getPrepDefaultText,
   getPrepDisplayText,
+  getPrepParagraphs,
   getPrepSourceAwareText,
   hasPrepCardNeedsReviewContent,
   isPrepPlaceholderOnly,
@@ -45,11 +54,17 @@ export function PrepCardView({
   const [copied, setCopied] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isTableSectionOpen, setIsTableSectionOpen] = useState(Boolean(card.tableData))
+  const hadTableDataRef = useRef(Boolean(card.tableData))
 
   useEffect(() => {
-    if (card.tableData) {
-      setIsTableSectionOpen(true)
-    }
+    const hasTableData = Boolean(card.tableData)
+    const justGainedTableData = hasTableData && !hadTableDataRef.current
+    hadTableDataRef.current = hasTableData
+    if (!justGainedTableData) return
+
+    // Defer the open-on-arrival update so the React hook lint stays satisfied while preserving import/generation discoverability.
+    const timeoutId = window.setTimeout(() => setIsTableSectionOpen(true), 0)
+    return () => window.clearTimeout(timeoutId)
   }, [card.tableData])
 
   const readOnlyFollowUps = filterPrepFollowUps(card.followUps)
@@ -62,9 +77,14 @@ export function PrepCardView({
   const displayWarning = getPrepSourceAwareText(card.warning, card.source)
   const displayScript = getPrepSourceAwareText(card.script, card.source)
   const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || 'Say This'
+  const displayAlternativeTitle = getPrepSourceAwareText(card.alternativeTitle, card.source)
+  const displayAlternativeScript = getPrepSourceAwareText(card.alternativeScript, card.source)
   const copyScriptText = getPrepCopyText(card.script, card.source)
   const canCopyScript = Boolean(copyScriptText)
   const renderedScript = displayScript === 'Needs review' ? '' : displayScript
+  const renderedAlternativeScript =
+    displayAlternativeScript === 'Needs review' ? '' : displayAlternativeScript
+  const hasRenderedAlternative = Boolean(displayAlternativeTitle || renderedAlternativeScript)
 
   const copyScript = async () => {
     if (!canCopyScript) return
@@ -81,11 +101,7 @@ export function PrepCardView({
     const linkedInterviewer = resolveLinkedInterviewer(card, interviewers)
     if (linkedInterviewer) {
       return (
-        <IntelCardReadOnly
-          card={card}
-          interviewer={linkedInterviewer}
-          needsReview={needsReview}
-        />
+        <IntelCardReadOnly card={card} interviewer={linkedInterviewer} needsReview={needsReview} />
       )
     }
 
@@ -94,9 +110,7 @@ export function PrepCardView({
         <div className="prep-card-header">
           <h3 className="prep-card-title">{displayTitle}</h3>
           <div className="prep-card-meta">
-            <span className={`prep-category prep-category-${card.category}`}>
-              {card.category}
-            </span>
+            <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
             {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
           </div>
         </div>
@@ -104,7 +118,9 @@ export function PrepCardView({
         {card.tags.length > 0 && (
           <div className="prep-tags">
             {card.tags.map((tag) => (
-              <span key={tag} className="prep-tag">{tag}</span>
+              <span key={tag} className="prep-tag">
+                {tag}
+              </span>
             ))}
           </div>
         )}
@@ -127,18 +143,41 @@ export function PrepCardView({
           <div className="prep-script">
             <div className="prep-script-label">{displayScriptLabel}</div>
             {renderedScript}
-            <button className="prep-script-copy" onClick={() => void copyScript()} title="Copy script" disabled={!canCopyScript}>
+            <button
+              className="prep-script-copy"
+              onClick={() => void copyScript()}
+              title="Copy script"
+              disabled={!canCopyScript}
+            >
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
           </div>
+        ) : null}
+
+        {hasRenderedAlternative ? (
+          <details className="prep-deepdive prep-alternative-story">
+            <summary>{displayAlternativeTitle || 'Alternative Story'}</summary>
+            <div className="prep-deepdive-content">
+              {getPrepParagraphs(
+                renderedAlternativeScript || displayAlternativeTitle,
+                'spoken',
+              ).map((paragraph, index) => (
+                <p key={paragraph + ':' + index}>{paragraph}</p>
+              ))}
+            </div>
+          </details>
         ) : null}
 
         {readOnlyFollowUps.length > 0 && (
           <div className="prep-followups">
             {readOnlyFollowUps.map((followUp, index) => (
               <div key={index} className="prep-followup">
-                <div className="prep-followup-q">{getPrepSourceAwareText(followUp.question, card.source)}</div>
-                <div className="prep-followup-a">{getPrepSourceAwareText(followUp.answer, card.source)}</div>
+                <div className="prep-followup-q">
+                  {getPrepSourceAwareText(followUp.question, card.source)}
+                </div>
+                <div className="prep-followup-a">
+                  {getPrepSourceAwareText(followUp.answer, card.source)}
+                </div>
               </div>
             ))}
           </div>
@@ -149,7 +188,9 @@ export function PrepCardView({
             {readOnlyDeepDives.map((deepDive, index) => (
               <details key={index} className="prep-deepdive">
                 <summary>{getPrepDisplayText(deepDive.title) || 'Details'}</summary>
-                <div className="prep-deepdive-content">{getPrepSourceAwareText(deepDive.content, card.source)}</div>
+                <div className="prep-deepdive-content">
+                  {getPrepSourceAwareText(deepDive.content, card.source)}
+                </div>
               </details>
             ))}
           </div>
@@ -159,23 +200,32 @@ export function PrepCardView({
           <div className="prep-conditionals">
             {readOnlyConditionals.map((conditional, index) => {
               const tone = resolvePrepConditionalTone(conditional)
-              const key = conditional.id ?? `${conditional.trigger}-${conditional.response}-${index}`
+              const key =
+                conditional.id ?? `${conditional.trigger}-${conditional.response}-${index}`
 
               return tone === 'trap' ? (
                 <div key={key} className="prep-conditional-pair-grid">
                   <div className="prep-conditional-pair prep-conditional-pair-trap">
                     <div className="prep-conditional-label">Trap</div>
-                    <div className="prep-conditional-response">{getPrepSourceAwareText(conditional.trigger, card.source)}</div>
+                    <div className="prep-conditional-response">
+                      {getPrepSourceAwareText(conditional.trigger, card.source)}
+                    </div>
                   </div>
                   <div className="prep-conditional-pair prep-conditional-pair-reframe">
                     <div className="prep-conditional-label">Reframe</div>
-                    <div className="prep-conditional-response">{getPrepSourceAwareText(conditional.response, card.source)}</div>
+                    <div className="prep-conditional-response">
+                      {getPrepSourceAwareText(conditional.response, card.source)}
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div key={key} className={`prep-conditional prep-conditional-${tone}`}>
-                  <div className="prep-conditional-label">{getPrepSourceAwareText(conditional.trigger, card.source)}</div>
-                  <div className="prep-conditional-response">{getPrepSourceAwareText(conditional.response, card.source)}</div>
+                  <div className="prep-conditional-label">
+                    {getPrepSourceAwareText(conditional.trigger, card.source)}
+                  </div>
+                  <div className="prep-conditional-response">
+                    {getPrepSourceAwareText(conditional.response, card.source)}
+                  </div>
                 </div>
               )
             })}
@@ -231,16 +281,22 @@ export function PrepCardView({
     keyPointCount > 0 ? `${keyPointCount} key point${keyPointCount === 1 ? '' : 's'}` : null,
     followUpCount > 0 ? `${followUpCount} follow-up${followUpCount === 1 ? '' : 's'}` : null,
     deepDiveCount > 0 ? `${deepDiveCount} deep dive${deepDiveCount === 1 ? '' : 's'}` : null,
-    conditionalCount > 0 ? `${conditionalCount} conditional${conditionalCount === 1 ? '' : 's'}` : null,
+    conditionalCount > 0
+      ? `${conditionalCount} conditional${conditionalCount === 1 ? '' : 's'}`
+      : null,
     metricCount > 0 ? `${metricCount} metric${metricCount === 1 ? '' : 's'}` : null,
-    storyBlockCount > 0 ? `${storyBlockCount} story block${storyBlockCount === 1 ? '' : 's'}` : null,
+    storyBlockCount > 0
+      ? `${storyBlockCount} story block${storyBlockCount === 1 ? '' : 's'}`
+      : null,
     card.tableData ? 'table attached' : null,
   ].filter(Boolean)
 
   const previewText = summarizePrepCard(card)
 
   return (
-    <article className={`prep-card prep-card-editable${isExpanded ? ' prep-card-editable-expanded' : ' prep-card-editable-collapsed'}${needsReview ? ' prep-card-needs-review' : ''}`}>
+    <article
+      className={`prep-card prep-card-editable${isExpanded ? ' prep-card-editable-expanded' : ' prep-card-editable-collapsed'}${needsReview ? ' prep-card-needs-review' : ''}`}
+    >
       <div className="prep-card-header">
         <div className="prep-card-header-main">
           <input
@@ -253,7 +309,9 @@ export function PrepCardView({
             <select
               className={`prep-category prep-category-${card.category} prep-category-select`}
               value={card.category}
-              onChange={(event) => onUpdateCard?.(card.id, { category: event.target.value as PrepCard['category'] })}
+              onChange={(event) =>
+                onUpdateCard?.(card.id, { category: event.target.value as PrepCard['category'] })
+              }
               aria-label="Card category"
             >
               <option value="opener">opener</option>
@@ -269,13 +327,29 @@ export function PrepCardView({
         </div>
 
         <div className="prep-card-actions">
-          <button className="prep-icon-btn" type="button" onClick={() => void copyScript()} disabled={!canCopyScript} title="Copy script">
+          <button
+            className="prep-icon-btn"
+            type="button"
+            onClick={() => void copyScript()}
+            disabled={!canCopyScript}
+            title="Copy script"
+          >
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
-          <button className="prep-icon-btn" type="button" onClick={() => onDuplicateCard?.(card.id)} title="Duplicate card">
+          <button
+            className="prep-icon-btn"
+            type="button"
+            onClick={() => onDuplicateCard?.(card.id)}
+            title="Duplicate card"
+          >
             <CopyPlus size={14} />
           </button>
-          <button className="prep-icon-btn prep-icon-btn-danger" type="button" onClick={() => onRemoveCard?.(card.id)} title="Delete card">
+          <button
+            className="prep-icon-btn prep-icon-btn-danger"
+            type="button"
+            onClick={() => onRemoveCard?.(card.id)}
+            title="Delete card"
+          >
             <Trash2 size={14} />
           </button>
         </div>
@@ -287,7 +361,9 @@ export function PrepCardView({
         {supportingCounts.length > 0 ? (
           <div className="prep-card-summary-chips">
             {supportingCounts.map((item) => (
-              <span key={item} className="prep-card-summary-chip">{item}</span>
+              <span key={item} className="prep-card-summary-chip">
+                {item}
+              </span>
             ))}
           </div>
         ) : null}
@@ -298,7 +374,10 @@ export function PrepCardView({
           aria-expanded={isExpanded}
           onClick={() => setIsExpanded((current) => !current)}
         >
-          <ChevronRight size={16} className={`prep-card-expand-icon${isExpanded ? ' prep-card-expand-icon-open' : ''}`} />
+          <ChevronRight
+            size={16}
+            className={`prep-card-expand-icon${isExpanded ? ' prep-card-expand-icon-open' : ''}`}
+          />
           {isExpanded ? 'Collapse details' : 'Edit details'}
         </button>
       </div>
@@ -312,7 +391,10 @@ export function PrepCardView({
               value={card.tags.join(', ')}
               onChange={(event) =>
                 onUpdateCard?.(card.id, {
-                  tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean),
+                  tags: event.target.value
+                    .split(',')
+                    .map((tag) => tag.trim())
+                    .filter(Boolean),
                 })
               }
               placeholder="behavioral, scale, leadership"
@@ -320,7 +402,8 @@ export function PrepCardView({
           </label>
 
           <p className="prep-card-hierarchy-hint">
-            Keep the headline tight, then expand the notes, evidence, and supporting prompts only when you need them.
+            Keep the headline tight, then expand the notes, evidence, and supporting prompts only
+            when you need them.
           </p>
 
           <PrepCollapsibleSection
@@ -352,6 +435,41 @@ export function PrepCardView({
             </div>
           </PrepCollapsibleSection>
 
+          <PrepCollapsibleSection
+            title="Alternative Story"
+            subtitle="A backup narrative to use when the same requirement needs a different proof point."
+            tone="accent-primary"
+            preview={
+              truncatePreview(card.alternativeScript) || truncatePreview(card.alternativeTitle)
+            }
+            isEmpty={!card.alternativeTitle && !card.alternativeScript}
+          >
+            <div className="prep-inline-grid">
+              <label className="prep-field">
+                <span className="prep-field-label">Alternative title</span>
+                <input
+                  className="prep-input"
+                  value={card.alternativeTitle ?? ''}
+                  onChange={(event) =>
+                    onUpdateCard?.(card.id, { alternativeTitle: event.target.value })
+                  }
+                  placeholder="Alternative: platform migration"
+                />
+              </label>
+              <label className="prep-field">
+                <span className="prep-field-label">Alternative narrative</span>
+                <textarea
+                  className="prep-textarea prep-textarea-lg"
+                  value={card.alternativeScript ?? ''}
+                  onChange={(event) =>
+                    onUpdateCard?.(card.id, { alternativeScript: event.target.value })
+                  }
+                  placeholder="What backup story should the candidate use if this angle lands better?"
+                />
+              </label>
+            </div>
+          </PrepCollapsibleSection>
+
           <EditableListSection<PrepStoryBlock>
             title="Story Blocks"
             subtitle="Structure the answer as problem, solution, result, or a short closer."
@@ -377,8 +495,11 @@ export function PrepCardView({
                     aria-label={`Story block label ${index + 1}`}
                     value={item.label}
                     onChange={(event) =>
-                      updateArrayItem(card.storyBlocks ?? [], index, { ...item, label: event.target.value as PrepStoryBlock['label'] }, (storyBlocks) =>
-                        onUpdateCard?.(card.id, { storyBlocks }),
+                      updateArrayItem(
+                        card.storyBlocks ?? [],
+                        index,
+                        { ...item, label: event.target.value as PrepStoryBlock['label'] },
+                        (storyBlocks) => onUpdateCard?.(card.id, { storyBlocks }),
                       )
                     }
                   >
@@ -395,8 +516,11 @@ export function PrepCardView({
                     className="prep-textarea"
                     value={item.text}
                     onChange={(event) =>
-                      updateArrayItem(card.storyBlocks ?? [], index, { ...item, text: event.target.value }, (storyBlocks) =>
-                        onUpdateCard?.(card.id, { storyBlocks }),
+                      updateArrayItem(
+                        card.storyBlocks ?? [],
+                        index,
+                        { ...item, text: event.target.value },
+                        (storyBlocks) => onUpdateCard?.(card.id, { storyBlocks }),
                       )
                     }
                     placeholder="Story block text"
@@ -478,7 +602,10 @@ export function PrepCardView({
             items={card.followUps ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
-                followUps: [...(card.followUps ?? []), { id: createId('prep-follow-up'), question: '', answer: '' }],
+                followUps: [
+                  ...(card.followUps ?? []),
+                  { id: createId('prep-follow-up'), question: '', answer: '' },
+                ],
               })
             }
             onRemove={(index) =>
@@ -492,8 +619,11 @@ export function PrepCardView({
                   className="prep-input"
                   value={item.question}
                   onChange={(event) =>
-                    updateArrayItem(card.followUps ?? [], index, { ...item, question: event.target.value }, (followUps) =>
-                      onUpdateCard?.(card.id, { followUps }),
+                    updateArrayItem(
+                      card.followUps ?? [],
+                      index,
+                      { ...item, question: event.target.value },
+                      (followUps) => onUpdateCard?.(card.id, { followUps }),
                     )
                   }
                   placeholder="Likely follow-up question"
@@ -502,8 +632,11 @@ export function PrepCardView({
                   className="prep-textarea"
                   value={item.answer}
                   onChange={(event) =>
-                    updateArrayItem(card.followUps ?? [], index, { ...item, answer: event.target.value }, (followUps) =>
-                      onUpdateCard?.(card.id, { followUps }),
+                    updateArrayItem(
+                      card.followUps ?? [],
+                      index,
+                      { ...item, answer: event.target.value },
+                      (followUps) => onUpdateCard?.(card.id, { followUps }),
                     )
                   }
                   placeholder="Answer outline"
@@ -520,7 +653,10 @@ export function PrepCardView({
             items={card.deepDives ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
-                deepDives: [...(card.deepDives ?? []), { id: createId('prep-deep-dive'), title: '', content: '' }],
+                deepDives: [
+                  ...(card.deepDives ?? []),
+                  { id: createId('prep-deep-dive'), title: '', content: '' },
+                ],
               })
             }
             onRemove={(index) =>
@@ -534,8 +670,11 @@ export function PrepCardView({
                   className="prep-input"
                   value={item.title}
                   onChange={(event) =>
-                    updateArrayItem(card.deepDives ?? [], index, { ...item, title: event.target.value }, (deepDives) =>
-                      onUpdateCard?.(card.id, { deepDives }),
+                    updateArrayItem(
+                      card.deepDives ?? [],
+                      index,
+                      { ...item, title: event.target.value },
+                      (deepDives) => onUpdateCard?.(card.id, { deepDives }),
                     )
                   }
                   placeholder="Topic"
@@ -544,8 +683,11 @@ export function PrepCardView({
                   className="prep-textarea"
                   value={item.content}
                   onChange={(event) =>
-                    updateArrayItem(card.deepDives ?? [], index, { ...item, content: event.target.value }, (deepDives) =>
-                      onUpdateCard?.(card.id, { deepDives }),
+                    updateArrayItem(
+                      card.deepDives ?? [],
+                      index,
+                      { ...item, content: event.target.value },
+                      (deepDives) => onUpdateCard?.(card.id, { deepDives }),
                     )
                   }
                   placeholder="Technical details, architecture, tradeoffs"
@@ -562,37 +704,54 @@ export function PrepCardView({
             items={card.conditionals ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
-                conditionals: [...(card.conditionals ?? []), { id: createId('prep-conditional'), trigger: '', response: '', tone: 'pivot' }],
+                conditionals: [
+                  ...(card.conditionals ?? []),
+                  { id: createId('prep-conditional'), trigger: '', response: '', tone: 'pivot' },
+                ],
               })
             }
             onRemove={(index) =>
               onUpdateCard?.(card.id, {
-                conditionals: (card.conditionals ?? []).filter((_, itemIndex) => itemIndex !== index),
+                conditionals: (card.conditionals ?? []).filter(
+                  (_, itemIndex) => itemIndex !== index,
+                ),
               })
             }
             renderItem={(item, index) => (
-              <div className={`prep-inline-grid prep-conditional-editor prep-conditional-editor-${resolvePrepConditionalTone(item)}`}>
+              <div
+                className={`prep-inline-grid prep-conditional-editor prep-conditional-editor-${resolvePrepConditionalTone(item)}`}
+              >
                 <label className="prep-field">
-                  <span className="prep-field-label">{getConditionalFormCopy(item).triggerLabel}</span>
+                  <span className="prep-field-label">
+                    {getConditionalFormCopy(item).triggerLabel}
+                  </span>
                   <input
                     className="prep-input"
                     value={item.trigger}
                     onChange={(event) =>
-                      updateArrayItem(card.conditionals ?? [], index, { ...item, trigger: event.target.value }, (conditionals) =>
-                        onUpdateCard?.(card.id, { conditionals }),
+                      updateArrayItem(
+                        card.conditionals ?? [],
+                        index,
+                        { ...item, trigger: event.target.value },
+                        (conditionals) => onUpdateCard?.(card.id, { conditionals }),
                       )
                     }
                     placeholder={getConditionalFormCopy(item).triggerPlaceholder}
                   />
                 </label>
                 <label className="prep-field">
-                  <span className="prep-field-label">{getConditionalFormCopy(item).responseLabel}</span>
+                  <span className="prep-field-label">
+                    {getConditionalFormCopy(item).responseLabel}
+                  </span>
                   <textarea
                     className="prep-textarea"
                     value={item.response}
                     onChange={(event) =>
-                      updateArrayItem(card.conditionals ?? [], index, { ...item, response: event.target.value }, (conditionals) =>
-                        onUpdateCard?.(card.id, { conditionals }),
+                      updateArrayItem(
+                        card.conditionals ?? [],
+                        index,
+                        { ...item, response: event.target.value },
+                        (conditionals) => onUpdateCard?.(card.id, { conditionals }),
                       )
                     }
                     placeholder={getConditionalFormCopy(item).responsePlaceholder}
@@ -617,7 +776,9 @@ export function PrepCardView({
                     aria-label={`Conditional tone ${index + 1}`}
                   >
                     {PREP_CONDITIONAL_TONE_VALUES.map((tone) => (
-                      <option key={tone} value={tone}>{getConditionalToneLabel(tone)}</option>
+                      <option key={tone} value={tone}>
+                        {getConditionalToneLabel(tone)}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -637,7 +798,10 @@ export function PrepCardView({
             items={card.metrics ?? []}
             onAdd={() =>
               onUpdateCard?.(card.id, {
-                metrics: [...(card.metrics ?? []), { id: createId('prep-metric'), value: '', label: '' }],
+                metrics: [
+                  ...(card.metrics ?? []),
+                  { id: createId('prep-metric'), value: '', label: '' },
+                ],
               })
             }
             onRemove={(index) =>
@@ -651,8 +815,11 @@ export function PrepCardView({
                   className="prep-input"
                   value={item.value}
                   onChange={(event) =>
-                    updateArrayItem(card.metrics ?? [], index, { ...item, value: event.target.value }, (metrics) =>
-                      onUpdateCard?.(card.id, { metrics }),
+                    updateArrayItem(
+                      card.metrics ?? [],
+                      index,
+                      { ...item, value: event.target.value },
+                      (metrics) => onUpdateCard?.(card.id, { metrics }),
                     )
                   }
                   placeholder="25%"
@@ -661,8 +828,11 @@ export function PrepCardView({
                   className="prep-input"
                   value={item.label}
                   onChange={(event) =>
-                    updateArrayItem(card.metrics ?? [], index, { ...item, label: event.target.value }, (metrics) =>
-                      onUpdateCard?.(card.id, { metrics }),
+                    updateArrayItem(
+                      card.metrics ?? [],
+                      index,
+                      { ...item, label: event.target.value },
+                      (metrics) => onUpdateCard?.(card.id, { metrics }),
                     )
                   }
                   placeholder="Latency improvement"
@@ -688,21 +858,24 @@ export function PrepCardView({
             }
             open={isTableSectionOpen}
             onToggle={setIsTableSectionOpen}
-            actions={(
+            actions={
               <button
                 className="prep-link-btn"
                 type="button"
                 onClick={() => {
                   setIsTableSectionOpen(true)
                   onUpdateCard?.(card.id, {
-                    tableData: card.tableData ?? { headers: ['Prompt', 'Evidence'], rows: [['', '']] },
+                    tableData: card.tableData ?? {
+                      headers: ['Prompt', 'Evidence'],
+                      rows: [['', '']],
+                    },
                   })
                 }}
               >
                 <Table2 size={14} />
                 {card.tableData ? 'Reset' : 'Add Table'}
               </button>
-            )}
+            }
           >
             {card.tableData ? (
               <div className="prep-inline-grid">
@@ -713,7 +886,10 @@ export function PrepCardView({
                     onUpdateCard?.(card.id, {
                       tableData: {
                         ...card.tableData!,
-                        headers: event.target.value.split(',').map((header) => header.trim()).filter(Boolean),
+                        headers: event.target.value
+                          .split(',')
+                          .map((header) => header.trim())
+                          .filter(Boolean),
                       },
                     })
                   }
@@ -743,7 +919,10 @@ export function PrepCardView({
                       onUpdateCard?.(card.id, {
                         tableData: {
                           ...card.tableData!,
-                          rows: [...card.tableData!.rows, new Array(card.tableData!.headers.length || 2).fill('')],
+                          rows: [
+                            ...card.tableData!.rows,
+                            new Array(card.tableData!.headers.length || 2).fill(''),
+                          ],
                         },
                       })
                     }
@@ -766,7 +945,11 @@ export function PrepCardView({
             )}
           </PrepCollapsibleSection>
 
-          <button className="prep-btn prep-btn-secondary" type="button" onClick={() => onDuplicateCard?.(card.id)}>
+          <button
+            className="prep-btn prep-btn-secondary"
+            type="button"
+            onClick={() => onDuplicateCard?.(card.id)}
+          >
             <Plus size={14} />
             Duplicate for Another Angle
           </button>
@@ -806,8 +989,8 @@ function IntelCardReadOnly({ card, interviewer, needsReview }: IntelCardReadOnly
     ['LinkedIn positioning', intel.linkedInPositioning],
     ['Education', intel.education],
   ]
-  const populatedRows = intelRows.filter(
-    (row): row is [string, string] => Boolean(row[1] && row[1].trim()),
+  const populatedRows = intelRows.filter((row): row is [string, string] =>
+    Boolean(row[1] && row[1].trim()),
   )
 
   return (
@@ -903,7 +1086,7 @@ function EditableListSection<T>({
       isEmpty={items.length === 0}
       open={isOpen}
       onToggle={setIsOpen}
-      actions={(
+      actions={
         <button
           className="prep-link-btn"
           type="button"
@@ -916,7 +1099,7 @@ function EditableListSection<T>({
           <Plus size={14} />
           Add
         </button>
-      )}
+      }
     >
       {items.length > 0 ? (
         <div className="prep-section-body">
@@ -1010,11 +1193,18 @@ function getConditionalToneLabel(tone: PrepConditional['tone']) {
 }
 
 function summarizePrepCard(card: PrepCard) {
-  const normalized = [card.script, card.notes, card.warning]
-    .map((candidate) => getPrepDisplayText(candidate).replace(/\s+/g, ' ').trim())
-    .find(Boolean) ?? ''
+  const normalized =
+    [card.script, card.notes, card.warning, card.alternativeScript, card.alternativeTitle]
+      .map((candidate) => getPrepDisplayText(candidate).replace(/\s+/g, ' ').trim())
+      .find(Boolean) ?? ''
 
-  const hasPlaceholderOnlySummary = [card.script, card.notes, card.warning].some((candidate) => isPrepPlaceholderOnly(candidate))
+  const hasPlaceholderOnlySummary = [
+    card.script,
+    card.notes,
+    card.warning,
+    card.alternativeScript,
+    card.alternativeTitle,
+  ].some((candidate) => isPrepPlaceholderOnly(candidate))
 
   if (!normalized || hasPlaceholderOnlySummary) {
     return 'Open this card to shape the spoken answer, coaching notes, and supporting proof points.'

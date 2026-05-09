@@ -44,7 +44,7 @@ TASK-173  Document and apply stack alignment ↔ semantic skill depth mapping  [
 PrepCard surface expansions. Each is a discrete content addition; they parallelize once Lane A's contract validation is in place. Lane A blocks Lane C because each new card field needs the contract to assert against.
 
 ```
-TASK-136  Add alternative narrative support to prep cards         [med]
+TASK-136  Add alternative narrative support to prep cards         [done]
 TASK-139  Add technical drills with answer template               [med]
 TASK-137  Add one-liner quotable takeaways                        [done]
 TASK-146  Add multi-role narrative arc for core pitch opener      [done]

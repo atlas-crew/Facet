@@ -647,6 +647,8 @@ describe('PrepLiveMode', () => {
             ? {
                 ...card,
                 notes: undefined,
+                alternativeTitle: 'Alternative: migration story',
+                alternativeScript: 'Use the migration proof if ownership is the angle.',
                 keyPoints: ['Scale', ''],
                 storyBlocks: [
                   { label: 'problem' as const, text: 'Platform was slowing product teams.' },
@@ -683,6 +685,11 @@ describe('PrepLiveMode', () => {
 
     const openerSection = getSectionContainer('Tell me about yourself')
     expect(openerSection?.querySelectorAll('.prep-live-keypoints-panel')).toHaveLength(1)
+    const alternative = openerSection?.querySelector('details.prep-live-alternative')
+    expect(alternative).toBeTruthy()
+    expect(alternative?.hasAttribute('open')).toBe(false)
+    expect(alternative?.textContent).toContain('Alternative: migration story')
+    expect(alternative?.textContent).toContain('Use the migration proof')
     expect(openerSection?.querySelector('.prep-live-keypoints-panel-numbered ol')).toBeTruthy()
     expect(openerSection?.querySelectorAll('.prep-live-story-block')).toHaveLength(1)
     expect(openerSection?.textContent).toContain('Beat sheet - if you lose your place')
@@ -691,6 +698,13 @@ describe('PrepLiveMode', () => {
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'lead time cut' },
+    })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Tell me about yourself',
+    )
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'migration proof' },
     })
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
       'Tell me about yourself',
@@ -707,6 +721,26 @@ describe('PrepLiveMode', () => {
       target: { value: 'note' },
     })
     expect(screen.queryByRole('heading', { name: 'Tell me about yourself' })).toBeNull()
+  })
+
+  it('renders title-only alternative stories in live mode', () => {
+    const titleOnlyDeck: PrepDeck = {
+      ...mockDeck,
+      cards: mockDeck.cards
+        .filter((card) => card.id === 'card-1')
+        .map((card) => ({
+          ...card,
+          alternativeTitle: 'Alternative: migration story',
+          alternativeScript: undefined,
+        })),
+    }
+
+    const { container } = render(<PrepLiveMode deck={titleOnlyDeck} />)
+
+    const alternative = container.querySelector('details.prep-live-alternative')
+    expect(alternative).toBeTruthy()
+    expect(alternative?.hasAttribute('open')).toBe(false)
+    expect(alternative?.textContent).toContain('Alternative: migration story')
   })
 
   it('marks placeholder-heavy cards with a review badge and review surface styling', () => {

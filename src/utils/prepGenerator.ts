@@ -571,6 +571,12 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         scriptLabel: isString(record.scriptLabel)
           ? record.scriptLabel.trim() || undefined
           : undefined,
+        alternativeTitle: isString(record.alternativeTitle)
+          ? record.alternativeTitle.trim() || undefined
+          : undefined,
+        alternativeScript: isString(record.alternativeScript)
+          ? record.alternativeScript.trim() || undefined
+          : undefined,
         warning: isString(record.warning) ? record.warning.trim() : undefined,
         storyBlocks: normalizeStoryBlocks(record.storyBlocks),
         keyPoints: normalizeStringList(record.keyPoints),
@@ -1680,6 +1686,8 @@ Response schema:
       "notes": "optional string",
       "script": "optional string",
       "scriptLabel": "optional string",
+      "alternativeTitle": "optional string",
+      "alternativeScript": "optional string",
       "warning": "optional string",
       "storyBlocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }],
       "keyPoints": ["string"],
@@ -1760,6 +1768,7 @@ Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullet
 For opener cards, make keyPoints a beat sheet: ordered fallback cues that follow the candidate's through-line and the target role connection. Keep each cue around 8 words and do not prefix items with ordinals, bullets, or labels. Example: "Anchor identity in platform reliability"
 For all non-opener cards, including landmine and intel-tag people cards, make keyPoints glance points: compact noun-phrase bullets for recall, not alternate scripts or full sentences. Keep each glance point around 10 words. Example: "38% incident reduction"
 Build both beat sheets and glance points from Canonical JD Analysis requirements and evidenceMapping plus structured identity evidence. Do not infer keyPoints directly from Original Job Description Source Text except for source wording when canonical analysis omits a detail.
+For cards that need a backup narrative, add alternativeTitle and alternativeScript only when Canonical JD Analysis evidenceMapping.topBullets or evidenceMapping.topProjects plus advantages show a second credible identity story for the same matched requirement. The alternative must use different canonical evidence than the primary script, be framed as a backup narrative, and stay grounded in structured identity evidence. Do not create alternatives by re-ranking roles or projects from Original Job Description Source Text.
 Generate dedicated opener cards for the predictable opening questions instead of a single generic opener bucket.
 - Always include a "Tell me about yourself" opener card. If identity context is too thin for a trustworthy script, use [[fill-in: your through-line]] instead of inventing one.
 - When the union of distinct sourceLabel values across Canonical JD Analysis evidenceMapping.topProjects and evidenceMapping.topBullets has 3 or more role contexts matched to requirements, make the "Tell me about yourself" opener a 3-act career arc. Use storyBlocks with one "note" thesis, three "solution" act blocks with role context and the strongest canonical evidence from each role, and one "closer" tying the arc back to the target role. Seed the through-line from Canonical JD Analysis strengthsToLead. Use keyPoints as one beat per act plus the closer, around 8 words each. Keep the opener closer around 20 words and grounded in canonical evidence. Do not re-rank roles from Original Job Description Source Text. Otherwise, keep the standard single-role opener.

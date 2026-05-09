@@ -163,6 +163,8 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     updatedAt: now(),
     script: partial.script?.trim() || undefined,
     scriptLabel: partial.scriptLabel?.trim() || undefined,
+    alternativeTitle: partial.alternativeTitle?.trim() || undefined,
+    alternativeScript: partial.alternativeScript?.trim() || undefined,
     warning: partial.warning?.trim() || undefined,
     storyBlocks: sanitizeStoryBlocks(partial.storyBlocks),
     keyPoints: sanitizeStringList(partial.keyPoints),
@@ -741,6 +743,8 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
     title: card.title.trim() || 'Untitled Prep Card',
     tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
     scriptLabel: card.scriptLabel?.trim() || undefined,
+    alternativeTitle: sanitizeText(card.alternativeTitle, options),
+    alternativeScript: sanitizeText(card.alternativeScript, options),
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks, options),
     keyPoints: sanitizeStringList(card.keyPoints, options),
     followUps: sanitizeFollowUps(card.followUps, options)?.map((item) => ({
@@ -862,6 +866,8 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
     pipelineEntryId: card.pipelineEntryId ?? null,
     script: card.script?.trim() || undefined,
     scriptLabel: card.scriptLabel?.trim() || undefined,
+    alternativeTitle: card.alternativeTitle?.trim() || undefined,
+    alternativeScript: card.alternativeScript?.trim() || undefined,
     warning: card.warning?.trim() || undefined,
     timeBudgetMinutes:
       typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)

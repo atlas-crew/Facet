@@ -362,6 +362,9 @@ export interface PrepCard {
 
   script?: string
   scriptLabel?: string
+  /** Optional backup narrative when the same requirement has a second credible proof point. */
+  alternativeTitle?: string
+  alternativeScript?: string
   warning?: string
   storyBlocks?: PrepStoryBlock[]
   keyPoints?: string[]

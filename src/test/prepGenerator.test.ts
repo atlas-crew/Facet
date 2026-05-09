@@ -241,6 +241,8 @@ describe('generateInterviewPrep', () => {
 
     expect(systemPrompt).toContain('storyBlocks')
     expect(systemPrompt).toContain('keyPoints')
+    expect(systemPrompt).toContain('alternativeTitle')
+    expect(systemPrompt).toContain('alternativeScript')
     expect(systemPrompt).toContain('questionsToAsk')
     expect(systemPrompt).toContain('numbersToKnow')
     expect(systemPrompt).toContain('stackAlignment')
@@ -333,6 +335,12 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('around 10 words')
     expect(userPrompt).toContain('Example: "38% incident reduction"')
     expect(userPrompt).toContain('Canonical JD Analysis requirements and evidenceMapping')
+    expect(userPrompt).toContain(
+      'add alternativeTitle and alternativeScript only when Canonical JD Analysis evidenceMapping.topBullets or evidenceMapping.topProjects plus advantages',
+    )
+    expect(userPrompt).toContain(
+      'Do not create alternatives by re-ranking roles or projects from Original Job Description Source Text',
+    )
     expect(userPrompt).toContain(
       'Do not infer keyPoints directly from Original Job Description Source Text',
     )
@@ -730,6 +738,9 @@ describe('generateInterviewPrep', () => {
             tags: [' leadership ', 'backend'],
             script: 'Lead with the incident response story.',
             scriptLabel: ' Lead With ',
+            alternativeTitle: ' Alternative: migration story ',
+            alternativeScript:
+              ' Use the platform migration proof if they ask for another example. ',
             keyPoints: ['Own the incident', ' ', null, 'Close with the metric'],
             storyBlocks: [
               {
@@ -844,6 +855,10 @@ describe('generateInterviewPrep', () => {
       }),
     ])
     expect(result.cards[0].scriptLabel).toBe('Lead With')
+    expect(result.cards[0].alternativeTitle).toBe('Alternative: migration story')
+    expect(result.cards[0].alternativeScript).toBe(
+      'Use the platform migration proof if they ask for another example.',
+    )
     expect(result.cards[0].keyPoints).toEqual(['Own the incident', 'Close with the metric'])
     expect(result.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Latency spiked during peak load.' },

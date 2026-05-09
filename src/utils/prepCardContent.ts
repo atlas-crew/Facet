@@ -1,14 +1,23 @@
 import { PREP_CONDITIONAL_TONE_VALUES } from '../types/prep'
-import type { PrepCard, PrepConditional, PrepConditionalTone, PrepDeepDive, PrepFollowUp, PrepMetric, PrepStoryBlock } from '../types/prep'
+import type {
+  PrepCard,
+  PrepConditional,
+  PrepConditionalTone,
+  PrepDeepDive,
+  PrepFollowUp,
+  PrepMetric,
+  PrepStoryBlock,
+} from '../types/prep'
 
 const PREP_NEEDS_REVIEW_PATTERN = /\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]/i
 const PREP_FILL_IN_PATTERN = /\[\[\s*fill-in:[^[\]]+\s*\]\]/i
 const PREP_PLACEHOLDER_ONLY_PATTERN = /^\s*\[\[\s*(needs-review|fill-in:[^[\]]+)\s*\]\]\s*$/i
 const PREP_NEEDS_REVIEW_ONLY_PATTERN = /^\s*\[\[\s*needs-review\s*\]\]\s*$/i
 const PREP_PLACEHOLDER_GLOBAL_PATTERN = /\[\[\s*(needs-review|fill-in:([^[\]]+))\s*\]\]/gi
-const PREP_SENTENCE_SEGMENTER = typeof Intl !== 'undefined' && 'Segmenter' in Intl
-  ? new Intl.Segmenter(undefined, { granularity: 'sentence' })
-  : null
+const PREP_SENTENCE_SEGMENTER =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'sentence' })
+    : null
 const PREP_PARAGRAPH_SINGLE_BLOCK_MAX_CHARS = 240
 const PREP_PARAGRAPH_SINGLE_BLOCK_MAX_SENTENCES = 4
 const PREP_PARAGRAPH_PACK_MAX_CHARS = 260
@@ -19,14 +28,8 @@ const PREP_COACH_COPY_REPLACEMENTS: Array<[RegExp, string]> = [
     /^\s*no inbound signal noted\s*$/i,
     'This looks like a cold application from the notes, so lead with a crisp why-this-role answer.',
   ],
-  [
-    /\(\s*no inbound signal noted\s*\)/gi,
-    '(you applied directly)',
-  ],
-  [
-    /\bno inbound signal noted\b/gi,
-    'you applied directly',
-  ],
+  [/\(\s*no inbound signal noted\s*\)/gi, '(you applied directly)'],
+  [/\bno inbound signal noted\b/gi, 'you applied directly'],
 ]
 
 function filterPrepContent<T>(items: T[] | undefined, predicate: (item: T) => boolean): T[] {
@@ -158,14 +161,17 @@ export function getPrepDisplayText(value: string | undefined | null): string {
   if (typeof value !== 'string') return ''
 
   const needsReviewOnly = PREP_NEEDS_REVIEW_ONLY_PATTERN.test(value)
-  const withoutMarkers = value.replace(PREP_PLACEHOLDER_GLOBAL_PATTERN, (_match, marker: string, fillInPrompt: string | undefined) => {
-    if (typeof marker === 'string' && marker.toLowerCase() === 'needs-review') {
-      return ''
-    }
+  const withoutMarkers = value.replace(
+    PREP_PLACEHOLDER_GLOBAL_PATTERN,
+    (_match, marker: string, fillInPrompt: string | undefined) => {
+      if (typeof marker === 'string' && marker.toLowerCase() === 'needs-review') {
+        return ''
+      }
 
-    const prompt = fillInPrompt?.trim()
-    return prompt ? `Fill in: ${prompt}` : ''
-  })
+      const prompt = fillInPrompt?.trim()
+      return prompt ? `Fill in: ${prompt}` : ''
+    },
+  )
 
   const normalized = withoutMarkers
     .replace(/[ \t]+\n/g, '\n')
@@ -191,8 +197,10 @@ export function getPrepDefaultText(value: string | undefined | null): string {
 
 // Live mode uses this exported helper to scrub terse pipeline metadata into coach-like copy.
 export function getPrepCoachDisplayText(value: string | undefined | null): string {
-  return PREP_COACH_COPY_REPLACEMENTS
-    .reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), getPrepDisplayText(value))
+  return PREP_COACH_COPY_REPLACEMENTS.reduce(
+    (current, [pattern, replacement]) => current.replace(pattern, replacement),
+    getPrepDisplayText(value),
+  )
 }
 
 export function getPrepSourceAwareText(
@@ -210,24 +218,30 @@ export function getPrepCopyText(
     return ''
   }
 
-  const plainText = source === 'manual'
-    ? getPrepPlainText(value)
-    : PREP_COACH_COPY_REPLACEMENTS
-      .reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), getPrepPlainText(value))
+  const plainText =
+    source === 'manual'
+      ? getPrepPlainText(value)
+      : PREP_COACH_COPY_REPLACEMENTS.reduce(
+          (current, [pattern, replacement]) => current.replace(pattern, replacement),
+          getPrepPlainText(value),
+        )
 
   return plainText
 }
 
 export function getPrepParagraphs(text: string, mode: 'default' | 'spoken' = 'default'): string[] {
-  const normalized = getPrepPlainText(text)
-    .replace(/\r\n?/g, '\n')
-    .trim()
+  const normalized = getPrepPlainText(text).replace(/\r\n?/g, '\n').trim()
 
   if (!normalized) return []
 
   const explicitParagraphs = normalized
     .split(/\n{2,}/)
-    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' ').replace(/\s{2,}/g, ' ').trim())
+    .map((paragraph) =>
+      paragraph
+        .replace(/\s*\n\s*/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim(),
+    )
     .filter(Boolean)
 
   if (explicitParagraphs.length > 1) {
@@ -252,7 +266,10 @@ export function getPrepParagraphs(text: string, mode: 'default' | 'spoken' = 'de
     return softBreakParagraphs
   }
 
-  if (sentences.length < PREP_PARAGRAPH_SINGLE_BLOCK_MAX_SENTENCES && flattened.length < PREP_PARAGRAPH_SINGLE_BLOCK_MAX_CHARS) {
+  if (
+    sentences.length < PREP_PARAGRAPH_SINGLE_BLOCK_MAX_SENTENCES &&
+    flattened.length < PREP_PARAGRAPH_SINGLE_BLOCK_MAX_CHARS
+  ) {
     return [flattened]
   }
 
@@ -263,8 +280,8 @@ export function getPrepParagraphs(text: string, mode: 'default' | 'spoken' = 'de
     const currentLength = currentParagraph.join(' ').length
     const nextLength = currentLength + (currentParagraph.length > 0 ? 1 : 0) + sentence.length
     if (
-      currentParagraph.length >= PREP_PARAGRAPH_PACK_MAX_SENTENCES
-      || (currentParagraph.length > 0 && nextLength > PREP_PARAGRAPH_PACK_MAX_CHARS)
+      currentParagraph.length >= PREP_PARAGRAPH_PACK_MAX_SENTENCES ||
+      (currentParagraph.length > 0 && nextLength > PREP_PARAGRAPH_PACK_MAX_CHARS)
     ) {
       paragraphs.push(currentParagraph.join(' '))
       currentParagraph = [sentence]
@@ -326,13 +343,17 @@ export function hasPrepConditionalContent(conditional: PrepConditional): boolean
   return conditional.trigger.trim().length > 0 && conditional.response.trim().length > 0
 }
 
-export function filterPrepConditionals(conditionals: PrepConditional[] | undefined): PrepConditional[] {
+export function filterPrepConditionals(
+  conditionals: PrepConditional[] | undefined,
+): PrepConditional[] {
   return filterPrepContent(conditionals, hasPrepConditionalContent)
 }
 
-export function resolvePrepConditionalTone(conditional: Pick<PrepConditional, 'tone'>): PrepConditionalTone {
+export function resolvePrepConditionalTone(
+  conditional: Pick<PrepConditional, 'tone'>,
+): PrepConditionalTone {
   return PREP_CONDITIONAL_TONE_VALUES.includes(conditional.tone as PrepConditionalTone)
-    ? conditional.tone as PrepConditionalTone
+    ? (conditional.tone as PrepConditionalTone)
     : 'pivot'
 }
 
@@ -360,16 +381,33 @@ export function hasPrepDeepDiveNeedsReview(deepDive: PrepDeepDive): boolean {
   return hasPrepNeedsReviewText(deepDive.title) || hasPrepNeedsReviewText(deepDive.content)
 }
 
-export function hasPrepCardNeedsReviewContent(card: Pick<
-  PrepCard,
-  'title' | 'notes' | 'script' | 'warning' | 'scriptLabel' | 'keyPoints' | 'storyBlocks' | 'conditionals' | 'metrics' | 'followUps' | 'deepDives' | 'tableData'
->): boolean {
+export function hasPrepCardNeedsReviewContent(
+  card: Pick<
+    PrepCard,
+    | 'title'
+    | 'notes'
+    | 'script'
+    | 'warning'
+    | 'scriptLabel'
+    | 'alternativeTitle'
+    | 'alternativeScript'
+    | 'keyPoints'
+    | 'storyBlocks'
+    | 'conditionals'
+    | 'metrics'
+    | 'followUps'
+    | 'deepDives'
+    | 'tableData'
+  >,
+): boolean {
   return (
     hasPrepNeedsReviewText(card.title) ||
     hasPrepNeedsReviewText(card.notes) ||
     hasPrepNeedsReviewText(card.script) ||
     hasPrepNeedsReviewText(card.warning) ||
     hasPrepNeedsReviewText(card.scriptLabel) ||
+    hasPrepNeedsReviewText(card.alternativeTitle) ||
+    hasPrepNeedsReviewText(card.alternativeScript) ||
     (card.keyPoints ?? []).some((point) => hasPrepNeedsReviewText(point)) ||
     (card.storyBlocks ?? []).some((block) => hasPrepStoryBlockNeedsReview(block)) ||
     (card.conditionals ?? []).some((conditional) => hasPrepConditionalNeedsReview(conditional)) ||
@@ -377,6 +415,6 @@ export function hasPrepCardNeedsReviewContent(card: Pick<
     (card.followUps ?? []).some((followUp) => hasPrepFollowUpNeedsReview(followUp)) ||
     (card.deepDives ?? []).some((deepDive) => hasPrepDeepDiveNeedsReview(deepDive)) ||
     (card.tableData?.headers ?? []).some((header) => hasPrepNeedsReviewText(header)) ||
-    ((card.tableData?.rows ?? []).flat()).some((cell) => hasPrepNeedsReviewText(cell))
+    (card.tableData?.rows ?? []).flat().some((cell) => hasPrepNeedsReviewText(cell))
   )
 }

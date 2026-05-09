@@ -610,6 +610,8 @@ describe('prepStore', () => {
     })
 
     usePrepStore.getState().updateCard(deckId, 'card-1', {
+      alternativeTitle: ' Backup story ',
+      alternativeScript: '  ',
       keyPoints: ['Lead with scope', ''],
       storyBlocks: [
         { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -651,6 +653,8 @@ describe('prepStore', () => {
       },
     ])
     expect(editingDeck.cards[0].timeBudgetMinutes).toBe(2.5)
+    expect(editingDeck.cards[0].alternativeTitle).toBe('Backup story')
+    expect(editingDeck.cards[0].alternativeScript).toBe('')
     expect(editingDeck.cards[0].keyPoints).toEqual(['Lead with scope', ''])
     expect(editingDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -687,6 +691,8 @@ describe('prepStore', () => {
       },
     ])
     expect(exportedDeck.cards[0].timeBudgetMinutes).toBe(2.5)
+    expect(exportedDeck.cards[0].alternativeTitle).toBe('Backup story')
+    expect(exportedDeck.cards[0].alternativeScript).toBeUndefined()
     expect(exportedDeck.cards[0].keyPoints).toEqual(['Lead with scope'])
     expect(exportedDeck.cards[0].storyBlocks).toEqual([
       { label: 'problem', text: 'Inherited a brittle release process.' },
@@ -1087,6 +1093,8 @@ describe('prepStore', () => {
 
     usePrepStore.getState().updateCard(deckId, cardId, {
       scriptLabel: ' Lead With ',
+      alternativeTitle: ' Backup migration ',
+      alternativeScript: '  Use the migration narrative if they ask for another proof point. ',
       perRoundState: [
         { round: 1, status: 'worked', notes: ' ' },
         { round: 2, status: 'practice-this', notes: ' Pull the thread on scope ' },
@@ -1132,6 +1140,10 @@ describe('prepStore', () => {
     ])
     expect(deck.categoryGuidance).toEqual({ project: 'Name the tradeoff', behavioral: '' })
     expect(card.scriptLabel).toBe('Lead With')
+    expect(card.alternativeTitle).toBe('Backup migration')
+    expect(card.alternativeScript).toBe(
+      'Use the migration narrative if they ask for another proof point.',
+    )
     expect(card.perRoundState).toEqual([
       { round: 1, status: 'worked', notes: '' },
       { round: 2, status: 'practice-this', notes: 'Pull the thread on scope' },
@@ -1179,6 +1191,8 @@ describe('prepStore', () => {
         category: 'behavioral',
         title: ' Replacement card ',
         tags: [' ownership ', ''],
+        alternativeTitle: ' Backup incident ',
+        alternativeScript: ' Use the incident review as backup. ',
         perRoundState: [
           { round: 1, status: 'worked', notes: ' Tight story ' },
           { round: 2, status: 'bad' as never, notes: 'drop' },
@@ -1204,6 +1218,8 @@ describe('prepStore', () => {
 
     expect(card.title).toBe('Replacement card')
     expect(card.tags).toEqual(['ownership'])
+    expect(card.alternativeTitle).toBe('Backup incident')
+    expect(card.alternativeScript).toBe('Use the incident review as backup.')
     expect(card.perRoundState).toEqual([{ round: 1, status: 'worked', notes: 'Tight story' }])
     expect(card.keyPoints).toEqual(['Close with the metric'])
     expect(card.storyBlocks).toEqual([{ label: 'result', text: 'Reduced incidents by 38%' }])
@@ -1215,6 +1231,35 @@ describe('prepStore', () => {
         tone: 'pivot',
       },
     ])
+  })
+
+  it('preserves alternative story placeholders across export and import', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [
+        {
+          id: 'prep-card-alt-placeholder',
+          category: 'behavioral',
+          title: 'Backup story',
+          tags: [],
+          alternativeTitle: 'Alternative: migration story',
+          alternativeScript: '[[fill-in: backup story]]',
+        },
+      ],
+    })
+
+    const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck.cards[0].alternativeScript).toBe('[[fill-in: backup story]]')
+
+    usePrepStore.getState().deleteDeck(deckId)
+    usePrepStore.getState().importDecks([exportedDeck])
+
+    const importedCard = usePrepStore.getState().decks[0].cards[0]
+    expect(importedCard.alternativeTitle).toBe('Alternative: migration story')
+    expect(importedCard.alternativeScript).toBe('[[fill-in: backup story]]')
   })
 
   it('resets active mode to edit when imported decks have no cards', () => {
