@@ -1,10 +1,11 @@
 ---
 id: TASK-136
 title: Add alternative narrative support to prep cards
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-16 13:11'
-updated_date: '2026-05-08 23:19'
+updated_date: '2026-05-09 00:06'
 labels:
   - prep
   - content
@@ -69,6 +70,12 @@ Add to PrepCard:
 - [ ] #6 Edit mode shows Alternative Story section with title + script fields
 - [ ] #7 Store sanitization validates both as optional trimmed strings
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-136. Scope: add optional alternativeTitle/alternativeScript to PrepCard, preserve/trim through prep store/export/generator normalization, render collapsed alternative story in edit/live modes, and anchor generator prompt to canonical JDAnalysis.evidenceMapping/advantages.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
