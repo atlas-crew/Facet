@@ -1,9 +1,11 @@
 ---
 id: TASK-245.3
 title: Use golden workspace in hosted Playwright fixtures
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-08 23:27'
+updated_date: '2026-05-09 04:28'
 labels:
   - feature
 milestone: m-29
@@ -29,6 +31,12 @@ Teach hosted API mocks to serve the golden workspace fixture when tests need rea
 - [ ] #2 At least one hosted Playwright test hydrates the golden workspace and verifies representative data renders after account/workspace bootstrap.
 - [ ] #3 The fixture remains deterministic and does not require live AI, network calls, or real personal data.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add an opt-in workspaceSnapshot provider to hosted API mocks while preserving the default minimal snapshot.\n2. Add a deterministic hosted Playwright test that serves the Maya golden workspace, seeds Identity localStorage explicitly, and asserts representative Pillar research data renders after bootstrap.\n3. Run focused hosted test/lint/format receipts, independent review, update Backlog, and commit with cortex git commit.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
