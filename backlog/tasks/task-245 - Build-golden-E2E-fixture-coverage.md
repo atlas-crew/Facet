@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-05-08 23:27'
-updated_date: '2026-05-08 23:50'
+updated_date: '2026-05-09 00:05'
 labels:
   - feature
 milestone: m-29
@@ -32,6 +32,8 @@ Parent task for milestone m-29. Deliver one coherent, fictional golden workspace
 
 <!-- SECTION:NOTES:BEGIN -->
 Started TASK-245 by taking the first executable slice, TASK-245.1. Parallel exploration is covering Maya fixture/validator shape, downstream artifact type fixtures, and workspace snapshot/hosted hydration paths.
+
+Completed first child slice TASK-245.1 and committed code as 65a4da7 (feat(fixtures): add Maya golden artifact graph). Next executable child is TASK-245.2: build the golden workspace snapshot composer that consumes Maya's new artifact graph.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
