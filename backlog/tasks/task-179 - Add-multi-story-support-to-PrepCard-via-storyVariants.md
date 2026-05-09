@@ -1,10 +1,11 @@
 ---
 id: TASK-179
 title: Add multi-story support to PrepCard via storyVariants
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 07:49'
+updated_date: '2026-05-09 04:57'
 labels:
   - prep
   - types
@@ -86,6 +87,12 @@ Existing cards with only `storyBlocks` continue to render via the fallback path.
 - [ ] #7 Existing cards without storyVariants render via storyBlocks fallback (no regression)
 - [ ] #8 Tests cover: single variant, multiple variants, no variants (fallback), confidence tracking per variant
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-179 after TASK-180 closure. Plan: add PrepStoryVariant type and sanitized persistence, generator schema/normalization/prompt guidance, live-mode variant selector with fallback semantics, practice-mode per-variant queue/review keys, and focused tests for generator/store/content/live/practice behavior.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
