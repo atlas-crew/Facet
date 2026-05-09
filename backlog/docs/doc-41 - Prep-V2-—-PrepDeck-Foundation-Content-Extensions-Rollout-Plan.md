@@ -3,12 +3,15 @@ id: doc-41
 title: Prep V2 — PrepDeck Foundation + Content Extensions Rollout Plan
 type: other
 created_date: '2026-05-07 19:10'
+updated_date: '2026-05-09 05:00'
 ---
 # Prep V2 — PrepDeck Foundation + Content Extensions Rollout Plan
 
 Organizes the open Prep workspace backlog under one rollout. Foundation work (output contract validation + structured types) lands first so subsequent content extensions have validation; content extensions (alternative narratives, technical drills, beat sheets, multi-story, pushback scripts) layer on top.
 
-No equivalent design doc exists yet for this rollout. Each task carries its own description; this doc just sequences them.
+**Status:** closed. All tracked lanes are done. The doc remains as a historical sequencing artifact for future Prep-card additions.
+
+No equivalent design doc exists for this rollout. Each task carries its own description; this doc records the sequence that shipped.
 
 ---
 
@@ -134,11 +137,11 @@ Two foundation tasks gate the seven-task content fan-out. Realistic solo pace: ~
 - TASK-170's contract is extended as each new card field lands. The validator file is the source of truth for "what shape can a PrepDeck have."
 - If a Lane C extension changes the structured types from TASK-171 (e.g., adds a new field to `PrepInterviewer`), update TASK-171's done state vs. file a follow-up — depends on whether the schema change is forward-compatible.
 
-## Open questions
+## Resolved notes
 
-- **Should this rollout get its own milestone?** With 11 open tasks across 4 lanes, a "Prep V2" milestone is more legible than relying on this doc alone — multiple-developer parallel work is easier to coordinate against an explicit milestone label. Defer the decision; revisit if multiple agents pick up Lane C concurrently.
-- **TASK-140's recommendation is not a commitment.** The Opus eval produces a recommendation; if it suggests switching default models, that's a separate task to schedule (likely a small proxy/feature-flag change). Don't pre-commit Lane D throughput on a positive Opus result.
-- **Audience-tagging Phase 7 ordering** (TASK-229) — currently filed under m-28. If the audience-tagging team races ahead and lands TASK-229 before Lane A foundation, the JDAnalysis projection wires into a still-flat PrepDeck shape, which is fine but produces a temporary inconsistency. Coordinate timing with the m-28 owner.
+- **Milestone decision:** no separate Prep V2 milestone was created. The rollout completed from this doc plus task-level dependencies.
+- **TASK-140 outcome:** the Opus evaluation closed as a recommendation/evaluation slice. Any future model-default or feature-flag change should be filed separately.
+- **Audience-tagging Phase 7 ordering:** TASK-229 closed after the PrepDeck foundation work, so the temporary flat-shape inconsistency did not become a rollout blocker.
 
 ---
 
@@ -154,3 +157,4 @@ Two foundation tasks gate the seven-task content fan-out. Realistic solo pace: ~
 ## Revision history
 
 - **2026-05-07 v1**: initial Prep V2 rollout plan. Foundation contract → content extensions, with audience-tagging Phase 7 task tracked as cross-reference.
+- **2026-05-09 v2**: housekeeping closeout. All lanes are Done; stale open questions were resolved and the doc is now marked closed.
