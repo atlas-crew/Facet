@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-09 04:57'
+updated_date: '2026-05-09 05:20'
 labels:
   - prep
   - types
@@ -78,15 +78,17 @@ Existing cards with only `storyBlocks` continue to render via the fallback path.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PrepStoryVariant type defined with id, label, storyBlocks, keyPoints?, roleContext?, when?
-- [ ] #2 PrepCard has optional storyVariants?: PrepStoryVariant[]
-- [ ] #3 Semantics: storyVariants takes precedence when set; storyBlocks is the fallback
-- [ ] #4 prepGenerator produces 2-3 storyVariants for behavioral cards when multiple relevant stories exist
-- [ ] #5 PrepLiveMode renders storyVariants as a toggle/tab selector with first variant default-expanded
-- [ ] #6 PrepPracticeMode treats each variant as a distinct practice unit with per-variant confidence tracking
-- [ ] #7 Existing cards without storyVariants render via storyBlocks fallback (no regression)
-- [ ] #8 Tests cover: single variant, multiple variants, no variants (fallback), confidence tracking per variant
+- [x] #1 PrepStoryVariant type defined with id, label, storyBlocks, keyPoints?, roleContext?, when?
+- [x] #2 PrepCard has optional storyVariants?: PrepStoryVariant[]
+- [x] #3 Semantics: storyVariants takes precedence when set; storyBlocks is the fallback
+- [x] #4 prepGenerator produces 2-3 storyVariants for behavioral cards when multiple relevant stories exist
+- [x] #5 PrepLiveMode renders storyVariants as a toggle/tab selector with first variant default-expanded
+- [x] #6 PrepPracticeMode treats each variant as a distinct practice unit with per-variant confidence tracking
+- [x] #7 Existing cards without storyVariants render via storyBlocks fallback (no regression)
+- [x] #8 Tests cover: single variant, multiple variants, no variants (fallback), confidence tracking per variant
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
