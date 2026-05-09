@@ -86,8 +86,8 @@ Implementation order:
 2. `TASK-245.2` composes that data into a reusable golden workspace/snapshot and validates hydration.
 3. `TASK-245.3`, `TASK-245.4`, `TASK-245.5`, and `TASK-245.6` can proceed in parallel after the composer lands.
 
-## Open Questions
+## Decisions
 
-- Should the optional demo loader be dev-only, test-only, or user-visible behind an explicit "Load Demo Workspace" affordance?
-- Should the golden fixture live under `src/test/fixtures/personas/` or a new `src/test/fixtures/goldenWorkspace.ts` module that composes personas plus downstream artifacts?
-- Should Identity be folded into `FacetWorkspaceSnapshot`, or should golden E2E tests hydrate Identity separately because Identity currently persists outside workspace artifacts?
+- The optional demo loader is dev-only. It is exposed from the backup dialog's import mode as **Replace with Demo Workspace** and is guarded by `import.meta.env.DEV`.
+- The golden fixture lives in `src/test/fixtures/goldenWorkspace.ts`, which composes persona data plus downstream artifacts into a reusable workspace snapshot.
+- Identity stays outside `FacetWorkspaceSnapshot` for this slice. Golden tests and the dev loader hydrate Identity explicitly with the builder's Identity payload.

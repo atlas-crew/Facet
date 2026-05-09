@@ -164,6 +164,7 @@ export const hydrateMayaPatelIdentityIntoStore = async (
   const { useIdentityStore } = await import('../../store/identityStore')
 
   useIdentityStore.setState({
+    intakeMode: 'paste',
     currentIdentity: clone(identity),
     draft: null,
     draftDocument: JSON.stringify(identity, null, 2),

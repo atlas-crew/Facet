@@ -3930,6 +3930,13 @@ select.component-input {
   margin: 0;
 }
 
+.workspace-backup-dev-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .workspace-backup-note {
   margin: 0;
   font-size: 11px;

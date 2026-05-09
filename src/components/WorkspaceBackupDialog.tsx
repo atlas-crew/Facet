@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Download, ShieldCheck, Upload, X } from 'lucide-react'
+import { Download, ShieldCheck, Sparkles, Upload, X } from 'lucide-react'
 import {
   buildWorkspaceBackupFileName,
   createEncryptedWorkspaceBackup,
@@ -7,7 +7,12 @@ import {
   getPersistenceRuntime,
   MIN_BACKUP_PASSPHRASE_LENGTH,
 } from '../persistence'
-import { openTextFileWithPicker, saveTextFileWithPicker, supportsFileSystemOpen, supportsFileSystemSave } from '../persistence/fileSystemAccess'
+import {
+  openTextFileWithPicker,
+  saveTextFileWithPicker,
+  supportsFileSystemOpen,
+  supportsFileSystemSave,
+} from '../persistence/fileSystemAccess'
 import { BACKUP_REMINDER_INTERVAL_OPTIONS } from '../persistence/backupReminder'
 import { useUiStore } from '../store/uiStore'
 import { slugify } from '../utils/idUtils'
@@ -39,6 +44,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const canLoadGoldenDemoWorkspace = import.meta.env.DEV
   const modalRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const fileSaveSupported = supportsFileSystemSave()
@@ -162,10 +168,33 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
       const runtime = getPersistenceRuntime()
       const snapshot = await decryptEncryptedWorkspaceBackup(bundleText, passphrase)
       await runtime.importWorkspaceSnapshot(snapshot, { mode: importMode })
-      setSuccess(importMode === 'merge' ? 'Backup merged successfully.' : 'Backup restored successfully.')
+      setSuccess(
+        importMode === 'merge' ? 'Backup merged successfully.' : 'Backup restored successfully.',
+      )
       setBundleText('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import encrypted backup.')
+      setSuccess(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleLoadGoldenDemoWorkspace = async () => {
+    if (!canLoadGoldenDemoWorkspace) {
+      return
+    }
+
+    clearStatus()
+
+    try {
+      setBusy(true)
+      const { loadGoldenDemoWorkspace } = await import('../dev/goldenDemoWorkspace')
+      const result = await loadGoldenDemoWorkspace()
+      setBundleText('')
+      setSuccess(`Loaded ${result.identityName}'s demo workspace.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load demo workspace.')
       setSuccess(null)
     } finally {
       setBusy(false)
@@ -214,7 +243,12 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
   }
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="workspace-backup-title">
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="workspace-backup-title"
+    >
       <div className="modal-card workspace-backup-modal" ref={modalRef} tabIndex={-1}>
         <header className="modal-header">
           <h3 id="workspace-backup-title">Encrypted Workspace Backup</h3>
@@ -335,6 +369,20 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
                 Load Backup File
               </button>
             ) : null}
+            {canLoadGoldenDemoWorkspace ? (
+              <div className="workspace-backup-dev-demo">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void handleLoadGoldenDemoWorkspace()}
+                  disabled={busy}
+                >
+                  <Sparkles size={16} />
+                  {busy ? 'Loading Demo...' : 'Replace with Demo Workspace'}
+                </button>
+                <p className="workspace-backup-note">Dev-only. Replaces this local workspace.</p>
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -354,7 +402,11 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
           aria-label={mode === 'export' ? 'Encrypted backup output' : 'Encrypted backup input'}
         />
 
-        {error ? <p className="error-text" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="error-text" role="alert">
+            {error}
+          </p>
+        ) : null}
         {success ? (
           <p className="workspace-backup-success" role="status">
             <ShieldCheck size={12} />
@@ -400,13 +452,13 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
               className="btn-primary"
               onClick={handleImportBackup}
               disabled={
-                busy ||
-                passphrase.trim().length < MIN_PASSPHRASE_LENGTH ||
-                !bundleText.trim()
+                busy || passphrase.trim().length < MIN_PASSPHRASE_LENGTH || !bundleText.trim()
               }
             >
               <Upload size={16} />
-              {busy ? 'Importing…' : `Import Backup (${importMode === 'merge' ? 'Merge' : 'Replace'})`}
+              {busy
+                ? 'Importing…'
+                : `Import Backup (${importMode === 'merge' ? 'Merge' : 'Replace'})`}
             </button>
           )}
         </div>
@@ -425,9 +477,7 @@ export function WorkspaceBackupDialog({ open, onClose }: WorkspaceBackupDialogPr
             <select
               className="component-input"
               value={backupReminderIntervalDays}
-              onChange={(event) =>
-                setBackupReminderIntervalDays(Number(event.target.value))
-              }
+              onChange={(event) => setBackupReminderIntervalDays(Number(event.target.value))}
               disabled={!backupRemindersEnabled}
             >
               {BACKUP_REMINDER_INTERVAL_OPTIONS.map((value) => (

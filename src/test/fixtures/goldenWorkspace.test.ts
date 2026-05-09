@@ -108,6 +108,7 @@ describe('Maya Patel golden workspace fixture', () => {
 
     await golden.hydrateIntoStores()
 
+    expect(useIdentityStore.getState().intakeMode).toBe('paste')
     expect(useIdentityStore.getState().currentIdentity?.identity.name).toBe('Maya Patel')
     expect(usePipelineStore.getState().entries.map((entry) => entry.id)).toContain('pipe-pillar')
     expect(useJDAnalysisStore.getState().analyses.map((analysis) => analysis.id)).toContain(

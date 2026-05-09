@@ -22,6 +22,10 @@ const fileSystemAccessMocks = vi.hoisted(() => ({
   openTextFileWithPicker: vi.fn(),
 }))
 
+const goldenDemoWorkspaceMocks = vi.hoisted(() => ({
+  loadGoldenDemoWorkspace: vi.fn(),
+}))
+
 vi.mock('../persistence', () => ({
   getPersistenceRuntime: () => ({
     exportWorkspaceSnapshot: persistenceMocks.exportWorkspaceSnapshot,
@@ -38,6 +42,10 @@ vi.mock('../persistence/fileSystemAccess', () => ({
   supportsFileSystemOpen: fileSystemAccessMocks.supportsFileSystemOpen,
   saveTextFileWithPicker: fileSystemAccessMocks.saveTextFileWithPicker,
   openTextFileWithPicker: fileSystemAccessMocks.openTextFileWithPicker,
+}))
+
+vi.mock('../dev/goldenDemoWorkspace', () => ({
+  loadGoldenDemoWorkspace: goldenDemoWorkspaceMocks.loadGoldenDemoWorkspace,
 }))
 
 const snapshot: FacetWorkspaceSnapshot = buildWorkspaceSnapshot()
@@ -59,6 +67,7 @@ describe('WorkspaceBackupDialog', () => {
     fileSystemAccessMocks.supportsFileSystemOpen.mockReset()
     fileSystemAccessMocks.saveTextFileWithPicker.mockReset()
     fileSystemAccessMocks.openTextFileWithPicker.mockReset()
+    goldenDemoWorkspaceMocks.loadGoldenDemoWorkspace.mockReset()
 
     persistenceMocks.exportWorkspaceSnapshot.mockResolvedValue(snapshot)
     persistenceMocks.createEncryptedWorkspaceBackup.mockResolvedValue('{ "encrypted": true }')
@@ -70,6 +79,11 @@ describe('WorkspaceBackupDialog', () => {
     fileSystemAccessMocks.supportsFileSystemOpen.mockReturnValue(false)
     fileSystemAccessMocks.saveTextFileWithPicker.mockResolvedValue(true)
     fileSystemAccessMocks.openTextFileWithPicker.mockResolvedValue('{ "encrypted": true }')
+    goldenDemoWorkspaceMocks.loadGoldenDemoWorkspace.mockResolvedValue({
+      identityName: 'Maya Patel',
+      workspaceName: 'Maya Patel Golden Workspace',
+      snapshot,
+    })
 
     useUiStore.setState({
       backupRemindersEnabled: true,
@@ -101,10 +115,10 @@ describe('WorkspaceBackupDialog', () => {
     rerender(<WorkspaceBackupDialog open={false} onClose={() => {}} />)
     rerender(<WorkspaceBackupDialog open onClose={() => {}} />)
 
-    expect((screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).value).toBe('')
-    expect(
-      (screen.getByPlaceholderText('Re-enter passphrase') as HTMLInputElement).value,
-    ).toBe('')
+    expect((screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).value).toBe(
+      '',
+    )
+    expect((screen.getByPlaceholderText('Re-enter passphrase') as HTMLInputElement).value).toBe('')
     expect(screen.getByText(/passphrases never leave this browser/i)).toBeTruthy()
   })
 
@@ -130,9 +144,9 @@ describe('WorkspaceBackupDialog', () => {
 
     expect(screen.getByText(/encrypted backup created and downloaded/i)).toBeTruthy()
     expect(useUiStore.getState().lastBackupAt).toEqual(expect.any(String))
-    expect((screen.getByLabelText(/encrypted backup output/i) as HTMLTextAreaElement).readOnly).toBe(
-      true,
-    )
+    expect(
+      (screen.getByLabelText(/encrypted backup output/i) as HTMLTextAreaElement).readOnly,
+    ).toBe(true)
     const revokeCallback = setTimeoutSpy.mock.calls.find((call) => call[1] === 10000)?.[0] as
       | (() => void)
       | undefined
@@ -281,9 +295,9 @@ describe('WorkspaceBackupDialog', () => {
 
     await waitFor(() => {
       expect(fileSystemAccessMocks.openTextFileWithPicker).toHaveBeenCalledTimes(1)
-      expect(
-        (screen.getByLabelText(/encrypted backup input/i) as HTMLTextAreaElement).value,
-      ).toBe('{ "encrypted": true }')
+      expect((screen.getByLabelText(/encrypted backup input/i) as HTMLTextAreaElement).value).toBe(
+        '{ "encrypted": true }',
+      )
     })
   })
 
@@ -349,11 +363,13 @@ describe('WorkspaceBackupDialog', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: /import backup/i }))
-    expect((screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).value).toBe('')
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByRole('button', { name: /^import backup$/i }).getAttribute('aria-pressed')).toBe(
-      'true',
+    expect((screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).value).toBe(
+      '',
     )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(
+      screen.getByRole('button', { name: /^import backup$/i }).getAttribute('aria-pressed'),
+    ).toBe('true')
     expect(
       (screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).getAttribute(
         'autocomplete',
@@ -367,11 +383,17 @@ describe('WorkspaceBackupDialog', () => {
       target: { value: '{ "encrypted": true }' },
     })
     fireEvent.click(screen.getByRole('button', { name: /^export backup$/i }))
-    expect((screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).value).toBe('')
-    expect((screen.getByLabelText(/encrypted backup output/i) as HTMLTextAreaElement).value).toBe('')
+    expect((screen.getByPlaceholderText('At least 12 characters') as HTMLInputElement).value).toBe(
+      '',
+    )
+    expect((screen.getByLabelText(/encrypted backup output/i) as HTMLTextAreaElement).value).toBe(
+      '',
+    )
 
     fireEvent.keyDown(
-      screen.getByText('Encrypted Workspace Backup').closest('.workspace-backup-modal') as HTMLElement,
+      screen
+        .getByText('Encrypted Workspace Backup')
+        .closest('.workspace-backup-modal') as HTMLElement,
       { key: 'Escape' },
     )
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -430,6 +452,36 @@ describe('WorkspaceBackupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /upload backup file/i }))
 
     expect(inputClickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers a dev-only demo workspace replacement path from import mode', async () => {
+    render(<WorkspaceBackupDialog open onClose={() => {}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /import backup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /replace with demo workspace/i }))
+
+    await waitFor(() => {
+      expect(goldenDemoWorkspaceMocks.loadGoldenDemoWorkspace).toHaveBeenCalledTimes(1)
+    })
+
+    expect(screen.getByText(/loaded maya patel's demo workspace/i)).toBeTruthy()
+    expect(persistenceMocks.importWorkspaceSnapshot).not.toHaveBeenCalled()
+    expect(persistenceMocks.decryptEncryptedWorkspaceBackup).not.toHaveBeenCalled()
+  })
+
+  it('surfaces demo workspace replacement failures', async () => {
+    goldenDemoWorkspaceMocks.loadGoldenDemoWorkspace.mockRejectedValueOnce(
+      new Error('demo load failed'),
+    )
+
+    render(<WorkspaceBackupDialog open onClose={() => {}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /import backup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /replace with demo workspace/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toMatch(/demo load failed/i)
+    })
   })
 
   it('treats cancelled file-picker flows as silent no-ops', async () => {
@@ -555,7 +607,9 @@ describe('WorkspaceBackupDialog', () => {
   })
 
   it('surfaces runtime import failures after decryption succeeds', async () => {
-    persistenceMocks.importWorkspaceSnapshot.mockRejectedValueOnce(new Error('runtime import failed'))
+    persistenceMocks.importWorkspaceSnapshot.mockRejectedValueOnce(
+      new Error('runtime import failed'),
+    )
 
     render(<WorkspaceBackupDialog open onClose={() => {}} />)
 
@@ -623,7 +677,9 @@ describe('WorkspaceBackupDialog', () => {
   })
 
   it('clears errors when confirm or import payload input changes after failures', async () => {
-    persistenceMocks.decryptEncryptedWorkspaceBackup.mockRejectedValueOnce(new Error('decrypt failed'))
+    persistenceMocks.decryptEncryptedWorkspaceBackup.mockRejectedValueOnce(
+      new Error('decrypt failed'),
+    )
 
     render(<WorkspaceBackupDialog open onClose={() => {}} />)
 
@@ -705,12 +761,12 @@ describe('WorkspaceBackupDialog', () => {
       expect(screen.getByRole('button', { name: /creating/i })).toBeTruthy()
     })
 
-    expect((screen.getByRole('button', { name: /^export backup$/i }) as HTMLButtonElement).disabled).toBe(
-      true,
-    )
-    expect((screen.getByRole('button', { name: /^import backup$/i }) as HTMLButtonElement).disabled).toBe(
-      true,
-    )
+    expect(
+      (screen.getByRole('button', { name: /^export backup$/i }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(
+      (screen.getByRole('button', { name: /^import backup$/i }) as HTMLButtonElement).disabled,
+    ).toBe(true)
 
     resolveEncryption('{ "encrypted": true }')
 
@@ -718,9 +774,9 @@ describe('WorkspaceBackupDialog', () => {
       expect(screen.getByText(/encrypted backup created and downloaded/i)).toBeTruthy()
     })
 
-    expect((screen.getByRole('button', { name: /^export backup$/i }) as HTMLButtonElement).disabled).toBe(
-      false,
-    )
+    expect(
+      (screen.getByRole('button', { name: /^export backup$/i }) as HTMLButtonElement).disabled,
+    ).toBe(false)
   })
 
   it('shows import and save-to-file busy states while async work is in flight', async () => {
@@ -747,9 +803,9 @@ describe('WorkspaceBackupDialog', () => {
       expect(screen.getByRole('button', { name: /importing/i })).toBeTruthy()
     })
 
-    expect(
-      (screen.getByRole('button', { name: /importing/i }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+    expect((screen.getByRole('button', { name: /importing/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
 
     resolveDecrypt(snapshot)
 
