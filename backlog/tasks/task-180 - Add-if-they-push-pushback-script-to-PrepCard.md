@@ -1,10 +1,11 @@
 ---
 id: TASK-180
 title: Add "if they push" pushback script to PrepCard
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 07:49'
+updated_date: '2026-05-09 04:29'
 labels:
   - prep
   - types
@@ -93,6 +94,12 @@ Optional field. Existing cards without pushbackScript render unchanged.
 - [ ] #6 Existing cards without pushbackScript render unchanged
 - [ ] #7 pushbackLabel defaults to "If they push" when not set
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-180 after TASK-229 closure. Plan: add optional pushbackScript/pushbackLabel to PrepCard, sanitize/export them, prompt/normalize generator output, render a collapsed pushback panel in live mode, add a separate homework queue entry with a stable practice key, cover search/needs-review/store/generator/live/practice tests, then run scoped format/test/lint/build and review.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
