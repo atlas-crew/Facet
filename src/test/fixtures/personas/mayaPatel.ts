@@ -836,6 +836,28 @@ export const mayaPatelPipelineEntries: PipelineEntry[] = [
       { date: '2026-04-09', note: 'Advanced from HM screen.' },
       { date: '2026-04-22', note: 'T3 research completed for Doug and Lila.' },
     ],
+    research: {
+      status: 'seeded',
+      summary:
+        'Promoted from payments AppSec research because Pillar combines AppSec tooling, SAST/DAST rollout, threat modeling, and secrets partnership.',
+      jobDescriptionSummary:
+        'Senior Security Engineer owning AppSec tooling for a payments platform with SAST/DAST, threat modeling, and secret management partnership.',
+      interviewSignals: [
+        'Payments platform maps to PCI tokenization evidence.',
+        'SAST/DAST rollout maps to Maya’s grace-window adoption story.',
+        'Secrets partnership maps to Vault-backed rotation across 200 services.',
+      ],
+      people: [],
+      sources: [
+        {
+          label: 'Pillar careers',
+          url: 'https://example.com/pillar/jobs/sec-eng',
+          kind: 'search-result',
+        },
+      ],
+      searchQueries: ['"Senior Security Engineer" payments AppSec SAST'],
+      lastInvestigatedAt: '2026-04-20T12:40:00.000Z',
+    },
     interviewRounds: [PILLAR_ROUND_1, PILLAR_ROUND_2],
   },
   {

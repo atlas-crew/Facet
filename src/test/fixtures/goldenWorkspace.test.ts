@@ -173,4 +173,174 @@ describe('Maya Patel golden workspace fixture', () => {
       'thesis-maya-payments-appsec',
     )
   })
+
+  it('keeps the golden cross-workspace artifact graph connected', () => {
+    const { snapshot, identity } = buildMayaPatelGoldenWorkspace()
+    const pipelineEntry = snapshot.artifacts.pipeline.payload.entries.find(
+      (entry) => entry.id === 'pipe-pillar',
+    )
+    expect(pipelineEntry).toBeDefined()
+    if (!pipelineEntry) return
+
+    const analysesById = new Map(
+      snapshot.artifacts.jdAnalysis.payload.analyses.map((analysis) => [analysis.id, analysis]),
+    )
+    const resumesById = new Map(
+      snapshot.artifacts.resume.payload.resumes.map((resume) => [resume.id, resume]),
+    )
+    const resumeSnapshotsById = new Map(
+      snapshot.artifacts.resume.payload.snapshots.map((resumeSnapshot) => [
+        resumeSnapshot.id,
+        resumeSnapshot,
+      ]),
+    )
+    const lettersById = new Map(
+      snapshot.artifacts.coverLetters.payload.letters.map((letter) => [letter.id, letter]),
+    )
+    const letterSnapshotsById = new Map(
+      snapshot.artifacts.coverLetters.payload.snapshots.map((letterSnapshot) => [
+        letterSnapshot.id,
+        letterSnapshot,
+      ]),
+    )
+    const prepDecksById = new Map(
+      snapshot.artifacts.prep.payload.decks.map((deck) => [deck.id, deck]),
+    )
+    const roleIds = new Set(identity.roles.map((role) => role.id))
+    const bulletIds = new Set(
+      identity.roles.flatMap((role) => role.bullets.map((bullet) => bullet.id)),
+    )
+
+    const analysis = analysesById.get(pipelineEntry.jdAnalysisId ?? '')
+    expect(analysis).toEqual(
+      expect.objectContaining({
+        id: 'jd-pillar-maya-1',
+        pipelineEntryId: pipelineEntry.id,
+        primaryVectorId: pipelineEntry.vectorId,
+      }),
+    )
+    expect(analysis?.analyzedJobDescription).toBe(pipelineEntry.jobDescription)
+
+    const resume = resumesById.get(pipelineEntry.resumeId ?? '')
+    const resumeSnapshot = resumeSnapshotsById.get(pipelineEntry.resumeSnapshotId ?? '')
+    expect(resume).toEqual(
+      expect.objectContaining({
+        id: 'resume-maya-appsec',
+        pipelineEntryId: pipelineEntry.id,
+      }),
+    )
+    expect(resumeSnapshot).toEqual(
+      expect.objectContaining({
+        id: 'resume-snap-maya-appsec',
+        sourceResumeId: resume?.id,
+        pipelineEntryId: pipelineEntry.id,
+      }),
+    )
+
+    const letter = lettersById.get(pipelineEntry.coverLetterId ?? '')
+    const letterSnapshot = letterSnapshotsById.get(pipelineEntry.coverLetterSnapshotId ?? '')
+    expect(letter).toEqual(
+      expect.objectContaining({
+        id: 'cover-pillar-maya-1',
+        pipelineEntryId: pipelineEntry.id,
+        sourceResumeId: resume?.id,
+        sourceResumeHash: resume?.contentHash,
+      }),
+    )
+    expect(letterSnapshot).toEqual(
+      expect.objectContaining({
+        id: 'cover-snap-pillar-maya-1',
+        sourceLetterId: letter?.id,
+        pipelineEntryId: pipelineEntry.id,
+        sourceResumeId: resume?.id,
+        sourceResumeSnapshotId: resumeSnapshot?.id,
+      }),
+    )
+
+    const panelRound = pipelineEntry.interviewRounds?.find((round) => round.id === 'rd-pillar-2')
+    const prepDeck = prepDecksById.get(panelRound?.prepDeckId ?? '')
+    expect(prepDeck).toEqual(
+      expect.objectContaining({
+        id: 'deck-pillar-r2',
+        pipelineEntryId: pipelineEntry.id,
+        pipelineRoundId: panelRound?.id,
+      }),
+    )
+    expect(prepDeck?.cards.every((card) => card.pipelineEntryId === pipelineEntry.id)).toBe(true)
+
+    const research = snapshot.artifacts.research.payload
+    const researchRun = research.runs.find((run) => run.id === 'srun-maya-pillar-discovery')
+    const researchResult = researchRun?.results.find(
+      (result) => result.company === pipelineEntry.company,
+    )
+    expect(researchRun?.requestId).toBe('sreq-maya-payments-appsec')
+    expect(researchRun?.thesisId).toBe(research.activeThesisId)
+    expect(researchResult).toEqual(
+      expect.objectContaining({
+        title: pipelineEntry.role,
+        url: pipelineEntry.url,
+        jobDescription: pipelineEntry.jobDescription,
+        jobDescriptionSourceUrl: pipelineEntry.jobDescriptionSourceUrl,
+        recommendedVariant: resume?.id,
+      }),
+    )
+    expect(pipelineEntry.research).toEqual(
+      expect.objectContaining({
+        status: 'seeded',
+        lastInvestigatedAt: researchRun?.createdAt,
+        searchQueries: expect.arrayContaining(['"Senior Security Engineer" payments AppSec SAST']),
+        sources: expect.arrayContaining([
+          expect.objectContaining({
+            label: researchResult?.source,
+            url: researchResult?.url,
+            kind: 'search-result',
+          }),
+        ]),
+      }),
+    )
+
+    const debrief = snapshot.artifacts.debrief.payload.sessions.find(
+      (session) => session.id === 'debrief-pillar-r1',
+    )
+    expect(debrief).toEqual(
+      expect.objectContaining({
+        pipelineEntryId: pipelineEntry.id,
+        company: pipelineEntry.company,
+        role: pipelineEntry.role,
+      }),
+    )
+    expect(debrief?.storiesTold).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'story-tokenization',
+          roleId: 'role-coralreef',
+          bulletId: 'cr-payment-tokenization',
+        }),
+      ]),
+    )
+    expect(debrief?.anchorStories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'pattern-tokenization',
+          roleId: 'role-coralreef',
+          bulletId: 'cr-payment-tokenization',
+        }),
+      ]),
+    )
+    const debriefIdentityRefs = [
+      ...(debrief?.storiesTold.map((story) => ({
+        roleId: story.roleId,
+        bulletId: story.bulletId,
+      })) ?? []),
+      ...(debrief?.anchorStories
+        .filter((story) => story.roleId && story.bulletId)
+        .map((story) => ({ roleId: story.roleId!, bulletId: story.bulletId! })) ?? []),
+    ]
+    expect(debriefIdentityRefs.length).toBeGreaterThan(0)
+    expect(
+      debriefIdentityRefs.every(
+        (story) => roleIds.has(story.roleId) && bulletIds.has(story.bulletId),
+      ),
+    ).toBe(true)
+  })
 })
