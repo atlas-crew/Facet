@@ -495,7 +495,12 @@ describe('JDAnalysis canonical helpers', () => {
     savePipelineJDAnalysis(analysis)
     usePipelineStore.getState().deleteEntry('pipe-1')
 
-    expect(usePipelineStore.getState().entries).toEqual([])
+    // deleteEntry is a soft-delete: the entry remains in `entries` with a
+    // non-null deletedAt and a cleared jdAnalysisId.
+    const liveEntries = usePipelineStore
+      .getState()
+      .entries.filter((entry) => !entry.deletedAt)
+    expect(liveEntries).toEqual([])
     expect(useJDAnalysisStore.getState().findByPipelineEntry('pipe-1')).toBeNull()
   })
 
