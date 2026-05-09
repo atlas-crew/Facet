@@ -88,12 +88,12 @@ Existing cards with only `storyBlocks` continue to render via the fallback path.
 - [x] #8 Tests cover: single variant, multiple variants, no variants (fallback), confidence tracking per variant
 <!-- AC:END -->
 
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Starting TASK-179 after TASK-180 closure. Plan: add PrepStoryVariant type and sanitized persistence, generator schema/normalization/prompt guidance, live-mode variant selector with fallback semantics, practice-mode per-variant queue/review keys, and focused tests for generator/store/content/live/practice behavior.
+
+Implemented PrepStoryVariant across the prep type, generator normalization/schema/prompt, sanitized persistence/import/export, live-mode story option rendering/search, and practice-mode per-variant review keys. Remediated review findings around stable variant IDs, encoded practice keys, stale progress pruning, fallback/single-variant semantics, and draft preservation. Verification: focused prep Vitest suite passed 5 files / 172 tests; scoped ESLint passed; npm run build passed.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
