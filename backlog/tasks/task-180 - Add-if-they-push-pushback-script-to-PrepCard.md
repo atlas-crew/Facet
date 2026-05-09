@@ -1,11 +1,11 @@
 ---
 id: TASK-180
 title: Add "if they push" pushback script to PrepCard
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-09 04:29'
+updated_date: '2026-05-09 04:57'
 labels:
   - prep
   - types
@@ -86,27 +86,35 @@ Optional field. Existing cards without pushbackScript render unchanged.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PrepCard has optional pushbackScript?: string and pushbackLabel?: string
-- [ ] #2 prepGenerator prompt instructs generation of pushbackScript for why-leaving, failure, and gap-framing cards
-- [ ] #3 pushbackScript expands the primary script with more detail — still honest, not evasive
-- [ ] #4 PrepLiveMode renders pushbackScript as a collapsed "If they push" panel below the primary script
-- [ ] #5 Homework mode practices primary and pushback versions separately
-- [ ] #6 Existing cards without pushbackScript render unchanged
-- [ ] #7 pushbackLabel defaults to "If they push" when not set
+- [x] #1 PrepCard has optional pushbackScript?: string and pushbackLabel?: string
+- [x] #2 prepGenerator prompt instructs generation of pushbackScript for why-leaving, failure, and gap-framing cards
+- [x] #3 pushbackScript expands the primary script with more detail — still honest, not evasive
+- [x] #4 PrepLiveMode renders pushbackScript as a collapsed "If they push" panel below the primary script
+- [x] #5 Homework mode practices primary and pushback versions separately
+- [x] #6 Existing cards without pushbackScript render unchanged
+- [x] #7 pushbackLabel defaults to "If they push" when not set
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Starting TASK-180 after TASK-229 closure. Plan: add optional pushbackScript/pushbackLabel to PrepCard, sanitize/export them, prompt/normalize generator output, render a collapsed pushback panel in live mode, add a separate homework queue entry with a stable practice key, cover search/needs-review/store/generator/live/practice tests, then run scoped format/test/lint/build and review.
+
+Implemented pushbackScript/pushbackLabel as same-question expanded answers: types, generator schema/prompt normalization, live collapsed pushback panel/search, store sanitize/export/review-key handling, and separate homework practice keys. Guarded stale pushback progress and reserved review-key collisions.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Adds PrepCard pushbackScript/pushbackLabel support with live-mode collapsed expanded-answer panels and separate homework practice progress. Generator prompts and normalization now preserve pushback answers for why-leaving/failure/gap-framing cases. Store sanitization/export keeps valid pushback progress, drops stale pushback entries, and rejects reserved review-key collisions. Covered generator, store, content helpers, live mode, and practice mode.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
