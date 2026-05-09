@@ -87,7 +87,7 @@ Documentation for contributors and developers working on the Facet codebase.
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | [Agent Skills Guidance](development/agent-skills.md)                | Tiered skill recommendations and task-to-skill recipes for AI coding agents working on this repo                             |
 | [Domain Model](development/domain-model.md)                         | Override system, type architecture, render pipeline, routing setup, and feature deep-dives (UI layout, JD analyzer, presets) |
-| [Sample Data and Fixtures](development/sample-data-and-fixtures.md) | How to use in-app sample data, dev-only identity samples, and test fixtures without mixing their roles                       |
+| [Sample Data and Fixtures](development/sample-data-and-fixtures.md) | How to use in-app samples, dev-only samples, golden workspace fixtures, and small test fixtures without mixing their roles   |
 | [Style Guide](development/ui/facet-style-guide.md)                  | Design system, CSS custom properties, color palette, typography, and UI conventions                                          |
 | [Refactor Process](development/refactor-process.md)                 | Audit-first pattern for cross-cutting refactors in Facet                                                                     |
 

@@ -2,11 +2,12 @@
 
 Facet has several kinds of sample data. They look similar in the tree, but they are meant for different jobs:
 
-| Lane                    | Used by                                                  | Where it lives                                                          | How to use it                                                                                                  |
-| ----------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| In-app sample data      | Product walkthroughs and manual QA                       | `src/store/defaultData.ts`, `src/routes/pipeline/samplePipelineData.ts` | Click the relevant **Load Sample Data** action in the running app.                                             |
-| Dev-only source samples | Identity extraction smoke tests during local development | `src/routes/identity/sampleSourceMaterial.ts`                           | Run the dev server, open Identity Workbench, switch to paste mode, and pick a sample from **Load dev sample**. |
-| Test fixtures           | Vitest and Playwright coverage                           | `src/test/fixtures/`, `tests/hosted/fixtures.ts`, `tests/fixtures/`     | Import them from tests or builders; they are not product import files.                                         |
+| Lane                     | Used by                                                   | Where it lives                                                           | How to use it                                                                                                  |
+| ------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| In-app sample data       | Product walkthroughs and manual QA                        | `src/store/defaultData.ts`, `src/routes/pipeline/samplePipelineData.ts`  | Click the relevant **Load Sample Data** action in the running app.                                             |
+| Dev-only source samples  | Identity extraction smoke tests during local development  | `src/routes/identity/sampleSourceMaterial.ts`                            | Run the dev server, open Identity Workbench, switch to paste mode, and pick a sample from **Load dev sample**. |
+| Golden workspace fixture | Cross-workspace contract tests, hosted mocks, local demos | `src/test/fixtures/goldenWorkspace.ts`, `src/dev/goldenDemoWorkspace.ts` | Import the builder from tests, or use the dev-only backup dialog action to replace the local workspace.        |
+| Small test fixtures      | Focused Vitest and Playwright coverage                    | `src/test/fixtures/`, `tests/hosted/fixtures.ts`, `tests/fixtures/`      | Import them from tests or builders; they are not product import files.                                         |
 
 All sample data must stay fictional. Do not add real candidates, real job-search targets, private compensation notes, secrets, or customer data.
 
@@ -55,6 +56,44 @@ Important behavior:
 - The samples intentionally cover different input shapes: clean resume, narrative bio, messy acquisition history, sparse junior resume, and career-changer narrative.
 
 ## Test Fixtures
+
+### Golden Workspace Fixture
+
+`src/test/fixtures/goldenWorkspace.ts` exports `buildMayaPatelGoldenWorkspace()`, the
+canonical connected fixture for cross-workspace tests. It composes Maya Patel's fictional
+Identity model, Research run/result, Pipeline entry, JDAnalysis, generated resume,
+cover-letter draft/snapshot, Prep deck/cards, LinkedIn draft, recruiter card, and
+Debrief session into one `FacetWorkspaceSnapshot` plus an explicit Identity payload.
+
+Use it when a test needs to prove the product still works as a connected system. Do not
+use it for small unit tests where a compact object builder is enough.
+
+Important behavior:
+
+- Identity is stored outside `FacetWorkspaceSnapshot`, so the golden builder returns
+  `identity`, `identityStorageEnvelope`, and `hydrateIntoStores()` separately.
+- Hosted Playwright mocks can serve the golden snapshot by passing it to
+  `installHostedApiMocks()`.
+- The dev-only demo loader lives in `src/dev/goldenDemoWorkspace.ts` and imports the
+  golden fixture dynamically. The backup dialog exposes **Replace with Demo Workspace**
+  only when `import.meta.env.DEV` is true.
+- The dev demo path deliberately uses replace semantics for the active local workspace;
+  Build and Pipeline route-local **Load Sample Data** actions keep their route-specific
+  behavior.
+
+Run the golden checks after changing cross-workspace contracts or the Maya fixture:
+
+```bash
+npx vitest run src/test/fixtures/goldenWorkspace.test.ts src/test/fixtures/personas/validate.test.ts src/test/fixtures/personas/validate.negative.test.ts
+npx vitest run src/test/goldenDemoWorkspace.test.ts src/test/WorkspaceBackupDialog.test.tsx
+VITE_FACET_DEPLOYMENT_MODE=hosted npx playwright test tests/hosted/golden-workspace.spec.ts --project=hosted
+npm run typecheck -- --pretty false
+```
+
+Maintenance rule: update the golden fixture when a workspace relationship changes, such
+as Pipeline-owned JDAnalysis IDs, resume/letter/prep links, Research promotion context,
+or Debrief identity references. Keep unit fixtures minimal and local to the behavior
+under test.
 
 ### Identity Fixture
 
@@ -122,12 +161,13 @@ just test-file src/test/resumeScannerPdf.test.ts
 
 Choose the lane before adding files:
 
-| Need                                               | Add it to                                                                     |
-| -------------------------------------------------- | ----------------------------------------------------------------------------- |
-| A user should click it in the running app          | Route or store sample data, with UI copy and persistence behavior documented. |
-| A developer should test AI extraction input shapes | `src/routes/identity/sampleSourceMaterial.ts`.                                |
-| A unit test needs stable objects                   | `src/test/fixtures/` with builders or clone helpers.                          |
-| A hosted browser test needs mocked API responses   | `tests/hosted/fixtures.ts`.                                                   |
+| Need                                                          | Add it to                                                                     |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| A user should click it in the running app                     | Route or store sample data, with UI copy and persistence behavior documented. |
+| A developer should test AI extraction input shapes            | `src/routes/identity/sampleSourceMaterial.ts`.                                |
+| A contract test needs connected workspace state across routes | `src/test/fixtures/goldenWorkspace.ts`.                                       |
+| A unit test needs stable objects                              | `src/test/fixtures/` with builders or clone helpers.                          |
+| A hosted browser test needs mocked API responses              | `tests/hosted/fixtures.ts`.                                                   |
 
 Checklist for new fixtures:
 
@@ -149,6 +189,7 @@ Then use:
 - Build empty state -> **Load Sample Data** for the default resume.
 - Pipeline empty state -> **Load Sample Data** for job-search entries.
 - Identity Map -> **Import from resume** or **Start from a resume** -> **Paste Source Text** -> **Load dev sample** for dev-only extraction inputs.
+- Backup dialog -> **Import Backup** -> **Replace with Demo Workspace** for the dev-only golden workspace.
 
 For fixture validation:
 
@@ -156,4 +197,5 @@ For fixture validation:
 just test-file src/test/fixtures/personas/validate.test.ts
 just test-file src/test/resumeScannerAcceptance.test.ts
 just test-file src/test/resumeScannerPdf.test.ts
+npx vitest run src/test/fixtures/goldenWorkspace.test.ts src/test/goldenDemoWorkspace.test.ts
 ```
