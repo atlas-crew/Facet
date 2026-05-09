@@ -3,7 +3,7 @@ id: doc-43
 title: Golden E2E Fixture Coverage Plan
 type: specification
 created_date: '2026-05-08 23:26'
-updated_date: '2026-05-08 23:28'
+updated_date: '2026-05-09 01:34'
 tags:
   - fixtures
   - e2e
@@ -18,6 +18,19 @@ Facet needs one deterministic, fictional workspace that proves the product works
 
 This plan creates a reusable golden fixture spine for end-to-end tests, hosted Playwright mocks, persistence snapshots, and optionally a dev-only demo workspace loader.
 
+## Status
+
+Closed 2026-05-09. `TASK-245` and every child task (`TASK-245.1` through `TASK-245.6`) are Done.
+
+Delivered surfaces:
+
+- `src/test/fixtures/goldenWorkspace.ts` composes the Maya/Pillar golden workspace.
+- Golden fixture contract and round-trip tests cover cross-artifact links and snapshot hydration.
+- Hosted Playwright fixtures can opt into the golden workspace without changing the default minimal hosted mocks.
+- A deterministic cross-workspace E2E path exercises the connected Identity -> Research -> Pipeline -> JDAnalysis -> Build/Letters/Prep/Debrief graph.
+- The dev-only backup/import flow exposes **Replace with Demo Workspace** behind `import.meta.env.DEV`.
+- Maintenance docs explain how golden fixtures differ from route-local samples and small unit fixtures.
+
 ## Canonical Seed Persona
 
 Use **Maya Patel** as the seed persona.
@@ -30,7 +43,7 @@ Why Maya:
 
 ## Target Fixture Shape
 
-Add a new builder, tentatively `buildMayaPatelGoldenWorkspace()`, that returns a complete test workspace object or `FacetWorkspaceSnapshot`-compatible payload containing:
+The shipped `buildMayaPatelGoldenWorkspace()` builder returns a complete test workspace object with a snapshot-compatible workspace payload containing:
 
 - Identity: Maya's current professional identity.
 - Resume: Maya's resume workspace, including at least one active resume entity and one pipeline-linked generated resume.
@@ -67,17 +80,17 @@ Milestone: `m-29` Golden E2E Fixture Coverage.
 Task graph:
 
 ```
-TASK-245    Build golden E2E fixture coverage                 [parent]
+TASK-245    Build golden E2E fixture coverage                 [done, parent]
    |
-   +-- TASK-245.1  Add Maya golden fixture data artifacts      [med]
+   +-- TASK-245.1  Add Maya golden fixture data artifacts      [done]
           |
           v
-      TASK-245.2  Build golden workspace snapshot composer     [med]
+      TASK-245.2  Build golden workspace snapshot composer     [done]
           |
-          +-- TASK-245.3  Use golden workspace in hosted Playwright fixtures  [med]
-          +-- TASK-245.4  Add deterministic cross-workspace golden E2E test   [med]
-          +-- TASK-245.5  Add optional dev demo workspace loader              [low]
-          +-- TASK-245.6  Document golden fixture usage and maintenance       [low]
+          +-- TASK-245.3  Use golden workspace in hosted Playwright fixtures  [done]
+          +-- TASK-245.4  Add deterministic cross-workspace golden E2E test   [done]
+          +-- TASK-245.5  Add optional dev demo workspace loader              [done]
+          +-- TASK-245.6  Document golden fixture usage and maintenance       [done]
 ```
 
 Implementation order:
@@ -86,8 +99,15 @@ Implementation order:
 2. `TASK-245.2` composes that data into a reusable golden workspace/snapshot and validates hydration.
 3. `TASK-245.3`, `TASK-245.4`, `TASK-245.5`, and `TASK-245.6` can proceed in parallel after the composer lands.
 
+All tasks followed this order and are complete.
+
 ## Decisions
 
 - The optional demo loader is dev-only. It is exposed from the backup dialog's import mode as **Replace with Demo Workspace** and is guarded by `import.meta.env.DEV`.
 - The golden fixture lives in `src/test/fixtures/goldenWorkspace.ts`, which composes persona data plus downstream artifacts into a reusable workspace snapshot.
 - Identity stays outside `FacetWorkspaceSnapshot` for this slice. Golden tests and the dev loader hydrate Identity explicitly with the builder's Identity payload.
+
+## Revision History
+
+- **2026-05-08 v1**: initial golden E2E fixture coverage plan.
+- **2026-05-09 v2**: rollout closed. `TASK-245` and `TASK-245.1` through `TASK-245.6` are Done; the plan now records the shipped builder, hosted fixture path, deterministic E2E coverage, dev demo loader, and maintenance docs.
