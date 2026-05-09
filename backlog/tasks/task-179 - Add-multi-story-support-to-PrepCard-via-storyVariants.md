@@ -1,7 +1,7 @@
 ---
 id: TASK-179
 title: Add multi-story support to PrepCard via storyVariants
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
