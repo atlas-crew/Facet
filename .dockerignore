@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-unmin-*
 .git
 .github
 backlog
@@ -12,3 +13,12 @@ coverage
 **/.env.*
 !**/.env.example
 .DS_Store
+brand
+.claude
+.agents
+.codanna
+.mcp.json
+skills-lock.json
+playwright-report
+test-results
+*.png
