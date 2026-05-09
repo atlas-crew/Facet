@@ -1,9 +1,11 @@
 ---
 id: TASK-245.4
 title: Add deterministic cross-workspace golden E2E test
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-08 23:27'
+updated_date: '2026-05-09 04:39'
 labels:
   - feature
 milestone: m-29
@@ -27,6 +29,12 @@ Add a deterministic integration test that uses the golden fixture to prove Ident
 - [ ] #2 The test asserts key cross-workspace links: pipeline JDAnalysis, pipeline resume/letter/prep links, research promotion context, and debrief/prep round linkage.
 - [ ] #3 The test uses contract-style assertions that catch broken relationships while avoiding brittle full-text snapshots.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add a contract-style golden workspace test that loads buildMayaPatelGoldenWorkspace() and indexes identity, resume, pipeline, JDAnalysis, letters, prep, debrief, and research artifacts.\n2. Assert the key cross-workspace links without duplicating fixture object literals or using full-text snapshots.\n3. Run focused tests/lint/format, independent review, update Backlog, and commit with cortex git commit.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
