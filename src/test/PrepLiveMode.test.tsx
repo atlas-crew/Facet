@@ -1277,6 +1277,9 @@ describe('PrepLiveMode', () => {
               content: 'Covered the rollback decision tree.',
             },
           ],
+          pushbackScript:
+            'If they ask for the fuller answer, explain the honest context behind the transition.',
+          pushbackLabel: 'If they ask for more',
           conditionals: [
             {
               id: 'conditional-1',
@@ -1300,6 +1303,10 @@ describe('PrepLiveMode', () => {
     expect(openerSection?.textContent).toContain('We held the rollback line.')
     expect(openerSection?.textContent).toContain('Incident review')
     expect(openerSection?.textContent).toContain('Covered the rollback decision tree.')
+    const pushback = openerSection?.querySelector('details.prep-live-pushback')
+    expect(pushback?.hasAttribute('open')).toBe(false)
+    expect(pushback?.textContent).toContain('If they ask for more')
+    expect(pushback?.textContent).toContain('honest context behind the transition')
     expect(openerSection?.textContent).toContain('Signal')
     expect(openerSection?.textContent).toContain('pager spike')
 
@@ -1320,6 +1327,11 @@ describe('PrepLiveMode', () => {
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
       target: { value: 'mitigation and rollback path' },
+    })
+    expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search cheatsheet' }), {
+      target: { value: 'honest context behind the transition' },
     })
     expect(screen.getByRole('heading', { name: 'Openers' })).toBeTruthy()
   })

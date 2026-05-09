@@ -19,6 +19,8 @@ import {
   getPrepDefaultText,
   getPrepParagraphs,
   getPrepDisplayText,
+  PREP_PUSHBACK_DEFAULT_LABEL,
+  getPrepPushbackLabel,
   getPrepSourceAwareText,
   hasPrepCardNeedsReviewContent,
   hasPrepFillInPlaceholder,
@@ -333,11 +335,19 @@ function buildCardSearchText(card: PrepCard): string {
   const deepDives = filterPrepDeepDives(card.deepDives)
   const conditionals = filterPrepConditionals(card.conditionals)
   const tableData = getRenderableTableData(card.tableData)
+  const trimmedPushbackLabel = card.pushbackLabel?.trim() ?? ''
+  // Avoid making the default disclosure label match every card that has a pushback answer.
+  const searchablePushbackLabel =
+    trimmedPushbackLabel && trimmedPushbackLabel !== PREP_PUSHBACK_DEFAULT_LABEL
+      ? trimmedPushbackLabel
+      : ''
 
   return [
     card.title,
     card.script ?? '',
     card.scriptLabel ?? '',
+    card.pushbackScript ?? '',
+    searchablePushbackLabel,
     card.alternativeTitle ?? '',
     card.alternativeScript ?? '',
     card.warning ?? '',
@@ -2023,6 +2033,8 @@ function renderCardBlock(
   const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || undefined
   const displayNotes = getPrepSourceAwareText(card.notes, card.source)
   const displayScript = getPrepSourceAwareText(card.script, card.source)
+  const displayPushbackScript = getPrepSourceAwareText(card.pushbackScript, card.source)
+  const displayPushbackLabel = getPrepDisplayText(getPrepPushbackLabel(card))
   const customAlternativeTitle = getPrepSourceAwareText(card.alternativeTitle, card.source)
   const displayAlternativeTitle = customAlternativeTitle || 'Backup narrative'
   const displayAlternativeScript = getPrepSourceAwareText(card.alternativeScript, card.source)
@@ -2030,6 +2042,9 @@ function renderCardBlock(
   const renderedAlternativeScript =
     displayAlternativeScript === 'Needs review' ? '' : displayAlternativeScript
   const hasAlternativeStory = Boolean(customAlternativeTitle || renderedAlternativeScript)
+  const hasPushbackScript = Boolean(
+    displayPushbackScript && displayPushbackScript !== 'Needs review',
+  )
   // Compact mode hides Context once the main spoken answer and risk callout are both present.
   const showContext = Boolean(displayNotes) && (!compactMode || !displayScript)
 
@@ -2068,6 +2083,16 @@ function renderCardBlock(
               'spoken',
             )}
           </section>
+        ) : null}
+
+        {hasPushbackScript ? (
+          <details className="prep-live-pushback prep-live-callout-fullwidth">
+            <summary>
+              <span>Expanded answer</span>
+              <strong>{displayPushbackLabel}</strong>
+            </summary>
+            {renderPrepParagraphBlocks(displayPushbackScript, 'prep-live-pushback-copy', 'spoken')}
+          </details>
         ) : null}
 
         {hasAlternativeStory ? (

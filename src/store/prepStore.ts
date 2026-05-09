@@ -54,6 +54,7 @@ import {
   sanitizeIdentityVersion,
 } from '../types/artifactMeta'
 import { normalizePrepAnswerTemplate } from '../utils/prepAnswerTemplate'
+import { getPrepPushbackPracticeCardId, isPrepPushbackPracticeKey } from '../utils/prepCardContent'
 
 const LEGACY_STORAGE_KEY = 'facet-prep-data'
 
@@ -107,7 +108,8 @@ interface PrepState {
   replaceDeckCards: (deckId: string, cards: PrepCard[]) => void
   addCard: (deckId: string, partial?: Partial<PrepCard>) => string
   updateCard: (deckId: string, cardId: string, patch: Partial<PrepCard>) => void
-  recordCardReview: (deckId: string, cardId: string, confidence: PrepCardConfidence) => void
+  /** reviewKey may be a card id or a synthetic pushback practice key. */
+  recordCardReview: (deckId: string, reviewKey: string, confidence: PrepCardConfidence) => boolean
   duplicateCard: (deckId: string, cardId: string) => void
   removeCard: (deckId: string, cardId: string) => void
   deleteDeck: (deckId: string) => void
@@ -165,6 +167,8 @@ function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepC
     updatedAt: now(),
     script: partial.script?.trim() || undefined,
     scriptLabel: partial.scriptLabel?.trim() || undefined,
+    pushbackScript: partial.pushbackScript?.trim() || undefined,
+    pushbackLabel: partial.pushbackLabel?.trim() || undefined,
     alternativeTitle: partial.alternativeTitle?.trim() || undefined,
     alternativeScript: partial.alternativeScript?.trim() || undefined,
     warning: partial.warning?.trim() || undefined,
@@ -736,15 +740,18 @@ function sanitizeStackAlignment(
 
 function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions = {}): PrepCard {
   const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
+  const cardId = isPrepPushbackPracticeKey(card.id) ? createId('prep-card') : card.id
 
   return {
     ...createEmptyCard(deckId, card),
-    id: card.id,
+    id: cardId,
     deckId,
     category,
     title: card.title.trim() || 'Untitled Prep Card',
     tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
     scriptLabel: card.scriptLabel?.trim() || undefined,
+    pushbackScript: sanitizeText(card.pushbackScript, options),
+    pushbackLabel: sanitizeText(card.pushbackLabel, options),
     alternativeTitle: sanitizeText(card.alternativeTitle, options),
     alternativeScript: sanitizeText(card.alternativeScript, options),
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks, options),
@@ -771,20 +778,34 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
   }
 }
 
+function shouldKeepStudyProgressEntry(
+  cardsById: Map<string, PrepCard>,
+  reviewKey: string,
+): boolean {
+  const card = cardsById.get(getPrepPushbackPracticeCardId(reviewKey))
+  if (!card) return false
+  return !isPrepPushbackPracticeKey(reviewKey) || Boolean(card.pushbackScript?.trim())
+}
+
 function sanitizeDeck(
   deck: PrepDeck,
   options: { touch?: boolean; preserveDrafts?: boolean } = {},
 ): PrepDeck {
   const timestamp = now()
   const cards = deck.cards.map((card) => sanitizeCard(deck.id, card, options))
-  const validCardIds = new Set(cards.map((card) => card.id))
+  const cardsById = new Map(cards.map((card) => [card.id, card]))
   const studyProgress = Object.fromEntries(
-    Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
-      if (!validCardIds.has(cardId) || !state || typeof state !== 'object') return []
+    Object.entries(deck.studyProgress ?? {}).flatMap(([reviewKey, state]) => {
+      if (
+        !shouldKeepStudyProgressEntry(cardsById, reviewKey) ||
+        !state ||
+        typeof state !== 'object'
+      )
+        return []
       const record = state as PrepCardStudyState
       return [
         [
-          cardId,
+          reviewKey,
           {
             confidence: PREP_CARD_CONFIDENCE_VALUES.includes(
               record.confidence as PrepCardConfidence,
@@ -869,6 +890,8 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
     pipelineEntryId: card.pipelineEntryId ?? null,
     script: card.script?.trim() || undefined,
     scriptLabel: card.scriptLabel?.trim() || undefined,
+    pushbackScript: card.pushbackScript?.trim() || undefined,
+    pushbackLabel: card.pushbackLabel?.trim() || undefined,
     alternativeTitle: card.alternativeTitle?.trim() || undefined,
     alternativeScript: card.alternativeScript?.trim() || undefined,
     warning: card.warning?.trim() || undefined,
@@ -897,14 +920,19 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
 
 function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
   const cards = deck.cards.map((card) => stripDraftCardForExport(deck.id, card))
-  const validCardIds = new Set(cards.map((card) => card.id))
+  const cardsById = new Map(cards.map((card) => [card.id, card]))
   const studyProgress = Object.fromEntries(
-    Object.entries(deck.studyProgress ?? {}).flatMap(([cardId, state]) => {
-      if (!validCardIds.has(cardId) || !state || typeof state !== 'object') return []
+    Object.entries(deck.studyProgress ?? {}).flatMap(([reviewKey, state]) => {
+      if (
+        !shouldKeepStudyProgressEntry(cardsById, reviewKey) ||
+        !state ||
+        typeof state !== 'object'
+      )
+        return []
       const record = state as PrepCardStudyState
       return [
         [
-          cardId,
+          reviewKey,
           {
             confidence: PREP_CARD_CONFIDENCE_VALUES.includes(
               record.confidence as PrepCardConfidence,
@@ -1152,18 +1180,21 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
     }))
   },
 
-  recordCardReview: (deckId, cardId, confidence) => {
+  recordCardReview: (deckId, reviewKey, confidence) => {
+    const deck = get().decks.find((entry) => entry.id === deckId)
+    const accepted = deck
+      ? shouldKeepStudyProgressEntry(new Map(deck.cards.map((card) => [card.id, card])), reviewKey)
+      : false
+    if (!accepted) return false
+
     set((state) => ({
       decks: updateDeckCollection(state.decks, deckId, (deck) => {
-        if (!deck.cards.some((card) => card.id === cardId)) {
-          return deck
-        }
-        const current = deck.studyProgress?.[cardId]
+        const current = deck.studyProgress?.[reviewKey]
         return {
           ...deck,
           studyProgress: {
             ...(deck.studyProgress ?? {}),
-            [cardId]: {
+            [reviewKey]: {
               confidence,
               attempts: (current?.attempts ?? 0) + 1,
               needsWorkCount:
@@ -1174,6 +1205,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
         }
       }),
     }))
+    return true
   },
 
   duplicateCard: (deckId, cardId) => {

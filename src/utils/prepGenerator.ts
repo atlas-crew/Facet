@@ -577,6 +577,12 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
         scriptLabel: isString(record.scriptLabel)
           ? record.scriptLabel.trim() || undefined
           : undefined,
+        pushbackScript: isString(record.pushbackScript)
+          ? record.pushbackScript.trim() || undefined
+          : undefined,
+        pushbackLabel: isString(record.pushbackLabel)
+          ? record.pushbackLabel.trim() || undefined
+          : undefined,
         alternativeTitle: isString(record.alternativeTitle)
           ? record.alternativeTitle.trim() || undefined
           : undefined,
@@ -811,6 +817,7 @@ function getCardValidationText(card: PrepCard): string {
     card.notes,
     card.warning,
     card.script,
+    card.pushbackScript,
     ...(card.keyPoints ?? []),
     ...(card.storyBlocks ?? []).map((block) => block.text),
     ...(card.deepDives ?? []).map((deepDive) =>
@@ -1695,6 +1702,8 @@ Response schema:
       "notes": "optional string",
       "script": "optional string",
       "scriptLabel": "optional string",
+      "pushbackScript": "optional string",
+      "pushbackLabel": "optional string",
       "alternativeTitle": "optional string",
       "alternativeScript": "optional string",
       "warning": "optional string",
@@ -1797,6 +1806,7 @@ For behavioral and project cards with storyBlocks:
 - Only use scriptLabel "The One-Liner" when the card script itself is the standalone takeaway instead of a full answer.
 - Keep every one-liner concrete, role-specific, and evidence-backed, never generic motivational copy.
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
+For cards where the first script intentionally stays concise or omits deeper context, add pushbackScript as the full expanded same-question answer the candidate should give only if the interviewer presses for more detail. Use this for why-leaving, failure, nuanced motivation, and technical gap-framing cards. pushbackScript must be honest, more specific than the primary script, and not evasive; pushbackLabel defaults to "If they push" unless a more precise label helps. Do not use pushbackScript for short Q&A follow-ups; those belong in conditionals.
 For gotcha questions or misleading framing, use tone "trap" and write the response as the reframe the candidate should deliver.
 Return 3 to 5 deck-level rules as imperative one-liners in the rules array. These should sound like live commands or hard reminders, not passive coaching prose. Tailor them to the round type, application method, round stage, and any inbound versus cold-apply signals in the provided context.
 Return 5 to 8 personalized donts at the deck level, 3 to 5 questionsToAsk with coaching context, and categoryGuidance keyed by the prep category names.

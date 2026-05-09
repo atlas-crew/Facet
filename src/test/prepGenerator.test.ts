@@ -464,6 +464,10 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('structured candidate evidence from identity bullets')
     expect(userPrompt).toContain('do not derive it by raw-job re-inference')
     expect(userPrompt).toContain('Only use scriptLabel "The One-Liner"')
+    expect(systemPrompt).toContain('"pushbackScript": "optional string"')
+    expect(systemPrompt).toContain('"pushbackLabel": "optional string"')
+    expect(userPrompt).toContain('add pushbackScript as the full expanded same-question answer')
+    expect(userPrompt).toContain('Do not use pushbackScript for short Q&A follow-ups')
     expect(userPrompt).toContain(
       'Generate dedicated opener cards for the predictable opening questions',
     )
@@ -841,6 +845,8 @@ describe('generateInterviewPrep', () => {
             tags: [' leadership ', 'backend'],
             script: 'Lead with the incident response story.',
             scriptLabel: ' Lead With ',
+            pushbackScript: ' Add the deeper context only if they ask why this example mattered. ',
+            pushbackLabel: ' If they press on context ',
             alternativeTitle: ' Alternative: migration story ',
             alternativeScript:
               ' Use the platform migration proof if they ask for another example. ',
@@ -962,6 +968,10 @@ describe('generateInterviewPrep', () => {
       }),
     ])
     expect(result.cards[0].scriptLabel).toBe('Lead With')
+    expect(result.cards[0].pushbackScript).toBe(
+      'Add the deeper context only if they ask why this example mattered.',
+    )
+    expect(result.cards[0].pushbackLabel).toBe('If they press on context')
     expect(result.cards[0].alternativeTitle).toBe('Alternative: migration story')
     expect(result.cards[0].alternativeScript).toBe(
       'Use the platform migration proof if they ask for another example.',

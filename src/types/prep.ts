@@ -362,6 +362,9 @@ export interface PrepCard {
 
   script?: string
   scriptLabel?: string
+  /** Expanded same-question answer when the interviewer asks for more detail. */
+  pushbackScript?: string
+  pushbackLabel?: string
   /** Optional backup narrative when the same requirement has a second credible proof point. */
   alternativeTitle?: string
   alternativeScript?: string

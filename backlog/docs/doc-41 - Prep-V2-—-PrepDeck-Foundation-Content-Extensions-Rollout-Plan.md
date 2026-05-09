@@ -50,7 +50,7 @@ TASK-137  Add one-liner quotable takeaways                        [done]
 TASK-146  Add multi-role narrative arc for core pitch opener      [done]
 TASK-177  Add beat sheet and glance points to PrepCard            [done]
 TASK-179  Add multi-story support to PrepCard via storyVariants   [low]
-TASK-180  Add "if they push" pushback script to PrepCard          [low]
+TASK-180  Add "if they push" pushback script to PrepCard          [done]
 ```
 
 All seven are parallel-safe with each other once unblocked. Order them by leverage: 136 + 139 are the deepest content shifts (alternative narratives, technical drills with templates), 137/146/177/179/180 are smaller surface additions.

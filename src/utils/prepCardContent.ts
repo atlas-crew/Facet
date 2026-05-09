@@ -315,6 +315,27 @@ export function filterPrepStoryBlocks(blocks: PrepStoryBlock[] | undefined): Pre
   return filterPrepContent(blocks, hasPrepStoryBlockContent)
 }
 
+export const PREP_PUSHBACK_DEFAULT_LABEL = 'If they push'
+const PREP_PUSHBACK_PRACTICE_KEY_PREFIX = 'pushback::'
+
+export function getPrepPushbackLabel(card: Pick<PrepCard, 'pushbackLabel'>): string {
+  return card.pushbackLabel?.trim() || PREP_PUSHBACK_DEFAULT_LABEL
+}
+
+export function getPrepPushbackPracticeKey(cardId: string): string {
+  return PREP_PUSHBACK_PRACTICE_KEY_PREFIX + cardId
+}
+
+export function isPrepPushbackPracticeKey(cardId: string): boolean {
+  return cardId.startsWith(PREP_PUSHBACK_PRACTICE_KEY_PREFIX)
+}
+
+export function getPrepPushbackPracticeCardId(cardId: string): string {
+  return isPrepPushbackPracticeKey(cardId)
+    ? cardId.slice(PREP_PUSHBACK_PRACTICE_KEY_PREFIX.length)
+    : cardId
+}
+
 export function hasPrepMetricContent(metric: PrepMetric): boolean {
   return metric.value.trim().length > 0 || metric.label.trim().length > 0
 }
@@ -389,6 +410,8 @@ export function hasPrepCardNeedsReviewContent(
     | 'script'
     | 'warning'
     | 'scriptLabel'
+    | 'pushbackScript'
+    | 'pushbackLabel'
     | 'alternativeTitle'
     | 'alternativeScript'
     | 'keyPoints'
@@ -406,6 +429,8 @@ export function hasPrepCardNeedsReviewContent(
     hasPrepNeedsReviewText(card.script) ||
     hasPrepNeedsReviewText(card.warning) ||
     hasPrepNeedsReviewText(card.scriptLabel) ||
+    hasPrepNeedsReviewText(card.pushbackScript) ||
+    hasPrepNeedsReviewText(card.pushbackLabel) ||
     hasPrepNeedsReviewText(card.alternativeTitle) ||
     hasPrepNeedsReviewText(card.alternativeScript) ||
     (card.keyPoints ?? []).some((point) => hasPrepNeedsReviewText(point)) ||

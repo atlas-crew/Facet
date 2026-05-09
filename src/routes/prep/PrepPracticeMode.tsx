@@ -8,6 +8,9 @@ import {
   filterPrepKeyPoints,
   filterPrepStoryBlocks,
   getPrepDisplayText,
+  PREP_PUSHBACK_DEFAULT_LABEL,
+  getPrepPushbackLabel,
+  getPrepPushbackPracticeKey,
   hasPrepCardNeedsReviewContent,
   resolvePrepConditionalTone,
 } from '../../utils/prepCardContent'
@@ -17,7 +20,7 @@ interface PrepPracticeModeProps {
   rules?: string[]
   studyProgress?: Record<string, PrepCardStudyState>
   onExit: () => void
-  onRecordReview: (cardId: string, confidence: PrepCardConfidence) => void
+  onRecordReview: (reviewKey: string, confidence: PrepCardConfidence) => boolean | void
 }
 
 type HomeworkFilter = 'all' | 'openers' | 'needs_work' | 'unreviewed'
@@ -33,6 +36,11 @@ type HomeworkQueueEntry =
       kind: 'conditional'
       cardId: string
       conditionalIndex: number
+    }
+  | {
+      id: string
+      kind: 'pushback'
+      cardId: string
     }
 
 const HOMEWORK_FILTER_LABELS: Record<HomeworkFilter, string> = {
@@ -91,7 +99,13 @@ function selectCardsForFilter(
   if (filter === 'needs_work') {
     return cards.filter((card) => {
       const progress = studyProgress?.[card.id]
-      return (progress?.needsWorkCount ?? 0) > 0 || progress?.confidence === 'needs_work'
+      const pushbackProgress = studyProgress?.[getPrepPushbackPracticeKey(card.id)]
+      return (
+        (progress?.needsWorkCount ?? 0) > 0 ||
+        progress?.confidence === 'needs_work' ||
+        (pushbackProgress?.needsWorkCount ?? 0) > 0 ||
+        pushbackProgress?.confidence === 'needs_work'
+      )
     })
   }
   return cards.filter((card) => !studyProgress?.[card.id])
@@ -101,11 +115,13 @@ function createInitialHomeworkQueue(
   cards: readonly PrepCard[],
   studyProgress: Record<string, PrepCardStudyState> | undefined,
 ): HomeworkQueueEntry[] {
-  return fisherYatesShuffle(selectCardsForFilter(cards, studyProgress, 'all')).map((card, index) => ({
-    id: `card:${card.id}:initial:${index}`,
-    kind: 'card',
-    cardId: card.id,
-  }))
+  return fisherYatesShuffle(selectCardsForFilter(cards, studyProgress, 'all')).map(
+    (card, index) => ({
+      id: `card:${card.id}:initial:${index}`,
+      kind: 'card',
+      cardId: card.id,
+    }),
+  )
 }
 
 export function PrepPracticeMode({
@@ -130,13 +146,25 @@ export function PrepPracticeMode({
     }
   }, [])
 
-  const createHomeworkConditionalEntry = useCallback((cardId: string, conditionalIndex: number): HomeworkQueueEntry => {
+  const createHomeworkConditionalEntry = useCallback(
+    (cardId: string, conditionalIndex: number): HomeworkQueueEntry => {
+      queueEntryCounterRef.current += 1
+      return {
+        id: `conditional:${cardId}:${conditionalIndex}:${queueEntryCounterRef.current}`,
+        kind: 'conditional',
+        cardId,
+        conditionalIndex,
+      }
+    },
+    [],
+  )
+
+  const createHomeworkPushbackEntry = useCallback((cardId: string): HomeworkQueueEntry => {
     queueEntryCounterRef.current += 1
     return {
-      id: `conditional:${cardId}:${conditionalIndex}:${queueEntryCounterRef.current}`,
-      kind: 'conditional',
+      id: `pushback:${cardId}:${queueEntryCounterRef.current}`,
+      kind: 'pushback',
       cardId,
-      conditionalIndex,
     }
   }, [])
 
@@ -216,29 +244,32 @@ export function PrepPracticeMode({
       ) {
         continue
       }
+      if (entry.kind === 'pushback' && !card.pushbackScript?.trim()) continue
       return index
     }
     return queue.length
   }, [cardsById, currentIndex, queue])
 
   const currentEntry = queue[activeIndex] ?? null
-  const currentCard = currentEntry ? cardsById.get(currentEntry.cardId) ?? null : null
+  const currentCard = currentEntry ? (cardsById.get(currentEntry.cardId) ?? null) : null
   const currentConditionals = useMemo(
     () => filterPrepConditionals(currentCard?.conditionals),
     [currentCard],
   )
   const currentConditional =
     currentEntry?.kind === 'conditional'
-      ? currentConditionals[currentEntry.conditionalIndex] ?? null
+      ? (currentConditionals[currentEntry.conditionalIndex] ?? null)
       : null
+  const currentPushbackScript =
+    currentEntry?.kind === 'pushback' ? currentCard?.pushbackScript?.trim() || null : null
+  const currentPushbackLabel = currentCard
+    ? getPrepPushbackLabel(currentCard)
+    : PREP_PUSHBACK_DEFAULT_LABEL
   const currentStoryBlocks = useMemo(
     () => filterPrepStoryBlocks(currentCard?.storyBlocks),
     [currentCard],
   )
-  const currentKeyPoints = useMemo(
-    () => filterPrepKeyPoints(currentCard?.keyPoints),
-    [currentCard],
-  )
+  const currentKeyPoints = useMemo(() => filterPrepKeyPoints(currentCard?.keyPoints), [currentCard])
   const keyPointsPresentation = currentCard ? getKeyPointsPresentation(currentCard.category) : null
   const shouldRenderReadOnlyAnswer =
     currentEntry?.kind === 'card' && currentKeyPoints.length > 0 && currentStoryBlocks.length === 0
@@ -254,14 +285,23 @@ export function PrepPracticeMode({
       const liveCard = cardsByIdRef.current.get(currentEntry.cardId)
       if (!liveCard) return
       const liveConditionals = filterPrepConditionals(liveCard.conditionals)
+      const livePushbackScript = liveCard.pushbackScript?.trim()
       if (
         currentEntry.kind === 'conditional' &&
         currentEntry.conditionalIndex >= liveConditionals.length
       ) {
         return
       }
+      if (currentEntry.kind === 'pushback' && !livePushbackScript) return
 
-      onRecordReview(liveCard.id, confidence)
+      const reviewKey =
+        currentEntry.kind === 'pushback' ? getPrepPushbackPracticeKey(liveCard.id) : liveCard.id
+      const accepted = onRecordReview(reviewKey, confidence)
+      if (accepted === false) {
+        setCurrentIndex(activeIndex + 1)
+        setIsRevealed(false)
+        return
+      }
       setSessionReviewedCount((count) => count + 1)
       setSessionNeedsWorkCount((count) => count + (confidence === 'needs_work' ? 1 : 0))
       setQueue((currentQueue) => {
@@ -276,14 +316,26 @@ export function PrepPracticeMode({
             ),
           )
         }
+        if (currentEntry.kind === 'card' && livePushbackScript) {
+          nextQueue.splice(
+            activeIndex + 1 + liveConditionals.length,
+            0,
+            createHomeworkPushbackEntry(liveCard.id),
+          )
+        }
 
         if (confidence === 'needs_work') {
           const requeueEntry =
             currentEntry.kind === 'card'
               ? createHomeworkCardEntry(liveCard.id)
-              : createHomeworkConditionalEntry(liveCard.id, currentEntry.conditionalIndex)
-          const insertedConditionalCount = currentEntry.kind === 'card' ? liveConditionals.length : 0
-          const insertAt = Math.min(nextQueue.length, activeIndex + insertedConditionalCount + 3)
+              : currentEntry.kind === 'pushback'
+                ? createHomeworkPushbackEntry(liveCard.id)
+                : createHomeworkConditionalEntry(liveCard.id, currentEntry.conditionalIndex)
+          const insertedFollowUpCount =
+            currentEntry.kind === 'card'
+              ? liveConditionals.length + (livePushbackScript ? 1 : 0)
+              : 0
+          const insertAt = Math.min(nextQueue.length, activeIndex + insertedFollowUpCount + 3)
           nextQueue.splice(insertAt, 0, requeueEntry)
         }
 
@@ -292,7 +344,15 @@ export function PrepPracticeMode({
       setCurrentIndex(activeIndex + 1)
       setIsRevealed(false)
     },
-    [activeIndex, createHomeworkCardEntry, createHomeworkConditionalEntry, currentCard, currentEntry, onRecordReview],
+    [
+      activeIndex,
+      createHomeworkCardEntry,
+      createHomeworkConditionalEntry,
+      createHomeworkPushbackEntry,
+      currentCard,
+      currentEntry,
+      onRecordReview,
+    ],
   )
 
   useEffect(() => {
@@ -326,13 +386,22 @@ export function PrepPracticeMode({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentCard, currentEntry, handleRecord, isRevealed, onExit])
 
-  const attentionChip = needsAttentionCount > 0
-    ? <span className="prep-mode-chip prep-practice-attention">{needsAttentionCount} needs attention</span>
-    : null
+  const attentionChip =
+    needsAttentionCount > 0 ? (
+      <span className="prep-mode-chip prep-practice-attention">
+        {needsAttentionCount} needs attention
+      </span>
+    ) : null
 
   if (cards.length === 0) {
     return (
-      <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
+      <div
+        className="prep-practice-mode"
+        ref={containerRef}
+        tabIndex={-1}
+        role="region"
+        aria-label="Homework mode"
+      >
         <PrepRulesPanel
           rules={rules}
           variant="practice"
@@ -341,7 +410,9 @@ export function PrepPracticeMode({
         />
         <div className="prep-empty">
           <h2>No cards available</h2>
-          <button className="prep-btn" onClick={onExit}>Back to Edit</button>
+          <button className="prep-btn" onClick={onExit}>
+            Back to Edit
+          </button>
         </div>
       </div>
     )
@@ -349,11 +420,19 @@ export function PrepPracticeMode({
 
   if (queue.length === 0) {
     return (
-      <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
+      <div
+        className="prep-practice-mode"
+        ref={containerRef}
+        tabIndex={-1}
+        role="region"
+        aria-label="Homework mode"
+      >
         <div className="prep-practice-header">
           <div>
             <div className="prep-practice-progress">Homework</div>
-            <p className="prep-practice-subcopy">Use confidence grading to keep weak answers coming back until they stick.</p>
+            <p className="prep-practice-subcopy">
+              Use confidence grading to keep weak answers coming back until they stick.
+            </p>
           </div>
           <div className="prep-practice-actions">
             <button className="prep-btn" onClick={onExit}>
@@ -379,29 +458,33 @@ export function PrepPracticeMode({
               aria-pressed={filter === option}
             >
               {HOMEWORK_FILTER_LABELS[option]}
-              <span className="prep-practice-filter-count" aria-label={`${filterCounts[option]} cards`}>{filterCounts[option]}</span>
+              <span
+                className="prep-practice-filter-count"
+                aria-label={`${filterCounts[option]} cards`}
+              >
+                {filterCounts[option]}
+              </span>
             </button>
           ))}
         </div>
 
-        <div className="prep-practice-stats">
-          {attentionChip}
-        </div>
+        <div className="prep-practice-stats">{attentionChip}</div>
 
         <div className="prep-empty">
           <h2>No cards match this homework filter</h2>
           <p>
             Switch filters or go back to Edit to add more prompts before the next study round.
-            {needsAttentionCount > 0 ? ` ${needsAttentionCount} cards are hidden until their placeholders are filled.` : ''}
+            {needsAttentionCount > 0
+              ? ` ${needsAttentionCount} cards are hidden until their placeholders are filled.`
+              : ''}
           </p>
           <div className="prep-empty-actions">
-            <button
-              className="prep-btn"
-              onClick={() => setFilter('all')}
-            >
+            <button className="prep-btn" onClick={() => setFilter('all')}>
               Show all cards
             </button>
-            <button className="prep-btn" onClick={onExit}>Back to Edit</button>
+            <button className="prep-btn" onClick={onExit}>
+              Back to Edit
+            </button>
           </div>
         </div>
       </div>
@@ -410,11 +493,19 @@ export function PrepPracticeMode({
 
   if (isComplete || !currentCard || !currentEntry) {
     return (
-      <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
+      <div
+        className="prep-practice-mode"
+        ref={containerRef}
+        tabIndex={-1}
+        role="region"
+        aria-label="Homework mode"
+      >
         <div className="prep-practice-header">
           <div>
             <div className="prep-practice-progress">Homework complete</div>
-            <p className="prep-practice-subcopy">Use the next round to keep tightening the answers that still need repetition.</p>
+            <p className="prep-practice-subcopy">
+              Use the next round to keep tightening the answers that still need repetition.
+            </p>
           </div>
           <div className="prep-practice-actions">
             <button className="prep-btn" onClick={handleShuffle}>
@@ -453,10 +544,7 @@ export function PrepPracticeMode({
               <Shuffle size={16} /> Shuffle & Restart
             </button>
             {filter !== 'needs_work' && filterCounts.needs_work > 0 ? (
-              <button
-                className="prep-btn"
-                onClick={() => setFilter('needs_work')}
-              >
+              <button className="prep-btn" onClick={() => setFilter('needs_work')}>
                 Study weak cards
               </button>
             ) : null}
@@ -471,20 +559,34 @@ export function PrepPracticeMode({
   const revealMode =
     currentEntry.kind === 'conditional'
       ? 'conditional'
-      : currentStoryBlocks.length > 0
-        ? 'story'
-        : currentKeyPoints.length > 0
-          ? 'key_points'
-          : 'fallback'
+      : currentEntry.kind === 'pushback'
+        ? 'pushback'
+        : currentStoryBlocks.length > 0
+          ? 'story'
+          : currentKeyPoints.length > 0
+            ? 'key_points'
+            : 'fallback'
 
   return (
-    <div className="prep-practice-mode" ref={containerRef} tabIndex={-1} role="region" aria-label="Homework mode">
+    <div
+      className="prep-practice-mode"
+      ref={containerRef}
+      tabIndex={-1}
+      role="region"
+      aria-label="Homework mode"
+    >
       <div className="prep-practice-header">
         <div>
-          <div className="prep-practice-progress" role="status" aria-label={`Card ${activeIndex + 1} of ${queue.length}`}>
+          <div
+            className="prep-practice-progress"
+            role="status"
+            aria-label={`Card ${activeIndex + 1} of ${queue.length}`}
+          >
             Card {activeIndex + 1} of {queue.length}
           </div>
-          <p className="prep-practice-subcopy">Reveal the answer, grade how it felt, and weak cards will resurface automatically.</p>
+          <p className="prep-practice-subcopy">
+            Reveal the answer, grade how it felt, and weak cards will resurface automatically.
+          </p>
         </div>
         <div className="prep-practice-actions">
           <button className="prep-btn" onClick={handleShuffle}>
@@ -513,7 +615,12 @@ export function PrepPracticeMode({
             aria-pressed={filter === option}
           >
             {HOMEWORK_FILTER_LABELS[option]}
-            <span className="prep-practice-filter-count" aria-label={`${filterCounts[option]} cards`}>{filterCounts[option]}</span>
+            <span
+              className="prep-practice-filter-count"
+              aria-label={`${filterCounts[option]} cards`}
+            >
+              {filterCounts[option]}
+            </span>
           </button>
         ))}
       </div>
@@ -528,7 +635,13 @@ export function PrepPracticeMode({
       <div className="prep-practice-card-container" aria-live="polite">
         {!isRevealed ? (
           <div className="prep-practice-flashcard">
-            <h2 className="prep-practice-title">{currentEntry.kind === 'conditional' ? `${currentCard.title} follow-up` : currentCard.title}</h2>
+            <h2 className="prep-practice-title">
+              {currentEntry.kind === 'conditional'
+                ? `${currentCard.title} follow-up`
+                : currentEntry.kind === 'pushback'
+                  ? `${currentCard.title} - ${currentPushbackLabel}`
+                  : currentCard.title}
+            </h2>
             <div className="prep-practice-meta">
               <span className={`prep-category prep-category-${currentCard.category}`}>
                 {currentCard.category}
@@ -538,21 +651,36 @@ export function PrepPracticeMode({
                   {CONDITIONAL_TONE_LABELS[conditionalTone]}
                 </span>
               ) : null}
+              {currentEntry.kind === 'pushback' ? (
+                <span className="prep-conditional-label prep-practice-tone">
+                  {currentPushbackLabel}
+                </span>
+              ) : null}
             </div>
             {currentEntry.kind === 'conditional' && currentConditional ? (
               <>
-                <p className="prep-practice-parent">After your main answer, handle this follow-up angle.</p>
-                <div className={`prep-conditional-pair prep-conditional-${resolvedConditionalTone}`}>
+                <p className="prep-practice-parent">
+                  After your main answer, handle this follow-up angle.
+                </p>
+                <div
+                  className={`prep-conditional-pair prep-conditional-${resolvedConditionalTone}`}
+                >
                   <span className="prep-conditional-label">Interviewer push</span>
                   <p className="prep-practice-conditional-prompt">{currentConditional.trigger}</p>
                 </div>
               </>
+            ) : currentEntry.kind === 'pushback' ? (
+              <p className="prep-practice-parent">
+                Practice the deeper version only after the interviewer asks for more detail.
+              </p>
             ) : (
               <>
                 {currentCard.tags.length > 0 ? (
                   <div className="prep-tags">
                     {currentCard.tags.map((tag) => (
-                      <span key={tag} className="prep-tag">{tag}</span>
+                      <span key={tag} className="prep-tag">
+                        {tag}
+                      </span>
                     ))}
                   </div>
                 ) : null}
@@ -568,7 +696,9 @@ export function PrepPracticeMode({
                         </ul>
                       </>
                     ) : (
-                      <p className="prep-practice-parent">Talk through the story before you reveal the coached structure.</p>
+                      <p className="prep-practice-parent">
+                        Talk through the story before you reveal the coached structure.
+                      </p>
                     )}
                   </div>
                 ) : null}
@@ -586,7 +716,9 @@ export function PrepPracticeMode({
           </div>
         ) : (
           <div className="prep-practice-revealed">
-            {shouldRenderReadOnlyAnswer && currentCard ? <PrepCardView card={currentCard} readOnly /> : null}
+            {shouldRenderReadOnlyAnswer && currentCard ? (
+              <PrepCardView card={currentCard} readOnly />
+            ) : null}
 
             {revealMode === 'story' ? (
               <section className="prep-practice-section">
@@ -598,7 +730,9 @@ export function PrepPracticeMode({
                       className="prep-practice-story-card"
                       data-story-label={block.label}
                     >
-                      <div className="prep-practice-section-label prep-practice-story-card-label">{block.label}</div>
+                      <div className="prep-practice-section-label prep-practice-story-card-label">
+                        {block.label}
+                      </div>
                       <p>{block.text}</p>
                     </article>
                   ))}
@@ -606,9 +740,21 @@ export function PrepPracticeMode({
               </section>
             ) : null}
 
-            {currentEntry.kind === 'card' && currentCard && (revealMode === 'story' || revealMode === 'key_points') && currentKeyPoints.length > 0 && keyPointsPresentation ? (
-              <section className="prep-practice-section prep-practice-keypoints" aria-labelledby={currentCard.id + '-practice-keypoints-label'}>
-                <div id={currentCard.id + '-practice-keypoints-label'} className="prep-practice-section-label">{keyPointsPresentation.label}</div>
+            {currentEntry.kind === 'card' &&
+            currentCard &&
+            (revealMode === 'story' || revealMode === 'key_points') &&
+            currentKeyPoints.length > 0 &&
+            keyPointsPresentation ? (
+              <section
+                className="prep-practice-section prep-practice-keypoints"
+                aria-labelledby={currentCard.id + '-practice-keypoints-label'}
+              >
+                <div
+                  id={currentCard.id + '-practice-keypoints-label'}
+                  className="prep-practice-section-label"
+                >
+                  {keyPointsPresentation.label}
+                </div>
                 {keyPointsPresentation.ordered ? (
                   <ol className="prep-practice-keypoints-list">
                     {currentKeyPoints.map((point, index) => (
@@ -626,7 +772,9 @@ export function PrepPracticeMode({
             ) : null}
 
             {revealMode === 'conditional' && currentConditional ? (
-              <section className={`prep-conditional-pair prep-conditional-${resolvedConditionalTone}`}>
+              <section
+                className={`prep-conditional-pair prep-conditional-${resolvedConditionalTone}`}
+              >
                 <div className="prep-practice-section-label">How to answer</div>
                 <div className="prep-conditional-pair-grid">
                   <div>
@@ -643,32 +791,42 @@ export function PrepPracticeMode({
               </section>
             ) : null}
 
-            {revealMode === 'fallback' ? (
-              <PrepCardView card={currentCard} readOnly />
+            {revealMode === 'pushback' && currentPushbackScript ? (
+              <section className="prep-practice-section prep-practice-pushback">
+                <div className="prep-practice-section-label">{currentPushbackLabel}</div>
+                {currentPushbackScript.split(/\n+/).map((paragraph, index) => (
+                  <p key={index}>{getPrepDisplayText(paragraph)}</p>
+                ))}
+              </section>
             ) : null}
+
+            {revealMode === 'fallback' ? <PrepCardView card={currentCard} readOnly /> : null}
 
             <div className="prep-practice-grade-panel">
               <div>
                 <h3>How did that answer feel?</h3>
                 <p>
                   Save the result and move to the next prompt.
-                  {currentEntry.kind === 'card' && currentConditionals.length > 0
+                  {currentEntry.kind === 'card' &&
+                  (currentConditionals.length > 0 || currentCard.pushbackScript?.trim())
                     ? ' This card has follow-up drills queued next.'
                     : ' Cards marked needs work will come back later in the round.'}
                 </p>
               </div>
               <div className="prep-practice-grade-actions">
-                {(['nailed_it', 'okay', 'needs_work'] as PrepCardConfidence[]).map((confidence, index) => (
-                  <button
-                    key={confidence}
-                    type="button"
-                    className={`prep-btn ${confidence === 'needs_work' ? '' : 'prep-btn-primary'} prep-practice-grade prep-practice-grade-${confidence}`}
-                    onClick={() => handleRecord(confidence)}
-                  >
-                    <span className="prep-practice-grade-key">{index + 1}</span>
-                    {CONFIDENCE_LABELS[confidence]}
-                  </button>
-                ))}
+                {(['nailed_it', 'okay', 'needs_work'] as PrepCardConfidence[]).map(
+                  (confidence, index) => (
+                    <button
+                      key={confidence}
+                      type="button"
+                      className={`prep-btn ${confidence === 'needs_work' ? '' : 'prep-btn-primary'} prep-practice-grade prep-practice-grade-${confidence}`}
+                      onClick={() => handleRecord(confidence)}
+                    >
+                      <span className="prep-practice-grade-key">{index + 1}</span>
+                      {CONFIDENCE_LABELS[confidence]}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
           </div>

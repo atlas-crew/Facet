@@ -28,9 +28,18 @@ const richHomeworkCards: PrepCard[] = [
     tags: ['launch', 'leadership'],
     keyPoints: ['Anchor on the launch week', 'Highlight how you kept the rollout steady'],
     storyBlocks: [
-      { label: 'problem', text: 'The launch was slipping because teams were operating from different timelines.' },
-      { label: 'solution', text: 'I created a single cutover plan and ran twice-daily syncs with engineering and support.' },
-      { label: 'result', text: 'We launched on time and held incident volume below our target threshold.' },
+      {
+        label: 'problem',
+        text: 'The launch was slipping because teams were operating from different timelines.',
+      },
+      {
+        label: 'solution',
+        text: 'I created a single cutover plan and ran twice-daily syncs with engineering and support.',
+      },
+      {
+        label: 'result',
+        text: 'We launched on time and held incident volume below our target threshold.',
+      },
     ],
   },
   {
@@ -42,7 +51,8 @@ const richHomeworkCards: PrepCard[] = [
     conditionals: [
       {
         trigger: 'What if they say the scope still sounds small?',
-        response: 'Reframe the scope in terms of cross-functional coordination and measurable risk reduction.',
+        response:
+          'Reframe the scope in terms of cross-functional coordination and measurable risk reduction.',
         tone: 'trap',
       },
     ],
@@ -54,7 +64,10 @@ const richHomeworkCards: PrepCard[] = [
     tags: ['story'],
     storyBlocks: [
       { label: 'problem', text: 'The account was at risk because the rollout had stalled.' },
-      { label: 'solution', text: 'I reset the plan, narrowed scope, and aligned stakeholders around a single next milestone.' },
+      {
+        label: 'solution',
+        text: 'I reset the plan, narrowed scope, and aligned stakeholders around a single next milestone.',
+      },
     ],
   },
   {
@@ -120,13 +133,7 @@ describe('PrepPracticeMode', () => {
 
   it('renders an empty state when no cards are provided', () => {
     const handleExit = vi.fn()
-    render(
-      <PrepPracticeMode
-        cards={[]}
-        onExit={handleExit}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={[]} onExit={handleExit} onRecordReview={() => {}} />)
 
     expect(screen.getByText('No cards available')).toBeTruthy()
     fireEvent.click(screen.getByText('Back to Edit'))
@@ -136,11 +143,7 @@ describe('PrepPracticeMode', () => {
   it('reveals the answer and records confidence', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 1')
@@ -148,11 +151,87 @@ describe('PrepPracticeMode', () => {
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     expect(screen.getByText('Script 1')).toBeTruthy()
-    expect(screen.getByLabelText('Beat sheet - if you lose your place').querySelector('ol')).toBeTruthy()
+    expect(
+      screen.getByLabelText('Beat sheet - if you lose your place').querySelector('ol'),
+    ).toBeTruthy()
 
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
     expect(handleRecordReview).toHaveBeenCalledWith('c1', 'okay')
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
+  })
+
+  it('queues pushback answers after the parent card with separate progress keys', () => {
+    const handleRecordReview = vi.fn()
+    render(
+      <PrepPracticeMode
+        cards={[
+          {
+            ...mockCards[0],
+            id: 'pushback-card',
+            title: 'Why this transition',
+            pushbackScript: 'Here is the fuller answer when they ask for more detail.',
+            pushbackLabel: 'If they ask why',
+          },
+        ]}
+        onExit={() => {}}
+        onRecordReview={handleRecordReview}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
+
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Why this transition - If they ask why',
+    )
+    expect(
+      screen.getByText(
+        'Practice the deeper version only after the interviewer asks for more detail.',
+      ),
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    expect(
+      screen.getByText('Here is the fuller answer when they ask for more detail.'),
+    ).toBeTruthy()
+    const needsWorkButtons = screen.getAllByRole('button', { name: /Needs work/i })
+    fireEvent.click(needsWorkButtons[needsWorkButtons.length - 1])
+
+    expect(handleRecordReview.mock.calls).toEqual([
+      ['pushback-card', 'okay'],
+      ['pushback::pushback-card', 'needs_work'],
+    ])
+  })
+
+  it('skips a pushback drill when the review callback rejects a stale key', () => {
+    const handleRecordReview = vi.fn((reviewKey: string) => !reviewKey.startsWith('pushback::'))
+    render(
+      <PrepPracticeMode
+        cards={[
+          {
+            ...mockCards[0],
+            id: 'stale-pushback-card',
+            title: 'Why this transition',
+            pushbackScript: 'This answer may disappear while practicing.',
+          },
+          mockCards[2],
+        ]}
+        onExit={() => {}}
+        onRecordReview={handleRecordReview}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Why this transition - If they push',
+    )
+
+    fireEvent.click(screen.getByText('Reveal Answer'))
+    fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
+
+    expect(handleRecordReview).toHaveBeenLastCalledWith('pushback::stale-pushback-card', 'okay')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 3')
   })
 
   it('renders deck-level rules when provided', () => {
@@ -172,12 +251,7 @@ describe('PrepPracticeMode', () => {
 
   it('omits the rules panel when no deck-level rules exist', () => {
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        rules={[]}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={mockCards} rules={[]} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     expect(screen.queryByText('The Rules')).toBeNull()
@@ -185,11 +259,7 @@ describe('PrepPracticeMode', () => {
 
   it('shows category, tags, and keyboard hint on the unrevealed flashcard', () => {
     const { container } = render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     expect(container.querySelector('.prep-category-opener')).toBeTruthy()
@@ -200,11 +270,7 @@ describe('PrepPracticeMode', () => {
   it('requeues cards marked needs work later in the session', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -228,13 +294,7 @@ describe('PrepPracticeMode', () => {
       { id: 's5', category: 'situational', title: 'Spaced 5', tags: [], script: 'A5' },
     ]
 
-    render(
-      <PrepPracticeMode
-        cards={spacedCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={spacedCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Needs work/i })[1])
@@ -389,29 +449,41 @@ describe('PrepPracticeMode', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /Needs work/i }))
-    expect(screen.getByText(/1 cards are hidden until their placeholders are filled./i)).toBeTruthy()
+    expect(
+      screen.getByText(/1 cards are hidden until their placeholders are filled./i),
+    ).toBeTruthy()
   })
 
   it('uses key points as recall cues and story blocks on reveal', () => {
     render(
-      <PrepPracticeMode
-        cards={richHomeworkCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={richHomeworkCards} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Tell me about your launch story')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Tell me about your launch story',
+    )
     expect(screen.getByText('Recall cues')).toBeTruthy()
     expect(screen.getByText('Anchor on the launch week')).toBeTruthy()
-    expect(screen.queryByText('The launch was slipping because teams were operating from different timelines.')).toBeNull()
+    expect(
+      screen.queryByText(
+        'The launch was slipping because teams were operating from different timelines.',
+      ),
+    ).toBeNull()
 
     fireEvent.click(screen.getByText('Reveal Answer'))
 
     expect(screen.getByText('Story blocks')).toBeTruthy()
     expect(screen.getByLabelText('Glance Points').querySelector('ul')).toBeTruthy()
-    expect(screen.getByText('The launch was slipping because teams were operating from different timelines.')).toBeTruthy()
-    expect(screen.getByText('I created a single cutover plan and ran twice-daily syncs with engineering and support.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'The launch was slipping because teams were operating from different timelines.',
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'I created a single cutover plan and ran twice-daily syncs with engineering and support.',
+      ),
+    ).toBeTruthy()
   })
 
   it('shows title-only prompt and key points on reveal when no story blocks exist', () => {
@@ -423,12 +495,16 @@ describe('PrepPracticeMode', () => {
       />,
     )
 
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Explain the migration tradeoff')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Explain the migration tradeoff',
+    )
     expect(screen.queryByText('State the tradeoff first')).toBeNull()
 
     fireEvent.click(screen.getByText('Reveal Answer'))
 
-    expect(screen.getByLabelText('Beat sheet - if you lose your place').querySelector('ol')).toBeTruthy()
+    expect(
+      screen.getByLabelText('Beat sheet - if you lose your place').querySelector('ol'),
+    ).toBeTruthy()
     expect(screen.getByText('State the tradeoff first')).toBeTruthy()
     expect(screen.getByText('Name the rollback and monitoring plan')).toBeTruthy()
   })
@@ -442,7 +518,9 @@ describe('PrepPracticeMode', () => {
       />,
     )
 
-    expect(screen.getByText('Talk through the story before you reveal the coached structure.')).toBeTruthy()
+    expect(
+      screen.getByText('Talk through the story before you reveal the coached structure.'),
+    ).toBeTruthy()
     expect(screen.queryByText('Recall cues')).toBeNull()
   })
 
@@ -461,7 +539,9 @@ describe('PrepPracticeMode', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
 
     expect(handleRecordReview).toHaveBeenCalledWith('conditional-card', 'okay')
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Behavioral anchor follow-up')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Behavioral anchor follow-up',
+    )
     expect(screen.getByText('After your main answer, handle this follow-up angle.')).toBeTruthy()
     expect(screen.getByText('Trap')).toBeTruthy()
     expect(screen.getByText('What if they say the scope still sounds small?')).toBeTruthy()
@@ -470,7 +550,11 @@ describe('PrepPracticeMode', () => {
     expect(screen.getByText('How to answer')).toBeTruthy()
     expect(screen.getByText('Reframe')).toBeTruthy()
     expect(screen.queryByText('Response')).toBeNull()
-    expect(screen.getByText('Reframe the scope in terms of cross-functional coordination and measurable risk reduction.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Reframe the scope in terms of cross-functional coordination and measurable risk reduction.',
+      ),
+    ).toBeTruthy()
   })
 
   it('skips stale conditional queue entries when conditionals are removed mid-session', () => {
@@ -485,7 +569,9 @@ describe('PrepPracticeMode', () => {
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Behavioral anchor follow-up')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Behavioral anchor follow-up',
+    )
 
     rerender(
       <PrepPracticeMode
@@ -524,7 +610,9 @@ describe('PrepPracticeMode', () => {
     )
 
     expect(screen.getByText('1 needs attention')).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Tell me about your launch story')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Tell me about your launch story',
+    )
     expect(screen.queryByText('Incomplete draft')).toBeNull()
   })
 
@@ -540,7 +628,9 @@ describe('PrepPracticeMode', () => {
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
 
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Behavioral anchor follow-up')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Behavioral anchor follow-up',
+    )
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Needs work/i })[1])
 
@@ -548,16 +638,14 @@ describe('PrepPracticeMode', () => {
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
 
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Behavioral anchor follow-up')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      'Behavioral anchor follow-up',
+    )
   })
 
   it('renders pivot and escalation tone labels for conditional drills', () => {
     render(
-      <PrepPracticeMode
-        cards={[toneHomeworkCard]}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={[toneHomeworkCard]} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -574,11 +662,7 @@ describe('PrepPracticeMode', () => {
 
   it('uses PrepCardView for fallback reveals when no rich homework content is present', () => {
     const { container } = render(
-      <PrepPracticeMode
-        cards={[mockCards[0]]}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={[mockCards[0]]} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -637,11 +721,7 @@ describe('PrepPracticeMode', () => {
   it('treats Space as a no-op once the card is already revealed', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -658,11 +738,7 @@ describe('PrepPracticeMode', () => {
   it('maps 1 and 3 keyboard grading shortcuts to nailed_it and needs_work', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -677,11 +753,7 @@ describe('PrepPracticeMode', () => {
   it('does not grade cards before reveal', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     fireEvent.keyDown(window, { key: '1' })
@@ -693,13 +765,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('supports Enter for reveal and ignores reveal shortcuts on interactive targets', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     const shuffleButton = screen.getByRole('button', { name: /Shuffle/i })
     fireEvent.keyDown(shuffleButton, { key: 'Enter' })
@@ -716,11 +782,7 @@ describe('PrepPracticeMode', () => {
   it('ignores reveal and grading shortcuts on link, input, and textarea targets', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     const link = document.createElement('a')
@@ -743,11 +805,7 @@ describe('PrepPracticeMode', () => {
   it('ignores grading shortcuts while focus is on an interactive element', () => {
     const handleRecordReview = vi.fn()
     render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={handleRecordReview}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={handleRecordReview} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -759,13 +817,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('resets reveal state and session counters when the filter changes', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
@@ -779,13 +831,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('does not reset the queue when the active filter is clicked again', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
@@ -800,13 +846,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('tracks session counters including needs-work grades', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
@@ -841,13 +881,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('rebuilds the queue when Shuffle is clicked mid-round', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Okay/i })[0])
@@ -869,13 +903,7 @@ describe('PrepPracticeMode', () => {
       { id: 'o4', category: 'project', title: 'Ordered 4', tags: [], script: 'Four' },
     ]
 
-    render(
-      <PrepPracticeMode
-        cards={orderedCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={orderedCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Ordered 1')
 
@@ -969,11 +997,7 @@ describe('PrepPracticeMode', () => {
 
   it('skips removed cards that still exist in the queued session state', () => {
     const { rerender } = render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     fireEvent.click(screen.getByText('Reveal Answer'))
@@ -981,11 +1005,7 @@ describe('PrepPracticeMode', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
 
     rerender(
-      <PrepPracticeMode
-        cards={mockCards.slice(1)}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={mockCards.slice(1)} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Card 2')
@@ -1035,13 +1055,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('shows clean-run completion copy and summary chips when no cards miss', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
@@ -1058,13 +1072,7 @@ describe('PrepPracticeMode', () => {
   })
 
   it('shows completion UI and allows restart', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
@@ -1083,13 +1091,7 @@ describe('PrepPracticeMode', () => {
 
   it('uses the Back to Edit button from the active homework state', () => {
     const handleExit = vi.fn()
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={handleExit}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={handleExit} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByRole('button', { name: /^Back to Edit$/i }))
 
@@ -1098,13 +1100,7 @@ describe('PrepPracticeMode', () => {
 
   it('supports Escape from the no-cards empty state', () => {
     const handleExit = vi.fn()
-    render(
-      <PrepPracticeMode
-        cards={[]}
-        onExit={handleExit}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={[]} onExit={handleExit} onRecordReview={() => {}} />)
 
     fireEvent.keyDown(window, { key: 'Escape' })
 
@@ -1226,13 +1222,7 @@ describe('PrepPracticeMode', () => {
 
   it('uses the Back to Edit button from the completion state', () => {
     const handleExit = vi.fn()
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={handleExit}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={handleExit} onRecordReview={() => {}} />)
 
     fireEvent.click(screen.getByText('Reveal Answer'))
     fireEvent.click(screen.getAllByRole('button', { name: /Nailed it/i })[0])
@@ -1248,11 +1238,7 @@ describe('PrepPracticeMode', () => {
 
   it('applies accessibility attributes', () => {
     const { container } = render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
+      <PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />,
     )
 
     const wrapper = container.firstChild as HTMLElement
@@ -1261,17 +1247,13 @@ describe('PrepPracticeMode', () => {
     expect(document.activeElement).toBe(wrapper)
     expect(screen.getByText('Card 1 of 3').getAttribute('role')).toBe('status')
     expect(screen.getByText('Card 1 of 3').getAttribute('aria-label')).toBe('Card 1 of 3')
-    expect(container.querySelector('.prep-practice-card-container')?.getAttribute('aria-live')).toBe('polite')
+    expect(
+      container.querySelector('.prep-practice-card-container')?.getAttribute('aria-live'),
+    ).toBe('polite')
   })
 
   it('does not render the attention chip when all cards are eligible', () => {
-    render(
-      <PrepPracticeMode
-        cards={mockCards}
-        onExit={() => {}}
-        onRecordReview={() => {}}
-      />,
-    )
+    render(<PrepPracticeMode cards={mockCards} onExit={() => {}} onRecordReview={() => {}} />)
 
     expect(screen.queryByText(/needs attention/i)).toBeNull()
   })

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { migratePrepState, usePrepStore } from '../store/prepStore'
 import { resolveStorage } from '../store/storage'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+import { getPrepPushbackPracticeKey, isPrepPushbackPracticeKey } from '../utils/prepCardContent'
 
 describe('prepStore', () => {
   beforeEach(() => {
@@ -260,6 +261,27 @@ describe('prepStore', () => {
     ])
   })
 
+  it('renames imported card ids that collide with pushback review keys', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [
+        {
+          id: 'pushback::legacy-card',
+          category: 'behavioral',
+          title: 'Legacy imported card',
+          tags: [],
+        },
+      ],
+    })
+
+    const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
+    expect(deck?.cards[0]?.id).toMatch(/^prep-card-/)
+    expect(isPrepPushbackPracticeKey(deck?.cards[0]?.id ?? '')).toBe(false)
+  })
+
   it('tracks homework mode and card review progress in shared prep state', () => {
     const deckId = usePrepStore.getState().createDeck({
       title: 'Prep',
@@ -289,6 +311,49 @@ describe('prepStore', () => {
     usePrepStore.getState().removeCard(deckId, cardId)
     deck = usePrepStore.getState().decks[0]
     expect(usePrepStore.getState().activeMode).toBe('edit')
+    expect(deck.studyProgress).toEqual({})
+  })
+
+  it('tracks pushback practice progress separately from the parent card', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Why did you leave?',
+      category: 'opener',
+      tags: ['departure'],
+      pushbackScript: 'Here is the fuller answer if they ask why.',
+      pushbackLabel: 'If they ask why',
+    })
+    const pushbackKey = getPrepPushbackPracticeKey(cardId)
+
+    usePrepStore.getState().recordCardReview(deckId, cardId, 'okay')
+    usePrepStore.getState().recordCardReview(deckId, pushbackKey, 'needs_work')
+
+    let deck = usePrepStore.getState().decks[0]
+    expect(deck.studyProgress?.[cardId]).toMatchObject({
+      confidence: 'okay',
+      attempts: 1,
+      needsWorkCount: 0,
+    })
+    expect(deck.studyProgress?.[pushbackKey]).toMatchObject({
+      confidence: 'needs_work',
+      attempts: 1,
+      needsWorkCount: 1,
+    })
+
+    usePrepStore.getState().updateCard(deckId, cardId, { pushbackScript: '' })
+    deck = usePrepStore.getState().decks[0]
+    expect(deck.studyProgress?.[cardId]).toMatchObject({ confidence: 'okay' })
+    expect(deck.studyProgress?.[pushbackKey]).toBeUndefined()
+
+    usePrepStore.getState().removeCard(deckId, cardId)
+    deck = usePrepStore.getState().decks[0]
     expect(deck.studyProgress).toEqual({})
   })
 
@@ -848,6 +913,7 @@ describe('prepStore', () => {
           category: 'behavioral',
           title: 'Export card',
           tags: [],
+          pushbackScript: 'Fuller answer if they ask for more.',
           perRoundState: [{ round: 2, status: 'fumbled', notes: 'R2 needs a tighter story' }],
         },
       ],
@@ -864,6 +930,12 @@ describe('prepStore', () => {
               attempts: -1,
               needsWorkCount: -9,
               lastReviewedAt: '2025-01-04T00:00:00.000Z',
+            },
+            'pushback::prep-card-export': {
+              confidence: 'needs_work',
+              attempts: 2,
+              needsWorkCount: 1,
+              lastReviewedAt: '2025-01-04T00:10:00.000Z',
             },
             'missing-card': {
               confidence: 'needs_work',
@@ -885,6 +957,12 @@ describe('prepStore', () => {
         attempts: 0,
         needsWorkCount: 0,
         lastReviewedAt: '2025-01-04T00:00:00.000Z',
+      },
+      'pushback::prep-card-export': {
+        confidence: 'needs_work',
+        attempts: 2,
+        needsWorkCount: 1,
+        lastReviewedAt: '2025-01-04T00:10:00.000Z',
       },
     })
     expect(exportedDeck.roundNumber).toBe(3)
