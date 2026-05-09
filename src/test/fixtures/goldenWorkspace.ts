@@ -1,5 +1,4 @@
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
-import { applyWorkspaceSnapshotToStores } from '../../persistence/hydration'
 import type {
   FacetArtifactSnapshot,
   FacetArtifactType,
@@ -9,13 +8,13 @@ import {
   DEFAULT_LOCAL_WORKSPACE_ID,
   FACET_WORKSPACE_SNAPSHOT_VERSION,
 } from '../../persistence/contracts'
-import { useIdentityStore, IDENTITY_STORE_STORAGE_KEY } from '../../store/identityStore'
 import { buildMayaPatelPersona, type PersonaData, assertValidPersona } from './personas'
 
 export const MAYA_PATEL_GOLDEN_WORKSPACE_ID = `${DEFAULT_LOCAL_WORKSPACE_ID}:maya-patel-golden`
 export const MAYA_PATEL_GOLDEN_WORKSPACE_NAME = 'Maya Patel Golden Workspace'
 export const MAYA_PATEL_GOLDEN_EXPORTED_AT = '2026-04-22T15:00:00.000Z'
 export const IDENTITY_STORE_VERSION = 4
+export const MAYA_PATEL_IDENTITY_STORAGE_KEY = 'facet-identity-workspace'
 
 export interface GoldenIdentityStorageEnvelope {
   state: {
@@ -35,9 +34,9 @@ export interface GoldenIdentityStorageEnvelope {
 export interface MayaPatelGoldenWorkspace {
   snapshot: FacetWorkspaceSnapshot
   identity: ProfessionalIdentityV3
-  identityStorageKey: typeof IDENTITY_STORE_STORAGE_KEY
+  identityStorageKey: typeof MAYA_PATEL_IDENTITY_STORAGE_KEY
   identityStorageEnvelope: GoldenIdentityStorageEnvelope
-  hydrateIntoStores: () => void
+  hydrateIntoStores: () => Promise<void>
 }
 
 const clone = <T>(value: T): T => structuredClone(value)
@@ -159,7 +158,11 @@ const buildSnapshotFromPersona = (
   }
 }
 
-export const hydrateMayaPatelIdentityIntoStore = (identity: ProfessionalIdentityV3): void => {
+export const hydrateMayaPatelIdentityIntoStore = async (
+  identity: ProfessionalIdentityV3,
+): Promise<void> => {
+  const { useIdentityStore } = await import('../../store/identityStore')
+
   useIdentityStore.setState({
     currentIdentity: clone(identity),
     draft: null,
@@ -193,11 +196,12 @@ export const buildMayaPatelGoldenWorkspace = (
   return {
     snapshot,
     identity,
-    identityStorageKey: IDENTITY_STORE_STORAGE_KEY,
+    identityStorageKey: MAYA_PATEL_IDENTITY_STORAGE_KEY,
     identityStorageEnvelope: buildMayaPatelIdentityStorageEnvelope(identity),
-    hydrateIntoStores: () => {
+    hydrateIntoStores: async () => {
+      const { applyWorkspaceSnapshotToStores } = await import('../../persistence/hydration')
       applyWorkspaceSnapshotToStores(snapshot)
-      hydrateMayaPatelIdentityIntoStore(identity)
+      await hydrateMayaPatelIdentityIntoStore(identity)
     },
   }
 }

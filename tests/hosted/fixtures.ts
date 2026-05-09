@@ -6,6 +6,7 @@
  */
 
 import type { Page, Route } from '@playwright/test'
+import type { FacetWorkspaceSnapshot } from '../../src/persistence/contracts'
 import { buildWorkspaceSnapshot } from '../../src/test/fixtures/workspaceSnapshot'
 
 // ── Fixture data ──────────────────────────────────────────────
@@ -34,9 +35,7 @@ export function makeAccountContext(overrides?: Record<string, unknown>) {
         tenantId: TENANT_ID,
         email: USER_EMAIL,
       },
-      memberships: [
-        { workspaceId: WORKSPACE_ID, role: 'owner', isDefault: true },
-      ],
+      memberships: [{ workspaceId: WORKSPACE_ID, role: 'owner', isDefault: true }],
       billingCustomer: {
         provider: 'stripe',
         customerId: STRIPE_CUSTOMER_ID,
@@ -110,6 +109,23 @@ export function makeWorkspaceSnapshot(
   }
 }
 
+type WorkspaceSnapshotProvider =
+  | FacetWorkspaceSnapshot
+  | ((workspaceId: string) => FacetWorkspaceSnapshot)
+
+const makeWorkspaceSnapshotResponse = (
+  provider: WorkspaceSnapshotProvider | undefined,
+  workspaceId = WORKSPACE_ID,
+  workspaceName = 'Primary Workspace',
+) => {
+  if (!provider) {
+    return makeWorkspaceSnapshot(workspaceId, workspaceName)
+  }
+
+  const snapshot = typeof provider === 'function' ? provider(workspaceId) : provider
+  return { snapshot: structuredClone(snapshot) }
+}
+
 export function makeCreatedWorkspace(name = 'New Workspace', id = WORKSPACE_ID_2) {
   return {
     workspace: {
@@ -158,9 +174,7 @@ export function makeDeletedWorkspace(id: string) {
   }
 }
 
-export function makeEntitlement(
-  overrides?: Record<string, unknown>,
-) {
+export function makeEntitlement(overrides?: Record<string, unknown>) {
   return {
     planId: 'ai-pro',
     status: 'active',
@@ -183,7 +197,10 @@ export function makeEntitlement(
   }
 }
 
-export function makeAiDenialResponse(reason: 'upgrade_required' | 'billing_issue', feature = 'build.jd-analysis') {
+export function makeAiDenialResponse(
+  reason: 'upgrade_required' | 'billing_issue',
+  feature = 'build.jd-analysis',
+) {
   return {
     error: `AI access denied: ${reason}`,
     code: 'ai_access_denied',
@@ -207,15 +224,17 @@ export function jsonResponse(route: Route, body: unknown, status = 200) {
  * Install the standard hosted API mock scaffold.
  * Returns handles for each endpoint so tests can override specific responses.
  */
-export async function installHostedApiMocks(page: Page, options?: {
-  accountContext?: Record<string, unknown>
-  workspaces?: unknown[]
-  entitlement?: Record<string, unknown> | null
-  failPersistence?: boolean
-}) {
-  const entitlement = options?.entitlement === undefined
-    ? undefined
-    : options?.entitlement
+export async function installHostedApiMocks(
+  page: Page,
+  options?: {
+    accountContext?: Record<string, unknown>
+    workspaces?: unknown[]
+    entitlement?: Record<string, unknown> | null
+    failPersistence?: boolean
+    workspaceSnapshot?: WorkspaceSnapshotProvider
+  },
+) {
+  const entitlement = options?.entitlement === undefined ? undefined : options?.entitlement
   const contextOverrides: Record<string, unknown> = {
     ...options?.accountContext,
   }
@@ -243,13 +262,17 @@ export async function installHostedApiMocks(page: Page, options?: {
   await page.route(/\/api\/persistence\/workspaces\/[^/]+$/, (route) => {
     const method = route.request().method()
     if (options?.failPersistence) {
-      return jsonResponse(route, { error: 'Persistence unavailable', code: 'workspace_save_error' }, 500)
+      return jsonResponse(
+        route,
+        { error: 'Persistence unavailable', code: 'workspace_save_error' },
+        500,
+      )
     }
     if (method === 'GET') {
-      return jsonResponse(route, makeWorkspaceSnapshot())
+      return jsonResponse(route, makeWorkspaceSnapshotResponse(options?.workspaceSnapshot))
     }
     if (method === 'PUT') {
-      return jsonResponse(route, makeWorkspaceSnapshot())
+      return jsonResponse(route, makeWorkspaceSnapshotResponse(options?.workspaceSnapshot))
     }
     if (method === 'PATCH') {
       const body = route.request().postDataJSON()
@@ -310,10 +333,6 @@ export async function injectSupabaseSession(page: Page) {
 
   // Also intercept Supabase GoTrue token refresh calls so
   // the client doesn't try to validate our fake token over HTTP.
-  await page.route('**/auth/v1/token**', (route) =>
-    jsonResponse(route, fakeSession),
-  )
-  await page.route('**/auth/v1/user', (route) =>
-    jsonResponse(route, fakeSession.user),
-  )
+  await page.route('**/auth/v1/token**', (route) => jsonResponse(route, fakeSession))
+  await page.route('**/auth/v1/user', (route) => jsonResponse(route, fakeSession.user))
 }

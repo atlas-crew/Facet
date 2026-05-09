@@ -12,7 +12,6 @@ import type { RecruiterCard } from '../../../types/recruiter'
 import type { ResumeWorkspaceData } from '../../../types/resume'
 import type { SearchThesis } from '../../../types/search'
 import { AUDIENCE_RULES_VERSION } from '../../../utils/audienceRules'
-import { hashJobDescriptionText } from '../../../utils/jdAnalysis'
 
 const VECTORS = {
   appsec: 'v-appsec',
@@ -22,6 +21,18 @@ const VECTORS = {
 
 const PILLAR_JOB_DESCRIPTION =
   'Pillar Systems is hiring a Senior Security Engineer to own AppSec tooling for our payments platform. You will lead SAST/DAST rollout, design threat-modeling cadence, and partner with platform engineering on secret management.'
+
+const hashFixtureJobDescriptionText = (value: string): string => {
+  const input = value.replace(/\r\n?/g, '\n').trim()
+  let hash = 0x811c9dc5
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
 
 export const mayaPatelIdentity: ProfessionalIdentityV3 = {
   version: 3,
@@ -1200,7 +1211,7 @@ export const mayaPatelJDAnalyses: JDAnalysis[] = [
   {
     id: 'jd-pillar-maya-1',
     pipelineEntryId: 'pipe-pillar',
-    jdTextHash: hashJobDescriptionText(PILLAR_JOB_DESCRIPTION),
+    jdTextHash: hashFixtureJobDescriptionText(PILLAR_JOB_DESCRIPTION),
     identityVersion: mayaPatelIdentity.model_revision,
     modelVersion: JD_ANALYSIS_MODEL_VERSION,
     audienceRulesVersion: AUDIENCE_RULES_VERSION,

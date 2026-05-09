@@ -103,10 +103,10 @@ describe('Maya Patel golden workspace fixture', () => {
     expect(validatePersona(persona).filter((issue) => issue.level === 'error')).toEqual([])
   })
 
-  it('hydrates workspace and identity stores, then re-exports durable golden artifacts', () => {
+  it('hydrates workspace and identity stores, then re-exports durable golden artifacts', async () => {
     const golden = buildMayaPatelGoldenWorkspace()
 
-    golden.hydrateIntoStores()
+    await golden.hydrateIntoStores()
 
     expect(useIdentityStore.getState().currentIdentity?.identity.name).toBe('Maya Patel')
     expect(usePipelineStore.getState().entries.map((entry) => entry.id)).toContain('pipe-pillar')
