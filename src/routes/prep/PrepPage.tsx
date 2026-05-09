@@ -28,6 +28,7 @@ import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
 import { collectIdentityFieldsFromJdSkillMatches } from '../../utils/identityFieldDeps'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
+import { PREP_ANSWER_TEMPLATE_MAX_LENGTH } from '../../utils/prepAnswerTemplate'
 import { formatPrepRoundNumberLabel } from '../../utils/prepRoundLabel'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -1119,6 +1120,7 @@ export function PrepPage() {
         roundDebriefs: pipelineRoundContext.carriedRoundDebriefs,
         rules: result.rules,
         donts: result.donts,
+        answerTemplate: result.answerTemplate ?? undefined,
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
         stackAlignment: result.stackAlignment,
@@ -1793,6 +1795,11 @@ export function PrepPage() {
             : result.deckTitle,
         rules: result.rules,
         donts: result.donts,
+        // Preserve the prior drill framework only when regeneration omits the field.
+        answerTemplate:
+          result.answerTemplate === null
+            ? undefined
+            : (result.answerTemplate ?? latestDeck.answerTemplate),
         questionsToAsk: result.questionsToAsk,
         numbersToKnow: result.numbersToKnow,
         stackAlignment: result.stackAlignment ?? latestDeck.stackAlignment,
@@ -2582,6 +2589,23 @@ export function PrepPage() {
                     />
                   </label>
                 </div>
+
+                <label className="prep-field">
+                  <span className="prep-field-label">Answer template</span>
+                  <textarea
+                    className="prep-textarea"
+                    rows={4}
+                    maxLength={PREP_ANSWER_TEMPLATE_MAX_LENGTH}
+                    value={activeDeck.answerTemplate ?? ''}
+                    onChange={(event) => {
+                      const answerTemplate = event.target.value
+                      updateActiveDeck({
+                        answerTemplate: answerTemplate.trim() ? answerTemplate : undefined,
+                      })
+                    }}
+                    placeholder="1. Frame the problem → 2. Take a position → 3. Name concrete steps → 4. Call out a gotcha → 5. Close with evidence."
+                  />
+                </label>
               </section>
 
               {activeDeck.pipelineEntryId ? (

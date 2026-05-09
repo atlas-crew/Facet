@@ -243,6 +243,7 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('keyPoints')
     expect(systemPrompt).toContain('alternativeTitle')
     expect(systemPrompt).toContain('alternativeScript')
+    expect(systemPrompt).toContain('answerTemplate')
     expect(systemPrompt).toContain('questionsToAsk')
     expect(systemPrompt).toContain('numbersToKnow')
     expect(systemPrompt).toContain('stackAlignment')
@@ -329,6 +330,10 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt.match(/"metricKey": "aws_savings_monthly"/g)).toHaveLength(1)
     expect(userPrompt).toContain('use it as the source of truth for candidate evidence')
     expect(userPrompt).toContain('Target Round Type: hm-screen')
+    expect(userPrompt).toContain('generate an answerTemplate at the deck level')
+    expect(userPrompt).toContain('Otherwise, omit answerTemplate')
+    expect(userPrompt).toContain('aim for 5 to 8 situational drill cards')
+    expect(userPrompt).toContain('aim for 2 to 3')
     expect(userPrompt).toContain('For opener cards, make keyPoints a beat sheet')
     expect(userPrompt).toContain('do not prefix items with ordinals, bullets, or labels')
     expect(userPrompt).toContain('including landmine and intel-tag people cards')
@@ -649,6 +654,8 @@ describe('generateInterviewPrep', () => {
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
         companyResearchSummary: 'Acme is scaling carefully.',
+        answerTemplate:
+          ' 1. Frame the problem. 2. Take a position. 3. Name concrete steps. 4. Call out a gotcha. 5. Close with evidence.\u202e ',
         companyIntel: {
           whatTheyDo: ' Developer productivity platform ',
           scale: ' 800 engineers ',
@@ -790,6 +797,10 @@ describe('generateInterviewPrep', () => {
     })
 
     expect(result.rules).toEqual(['Lead with specifics'])
+    expect(result.answerTemplate).toBe(
+      '1. Frame the problem. 2. Take a position. 3. Name concrete steps. 4. Call out a gotcha. 5. Close with evidence.',
+    )
+    expect(result.deck.answerTemplate).toBe(result.answerTemplate)
     expect(result.donts).toEqual(['Be generic'])
     expect(result.questionsToAsk).toEqual([
       {

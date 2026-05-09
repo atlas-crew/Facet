@@ -1,8 +1,25 @@
 import { PREP_CATEGORY_VALUES, isPrepStackAlignmentConfidence } from '../types/prep'
-import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepQuestionToAsk, PrepStackAlignmentRow } from '../types/prep'
+import type {
+  PrepCard,
+  PrepCategory,
+  PrepDeck,
+  PrepMetric,
+  PrepQuestionToAsk,
+  PrepStackAlignmentRow,
+} from '../types/prep'
 
-export type PrepCheatsheetGroup = 'Intel' | 'Openers' | 'Landmines' | 'Core' | 'Technical' | 'Tactical'
-export type PrepOpenerKind = 'tell-me-about-yourself' | 'why-this-role-company' | 'why-did-you-leave' | 'general'
+export type PrepCheatsheetGroup =
+  | 'Intel'
+  | 'Openers'
+  | 'Landmines'
+  | 'Core'
+  | 'Technical'
+  | 'Tactical'
+export type PrepOpenerKind =
+  | 'tell-me-about-yourself'
+  | 'why-this-role-company'
+  | 'why-did-you-leave'
+  | 'general'
 
 type CanonicalOpenerKind = Exclude<PrepOpenerKind, 'general'>
 
@@ -22,6 +39,7 @@ export interface PrepCheatsheetSection {
   description: string
   items: PrepCheatsheetItem[]
   timeBudgetMinutes?: number
+  answerTemplate?: string
   guidance?: string
   group: PrepCheatsheetGroup
   sectionCategory?: PrepCategory
@@ -58,6 +76,7 @@ const DEFAULT_CARD_BUDGETS: Record<PrepCategory, number> = {
   metrics: 1.5,
   situational: 3,
 }
+export const PREP_ANSWER_TEMPLATE_CATEGORIES = new Set<PrepCategory>(['technical', 'situational'])
 const NUMBERS_TO_KNOW_GROUPS = {
   candidate: 'Your Work',
   company: 'Their Company',
@@ -84,11 +103,13 @@ const OPENER_KIND_META: Record<
   }
 > = {
   'tell-me-about-yourself': {
-    titlePattern: /\b(tell me about yourself|walk me through your background|introduce yourself)\b/u,
+    titlePattern:
+      /\b(tell me about yourself|walk me through your background|introduce yourself)\b/u,
     tags: ['tell-me-about-yourself', 'intro', 'tell-me-about-you', 'background'],
     canonicalTitle: 'Tell me about yourself',
     description: 'Your opening pitch and the through-line that frames the rest of the interview.',
-    guidance: 'Lead with the through-line, keep it crisp, and land on why this role is the logical next step.',
+    guidance:
+      'Lead with the through-line, keep it crisp, and land on why this role is the logical next step.',
     order: 0,
   },
   'why-this-role-company': {
@@ -96,15 +117,18 @@ const OPENER_KIND_META: Record<
     tags: ['why-this-role', 'why-this-company', 'why-this-role-company', 'motivation'],
     canonicalTitle: 'Why this role/company?',
     description: 'Your bridge from your background into this role, this team, and this company.',
-    guidance: 'Tie your strongest evidence to the role and company specifics instead of giving a generic motivation answer.',
+    guidance:
+      'Tie your strongest evidence to the role and company specifics instead of giving a generic motivation answer.',
     order: 1,
   },
   'why-did-you-leave': {
-    titlePattern: /\b(why did you leave|why are you leaving|why leave|why you left|why you are leaving)\b/u,
+    titlePattern:
+      /\b(why did you leave|why are you leaving|why leave|why you left|why you are leaving)\b/u,
     tags: ['departure', 'why-did-you-leave', 'leaving'],
     canonicalTitle: 'Why did you leave your last role?',
     description: 'A concise, positive departure answer that stays future-focused and low-drama.',
-    guidance: 'Keep it honest, brief, and forward-looking. Explain the pull toward this role more than the push away from the last one.',
+    guidance:
+      'Keep it honest, brief, and forward-looking. Explain the pull toward this role more than the push away from the last one.',
     order: 2,
   },
 }
@@ -193,18 +217,23 @@ function buildNumbersToKnowItems(deck: PrepDeck): PrepCheatsheetItem[] {
 }
 
 function buildStackAlignmentItems(deck: PrepDeck): PrepCheatsheetItem[] {
-  const rows = (deck.stackAlignment ?? []).filter((row) => (
-    row.theirTech.trim() && row.yourMatch.trim() && isPrepStackAlignmentConfidence(row.confidence)
-  ))
+  const rows = (deck.stackAlignment ?? []).filter(
+    (row) =>
+      row.theirTech.trim() &&
+      row.yourMatch.trim() &&
+      isPrepStackAlignmentConfidence(row.confidence),
+  )
 
   if (rows.length === 0) return []
 
-  return [{
-    id: 'stack-alignment',
-    title: 'Their Stack vs Your Match',
-    detail: 'Use this to anchor where you are strongest, adjacent, or need explicit gap framing.',
-    stackAlignment: rows,
-  }]
+  return [
+    {
+      id: 'stack-alignment',
+      title: 'Their Stack vs Your Match',
+      detail: 'Use this to anchor where you are strongest, adjacent, or need explicit gap framing.',
+      stackAlignment: rows,
+    },
+  ]
 }
 
 function makeUniqueItemId(prefix: string, value: string, seen: Map<string, number>): string {
@@ -245,7 +274,10 @@ function slugifyId(value: string): string {
   return normalized || 'item'
 }
 
-function resolveGuidance(deckGuidance: string | undefined, defaultGuidance: string | undefined): string | undefined {
+function resolveGuidance(
+  deckGuidance: string | undefined,
+  defaultGuidance: string | undefined,
+): string | undefined {
   const primary = sanitizeText(deckGuidance)
   if (primary) return primary
   return sanitizeText(defaultGuidance) ?? undefined
@@ -254,7 +286,10 @@ function resolveGuidance(deckGuidance: string | undefined, defaultGuidance: stri
 function sumCardTimeBudgets(cards: PrepCard[], fallbackBudget: number): number | undefined {
   if (cards.length === 0) return undefined
 
-  const budgetMinutes = cards.reduce((total, card) => total + (card.timeBudgetMinutes ?? fallbackBudget), 0)
+  const budgetMinutes = cards.reduce(
+    (total, card) => total + (card.timeBudgetMinutes ?? fallbackBudget),
+    0,
+  )
   return Math.round(budgetMinutes * 10) / 10
 }
 
@@ -291,9 +326,10 @@ function withSectionMeta(
   },
 ): PrepCheatsheetSection {
   // Dedicated opener sections carry their own ids so they can keep distinct guidance even when multiple cards map to the opener family.
-  const guidanceKey = section.sectionCategory && section.sectionCategory !== 'opener'
-    ? section.sectionCategory
-    : section.id
+  const guidanceKey =
+    section.sectionCategory && section.sectionCategory !== 'opener'
+      ? section.sectionCategory
+      : section.id
   return {
     ...section,
     guidance: resolveGuidance(deck.categoryGuidance?.[guidanceKey], section.guidance),
@@ -301,7 +337,9 @@ function withSectionMeta(
 }
 
 function classifyOpenerCard(card: PrepCard): PrepOpenerKind {
-  const normalizedTags = new Set((card.tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean))
+  const normalizedTags = new Set(
+    (card.tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean),
+  )
   const normalizedTitle = normalizeOpenerTitle(card.title)
 
   for (const kind of OPENER_KIND_ORDER) {
@@ -321,7 +359,10 @@ function classifyOpenerCard(card: PrepCard): PrepOpenerKind {
   return 'general'
 }
 
-function getOpenerSectionMeta(card: PrepCard, id: string): {
+function getOpenerSectionMeta(
+  card: PrepCard,
+  id: string,
+): {
   id: string
   title: string
   description: string
@@ -346,8 +387,10 @@ function getOpenerSectionMeta(card: PrepCard, id: string): {
   return {
     id,
     title: card.title,
-    description: 'A predictable opener question you should be ready to answer early in the conversation.',
-    guidance: 'Answer directly, then bridge back to the strongest evidence you want the interviewer to remember.',
+    description:
+      'A predictable opener question you should be ready to answer early in the conversation.',
+    guidance:
+      'Answer directly, then bridge back to the strongest evidence you want the interviewer to remember.',
     order: 3,
     openerKind: 'general',
   }
@@ -362,20 +405,20 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
   const cardsByCategory = cards
     .filter((card) => !landmineCards.includes(card))
     .reduce<Record<PrepCategory, PrepCard[]>>(
-    (map, card) => {
-      const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
-      map[category].push(card)
-      return map
-    },
-    {
-      opener: [],
-      behavioral: [],
-      technical: [],
-      project: [],
-      metrics: [],
-      situational: [],
-    },
-  )
+      (map, card) => {
+        const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
+        map[category].push(card)
+        return map
+      },
+      {
+        opener: [],
+        behavioral: [],
+        technical: [],
+        project: [],
+        metrics: [],
+        situational: [],
+      },
+    )
 
   const overviewItems: PrepCheatsheetItem[] = [
     { id: 'company', title: deck.company || 'Target company' },
@@ -408,7 +451,13 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         description: 'Role context and research notes worth scanning right before the interview.',
         items: [
           ...(deck.companyResearch
-            ? [{ id: 'research', title: 'Research notes', detail: truncate(deck.companyResearch, 320) }]
+            ? [
+                {
+                  id: 'research',
+                  title: 'Research notes',
+                  detail: truncate(deck.companyResearch, 320),
+                },
+              ]
             : []),
           ...(deck.skillMatch
             ? [{ id: 'skill-match', title: 'Skill match', detail: truncate(deck.skillMatch, 220) }]
@@ -417,7 +466,13 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
             ? [{ id: 'notes', title: 'Working notes', detail: truncate(deck.notes, 220) }]
             : []),
           ...(deck.jobDescription
-            ? [{ id: 'jd', title: 'Job description snapshot', detail: truncate(deck.jobDescription, 320) }]
+            ? [
+                {
+                  id: 'jd',
+                  title: 'Job description snapshot',
+                  detail: truncate(deck.jobDescription, 320),
+                },
+              ]
             : []),
         ],
         timeBudgetMinutes: STATIC_SECTION_BUDGETS.intel,
@@ -433,7 +488,10 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
       const sectionId = makeStableSectionId('opener-', card.id, openerSectionIds)
       const meta = getOpenerSectionMeta(card, sectionId)
       const guidance = [meta.guidance, openerDeckGuidance]
-        .filter((value, valueIndex, values): value is string => Boolean(value) && values.indexOf(value) === valueIndex)
+        .filter(
+          (value, valueIndex, values): value is string =>
+            Boolean(value) && values.indexOf(value) === valueIndex,
+        )
         .join(' ')
 
       return {
@@ -465,34 +523,54 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         description: 'Predicted traps and sharp edges to watch for before you answer.',
         items: buildCardItems(landmineCards),
         timeBudgetMinutes: sumCardTimeBudgets(landmineCards, 1),
-        guidance: 'Treat these as the interviewer pressure points where a sharp follow-up is most likely.',
+        guidance:
+          'Treat these as the interviewer pressure points where a sharp follow-up is most likely.',
         group: 'Landmines',
       }),
     )
   }
 
-  const categorySections: Record<Exclude<PrepCategory, 'metrics' | 'opener'>, { title: string; description: string }> = {
-    behavioral: { title: 'Behavioral Stories', description: 'Leadership, collaboration, conflict, and ownership examples.' },
+  const categorySections: Record<
+    Exclude<PrepCategory, 'metrics' | 'opener'>,
+    { title: string; description: string }
+  > = {
+    behavioral: {
+      title: 'Behavioral Stories',
+      description: 'Leadership, collaboration, conflict, and ownership examples.',
+    },
     project: { title: 'Projects', description: 'Project-specific stories and execution details.' },
-    technical: { title: 'Technical Topics', description: 'Architecture, systems, debugging, and implementation depth.' },
-    situational: { title: 'Situational Drills', description: 'Scenario questions, tradeoffs, and judgment calls.' },
+    technical: {
+      title: 'Technical Topics',
+      description: 'Architecture, systems, debugging, and implementation depth.',
+    },
+    situational: {
+      title: 'Situational Drills',
+      description: 'Scenario questions, tradeoffs, and judgment calls.',
+    },
   }
 
-  for (const category of Object.keys(categorySections) as Array<Exclude<PrepCategory, 'metrics' | 'opener'>>) {
+  for (const category of Object.keys(categorySections) as Array<
+    Exclude<PrepCategory, 'metrics' | 'opener'>
+  >) {
     const config = categorySections[category]
     const items = buildCardItems(cardsByCategory[category])
     if (items.length === 0) continue
-    sections.push(
-      withSectionMeta(deck, {
-        id: category,
-        title: config.title,
-        description: config.description,
-        items,
-        timeBudgetMinutes: sumCardTimeBudgets(cardsByCategory[category], DEFAULT_CARD_BUDGETS[category]),
-        group: CATEGORY_GROUPS[category],
-        sectionCategory: category,
-      }),
-    )
+    const sectionInput = {
+      id: category,
+      title: config.title,
+      description: config.description,
+      items,
+      answerTemplate: PREP_ANSWER_TEMPLATE_CATEGORIES.has(category)
+        ? (sanitizeText(deck.answerTemplate) ?? undefined)
+        : undefined,
+      timeBudgetMinutes: sumCardTimeBudgets(
+        cardsByCategory[category],
+        DEFAULT_CARD_BUDGETS[category],
+      ),
+      group: CATEGORY_GROUPS[category],
+      sectionCategory: category,
+    }
+    sections.push(withSectionMeta(deck, sectionInput))
   }
 
   const sanitizedQuestions = sanitizeQuestionsToAsk(deck.questionsToAsk)
@@ -527,7 +605,11 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
   // Metrics is intentionally rendered after the tactical questions/donts block.
   const numberItems = buildNumbersToKnowItems(deck)
   const stackAlignmentItems = buildStackAlignmentItems(deck)
-  const metricItems = [...numberItems, ...stackAlignmentItems, ...buildCardItems(cardsByCategory.metrics)]
+  const metricItems = [
+    ...numberItems,
+    ...stackAlignmentItems,
+    ...buildCardItems(cardsByCategory.metrics),
+  ]
   if (metricItems.length > 0) {
     let metricsTitle = 'Metrics'
     if (numberItems.length > 0) metricsTitle = 'Numbers to Know'
@@ -539,7 +621,8 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
         description: 'Numbers and measurable outcomes you should keep ready.',
         items: metricItems,
         timeBudgetMinutes:
-          sumCardTimeBudgets(cardsByCategory.metrics, DEFAULT_CARD_BUDGETS.metrics) ?? STATIC_SECTION_BUDGETS.metrics,
+          sumCardTimeBudgets(cardsByCategory.metrics, DEFAULT_CARD_BUDGETS.metrics) ??
+          STATIC_SECTION_BUDGETS.metrics,
         group: CATEGORY_GROUPS.metrics,
         sectionCategory: 'metrics',
       }),
@@ -548,7 +631,15 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
 
   const warningItems = cards.flatMap((card) =>
     card.warning
-      ? [{ id: card.id + '-warning', title: card.title, detail: card.warning, cardId: card.id, category: card.category }]
+      ? [
+          {
+            id: card.id + '-warning',
+            title: card.title,
+            detail: card.warning,
+            cardId: card.id,
+            category: card.category,
+          },
+        ]
       : [],
   )
   if (warningItems.length > 0) {

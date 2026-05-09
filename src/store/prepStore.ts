@@ -53,6 +53,7 @@ import {
   sanitizeIdentityFields,
   sanitizeIdentityVersion,
 } from '../types/artifactMeta'
+import { normalizePrepAnswerTemplate } from '../utils/prepAnswerTemplate'
 
 const LEGACY_STORAGE_KEY = 'facet-prep-data'
 
@@ -69,6 +70,7 @@ interface CreateDeckInput {
   positioning?: string
   roundType?: InterviewFormat
   notes?: string
+  answerTemplate?: string
   companyResearch?: string
   companyIntel?: PrepCompanyIntel
   interviewers?: PrepInterviewer[]
@@ -822,6 +824,7 @@ function sanitizeDeck(
     roundNumber: sanitizeRoundNumber(deck.roundNumber),
     roundDebriefs: sanitizeRoundDebriefs(deck.roundDebriefs, options),
     notes: deck.notes?.trim() || undefined,
+    answerTemplate: normalizePrepAnswerTemplate(deck.answerTemplate),
     companyResearch: deck.companyResearch?.trim() || undefined,
     companyIntel: sanitizeCompanyIntel(deck.companyIntel, options),
     interviewers: sanitizeInterviewers(deck.interviewers, options),
@@ -938,6 +941,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     roundNumber: sanitizeRoundNumber(deck.roundNumber),
     roundDebriefs: sanitizeRoundDebriefs(deck.roundDebriefs),
     notes: deck.notes?.trim() || undefined,
+    answerTemplate: normalizePrepAnswerTemplate(deck.answerTemplate),
     companyResearch: deck.companyResearch?.trim() || undefined,
     companyIntel: sanitizeCompanyIntel(deck.companyIntel),
     interviewers: sanitizeInterviewers(deck.interviewers),
@@ -1049,6 +1053,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
       positioning: input.positioning,
       roundType: input.roundType,
       notes: input.notes,
+      answerTemplate: input.answerTemplate,
       companyResearch: input.companyResearch,
       companyIntel: input.companyIntel,
       interviewers: input.interviewers,

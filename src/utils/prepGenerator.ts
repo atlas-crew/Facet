@@ -35,6 +35,7 @@ import type {
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import { hasOwnAnswerTemplate, normalizePrepAnswerTemplate } from './prepAnswerTemplate'
 import {
   formatPrepSkillDepthConfidenceGuidance,
   mapSkillDepthToStackConfidence,
@@ -53,6 +54,7 @@ const PREP_MAX_TOKENS = 8192
 interface PrepGenerationPayload {
   deckTitle: string
   companyResearchSummary?: string
+  answerTemplate?: string
   companyIntel?: PrepCompanyIntel
   rules?: string[]
   donts?: string[]
@@ -68,6 +70,7 @@ interface PrepGenerationPayload {
 interface PrepInterviewPrepResult {
   deckTitle: string
   companyResearchSummary: string
+  answerTemplate?: string | null
   rules?: string[]
   donts?: string[]
   questionsToAsk?: PrepQuestionToAsk[]
@@ -1609,6 +1612,7 @@ Response schema:
 {
   "deckTitle": "string",
   "companyResearchSummary": "optional string",
+  "answerTemplate": "optional string",
   "companyIntel": {
     "whatTheyDo": "optional string",
     "scale": "optional string",
@@ -1765,6 +1769,7 @@ Do not claim named-person intel unless it is grounded in a user-supplied round.i
 Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
+When the round includes scenario questions or technical/system-design content, generate an answerTemplate at the deck level: a reusable 5-step drill framework for "How would you..." questions. Otherwise, omit answerTemplate. For technical, system-design, or architecture-heavy rounds, aim for 5 to 8 situational drill cards that follow the template; for behavioral, hiring-manager, recruiter, or general rounds, aim for 2 to 3. Each drill should use category "situational", a scenario-question title, a full script that follows the template, keyPoints as the concrete steps, and details/storyBlocks only when they add useful depth.
 For opener cards, make keyPoints a beat sheet: ordered fallback cues that follow the candidate's through-line and the target role connection. Keep each cue around 8 words and do not prefix items with ordinals, bullets, or labels. Example: "Anchor identity in platform reliability"
 For all non-opener cards, including landmine and intel-tag people cards, make keyPoints glance points: compact noun-phrase bullets for recall, not alternate scripts or full sentences. Keep each glance point around 10 words. Example: "38% incident reduction"
 Build both beat sheets and glance points from Canonical JD Analysis requirements and evidenceMapping plus structured identity evidence. Do not infer keyPoints directly from Original Job Description Source Text except for source wording when canonical analysis omits a detail.
@@ -1919,6 +1924,7 @@ Return JSON only (inside the tags).`
     positioning: request.positioning,
     roundType: request.roundType,
     notes: request.notes,
+    answerTemplate: normalizePrepAnswerTemplate(parsed.answerTemplate),
     companyResearch: request.companyResearch,
     companyIntel,
     interviewers: roundHasInterviewers ? normalizeInterviewers(parsed.interviewers) : undefined,
@@ -1947,6 +1953,8 @@ Return JSON only (inside the tags).`
     companyResearchSummary: isString(parsed.companyResearchSummary)
       ? parsed.companyResearchSummary.trim()
       : '',
+    answerTemplate:
+      hasOwnAnswerTemplate(parsed) && !deck.answerTemplate ? null : deck.answerTemplate,
     rules: deck.rules,
     donts: deck.donts,
     questionsToAsk: deck.questionsToAsk,

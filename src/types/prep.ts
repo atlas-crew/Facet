@@ -405,6 +405,12 @@ export interface PrepDeck {
   positioning?: string
   roundType?: InterviewFormat
   notes?: string
+  /**
+   * Reusable drill framework for technical/situational "How would you..."
+   * answers. Live mode renders it on technical and situational sections, and
+   * regeneration preserves it when the model omits a fresh value.
+   */
+  answerTemplate?: string
   companyResearch?: string
   companyIntel?: PrepCompanyIntel
   /**

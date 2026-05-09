@@ -4,6 +4,7 @@ import { PrepRulesPanel } from './PrepRulesPanel'
 import {
   derivePrepCheatsheetSections,
   OPENER_PREFERRED_SHORTCUTS,
+  PREP_ANSWER_TEMPLATE_CATEGORIES,
 } from '../../utils/prepCheatsheet'
 import { isPrepStackAlignmentConfidence } from '../../types/prep'
 import {
@@ -417,6 +418,16 @@ function isTypingTarget(target: EventTarget | null): boolean {
       'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
     ) !== null
   )
+}
+
+function parseAnswerTemplateSteps(value: string): string[] {
+  const lines = value
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length < 2) return []
+  const steps = lines.map((line) => line.replace(/^\d+[.)]\s*/, '').trim())
+  return steps.every(Boolean) ? steps : []
 }
 
 function isInteractiveShortcutTarget(target: EventTarget | null): boolean {
@@ -1660,6 +1671,18 @@ function SectionBlock({
     sectionGuidance = QUESTIONS_GUIDANCE
   }
   const displaySectionDescription = getPrepDisplayText(section.description)
+  const supportsAnswerTemplate = section.sectionCategory
+    ? PREP_ANSWER_TEMPLATE_CATEGORIES.has(section.sectionCategory)
+    : false
+  const answerTemplateText =
+    supportsAnswerTemplate && section.answerTemplate
+      ? getPrepCoachDisplayText(section.answerTemplate)
+      : null
+  const displayAnswerTemplate = answerTemplateText?.trim() ? answerTemplateText : null
+  const answerTemplateSteps = displayAnswerTemplate
+    ? parseAnswerTemplateSteps(displayAnswerTemplate)
+    : []
+  const answerTemplateHeadingId = 'prep-answer-template-' + section.id
   const displaySectionGuidance = sectionGuidance ? getPrepCoachDisplayText(sectionGuidance) : null
   const sectionGuidanceClassName =
     section.tone === 'opener'
@@ -1691,6 +1714,26 @@ function SectionBlock({
           <h2>{section.title}</h2>
           {displaySectionDescription ? (
             <p className="prep-live-section-description">{displaySectionDescription}</p>
+          ) : null}
+          {displayAnswerTemplate ? (
+            <section
+              className="prep-live-section-guidance prep-live-section-answer-template"
+              role="region"
+              aria-labelledby={answerTemplateHeadingId}
+            >
+              <h3 id={answerTemplateHeadingId} className="sr-only">
+                Answer template
+              </h3>
+              {answerTemplateSteps.length > 0 ? (
+                <ol className="prep-live-section-answer-template-list">
+                  {answerTemplateSteps.map((step, index) => (
+                    <li key={section.id + '-answer-template-step-' + index}>{step}</li>
+                  ))}
+                </ol>
+              ) : (
+                displayAnswerTemplate
+              )}
+            </section>
           ) : null}
           {displaySectionGuidance ? (
             <div className={sectionGuidanceClassName}>{displaySectionGuidance}</div>

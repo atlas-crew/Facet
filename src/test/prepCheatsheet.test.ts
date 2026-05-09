@@ -12,6 +12,7 @@ const deck: PrepDeck = {
   positioning: 'Lead with platform reliability and delivery cadence.',
   skillMatch: 'platform engineering, distributed systems',
   notes: 'Hiring manager cares about ownership and practical judgment.',
+  answerTemplate: '1. Clarify the scenario. 2. Pick a path. 3. Name the concrete steps.',
   companyResearch: 'Acme is investing in platform reliability and internal developer tooling.',
   jobDescription: 'Lead systems design, CI/CD, and infrastructure automation.',
   donts: [' Ramble ', '', 'Skip the ask'],
@@ -30,9 +31,7 @@ const deck: PrepDeck = {
       { id: 'candidate-1', value: '38%', label: 'Incident reduction' },
       { id: 'candidate-2', value: '12', label: 'Pipelines owned' },
     ],
-    company: [
-      { id: 'company-1', value: '3', label: 'Core platform bets' },
-    ],
+    company: [{ id: 'company-1', value: '3', label: 'Core platform bets' }],
   },
   stackAlignment: [
     {
@@ -75,13 +74,15 @@ const deck: PrepDeck = {
       category: 'opener',
       title: 'Why this role/company?',
       tags: ['opener', 'motivation'],
-      script: 'This role sits at the intersection of platform depth, product leverage, and the systems work I want to keep doing.',
+      script:
+        'This role sits at the intersection of platform depth, product leverage, and the systems work I want to keep doing.',
       notes: 'Bridge your recent work into the company priorities.',
       conditionals: [
         {
           id: 'opener-2-conditional',
           trigger: 'If they ask why now',
-          response: 'Explain why the scope and timing line up with the work you want to keep growing into.',
+          response:
+            'Explain why the scope and timing line up with the work you want to keep growing into.',
           tone: 'pivot',
         },
       ],
@@ -91,7 +92,8 @@ const deck: PrepDeck = {
       category: 'opener',
       title: 'Why did you leave your last role?',
       tags: ['opener', 'departure'],
-      script: 'I wanted broader platform ownership and more direct product impact than the role could realistically offer.',
+      script:
+        'I wanted broader platform ownership and more direct product impact than the role could realistically offer.',
       notes: 'Keep the answer positive and future-focused.',
       warning: 'Do not turn this into a complaint about the prior company.',
     },
@@ -137,9 +139,7 @@ const deck: PrepDeck = {
       category: 'metrics',
       title: 'Key numbers to remember',
       tags: ['metrics'],
-      metrics: [
-        { value: '40+', label: 'Engineers supported' },
-      ],
+      metrics: [{ value: '40+', label: 'Engineers supported' }],
     },
   ],
 }
@@ -185,28 +185,60 @@ describe('derivePrepCheatsheetSections', () => {
         expect.objectContaining({ title: 'Acme' }),
         expect.objectContaining({ title: 'Staff Engineer' }),
         expect.objectContaining({ title: 'Vector: backend' }),
-        expect.objectContaining({ title: 'Positioning', detail: expect.stringContaining('platform reliability') }),
+        expect.objectContaining({
+          title: 'Positioning',
+          detail: expect.stringContaining('platform reliability'),
+        }),
       ]),
     )
 
     expect(sections[1].items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: 'Research notes', detail: expect.stringContaining('platform reliability') }),
-        expect.objectContaining({ title: 'Skill match', detail: expect.stringContaining('distributed systems') }),
-        expect.objectContaining({ title: 'Working notes', detail: expect.stringContaining('ownership') }),
-        expect.objectContaining({ title: 'Job description snapshot', detail: expect.stringContaining('CI/CD') }),
+        expect.objectContaining({
+          title: 'Research notes',
+          detail: expect.stringContaining('platform reliability'),
+        }),
+        expect.objectContaining({
+          title: 'Skill match',
+          detail: expect.stringContaining('distributed systems'),
+        }),
+        expect.objectContaining({
+          title: 'Working notes',
+          detail: expect.stringContaining('ownership'),
+        }),
+        expect.objectContaining({
+          title: 'Job description snapshot',
+          detail: expect.stringContaining('CI/CD'),
+        }),
       ]),
     )
 
     expect(sections.find((section) => section.id === 'questions')?.guidance).toBe(
       'Pick 2-3. Save 8-10 minutes for questions.',
     )
-    expect(sections.find((section) => section.id === 'technical')?.guidance).toBe('Call out tradeoffs')
-    expect(sections.find((section) => section.id === 'situational')?.guidance).toBe('State assumptions')
-    expect(sections.find((section) => section.id === 'opener-1')?.guidance).toContain('Lead with the through-line')
-    expect(sections.find((section) => section.id === 'opener-1')?.guidance).toContain('Lead with relevance')
+    expect(sections.find((section) => section.id === 'technical')?.guidance).toBe(
+      'Call out tradeoffs',
+    )
+    expect(sections.find((section) => section.id === 'technical')?.answerTemplate).toBe(
+      '1. Clarify the scenario. 2. Pick a path. 3. Name the concrete steps.',
+    )
+    expect(sections.find((section) => section.id === 'behavioral')?.answerTemplate).toBeUndefined()
+    expect(sections.find((section) => section.id === 'situational')?.answerTemplate).toBe(
+      '1. Clarify the scenario. 2. Pick a path. 3. Name the concrete steps.',
+    )
+    expect(sections.find((section) => section.id === 'situational')?.guidance).toBe(
+      'State assumptions',
+    )
+    expect(sections.find((section) => section.id === 'opener-1')?.guidance).toContain(
+      'Lead with the through-line',
+    )
+    expect(sections.find((section) => section.id === 'opener-1')?.guidance).toContain(
+      'Lead with relevance',
+    )
     expect(sections.find((section) => section.id === 'opener-2')?.group).toBe('Openers')
-    expect(sections.find((section) => section.id === 'opener-3')?.title).toBe('Why did you leave your last role?')
+    expect(sections.find((section) => section.id === 'opener-3')?.title).toBe(
+      'Why did you leave your last role?',
+    )
     expect(sections.find((section) => section.id === 'opener-1')?.sectionCategory).toBe('opener')
 
     expect(sections.find((section) => section.id === 'questions')?.items).toEqual([
@@ -288,7 +320,9 @@ describe('derivePrepCheatsheetSections', () => {
       ],
     })
 
-    const tellMeAboutYourselfSections = sections.filter((section) => section.title === 'Tell me about yourself')
+    const tellMeAboutYourselfSections = sections.filter(
+      (section) => section.title === 'Tell me about yourself',
+    )
     expect(tellMeAboutYourselfSections).toHaveLength(2)
     expect(tellMeAboutYourselfSections.map((section) => section.id)).toEqual([
       'opener-1',
@@ -299,17 +333,19 @@ describe('derivePrepCheatsheetSections', () => {
   it('classifies departure openers by title even without explicit departure tags', () => {
     const sections = derivePrepCheatsheetSections({
       ...deck,
-      cards: deck.cards.map((card) => (
+      cards: deck.cards.map((card) =>
         card.id === 'opener-3'
           ? {
               ...card,
               tags: ['opener'],
             }
-          : card
-      )),
+          : card,
+      ),
     })
 
-    const departureSection = sections.find((section) => section.items.some((item) => item.id === 'opener-3'))
+    const departureSection = sections.find((section) =>
+      section.items.some((item) => item.id === 'opener-3'),
+    )
     expect(departureSection?.title).toBe('Why did you leave your last role?')
     expect(departureSection?.openerKind).toBe('why-did-you-leave')
   })

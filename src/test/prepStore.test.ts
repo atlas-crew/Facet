@@ -584,6 +584,7 @@ describe('prepStore', () => {
     usePrepStore.getState().updateDeck(deckId, {
       rules: ['Lead with proof', ''],
       donts: ['Do not ramble', ''],
+      answerTemplate: ' 1. Frame the scenario. 2. Commit to a path. ',
       questionsToAsk: [
         { question: 'What does success look like?', context: 'Align on goals' },
         { question: '', context: '' },
@@ -635,6 +636,7 @@ describe('prepStore', () => {
     const editingDeck = usePrepStore.getState().decks[0]
     expect(editingDeck.rules).toEqual(['Lead with proof', ''])
     expect(editingDeck.donts).toEqual(['Do not ramble', ''])
+    expect(editingDeck.answerTemplate).toBe('1. Frame the scenario. 2. Commit to a path.')
     expect(editingDeck.questionsToAsk).toEqual([
       { question: 'What does success look like?', context: 'Align on goals' },
       { question: '', context: '' },
@@ -677,6 +679,9 @@ describe('prepStore', () => {
     const [exportedDeck] = usePrepStore.getState().exportDecks()
     expect(exportedDeck.rules).toEqual(['Lead with proof'])
     expect(exportedDeck.donts).toEqual(['Do not ramble'])
+    expect(exportedDeck.answerTemplate).toBe('1. Frame the scenario. 2. Commit to a path.')
+    usePrepStore.getState().updateDeck(deckId, { answerTemplate: '   ' })
+    expect(usePrepStore.getState().decks[0].answerTemplate).toBeUndefined()
     expect(exportedDeck.questionsToAsk).toEqual([
       { question: 'What does success look like?', context: 'Align on goals' },
     ])
@@ -1066,6 +1071,7 @@ describe('prepStore', () => {
     usePrepStore.getState().updateDeck(deckId, {
       roundType: ' system-design ' as never,
       roundNumber: 2,
+      answerTemplate: ' 1. Clarify. 2. Choose. 3. Execute. ',
       roundDebriefs: [
         {
           round: 1,
@@ -1119,6 +1125,7 @@ describe('prepStore', () => {
 
     expect(deck.roundType).toBe('system-design')
     expect(deck.roundNumber).toBe(2)
+    expect(deck.answerTemplate).toBe('1. Clarify. 2. Choose. 3. Execute.')
     expect(deck.roundDebriefs).toEqual([
       {
         round: 1,

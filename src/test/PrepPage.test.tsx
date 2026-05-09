@@ -459,6 +459,11 @@ describe('PrepPage', () => {
       expect(usePrepStore.getState().decks[0]?.roundType).toBe('system-design')
     })
 
+    fireEvent.change(screen.getByLabelText('Answer template'), {
+      target: { value: '1. Clarify. 2. Choose. 3. Execute.' },
+    })
+    expect((screen.getByLabelText('Answer template') as HTMLTextAreaElement).maxLength).toBe(2000)
+
     fireEvent.click(screen.getByRole('button', { name: "Add Don't" }))
     const dontInput = await screen.findByPlaceholderText('What should the candidate avoid?')
     fireEvent.change(dontInput, { target: { value: 'Do not ramble.' } })
@@ -482,12 +487,21 @@ describe('PrepPage', () => {
     await waitFor(() => {
       const deck = usePrepStore.getState().decks[0]
       expect(deck.roundType).toBe('system-design')
+      expect(deck.answerTemplate).toBe('1. Clarify. 2. Choose. 3. Execute.')
       expect(deck.rules).toEqual(['Lead with outcomes.'])
       expect(deck.donts).toEqual(['Do not ramble.'])
       expect(deck.questionsToAsk).toEqual([
         { question: 'What is the team optimizing for next?', context: 'Shows systems thinking.' },
       ])
       expect(deck.categoryGuidance).toEqual({ behavioral: 'Lead with scope.' })
+    })
+
+    fireEvent.change(screen.getByLabelText('Answer template'), {
+      target: { value: '   ' },
+    })
+
+    await waitFor(() => {
+      expect(usePrepStore.getState().decks[0]?.answerTemplate).toBeUndefined()
     })
   })
 

@@ -16,6 +16,7 @@ const mockDeck: PrepDeck = {
   companyResearch: 'Acme is investing heavily in developer tooling.',
   skillMatch: 'platform leadership, distributed systems',
   notes: 'Lead with reliability wins.',
+  answerTemplate: '1. Clarify the scenario.\n2. Pick a path.\n3. Name concrete steps.',
   jobDescription: 'Build platform tooling and improve developer velocity.',
   rules: ['Lead with specifics.', 'Listen more than you talk.'],
   categoryGuidance: {
@@ -307,6 +308,8 @@ describe('PrepLiveMode', () => {
     expect(screen.getAllByRole('heading', { name: 'Landmines' })).toHaveLength(2)
     expect(screen.getByRole('heading', { name: 'Core' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Technical' })).toBeTruthy()
+    expect(screen.getAllByText(/Clarify the scenario/)).toHaveLength(2)
+    expect(screen.getAllByRole('region', { name: 'Answer template' })).toHaveLength(2)
     expect(screen.getByRole('heading', { name: 'Tactical' })).toBeTruthy()
     const groupHeadings = Array.from(
       container.querySelectorAll('.prep-live-section-group-title'),
@@ -623,6 +626,16 @@ describe('PrepLiveMode', () => {
 
     fireEvent.change(searchInput, { target: { value: '  blast radius  ' } })
     expect(screen.getByRole('heading', { name: 'Technical Topics' })).toBeTruthy()
+  })
+
+  it('does not expand search results from the deck-level answer template', () => {
+    render(<PrepLiveMode deck={mockDeck} />)
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search cheatsheet' })
+    fireEvent.change(searchInput, { target: { value: 'Clarify the scenario' } })
+
+    expect(screen.queryByRole('heading', { name: 'Technical Topics' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Situational Drills' })).toBeNull()
   })
 
   it('treats whitespace-only search queries as empty', () => {
