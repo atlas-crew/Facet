@@ -44,7 +44,6 @@ For AI agents working in this directory, see [`CLAUDE.md`](CLAUDE.md).
 |---|---|
 | [`_source/html/`](_source/html/) | HTML source sheets for visual assets. Each sheet contains all variants for one asset type. Render via `just brand-{type}`. |
 | [`_source/html/_archive/`](_source/html/_archive/) | Retired sheets preserved for historical reference (e.g., the deprecated Search Loop concept) |
-| [`_source/ai/`](_source/ai/) | Adobe Illustrator sources (.ai files) for hero illustrations and other vector assets |
 | [`icons/svg/`](icons/svg/) | Canonical logo SVGs (gem mark, wordmark lockup) |
 | [`icons/png/`](icons/png/) | High-res raster equivalents of the logos for contexts that don't accept SVG |
 
