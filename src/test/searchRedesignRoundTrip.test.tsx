@@ -36,8 +36,9 @@ import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
-const { mockNavigate } = vi.hoisted(() => ({
+const { mockNavigate, mockResearchSearch } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
+  mockResearchSearch: { review: undefined as 'stale' | undefined },
 }))
 
 const {
@@ -64,6 +65,7 @@ vi.mock('@tanstack/react-router', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
+    useSearch: () => mockResearchSearch,
   }
 })
 
