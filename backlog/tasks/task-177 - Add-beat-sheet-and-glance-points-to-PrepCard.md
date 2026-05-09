@@ -1,11 +1,11 @@
 ---
 id: TASK-177
 title: Add beat sheet and glance points to PrepCard
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 23:57'
+updated_date: '2026-05-09 00:02'
 labels:
   - prep
   - types
@@ -22,6 +22,12 @@ documentation:
   - >-
     backlog reference files/blackstone-prep-r1.html (Glance Points pattern,
     lines 556, 574, 601)
+modified_files:
+  - src/utils/prepGenerator.ts
+  - src/test/prepGenerator.test.ts
+  - >-
+    backlog/docs/doc-41 -
+    Prep-V2-—-PrepDeck-Foundation-Content-Extensions-Rollout-Plan.md
 priority: low
 ---
 
@@ -64,9 +70,9 @@ Original AC was Option A (keep keyPoints[] as the single field; update generator
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Audit prepGenerator's keyPoints prompt to confirm beat-sheet generation reads from canonical JDAnalysis (evidenceMapping, requirements) rather than re-inferring from raw JD text
-- [ ] #2 If prompt is already aligned, close with that note in implementation notes
-- [ ] #3 If wording changes are needed, ship the prompt update with focused tests for the projection-input shape (no type or UI changes in scope)
+- [x] #1 Audit prepGenerator's keyPoints prompt to confirm beat-sheet generation reads from canonical JDAnalysis (evidenceMapping, requirements) rather than re-inferring from raw JD text
+- [x] #2 If prompt is already aligned, close with that note in implementation notes
+- [x] #3 If wording changes are needed, ship the prompt update with focused tests for the projection-input shape (no type or UI changes in scope)
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -75,12 +81,18 @@ Original AC was Option A (keep keyPoints[] as the single field; update generator
 Starting narrowed TASK-177 after read-only audit. Scope: tiny prepGenerator prompt/test patch tying keyPoints beat-sheet/glance-points generation to Canonical JDAnalysis.requirements and evidenceMapping, with no type/UI changes.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed narrowed TASK-177 prompt audit and patch. prepGenerator now distinguishes opener keyPoints as ordered beat-sheet cues and all non-opener keyPoints as compact glance points. Both shapes are explicitly grounded in Canonical JD Analysis requirements/evidenceMapping plus structured identity evidence, with no raw-JD re-inference except source wording fallback. No type/UI changes were needed because keyPoints rendering and storage already existed. Verification passed: npm run format:files -- src/utils/prepGenerator.ts src/test/prepGenerator.test.ts; npx vitest run src/test/prepGenerator.test.ts (22 tests); npx eslint src/utils/prepGenerator.ts src/test/prepGenerator.test.ts. Review: specialist-review.sh --git -- src/utils/prepGenerator.ts returned PASS WITH ISSUES; prompt wording concerns were remediated. Non-gating build probe from the prior prompt slice remains blocked by unrelated dirty src/test/fixtures/personas/mayaPatel.ts unused imports and src/test/identityFieldDeps.test.ts importing non-exported SkillMatch.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
