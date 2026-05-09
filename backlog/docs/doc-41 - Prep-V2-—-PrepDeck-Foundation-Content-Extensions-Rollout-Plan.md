@@ -60,7 +60,7 @@ All seven are parallel-safe with each other once unblocked. Order them by levera
 Independent of Lanes A-C. Pick up as filler.
 
 ```
-TASK-140  Evaluate Opus model for prep generation quality                  [med]
+TASK-140  Evaluate Opus model for prep generation quality                  [done]
           (quality eval — produces a recommendation, may or may not result
            in code change. Doesn't block other lanes)
 
