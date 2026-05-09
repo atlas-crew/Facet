@@ -1,14 +1,28 @@
 import { importProfessionalIdentity } from '../../../identity/schema'
 import type { ProfessionalIdentityV3 } from '../../../identity/schema'
+import type { ResearchWorkspaceData } from '../../../persistence/contracts'
 import type { ResumeData } from '../../../types'
+import type { CoverLetterWorkspaceData } from '../../../types/coverLetter'
+import type { DebriefSession } from '../../../types/debrief'
+import type { JDAnalysis } from '../../../types/jdAnalysis'
+import type { LinkedInProfileDraft } from '../../../types/linkedin'
 import type { PipelineEntry, PipelineRound } from '../../../types/pipeline'
 import type { PrepDeck } from '../../../types/prep'
+import type { RecruiterCard } from '../../../types/recruiter'
+import type { ResumeWorkspaceData } from '../../../types/resume'
 
 export interface PersonaData {
   identity: ProfessionalIdentityV3
   resume: ResumeData
+  resumeWorkspace?: ResumeWorkspaceData
   pipelineEntries: PipelineEntry[]
   prepDecks: PrepDeck[]
+  jdAnalyses?: JDAnalysis[]
+  coverLetters?: CoverLetterWorkspaceData
+  linkedInDrafts?: LinkedInProfileDraft[]
+  recruiterCards?: RecruiterCard[]
+  debriefSessions?: DebriefSession[]
+  research?: ResearchWorkspaceData
 }
 
 export type PersonaIssueLevel = 'error' | 'warning'
@@ -49,11 +63,34 @@ const collectIdentityBulletIds = (
         issues.push({
           level: 'error',
           path: `identity.roles[${role.id}].bullets[${bullet.id}]`,
-          message: 'Duplicate bullet id — must be unique across all roles (override system resolves globally).',
+          message:
+            'Duplicate bullet id — must be unique across all roles (override system resolves globally).',
         })
       }
       seen.add(bullet.id)
     }
+  }
+  return seen
+}
+
+const collectIdentityRoleIds = (identity: ProfessionalIdentityV3): Set<string> =>
+  new Set(identity.roles.map((role) => role.id))
+
+const collectDuplicateIds = (
+  ids: string[],
+  path: string,
+  issues: PersonaValidationIssue[],
+): Set<string> => {
+  const seen = new Set<string>()
+  for (const id of ids) {
+    if (seen.has(id)) {
+      issues.push({
+        level: 'error',
+        path: `${path}[${id}]`,
+        message: 'Duplicate id.',
+      })
+    }
+    seen.add(id)
   }
   return seen
 }
@@ -129,7 +166,8 @@ export const validatePersona = (persona: PersonaData): PersonaValidationIssue[] 
     }
   }
 
-  collectIdentityBulletIds(persona.identity, issues)
+  const identityRoleIds = collectIdentityRoleIds(persona.identity)
+  const identityBulletIds = collectIdentityBulletIds(persona.identity, issues)
 
   const resumeVectorIds = new Set(persona.resume.vectors.map((v) => v.id))
 
@@ -137,14 +175,29 @@ export const validatePersona = (persona: PersonaData): PersonaValidationIssue[] 
     collectVectorRefs(resumeVectorIds, tl.vectors, `resume.target_lines[${tl.id}].vectors`, issues)
   }
   for (const profile of persona.resume.profiles) {
-    collectVectorRefs(resumeVectorIds, profile.vectors, `resume.profiles[${profile.id}].vectors`, issues)
+    collectVectorRefs(
+      resumeVectorIds,
+      profile.vectors,
+      `resume.profiles[${profile.id}].vectors`,
+      issues,
+    )
     if (profile.variants) {
-      collectVectorRefs(resumeVectorIds, profile.variants, `resume.profiles[${profile.id}].variants`, issues)
+      collectVectorRefs(
+        resumeVectorIds,
+        profile.variants,
+        `resume.profiles[${profile.id}].variants`,
+        issues,
+      )
     }
   }
   for (const sg of persona.resume.skill_groups) {
     if (sg.vectors) {
-      collectVectorRefs(resumeVectorIds, sg.vectors, `resume.skill_groups[${sg.id}].vectors`, issues)
+      collectVectorRefs(
+        resumeVectorIds,
+        sg.vectors,
+        `resume.skill_groups[${sg.id}].vectors`,
+        issues,
+      )
     }
   }
   for (const role of persona.resume.roles) {
@@ -168,19 +221,115 @@ export const validatePersona = (persona: PersonaData): PersonaValidationIssue[] 
     }
   }
   for (const project of persona.resume.projects) {
-    collectVectorRefs(resumeVectorIds, project.vectors, `resume.projects[${project.id}].vectors`, issues)
+    collectVectorRefs(
+      resumeVectorIds,
+      project.vectors,
+      `resume.projects[${project.id}].vectors`,
+      issues,
+    )
   }
   for (const edu of persona.resume.education) {
     collectVectorRefs(resumeVectorIds, edu.vectors, `resume.education[${edu.id}].vectors`, issues)
   }
 
   const entryById = new Map(persona.pipelineEntries.map((e) => [e.id, e]))
+  const resumeById = new Map((persona.resumeWorkspace?.resumes ?? []).map((r) => [r.id, r]))
+  const resumeSnapshotById = new Map(
+    (persona.resumeWorkspace?.snapshots ?? []).map((s) => [s.id, s]),
+  )
+  const jdAnalysisById = new Map((persona.jdAnalyses ?? []).map((a) => [a.id, a]))
+  const coverLetterById = new Map((persona.coverLetters?.letters ?? []).map((l) => [l.id, l]))
+  const coverLetterSnapshotById = new Map(
+    (persona.coverLetters?.snapshots ?? []).map((s) => [s.id, s]),
+  )
+
+  collectDuplicateIds(
+    persona.pipelineEntries.map((e) => e.id),
+    'pipeline',
+    issues,
+  )
+  collectDuplicateIds(
+    persona.resumeWorkspace?.resumes.map((r) => r.id) ?? [],
+    'resumeWorkspace.resumes',
+    issues,
+  )
+  collectDuplicateIds(
+    persona.resumeWorkspace?.snapshots.map((s) => s.id) ?? [],
+    'resumeWorkspace.snapshots',
+    issues,
+  )
+  collectDuplicateIds(persona.jdAnalyses?.map((a) => a.id) ?? [], 'jdAnalysis', issues)
+  collectDuplicateIds(
+    persona.coverLetters?.letters.map((l) => l.id) ?? [],
+    'coverLetters.letters',
+    issues,
+  )
+  collectDuplicateIds(
+    persona.coverLetters?.snapshots.map((s) => s.id) ?? [],
+    'coverLetters.snapshots',
+    issues,
+  )
+  collectDuplicateIds(persona.linkedInDrafts?.map((d) => d.id) ?? [], 'linkedin.drafts', issues)
+  collectDuplicateIds(persona.recruiterCards?.map((c) => c.id) ?? [], 'recruiter.cards', issues)
+  collectDuplicateIds(persona.debriefSessions?.map((s) => s.id) ?? [], 'debrief.sessions', issues)
+  collectDuplicateIds(
+    persona.research?.requests.map((r) => r.id) ?? [],
+    'research.requests',
+    issues,
+  )
+  collectDuplicateIds(persona.research?.runs.map((r) => r.id) ?? [], 'research.runs', issues)
+  collectDuplicateIds(persona.research?.theses?.map((t) => t.id) ?? [], 'research.theses', issues)
+
   for (const entry of persona.pipelineEntries) {
     if (entry.vectorId !== null && !resumeVectorIds.has(entry.vectorId)) {
       issues.push({
         level: 'error',
         path: `pipeline[${entry.id}].vectorId`,
         message: `References unknown vector "${entry.vectorId}".`,
+      })
+    }
+
+    if (entry.jdAnalysisId && !jdAnalysisById.has(entry.jdAnalysisId)) {
+      issues.push({
+        level: 'error',
+        path: `pipeline[${entry.id}].jdAnalysisId`,
+        message: `References unknown JD analysis "${entry.jdAnalysisId}".`,
+      })
+    }
+
+    if (entry.coverLetterId && !coverLetterById.has(entry.coverLetterId)) {
+      issues.push({
+        level: 'error',
+        path: `pipeline[${entry.id}].coverLetterId`,
+        message: `References unknown cover letter "${entry.coverLetterId}".`,
+      })
+    }
+
+    if (entry.coverLetterSnapshotId && !coverLetterSnapshotById.has(entry.coverLetterSnapshotId)) {
+      issues.push({
+        level: 'error',
+        path: `pipeline[${entry.id}].coverLetterSnapshotId`,
+        message: `References unknown cover letter snapshot "${entry.coverLetterSnapshotId}".`,
+      })
+    }
+
+    if (entry.resumeId && persona.resumeWorkspace && !resumeById.has(entry.resumeId)) {
+      issues.push({
+        level: 'error',
+        path: `pipeline[${entry.id}].resumeId`,
+        message: `References unknown resume "${entry.resumeId}".`,
+      })
+    }
+
+    if (
+      entry.resumeSnapshotId &&
+      persona.resumeWorkspace &&
+      !resumeSnapshotById.has(entry.resumeSnapshotId)
+    ) {
+      issues.push({
+        level: 'error',
+        path: `pipeline[${entry.id}].resumeSnapshotId`,
+        message: `References unknown resume snapshot "${entry.resumeSnapshotId}".`,
       })
     }
   }
@@ -330,6 +479,210 @@ export const validatePersona = (persona: PersonaData): PersonaValidationIssue[] 
         path: `pipeline[${entryId}].rounds[${round.id}].prepDeckId`,
         message: `References unknown deck "${round.prepDeckId}".`,
       })
+    }
+  }
+
+  for (const analysis of persona.jdAnalyses ?? []) {
+    const requirementIds = new Set(analysis.requirements.map((requirement) => requirement.id))
+    const entry = entryById.get(analysis.pipelineEntryId)
+    if (!entry) {
+      issues.push({
+        level: 'error',
+        path: `jdAnalysis[${analysis.id}].pipelineEntryId`,
+        message: `References unknown pipeline entry "${analysis.pipelineEntryId}".`,
+      })
+    } else if (entry.jdAnalysisId && entry.jdAnalysisId !== analysis.id) {
+      issues.push({
+        level: 'error',
+        path: `jdAnalysis[${analysis.id}].pipelineEntryId`,
+        message: `Entry "${entry.id}" links to JD analysis "${entry.jdAnalysisId}" instead.`,
+      })
+    }
+
+    if (analysis.primaryVectorId && !resumeVectorIds.has(analysis.primaryVectorId)) {
+      issues.push({
+        level: 'error',
+        path: `jdAnalysis[${analysis.id}].primaryVectorId`,
+        message: `References unknown vector "${analysis.primaryVectorId}".`,
+      })
+    }
+
+    for (const vector of analysis.matchedVectors) {
+      if (!resumeVectorIds.has(vector.vectorId)) {
+        issues.push({
+          level: 'error',
+          path: `jdAnalysis[${analysis.id}].matchedVectors[${vector.vectorId}]`,
+          message: `References unknown vector "${vector.vectorId}".`,
+        })
+      }
+    }
+
+    const validateRequirementRefs = (ids: string[], path: string) => {
+      for (const id of ids) {
+        if (!requirementIds.has(id)) {
+          issues.push({
+            level: 'error',
+            path,
+            message: `References unknown JD requirement "${id}".`,
+          })
+        }
+      }
+    }
+
+    validateRequirementRefs(
+      analysis.matchedRequirementIds,
+      `jdAnalysis[${analysis.id}].matchedRequirementIds`,
+    )
+    for (const advantage of analysis.advantages) {
+      validateRequirementRefs(
+        advantage.requirementIds,
+        `jdAnalysis[${analysis.id}].advantages[${advantage.id}].requirementIds`,
+      )
+    }
+    for (const hypothesis of analysis.advantageHypotheses) {
+      validateRequirementRefs(
+        hypothesis.requirementIds,
+        `jdAnalysis[${analysis.id}].advantageHypotheses[${hypothesis.id}].requirementIds`,
+      )
+    }
+    for (const gap of analysis.gaps) {
+      validateRequirementRefs(
+        [gap.requirementId],
+        `jdAnalysis[${analysis.id}].gaps[${gap.requirementId}]`,
+      )
+    }
+    for (const [group, assets] of Object.entries(analysis.evidenceMapping)) {
+      for (const asset of assets) {
+        validateRequirementRefs(
+          asset.matchedRequirementIds,
+          `jdAnalysis[${analysis.id}].evidenceMapping.${group}[${asset.id}].matchedRequirementIds`,
+        )
+      }
+    }
+  }
+
+  for (const letter of persona.coverLetters?.letters ?? []) {
+    if (!entryById.has(letter.pipelineEntryId)) {
+      issues.push({
+        level: 'error',
+        path: `coverLetters.letters[${letter.id}].pipelineEntryId`,
+        message: `References unknown pipeline entry "${letter.pipelineEntryId}".`,
+      })
+    }
+    if (persona.resumeWorkspace && !resumeById.has(letter.sourceResumeId)) {
+      issues.push({
+        level: 'error',
+        path: `coverLetters.letters[${letter.id}].sourceResumeId`,
+        message: `References unknown resume "${letter.sourceResumeId}".`,
+      })
+    }
+  }
+
+  for (const snapshot of persona.coverLetters?.snapshots ?? []) {
+    if (!entryById.has(snapshot.pipelineEntryId)) {
+      issues.push({
+        level: 'error',
+        path: `coverLetters.snapshots[${snapshot.id}].pipelineEntryId`,
+        message: `References unknown pipeline entry "${snapshot.pipelineEntryId}".`,
+      })
+    }
+    if (!coverLetterById.has(snapshot.sourceLetterId)) {
+      issues.push({
+        level: 'error',
+        path: `coverLetters.snapshots[${snapshot.id}].sourceLetterId`,
+        message: `References unknown cover letter "${snapshot.sourceLetterId}".`,
+      })
+    }
+    if (persona.resumeWorkspace && !resumeById.has(snapshot.sourceResumeId)) {
+      issues.push({
+        level: 'error',
+        path: `coverLetters.snapshots[${snapshot.id}].sourceResumeId`,
+        message: `References unknown resume "${snapshot.sourceResumeId}".`,
+      })
+    }
+    if (persona.resumeWorkspace && !resumeSnapshotById.has(snapshot.sourceResumeSnapshotId)) {
+      issues.push({
+        level: 'error',
+        path: `coverLetters.snapshots[${snapshot.id}].sourceResumeSnapshotId`,
+        message: `References unknown resume snapshot "${snapshot.sourceResumeSnapshotId}".`,
+      })
+    }
+  }
+
+  for (const session of persona.debriefSessions ?? []) {
+    if (session.pipelineEntryId && !entryById.has(session.pipelineEntryId)) {
+      issues.push({
+        level: 'error',
+        path: `debrief.sessions[${session.id}].pipelineEntryId`,
+        message: `References unknown pipeline entry "${session.pipelineEntryId}".`,
+      })
+    }
+
+    for (const story of session.storiesTold) {
+      if (!identityRoleIds.has(story.roleId)) {
+        issues.push({
+          level: 'error',
+          path: `debrief.sessions[${session.id}].storiesTold[${story.id}].roleId`,
+          message: `References unknown identity role "${story.roleId}".`,
+        })
+      }
+      if (!identityBulletIds.has(story.bulletId)) {
+        issues.push({
+          level: 'error',
+          path: `debrief.sessions[${session.id}].storiesTold[${story.id}].bulletId`,
+          message: `References unknown identity bullet "${story.bulletId}".`,
+        })
+      }
+    }
+
+    for (const pattern of [
+      ...session.anchorStories,
+      ...session.recurringGaps,
+      ...session.bestFitCompanyTypes,
+    ]) {
+      if (pattern.roleId && !identityRoleIds.has(pattern.roleId)) {
+        issues.push({
+          level: 'error',
+          path: `debrief.sessions[${session.id}].patterns[${pattern.id}].roleId`,
+          message: `References unknown identity role "${pattern.roleId}".`,
+        })
+      }
+      if (pattern.bulletId && !identityBulletIds.has(pattern.bulletId)) {
+        issues.push({
+          level: 'error',
+          path: `debrief.sessions[${session.id}].patterns[${pattern.id}].bulletId`,
+          message: `References unknown identity bullet "${pattern.bulletId}".`,
+        })
+      }
+    }
+  }
+
+  if (persona.research) {
+    const thesisById = new Map((persona.research.theses ?? []).map((t) => [t.id, t]))
+    const requestById = new Map(persona.research.requests.map((r) => [r.id, r]))
+    if (persona.research.activeThesisId && !thesisById.has(persona.research.activeThesisId)) {
+      issues.push({
+        level: 'error',
+        path: 'research.activeThesisId',
+        message: `References unknown thesis "${persona.research.activeThesisId}".`,
+      })
+    }
+
+    for (const run of persona.research.runs) {
+      if (!requestById.has(run.requestId)) {
+        issues.push({
+          level: 'error',
+          path: `research.runs[${run.id}].requestId`,
+          message: `References unknown search request "${run.requestId}".`,
+        })
+      }
+      if (run.thesisId && !thesisById.has(run.thesisId)) {
+        issues.push({
+          level: 'error',
+          path: `research.runs[${run.id}].thesisId`,
+          message: `References unknown thesis "${run.thesisId}".`,
+        })
+      }
     }
   }
 

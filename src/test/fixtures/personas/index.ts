@@ -1,8 +1,15 @@
 export {
   mayaPatelIdentity,
   mayaPatelResume,
+  mayaPatelResumeWorkspace,
   mayaPatelPipelineEntries,
   mayaPatelPrepDecks,
+  mayaPatelJDAnalyses,
+  mayaPatelCoverLetters,
+  mayaPatelLinkedInDrafts,
+  mayaPatelRecruiterCards,
+  mayaPatelDebriefSessions,
+  mayaPatelResearch,
   buildMayaPatelPersona,
 } from './mayaPatel'
 
