@@ -1,10 +1,11 @@
 ---
 id: TASK-146
 title: Add multi-role narrative arc for core pitch opener
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-16 13:15'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-09 00:03'
 labels:
   - prep
   - generation
@@ -66,6 +67,12 @@ When the candidate has 3+ relevant roles in the identity model, generate the "Te
 - [ ] #4 Falls back to single-role opener when <3 relevant roles
 - [ ] #5 Generated narrative is specific to candidate's actual career progression
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-146. Scope: prompt/test refinement for 3-act Tell me about yourself opener seeded by Canonical JDAnalysis.evidenceMapping and strengthsToLead, with fallback to standard single-role opener when canonical evidence has fewer than 3 role contexts.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
