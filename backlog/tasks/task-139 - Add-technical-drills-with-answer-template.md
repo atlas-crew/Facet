@@ -1,10 +1,11 @@
 ---
 id: TASK-139
 title: Add technical drills with answer template
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-16 13:12'
-updated_date: '2026-05-08 07:49'
+updated_date: '2026-05-09 00:32'
 labels:
   - prep
   - generation
@@ -59,6 +60,12 @@ Drills are cards with category `'situational'` that follow the template. No new 
 - [ ] #6 Edit mode has answer template textarea in deck panel
 - [ ] #7 Store sanitization validates answerTemplate
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-139 after TASK-136 closure. Scope: add PrepDeck answerTemplate, sanitize/export/import it, expose an Active Prep Set textarea, prompt/normalize generator output, and render the template as Situational live guidance with focused tests.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
