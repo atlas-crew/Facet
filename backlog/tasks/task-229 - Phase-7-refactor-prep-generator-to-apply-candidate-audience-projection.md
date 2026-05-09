@@ -1,9 +1,11 @@
 ---
 id: TASK-229
 title: 'Phase 7: refactor prep generator to apply candidate audience projection'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-09 04:22'
 labels:
   - audience-tagging
   - phase-7
@@ -46,3 +48,9 @@ Prep content is candidate-only by definition — it's the candidate preparing fo
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-229 as the next doc-41 closeout slice. Plan: inspect audience projection utilities and prep generator JDAnalysis consumption, apply candidate projection before prompt/context extraction, update focused generator tests with production-shaped audience fixtures, run scoped format/test/lint/build, then close if receipts pass or only unrelated build debt remains.
+<!-- SECTION:NOTES:END -->
