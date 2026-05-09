@@ -88,7 +88,7 @@ Two coordination points:
 
 ## Already in flight
 
-None. Lane A and Lane B are done; Lane C remains open for content extensions.
+None. All lanes are done.
 
 ---
 
