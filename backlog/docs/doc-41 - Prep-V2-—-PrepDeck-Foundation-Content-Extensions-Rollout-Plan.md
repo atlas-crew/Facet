@@ -64,7 +64,7 @@ TASK-140  Evaluate Opus model for prep generation quality                  [done
           (quality eval — produces a recommendation, may or may not result
            in code change. Doesn't block other lanes)
 
-TASK-229  [m-28] Phase 7: refactor prep generator to apply candidate       [med]
+TASK-229  [m-28] Phase 7: refactor prep generator to apply candidate       [done]
           audience projection
           (audience-tagging cross-reference; coordinates with Lane A's
            TASK-171 since both touch PrepDeck shape — see Coordination #1)

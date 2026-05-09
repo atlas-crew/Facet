@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateInterviewPrep } from '../utils/prepGenerator'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import { untagged, untaggedNote } from '../types/audience'
+import { applyRulesBasedAudiences, type JDAnalysisLike } from '../utils/audienceRules'
 
 const { callLlmProxyMock } = vi.hoisted(() => ({
   callLlmProxyMock: vi.fn(),
@@ -15,13 +16,12 @@ vi.mock('../utils/llmProxy', async () => {
   }
 })
 
-const testJdAnalysis: JDAnalysis = {
+const testJdAnalysis: JDAnalysis = applyRulesBasedAudiences({
   id: 'jd-analysis-test',
   pipelineEntryId: 'pipe-test',
   jdTextHash: 'jdhash-test',
   identityVersion: 0,
   modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
-  audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-20T12:00:00.000Z',
   updatedAt: '2026-04-20T12:00:00.000Z',
   warnings: [],
@@ -31,7 +31,30 @@ const testJdAnalysis: JDAnalysis = {
   analyzedJobDescription: 'Build distributed systems and platform tooling.',
   jobDescriptionWordCount: 6,
   jobDescriptionTruncated: false,
-  requirements: [],
+  requirements: [
+    untagged({
+      id: 'req-candidate-core',
+      label: 'Operate Kubernetes-backed platforms',
+      priority: 'core',
+      evidence: 'Role needs practical platform operations.',
+      tags: ['platform'],
+      keywords: ['kubernetes'],
+      coverageScore: 0.9,
+      matchedAssetCount: 2,
+      matchedTags: ['platform'],
+    }),
+    untagged({
+      id: 'req-recruiter-only',
+      label: 'Recruiter advocacy summary',
+      priority: 'supporting',
+      evidence: 'Useful for recruiter-facing framing, not prep.',
+      tags: ['advocacy'],
+      keywords: ['advocacy'],
+      coverageScore: 0.4,
+      matchedAssetCount: 0,
+      matchedTags: [],
+    }),
+  ],
   overallFit: 'strong',
   fitScore: 0.82,
   confidence: 'high',
@@ -61,7 +84,32 @@ const testJdAnalysis: JDAnalysis = {
     }),
   ],
   evidenceMapping: {
-    topBullets: [],
+    topBullets: [
+      untagged({
+        kind: 'bullet',
+        id: 'bullet-candidate',
+        label: 'Platform reliability bullet',
+        sourceLabel: 'Northwind',
+        text: 'Reduced incident volume by 38%.',
+        tags: ['platform'],
+        matchedTags: ['platform'],
+        matchedKeywords: ['incident'],
+        matchedRequirementIds: ['req-candidate-core'],
+        score: 0.92,
+      }),
+      untagged({
+        kind: 'bullet',
+        id: 'bullet-recruiter-only',
+        label: 'Recruiter-only proof',
+        sourceLabel: 'Recruiter Notes',
+        text: 'Recruiter advocacy proof point.',
+        tags: ['advocacy'],
+        matchedTags: ['advocacy'],
+        matchedKeywords: ['advocacy'],
+        matchedRequirementIds: ['req-recruiter-only'],
+        score: 0.4,
+      }),
+    ],
     topSkills: [],
     topProjects: [],
     topProfiles: [],
@@ -70,17 +118,41 @@ const testJdAnalysis: JDAnalysis = {
   strengthsToLead: [untaggedNote('Distributed systems')],
   advantages: [],
   advantageHypotheses: [],
-  gaps: [],
-  gapFocus: [],
-  watchOuts: [],
+  gaps: [
+    untagged({
+      requirementId: 'req-candidate-core',
+      label: 'Explain Kubernetes operations boundary',
+      severity: 'low',
+      reason: 'Candidate should frame platform ownership without overclaiming admin work.',
+      tags: ['platform'],
+    }),
+  ],
+  gapFocus: ['Clarify the Kubernetes operations boundary.'],
+  watchOuts: [
+    untagged({
+      type: 'avoid_skill',
+      referenceId: 'skill-cobol',
+      description: 'Do not claim COBOL depth.',
+      severity: 'soft',
+      suggestedAction: 'Bridge back to adjacent systems migration experience.',
+    }),
+  ],
   triggeredPrioritize: [],
   triggeredAvoid: [],
-  relevantAwareness: [],
+  relevantAwareness: [
+    untagged({
+      awarenessId: 'awareness-platform-boundary',
+      topic: 'Platform ownership boundary',
+      severity: 'medium',
+      appliesBecause: 'The role mixes platform operations and application support.',
+      action: 'Prepare a crisp boundary statement.',
+    }),
+  ],
   positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: [],
   matchedKeywords: ['distributed systems', 'platform tooling'],
-}
+} satisfies JDAnalysisLike)
 
 describe('generateInterviewPrep', () => {
   beforeEach(() => {
@@ -273,6 +345,7 @@ describe('generateInterviewPrep', () => {
     const canonicalAnalysis = JSON.parse(canonicalBlock ?? '{}') as Record<string, unknown>
     expect(Object.keys(canonicalAnalysis).sort()).toEqual(
       [
+        'audience',
         'advantages',
         'confidence',
         'evidenceMapping',
@@ -318,6 +391,29 @@ describe('generateInterviewPrep', () => {
         }),
       ]),
     )
+    expect(canonicalAnalysis.audience).toBe('candidate')
+    expect(canonicalAnalysis.requirements).toEqual([
+      expect.objectContaining({ id: 'req-candidate-core' }),
+    ])
+    expect(JSON.stringify(canonicalAnalysis.requirements)).not.toContain('req-recruiter-only')
+    expect(canonicalAnalysis.evidenceMapping).toEqual(
+      expect.objectContaining({
+        topBullets: [expect.objectContaining({ id: 'bullet-candidate' })],
+      }),
+    )
+    expect(JSON.stringify(canonicalAnalysis.evidenceMapping)).not.toContain('bullet-recruiter-only')
+    expect(canonicalAnalysis.gaps).toEqual([
+      expect.objectContaining({ label: 'Explain Kubernetes operations boundary' }),
+    ])
+    expect(canonicalAnalysis.gapFocus).toEqual([
+      expect.objectContaining({ text: 'Clarify the Kubernetes operations boundary.' }),
+    ])
+    expect(canonicalAnalysis.watchOuts).toEqual([
+      expect.objectContaining({ description: 'Do not claim COBOL depth.' }),
+    ])
+    expect(canonicalAnalysis.relevantAwareness).toEqual([
+      expect.objectContaining({ topic: 'Platform ownership boundary' }),
+    ])
     expect(userPrompt).toContain('Candidate Metrics From Identity')
     expect(userPrompt).toContain('Additional Candidate Metrics Outside The Vector Slice')
     expect(userPrompt).toContain('Existing Context Gaps')
@@ -934,8 +1030,9 @@ describe('generateInterviewPrep', () => {
       vectorId: 'frontend',
       vectorLabel: 'Frontend',
       jobDescription: 'Build JavaScript systems; Java is a nice-to-have.',
-      jdAnalysis: {
+      jdAnalysis: applyRulesBasedAudiences({
         ...testJdAnalysis,
+        audienceRulesVersion: undefined,
         skillMatches: [
           untagged({
             skillName: 'Node',
@@ -956,7 +1053,7 @@ describe('generateInterviewPrep', () => {
             presentationGuidance: 'Avoid claiming Java depth.',
           }),
         ],
-      },
+      } as JDAnalysisLike),
       resumeContext: {
         resume: {
           basics: { name: 'Alex Example' },

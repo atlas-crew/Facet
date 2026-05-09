@@ -36,6 +36,8 @@ import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 import { hasOwnAnswerTemplate, normalizePrepAnswerTemplate } from './prepAnswerTemplate'
+import { projectForAudience } from './audienceFilter'
+import type { AudienceProjection } from './audienceFilter'
 import {
   formatPrepSkillDepthConfidenceGuidance,
   mapSkillDepthToStackConfidence,
@@ -385,7 +387,7 @@ function applyStackAlignmentConfidenceCeilings(
   })
 }
 
-function formatJdAnalysisForPrompt(analysis: PrepGenerationRequest['jdAnalysis']): string {
+function formatJdAnalysisForPrompt(analysis: AudienceProjection): string {
   const skillMatches = analysis.skillMatches.map((skillMatch) => ({
     ...skillMatch,
     prepStackConfidence: mapSkillDepthToStackConfidence(
@@ -397,6 +399,7 @@ function formatJdAnalysisForPrompt(analysis: PrepGenerationRequest['jdAnalysis']
   return JSON.stringify(
     {
       id: analysis.id,
+      audience: analysis.audience,
       pipelineEntryId: analysis.pipelineEntryId,
       generatedAt: analysis.generatedAt,
       modelVersion: analysis.modelVersion,
@@ -1567,6 +1570,8 @@ export async function generateInterviewPrep(
   endpoint: string,
   request: PrepGenerationRequest,
 ): Promise<PrepInterviewPrepResult> {
+  // Keep prompt context and post-parse stack confidence ceilings on the same candidate-visible projection.
+  const candidateJdAnalysis = projectForAudience(request.jdAnalysis, 'candidate')
   const candidateMetrics = readIdentityMetricCandidates(
     request.identityContext,
     'candidate_metrics',
@@ -1729,7 +1734,7 @@ Prep Stack Alignment Confidence Mapping:
 ${formatPrepSkillDepthConfidenceGuidance()}
 
 Canonical JD Analysis:
-${formatJdAnalysisForPrompt(request.jdAnalysis)}
+${formatJdAnalysisForPrompt(candidateJdAnalysis)}
 
 Original Job Description Source Text:
 ${request.jobDescription}
@@ -1763,7 +1768,7 @@ ${JSON.stringify(request.resumeContext, null, 2)}
 
 When structured identity context is provided, use it as the source of truth for candidate evidence and fall back to the tailored resume context only for missing details.
 When structured pipeline entry context is provided, use it as the source of truth for company, process, and interviewer intel before falling back to freeform companyResearch notes.
-Use Canonical JD Analysis as the source of truth for role requirements, skill matches, strengths, gaps, watch-outs, priorities, avoid triggers, and positioning. Do not re-infer the job analysis from Original Job Description Source Text; use that raw text only for source wording, quote-level context, and company numbers when the canonical analysis omits a detail.
+Use Canonical JD Analysis as the source of truth for role requirements, skill matches, strengths, gaps, watch-outs, priorities, avoid triggers, and positioning. The Canonical JD Analysis block is already projected to audience "candidate"; do not recover or infer recruiter-only or internal-only material from omitted fields. Do not re-infer the job analysis from Original Job Description Source Text; use that raw text only for source wording, quote-level context, and company numbers when the canonical analysis omits a detail.
 If structured pipeline entry context includes a round.interviewers list, those are the exact user-supplied panel members; use them for named-person intel cards, likely-interviewer framing, and sharper questions-to-ask. If the list is absent, emit no interviewer names at all.
 Do not claim named-person intel unless it is grounded in a user-supplied round.interviewers entry and corroborated by the provided structured pipeline entry context or companyResearch notes.
 Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
@@ -1871,7 +1876,7 @@ Return JSON only (inside the tags).`
 
   const stackAlignment = applyStackAlignmentConfidenceCeilings(
     normalizeStackAlignment(parsed.stackAlignment),
-    request.jdAnalysis,
+    candidateJdAnalysis,
   )
   const companyIntel = normalizeCompanyIntel(parsed.companyIntel)
   const generatedCards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
