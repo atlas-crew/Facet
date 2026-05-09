@@ -1,5 +1,9 @@
 # Facet Brand Reference
 
+> **New here?** Start at [`README.md`](README.md) for the library
+> navigator. For the 30-second lookup, see [`CHEATSHEET.md`](CHEATSHEET.md).
+> For chronological history, see [`CHANGELOG.md`](CHANGELOG.md).
+>
 > **Looking for taglines, hero copy, or "how should I write this"?**
 > See [`COPY.md`](COPY.md) — the language reference. This doc handles
 > visual brand (marks, colors, typography, asset library).
@@ -13,6 +17,9 @@
 > See [`BIOS.md`](BIOS.md) — three-size founder bio, three-size company
 > boilerplate, and platform-specific social profile bios all calibrated
 > to the locked vocabulary.
+>
+> **AI agent editing brand files?** See [`CLAUDE.md`](CLAUDE.md) for
+> directory-local rules.
 
 ## Marks
 
@@ -200,6 +207,8 @@ brand/
 │   │   ├── readme.html               ← #readme-dark · #readme-light  (1280×640 2:1 banner, GitHub repo hero)
 │   │   ├── reference.html            ← #refcard (brand card) · #fontcompare (wordmark exploration)
 │   │   ├── lockups.html              ← #lockups-dark · #lockups-light  (1200×630, lockup specimens)
+│   │   ├── poster.html               ← #poster-dark · #poster-light  (1224×1584 letter portrait, designer-handoff brand summary)
+│   │   ├── swatch.html               ← #swatch  (1584×1224 letter landscape, designer reference: lockups · colors · type)
 │   │   ├── composite.html            ← 12 per-category #composite-{cat} contact sheets
 │   │   └── _archive/
 │   │       └── loop.html             ← The Search Loop (retired — replaced by diamond-centric carousel)
@@ -240,6 +249,10 @@ brand/
 │   │   └── facet-method-{dark,light}.webp         ← 1600×900 widescreen 3-phase cycle
 │   ├── readme/                       ← GitHub README hero
 │   │   └── facet-readme-{dark,light}.webp         ← 1280×640 asymmetric mark/copy banner
+│   ├── poster/                       ← designer-handoff brand summary (letter portrait)
+│   │   └── facet-poster-{dark,light}.webp         ← 1224×1584 wordmark · colors · type · locked phrases
+│   ├── swatch/                       ← designer swatch reference (letter landscape, light only)
+│   │   └── facet-swatch.webp                      ← 1584×1224 lockups · color swatches · type specimens
 │   ├── reference/                    ← internal team reference
 │   │   ├── facet-brand-refcard.webp               ← variable height
 │   │   └── facet-lockups-{dark,light}.webp        ← 1200×630 lockup specimens
