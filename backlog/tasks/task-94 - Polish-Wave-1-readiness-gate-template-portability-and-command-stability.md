@@ -1,10 +1,11 @@
 ---
 id: TASK-94
 title: Polish Wave 1 readiness gate template portability and command stability
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-08 06:54'
-updated_date: '2026-05-07 19:23'
+updated_date: '2026-05-10 00:22'
 labels:
   - documentation
 milestone: Wave 1 Hosted Accounts Launch Readiness
@@ -41,6 +42,8 @@ Deferred from review artifact ./.agents/reviews/review-20260408-025234.md. The c
 2026-04-08: Follow-on readiness-gate review ./.agents/reviews/review-20260408-054907.md flagged one deferred evidence-quality item: operator-reported validations should eventually link to a traceable artifact instead of only naming the release thread.
 
 2026-04-08: Additional deferred readiness-gate review ./.agents/reviews/review-20260408-055106.md noted that operator-reported validations should eventually point at a durable reference, and that template guidance could be made more visually prominent.
+
+Starting TASK-94 as an independent doc/script stability slice while Wave 1 implementation workers run in parallel. Plan: add a stable Wave 1 local Vitest script, update the readiness gate to reference it, replace fragile table line breaks with portable references, and document the template field migration/partial status guidance.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
