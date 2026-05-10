@@ -7,6 +7,7 @@ staging validation pass, go or no-go criteria, and staged rollout plan into one
 operator-facing checklist.
 
 Use this with:
+
 - `docs/development/platform/wave-1-hosting-foundation.md`
 - `docs/development/platform/wave-1-operations-runbook.md`
 - `docs/development/platform/wave-1-beta-support-playbook.md`
@@ -15,6 +16,7 @@ Use this with:
 ## Wave 1 Scope Boundary
 
 Wave 1 hosted beta includes:
+
 - hosted sign-in
 - hosted workspace bootstrap and selection
 - hosted persistence and sync
@@ -23,6 +25,7 @@ Wave 1 hosted beta includes:
 - recovery paths for auth expiry, offline sync, billing-state failures, and backup fallback
 
 Wave 1 hosted beta explicitly excludes:
+
 - shared workspaces
 - multi-user collaboration
 - hosted BYOK
@@ -84,6 +87,7 @@ The staging pass is complete only when every line below is validated against the
 ### Hard Go Requirements
 
 Launch is a **no-go** if any of these are false:
+
 - staged auth, workspace bootstrap, persistence, migration, and AI entitlement checks all pass
 - no staging dependency remains on local-only auth shortcuts
 - rollback and restore procedures have been rehearsed against the current staging backing store
@@ -93,6 +97,7 @@ Launch is a **no-go** if any of these are false:
 ### Automatic No-Go Conditions
 
 Do not launch if any of these are present:
+
 - repeated hosted sign-in or workspace bootstrap failures
 - staging save failures that cannot be recovered through the documented restore path
 - billing-state load failures that make entitlement behavior non-deterministic
@@ -131,6 +136,7 @@ The first hosted beta rollout must be bounded and reversible.
 ## Minimum Evidence To Record
 
 For the actual launch decision, record:
+
 - release candidate commit or build identifier
 - staging validation date
 - validator or owner
@@ -145,71 +151,88 @@ For the actual launch decision, record:
 Date: 2026-04-08
 
 Scope executed from this checkout:
+
 - local repository validation plus hosted environment-contract verification
 - required hosted browser env keys are present in `.env`, `.env.production`, and `.vercel/.env.production.local`
 - required hosted proxy auth and billing keys are present in `proxy/.env`
 - this machine did not re-run the authenticated staged browser pass; sign-in and Stripe checkout were previously validated outside this session
 
 Open blockers before declaring the staging pass complete:
+
 - no recorded staged browser pass yet for hosted workspace bootstrap, persistence, local-to-hosted migration, or workspace recovery flows
 - no recorded staged browser pass yet for session reuse or expired-session recovery against the current Supabase environment
 - no recorded staged browser pass yet for AI entitlement denial or billing-state recovery flows
 - no restore or rollback rehearsal has been recorded yet against the current hosted backing store
 
 Local evidence captured:
+
 - `npm run typecheck` -> pass
 - `npm run build` -> pass
-- `npx vitest run src/test/facetServer.test.ts src/test/billingApi.test.ts src/test/hostedAppStore.test.ts src/test/AppShell.test.tsx src/test/windowLocation.test.ts` -> pass
-  - current result: `80` passed across `5` test files
+- `pnpm run test:wave1` -> pass
+  - current result: `128` passed across `5` test files
   - the focused Wave 1 local receipt is clean again after refreshing the AppShell expectations to the current shell contract
 - operator-reported staged validations already completed outside this machine:
   - hosted sign-in — reported by the user on 2026-04-08 in the current release thread
   - Stripe sandbox checkout — reported by the user on 2026-04-08 in the current release thread
 
 Implication:
+
 - the hosted implementation currently passes local type-check, build, and focused Wave 1 test validation
 - the hosted env and billing/auth configuration required for a real staged pass are present in this checkout
 - launch is still a no-go until the remaining staged workspace or recovery validation and restore or rollback rehearsal are recorded
 
 ## Decision Log
 
-| Field | Value |
-|---|---|
-| Candidate build | `b9d99e7` |
-| Candidate build note | pinned to the last local Wave 1 validation receipt from this checkout; docs-only or backlog-only commits after the pinned candidate do not require revalidation, but any product, proxy, or test receipt change does |
-| Validation date | `2026-04-08` |
-| Validator or owner | Codex local validation pass |
-| Validation environment | local repository evidence plus hosted env-contract verification; staged sign-in and Stripe checkout were previously operator-validated outside this session |
-| Auth validation | partial |
-| Persistence validation | fail |
-| Migration validation | fail |
-| AI entitlement validation | partial |
-| Restore rehearsal | fail |
-| Rollback rehearsal | fail |
-| Launch decision | no-go |
-| Blocking issues | 1. staged hosted validation still lacks recorded workspace bootstrap, persistence, migration, session-recovery, and billing-state or entitlement-recovery coverage<br>2. restore and rollback rehearsal has not been recorded yet against the current hosted backing store |
-| Blocking owners | 1. release owner or staged validator with hosted account access<br>2. hosted platform or release owner |
+| Field                     | Value                                                                                                                                                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Candidate build           | `b9d99e7`                                                                                                                                                                                                            |
+| Candidate build note      | pinned to the last local Wave 1 validation receipt from this checkout; docs-only or backlog-only commits after the pinned candidate do not require revalidation, but any product, proxy, or test receipt change does |
+| Validation date           | `2026-04-08`                                                                                                                                                                                                         |
+| Validator or owner        | Codex local validation pass                                                                                                                                                                                          |
+| Validation environment    | local repository evidence plus hosted env-contract verification; staged sign-in and Stripe checkout were previously operator-validated outside this session                                                          |
+| Auth validation           | partial                                                                                                                                                                                                              |
+| Persistence validation    | fail                                                                                                                                                                                                                 |
+| Migration validation      | fail                                                                                                                                                                                                                 |
+| AI entitlement validation | partial                                                                                                                                                                                                              |
+| Restore rehearsal         | fail                                                                                                                                                                                                                 |
+| Rollback rehearsal        | fail                                                                                                                                                                                                                 |
+| Launch decision           | no-go                                                                                                                                                                                                                |
+| Blocking issues           | See "Current blocking details" below.                                                                                                                                                                                |
+| Blocking owners           | See "Current blocking details" below.                                                                                                                                                                                |
+
+### Current Blocking Details
+
+Blocking issues:
+
+1. Staged hosted validation still lacks recorded workspace bootstrap, persistence, migration, session-recovery, and billing-state or entitlement-recovery coverage.
+2. Restore and rollback rehearsal has not been recorded yet against the current hosted backing store.
+
+Blocking owners:
+
+1. Release owner or staged validator with hosted account access.
+2. Hosted platform or release owner.
 
 ## Decision Log Template
 
-Use `partial` when at least one sub-validation has been recorded, but
-remaining required checks are still explicitly listed in `Blocking issues`.
-Use `Candidate build note` to record why a specific commit was pinned and what
-would require selecting a new candidate build.
+> Template guidance:
+>
+> - Use `partial` only when at least one sub-validation has been recorded with a traceable artifact or named operator attestation, and remaining required checks are explicitly listed in `Blocking issues`.
+> - Use `Candidate build note` to record why a specific commit was pinned and what would require selecting a new candidate build. Docs-only or backlog-only commits after the pinned candidate do not require revalidation.
+> - This template is canonical as of 2026-04-08. Older snapshots may use `Staging validation date` instead of `Validation date`, or the combined `Blocking issue and owner` field instead of separate `Blocking issues` and `Blocking owners` rows.
 
-| Field | Value |
-|---|---|
-| Candidate build |  |
-| Candidate build note |  |
-| Validation date |  |
-| Validator or owner |  |
-| Validation environment |  |
-| Auth validation | pass / partial / fail |
-| Persistence validation | pass / partial / fail |
-| Migration validation | pass / partial / fail |
+| Field                     | Value                 |
+| ------------------------- | --------------------- |
+| Candidate build           |                       |
+| Candidate build note      |                       |
+| Validation date           |                       |
+| Validator or owner        |                       |
+| Validation environment    |                       |
+| Auth validation           | pass / partial / fail |
+| Persistence validation    | pass / partial / fail |
+| Migration validation      | pass / partial / fail |
 | AI entitlement validation | pass / partial / fail |
-| Restore rehearsal | pass / partial / fail |
-| Rollback rehearsal | pass / partial / fail |
-| Launch decision | go / no-go |
-| Blocking issues |  |
-| Blocking owners |  |
+| Restore rehearsal         | pass / partial / fail |
+| Rollback rehearsal        | pass / partial / fail |
+| Launch decision           | go / no-go            |
+| Blocking issues           |                       |
+| Blocking owners           |                       |

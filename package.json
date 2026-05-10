@@ -31,6 +31,7 @@
     "build": "tsc -b && vite build --config vite.build.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
+    "test:wave1": "vitest run src/test/facetServer.test.ts src/test/billingApi.test.ts src/test/hostedAppStore.test.ts src/test/AppShell.test.tsx src/test/windowLocation.test.ts",
     "lint": "eslint .",
     "format": "prettier --write --ignore-unknown .",
     "format:check": "prettier --check --ignore-unknown .",
