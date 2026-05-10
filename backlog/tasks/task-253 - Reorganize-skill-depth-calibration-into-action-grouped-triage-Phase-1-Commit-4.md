@@ -1,0 +1,105 @@
+---
+id: TASK-253
+title: >-
+  Reorganize skill-depth calibration into action-grouped triage (Phase 1, Commit
+  4)
+status: To Do
+assignee: []
+created_date: '2026-05-10 16:25'
+labels:
+  - research
+  - phase-1-cull
+  - ux-restructure
+milestone: m-31
+dependencies: []
+references:
+  - docs/audits/2026-05-10/report.md
+priority: medium
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+## Goal
+
+Replace the current linear `skillDepthMap` rendering in the research workspace with three action-grouped sections so the user can triage skill-depth calibrations by what action they need.
+
+Commit 4 of the Research Workspace Phase 1 cull plan. Independent of Commit 3 (cull dead surfaces) — can land before, after, or in parallel.
+
+## Current state
+
+Linear list of all `thesisDraft.skillDepthMap` entries at `src/routes/research/ResearchPage.tsx:3792-3850` (region — verify exact lines after Commit 3 lands). Every skill calibration is rendered as one row regardless of whether it's a depth change, a confirmed match, or a newly-surfaced skill.
+
+## Target state — three action-grouped sections
+
+| Group | Rendering | Default expansion |
+|---|---|---|
+| **Depth changes proposed** | Per-entry row with review/confirm/reject affordances; drives the writeback flow | Expanded |
+| **Depths confirmed** | Per-entry row, compact; no actionable controls | Collapsed |
+| **New skills surfaced** | Per-entry row with review/accept affordances; promotes additions to identity | Expanded |
+
+## Locked decisions (do not re-litigate)
+
+- **Empty groups render with explanatory copy**, not hidden. The user learns the group exists even when empty. Default-collapsed for "depths confirmed" still applies. Suggested copy:
+  - Depth changes proposed (empty): "No depth changes proposed. The thesis depths match your identity."
+  - Depths confirmed (empty): "No confirmed depths yet."
+  - New skills surfaced (empty): "No new skills surfaced. The thesis stayed within your identity skill set."
+
+## Group categorization logic
+
+For each `entry` in `thesisDraft.skillDepthMap`:
+
+1. Find the matching identity skill via `entry.skill` (use `skillNamesMatch` or `normalizeSkillKey` for case-insensitive matching against identity skill names + aliases).
+2. If no match exists in identity → **"new skills surfaced"**.
+3. If match exists and `entry.depth === identitySkill.depth` → **"depths confirmed"**.
+4. If match exists and `entry.depth !== identitySkill.depth` → **"depth changes proposed"**.
+
+Implement as a `useMemo` over `(thesisDraft.skillDepthMap, currentIdentity?.skills)` returning a tuple `{ proposed, confirmed, surfaced }`.
+
+## CRITICAL: do NOT touch the writeback semantics
+
+The writeback flow (`handleRequestSkillDepthWriteback`, `pendingSkillWriteback`, the `identityRevision` concurrency guard at `ResearchPage.tsx:843-861`) is correct and must be preserved unchanged. Only the rendering layer changes.
+
+Specifically preserve:
+- `pendingSkillWriteback.identityRevision` check that cancels writeback if identity changed underneath
+- The "Identity changed after confirmation opened" notice
+- `buildSkillDepthValueChanges`, `buildSkillDepthMutation`, `describeImpact` and the downstream impact display
+- The `pendingSkillWriteback` state machine and resolution flow
+
+## Out of scope
+
+- Adding a "bulk accept all proposed changes" affordance (Phase 2 if needed)
+- Changing the writeback concurrency model (out of scope)
+- Adding undo/redo for accepted depths (Phase 2 if needed)
+
+## Verification
+
+- `npm run typecheck` passes
+- `npx vitest run src/test/ResearchPage.test.tsx` passes; existing skill-writeback tests still cover the unchanged semantics
+- Manual smoke: 
+  - Generate a thesis whose `skillDepthMap` has at least one entry per group (depth-changed, confirmed, new); verify all three groups render with correct counts.
+  - Confirm an "depth changes proposed" entry; verify writeback fires and concurrency guard still works (mutate identity in another tab; the cancellation notice should appear).
+  - Verify "depths confirmed" group is collapsed by default; expand it; entries render compactly without action controls.
+  - Verify empty-state copy renders for any group with zero entries.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 Three action-grouped sections render: depth changes proposed (expanded by default), depths confirmed (collapsed by default), new skills surfaced (expanded by default)
+- [ ] #2 Group categorization logic uses identity skill matching (skillNamesMatch or normalizeSkillKey) and correctly assigns each skillDepthMap entry to one group
+- [ ] #3 Empty groups render with explanatory copy, not hidden
+- [ ] #4 Writeback flow (handleRequestSkillDepthWriteback, pendingSkillWriteback, identityRevision guard at ResearchPage.tsx:843-861) is unchanged; existing tests still pass without modification
+- [ ] #5 Group counts in section headers reflect entry counts accurately
+- [ ] #6 npm run typecheck passes; npx vitest run passes
+- [ ] #7 Manual smoke verifies all four scenarios: mixed-group thesis, confirm flow, concurrency guard, empty-state copy
+<!-- AC:END -->
+
+## Definition of Done
+<!-- DOD:BEGIN -->
+- [ ] #1 Regression tests were created for new behaviors
+- [ ] #2 Changes to integration points are covered by tests
+- [ ] #3 Automatic formatting was applied to touched files
+- [ ] #4 Regression tests pass (scoped to touched files)
+- [ ] #5 Linters report no warnings or errors in touched files
+- [ ] #6 Relevant documentation updates landed or tasks created
+<!-- DOD:END -->
