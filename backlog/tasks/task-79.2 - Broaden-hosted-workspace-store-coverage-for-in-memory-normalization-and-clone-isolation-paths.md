@@ -3,10 +3,11 @@ id: TASK-79.2
 title: >-
   Broaden hosted workspace store coverage for in-memory, normalization, and
   clone-isolation paths
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@worker-d'
 created_date: '2026-03-14 04:00'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-10 00:22'
 labels:
   - remediation
   - persistence
@@ -33,6 +34,12 @@ Follow-up from the latest hostedWorkspaceStore audit after TASK-79.1. The critic
 - [ ] #2 Add malformed-directory normalization tests for incomplete actors, invalid memberships/roles, default normalization, and orphaned workspace references.
 - [ ] #3 Add clone-isolation regressions for actor/workspace/list reads so mutating returned values cannot corrupt store state.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Inspect hostedWorkspaceStore contracts and existing tests for fixture style and current gaps.\n2. Add focused regressions in src/test/hostedWorkspaceStore.test.ts for in-memory CRUD/write isolation, malformed directory normalization, and clone-isolated reads.\n3. Run the hosted workspace store test file, then targeted lint/typecheck/build checks appropriate for test-only changes.\n4. Update TASK-79.2 acceptance/DoD/final notes and commit the test slice atomically with cortex git commit.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
