@@ -1,10 +1,11 @@
 ---
 id: TASK-189.1
 title: Bootstrap admin auth and webhooks view
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@worker-b'
 created_date: '2026-04-22 03:28'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-10 00:23'
 labels:
   - admin
   - auth
