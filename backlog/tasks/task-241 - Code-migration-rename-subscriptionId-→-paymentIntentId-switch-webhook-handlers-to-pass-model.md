@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@myself'
 created_date: '2026-05-07 21:11'
-updated_date: '2026-05-10 00:22'
+updated_date: '2026-05-10 00:46'
 labels:
   - billing
   - wave-1
@@ -26,6 +26,19 @@ references:
   - src/test/AppShell.test.tsx
   - docs/development/platform/wave-1-domain-contract.md
   - docs/development/platform/wave-1-hosting-foundation.md
+modified_files:
+  - proxy/billingApi.js
+  - proxy/billingState.js
+  - proxy/postgresBillingStore.js
+  - proxy/hosted-billing.example.json
+  - src/types/hosted.ts
+  - src/routes/account/AccountPage.tsx
+  - src/test/billingApi.test.ts
+  - src/test/aiAccess.test.ts
+  - src/test/facetServer.test.ts
+  - src/test/hostedAppStore.test.ts
+  - supabase/migrations/README.md
+  - supabase/migrations/20260510002410_rename_billing_subscription_to_pass.sql
 priority: medium
 ---
 
@@ -86,11 +99,34 @@ Pairs with **TASK-240** (operator-side Stripe migration). Code changes here subs
 5. Run focused billing/access tests, lint/typecheck/build as appropriate, update TASK-241 notes/DoD, and commit atomically with cortex git commit.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Worker A implementation progress:
+- Renamed hosted billing runtime shape to billingPass/paymentIntentId with pass timestamps and optional pass history for refund reconciliation.
+- Switched Stripe webhook reconciliation to the pass model: payment_intent.succeeded activates, checkout.session.completed is acknowledged for existing checkout dispatch, charge.refunded handles full/partial/historical refunds, and payment_intent.payment_failed only marks existing passes delinquent.
+- Updated Postgres billing store lookup by payment intent and added a forward Supabase migration renaming billing_accounts.subscription to pass with a unique current-pass paymentIntentId index.
+- Updated billing/aiAccess/AppShell-adjacent fixtures and account billing copy/pricing label to the pass model.
+
+Verification receipts:
+- npm run test -- src/test/billingApi.test.ts src/test/aiAccess.test.ts src/test/AppShell.test.tsx: 3 files passed, 81 tests passed.
+- npm run typecheck: passed.
+- npx eslint <TASK-241 touched files>: passed.
+- npm run build: passed.
+- npm run lint remains blocked by unrelated files: src/hooks/useElapsed.ts, src/routes/identity/inspectorSlots/slotPrimitives.tsx, tests/hosted/diag.spec.ts, tests/hosted/entitlement-billing.spec.ts.
+- npm run test remains blocked by unrelated PrepPage.behavior.test.tsx failures with Cannot read properties of undefined (reading startsWith).
+
+Review artifacts:
+- .agents/reviews/review-20260509-203129.md found duplicate activation/partial refund/payment-failed blockers; remediated.
+- .agents/reviews/review-20260509-203544.md found additional normalization/idempotency/copy blockers; remediated.
+- .agents/reviews/review-20260509-204123.md had no P0s after remediation; remaining P1 concerns drove final single-activation-path/pass-history/store-contract cleanup.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Linters report no WARNINGS or ERRORS for touched files
-- [ ] #5 Regression tests pass for touched files
+- [x] #4 Linters report no WARNINGS or ERRORS for touched files
+- [x] #5 Regression tests pass for touched files
 <!-- DOD:END -->
