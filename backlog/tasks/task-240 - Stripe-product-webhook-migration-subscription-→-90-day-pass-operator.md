@@ -1,10 +1,11 @@
 ---
 id: TASK-240
 title: 'Stripe product + webhook migration: subscription → 90-day pass (operator)'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-07 21:10'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-10 03:18'
 labels:
   - billing
   - wave-1
@@ -69,3 +70,9 @@ In Stripe (test mode first, then production):
 - [ ] #4 Linters report no WARNINGS or ERRORS for touched files
 - [ ] #5 Regression tests pass for touched files
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting Stripe operator lane after TASK-241 code migration landed. Plan: inspect current Stripe account/products/prices, create or identify the  one-time pass price, verify local price env references, check whether webhook endpoint and Fly secret updates are accessible from this session, and record anything requiring dashboard/operator follow-up.
+<!-- SECTION:NOTES:END -->
