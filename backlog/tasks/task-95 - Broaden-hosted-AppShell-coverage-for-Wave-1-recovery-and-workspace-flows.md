@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@worker-c'
 created_date: '2026-04-08 08:28'
-updated_date: '2026-05-10 00:40'
+updated_date: '2026-05-10 00:41'
 labels:
   - test
   - hosted
@@ -54,7 +54,20 @@ Worker C AppShell coverage update:
 - Focused verification passed: npx vitest run src/test/AppShell.test.tsx (50 tests), pnpm exec eslint src/test/AppShell.test.tsx, pnpm format:files src/test/AppShell.test.tsx, git diff --check scoped to AppShell.
 - Test audit receipt: .agents/reviews/test-audit-20260509-203820.md. P0=0; residual P1/P2 gaps are broader lifecycle/workspace rename-delete coverage outside TASK-95 Wave 1 recovery acceptance.
 - Repo-wide typecheck/build currently blocked by parallel billing-pass migration fixture drift in src/test/aiAccess.test.ts and src/test/hostedAppStore.test.ts; AppShell fixture was updated to the current billingPass shape inside this owned test file only.
+
+Post-commit gate refresh:
+- Commit created with cortex git commit: 2a17c47 test(app-shell): broaden hosted recovery coverage.
+- Repo-wide pnpm typecheck passed after the parallel billing-pass fixture lane caught up.
+- Repo-wide pnpm build passed.
+- Repo-wide pnpm lint is still blocked by unrelated baseline errors in src/hooks/useElapsed.ts, src/routes/identity/inspectorSlots/slotPrimitives.tsx, tests/hosted/diag.spec.ts, and tests/hosted/entitlement-billing.spec.ts. Scoped AppShell lint passed.
+- Final AppShell-only audit receipt: .agents/reviews/test-audit-20260509-203820.md; no P0 findings, residual P1/P2 items are broader lifecycle/workspace rename-delete coverage beyond TASK-95 acceptance.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Worker C completed TASK-95 acceptance coverage in src/test/AppShell.test.tsx and committed it as 2a17c47 (test(app-shell): broaden hosted recovery coverage). The focused AppShell suite now covers hosted retry recovery, workspace switching through the dialog, local-mode hosted-control exclusion, start-fresh onboarding/error clearing, bootstrap/loading/sync states, stale selected-workspace fallback, system theme changes, and cross-tab identity storage edge cases. Focused tests/lint pass; typecheck and build pass. Full lint remains blocked by unrelated baseline errors outside Worker C scope.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
@@ -66,5 +79,5 @@ Worker C AppShell coverage update:
 - [ ] #6 All tests pass successfully
 - [x] #7 Automatic formatting was applied.
 - [ ] #8 Linters report no WARNINGS or ERRORS
-- [ ] #9 The project builds successfully
+- [x] #9 The project builds successfully
 <!-- DOD:END -->
