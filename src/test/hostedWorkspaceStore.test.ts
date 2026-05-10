@@ -29,6 +29,47 @@ const thirdActor = {
   email: 'outsider@example.com',
 }
 
+const seededWorkspaceRecord = {
+  tenantId: baseActor.tenantId,
+  accountId: baseActor.accountId,
+  workspaceId: 'seeded-1',
+  name: 'Seeded Workspace',
+  revision: 0,
+  updatedAt: '2026-03-14T12:00:00.000Z',
+  createdAt: '2026-03-14T12:00:00.000Z',
+}
+
+function createSeededSnapshot(workspaceId = seededWorkspaceRecord.workspaceId) {
+  return {
+    snapshotVersion: 1,
+    tenantId: baseActor.tenantId,
+    userId: baseActor.userId,
+    workspace: {
+      id: workspaceId,
+      name: 'Seeded Workspace',
+      revision: 0,
+      updatedAt: '2026-03-14T12:00:00.000Z',
+    },
+    artifacts: {
+      resume: {
+        artifactId: `${workspaceId}:resume`,
+        artifactType: 'resume',
+        workspaceId,
+        schemaVersion: 1,
+        revision: 0,
+        updatedAt: '2026-03-14T12:00:00.000Z',
+        payload: {
+          meta: {
+            name: 'Seeded User',
+            links: [],
+          },
+        },
+      },
+    },
+    exportedAt: '2026-03-14T12:00:00.000Z',
+  }
+}
+
 describe('hostedWorkspaceStore', () => {
   const tempPaths: string[] = []
 
@@ -139,7 +180,9 @@ describe('hostedWorkspaceStore', () => {
         isDefault: true,
       },
     ])
-    await expect(reloadedStore.loadWorkspace('tenant-1', 'durable-1')).resolves.toEqual(updatedSnapshot)
+    await expect(reloadedStore.loadWorkspace('tenant-1', 'durable-1')).resolves.toEqual(
+      updatedSnapshot,
+    )
     await expect(reloadedStore.loadWorkspace('tenant-2', 'durable-1')).resolves.toBeNull()
 
     const persisted = JSON.parse(await readFile(filePath, 'utf8')) as {
@@ -196,7 +239,11 @@ describe('hostedWorkspaceStore', () => {
       '2026-03-14T12:00:00.000Z',
     )
     const second = await store.createWorkspace(
-      { ...baseActor, workspaces: ['ws-1'], workspaceMemberships: [{ workspaceId: 'ws-1', role: 'owner', isDefault: true }] },
+      {
+        ...baseActor,
+        workspaces: ['ws-1'],
+        workspaceMemberships: [{ workspaceId: 'ws-1', role: 'owner', isDefault: true }],
+      },
       { name: 'Second Workspace', workspaceId: 'ws-2' },
       '2026-03-14T12:05:00.000Z',
     )
@@ -210,9 +257,7 @@ describe('hostedWorkspaceStore', () => {
       ),
     ).rejects.toThrow(/already exists/i)
 
-    await expect(
-      store.listWorkspacesForActor(baseActor),
-    ).resolves.toEqual([
+    await expect(store.listWorkspacesForActor(baseActor)).resolves.toEqual([
       expect.objectContaining({
         workspaceId: 'ws-1',
         isDefault: true,
@@ -421,7 +466,9 @@ describe('hostedWorkspaceStore', () => {
         }),
       }),
     )
-    await expect(store.loadWorkspace(secondActor.tenantId, 'shared-id')).resolves.toEqual(second.snapshot)
+    await expect(store.loadWorkspace(secondActor.tenantId, 'shared-id')).resolves.toEqual(
+      second.snapshot,
+    )
 
     await expect(store.deleteWorkspace(thirdActor, 'shared-id')).rejects.toThrow(/owner access/i)
     await expect(
@@ -445,7 +492,9 @@ describe('hostedWorkspaceStore', () => {
       deletedWorkspaceId: 'shared-id',
       defaultWorkspaceId: null,
     })
-    await expect(store.loadWorkspace(secondActor.tenantId, 'shared-id')).resolves.toEqual(second.snapshot)
+    await expect(store.loadWorkspace(secondActor.tenantId, 'shared-id')).resolves.toEqual(
+      second.snapshot,
+    )
   })
 
   it('rejects stale revisions and invalid save metadata while allowing idempotent saves', async () => {
@@ -764,7 +813,9 @@ describe('hostedWorkspaceStore', () => {
       deletedWorkspaceId: first.workspace.workspaceId,
       defaultWorkspaceId: 'ws-2',
     })
-    await expect(store.loadWorkspace(baseActor.tenantId, first.workspace.workspaceId)).resolves.toBeNull()
+    await expect(
+      store.loadWorkspace(baseActor.tenantId, first.workspace.workspaceId),
+    ).resolves.toBeNull()
 
     const remainingActor = await store.getActor(baseActor.userId)
     expect(remainingActor?.workspaces).toEqual([
@@ -839,5 +890,303 @@ describe('hostedWorkspaceStore', () => {
         exportedAt: 'not-a-date',
       }),
     ).rejects.toThrow(/valid exportedAt timestamp/i)
+  })
+
+  it('supports in-memory hosted workspace CRUD and isolates caller mutations from writes', async () => {
+    const { createInMemoryHostedWorkspaceStore } = await loadHostedWorkspaceStoreModule()
+    const store = createInMemoryHostedWorkspaceStore({
+      actors: [{ ...baseActor, workspaces: [] }],
+      workspaces: [],
+      snapshots: [],
+    })
+
+    const created = await store.createWorkspace(
+      { ...baseActor, workspaces: [], workspaceMemberships: [] },
+      { name: ' Memory Workspace ', workspaceId: 'memory-1' },
+      '2026-03-14T12:00:00.000Z',
+    )
+
+    created.workspace.name = 'Mutated Summary'
+    created.snapshot.workspace.name = 'Mutated Snapshot'
+    created.snapshot.artifacts.resume.payload.meta.name = 'Mutated User'
+
+    await expect(store.getActor(baseActor.userId)).resolves.toEqual({
+      tenantId: baseActor.tenantId,
+      accountId: baseActor.accountId,
+      userId: baseActor.userId,
+      email: baseActor.email,
+      workspaces: [
+        {
+          workspaceId: 'memory-1',
+          role: 'owner',
+          isDefault: true,
+        },
+      ],
+    })
+    await expect(store.loadWorkspace(baseActor.tenantId, 'memory-1')).resolves.toEqual(
+      expect.objectContaining({
+        workspace: expect.objectContaining({
+          id: 'memory-1',
+          name: 'Memory Workspace',
+          revision: 0,
+        }),
+        artifacts: expect.objectContaining({
+          resume: expect.objectContaining({
+            payload: expect.objectContaining({
+              meta: expect.objectContaining({
+                name: '',
+              }),
+            }),
+          }),
+        }),
+      }),
+    )
+
+    const renamed = await store.renameWorkspace(
+      {
+        ...baseActor,
+        workspaceMemberships: [{ workspaceId: 'memory-1', role: 'owner', isDefault: true }],
+      },
+      'memory-1',
+      'Renamed Memory Workspace',
+      '2026-03-14T12:05:00.000Z',
+    )
+    expect(renamed.workspace).toEqual(
+      expect.objectContaining({
+        workspaceId: 'memory-1',
+        name: 'Renamed Memory Workspace',
+        revision: 1,
+      }),
+    )
+
+    const savedSnapshot = {
+      ...renamed.snapshot,
+      workspace: {
+        ...renamed.snapshot.workspace,
+        revision: 2,
+        updatedAt: '2026-03-14T12:10:00.000Z',
+      },
+      exportedAt: '2026-03-14T12:10:00.000Z',
+      artifacts: {
+        ...renamed.snapshot.artifacts,
+        resume: {
+          ...renamed.snapshot.artifacts.resume,
+          revision: 2,
+          updatedAt: '2026-03-14T12:10:00.000Z',
+          payload: {
+            ...renamed.snapshot.artifacts.resume.payload,
+            meta: {
+              ...renamed.snapshot.artifacts.resume.payload.meta,
+              name: 'Saved Memory User',
+            },
+          },
+        },
+      },
+    }
+    const saved = await store.saveWorkspace(savedSnapshot)
+    saved.workspace.name = 'Mutated Saved Snapshot'
+    saved.artifacts.resume.payload.meta.name = 'Mutated Saved User'
+
+    await expect(store.loadWorkspace(baseActor.tenantId, 'memory-1')).resolves.toEqual(
+      expect.objectContaining({
+        workspace: expect.objectContaining({
+          name: 'Renamed Memory Workspace',
+          revision: 2,
+        }),
+        artifacts: expect.objectContaining({
+          resume: expect.objectContaining({
+            payload: expect.objectContaining({
+              meta: expect.objectContaining({
+                name: 'Saved Memory User',
+              }),
+            }),
+          }),
+        }),
+      }),
+    )
+
+    await expect(
+      store.deleteWorkspace(
+        {
+          ...baseActor,
+          workspaceMemberships: [{ workspaceId: 'memory-1', role: 'owner', isDefault: true }],
+        },
+        'memory-1',
+      ),
+    ).resolves.toEqual({
+      deletedWorkspaceId: 'memory-1',
+      defaultWorkspaceId: null,
+    })
+    await expect(store.loadWorkspace(baseActor.tenantId, 'memory-1')).resolves.toBeNull()
+    await expect(store.listWorkspacesForActor(baseActor)).resolves.toEqual([])
+  })
+
+  it('normalizes malformed in-memory directory records and orphaned workspace references', async () => {
+    const { createInMemoryHostedWorkspaceStore } = await loadHostedWorkspaceStoreModule()
+    const store = createInMemoryHostedWorkspaceStore({
+      actors: [
+        {
+          ...baseActor,
+          email: ' MEMBER@EXAMPLE.COM ',
+          workspaces: [
+            { workspaceId: 'orphaned-1', role: 'owner', isDefault: true },
+            { workspaceId: 'seeded-1', role: 'viewer', isDefault: true },
+            { workspaceId: 'seeded-2', role: 'owner' },
+            { workspaceId: 'seeded-3', role: 'owner' },
+            null,
+          ],
+        },
+        {
+          ...secondActor,
+          userId: '   ',
+          workspaces: [{ workspaceId: 'second-1', role: 'owner', isDefault: true }],
+        },
+        'not-an-actor',
+      ],
+      workspaces: [
+        seededWorkspaceRecord,
+        {
+          ...seededWorkspaceRecord,
+          workspaceId: 'seeded-2',
+          name: 'Second Seeded Workspace',
+          revision: 3,
+          updatedAt: '2026-03-14T12:05:00.000Z',
+          createdAt: '2026-03-14T12:05:00.000Z',
+        },
+        {
+          ...seededWorkspaceRecord,
+          workspaceId: 'seeded-3',
+          name: 'Third Seeded Workspace',
+          revision: 4,
+          updatedAt: '2026-03-14T12:10:00.000Z',
+          createdAt: '2026-03-14T12:10:00.000Z',
+        },
+        {
+          ...seededWorkspaceRecord,
+          workspaceId: 'broken-1',
+          name: '',
+        },
+      ],
+      snapshots: [
+        createSeededSnapshot(),
+        createSeededSnapshot('seeded-2'),
+        { tenantId: baseActor.tenantId, workspace: {} },
+        'not-a-snapshot',
+      ],
+    })
+
+    await expect(store.getActor(baseActor.userId)).resolves.toEqual({
+      tenantId: baseActor.tenantId,
+      accountId: baseActor.accountId,
+      userId: baseActor.userId,
+      email: baseActor.email,
+      workspaces: [
+        { workspaceId: 'orphaned-1', role: 'owner', isDefault: true },
+        { workspaceId: 'seeded-2', role: 'owner', isDefault: false },
+        { workspaceId: 'seeded-3', role: 'owner', isDefault: false },
+      ],
+    })
+    await expect(store.getActor(secondActor.userId)).resolves.toBeNull()
+    await expect(store.listWorkspacesForActor(baseActor)).resolves.toEqual([
+      {
+        workspaceId: 'seeded-2',
+        name: 'Second Seeded Workspace',
+        revision: 3,
+        updatedAt: '2026-03-14T12:05:00.000Z',
+        role: 'owner',
+        isDefault: false,
+      },
+      {
+        workspaceId: 'seeded-3',
+        name: 'Third Seeded Workspace',
+        revision: 4,
+        updatedAt: '2026-03-14T12:10:00.000Z',
+        role: 'owner',
+        isDefault: false,
+      },
+    ])
+    await expect(store.loadWorkspace(baseActor.tenantId, 'seeded-1')).resolves.toEqual(
+      createSeededSnapshot(),
+    )
+    await expect(store.loadWorkspace(baseActor.tenantId, 'broken-1')).resolves.toBeNull()
+  })
+
+  it('normalizes missing in-memory defaults to the first valid workspace membership', async () => {
+    const { createInMemoryHostedWorkspaceStore } = await loadHostedWorkspaceStoreModule()
+    const store = createInMemoryHostedWorkspaceStore({
+      actors: [
+        {
+          ...baseActor,
+          workspaces: [
+            { workspaceId: 'seeded-2', role: 'owner' },
+            { workspaceId: 'seeded-1', role: 'owner' },
+          ],
+        },
+      ],
+      workspaces: [
+        seededWorkspaceRecord,
+        {
+          ...seededWorkspaceRecord,
+          workspaceId: 'seeded-2',
+          name: 'Second Seeded Workspace',
+          revision: 2,
+          updatedAt: '2026-03-14T12:05:00.000Z',
+          createdAt: '2026-03-14T12:05:00.000Z',
+        },
+      ],
+      snapshots: [],
+    })
+
+    await expect(store.getActor(baseActor.userId)).resolves.toEqual(
+      expect.objectContaining({
+        workspaces: [
+          { workspaceId: 'seeded-1', role: 'owner', isDefault: true },
+          { workspaceId: 'seeded-2', role: 'owner', isDefault: false },
+        ],
+      }),
+    )
+  })
+
+  it('clone-isolates actor, workspace, and list reads from in-memory store state', async () => {
+    const { createInMemoryHostedWorkspaceStore } = await loadHostedWorkspaceStoreModule()
+    const store = createInMemoryHostedWorkspaceStore({
+      actors: [
+        { ...baseActor, workspaces: [{ workspaceId: 'seeded-1', role: 'owner', isDefault: true }] },
+      ],
+      workspaces: [seededWorkspaceRecord],
+      snapshots: [createSeededSnapshot()],
+    })
+
+    const actor = await store.getActor(baseActor.userId)
+    const workspaces = await store.listWorkspacesForActor(baseActor)
+    const snapshot = await store.loadWorkspace(baseActor.tenantId, 'seeded-1')
+
+    actor!.email = 'mutated@example.com'
+    actor!.workspaces[0]!.isDefault = false
+    workspaces[0]!.name = 'Mutated List Workspace'
+    workspaces[0]!.isDefault = false
+    snapshot!.workspace.name = 'Mutated Loaded Workspace'
+    snapshot!.artifacts.resume.payload.meta.name = 'Mutated Loaded User'
+
+    await expect(store.getActor(baseActor.userId)).resolves.toEqual({
+      tenantId: baseActor.tenantId,
+      accountId: baseActor.accountId,
+      userId: baseActor.userId,
+      email: baseActor.email,
+      workspaces: [{ workspaceId: 'seeded-1', role: 'owner', isDefault: true }],
+    })
+    await expect(store.listWorkspacesForActor(baseActor)).resolves.toEqual([
+      {
+        workspaceId: 'seeded-1',
+        name: 'Seeded Workspace',
+        revision: 0,
+        updatedAt: '2026-03-14T12:00:00.000Z',
+        role: 'owner',
+        isDefault: true,
+      },
+    ])
+    await expect(store.loadWorkspace(baseActor.tenantId, 'seeded-1')).resolves.toEqual(
+      createSeededSnapshot(),
+    )
   })
 })
