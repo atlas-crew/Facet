@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@worker-b'
 created_date: '2026-04-22 03:28'
-updated_date: '2026-05-10 00:23'
+updated_date: '2026-05-10 00:59'
 labels:
   - admin
   - auth
@@ -83,15 +83,15 @@ This subtask establishes the patterns (proxy middleware, endpoint shape, client 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 proxy exports a `requireAdmin` middleware that reads the admin claim from already-verified JWT claims (does not re-decode)
-- [ ] #2 Middleware returns 403 with a clear error body when the claim is missing or not 'admin', and logs the rejected user_id
-- [ ] #3 `GET /admin/webhooks` returns rows from webhook_event_receipts ordered by processed_at DESC with ?limit (default 100, max 500) and ?since (ISO timestamp) support
-- [ ] #4 `useIsAdmin()` hook returns true iff the current session JWT has app_metadata.role === 'admin'
-- [ ] #5 /admin route exists and renders a webhook table with row-expander showing JSON payload
-- [ ] #6 Admin nav entry in AppShell sidebar is hidden when useIsAdmin() is false
-- [ ] #7 Unit tests cover requireAdmin's three rejection cases (missing claim, missing app_metadata, wrong role) and the success case
-- [ ] #8 Integration test covers GET /admin/webhooks happy path and 403 path
-- [ ] #9 Render test confirms admin nav entry visibility tracks useIsAdmin()
+- [x] #1 proxy exports a `requireAdmin` middleware that reads the admin claim from already-verified JWT claims (does not re-decode)
+- [x] #2 Middleware returns 403 with a clear error body when the claim is missing or not 'admin', and logs the rejected user_id
+- [x] #3 `GET /admin/webhooks` returns rows from webhook_event_receipts ordered by processed_at DESC with ?limit (default 100, max 500) and ?since (ISO timestamp) support
+- [x] #4 `useIsAdmin()` hook returns true iff the current session JWT has app_metadata.role === 'admin'
+- [x] #5 /admin route exists and renders a webhook table with row-expander showing JSON payload
+- [x] #6 Admin nav entry in AppShell sidebar is hidden when useIsAdmin() is false
+- [x] #7 Unit tests cover requireAdmin's three rejection cases (missing claim, missing app_metadata, wrong role) and the success case
+- [x] #8 Integration test covers GET /admin/webhooks happy path and 403 path
+- [x] #9 Render test confirms admin nav entry visibility tracks useIsAdmin()
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -102,14 +102,16 @@ Implementation plan (Worker B):
 2. Add proxy admin middleware plus read-only /admin/webhooks route backed by webhook_event_receipts with limit/since handling and focused proxy tests.
 3. Add hosted session admin-claim exposure, useIsAdmin hook, /admin route/page/CSS, and AppShell gated nav with render coverage.
 4. Run focused tests first, then typecheck/lint/build as appropriate; update TASK-189.1 AC/DoD and commit atomically with cortex git commit.
+
+Implemented admin auth/webhooks bootstrap. Verification: targeted admin tests pass (npm run test -- src/test/adminApi.test.ts src/test/AppShellAdminNav.test.tsx src/test/AdminPage.test.tsx src/test/hostedSession.test.ts); npm run typecheck passes; scoped eslint over admin/proxy/session touched files passes; npm run build passes. Full npm run lint still fails on unrelated existing files: src/hooks/useElapsed.ts, src/routes/identity/inspectorSlots/slotPrimitives.tsx, tests/hosted/diag.spec.ts, tests/hosted/entitlement-billing.spec.ts. Independent review artifacts: .agents/reviews/review-20260509-203503.md, review-20260509-204026.md, review-20260509-204422.md, review-20260509-204818.md. Test audit artifact: .agents/reviews/test-audit-20260509-205147.md; admin-relevant gaps addressed with hostedSession and Postgres admin-store query coverage; remaining billing gaps belong to Worker A billing-pass migration.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
 - [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
+- [x] #4 Automatic formatting was applied.
 - [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
