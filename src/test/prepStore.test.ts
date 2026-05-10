@@ -286,6 +286,78 @@ describe('prepStore', () => {
     expect(isPrepPushbackPracticeKey(deck?.cards[0]?.id ?? '')).toBe(false)
   })
 
+  it('assigns card ids when generated prep cards omit them', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Generated prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [
+        {
+          category: 'opener',
+          title: 'Tell me about yourself',
+          tags: [' backend '],
+          script: ' Lead with platform reliability. ',
+          source: 'ai',
+        },
+        {
+          id: 42 as never,
+          category: undefined as never,
+          title: undefined as never,
+          tags: undefined as never,
+        },
+      ] as never,
+    })
+
+    const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
+    expect(deck?.cards[0]).toEqual(
+      expect.objectContaining({
+        id: expect.stringMatching(/^prep-card-/),
+        deckId,
+        title: 'Tell me about yourself',
+        tags: ['backend'],
+        script: 'Lead with platform reliability.',
+        source: 'ai',
+      }),
+    )
+    expect(deck?.cards[1]).toEqual(
+      expect.objectContaining({
+        id: expect.stringMatching(/^prep-card-/),
+        deckId,
+        category: 'behavioral',
+        title: 'Untitled Prep Card',
+        tags: [],
+      }),
+    )
+  })
+
+  it('preserves table cell positions while sanitizing generated card data', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Table prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [
+        {
+          id: 'table-card',
+          category: 'technical',
+          title: 'Tradeoff table',
+          tags: ['systems'],
+          tableData: {
+            headers: [' Choice ', ' Tradeoff ', ' Notes '],
+            rows: [[' Option A ', '', ' Safer rollout ']],
+          },
+        },
+      ],
+    })
+
+    const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
+    expect(deck?.cards[0]?.tableData).toEqual({
+      headers: ['Choice', 'Tradeoff', 'Notes'],
+      rows: [['Option A', '', 'Safer rollout']],
+    })
+  })
+
   it('tracks homework mode and card review progress in shared prep state', () => {
     const deckId = usePrepStore.getState().createDeck({
       title: 'Prep',

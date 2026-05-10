@@ -125,12 +125,28 @@ interface PrepState {
 
 interface SanitizeOptions {
   preserveDrafts?: boolean
+  defaultTitle?: string
 }
 
 function sanitizeText(value: unknown, options: SanitizeOptions = {}): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return options.preserveDrafts ? trimmed : trimmed || undefined
+}
+
+function sanitizeIdentifier(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed || undefined
+}
+
+function sanitizeIdentifierList(values: unknown): string[] | undefined {
+  if (!Array.isArray(values)) return undefined
+  const sanitized = values.flatMap((value) => {
+    const id = sanitizeIdentifier(value)
+    return id ? [id] : []
+  })
+  return sanitized.length > 0 ? sanitized : undefined
 }
 
 function sanitizeNullableText(value: unknown): string | null {
@@ -150,46 +166,65 @@ function sanitizeCardRoundStatus(value: unknown): PrepCardRoundStatus | undefine
     : undefined
 }
 
-function createEmptyCard(deckId: string, partial: Partial<PrepCard> = {}): PrepCard {
+function createEmptyCard(
+  deckId: string,
+  partial: Partial<PrepCard> = {},
+  options: SanitizeOptions = {},
+): PrepCard {
+  const category =
+    typeof partial.category === 'string' &&
+    (PREP_CATEGORY_VALUES as readonly string[]).includes(partial.category)
+      ? partial.category
+      : 'behavioral'
+  const id =
+    typeof partial.id === 'string' && partial.id.trim() ? partial.id : createId('prep-card')
+  const source =
+    partial.source === 'ai' || partial.source === 'manual' || partial.source === 'imported'
+      ? partial.source
+      : 'manual'
   return {
-    id: partial.id ?? createId('prep-card'),
+    id,
     deckId,
-    category: partial.category ?? 'behavioral',
-    title: partial.title?.trim() || 'New Prep Card',
-    tags: partial.tags ?? [],
+    category,
+    title: sanitizeText(partial.title, options) || options.defaultTitle || 'New Prep Card',
+    tags: sanitizeStringList(partial.tags, options) ?? [],
     timeBudgetMinutes:
       typeof partial.timeBudgetMinutes === 'number' && Number.isFinite(partial.timeBudgetMinutes)
-        ? partial.timeBudgetMinutes
+        ? Math.round(partial.timeBudgetMinutes * 10) / 10
         : undefined,
-    notes: partial.notes?.trim() || undefined,
-    source: partial.source ?? 'manual',
-    company: partial.company?.trim() || undefined,
-    role: partial.role?.trim() || undefined,
-    vectorId: partial.vectorId,
-    pipelineEntryId: partial.pipelineEntryId ?? null,
-    interviewerIds: Array.isArray(partial.interviewerIds)
-      ? partial.interviewerIds.filter((id) => typeof id === 'string' && id.trim().length > 0)
-      : undefined,
+    notes: sanitizeText(partial.notes, options),
+    source,
+    company: sanitizeText(partial.company, options),
+    role: sanitizeText(partial.role, options),
+    vectorId: sanitizeIdentifier(partial.vectorId),
+    pipelineEntryId: sanitizeIdentifier(partial.pipelineEntryId) ?? null,
+    interviewerIds: sanitizeIdentifierList(partial.interviewerIds),
     updatedAt: now(),
-    script: partial.script?.trim() || undefined,
-    scriptLabel: partial.scriptLabel?.trim() || undefined,
-    pushbackScript: partial.pushbackScript?.trim() || undefined,
-    pushbackLabel: partial.pushbackLabel?.trim() || undefined,
-    alternativeTitle: partial.alternativeTitle?.trim() || undefined,
-    alternativeScript: partial.alternativeScript?.trim() || undefined,
-    warning: partial.warning?.trim() || undefined,
-    storyBlocks: sanitizeStoryBlocks(partial.storyBlocks),
-    storyVariants: sanitizeStoryVariants(partial.storyVariants),
-    keyPoints: sanitizeStringList(partial.keyPoints),
-    followUps: sanitizeFollowUps(partial.followUps),
-    deepDives: sanitizeDeepDives(partial.deepDives),
-    conditionals: sanitizeConditionals(partial.conditionals)?.map((item) => ({
+    script: sanitizeText(partial.script, options),
+    scriptLabel: sanitizeText(partial.scriptLabel, options),
+    pushbackScript: sanitizeText(partial.pushbackScript, options),
+    pushbackLabel: sanitizeText(partial.pushbackLabel, options),
+    alternativeTitle: sanitizeText(partial.alternativeTitle, options),
+    alternativeScript: sanitizeText(partial.alternativeScript, options),
+    warning: sanitizeText(partial.warning, options),
+    storyBlocks: sanitizeStoryBlocks(partial.storyBlocks, options),
+    storyVariants: sanitizeStoryVariants(partial.storyVariants, options),
+    keyPoints: sanitizeStringList(partial.keyPoints, options),
+    followUps: sanitizeFollowUps(partial.followUps, options)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-follow-up'),
+    })),
+    deepDives: sanitizeDeepDives(partial.deepDives, options)?.map((item) => ({
+      ...item,
+      id: item.id ?? createId('prep-deep-dive'),
+    })),
+    conditionals: sanitizeConditionals(partial.conditionals, options)?.map((item) => ({
       ...item,
       id: item.id ?? createId('prep-conditional'),
     })),
-    metrics: sanitizeMetrics(partial.metrics),
-    tableData: partial.tableData,
-    perRoundState: sanitizeCardRoundState(partial.perRoundState),
+    metrics: sanitizeMetrics(partial.metrics, options),
+    tableData: sanitizeTableData(partial.tableData, options),
+    perRoundState: sanitizeCardRoundState(partial.perRoundState, options),
   }
 }
 
@@ -204,6 +239,26 @@ function sanitizeStringList(
   }
   const filtered = sanitized.filter(Boolean)
   return filtered.length > 0 ? filtered : undefined
+}
+
+function sanitizeTableData(
+  tableData: PrepCard['tableData'] | undefined,
+  options: SanitizeOptions = {},
+): PrepCard['tableData'] | undefined {
+  if (!tableData || typeof tableData !== 'object' || Array.isArray(tableData)) return undefined
+  const headers = Array.isArray(tableData.headers)
+    ? tableData.headers.map((header) => (typeof header === 'string' ? header.trim() : ''))
+    : []
+  const rows = Array.isArray(tableData.rows)
+    ? tableData.rows.flatMap((row) => {
+        if (!Array.isArray(row)) return []
+        const cells = row.map((cell) => (typeof cell === 'string' ? cell.trim() : ''))
+        return cells.some(Boolean) || options.preserveDrafts ? [cells] : []
+      })
+    : []
+  if (!options.preserveDrafts && !headers.some(Boolean) && rows.length === 0) return undefined
+  if (headers.length === 0 && rows.length === 0) return undefined
+  return { headers, rows }
 }
 
 function sanitizeStringRecord(
@@ -797,42 +852,17 @@ function sanitizeStackAlignment(
 }
 
 function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions = {}): PrepCard {
-  const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
-  const cardId = isPrepPushbackPracticeKey(card.id) ? createId('prep-card') : card.id
+  // AI generation, JSON import, and persisted snapshots can all bypass static typing.
+  const baseCard = createEmptyCard(deckId, card, {
+    ...options,
+    defaultTitle: 'Untitled Prep Card',
+  })
+  const cardId = isPrepPushbackPracticeKey(baseCard.id) ? createId('prep-card') : baseCard.id
 
   return {
-    ...createEmptyCard(deckId, card),
+    ...baseCard,
     id: cardId,
     deckId,
-    category,
-    title: card.title.trim() || 'Untitled Prep Card',
-    tags: card.tags.map((tag) => tag.trim()).filter(Boolean),
-    scriptLabel: card.scriptLabel?.trim() || undefined,
-    pushbackScript: sanitizeText(card.pushbackScript, options),
-    pushbackLabel: sanitizeText(card.pushbackLabel, options),
-    alternativeTitle: sanitizeText(card.alternativeTitle, options),
-    alternativeScript: sanitizeText(card.alternativeScript, options),
-    storyBlocks: sanitizeStoryBlocks(card.storyBlocks, options),
-    storyVariants: sanitizeStoryVariants(card.storyVariants, options),
-    keyPoints: sanitizeStringList(card.keyPoints, options),
-    followUps: sanitizeFollowUps(card.followUps, options)?.map((item) => ({
-      ...item,
-      id: item.id ?? createId('prep-follow-up'),
-    })),
-    deepDives: sanitizeDeepDives(card.deepDives, options)?.map((item) => ({
-      ...item,
-      id: item.id ?? createId('prep-deep-dive'),
-    })),
-    conditionals: sanitizeConditionals(card.conditionals, options)?.map((item) => ({
-      ...item,
-      id: item.id ?? createId('prep-conditional'),
-    })),
-    metrics: sanitizeMetrics(card.metrics, options),
-    perRoundState: sanitizeCardRoundState(card.perRoundState, options),
-    timeBudgetMinutes:
-      typeof card.timeBudgetMinutes === 'number' && Number.isFinite(card.timeBudgetMinutes)
-        ? Math.round(card.timeBudgetMinutes * 10) / 10
-        : undefined,
     updatedAt: now(),
   }
 }
