@@ -3,10 +3,11 @@ id: TASK-241
 title: >-
   Code migration: rename subscriptionId → paymentIntentId, switch webhook
   handlers to pass model
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@myself'
 created_date: '2026-05-07 21:11'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-10 00:22'
 labels:
   - billing
   - wave-1
@@ -74,6 +75,16 @@ Pairs with **TASK-240** (operator-side Stripe migration). Code changes here subs
 - DB migration applied (column rename or replacement) — pre-launch, breaking local data is acceptable
 - Build + typecheck + test suite all clean
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Rename the hosted billing pass model fields in types and state normalization from billingSubscription/subscriptionId to billingPass/paymentIntentId, including pass timestamps from the Wave 1 contract.
+2. Update Postgres billing persistence and add a forward Supabase migration for the billing_accounts pass column shape.
+3. Switch Stripe webhook reconciliation to checkout/payment_intent/charge pass events and remove subscription-event handling.
+4. Migrate billing, ai access, and AppShell tests/fixtures plus user-facing subscription copy to pass copy.
+5. Run focused billing/access tests, lint/typecheck/build as appropriate, update TASK-241 notes/DoD, and commit atomically with cortex git commit.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
