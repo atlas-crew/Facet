@@ -15,6 +15,8 @@ const AI_PRO_FEATURES = [
   'Debrief summaries',
   'Research and profile inference',
 ]
+// Must match the Stripe price configured by STRIPE_PRICE_AI_PRO.
+const AI_PRO_PRICE_LABEL = '$299'
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
@@ -49,7 +51,7 @@ export function AccountPage() {
           <p>
             You're running Facet locally. AI features are available when
             <code>VITE_ANTHROPIC_PROXY_URL</code> is configured.
-            No account or subscription is needed.
+            No account or pass is needed.
           </p>
         </section>
       </div>
@@ -122,8 +124,7 @@ export function AccountPage() {
               <dd>{remaining ?? '—'}</dd>
             </dl>
             <p className="account-note">
-              Purchase another pass to extend your access. Days are added to the
-              current expiry date.
+              Purchase another pass to extend your access. Days are added to the current expiry date.
             </p>
             <button
               className="btn-secondary"
@@ -131,7 +132,7 @@ export function AccountPage() {
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >
-              {checkoutLoading ? 'Starting checkout…' : 'Extend Access — $49'}
+              {checkoutLoading ? 'Starting checkout…' : `Extend Access — ${AI_PRO_PRICE_LABEL}`}
             </button>
             <p className="account-note">
               7-day refund policy. Contact <a href="mailto:support@myfacets.cv">support@myfacets.cv</a> for assistance.
@@ -153,7 +154,7 @@ export function AccountPage() {
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >
-              {checkoutLoading ? 'Starting checkout…' : 'Get AI Pro — $49 for 90 days'}
+              {checkoutLoading ? 'Starting checkout…' : `Get AI Pro — ${AI_PRO_PRICE_LABEL} for 90 days`}
             </button>
             <p className="account-note">
               7-day refund policy. <a href="/terms#6-ai-pro-access-and-payment">See terms</a> for details.

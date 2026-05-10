@@ -61,11 +61,18 @@ export interface FacetBillingCustomer {
   customerId: string
 }
 
-export interface FacetBillingSubscription {
+export interface FacetBillingPassHistoryEntry {
   provider: 'stripe'
-  subscriptionId: string
+  paymentIntentId: string
   planId: Exclude<FacetPlanId, 'free'>
-  status: 'trialing' | 'active' | 'past_due' | 'canceled'
+  status: 'active' | 'expired' | 'refunded'
+  purchasedAt: string
+  activatedAt: string | null
+  expiresAt: string | null
+}
+
+export interface FacetBillingPass extends FacetBillingPassHistoryEntry {
+  history?: FacetBillingPassHistoryEntry[]
 }
 
 export interface FacetEntitlement {
@@ -82,7 +89,7 @@ export interface FacetHostedAccountContext {
   actor: FacetUserIdentity
   memberships: FacetWorkspaceMembership[]
   billingCustomer: FacetBillingCustomer | null
-  billingSubscription: FacetBillingSubscription | null
+  billingPass: FacetBillingPass | null
   entitlement: FacetEntitlement | null
 }
 
@@ -133,7 +140,7 @@ export interface FacetHostedAccessContext {
   actor: FacetUserIdentity
   memberships: FacetWorkspaceMembership[]
   billingCustomer: FacetBillingCustomer | null
-  billingSubscription: FacetBillingSubscription | null
+  billingPass: FacetBillingPass | null
   entitlement: FacetEntitlement | null
 }
 

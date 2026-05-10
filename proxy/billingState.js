@@ -28,31 +28,43 @@ function normalizeBillingCustomer(value) {
   }
 }
 
-function normalizeBillingSubscription(value) {
+function normalizeBillingPass(value) {
   if (!isRecord(value)) {
     return null
   }
 
-  const subscriptionId = typeof value.subscriptionId === 'string' ? value.subscriptionId.trim() : ''
+  const paymentIntentId = typeof value.paymentIntentId === 'string' ? value.paymentIntentId.trim() : ''
   const planId = value.planId === 'ai-pro' ? 'ai-pro' : null
   const status =
-    value.status === 'trialing' ||
     value.status === 'active' ||
-    value.status === 'past_due' ||
-    value.status === 'canceled'
+    value.status === 'expired' ||
+    value.status === 'refunded'
       ? value.status
       : null
+  const purchasedAt = typeof value.purchasedAt === 'string' ? value.purchasedAt : ''
+  const activatedAt = typeof value.activatedAt === 'string' ? value.activatedAt : null
+  const expiresAt = typeof value.expiresAt === 'string' ? value.expiresAt : null
 
-  if (!subscriptionId || !planId || !status) {
+  if (!paymentIntentId || !planId || !status || !purchasedAt) {
     return null
   }
 
-  return {
+  const normalized = {
     provider: 'stripe',
-    subscriptionId,
+    paymentIntentId,
     planId,
     status,
+    purchasedAt,
+    activatedAt,
+    expiresAt,
   }
+  const history = Array.isArray(value.history)
+    ? value.history.map(normalizeBillingPass).filter(Boolean).map(({ history: _history, ...pass }) => pass)
+    : []
+
+  return history.length > 0
+    ? { ...normalized, history }
+    : normalized
 }
 
 function normalizeEntitlement(value) {
@@ -107,7 +119,7 @@ function normalizeStateEntry(value) {
     tenantId,
     accountId,
     billingCustomer: normalizeBillingCustomer(value.billingCustomer),
-    billingSubscription: normalizeBillingSubscription(value.billingSubscription),
+    billingPass: normalizeBillingPass(value.billingPass),
     entitlement: normalizeEntitlement(value.entitlement),
   }
 }
@@ -142,6 +154,23 @@ export function createInMemoryHostedBillingStore(records = []) {
       state.set(keyFor(normalized.tenantId, normalized.accountId), normalized)
       return cloneValue(normalized)
     },
+    async findAccountStateByPaymentIntentId(paymentIntentId) {
+      const normalizedPaymentIntentId = typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
+      if (!normalizedPaymentIntentId) {
+        return null
+      }
+
+      for (const entry of state.values()) {
+        if (
+          entry.billingPass?.paymentIntentId === normalizedPaymentIntentId ||
+          entry.billingPass?.history?.some((pass) => pass.paymentIntentId === normalizedPaymentIntentId)
+        ) {
+          return cloneValue(entry)
+        }
+      }
+
+      return null
+    },
   }
 }
 
@@ -173,6 +202,20 @@ export function createFileHostedBillingStore(filePath) {
       next.push(normalized)
       await writeFile(filePath, JSON.stringify({ accounts: next }, null, 2))
       return cloneValue(normalized)
+    },
+    async findAccountStateByPaymentIntentId(paymentIntentId) {
+      const normalizedPaymentIntentId = typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
+      if (!normalizedPaymentIntentId) {
+        return null
+      }
+
+      const accounts = await readAccounts()
+      return cloneValue(
+        accounts.find((account) =>
+          account.billingPass?.paymentIntentId === normalizedPaymentIntentId ||
+          account.billingPass?.history?.some((pass) => pass.paymentIntentId === normalizedPaymentIntentId),
+        ) ?? null,
+      )
     },
   }
 }

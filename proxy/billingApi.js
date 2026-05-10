@@ -24,7 +24,7 @@ function normalizeAccount(actor, state) {
     },
     memberships: actor.workspaceMemberships,
     billingCustomer: state?.billingCustomer ?? null,
-    billingSubscription: state?.billingSubscription ?? null,
+    billingPass: state?.billingPass ?? null,
     entitlement: state?.entitlement ?? null,
   }
 }
@@ -58,6 +58,184 @@ function computeEffectiveThrough(fromDate, days) {
   return date.toISOString()
 }
 
+function isoFromStripeCreated(created) {
+  return typeof created === 'number' ? new Date(created * 1000).toISOString() : new Date().toISOString()
+}
+
+function resolveAccessDays(metadata) {
+  return parseInt(metadata?.accessDays ?? String(AI_PRO_ACCESS_DAYS), 10)
+}
+
+function resolveStripeId(value) {
+  if (typeof value === 'string') {
+    return value
+  }
+  return typeof value?.id === 'string' ? value.id : null
+}
+
+function billingStoreSupportsPaymentIntentLookup(billingStore) {
+  return typeof billingStore?.findAccountStateByPaymentIntentId === 'function'
+}
+
+function passHistoryEntry(pass) {
+  if (!pass) return null
+  const { history: _history, ...entry } = pass
+  return entry
+}
+
+async function resolvePassState(billingStore, tenantId, accountId, paymentIntentId) {
+  if (tenantId && accountId) {
+    const currentState = await billingStore.getAccountState(tenantId, accountId)
+    if (currentState) {
+      return currentState
+    }
+  }
+
+  if (typeof billingStore.findAccountStateByPaymentIntentId === 'function' && paymentIntentId) {
+    return billingStore.findAccountStateByPaymentIntentId(paymentIntentId)
+  }
+
+  return null
+}
+
+async function activatePass({
+  billingStore,
+  tenantId,
+  accountId,
+  customerId,
+  paymentIntentId,
+  purchasedAt,
+  accessDays,
+}) {
+  const existingStateByPaymentIntent = await billingStore.findAccountStateByPaymentIntentId(paymentIntentId)
+  if (existingStateByPaymentIntent?.billingPass) {
+    return existingStateByPaymentIntent
+  }
+
+  const currentState = await billingStore.getAccountState(tenantId, accountId)
+  if (currentState?.billingPass?.paymentIntentId === paymentIntentId) {
+    return currentState
+  }
+  if (
+    currentState?.billingCustomer?.customerId &&
+    currentState.billingCustomer.customerId !== customerId
+  ) {
+    throw new Error('Stripe customer mismatch for hosted billing pass.')
+  }
+
+  const now = new Date()
+  const extendFrom =
+    currentState?.entitlement?.effectiveThrough &&
+    new Date(currentState.entitlement.effectiveThrough) > now
+      ? new Date(currentState.entitlement.effectiveThrough)
+      : new Date(purchasedAt)
+  const expiresAt = computeEffectiveThrough(extendFrom, accessDays)
+  const currentPass = passHistoryEntry(currentState?.billingPass)
+  const history = currentPass
+    ? [currentPass, ...(currentState.billingPass?.history ?? [])]
+    : (currentState?.billingPass?.history ?? [])
+
+  return billingStore.upsertAccountState({
+    tenantId,
+    accountId,
+    billingCustomer: currentState?.billingCustomer ?? {
+      provider: 'stripe',
+      customerId,
+    },
+    billingPass: {
+      provider: 'stripe',
+      paymentIntentId,
+      planId: 'ai-pro',
+      status: 'active',
+      purchasedAt,
+      activatedAt: purchasedAt,
+      expiresAt,
+      ...(history.length > 0 ? { history } : {}),
+    },
+    entitlement: {
+      planId: 'ai-pro',
+      status: 'active',
+      source: 'stripe',
+      features: AI_PRO_FEATURES,
+      effectiveThrough: expiresAt,
+    },
+  })
+}
+
+async function refundPass({ billingStore, paymentIntentId }) {
+  const currentState = await resolvePassState(billingStore, null, null, paymentIntentId)
+  if (!currentState?.billingPass) {
+    return null
+  }
+  const isCurrentPass = currentState.billingPass.paymentIntentId === paymentIntentId
+  const history = (currentState.billingPass.history ?? []).map((pass) =>
+    pass.paymentIntentId === paymentIntentId
+      ? { ...pass, status: 'refunded' }
+      : pass,
+  )
+
+  return billingStore.upsertAccountState({
+    tenantId: currentState.tenantId,
+    accountId: currentState.accountId,
+    billingCustomer: currentState.billingCustomer ?? null,
+    billingPass: isCurrentPass
+      ? {
+          ...currentState.billingPass,
+          status: 'refunded',
+          history,
+        }
+      : {
+          ...currentState.billingPass,
+          history,
+        },
+    entitlement: isCurrentPass
+      ? {
+          planId: 'free',
+          status: 'inactive',
+          source: 'stripe',
+          features: [],
+          effectiveThrough: null,
+        }
+      : {
+          planId: 'ai-pro',
+          status: 'delinquent',
+          source: 'stripe',
+          features: AI_PRO_FEATURES,
+          effectiveThrough: currentState.entitlement?.effectiveThrough ?? null,
+        },
+  })
+}
+
+async function markPaymentFailed({
+  billingStore,
+  tenantId,
+  accountId,
+  customerId,
+  paymentIntentId,
+}) {
+  const currentState = await resolvePassState(billingStore, tenantId, accountId, paymentIntentId)
+  if (!currentState?.billingPass) {
+    return null
+  }
+
+  return billingStore.upsertAccountState({
+    tenantId: currentState.tenantId,
+    accountId: currentState.accountId,
+    billingCustomer: currentState.billingCustomer ?? (customerId ? {
+      provider: 'stripe',
+      customerId,
+    } : null),
+    billingPass: currentState.billingPass,
+    entitlement: {
+      planId: 'ai-pro',
+      status: 'delinquent',
+      source: 'stripe',
+      features: AI_PRO_FEATURES,
+      effectiveThrough: currentState.entitlement?.effectiveThrough ?? null,
+    },
+  })
+}
+
 export function createBillingWebhookHandler({
   stripeClient,
   webhookSecret,
@@ -65,6 +243,9 @@ export function createBillingWebhookHandler({
   onEvent,
 }) {
   const webhookRoute = '/api/billing/webhooks/stripe'
+  if (billingStore && !billingStoreSupportsPaymentIntentLookup(billingStore)) {
+    throw new Error('Hosted billing store must support payment intent lookup.')
+  }
 
   return {
     canHandle(req) {
@@ -97,42 +278,114 @@ export function createBillingWebhookHandler({
         const session = event.data.object
         const tenantId = session.metadata?.tenantId
         const accountId = session.metadata?.accountId
-        const accessDays = parseInt(session.metadata?.accessDays ?? String(AI_PRO_ACCESS_DAYS), 10)
+        const customerId = resolveStripeId(session.customer)
+        const paymentIntentId = resolveStripeId(session.payment_intent)
 
-        if (!tenantId || !accountId) {
+        if (!tenantId || !accountId || !customerId || !paymentIntentId || session.metadata?.source !== 'facet-checkout') {
           onEvent?.('billing.webhook', 'error', { code: 'missing_metadata', eventType: event.type })
           sendJson(res, 200, { received: true })
           return
         }
 
-        const now = new Date()
-        const currentState = await billingStore.getAccountState(tenantId, accountId)
+        onEvent?.('billing.webhook', 'success', { eventType: event.type, tenantId, accountId })
+      } else if (event.type === 'payment_intent.succeeded') {
+        const paymentIntent = event.data.object
+        const tenantId = paymentIntent.metadata?.tenantId
+        const accountId = paymentIntent.metadata?.accountId
+        const customerId = resolveStripeId(paymentIntent.customer)
+        const paymentIntentId = paymentIntent.id
+        const accessDays = resolveAccessDays(paymentIntent.metadata)
 
-        // If user has existing unexpired access, extend from current expiry
-        const extendFrom =
-          currentState?.entitlement?.effectiveThrough &&
-          new Date(currentState.entitlement.effectiveThrough) > now
-            ? new Date(currentState.entitlement.effectiveThrough)
-            : now
+        if (
+          !tenantId ||
+          !accountId ||
+          !customerId ||
+          !paymentIntentId ||
+          paymentIntent.metadata?.source !== 'facet-checkout'
+        ) {
+          onEvent?.('billing.webhook', 'error', { code: 'missing_metadata', eventType: event.type })
+          sendJson(res, 200, { received: true })
+          return
+        }
 
-        await billingStore.upsertAccountState({
+        await activatePass({
+          billingStore,
           tenantId,
           accountId,
-          billingCustomer: currentState?.billingCustomer ?? {
-            provider: 'stripe',
-            customerId: session.customer,
-          },
-          billingSubscription: null,
-          entitlement: {
-            planId: 'ai-pro',
-            status: 'active',
-            source: 'stripe',
-            features: AI_PRO_FEATURES,
-            effectiveThrough: computeEffectiveThrough(extendFrom, accessDays),
-          },
+          customerId,
+          paymentIntentId,
+          purchasedAt: isoFromStripeCreated(paymentIntent.created),
+          accessDays,
         })
 
         onEvent?.('billing.webhook', 'success', { eventType: event.type, tenantId, accountId })
+      } else if (event.type === 'charge.refunded') {
+        const charge = event.data.object
+        const paymentIntentId = resolveStripeId(charge.payment_intent)
+        if (charge.refunded !== true) {
+          // Partial refunds are handled by support out-of-band; they do not alter the one-time pass.
+          onEvent?.('billing.webhook', 'success', {
+            eventType: event.type,
+            paymentIntentId,
+            code: 'partial_refund_noop',
+          })
+          sendJson(res, 200, { received: true })
+          return
+        }
+
+        const nextState = paymentIntentId ? await refundPass({ billingStore, paymentIntentId }) : null
+
+        if (!nextState) {
+          onEvent?.('billing.webhook', 'error', {
+            code: 'pass_not_found',
+            eventType: event.type,
+            paymentIntentId,
+          })
+          sendJson(res, 200, { received: true })
+          return
+        }
+
+        onEvent?.('billing.webhook', 'success', {
+          eventType: event.type,
+          tenantId: nextState.tenantId,
+          accountId: nextState.accountId,
+        })
+      } else if (event.type === 'payment_intent.payment_failed') {
+        const paymentIntent = event.data.object
+        const tenantId = paymentIntent.metadata?.tenantId
+        const accountId = paymentIntent.metadata?.accountId
+        const customerId = resolveStripeId(paymentIntent.customer)
+        const paymentIntentId = paymentIntent.id
+
+        if (!tenantId || !accountId || !paymentIntentId) {
+          onEvent?.('billing.webhook', 'error', { code: 'missing_metadata', eventType: event.type })
+          sendJson(res, 200, { received: true })
+          return
+        }
+
+        const nextState = await markPaymentFailed({
+          billingStore,
+          tenantId,
+          accountId,
+          customerId,
+          paymentIntentId,
+        })
+
+        if (!nextState) {
+          onEvent?.('billing.webhook', 'success', {
+            code: 'pass_not_found_for_failure',
+            eventType: event.type,
+            paymentIntentId,
+          })
+          sendJson(res, 200, { received: true })
+          return
+        }
+
+        onEvent?.('billing.webhook', 'success', {
+          eventType: event.type,
+          tenantId: nextState.tenantId,
+          accountId: nextState.accountId,
+        })
       }
 
       sendJson(res, 200, { received: true })
@@ -240,7 +493,7 @@ export function createBillingApi({
               provider: 'stripe',
               customerId: customer.id,
             },
-            billingSubscription: state?.billingSubscription ?? null,
+            billingPass: state?.billingPass ?? null,
             entitlement: state?.entitlement ?? null,
           })
 
@@ -307,7 +560,7 @@ export function createBillingApi({
             provider: 'stripe',
             customerId,
           },
-          billingSubscription: state?.billingSubscription ?? null,
+          billingPass: state?.billingPass ?? null,
           entitlement: state?.entitlement ?? null,
         })
 
@@ -326,7 +579,18 @@ export function createBillingApi({
             tenantId: actor.tenantId,
             accountId: actor.accountId,
             userId: actor.userId,
+            source: 'facet-checkout',
             accessDays: '90',
+          },
+          // Checkout Session metadata is not automatically copied to the PaymentIntent.
+          payment_intent_data: {
+            metadata: {
+              tenantId: actor.tenantId,
+              accountId: actor.accountId,
+              userId: actor.userId,
+              source: 'facet-checkout',
+              accessDays: '90',
+            },
           },
         })
 

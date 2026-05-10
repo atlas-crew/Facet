@@ -29,11 +29,14 @@ const hostedContext = (
     provider: 'stripe',
     customerId: 'cus_123',
   },
-  billingSubscription: {
+  billingPass: {
     provider: 'stripe',
-    subscriptionId: 'sub_123',
+    paymentIntentId: 'pi_123',
     planId: 'ai-pro',
     status: 'active',
+    purchasedAt: '2026-04-01T00:00:00.000Z',
+    activatedAt: '2026-04-01T00:00:00.000Z',
+    expiresAt: '2099-04-01T00:00:00.000Z',
   },
   entitlement: {
     planId: 'ai-pro',
@@ -132,7 +135,7 @@ describe('resolveAiAccess', () => {
         hostedContext({
           entitlement: null,
           billingCustomer: null,
-          billingSubscription: null,
+          billingPass: null,
         }),
         'build.bullet-reframe',
       ),
@@ -177,11 +180,14 @@ describe('resolveAiAccess', () => {
     expect(
       resolveAiAccess(
         hostedContext({
-          billingSubscription: {
+          billingPass: {
             provider: 'stripe',
-            subscriptionId: 'sub_123',
+            paymentIntentId: 'pi_123',
             planId: 'ai-pro',
-            status: 'past_due',
+            status: 'active',
+            purchasedAt: '2026-04-01T00:00:00.000Z',
+            activatedAt: '2026-04-01T00:00:00.000Z',
+            expiresAt: '2099-04-01T00:00:00.000Z',
           },
           entitlement: {
             planId: 'ai-pro',

@@ -183,7 +183,7 @@ async function startHostedServer(options?: {
       tenantId: 'tenant-1',
       accountId: 'account-1',
       billingCustomer: null,
-      billingSubscription: null,
+      billingPass: null,
       entitlement: options?.entitlement ?? {
         planId: 'free',
         status: 'inactive',

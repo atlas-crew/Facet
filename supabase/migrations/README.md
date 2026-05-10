@@ -14,6 +14,6 @@ Wave 1 expected ownership:
 - workspaces
 - workspace memberships
 - durable workspace persistence records
-- billing customer and subscription references
+- billing customer and pass purchase references
 - entitlement state
 - webhook event receipts

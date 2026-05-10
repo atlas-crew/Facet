@@ -48,7 +48,7 @@ const hostedContext = {
   },
   memberships: [],
   billingCustomer: null,
-  billingSubscription: null,
+  billingPass: null,
   entitlement: null,
 }
 

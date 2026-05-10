@@ -4,7 +4,7 @@
       "tenantId": "tenant-1",
       "accountId": "account-1",
       "billingCustomer": null,
-      "billingSubscription": null,
+      "billingPass": null,
       "entitlement": {
         "planId": "free",
         "status": "inactive",
