@@ -1,10 +1,11 @@
 ---
 id: TASK-95
 title: Broaden hosted AppShell coverage for Wave 1 recovery and workspace flows
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@worker-c'
 created_date: '2026-04-08 08:28'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-10 00:22'
 labels:
   - test
   - hosted
@@ -32,6 +33,16 @@ Close the remaining hosted AppShell test-audit gaps deferred from the 2026-04-08
 - [ ] #4 Hosted onboarding covers the start-fresh path and recovery clears stale errors.
 - [ ] #5 Bootstrap loading and non-ready sync states are covered by focused AppShell tests.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Worker C plan:
+1. Inspect current AppShell tests and hosted shell behavior for TASK-95 acceptance gaps without changing production AppShell code.
+2. Add focused AppShell tests for hosted retry recovery, workspace switching runtime reinitialization, local-mode rendering, start-fresh onboarding/error clearing, and bootstrap/sync loading states.
+3. Run focused AppShell tests plus scoped lint/typecheck/build gates as appropriate.
+4. Run the required test-audit review for the AppShell test diff, update TASK-95 AC/DoD/notes, and commit only Worker C files with cortex git commit.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
