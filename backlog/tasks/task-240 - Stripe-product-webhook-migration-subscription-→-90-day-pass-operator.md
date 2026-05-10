@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-05-07 21:10'
-updated_date: '2026-05-10 03:18'
+updated_date: '2026-05-10 03:23'
 labels:
   - billing
   - wave-1
@@ -75,4 +75,6 @@ In Stripe (test mode first, then production):
 
 <!-- SECTION:NOTES:BEGIN -->
 Starting Stripe operator lane after TASK-241 code migration landed. Plan: inspect current Stripe account/products/prices, create or identify the  one-time pass price, verify local price env references, check whether webhook endpoint and Fly secret updates are accessible from this session, and record anything requiring dashboard/operator follow-up.
+
+2026-05-10 Stripe operator progress: created test-mode one-time AI Pro price price_1TVNtq1RbZE9XMoY1lKmPqdC on existing product prod_UHYBXp5V48BtSj for USD 299.00; updated webhook endpoint we_1TJ8ZI1RbZE9XMoYdjgrlaMP to checkout.session.completed, payment_intent.succeeded, charge.refunded, payment_intent.payment_failed only; rotated local proxy/.env and Fly app facet-api STRIPE_PRICE_AI_PRO to the new price, with Fly rolling both machines successfully and secret status Deployed; created default Billing Portal config bpc_1TVNx11RbZE9XMoYx4tDKCjW with invoice history enabled and subscription cancel/update/pause disabled; smoke-created portal session bps_1TVNxQ1RbZE9XMoYBsLIl9wO for test customer cus_UUMgMNN1OOnAnA. Remaining: complete authenticated hosted checkout/refund dry run from a real workspace owner session so Stripe events can reach the proxy without synthetic production-store records.
 <!-- SECTION:NOTES:END -->
