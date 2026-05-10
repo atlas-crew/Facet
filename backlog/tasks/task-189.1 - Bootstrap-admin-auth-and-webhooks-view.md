@@ -94,6 +94,16 @@ This subtask establishes the patterns (proxy middleware, endpoint shape, client 
 - [ ] #9 Render test confirms admin nav entry visibility tracks useIsAdmin()
 <!-- AC:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation plan (Worker B):
+1. Inspect existing hosted auth/session, proxy actor verification, route/AppShell patterns, and current webhook receipt schema/read helpers without touching billing migration/state semantics.
+2. Add proxy admin middleware plus read-only /admin/webhooks route backed by webhook_event_receipts with limit/since handling and focused proxy tests.
+3. Add hosted session admin-claim exposure, useIsAdmin hook, /admin route/page/CSS, and AppShell gated nav with render coverage.
+4. Run focused tests first, then typecheck/lint/build as appropriate; update TASK-189.1 AC/DoD and commit atomically with cortex git commit.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Regression tests were created for new behaviors
