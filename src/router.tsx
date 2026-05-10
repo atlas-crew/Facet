@@ -49,6 +49,9 @@ const LazyDebriefPage = lazy(() =>
 const LazyAccountPage = lazy(() =>
   import('./routes/account/AccountPage').then((m) => ({ default: m.AccountPage })),
 )
+const LazyAdminPage = lazy(() =>
+  import('./routes/admin/AdminPage').then((m) => ({ default: m.AdminPage })),
+)
 const LazyTermsPage = lazy(() =>
   import('./routes/legal/TermsPage').then((m) => ({ default: m.TermsPage })),
 )
@@ -181,6 +184,12 @@ const accountRoute = createRoute({
   component: LazyAccountPage,
 })
 
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin',
+  component: LazyAdminPage,
+})
+
 const termsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/terms',
@@ -216,6 +225,7 @@ const routeTree = rootRoute.addChildren([
   recruiterRoute,
   debriefRoute,
   accountRoute,
+  adminRoute,
   termsRoute,
   privacyRoute,
   helpRoute,

@@ -20,6 +20,7 @@ import {
   Monitor,
   Home,
   X,
+  ShieldCheck,
 } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
 import { useCoverLetterStore } from '../store/coverLetterStore'
@@ -40,6 +41,7 @@ import { facetClientEnv } from '../utils/facetEnv'
 import { getHostedPersistenceEndpoint } from '../utils/hostedApi'
 import { reloadPage } from '../utils/windowLocation'
 import { signInWithGitHub } from '../utils/hostedSession'
+import { useIsAdmin } from '../hooks/useIsAdmin'
 import { findStaleArtifacts } from '../types/artifactMeta'
 import { FacetWordmark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
@@ -131,6 +133,12 @@ const NAV_ITEMS = [
     label: 'Recruiter',
     description: 'Generate a concise recruiter-facing brief from your current match context.',
   },
+  {
+    to: '/admin' as const,
+    icon: ShieldCheck,
+    label: 'Admin',
+    description: 'Inspect platform operations and hosted billing webhook receipts.',
+  },
 ] as const
 
 type NavRoute = (typeof NAV_ITEMS)[number]['to']
@@ -178,6 +186,13 @@ const NAV_GROUPS = [
     hideLabel: false,
     routes: ['/pipeline', '/prep', '/debrief'] satisfies readonly NavRoute[],
   },
+  {
+    id: 'admin',
+    label: 'Admin',
+    eyebrow: 'Platform Admin',
+    hideLabel: false,
+    routes: ['/admin'] satisfies readonly NavRoute[],
+  },
 ] as const satisfies readonly NavGroup[]
 
 const isRouteActive = (currentPath: string, route: string) =>
@@ -217,14 +232,15 @@ export function AppShell() {
   const { appearance, setAppearance } = useUiStore()
   const persistenceState = usePersistenceRuntimeStore()
   const hostedApp = useHostedAppStore()
+  const isAdmin = useIsAdmin()
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
   const isHelpRoute = isRouteActive(currentPath, HELP_ROUTE)
   const isHomeRoute = currentPath === HOME_ROUTE
   const visibleNavItems = useMemo(
     // Filter inputs are module constants, so this list is stable for the life of the app shell.
-    () => NAV_ITEMS.filter(({ to }) => AI_ENABLED || !AI_ROUTES.has(to)),
-    [],
+    () => NAV_ITEMS.filter(({ to }) => (AI_ENABLED || !AI_ROUTES.has(to)) && (to !== '/admin' || isAdmin)),
+    [isAdmin],
   )
   const visibleNavGroups = useMemo(
     () =>

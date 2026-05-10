@@ -173,6 +173,7 @@ export function createHostedSessionActorResolver(options) {
     }
 
     req._facetHostedActor = resolvedActor
+    req._facetHostedClaims = payload
     return resolvedActor
   }
 }

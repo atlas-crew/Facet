@@ -29,6 +29,7 @@ import {
 import { createPostgresWorkspaceStore } from './postgresWorkspaceStore.js'
 import { createPostgresBillingStore } from './postgresBillingStore.js'
 import { createPostgresUsageStore } from './postgresUsageStore.js'
+import { createAdminApi, createPostgresAdminStore } from './adminApi.js'
 import {
   createFileResearchJobStore,
   createInMemoryResearchJobStore,
@@ -145,6 +146,8 @@ const DEFAULT_AI_FEATURE_RATE_LIMITS = {
 const DEFAULT_HOSTED_RATE_LIMITS = {
   ai: { max: 30, windowMs: 60_000 },
   aiFeatures: DEFAULT_AI_FEATURE_RATE_LIMITS,
+  adminProbes: { max: 120, windowMs: 60_000 },
+  adminReads: { max: 60, windowMs: 60_000 },
   billingMutations: { max: 12, windowMs: 60_000 },
   persistenceMutations: { max: 120, windowMs: 60_000 },
 }
@@ -256,6 +259,14 @@ function normalizeHostedRateLimits(overrides = {}) {
   return {
     ai,
     aiFeatures,
+    adminProbes: normalizeRateLimitConfig(
+      overrides.adminProbes,
+      DEFAULT_HOSTED_RATE_LIMITS.adminProbes,
+    ),
+    adminReads: normalizeRateLimitConfig(
+      overrides.adminReads,
+      DEFAULT_HOSTED_RATE_LIMITS.adminReads,
+    ),
     billingMutations: normalizeRateLimitConfig(
       overrides.billingMutations,
       DEFAULT_HOSTED_RATE_LIMITS.billingMutations,
@@ -381,6 +392,8 @@ function listRateLimitConfigs(limits) {
   return [
     limits.ai,
     ...Object.values(limits.aiFeatures ?? {}),
+    limits.adminProbes,
+    limits.adminReads,
     limits.billingMutations,
     limits.persistenceMutations,
   ].filter(Boolean)
@@ -538,6 +551,10 @@ function resolveHostedRateLimitBucket(req, pathname) {
 
   if (pathname === '/api/billing/customer' || pathname === '/api/billing/checkout-session') {
     return 'billingMutations'
+  }
+
+  if (pathname === '/admin/webhooks' && req.method === 'GET') {
+    return 'adminProbes'
   }
 
   if (pathname === '/api/persistence/workspaces' && req.method === 'POST') {
@@ -1162,6 +1179,18 @@ export function createFacetServer(options = {}) {
           onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
         })
       : null
+  const adminStore = authMode === 'hosted' ? (options.adminStore ?? null) : null
+  const adminApi =
+    authMode === 'hosted'
+      ? createAdminApi({
+          actorResolver: resolveRequestActor,
+          adminStore,
+          logger: options.logger ?? console,
+          enforceRateLimit: (req, res, pathname, actor) =>
+            enforceHostedRateLimit(req, res, pathname, 'adminReads', actor),
+          onEvent: (scope, result, details) => operationsMonitor.record(scope, result, details),
+        })
+      : null
   const researchJobStore =
     options.researchJobStore ??
     (options.researchJobStoreFile
@@ -1338,6 +1367,14 @@ export function createFacetServer(options = {}) {
           (request) => readBody(request, maxBodyBytes),
           sendJson,
         )
+        return
+      }
+
+      if (adminApi?.canHandle(req)) {
+        if (!(await enforceHostedRouteRateLimit(req, res, url.pathname))) {
+          return
+        }
+        await adminApi.handle(req, res, sendJson)
         return
       }
 
@@ -1775,6 +1812,8 @@ export function createEnvFacetServer(env = process.env) {
   // deployment — the instrumentation point no-ops on null.
   const usageStore =
     authMode === 'hosted' && hostedPool ? createPostgresUsageStore(hostedPool) : undefined
+  const adminStore =
+    authMode === 'hosted' && hostedPool ? createPostgresAdminStore(hostedPool) : undefined
 
   if (authMode === 'hosted' && environment !== 'local') {
     if ((env.PROXY_API_KEY ?? DEFAULT_PROXY_API_KEY) === DEFAULT_PROXY_API_KEY) {
@@ -1817,6 +1856,26 @@ export function createEnvFacetServer(env = process.env) {
         ),
       },
       aiFeatures: parseHostedAiFeatureRateLimits(env, DEFAULT_AI_FEATURE_RATE_LIMITS),
+      adminReads: {
+        max: parsePositiveInteger(
+          env.HOSTED_ADMIN_RATE_LIMIT_MAX,
+          DEFAULT_HOSTED_RATE_LIMITS.adminReads.max,
+        ),
+        windowMs: parsePositiveInteger(
+          env.HOSTED_ADMIN_RATE_LIMIT_WINDOW_MS,
+          DEFAULT_HOSTED_RATE_LIMITS.adminReads.windowMs,
+        ),
+      },
+      adminProbes: {
+        max: parsePositiveInteger(
+          env.HOSTED_ADMIN_PROBE_RATE_LIMIT_MAX,
+          DEFAULT_HOSTED_RATE_LIMITS.adminProbes.max,
+        ),
+        windowMs: parsePositiveInteger(
+          env.HOSTED_ADMIN_PROBE_RATE_LIMIT_WINDOW_MS,
+          DEFAULT_HOSTED_RATE_LIMITS.adminProbes.windowMs,
+        ),
+      },
       billingMutations: {
         max: parsePositiveInteger(
           env.HOSTED_BILLING_RATE_LIMIT_MAX,
@@ -1843,6 +1902,7 @@ export function createEnvFacetServer(env = process.env) {
     hostedWorkspaceStore,
     hostedAuth,
     billingStore,
+    adminStore,
     usageStore,
     researchJobStore: env.RESEARCH_JOBS_FILE
       ? createFileResearchJobStore(env.RESEARCH_JOBS_FILE)
