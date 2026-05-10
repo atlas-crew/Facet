@@ -107,7 +107,7 @@ const hostedContext = {
   },
   memberships: [],
   billingCustomer: null,
-  billingSubscription: null,
+  billingPass: null,
   entitlement: null,
 }
 
@@ -185,6 +185,9 @@ const setHostedStore = (overrides: Partial<ReturnType<typeof useHostedAppStore.g
   const clearError = vi.fn(() => {
     useHostedAppStore.setState({ lastError: null, lastErrorCode: null, lastErrorReason: null })
   })
+  const selectWorkspace = vi.fn((workspaceId: string | null) => {
+    useHostedAppStore.setState({ selectedWorkspaceId: workspaceId })
+  })
 
   useHostedAppStore.setState({
     deploymentMode: 'hosted',
@@ -200,9 +203,7 @@ const setHostedStore = (overrides: Partial<ReturnType<typeof useHostedAppStore.g
     lastErrorCode: null,
     lastErrorReason: null,
     bootstrap: vi.fn().mockResolvedValue(undefined),
-    selectWorkspace: vi.fn((workspaceId: string | null) => {
-      useHostedAppStore.setState({ selectedWorkspaceId: workspaceId })
-    }),
+    selectWorkspace,
     refresh: vi.fn().mockResolvedValue(undefined),
     createWorkspace: vi.fn(),
     renameWorkspace: vi.fn().mockResolvedValue(baseWorkspace),
@@ -218,6 +219,7 @@ const setHostedStore = (overrides: Partial<ReturnType<typeof useHostedAppStore.g
   return {
     reportError,
     clearError,
+    selectWorkspace,
   }
 }
 
@@ -401,6 +403,42 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('button', { name: 'Theme: light' })).toBeTruthy()
   })
 
+  it('follows system color-scheme changes when appearance is system', () => {
+    const colorSchemeListeners: Array<(event: { matches: boolean }) => void> = []
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(
+          (_event: string, listener: (event: { matches: boolean }) => void) => {
+            colorSchemeListeners.push(listener)
+          },
+        ),
+        removeEventListener: vi.fn(),
+      }),
+    })
+    useUiStore.setState({
+      appearance: 'system',
+    })
+    setHostedStore({})
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(colorSchemeListeners).toHaveLength(1)
+    colorSchemeListeners[0]({ matches: false })
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+  })
+
   it('groups workspace navigation by search stage and shows route context in the topbar', () => {
     routerMocks.currentPath = '/research'
     setHostedStore({})
@@ -523,6 +561,8 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
     expect(runtimeMocks.captureLocalWorkspaceSnapshotForMigration).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /hosted workspaces/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /retry hosted bootstrap/i })).toBeNull()
+    expect(screen.queryByText(/connecting your hosted account/i)).toBeNull()
   })
 
   it('shows a non-blocking cross-tab Identity toast with a staleness review link', () => {
@@ -569,6 +609,136 @@ describe('AppShell hosted workspace bootstrap', () => {
     fireEvent.click(screen.getByRole('button', { name: /dismiss notification/i }))
 
     expect(screen.queryByText(/Identity updated in another tab/)).toBeNull()
+  })
+
+  it('ignores storage events that do not represent a newer Identity revision', () => {
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(true, 'facet-local-workspace')
+
+    render(<AppShell />)
+
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: 'facet.other.store',
+        oldValue: persistedIdentityValue(2),
+        newValue: persistedIdentityValue(3),
+      }),
+    )
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: IDENTITY_STORE_STORAGE_KEY,
+        oldValue: persistedIdentityValue(3),
+        newValue: persistedIdentityValue(3),
+      }),
+    )
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: IDENTITY_STORE_STORAGE_KEY,
+        oldValue: persistedIdentityValue(3),
+        newValue: '{not json',
+      }),
+    )
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: IDENTITY_STORE_STORAGE_KEY,
+        oldValue: null,
+        newValue: persistedIdentityValue(3),
+      }),
+    )
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: IDENTITY_STORE_STORAGE_KEY,
+        oldValue: persistedIdentityValue(3),
+        newValue: null,
+      }),
+    )
+
+    expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+    expect(screen.queryByText(/Identity updated in another tab/)).toBeNull()
+  })
+
+  it('counts stale artifacts across derived Identity surfaces in the cross-tab toast', () => {
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(true, 'facet-local-workspace')
+    useSearchStore.setState({
+      theses: [
+        buildShellThesis({ id: 'thesis-stale-1', identityVersion: 2 }),
+        buildShellThesis({ id: 'thesis-stale-2', identityVersion: 2 }),
+        buildShellThesis({ id: 'thesis-fresh', identityVersion: 3 }),
+      ],
+      runs: [],
+    })
+    usePrepStore.setState({
+      decks: [
+        {
+          id: 'deck-stale',
+          pipelineEntryId: 'entry-1',
+          updatedAt: '2026-03-14T11:00:00.000Z',
+          identityVersion: 2,
+          title: 'Stale Prep Deck',
+          company: 'Facet',
+          role: 'Staff Engineer',
+          cards: [],
+        },
+      ],
+    })
+    useCoverLetterStore.setState({
+      templates: [
+        {
+          id: 'letter-stale',
+          name: 'Stale Letter',
+          header: 'Header',
+          greeting: 'Hello',
+          paragraphs: [{ id: 'letter-stale-p', text: 'Letter content', vectors: {} }],
+          signOff: 'Regards',
+          identityVersion: 2,
+        },
+      ],
+    })
+
+    render(<AppShell />)
+
+    fireEvent(
+      window,
+      new StorageEvent('storage', {
+        key: IDENTITY_STORE_STORAGE_KEY,
+        oldValue: persistedIdentityValue(2),
+        newValue: persistedIdentityValue(3),
+      }),
+    )
+
+    expect(screen.getByText(/4 artifacts may need refresh/)).toBeTruthy()
   })
 
   it('shows bootstrap loading while hosted account context is still connecting', () => {
@@ -623,19 +793,21 @@ describe('AppShell hosted workspace bootstrap', () => {
   })
 
   it.each([
+    ['idle', 'Starting'],
+    ['ready', 'Ready'],
     ['saving', 'Saving'],
     ['error', 'Sync error'],
     ['offline', 'Offline'],
   ] as const)('renders %s sync state in the topbar', (phase, expectedLabel) => {
     setHostedStore({})
     usePersistenceRuntimeStore.setState({
-      hydrated: true,
+      hydrated: phase !== 'idle',
       usingLegacyMigration: false,
       status: {
         phase,
         backend: 'remote',
         activeWorkspaceId: 'ws-1',
-        lastHydratedAt: '2026-03-14T12:00:00.000Z',
+        lastHydratedAt: phase === 'idle' ? null : '2026-03-14T12:00:00.000Z',
         lastSavedAt: '2026-03-14T12:00:00.000Z',
         lastError: phase === 'error' ? 'Sync failed' : null,
       },
@@ -649,7 +821,15 @@ describe('AppShell hosted workspace bootstrap', () => {
   it.each([
     ['/', 'Overview', 'Workspace Overview', 'Overview'],
     ['/build', 'Build', 'Apply Workspace', 'Build'],
+    ['/letters', 'Letters', 'Apply Workspace', 'Letters'],
+    ['/letters/draft-1', 'Letters', 'Apply Workspace', 'Letters'],
+    ['/linkedin', 'LinkedIn', 'Apply Workspace', 'LinkedIn'],
+    ['/recruiter', 'Recruiter', 'Apply Workspace', 'Recruiter'],
+    ['/research', 'Research', 'Analyze Workspace', 'Research'],
+    ['/match', 'Match', 'Analyze Workspace', 'Match'],
     ['/pipeline', 'Pipeline', 'Interview Workspace', 'Pipeline'],
+    ['/prep', 'Prep', 'Interview Workspace', 'Prep'],
+    ['/debrief', 'Debrief', 'Interview Workspace', 'Debrief'],
     ['/identity', 'Identity', 'Foundation Workspace', 'Identity'],
   ] as const)(
     'renders route context and active nav state for %s',
@@ -734,6 +914,195 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
   })
 
+  it('retries a failed hosted bootstrap and clears the error path after recovery', async () => {
+    const bootstrap = vi.fn().mockImplementation(async ({ localMigrationSnapshot }) => {
+      useHostedAppStore.setState({
+        bootstrapStatus: 'ready',
+        bearerToken: 'token-123',
+        context: hostedContext,
+        workspaces: [baseWorkspace],
+        selectedWorkspaceId: 'ws-1',
+        localMigrationSnapshot,
+        lastError: null,
+        lastErrorCode: null,
+        lastErrorReason: null,
+      })
+    })
+
+    setHostedStore({
+      bootstrapStatus: 'error',
+      selectedWorkspaceId: null,
+      workspaces: [],
+      localMigrationSnapshot: buildWorkspaceSnapshot(),
+      lastError: 'Temporary hosted outage',
+      lastErrorCode: 'offline',
+      lastErrorReason: null,
+      bootstrap,
+    })
+
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('alert').textContent).toContain('Temporary hosted outage')
+    fireEvent.click(screen.getByRole('button', { name: /retry hosted bootstrap/i }))
+
+    await waitFor(() => {
+      expect(bootstrap).toHaveBeenCalledTimes(1)
+    })
+    expect(bootstrap).toHaveBeenCalledWith({
+      localMigrationSnapshot: useHostedAppStore.getState().localMigrationSnapshot,
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+    })
+
+    expect(useHostedAppStore.getState().lastError).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('switches hosted workspaces through the dialog and reinitializes the runtime', async () => {
+    const alternateWorkspace = {
+      workspaceId: 'ws-2',
+      name: 'Interview Workspace',
+      revision: 1,
+      updatedAt: '2026-03-14T12:30:00.000Z',
+      role: 'owner' as const,
+      isDefault: false,
+    }
+
+    const { selectWorkspace } = setHostedStore({
+      workspaces: [baseWorkspace, alternateWorkspace],
+      selectedWorkspaceId: 'ws-1',
+    })
+
+    const firstRuntime = {
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    }
+    const secondRuntime = {
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-2')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    }
+
+    runtimeMocks.replacePersistenceRuntime
+      .mockResolvedValueOnce(firstRuntime)
+      .mockResolvedValueOnce(secondRuntime)
+
+    render(<AppShell />)
+
+    await waitFor(() => {
+      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+        'Hosted Workspace',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /hosted workspaces/i }))
+    const dialog = screen.getByRole('dialog', { name: /hosted workspaces/i })
+    const alternateCard = within(dialog)
+      .getByText('Interview Workspace')
+      .closest('article') as HTMLElement
+    fireEvent.click(within(alternateCard).getByRole('button', { name: 'Open' }))
+
+    expect(selectWorkspace).toHaveBeenCalledWith('ws-2')
+    await waitFor(() => {
+      expect(runtimeMocks.replacePersistenceRuntime).toHaveBeenCalledTimes(2)
+    })
+    expect(runtimeMocks.replacePersistenceRuntime).toHaveBeenLastCalledWith({
+      workspaceId: 'ws-2',
+      workspaceName: 'Interview Workspace',
+      backend: { kind: 'remote' },
+    })
+    await waitFor(() => {
+      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+        'Interview Workspace',
+      )
+    })
+  })
+
+  it('closes the hosted workspace dialog without switching workspaces', async () => {
+    const alternateWorkspace = {
+      workspaceId: 'ws-2',
+      name: 'Interview Workspace',
+      revision: 1,
+      updatedAt: '2026-03-14T12:30:00.000Z',
+      role: 'owner' as const,
+      isDefault: false,
+    }
+    const { selectWorkspace } = setHostedStore({
+      workspaces: [baseWorkspace, alternateWorkspace],
+      selectedWorkspaceId: 'ws-1',
+    })
+
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    await waitFor(() => {
+      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+        'Hosted Workspace',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /hosted workspaces/i }))
+    fireEvent.click(screen.getByRole('button', { name: /close dialog/i }))
+
+    expect(screen.queryByRole('dialog', { name: /hosted workspaces/i })).toBeNull()
+    expect(selectWorkspace).not.toHaveBeenCalled()
+    expect(runtimeMocks.replacePersistenceRuntime).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      'Hosted Workspace',
+    )
+  })
+
+  it('prompts for onboarding when the selected hosted workspace is missing', () => {
+    setHostedStore({
+      workspaces: [baseWorkspace],
+      selectedWorkspaceId: 'ws-deleted',
+    })
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-deleted')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByText('No hosted workspace selected')).toBeTruthy()
+    expect(runtimeMocks.replacePersistenceRuntime).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
+  })
+
   it('reloads the session when the hosted billing recovery button is clicked', async () => {
     locationMocks.reloadPage.mockReset()
 
@@ -756,7 +1125,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       bootstrapStatus: 'error',
       selectedWorkspaceId: null,
       workspaces: [],
-      lastError: 'Your hosted subscription needs attention (402)',
+      lastError: 'Your hosted pass needs attention (402)',
       lastErrorCode: 'ai_access_denied',
       lastErrorReason: 'billing_issue',
     })
@@ -1050,6 +1419,55 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
 
     expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
+  })
+
+  it('starts fresh from hosted onboarding and clears stale recovery errors', async () => {
+    const { clearError } = setHostedStore({
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: 'Previous hosted workspace error',
+    })
+
+    const createWorkspace = vi.fn().mockImplementation(async () => {
+      useHostedAppStore.setState({
+        workspaces: [baseWorkspace],
+        selectedWorkspaceId: 'ws-1',
+        lastError: null,
+        lastErrorCode: null,
+        lastErrorReason: null,
+      })
+
+      return baseWorkspace
+    })
+
+    useHostedAppStore.setState({ createWorkspace })
+    runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockResolvedValue(null)
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('alert').textContent).toContain('Previous hosted workspace error')
+    fireEvent.click(screen.getByRole('button', { name: /create empty workspace/i }))
+
+    await waitFor(() => {
+      expect(createWorkspace).toHaveBeenCalledWith({})
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+    })
+
+    expect(clearError).toHaveBeenCalled()
+    expect(useHostedAppStore.getState().lastError).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('abandons a pending migration import when the user switches workspaces mid-load', async () => {
