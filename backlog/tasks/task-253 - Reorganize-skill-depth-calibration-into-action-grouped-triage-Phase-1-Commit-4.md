@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - Nicholas Ferguson
 created_date: '2026-05-10 16:25'
-updated_date: '2026-05-11 06:29'
+updated_date: '2026-05-11 06:41'
 labels:
   - research
   - phase-1-cull
@@ -150,6 +150,8 @@ Specifically preserve:
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented Commit 4 as planned with one mid-implementation correction. The user-approved 'read-only surfaced' affordance broke two existing tests because the existing Write back handler returns a useful 'Could not find X in the Identity skill model' error for unmatched skills — that affordance is doing real work today, not dead UI. Updated surfaced to render the full edit form + Write back button to preserve the helpful blocking behavior (AC#4 — existing tests pass unmodified). Confirmed group keeps the edit form (so the existing 'edit search signal/calibration on a generated thesis' test still works) but drops the Write back button since depth already matches. The grouping + collapsed-by-default state are what differentiate confirmed visually now, not stripped affordances.
+
+User-observed manual-smoke surface bugs (1-letter-per-line constraints box, two visible 'Search Thesis' sections) traced to a pre-existing CSS gotcha unrelated to this task: `.research-panel { display: flex }` overrode the UA `hidden` attribute, so all three tab panels rendered simultaneously. Both reported symptoms followed from that — duplicate `<h2>Search Thesis</h2>` (one from SearchThesisWorkspace in the profile tab, one from the inline section in the search tab) and SearchInstancePreferences getting squeezed to half-width inside `research-grid-two` then further split by `research-preferences-split`. Added `.research-panel[hidden] { display: none }` to `research.css` matching the same pattern already established in `pipeline.css:593-594` and `prep.css:2039`/`3582`. Full vitest suite (171 files, 2370 tests) still green.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
