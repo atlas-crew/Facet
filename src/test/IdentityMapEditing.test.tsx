@@ -25,7 +25,7 @@ const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) 
     currentIdentity: identity,
     draft: null,
     draftDocument: '',
-    scanResult: null,
+    intakeSources: [],
     warnings: [],
     changelog: [],
     lastError: null,

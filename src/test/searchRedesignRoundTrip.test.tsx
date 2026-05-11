@@ -336,7 +336,7 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
     useIdentityStore.setState({
       currentIdentity: cloneIdentityFixture(),
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       lastError: null,
       warnings: [],
     })

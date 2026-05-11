@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent 
 import { useNavigate } from '@tanstack/react-router'
 import { Download, FileJson, Upload } from 'lucide-react'
 import { professionalIdentityToResumeData } from '../../identity/resumeAdapter'
-import { useIdentityStore } from '../../store/identityStore'
+import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { type IdentityApplyMode } from '../../types/identity'
@@ -73,7 +73,7 @@ export function IdentityPage() {
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const draft = useIdentityStore((state) => state.draft)
   const draftDocument = useIdentityStore((state) => state.draftDocument)
-  const scanResult = useIdentityStore((state) => state.scanResult)
+  const scanResult = useIdentityStore(getActiveResumeScan)
   const warnings = useIdentityStore((state) => state.warnings)
   const changelog = useIdentityStore((state) => state.changelog)
   const setIntakeMode = useIdentityStore((state) => state.setIntakeMode)
@@ -337,7 +337,7 @@ export function IdentityPage() {
   }
 
   const handleDeepenBullet = async (roleId: string, bulletId: string) => {
-    const liveScan = useIdentityStore.getState().scanResult
+    const liveScan = getActiveResumeScan(useIdentityStore.getState())
     if (!liveScan) {
       return
     }
@@ -367,7 +367,7 @@ export function IdentityPage() {
       startScannedBulletDeepen(roleId, bulletId)
       const result = await deepenIdentityBullet({
         endpoint: aiEndpoint,
-        identity: useIdentityStore.getState().scanResult?.identity ?? liveScan.identity,
+        identity: getActiveResumeScan(useIdentityStore.getState())?.identity ?? liveScan.identity,
         roleId,
         bulletId,
         correctionNotes,
@@ -396,13 +396,13 @@ export function IdentityPage() {
   }
 
   const handleDeepenAll = async () => {
-    const liveScan = useIdentityStore.getState().scanResult
+    const liveScan = getActiveResumeScan(useIdentityStore.getState())
     if (!liveScan) {
       return
     }
     const scanSessionId = liveScan.scannedAt
     const isSameScanSession = () =>
-      useIdentityStore.getState().scanResult?.scannedAt === scanSessionId
+      getActiveResumeScan(useIdentityStore.getState())?.scannedAt === scanSessionId
 
     if (
       Object.values(liveScan.progress.bullets).some((progress) => progress.status === 'running')
@@ -442,7 +442,7 @@ export function IdentityPage() {
         return
       }
 
-      const currentScan = useIdentityStore.getState().scanResult
+      const currentScan = getActiveResumeScan(useIdentityStore.getState())
       if (!currentScan) {
         break
       }
@@ -468,7 +468,7 @@ export function IdentityPage() {
         deepenAbortRef.current = controller
         const result = await deepenIdentityBullet({
           endpoint: aiEndpoint,
-          identity: useIdentityStore.getState().scanResult?.identity ?? currentScan.identity,
+          identity: getActiveResumeScan(useIdentityStore.getState())?.identity ?? currentScan.identity,
           roleId: target.roleId,
           bulletId: target.bulletId,
           correctionNotes,
@@ -486,7 +486,7 @@ export function IdentityPage() {
       } catch (error) {
         if (
           controller?.signal.aborted &&
-          useIdentityStore.getState().scanResult?.progress.bulk.status === 'cancelling'
+          getActiveResumeScan(useIdentityStore.getState())?.progress.bulk.status === 'cancelling'
         ) {
           break
         }
@@ -512,11 +512,11 @@ export function IdentityPage() {
       return
     }
 
-    if (!useIdentityStore.getState().scanResult) {
+    if (!getActiveResumeScan(useIdentityStore.getState())) {
       return
     }
 
-    const finalStatus = useIdentityStore.getState().scanResult?.progress.bulk.status
+    const finalStatus = getActiveResumeScan(useIdentityStore.getState())?.progress.bulk.status
     finishScanBulkDeepen()
     setPageNotice(
       finalStatus === 'cancelling'

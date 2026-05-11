@@ -128,7 +128,7 @@ const resetStores = () => {
     currentIdentity: null,
     draft: null,
     draftDocument: '',
-    scanResult: null,
+    intakeSources: [],
     warnings: [],
     changelog: [],
     lastError: null,
@@ -522,13 +522,17 @@ describe('HomePage', () => {
       createScanResult({ extractedBullets: 3, deepenedBullets: 1, editedBullets: 1 }),
     ]) {
       resetStores()
-      useIdentityStore.setState({ scanResult })
+      useIdentityStore.setState({
+        intakeSources: [{ kind: 'resume', id: 'test-intake', scan: scanResult }],
+      })
       render(<HomePage />)
       expect(screen.getByRole('link', { name: /continue identity draft/i })).toBeTruthy()
     }
 
     resetStores()
-    useIdentityStore.setState({ scanResult: createScanResult() })
+    useIdentityStore.setState({
+      intakeSources: [{ kind: 'resume', id: 'test-intake', scan: createScanResult() }],
+    })
     render(<HomePage />)
 
     expect(screen.queryByRole('link', { name: /continue identity draft/i })).toBeNull()

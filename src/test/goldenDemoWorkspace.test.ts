@@ -56,7 +56,7 @@ const resetStores = () => {
     currentIdentity: null,
     draft: null,
     draftDocument: '',
-    scanResult: null,
+    intakeSources: [],
     warnings: [],
     changelog: [],
     lastError: null,

@@ -24,7 +24,7 @@ export interface GoldenIdentityStorageEnvelope {
     currentIdentity: ProfessionalIdentityV3
     draft: null
     draftDocument: string
-    scanResult: null
+    intakeSources: []
     warnings: string[]
     changelog: []
   }
@@ -66,7 +66,7 @@ export const buildMayaPatelIdentityStorageEnvelope = (
     currentIdentity: clone(identity),
     draft: null,
     draftDocument: JSON.stringify(identity, null, 2),
-    scanResult: null,
+    intakeSources: [],
     warnings: [],
     changelog: [],
   },
@@ -168,7 +168,7 @@ export const hydrateMayaPatelIdentityIntoStore = async (
     currentIdentity: clone(identity),
     draft: null,
     draftDocument: JSON.stringify(identity, null, 2),
-    scanResult: null,
+    intakeSources: [],
     warnings: [],
     changelog: [],
     lastError: null,

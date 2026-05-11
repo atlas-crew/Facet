@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, CalendarClock } from 'lucide-react'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useDebriefStore } from '../../store/debriefStore'
-import { useIdentityStore } from '../../store/identityStore'
+import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
 import { useLinkedInStore } from '../../store/linkedinStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
@@ -376,7 +376,7 @@ export function HomePage() {
   const sourceMaterial = useIdentityStore((state) => state.sourceMaterial)
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const draft = useIdentityStore((state) => state.draft)
-  const scanResult = useIdentityStore((state) => state.scanResult)
+  const scanResult = useIdentityStore(getActiveResumeScan)
   const currentReport = useMatchStore((state) => state.currentReport)
   const jobDescription = useMatchStore((state) => state.jobDescription)
   const pipelineEntries = usePipelineStore((state) => state.entries)

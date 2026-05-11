@@ -25,6 +25,7 @@ import type {
   IdentityDeepenedBullet,
   IdentityIntakeMode,
   IdentityExtractionDraft,
+  IntakeSource,
   MapSelection,
   ResumeScanBulletExplanation,
   ResumeScanBulletProgress,
@@ -59,7 +60,7 @@ interface IdentityState {
   currentIdentity: ProfessionalIdentityV3 | null
   draft: IdentityExtractionDraft | null
   draftDocument: string
-  scanResult: ResumeScanResult | null
+  intakeSources: IntakeSource[]
   warnings: string[]
   changelog: IdentityChangeLogEntry[]
   lastError: string | null
@@ -419,31 +420,67 @@ const recalculateScanCounts = (
   }
 }
 
+/**
+ * Read the active resume scan from intake sources via the discriminator.
+ * Returns null when no source exists or the first source is not a resume.
+ */
+export const getActiveResumeScan = (
+  state: { intakeSources?: IntakeSource[] | undefined },
+): ResumeScanResult | null => {
+  const first = state.intakeSources?.[0]
+  return first?.kind === 'resume' ? first.scan : null
+}
+
+/**
+ * Single-source facade used by setScanResult. Replaces the entire intakeSources
+ * array with one resume entry (or empty when scan is null). Generates a new id
+ * because this is a full-replacement operation.
+ */
+const replaceIntakeSourcesWithScan = (scan: ResumeScanResult | null): IntakeSource[] =>
+  scan ? [{ kind: 'resume', id: createId('intake'), scan }] : []
+
+/**
+ * Incremental update used by action handlers that mutate scan content (bullet
+ * edits, deepen progress). Preserves the wrapper id/userLabel so the source
+ * identity persists across edits within a single scan session.
+ */
+const updateActiveResumeScan = (
+  state: IdentityState,
+  scan: ResumeScanResult,
+): IntakeSource[] => {
+  const existing = state.intakeSources[0]
+  if (!existing || existing.kind !== 'resume') {
+    return [{ kind: 'resume', id: createId('intake'), scan }, ...state.intakeSources]
+  }
+  return [{ ...existing, scan }, ...state.intakeSources.slice(1)]
+}
+
 const updateScanIdentity = (
   state: IdentityState,
   updater: (identity: ProfessionalIdentityV3) => ProfessionalIdentityV3,
-): Pick<IdentityState, 'scanResult' | 'draftDocument' | 'warnings'> => {
-  if (!state.scanResult) {
+): Pick<IdentityState, 'intakeSources' | 'draftDocument' | 'warnings'> => {
+  const active = getActiveResumeScan(state)
+  if (!active) {
     return {
-      scanResult: null,
+      intakeSources: state.intakeSources,
       draftDocument: state.draftDocument,
       warnings: state.warnings,
     }
   }
 
   const identity = normalizeRuntimeProfessionalIdentity(
-    advanceModelRevision(updater(state.scanResult.identity), state.scanResult.identity),
+    advanceModelRevision(updater(active.identity), active.identity),
   )
-  const progress = normalizeScanProgress(identity, state.scanResult.progress)
+  const progress = normalizeScanProgress(identity, active.progress)
   const nextScanResult: ResumeScanResult = {
-    ...state.scanResult,
+    ...active,
     identity,
     progress,
     counts: recalculateScanCounts(identity, progress),
   }
 
   return {
-    scanResult: nextScanResult,
+    intakeSources: updateActiveResumeScan(state, nextScanResult),
     draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
     warnings: state.warnings,
   }
@@ -512,9 +549,20 @@ const syncIdentityDocument = (
   }
 }
 
-const normalizePersistedIdentityState = (
-  state: Partial<IdentityState> & { scanResult?: ResumeScanResult | null },
-): Partial<IdentityState> => {
+type PersistedIdentityShape = Partial<IdentityState> & {
+  scanResult?: ResumeScanResult | null
+  intakeSources?: IntakeSource[]
+}
+
+const extractScanFromPersistedState = (state: PersistedIdentityShape): ResumeScanResult | null => {
+  if (state.intakeSources && state.intakeSources.length > 0) {
+    const first = state.intakeSources[0]
+    return first?.kind === 'resume' ? first.scan : null
+  }
+  return state.scanResult ?? null
+}
+
+const normalizePersistedIdentityState = (state: PersistedIdentityShape): Partial<IdentityState> => {
   const currentIdentity = state.currentIdentity
     ? normalizeRuntimeProfessionalIdentity(state.currentIdentity)
     : state.currentIdentity
@@ -536,35 +584,50 @@ const normalizePersistedIdentityState = (
         ? formatIdentityDocument(draft.identity)
         : state.draftDocument
 
-  if (!state.scanResult) {
+  // Strip the legacy scanResult field; v5 routes scan content through intakeSources.
+  const { scanResult: _legacyScan, ...rest } = state
+  const activeScan = extractScanFromPersistedState(state)
+
+  if (!activeScan) {
     return {
-      ...state,
+      ...rest,
       currentIdentity,
       draft,
       draftDocument: resolveDraftDocument(),
+      intakeSources: state.intakeSources ?? [],
     }
   }
 
-  const identity = normalizeRuntimeProfessionalIdentity(state.scanResult.identity)
-  const progress = normalizeScanProgress(identity, state.scanResult.progress)
+  const identity = normalizeRuntimeProfessionalIdentity(activeScan.identity)
+  const progress = normalizeScanProgress(identity, activeScan.progress)
+  const normalizedScan: ResumeScanResult = {
+    ...activeScan,
+    identity,
+    progress,
+    counts: recalculateScanCounts(identity, progress),
+  }
+
+  // Preserve any existing wrapper id/userLabel; only synthesize a new wrapper
+  // when migrating from the legacy scanResult field.
+  const existingWrapper = state.intakeSources?.[0]
+  const intakeSources: IntakeSource[] =
+    existingWrapper && existingWrapper.kind === 'resume'
+      ? [
+          { ...existingWrapper, scan: normalizedScan },
+          ...(state.intakeSources ?? []).slice(1),
+        ]
+      : [{ kind: 'resume', id: createId('intake'), scan: normalizedScan }]
 
   return {
-    ...state,
+    ...rest,
     currentIdentity,
     draft,
     draftDocument: resolveDraftDocument(identity),
-    scanResult: {
-      ...state.scanResult,
-      identity,
-      progress,
-      counts: recalculateScanCounts(identity, progress),
-    },
+    intakeSources,
   }
 }
 
-const unwrapPersistedIdentityState = (
-  persistedState: unknown,
-): (Partial<IdentityState> & { scanResult?: ResumeScanResult | null }) | null => {
+const unwrapPersistedIdentityState = (persistedState: unknown): PersistedIdentityShape | null => {
   if (typeof persistedState !== 'object' || persistedState === null) {
     return null
   }
@@ -572,16 +635,14 @@ const unwrapPersistedIdentityState = (
   if ('state' in persistedState) {
     const envelope = persistedState as { state?: unknown }
     if (typeof envelope.state === 'object' && envelope.state !== null) {
-      return envelope.state as Partial<IdentityState> & { scanResult?: ResumeScanResult | null }
+      return envelope.state as PersistedIdentityShape
     }
   }
 
-  return persistedState as Partial<IdentityState> & { scanResult?: ResumeScanResult | null }
+  return persistedState as PersistedIdentityShape
 }
 
-const readPersistedIdentityState = ():
-  | (Partial<IdentityState> & { scanResult?: ResumeScanResult | null })
-  | null => {
+const readPersistedIdentityState = (): PersistedIdentityShape | null => {
   const persisted = resolveStorage().getItem(IDENTITY_STORE_STORAGE_KEY)
   if (typeof persisted !== 'string' || !persisted) return null
 
@@ -690,7 +751,7 @@ export const useIdentityStore = create<IdentityState>()(
       currentIdentity: null,
       draft: null,
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       warnings: [],
       changelog: [],
       lastError: null,
@@ -804,7 +865,7 @@ export const useIdentityStore = create<IdentityState>()(
         set(() => {
           if (!scanResult) {
             return {
-              scanResult: null,
+              intakeSources: replaceIntakeSourcesWithScan(null),
               draftDocument: '',
               warnings: [],
               lastError: null,
@@ -821,7 +882,7 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           return {
-            scanResult: nextScanResult,
+            intakeSources: replaceIntakeSourcesWithScan(nextScanResult),
             draftDocument: formatIdentityDocument(identity),
             warnings: nextScanResult.warnings.map((warning) => warning.message),
             lastError: null,
@@ -874,17 +935,18 @@ export const useIdentityStore = create<IdentityState>()(
         ),
       updateScannedBulletTextField: (roleId, bulletId, field, value) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
           const identity = normalizeRuntimeProfessionalIdentity(
-            updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
+            updateScanBulletById(active.identity, roleId, bulletId, (bullet) => ({
               ...bullet,
               [field]: value,
             })),
           )
-          const progress = normalizeScanProgress(identity, state.scanResult.progress)
+          const progress = normalizeScanProgress(identity, active.progress)
           progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
             'edited',
             'corrected',
@@ -892,28 +954,29 @@ export const useIdentityStore = create<IdentityState>()(
           )
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               identity,
               progress,
               counts: recalculateScanCounts(identity, progress),
-            },
+            }),
             draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
           }
         }),
       updateScannedBulletListField: (roleId, bulletId, field, value) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
           const identity = normalizeRuntimeProfessionalIdentity(
-            updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
+            updateScanBulletById(active.identity, roleId, bulletId, (bullet) => ({
               ...bullet,
               [field]: value,
             })),
           )
-          const progress = normalizeScanProgress(identity, state.scanResult.progress)
+          const progress = normalizeScanProgress(identity, active.progress)
           progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
             'edited',
             'corrected',
@@ -921,28 +984,29 @@ export const useIdentityStore = create<IdentityState>()(
           )
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               identity,
               progress,
               counts: recalculateScanCounts(identity, progress),
-            },
+            }),
             draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
           }
         }),
       updateScannedBulletMetrics: (roleId, bulletId, value) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
           const identity = normalizeRuntimeProfessionalIdentity(
-            updateScanBulletById(state.scanResult.identity, roleId, bulletId, (bullet) => ({
+            updateScanBulletById(active.identity, roleId, bulletId, (bullet) => ({
               ...bullet,
               metrics: value,
             })),
           )
-          const progress = normalizeScanProgress(identity, state.scanResult.progress)
+          const progress = normalizeScanProgress(identity, active.progress)
           progress.bullets[getScanBulletKey(roleId, bulletId)] = createBulletProgress(
             'edited',
             'corrected',
@@ -950,25 +1014,23 @@ export const useIdentityStore = create<IdentityState>()(
           )
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               identity,
               progress,
               counts: recalculateScanCounts(identity, progress),
-            },
+            }),
             draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
           }
         }),
       startScannedBulletDeepen: (roleId, bulletId) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           const key = getScanBulletKey(roleId, bulletId)
           const existing = progress.bullets[key]
           progress.bullets[key] = createBulletProgress('running', 'stated', null, {
@@ -976,23 +1038,21 @@ export const useIdentityStore = create<IdentityState>()(
           })
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-              counts: recalculateScanCounts(state.scanResult.identity, progress),
-            },
+              counts: recalculateScanCounts(active.identity, progress),
+            }),
           }
         }),
       completeScannedBulletDeepen: (value) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const normalizedProgress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const normalizedProgress = normalizeScanProgress(active.identity, active.progress)
           const key = getScanBulletKey(value.roleId, value.bulletId)
           if (!normalizedProgress.bullets[key]) {
             if (import.meta.env.DEV) {
@@ -1003,17 +1063,17 @@ export const useIdentityStore = create<IdentityState>()(
             }
 
             return {
-              scanResult: {
-                ...state.scanResult,
+              intakeSources: updateActiveResumeScan(state, {
+                ...active,
                 progress: normalizedProgress,
-                counts: recalculateScanCounts(state.scanResult.identity, normalizedProgress),
-              },
+                counts: recalculateScanCounts(active.identity, normalizedProgress),
+              }),
             }
           }
 
           const identity = normalizeRuntimeProfessionalIdentity({
-            ...state.scanResult.identity,
-            roles: state.scanResult.identity.roles.map((role) =>
+            ...active.identity,
+            roles: active.identity.roles.map((role) =>
               role.id === value.roleId
                 ? {
                     ...role,
@@ -1058,26 +1118,24 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               identity,
               progress,
               counts: recalculateScanCounts(identity, progress),
-            },
+            }),
             draftDocument: state.draft ? state.draftDocument : formatIdentityDocument(identity),
             warnings: Array.from(new Set([...state.warnings, ...value.warnings])),
           }
         }),
       failScannedBulletDeepen: (roleId, bulletId, message) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           const key = getScanBulletKey(roleId, bulletId)
           const existing = progress.bullets[key]
           progress.bullets[key] = createBulletProgress('failed', 'stated', message, {
@@ -1088,23 +1146,21 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-              counts: recalculateScanCounts(state.scanResult.identity, progress),
-            },
+              counts: recalculateScanCounts(active.identity, progress),
+            }),
           }
         }),
       markScannedBulletEdited: (roleId, bulletId) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           const key = getScanBulletKey(roleId, bulletId)
           const existing = progress.bullets[key]
           progress.bullets[key] = createBulletProgress('edited', 'corrected', null, {
@@ -1112,48 +1168,44 @@ export const useIdentityStore = create<IdentityState>()(
           })
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-              counts: recalculateScanCounts(state.scanResult.identity, progress),
-            },
+              counts: recalculateScanCounts(active.identity, progress),
+            }),
           }
         }),
       startScanBulkDeepen: () =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           progress.bulk = {
             status: 'running',
-            total: state.scanResult.counts.extractedBullets,
+            total: active.counts.extractedBullets,
             completed: 0,
             currentBulletKey: null,
             lastUpdatedAt: new Date().toISOString(),
           }
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-            },
+            }),
           }
         }),
       updateScanBulkProgress: (currentBulletKey) =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           progress.bulk = {
             ...progress.bulk,
             currentBulletKey,
@@ -1161,22 +1213,20 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-            },
+            }),
           }
         }),
       requestCancelScanBulkDeepen: () =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           progress.bulk = {
             ...progress.bulk,
             status: progress.bulk.status === 'running' ? 'cancelling' : progress.bulk.status,
@@ -1184,22 +1234,20 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-            },
+            }),
           }
         }),
       finishScanBulkDeepen: () =>
         set((state) => {
-          if (!state.scanResult) {
+          const active = getActiveResumeScan(state)
+          if (!active) {
             return {}
           }
 
-          const progress = normalizeScanProgress(
-            state.scanResult.identity,
-            state.scanResult.progress,
-          )
+          const progress = normalizeScanProgress(active.identity, active.progress)
           progress.bulk = {
             ...progress.bulk,
             status: 'idle',
@@ -1208,10 +1256,10 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           return {
-            scanResult: {
-              ...state.scanResult,
+            intakeSources: updateActiveResumeScan(state, {
+              ...active,
               progress,
-            },
+            }),
           }
         }),
       updateScannedSkillGroupLabel: (groupIndex, value) =>
@@ -1588,7 +1636,7 @@ export const useIdentityStore = create<IdentityState>()(
       clearDraft: () => set({ draft: null, draftDocument: '', lastError: null }),
       clearScanResult: () =>
         set({
-          scanResult: null,
+          intakeSources: [],
           draftDocument: '',
           warnings: [],
         }),
@@ -1606,7 +1654,7 @@ export const useIdentityStore = create<IdentityState>()(
         set((state) => ({
           intakeMode: 'paste',
           draft: null,
-          scanResult: null,
+          intakeSources: [],
           currentIdentity: result.data,
           warnings: result.warnings,
           draftDocument: formatIdentityDocument(result.data),
@@ -1661,7 +1709,9 @@ export const useIdentityStore = create<IdentityState>()(
     }),
     {
       name: IDENTITY_STORE_STORAGE_KEY,
-      version: 4,
+      // v5: scanResult slot renamed to intakeSources[] discriminated union (m-33).
+      // normalizePersistedIdentityState handles both shapes so migrate is a pass-through.
+      version: 5,
       storage: createJSONStorage(resolveStorage),
       partialize: (state) => ({
         // mapSelection intentionally excluded — UI ephemera, would carry stale ids across imports.
@@ -1671,7 +1721,7 @@ export const useIdentityStore = create<IdentityState>()(
         currentIdentity: state.currentIdentity,
         draft: state.draft,
         draftDocument: state.draftDocument,
-        scanResult: state.scanResult,
+        intakeSources: state.intakeSources,
         warnings: state.warnings,
         changelog: state.changelog,
       }),
@@ -1691,7 +1741,16 @@ export const useIdentityStore = create<IdentityState>()(
           }
         }
 
-        if (!('currentIdentity' in state || 'draft' in state || 'scanResult' in state)) {
+        // Accept both v5 (intakeSources) and legacy v4 (scanResult) as scan-state sentinels;
+        // normalize will collapse either into v5 shape.
+        if (
+          !(
+            'currentIdentity' in state ||
+            'draft' in state ||
+            'intakeSources' in state ||
+            'scanResult' in state
+          )
+        ) {
           return {
             ...currentState,
             ...state,

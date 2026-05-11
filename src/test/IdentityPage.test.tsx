@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityPage } from '../routes/identity/IdentityPage'
-import { useIdentityStore } from '../store/identityStore'
+import { getActiveResumeScan, useIdentityStore } from '../store/identityStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 import { resolveStorage } from '../store/storage'
@@ -201,7 +201,7 @@ describe('IdentityPage', () => {
       currentIdentity: null,
       draft: null,
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       warnings: [],
       changelog: [],
       lastError: null,
@@ -289,13 +289,13 @@ describe('IdentityPage', () => {
       },
     )
 
-    expect(useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.source_text).toBe(
+    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.source_text).toBe(
       'Ported the platform to Kubernetes-based installs for on-prem customers.',
     )
     fireEvent.change(screen.getByDisplayValue('Facet'), {
       target: { value: 'Facet OSS' },
     })
-    expect(useIdentityStore.getState().scanResult?.identity.projects[0]?.name).toBe('Facet OSS')
+    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.projects[0]?.name).toBe('Facet OSS')
     expect(screen.getByText(/two-column layout/i)).toBeTruthy()
 
     fireEvent.click(
@@ -420,7 +420,7 @@ describe('IdentityPage', () => {
 
     expect(resumeScannerMocks.scanResumePdfMock).toHaveBeenCalledTimes(0)
     expect(screen.getByText('Resume Scanner v1 only supports PDF uploads.')).toBeTruthy()
-    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
   })
 
   it('surfaces non-abort scan failures without persisting scan state', async () => {
@@ -434,7 +434,7 @@ describe('IdentityPage', () => {
     await waitFor(() => {
       expect(screen.getByText('PDF text extraction failed.')).toBeTruthy()
     })
-    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
     expect(screen.queryByText('Scanning PDF…')).toBeNull()
   })
 
@@ -463,7 +463,7 @@ describe('IdentityPage', () => {
     })
 
     expect(useIdentityStore.getState().intakeMode).toBe('paste')
-    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
     expect(useIdentityStore.getState().sourceMaterial).toContain('Experience')
   })
 
@@ -488,7 +488,7 @@ describe('IdentityPage', () => {
     unmount()
     await rejectWithAbort(rejectScan)
 
-    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
     expect(useIdentityStore.getState().sourceMaterial).toBe('')
   })
 
@@ -673,8 +673,8 @@ describe('IdentityPage', () => {
       },
     })
 
-    expect(useIdentityStore.getState().scanResult?.counts.editedBullets).toBe(1)
-    expect(useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.problem).toBe(
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.editedBullets).toBe(1)
+    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.problem).toBe(
       'Cloud-only delivery blocked on-prem customer installs.',
     )
     expect(screen.getAllByText('Edited').length).toBeGreaterThan(0)
@@ -787,9 +787,9 @@ describe('IdentityPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Bullet decomposition failed.').length).toBeGreaterThan(0)
     })
-    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(1)
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.failedBullets).toBe(1)
     expect(
-      useIdentityStore.getState().scanResult?.progress.bullets['contoso::platform-migration']
+      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets['contoso::platform-migration']
         ?.status,
     ).toBe('failed')
   })
@@ -950,13 +950,13 @@ describe('IdentityPage', () => {
 
     await waitFor(() => {
       expect(
-        useIdentityStore.getState().scanResult?.progress.bullets['contoso::platform-migration']
+        getActiveResumeScan(useIdentityStore.getState())?.progress.bullets['contoso::platform-migration']
           ?.status,
       ).toBe('completed')
     })
 
     expect(
-      useIdentityStore.getState().scanResult?.progress.bullets['contoso::second-migration']?.status,
+      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets['contoso::second-migration']?.status,
     ).toBe('idle')
     expect((screen.getByText('Deepen All') as HTMLButtonElement).disabled).toBe(false)
   })
@@ -993,7 +993,7 @@ describe('IdentityPage', () => {
       expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
     })
 
-    expect(useIdentityStore.getState().scanResult?.counts.deepenedBullets).toBe(1)
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.deepenedBullets).toBe(1)
     expect(screen.getByText('Deepened 1 scanned bullet(s).')).toBeTruthy()
   })
 
@@ -1033,8 +1033,8 @@ describe('IdentityPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Deepened 1 scanned bullet(s); 1 failed.')).toBeTruthy()
     })
-    expect(useIdentityStore.getState().scanResult?.counts.deepenedBullets).toBe(1)
-    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(1)
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.deepenedBullets).toBe(1)
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.failedBullets).toBe(1)
   })
 
   it('preserves focused impact edits across progress updates and keeps comma-bearing statements intact', async () => {
@@ -1067,7 +1067,7 @@ describe('IdentityPage', () => {
 
     fireEvent.blur(impactField)
 
-    expect(useIdentityStore.getState().scanResult?.identity.roles[0]?.bullets[0]?.impact).toEqual([
+    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.impact).toEqual([
       impactValue,
     ])
   })
@@ -1097,8 +1097,8 @@ describe('IdentityPage', () => {
     fireEvent.click(screen.getByText('Cancel'))
     await rejectWithAbort(rejectDeepen)
 
-    expect(useIdentityStore.getState().scanResult?.progress.bulk.status).toBe('idle')
-    expect(useIdentityStore.getState().scanResult?.counts.failedBullets).toBe(0)
+    expect(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk.status).toBe('idle')
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.failedBullets).toBe(0)
   })
 
   it('does not finalize a bulk deepening run after the scan is cleared', async () => {
@@ -1126,7 +1126,7 @@ describe('IdentityPage', () => {
     fireEvent.click(screen.getByText('Clear Scan'))
     await rejectWithAbort(rejectDeepen)
 
-    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
     expect(screen.getByText('Cleared the scanned resume structure.')).toBeTruthy()
     expect(screen.queryByText('Deepened 1 scanned bullet(s).')).toBeNull()
     expect(screen.queryByText('Stopped bulk deepening after completing 0 bullet(s).')).toBeNull()
@@ -1157,7 +1157,7 @@ describe('IdentityPage', () => {
     fireEvent.click(screen.getByText('Clear Scan'))
     await rejectWithAbort(rejectDeepen)
 
-    expect(useIdentityStore.getState().scanResult).toBeNull()
+    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
     expect(screen.queryByText('Bullet deepening failed.')).toBeNull()
   })
 

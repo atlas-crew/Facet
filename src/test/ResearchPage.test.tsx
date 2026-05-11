@@ -320,7 +320,7 @@ describe('ResearchPage', () => {
     useIdentityStore.setState({
       currentIdentity: null,
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       lastError: null,
       warnings: [],
     })
@@ -3742,7 +3742,7 @@ describe('ResearchPage', () => {
     useIdentityStore.setState({
       currentIdentity: identity,
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       lastError: null,
       warnings: [],
     })
@@ -3779,7 +3779,7 @@ describe('ResearchPage', () => {
     useIdentityStore.setState({
       currentIdentity: identity,
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       lastError: null,
       warnings: [],
     })
@@ -3831,7 +3831,7 @@ describe('ResearchPage', () => {
     useIdentityStore.setState({
       currentIdentity: identity,
       draftDocument: '',
-      scanResult: null,
+      intakeSources: [],
       lastError: null,
       warnings: [],
     })
