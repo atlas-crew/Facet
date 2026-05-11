@@ -47,7 +47,7 @@ Return JSON only with this exact top-level shape:
     {
       "id": string,
       "title": string,
-      "priority": "include" | "exclude",
+      "priority": "high" | "medium" | "low",
       "subtitle": string,
       "thesis": string,
       "target_roles": string[],
