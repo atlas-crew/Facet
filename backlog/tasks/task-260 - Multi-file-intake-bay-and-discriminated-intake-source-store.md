@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 05:58'
+updated_date: '2026-05-11 06:51'
 labels:
   - feature
   - identity
@@ -54,10 +54,10 @@ REFERENCES:
 <!-- AC:BEGIN -->
 - [x] #1 IntakeSource discriminated union exported from src/types/identity.ts with the `resume` variant fully typed and jd/agent-dump slots noted as TODO with their planned shape in adjacent comments
 - [x] #2 identityStore.scanResult slot removed; replaced with intakeSources: IntakeSource[] and the relevant setter/getter API
-- [ ] #3 ExtractionAgentCard `<input type="file">` carries the `multiple` attribute and accepts multi-file selection
-- [ ] #4 Drag-and-drop accepts multiple PDF files in one drop event
-- [ ] #5 Each source rendered as a file card showing filename, page count, role/bullet/skill counts, optional userLabel text input, and a remove button
-- [ ] #6 Sequential scan of dropped files; individual scan failure does not abort the batch and surfaces error inline on the failing card
+- [x] #3 ExtractionAgentCard `<input type="file">` carries the `multiple` attribute and accepts multi-file selection
+- [x] #4 Drag-and-drop accepts multiple PDF files in one drop event
+- [x] #5 Each source rendered as a file card showing filename, page count, role/bullet/skill counts, optional userLabel text input, and a remove button
+- [x] #6 Sequential scan of dropped files; individual scan failure does not abort the batch and surfaces error inline on the failing card
 - [x] #7 N=1 flow (Generate Draft, Deepen All, Rescan, Clear) behaves identically to the previous single-file behavior
 - [ ] #8 Cap of 10 sources enforced with an inline warning on above-cap files; remove action still works on above-cap files
 - [x] #9 Existing IdentityPage.test.tsx and identityStore.test.ts updated to the new store shape; all pre-existing assertions still pass under N=1
@@ -119,6 +119,20 @@ Per atomic feature commit: Code Change Loop (`specialist-review.sh` on source fi
 - Commit 3 (`feat(identity): multi-file intake selection and file-card list UI`): ACs #3, #4, #5, #6
 - Commit 4 (`feat(identity): enforce 10-source intake cap`): AC #8
 - Test loop additions across commits: AC #10
+
+3. `feat(identity): multi-file intake selection and file-card list UI` (commit b3e3647) — adds `multiple` to the file input, multi-file drag-drop, sequential batch scan with per-file failure isolation, and a per-source file-card list (filename, page count, role/bullet/skill/project counts, optional userLabel input, remove button) rendered above the active-source detail block.
+
+Store additions: `appendIntakeSource`, `removeIntakeSource`, `setIntakeSourceLabel` — additive optional fields on the existing IntakeSource union, no persist migration needed.
+
+IdentityPage refactor: `handleScannedFile` now takes `{replace: boolean}`; `scanFileBatch` decides per-file mode based on `rescanModeRef`/`startingEmpty`/batch size so N=1 + Rescan still route through the legacy `setScanResult` facade. 0-role scans in append mode push to a transient `failedFiles` state (inline error card) rather than triggering the paste-mode fallback that would clobber the batch. Rescan is hidden when 2+ sources exist — prevents `setScanResult` from silently destroying trailing sources; multi-source users use Remove + Add for that case. AC #7 (N=1 preserved) re-walked manually across all permutations (initial upload, rescan, clear, paste-fallback).
+
+Typecheck clean; full suite 2370/2370 passing; lint clean on touched files. Test Writing Loop + AC #10 (multi-file sequencing, mid-batch failure, source removal, userLabel persistence) deferred to a follow-up commit.
+
+**ACs covered this commit:** #3, #4, #5, #6.
+
+**Remaining work:**
+- Commit 4 (`feat(identity): enforce 10-source intake cap`): AC #8
+- Test commit covering AC #10 (multi-file flow tests)
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
