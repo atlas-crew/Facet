@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - Nicholas Ferguson
 created_date: '2026-05-01 00:48'
-updated_date: '2026-05-11 06:50'
+updated_date: '2026-05-11 07:07'
 labels:
   - search-redesign
   - thesis-map
@@ -26,6 +26,11 @@ documentation:
   - backlog TASK-196 (hard-constraints UI parent)
   - backlog TASK-203 (run-override cleanup)
   - backlog TASK-204 (lookFor/prioritize/strongFit consolidation)
+modified_files:
+  - src/routes/research/ResearchPage.tsx
+  - src/routes/research/searchWorkspaceComponents.tsx
+  - src/routes/research/research.css
+  - src/test/ResearchPage.test.tsx
 priority: medium
 ---
 
@@ -102,10 +107,10 @@ The earlier framing assumed a research-side Thesis Map workspace. Per doc-37 tha
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Phase A: every edit currently performed by <SearchSkillsTable> and <SearchInstancePreferences> has a viable home on the identity Map (PreferencesBand + SearchStrategyBand + SkillsBand), with any gaps filed as targeted small tasks
-- [ ] #2 Phase B: <SearchSkillsTable> and <SearchInstancePreferences> imports and JSX usage are removed from ResearchPage.tsx; unused components are deleted from searchWorkspaceComponents.tsx and corresponding CSS
-- [ ] #3 Phase C: Profile Editor tab fate decided (kept as thin Generate Thesis launcher, OR deleted with launcher folded into main Research flow), with rationale recorded in implementation notes
-- [ ] #4 Phase D: decision recorded on whether per-PreferenceList Promote-to-Identity buttons add value beyond TASK-217's deep-link — if yes, scoped and implemented; if no, dropped with rationale
+- [x] #1 Phase A: every edit currently performed by <SearchSkillsTable> and <SearchInstancePreferences> has a viable home on the identity Map (PreferencesBand + SearchStrategyBand + SkillsBand), with any gaps filed as targeted small tasks
+- [x] #2 Phase B: <SearchSkillsTable> and <SearchInstancePreferences> imports and JSX usage are removed from ResearchPage.tsx; unused components are deleted from searchWorkspaceComponents.tsx and corresponding CSS
+- [x] #3 Phase C: Profile Editor tab fate decided (kept as thin Generate Thesis launcher, OR deleted with launcher folded into main Research flow), with rationale recorded in implementation notes
+- [x] #4 Phase D: decision recorded on whether per-PreferenceList Promote-to-Identity buttons add value beyond TASK-217's deep-link — if yes, scoped and implemented; if no, dropped with rationale
 - [ ] #5 Identity-derived list values still flow through hydratePreferenceItems so legacy string[] data continues to render correctly on the identity Map
 - [ ] #6 Test sweep covers any new identity Map affordances added in Phase A (with model_revision bumps and identity-version stamping)
 <!-- AC:END -->
@@ -171,6 +176,12 @@ Original Phase D considered adding per-PreferenceList "Promote to Identity" butt
 - `npm run lint` scoped to touched files
 - Manual smoke: navigate to /research, confirm only two tabs (Search Launcher, Results Viewer), default tab is Search Launcher, thesis editor + skill-depth groups render, layout no longer broken. Combined with task-253 AC#7 smoke.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Executed Phase A/B/C2/D. Phase A verification confirmed identity Map coverage on inspection (PreferencesBand at IdentityMapPage.tsx:254, deep-link via task-217). Phase A also surfaced one Profile-tab-only affordance not present on the Search tab: the corrections textarea + custom directive input. Migrated those to the Search-tab thesis card body as a `<details>` panel under the card header; updated the existing Regenerate Thesis button at ResearchPage.tsx:~2820 to pass `userCorrections` + `customDirective` to handleGenerateThesis. Phase B deleted `<SearchInstancePreferences>` and `<SearchThesisWorkspace>` (and their unused helpers, constants, prop interfaces, and ConstraintChipGroup) from `searchWorkspaceComponents.tsx`; the file went from 660 lines to a minimal SearchAssumptionsDisclosure-only export (~45 lines). Phase B also dropped scoped CSS: `.research-thesis-workspace`, `.research-thesis-empty/body/angles*/narrative/controls`, `.research-skills-compact` family, `.research-icon-btn`, `.research-preferences-*`, `.research-hard-constraints*`, `.research-salary*`, `.research-chip-field`, and the associated media queries. Preserved `.research-btn-ghost` (still used by SearchAssumptionsDisclosure) and `.research-pill`. Phase C2 deleted the Profile Editor tab end to end: `ResearchTab` type, `RESEARCH_TABS`, `RESEARCH_TAB_DEFS`, default tab state (now 'search'), all four `setActiveTab('profile')` callsites (re-pointed to 'search' or removed), and the cross-workspace `Review Profile` button. Phase D dropped as moot. Added a `!effectiveProfile` empty-state guard at the top of the Search tab so the empty profile case still renders 'No search profile yet' (was previously rendered in the Profile tab). Test fallout: deleted `src/test/SearchInstancePreferences.editInIdentity.test.tsx` entirely; deleted 5 obsolete ResearchPage tests targeting deleted preference-panel surfaces; rewrote the keyboard-nav test for 2 tabs; updated the billing-issue test's tab assertion; updated the no-thesis-blocker test to keep profile present (so it exercises the no-thesis path, not the no-profile path). Validation: `npm run test -- --run` green (170 files, 2375 tests). `npx eslint` on touched files clean. `npm run typecheck` had 4 pre-existing errors in prep files (m-32 prep-card-shape-refactor in another agent's working tree) that are unrelated to this task and outside its touched-files scope.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
