@@ -1,11 +1,11 @@
 ---
 id: TASK-260
 title: Multi-file intake bay and discriminated intake-source store
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 06:51'
+updated_date: '2026-05-11 07:00'
 labels:
   - feature
   - identity
@@ -59,9 +59,9 @@ REFERENCES:
 - [x] #5 Each source rendered as a file card showing filename, page count, role/bullet/skill counts, optional userLabel text input, and a remove button
 - [x] #6 Sequential scan of dropped files; individual scan failure does not abort the batch and surfaces error inline on the failing card
 - [x] #7 N=1 flow (Generate Draft, Deepen All, Rescan, Clear) behaves identically to the previous single-file behavior
-- [ ] #8 Cap of 10 sources enforced with an inline warning on above-cap files; remove action still works on above-cap files
+- [x] #8 Cap of 10 sources enforced with an inline warning on above-cap files; remove action still works on above-cap files
 - [x] #9 Existing IdentityPage.test.tsx and identityStore.test.ts updated to the new store shape; all pre-existing assertions still pass under N=1
-- [ ] #10 New tests cover: multi-file drop sequencing, mid-batch scan failure isolation, source removal, cap enforcement, userLabel persistence in store
+- [x] #10 New tests cover: multi-file drop sequencing, mid-batch scan failure isolation, source removal, cap enforcement, userLabel persistence in store
 - [x] #11 Short JSDoc on the IntakeSource union explaining the discriminator and the seam intent for future Phase 2/3 sources
 <!-- AC:END -->
 
@@ -133,14 +133,26 @@ Typecheck clean; full suite 2370/2370 passing; lint clean on touched files. Test
 **Remaining work:**
 - Commit 4 (`feat(identity): enforce 10-source intake cap`): AC #8
 - Test commit covering AC #10 (multi-file flow tests)
+
+4. `feat(identity): enforce 10-source intake cap` (commit b1d4122) — adds `INTAKE_SOURCE_CAP = 10` next to the `IntakeSource` type, renders an 'Over cap' badge + muted styling on cards at index >= 10, and surfaces a banner-style warning above the source list. Remove still works on above-cap sources. Also fixes wrong CSS tokens shipped in commit b3e3647 (`--status-critical` / `--status-warning` are undefined; the codebase defines `--error` / `--warning`).
+
+5. `test(identity): multi-source intake flow coverage` (commit ba59e70) — 11 new tests for AC #10. identityStore.test.ts: append order, draftDocument seeded only on first append, remove non-active vs active, no-op on unknown id, userLabel trim/clear, persist roundtrip including userLabel. IdentityPage.test.tsx: multi-file drop sequencing, mid-batch failure isolation via inline error card, per-card remove button, cap warning + 'Over cap' badge at N=11 (driven by setState to avoid 11 scan invocations).
+
+**Final state:** 100/100 identity tests passing. Full suite: 2374 tests, 8 pre-existing failures in ResearchPage.test.tsx confirmed unrelated to m-33 (failures present without my changes; stash-isolated and validated). Lint clean on all touched files. All ACs satisfied; task closed Done.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Multi-source identity intake foundation landed in 5 commits: type addition, store refactor (N=1 preserved), multi-file UI, 10-source cap, and test coverage. The `intakeSources: IntakeSource[]` array supersedes the single `scanResult` slot; future Phase 2 (jd) and Phase 3 (agent-dump) variants plug in additively. All 11 ACs satisfied; unblocks TASK-261 (cross-source synthesis utility) and downstream m-33 work.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
