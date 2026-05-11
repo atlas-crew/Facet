@@ -1,9 +1,11 @@
 ---
 id: TASK-254
 title: Refactor PrepCard to discriminated union keyed on `kind`
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@myself'
 created_date: '2026-05-11 04:52'
+updated_date: '2026-05-11 04:55'
 labels:
   - prep
   - types
@@ -49,6 +51,18 @@ This task does NOT introduce Scenario or Anchor visible behavior — it only lay
 - [ ] #10 npm run typecheck passes with no `as` casts or `any` annotations introduced to silence the union
 - [ ] #11 Regression tests cover the PrepCardView dispatch and the contract validator's kind-checking
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add the PrepCardKind discriminator, base interface, per-kind card interfaces, and exported type guards in src/types/prep.ts while preserving the current story-shaped fields for existing behavior.\n2. Update generator normalization and dev/test fixtures so every produced PrepCard declares an explicit kind, defaulting current generated cards to story unless the existing category clearly maps to opener/closer/intel.\n3. Update validatePrepDeckOutput to require kind and reject values outside PREP_CARD_KIND_VALUES.\n4. Add a kind-based PrepCardView dispatch wrapper with placeholder branches for future kind-specific renderers, while preserving current read-only/edit output.\n5. Add focused regression coverage for kind validation and renderer dispatch, then run format, focused tests, touched-file lint, typecheck/build as appropriate.\n6. Update TASK-254 acceptance criteria/DoD and commit only the touched task/code/test files with cortex git commit.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Started TASK-254 from milestone m-32. Loaded agent-loops plus Facet placement, architecture, and persistence guidance. Scope is the union foundation only; no Scenario or Anchor visible behavior in this slice.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
