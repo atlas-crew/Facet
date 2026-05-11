@@ -126,6 +126,8 @@ interface IdentityState {
   updateCurrentProfiles: (value: ProfessionalProfile[]) => void
   updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
   updateCurrentSelfModelArc: (value: ProfessionalIdentityArcEntry[]) => void
+  updateCurrentCompetitiveMoat: (value: string) => void
+  updateCurrentUnfairAdvantages: (value: string[]) => void
   updateCurrentRoles: (value: ProfessionalIdentityV3['roles']) => void
   updateCurrentProjects: (value: ProfessionalProject[]) => void
   updateCurrentSkillGroups: (value: ProfessionalSkillGroup[]) => void
@@ -1317,6 +1319,33 @@ export const useIdentityStore = create<IdentityState>()(
               arc: value,
             },
           })),
+        ),
+      updateCurrentCompetitiveMoat: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => {
+            const trimmed = value.trim()
+            const { competitive_moat: _existing, ...rest } = identity.self_model
+            return {
+              ...identity,
+              self_model: trimmed
+                ? { ...rest, competitive_moat: trimmed }
+                : rest,
+            }
+          }),
+        ),
+      updateCurrentUnfairAdvantages: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => {
+            const cleaned = value.map((s) => s.trim()).filter((s) => s.length > 0)
+            const { unfair_advantages: _existing, ...rest } = identity.self_model
+            return {
+              ...identity,
+              self_model:
+                cleaned.length > 0
+                  ? { ...rest, unfair_advantages: cleaned }
+                  : rest,
+            }
+          }),
         ),
       updateCurrentRoles: (value) =>
         set((state) =>

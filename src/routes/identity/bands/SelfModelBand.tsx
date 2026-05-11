@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
@@ -23,12 +23,37 @@ export function SelfModelBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
+  const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
   const fill = selfModelFillStrength(identity)
 
   const self = identity?.self_model
   const arc = useMemo(() => buildArcStops(self?.arc ?? []), [self?.arc])
   const philosophy = self?.philosophy ?? []
   const interview = self?.interview_style
+  const moat = self?.competitive_moat ?? ''
+  const advantages = useMemo(() => self?.unfair_advantages ?? [], [self?.unfair_advantages])
+
+  // Local draft state for moat + advantages-add input. Re-syncs when the
+  // canonical identity values change (e.g., after import or reset).
+  const [moatDraft, setMoatDraft] = useState(moat)
+  const [newAdvantage, setNewAdvantage] = useState('')
+  useEffect(() => {
+    setMoatDraft(moat)
+  }, [moat])
+
+  const commitMoat = () => {
+    if (moatDraft !== moat) updateCompetitiveMoat(moatDraft)
+  }
+  const handleAddAdvantage = () => {
+    const trimmed = newAdvantage.trim()
+    if (!trimmed) return
+    updateUnfairAdvantages([...advantages, trimmed])
+    setNewAdvantage('')
+  }
+  const handleRemoveAdvantage = (index: number) => {
+    updateUnfairAdvantages(advantages.filter((_, i) => i !== index))
+  }
 
   return (
     <IdentityBand
@@ -112,6 +137,75 @@ export function SelfModelBand() {
             label="Prep Strategy"
             items={interview?.prep_strategy?.trim() ? [interview.prep_strategy.trim()] : []}
           />
+        </div>
+
+        <div className="self-positioning">
+          <div className="arc-label label-tracked">Strategic Positioning</div>
+          <div className="self-positioning-block">
+            <div className="self-positioning-label label-tracked">Competitive Moat</div>
+            <textarea
+              className="self-moat-textarea"
+              rows={3}
+              value={moatDraft}
+              onChange={(event) => setMoatDraft(event.target.value)}
+              onBlur={commitMoat}
+              placeholder="What makes you structurally different? e.g. 'Production Kubernetes plus product-aware platform judgment.'"
+              aria-label="Competitive moat"
+              disabled={!identity}
+            />
+          </div>
+
+          <div className="self-positioning-block">
+            <div className="self-positioning-label label-tracked">
+              Unfair Advantages <span className="self-count">{advantages.length}</span>
+            </div>
+            {advantages.length === 0 ? (
+              <p className="chapter-copy self-empty">
+                No unfair advantages captured yet. The thesis generator expands each
+                advantage into a target-company-profile lens at search time.
+              </p>
+            ) : (
+              <ul className="self-advantage-list">
+                {advantages.map((advantage, index) => (
+                  <li key={`${index}-${advantage}`} className="self-advantage-item">
+                    <span className="self-advantage-text">{advantage}</span>
+                    <button
+                      type="button"
+                      className="inspector-btn self-advantage-remove"
+                      onClick={() => handleRemoveAdvantage(index)}
+                      aria-label={`Remove "${advantage}"`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="self-advantage-add">
+              <input
+                className="self-advantage-input"
+                value={newAdvantage}
+                onChange={(event) => setNewAdvantage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    handleAddAdvantage()
+                  }
+                }}
+                placeholder='e.g. "Platform engineering plus security depth"'
+                aria-label="New unfair advantage"
+                disabled={!identity}
+              />
+              <button
+                type="button"
+                className="inspector-btn"
+                onClick={handleAddAdvantage}
+                disabled={!identity || !newAdvantage.trim()}
+              >
+                + Add
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </IdentityBand>

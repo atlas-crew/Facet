@@ -148,12 +148,19 @@ export function selfModelFillStrength(identity: ProfessionalIdentityV3 | null): 
   const arc = self?.arc ?? []
   const philosophy = self?.philosophy ?? []
   const interview = self?.interview_style
-  const arcScore = arc.length > 0 || (identity.roles?.length ?? 0) > 0 ? 25 : 0
-  const philoScore = philosophy.length >= 2 ? 35 : philosophy.length === 1 ? 17 : 0
-  const strengthsScore = (interview?.strengths?.length ?? 0) >= 2 ? 20 : (interview?.strengths?.length ?? 0) === 1 ? 10 : 0
+  const moat = self?.competitive_moat?.trim() ?? ''
+  const advantages = self?.unfair_advantages ?? []
+  const arcScore = arc.length > 0 || (identity.roles?.length ?? 0) > 0 ? 20 : 0
+  const philoScore = philosophy.length >= 2 ? 25 : philosophy.length === 1 ? 12 : 0
+  const strengthsScore =
+    (interview?.strengths?.length ?? 0) >= 2 ? 15 : (interview?.strengths?.length ?? 0) === 1 ? 7 : 0
   const weaknessesScore = (interview?.weaknesses?.length ?? 0) >= 1 ? 10 : 0
   const prepScore = interview?.prep_strategy?.trim() ? 10 : 0
-  const percent = clamp(arcScore + philoScore + strengthsScore + weaknessesScore + prepScore)
+  const moatScore = moat ? 10 : 0
+  const advantagesScore = advantages.length >= 2 ? 10 : advantages.length === 1 ? 5 : 0
+  const percent = clamp(
+    arcScore + philoScore + strengthsScore + weaknessesScore + prepScore + moatScore + advantagesScore,
+  )
   return {
     label: labelForPercent(percent, [[80, 'Strong'], [50, 'Solid'], [20, 'Sparse']], 'Empty'),
     percent,

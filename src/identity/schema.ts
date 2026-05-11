@@ -66,6 +66,19 @@ export interface ProfessionalSelfModel {
   arc: ProfessionalIdentityArcEntry[]
   philosophy: ProfessionalPhilosophyEntry[]
   interview_style: ProfessionalInterviewStyle
+  /**
+   * What makes this candidate structurally different. Authored by the user as
+   * narrative interpretation; snapshot onto SearchThesis at thesis-generation
+   * time so historical theses reflect what was true at run time.
+   */
+  competitive_moat?: string
+  /**
+   * Rare skill combinations or positioning angles the user wants surfaced in
+   * search. Stored here as plain strings; the thesis generator expands each
+   * into the structured SearchUnfairAdvantage shape (with targetCompanyProfile)
+   * at search time.
+   */
+  unfair_advantages?: string[]
 }
 
 export interface ProfessionalPreferencePriority {
@@ -1102,6 +1115,22 @@ export const importProfessionalIdentity = (
           'self_model.interview_style.prep_strategy',
         ),
       },
+      ...(selfModel.competitive_moat !== undefined
+        ? {
+            competitive_moat: assertString(
+              selfModel.competitive_moat,
+              'self_model.competitive_moat',
+            ),
+          }
+        : {}),
+      ...(selfModel.unfair_advantages !== undefined
+        ? {
+            unfair_advantages: assertStringArray(
+              selfModel.unfair_advantages,
+              'self_model.unfair_advantages',
+            ),
+          }
+        : {}),
     },
     preferences: {
       compensation: {
