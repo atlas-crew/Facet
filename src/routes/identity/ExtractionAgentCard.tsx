@@ -1,14 +1,21 @@
-import { RefreshCcw, ScanSearch, Sparkles, Upload, X } from 'lucide-react'
+import { AlertCircle, RefreshCcw, ScanSearch, Sparkles, Upload, X } from 'lucide-react'
 import type { ChangeEvent, DragEvent, RefObject } from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import type {
   IdentityIntakeMode,
   IdentityExtractionDraft,
+  IntakeSource,
   ResumeScanResult,
 } from '../../types/identity'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import { ScanReviewPane } from './ScanReviewPane'
 import { SOURCE_MATERIAL_SAMPLES } from './sampleSourceMaterial'
+
+interface FailedFileEntry {
+  id: string
+  name: string
+  error: string
+}
 
 interface ExtractionAgentCardProps {
   statusLabel?: string
@@ -18,6 +25,8 @@ interface ExtractionAgentCardProps {
   currentIdentity: ProfessionalIdentityV3 | null
   draft: IdentityExtractionDraft | null
   scanResult: ResumeScanResult | null
+  intakeSources: IntakeSource[]
+  failedFiles: FailedFileEntry[]
   scanCompletion: {
     extractedBullets: number
     decomposedBullets: number
@@ -35,6 +44,10 @@ interface ExtractionAgentCardProps {
   onCancelDeepenAll: () => void
   onUploadChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
   onDrop: (event: DragEvent<HTMLDivElement>) => Promise<void>
+  onRescan: () => void
+  onRemoveSource: (id: string) => void
+  onSetSourceLabel: (id: string, label: string) => void
+  onDismissFailedFile: (id: string) => void
   onClearScan: () => void
   onUpdateIdentityCore: (
     field: keyof ProfessionalIdentityV3['identity'],
@@ -86,6 +99,8 @@ export function ExtractionAgentCard({
   currentIdentity,
   draft,
   scanResult,
+  intakeSources,
+  failedFiles,
   scanCompletion,
   bulkStatus,
   isGenerating,
@@ -100,6 +115,10 @@ export function ExtractionAgentCard({
   onCancelDeepenAll,
   onUploadChange,
   onDrop,
+  onRescan,
+  onRemoveSource,
+  onSetSourceLabel,
+  onDismissFailedFile,
   onClearScan,
   onUpdateIdentityCore,
   onUpdateRole,
@@ -171,6 +190,7 @@ export function ExtractionAgentCard({
         ref={uploadRef}
         type="file"
         accept="application/pdf,.pdf"
+        multiple
         className="sr-only"
         onChange={(event) => void onUploadChange(event)}
       />
@@ -201,14 +221,83 @@ export function ExtractionAgentCard({
           >
             <Upload size={22} aria-hidden="true" />
             <strong>
-              {isScanning ? 'Scanning PDF…' : 'Drag a resume PDF here or click to browse'}
+              {isScanning ? 'Scanning PDF…' : 'Drag resume PDFs here or click to browse'}
             </strong>
           </div>
           <p className="identity-muted">
             Resume Scanner v1 is PDF-only and performs a local structural parse before any AI call.
-            Use a text-based, single-column PDF. OCR and image-only resumes are out of scope for
-            this pass.
+            Use text-based, single-column PDFs. OCR and image-only resumes are out of scope for this
+            pass. Drop multiple resumes to feed variant context into the draft.
           </p>
+          {intakeSources.length > 0 || failedFiles.length > 0 ? (
+            <ul className="identity-source-list" aria-label="Intake sources">
+              {intakeSources.map((source, index) => {
+                if (source.kind !== 'resume') {
+                  return null
+                }
+                const isActive = index === 0
+                return (
+                  <li
+                    key={source.id}
+                    className={`identity-source-card${isActive ? ' identity-source-card-active' : ''}`}
+                  >
+                    <div className="identity-source-card-row">
+                      <strong>{source.scan.fileName}</strong>
+                      <span className="identity-muted">{source.scan.pageCount} page(s)</span>
+                      {isActive ? (
+                        <span className="identity-source-card-badge">Primary</span>
+                      ) : null}
+                      <button
+                        className="identity-btn identity-btn-icon"
+                        type="button"
+                        onClick={() => onRemoveSource(source.id)}
+                        aria-label={`Remove ${source.scan.fileName}`}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="identity-source-card-stats">
+                      <span>Roles {source.scan.counts.roles}</span>
+                      <span>Bullets {source.scan.counts.bullets}</span>
+                      <span>Skill groups {source.scan.counts.skillGroups}</span>
+                      <span>Projects {source.scan.counts.projects}</span>
+                    </div>
+                    <label className="identity-source-card-label">
+                      <span className="identity-label">Positioning hint</span>
+                      <input
+                        className="identity-input"
+                        type="text"
+                        value={source.userLabel ?? ''}
+                        onChange={(event) => onSetSourceLabel(source.id, event.target.value)}
+                        placeholder="e.g. platform, security, backend"
+                      />
+                    </label>
+                  </li>
+                )
+              })}
+              {failedFiles.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="identity-source-card identity-source-card-error"
+                  role="alert"
+                >
+                  <div className="identity-source-card-row">
+                    <AlertCircle size={14} aria-hidden="true" />
+                    <strong>{entry.name}</strong>
+                    <button
+                      className="identity-btn identity-btn-icon"
+                      type="button"
+                      onClick={() => onDismissFailedFile(entry.id)}
+                      aria-label={`Dismiss ${entry.name}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <p className="identity-source-card-error-message">{entry.error}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {scanResult ? (
             <>
               <div className="identity-stack">
@@ -324,14 +413,12 @@ export function ExtractionAgentCard({
                     <X size={16} />
                     {bulkStatus === 'cancelling' ? 'Cancelling…' : 'Cancel'}
                   </button>
-                  <button
-                    className="identity-btn"
-                    type="button"
-                    onClick={() => uploadRef.current?.click()}
-                  >
-                    <RefreshCcw size={16} />
-                    Rescan PDF
-                  </button>
+                  {intakeSources.length <= 1 ? (
+                    <button className="identity-btn" type="button" onClick={onRescan}>
+                      <RefreshCcw size={16} />
+                      Rescan PDF
+                    </button>
+                  ) : null}
                   <button className="identity-btn" type="button" onClick={onClearScan}>
                     <X size={16} />
                     Clear Scan

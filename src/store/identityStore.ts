@@ -76,6 +76,9 @@ interface IdentityState {
   setDraft: (draft: IdentityExtractionDraft) => void
   setDraftDocument: (value: string) => void
   setScanResult: (value: ResumeScanResult | null) => void
+  appendIntakeSource: (source: IntakeSource) => void
+  removeIntakeSource: (id: string) => void
+  setIntakeSourceLabel: (id: string, label: string) => void
   updateScannedIdentityCore: (
     field: keyof ProfessionalIdentityV3['identity'],
     value: string | boolean | ProfessionalIdentityV3['identity']['links'],
@@ -887,6 +890,64 @@ export const useIdentityStore = create<IdentityState>()(
             warnings: nextScanResult.warnings.map((warning) => warning.message),
             lastError: null,
           }
+        }),
+      appendIntakeSource: (source) =>
+        set((state) => {
+          if (source.kind === 'resume') {
+            const identity = normalizeRuntimeProfessionalIdentity(source.scan.identity)
+            const progress = normalizeScanProgress(identity, source.scan.progress)
+            const normalizedScan: ResumeScanResult = {
+              ...source.scan,
+              identity,
+              progress,
+              counts: recalculateScanCounts(identity, progress),
+            }
+            const normalized: IntakeSource = { ...source, scan: normalizedScan }
+            const isFirstSource = state.intakeSources.length === 0
+            return {
+              intakeSources: [...state.intakeSources, normalized],
+              draftDocument: isFirstSource ? formatIdentityDocument(identity) : state.draftDocument,
+              warnings: isFirstSource
+                ? normalizedScan.warnings.map((warning) => warning.message)
+                : state.warnings,
+              lastError: null,
+            }
+          }
+          return { intakeSources: [...state.intakeSources, source] }
+        }),
+      removeIntakeSource: (id) =>
+        set((state) => {
+          const wasActive = state.intakeSources[0]?.id === id
+          const nextSources = state.intakeSources.filter((entry) => entry.id !== id)
+          if (nextSources.length === state.intakeSources.length) {
+            return {}
+          }
+          if (!wasActive) {
+            return { intakeSources: nextSources }
+          }
+          const newActive = nextSources[0]
+          if (newActive?.kind === 'resume') {
+            return {
+              intakeSources: nextSources,
+              draftDocument: formatIdentityDocument(newActive.scan.identity),
+              warnings: newActive.scan.warnings.map((warning) => warning.message),
+            }
+          }
+          return {
+            intakeSources: nextSources,
+            draftDocument: '',
+            warnings: [],
+          }
+        }),
+      setIntakeSourceLabel: (id, label) =>
+        set((state) => {
+          const trimmed = label.trim()
+          const nextSources = state.intakeSources.map((entry) =>
+            entry.id === id
+              ? ({ ...entry, userLabel: trimmed.length > 0 ? trimmed : undefined } as IntakeSource)
+              : entry,
+          )
+          return { intakeSources: nextSources }
         }),
       updateScannedIdentityCore: (field, value) =>
         set((state) =>

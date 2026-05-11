@@ -7,7 +7,7 @@ import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { type IdentityApplyMode } from '../../types/identity'
 import { facetClientEnv } from '../../utils/facetEnv'
-import { sanitizeEndpointUrl } from '../../utils/idUtils'
+import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
   deepenIdentityBullet,
   generateIdentityDraft,
@@ -62,11 +62,17 @@ export function IdentityPage() {
   const scanAbortRef = useRef<AbortController | null>(null)
   // Single-bullet and bulk deepening are intentionally mutually exclusive in the UI.
   const deepenAbortRef = useRef<AbortController | null>(null)
+  // Set to true when "Rescan" triggers the file picker, so the next upload-change
+  // event treats the first file as a primary-source replacement rather than an append.
+  const rescanModeRef = useRef(false)
   const [pendingModelScrollTarget, setPendingModelScrollTarget] = useState<'draft' | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
   const [pageNotice, setPageNotice] = useState<string | null>(null)
+  // Transient list of files that failed to scan within a batch. Surfaces inline
+  // per AC #6; never persisted, dismissed manually by the user.
+  const [failedFiles, setFailedFiles] = useState<{ id: string; name: string; error: string }[]>([])
   const intakeMode = useIdentityStore((state) => state.intakeMode)
   const sourceMaterial = useIdentityStore((state) => state.sourceMaterial)
   const correctionNotes = useIdentityStore((state) => state.correctionNotes)
@@ -82,6 +88,10 @@ export function IdentityPage() {
   const setDraft = useIdentityStore((state) => state.setDraft)
   const setDraftDocument = useIdentityStore((state) => state.setDraftDocument)
   const setScanResult = useIdentityStore((state) => state.setScanResult)
+  const intakeSources = useIdentityStore((state) => state.intakeSources)
+  const appendIntakeSource = useIdentityStore((state) => state.appendIntakeSource)
+  const removeIntakeSource = useIdentityStore((state) => state.removeIntakeSource)
+  const setIntakeSourceLabel = useIdentityStore((state) => state.setIntakeSourceLabel)
   const updateScannedIdentityCore = useIdentityStore((state) => state.updateScannedIdentityCore)
   const updateScannedRole = useIdentityStore((state) => state.updateScannedRole)
   const updateScannedBulletSourceText = useIdentityStore(
@@ -240,47 +250,83 @@ export function IdentityPage() {
     }
   }
 
-  const handleScannedFile = async (file: File) => {
+  const recordFailedFile = (name: string, error: string) => {
+    setFailedFiles((prev) => [...prev, { id: createId('intake-failed'), name, error }])
+  }
+
+  const handleScannedFile = async (file: File, options: { replace: boolean }) => {
     if (!/\.pdf$/i.test(file.name)) {
-      setPageNotice(null)
-      setPageError('Resume Scanner v1 only supports PDF uploads.')
+      if (options.replace) {
+        setPageNotice(null)
+        setPageError('Resume Scanner v1 only supports PDF uploads.')
+      } else {
+        recordFailedFile(file.name, 'Only PDF uploads are supported.')
+      }
       return
     }
 
     let controller: AbortController | null = null
     try {
-      deepenAbortRef.current?.abort()
-      scanAbortRef.current?.abort()
+      if (options.replace) {
+        deepenAbortRef.current?.abort()
+        scanAbortRef.current?.abort()
+      }
       controller = new AbortController()
       scanAbortRef.current = controller
       setIsScanning(true)
-      setPageError(null)
-      setPageNotice(null)
+      if (options.replace) {
+        setPageError(null)
+        setPageNotice(null)
+      }
       const result = await scanResumePdf(file, { signal: controller.signal })
       if (controller.signal.aborted) {
         return
       }
-      setSourceMaterial(result.rawText)
 
+      if (options.replace) {
+        setSourceMaterial(result.rawText)
+
+        if (result.identity.roles.length === 0) {
+          setScanResult(null)
+          setIntakeMode('paste')
+          setPageNotice(
+            result.warnings.find((warning) => warning.code === 'role-parse-fallback')?.message ??
+              'Resume text extraction succeeded, but structural role parsing failed. The raw text is now loaded into paste-text mode.',
+          )
+          return
+        }
+
+        setScanResult(result)
+        setIntakeMode('upload')
+        setPageNotice(`Scanned ${file.name} into a structured identity shell.`)
+        return
+      }
+
+      // Append mode: each successful scan becomes a new IntakeSource. 0-role
+      // scans are treated as a per-file failure and surfaced inline rather than
+      // triggering the N=1 paste-mode fallback (which would clobber the batch).
       if (result.identity.roles.length === 0) {
-        setScanResult(null)
-        setIntakeMode('paste')
-        setPageNotice(
+        recordFailedFile(
+          file.name,
           result.warnings.find((warning) => warning.code === 'role-parse-fallback')?.message ??
-            'Resume text extraction succeeded, but structural role parsing failed. The raw text is now loaded into paste-text mode.',
+            'Structural role parsing failed for this PDF.',
         )
         return
       }
 
-      setScanResult(result)
+      appendIntakeSource({ kind: 'resume', id: createId('intake'), scan: result })
       setIntakeMode('upload')
-      setPageNotice(`Scanned ${file.name} into a structured identity shell.`)
     } catch (error) {
       if (controller?.signal.aborted && error instanceof DOMException) {
         return
       }
-      setPageNotice(null)
-      setPageError(error instanceof Error ? error.message : 'Resume scan failed.')
+      const message = error instanceof Error ? error.message : 'Resume scan failed.'
+      if (options.replace) {
+        setPageNotice(null)
+        setPageError(message)
+      } else {
+        recordFailedFile(file.name, message)
+      }
     } finally {
       if (controller && scanAbortRef.current === controller && !controller.signal.aborted) {
         setIsScanning(false)
@@ -291,14 +337,33 @@ export function IdentityPage() {
     }
   }
 
-  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) {
-      return
+  const scanFileBatch = async (files: File[]) => {
+    if (files.length === 0) return
+    setIntakeMode('upload')
+
+    const isRescan = rescanModeRef.current
+    rescanModeRef.current = false
+    const startingEmpty = useIdentityStore.getState().intakeSources.length === 0
+    // Preserve N=1 single-file semantics: an explicit Rescan, or the very first
+    // upload of a single file when no sources exist, replaces the primary slot
+    // (matching the legacy pre-multi-source flow). Everything else appends.
+    const replaceFirstFile = isRescan || (startingEmpty && files.length === 1)
+
+    if (replaceFirstFile) {
+      setPageError(null)
+      setPageNotice(null)
     }
 
-    await handleScannedFile(file)
+    for (let i = 0; i < files.length; i++) {
+      const replace = replaceFirstFile && i === 0
+      await handleScannedFile(files[i], { replace })
+    }
+  }
+
+  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
     event.target.value = ''
+    await scanFileBatch(files)
   }
 
   const handleRequestUpload = () => {
@@ -306,6 +371,23 @@ export function IdentityPage() {
     // Keep the chooser inside the original user gesture. The input is always
     // mounted, so deferring this click can cause browsers to reject it.
     uploadRef.current?.click()
+  }
+
+  const handleRescan = () => {
+    rescanModeRef.current = true
+    uploadRef.current?.click()
+  }
+
+  const handleRemoveIntakeSource = (id: string) => {
+    removeIntakeSource(id)
+  }
+
+  const handleSetIntakeSourceLabel = (id: string, label: string) => {
+    setIntakeSourceLabel(id, label)
+  }
+
+  const handleDismissFailedFile = (id: string) => {
+    setFailedFiles((prev) => prev.filter((entry) => entry.id !== id))
   }
 
   const handleContinueSkillEnrichment = () => {
@@ -327,13 +409,8 @@ export function IdentityPage() {
   const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.stopPropagation()
-    setIntakeMode('upload')
-    const file = event.dataTransfer.files?.[0]
-    if (!file) {
-      return
-    }
-
-    await handleScannedFile(file)
+    const files = Array.from(event.dataTransfer.files ?? [])
+    await scanFileBatch(files)
   }
 
   const handleDeepenBullet = async (roleId: string, bulletId: string) => {
@@ -917,6 +994,8 @@ export function IdentityPage() {
               currentIdentity={currentIdentity}
               draft={draft}
               scanResult={scanResult}
+              intakeSources={intakeSources}
+              failedFiles={failedFiles}
               scanCompletion={scanCompletion}
               bulkStatus={bulkStatus}
               isGenerating={isGenerating}
@@ -931,9 +1010,14 @@ export function IdentityPage() {
               onCancelDeepenAll={handleCancelDeepenAll}
               onUploadChange={handleUploadChange}
               onDrop={handleDrop}
+              onRescan={handleRescan}
+              onRemoveSource={handleRemoveIntakeSource}
+              onSetSourceLabel={handleSetIntakeSourceLabel}
+              onDismissFailedFile={handleDismissFailedFile}
               onClearScan={() => {
                 deepenAbortRef.current?.abort()
                 setScanResult(null)
+                setFailedFiles([])
                 setPageNotice('Cleared the scanned resume structure.')
               }}
               onUpdateIdentityCore={updateScannedIdentityCore}

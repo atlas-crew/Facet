@@ -402,7 +402,7 @@ describe('IdentityPage', () => {
   it('scans a dropped PDF from the upload zone', async () => {
     render(<IdentityPage />)
 
-    fireEvent.drop(screen.getByText('Drag a resume PDF here or click to browse'), {
+    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
       dataTransfer: {
         files: [new File(['%PDF-1.4'], 'resume.pdf', { type: 'application/pdf' })],
       },
