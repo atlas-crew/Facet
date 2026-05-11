@@ -4,12 +4,14 @@ title: Proposed-vectors review pane and acceptance flow
 status: To Do
 assignee: []
 created_date: '2026-05-11 05:20'
+updated_date: '2026-05-11 05:21'
 labels:
   - feature
   - identity
   - multi-source-intake
 milestone: m-33
-dependencies: []
+dependencies:
+  - TASK-262
 modified_files:
   - src/routes/identity/ProposedVectorsCard.tsx
   - src/routes/identity/IdentityPage.tsx
