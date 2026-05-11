@@ -1,4 +1,5 @@
 export { scanResumePdf } from './pdf'
+export { intakeSynthesis } from './intakeSynthesis'
 export {
   detectAmbiguousColumnLayout,
   extractDateFromRoleHeader,

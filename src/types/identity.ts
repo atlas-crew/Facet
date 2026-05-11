@@ -157,6 +157,39 @@ export type IntakeSource =
  */
 export const INTAKE_SOURCE_CAP = 10
 
+/**
+ * One raw bullet line from a single source, attributed back to the file it
+ * came from. Variant pools feed the prompt-time synthesis prompt; they are
+ * not persisted into the final identity (the LLM draft strips them).
+ */
+export interface IntakeBulletVariant {
+  /** Source filename (resume) or future-source agent name; whichever identifies the contributing file in the UI. */
+  source: string
+  /** Optional user-supplied positioning hint for this source ("platform", "security"...). */
+  label?: string
+  /** Raw bullet source text from the contributing scan. */
+  text: string
+}
+
+/**
+ * Result of the Stage-2 cross-source merge (m-33). Carries a unified seed
+ * identity plus per-role bullet variant pools attributed to source files.
+ * The seed identity is what the Stage-3 LLM consumes as `seedIdentity`; the
+ * variant pools are prompt-time fuel rendered into the synthesis prompt body.
+ *
+ * Roles are clustered by `(company.toLowerCase(), date_range_overlap)`. Within
+ * a cluster, the most-recently-scanned source wins on title and other scalar
+ * fields; older titles are preserved in `roleVariantTitles[roleId]` so the
+ * prompt can surface them as candidate alternatives.
+ */
+export interface SynthesisSeed {
+  identity: ProfessionalIdentityV3
+  /** Per-role-id list of raw bullet lines from every contributing source. */
+  bulletVariantPools: Record<string, IntakeBulletVariant[]>
+  /** Per-role-id list of older role titles superseded by the most-recent scan. */
+  roleVariantTitles: Record<string, string[]>
+}
+
 export interface IdentityChangeLogEntry {
   id: string
   createdAt: string
