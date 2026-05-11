@@ -3,10 +3,11 @@ id: TASK-205
 title: >-
   Move Constraints/Preferences/Skills off Profile Editor; promote LLM guesses
   back to identity
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - Nicholas Ferguson
 created_date: '2026-05-01 00:48'
-updated_date: '2026-05-08 23:26'
+updated_date: '2026-05-11 06:50'
 labels:
   - search-redesign
   - thesis-map
@@ -109,7 +110,67 @@ The earlier framing assumed a research-side Thesis Map workspace. Per doc-37 tha
 - [ ] #6 Test sweep covers any new identity Map affordances added in Phase A (with model_revision bumps and identity-version stamping)
 <!-- AC:END -->
 
+## Implementation Plan
 
+<!-- SECTION:PLAN:BEGIN -->
+## Implementation plan (Phase C decision: C2 — delete Profile Editor tab)
+
+User-confirmed Phase C decision: **C2 (delete tab, fold Generate Thesis into Search-tab flow)**. The Search tab already has its own Generate Thesis button at `ResearchPage.tsx:2876`, so C2 requires no new launcher placement.
+
+### Phase A — verification (mostly complete on inspection)
+
+Verified before deletion:
+- **`<SearchSkillsTable>` is already gone** from `src/routes/research/`. Zero references. The store action `toggleThesisHiddenSkill` (`searchStore.ts:137,915`) still exists but has zero UI callers (only `searchStore.test.ts` exercises it). Orphaned but harmless — flagged for a separate cleanup task, not in scope here.
+- **`<SearchInstancePreferences>` canonical home exists**: `IdentityMapPage.tsx:254` renders `<PreferencesBand />`. Task-217's `onNavigateToIdentity` deep-link from Research to `/identity?focus=preferences&return=/research` is already wired. No coverage gap.
+- **`<SearchThesisWorkspace>` (Profile-tab thesis surface)**: only consumer is the profile tab. The Search-tab inline thesis editor at `ResearchPage.tsx:2862-3598` covers thesis editing more comprehensively (lanes, lookFor, avoid, skill-depth, etc.). The Profile-tab-only affordances are: corrections textarea + directive input + Search Angles read-only view. These need to be either confirmed-present on the Search tab or migrated there. **Verification step during execution**: grep the Search-tab thesis editor for corrections/directive inputs before deleting SearchThesisWorkspace.
+
+### Phase B — delete components from Research
+
+**`ResearchPage.tsx` edits:**
+- Remove imports of `SearchInstancePreferences` and `SearchThesisWorkspace` from `'./searchWorkspaceComponents'` (line 83-87).
+- Remove the entire `<ResearchPanel tabId="profile">…</ResearchPanel>` block (lines 2815-2858).
+- Remove cross-workspace nav button that targets the profile tab (line ~2727, `<button … onClick={() => setActiveTab('profile')}>`).
+
+**`searchWorkspaceComponents.tsx` edits:**
+- Delete `SearchThesisWorkspace` export and its props interface (lines ~128-320).
+- Delete `SearchInstancePreferences` export and its props interface (lines ~322-end-of-component).
+- Trim imports that become unused after both deletions.
+
+**`research.css` edits:**
+- Delete `.research-preferences-*` rules (research.css:1263, 1269-1270, 1280, 1289-1290, 1297, 1304, 1311, 1320, 1328, 1332, 1425 media query, and any helpers I find).
+- Delete `.research-thesis-workspace`, `.research-thesis-empty`, `.research-thesis-body`, `.research-thesis-angles`, `.research-thesis-angle-*`, `.research-thesis-controls` rules.
+- Inspect `.research-grid-two` — keep if still used in the Search tab (line 2861 wraps the inline thesis section), drop only the dead profile-tab usage at line 2845.
+
+**Test edits:**
+- Delete `src/test/SearchInstancePreferences.editInIdentity.test.tsx` (397 lines, 9 tests, entire file targets a deleted component).
+- `src/test/ResearchPage.test.tsx`: remove or rewrite tests that interact with deleted Profile-tab surfaces. Specifically the look-for/avoid signal-routing tests (`'routes preference-panel look-for signal edits to the thesis strategy surface'`, `'routes preference-panel avoid signal edits…'`, `'keeps preference-panel thesis signals read-only without legacy filter toggles'`, plus any test that clicks a `'Profile Editor'` tab role or relies on profile being the default tab). Tests that already click `'Search Launcher'` keep working — the click is a no-op once 'search' is the default.
+
+### Phase C2 — delete the Profile Editor tab
+
+`ResearchPage.tsx` edits:
+- Line 90: `type ResearchTab = 'profile' | 'search' | 'results'` → `type ResearchTab = 'search' | 'results'`
+- Line 93: drop `'profile'` from `RESEARCH_TABS`.
+- Line 94-99: drop `{ id: 'profile', label: 'Profile Editor' }` from `RESEARCH_TAB_DEFS`.
+- Line 722: `useState<ResearchTab>('profile')` → `useState<ResearchTab>('search')`.
+- All `setActiveTab('profile')` callsites (lines 1470, 1596, 2443, 2727): replace with `setActiveTab('search')` or remove the call entirely if it was specifically routing to the profile tab's content. Audit each callsite during execution to decide.
+
+### Phase D — drop "Promote to Identity" per-list button work
+
+Original Phase D considered adding per-PreferenceList "Promote to Identity" buttons. Since `<SearchInstancePreferences>` is being deleted entirely in Phase B, this is moot. The deep-link bridge (task-217) is the canonical promote/edit path.
+
+### Out of scope (flagged, not pulled)
+
+- **"Keyword junk" in the Search-tab thesis editor** (user comment). The inline thesis editor at `ResearchPage.tsx:2862-3598` still exposes keyword combinations, lanes, hard-constraint flows, etc. Per doc-37 (Research is Discovery), this should slim down. NOT in task-205's scope (task-205 explicitly says "out of scope: any research-side Map UI"). Should be filed as a separate task if the user wants it next.
+- **Retiring `toggleThesisHiddenSkill` store action**: orphaned but harmless. Separate small cleanup.
+- **task-253 commit**: skill-depth grouping changes stay in the working tree alongside this task's edits. Commit strategy (one bundled commit or split) to be decided with user before finalizing.
+
+### Verification
+
+- `npm run typecheck`
+- `npm run test -- --run` (the full suite, since multiple test files are touched)
+- `npm run lint` scoped to touched files
+- Manual smoke: navigate to /research, confirm only two tabs (Search Launcher, Results Viewer), default tab is Search Launcher, thesis editor + skill-depth groups render, layout no longer broken. Combined with task-253 AC#7 smoke.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
