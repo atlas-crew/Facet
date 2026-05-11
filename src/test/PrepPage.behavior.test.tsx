@@ -152,7 +152,7 @@ beforeEach(() => {
     currentIdentity: null,
     draft: null,
     draftDocument: '',
-    scanResult: null,
+    intakeSources: [],
     warnings: [],
     changelog: [],
     lastError: null,
@@ -203,6 +203,7 @@ beforeEach(() => {
     cards: [
       {
         category: 'opener',
+        kind: 'opener',
         title: 'Tell me about yourself',
         tags: ['backend'],
         script: 'I build resilient backend systems and lead platform improvements.',
@@ -242,6 +243,7 @@ describe('PrepPage behavior follow-ups', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['backend'],
             script: 'I build resilient backend systems and lead platform improvements.',
@@ -270,6 +272,7 @@ describe('PrepPage behavior follow-ups', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Rebuilt AI follow-up',
             tags: ['backend'],
             script: 'I build resilient backend systems and lead platform improvements.',
@@ -526,6 +529,7 @@ describe('PrepPage behavior follow-ups', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['backend'],
             script: 'I build resilient backend systems and lead platform improvements.',
@@ -550,6 +554,7 @@ describe('PrepPage behavior follow-ups', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['backend'],
             script: 'I build resilient backend systems and lead platform improvements.',
@@ -610,6 +615,7 @@ describe('PrepPage behavior follow-ups', () => {
         {
           id: 'card-manual-intel',
           category: 'opener',
+          kind: 'opener',
           title: 'Tell me about yourself',
           tags: ['backend'],
           script: 'I build resilient backend systems and lead platform improvements.',
@@ -710,6 +716,7 @@ describe('PrepPage behavior follow-ups', () => {
         {
           id: 'card-1',
           category: 'behavioral',
+          kind: 'story',
           title: 'Leadership story',
           tags: ['leadership'],
           vectorId: 'backend',
@@ -898,6 +905,7 @@ describe('PrepPage behavior follow-ups', () => {
         {
           id: 'card-1',
           category: 'behavioral',
+          kind: 'story',
           title: 'Leadership story',
           tags: ['leadership'],
           vectorId: 'backend',
@@ -958,6 +966,7 @@ describe('PrepPage behavior follow-ups', () => {
             {
               id: 'card-opener',
               category: 'opener',
+              kind: 'opener',
               title: 'Tell me about yourself',
               tags: ['backend'],
               notes: 'General opener.',
@@ -965,6 +974,7 @@ describe('PrepPage behavior follow-ups', () => {
             {
               id: 'card-technical',
               category: 'technical',
+              kind: 'story',
               title: 'System design story',
               tags: ['backend'],
               notes: 'Includes a system diagram.',
@@ -972,6 +982,7 @@ describe('PrepPage behavior follow-ups', () => {
             {
               id: 'card-project',
               category: 'project',
+              kind: 'story',
               title: 'Migration story',
               tags: ['backend'],
               notes: 'A product migration example.',

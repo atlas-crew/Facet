@@ -24,6 +24,7 @@ describe('prepImport', () => {
                 id: 'prep-card-1',
                 title: 'Ownership story',
                 category: 'behavioral',
+                kind: 'story',
                 tags: ['ownership'],
               },
             ],
@@ -44,6 +45,7 @@ describe('prepImport', () => {
                 id: 'prep-card-2',
                 title: 'Scope story',
                 category: 'behavioral',
+                kind: 'story',
                 tags: [],
               },
             ],
@@ -74,5 +76,45 @@ describe('prepImport', () => {
         jdTextHash: null,
       }),
     )
+  })
+
+  it('infers missing legacy card kinds and malformed explicit kinds', async () => {
+    const file = new File(
+      [
+        JSON.stringify([
+          {
+            id: 'prep-card-legacy',
+            title: 'Legacy opener',
+            category: 'opener',
+            tags: ['intro'],
+          },
+          {
+            id: 'prep-card-invalid',
+            title: 'Invalid shape',
+            category: 'behavioral',
+            kind: 'freeform',
+            tags: [],
+          },
+        ]),
+      ],
+      'prep.json',
+      { type: 'application/json' },
+    )
+
+    const result = await parsePrepImport(file)
+
+    expect(result.error).toBeNull()
+    expect(result.decks).toHaveLength(1)
+    expect(result.decks[0]?.cards).toEqual([
+      expect.objectContaining({
+        id: 'prep-card-legacy',
+        kind: 'opener',
+      }),
+      expect.objectContaining({
+        id: 'prep-card-invalid',
+        kind: 'story',
+      }),
+    ])
+    expect(result.skipped).toBe(0)
   })
 })

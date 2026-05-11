@@ -143,6 +143,7 @@ describe('PrepPage', () => {
                 cards: [
                   {
                     category: 'opener',
+                    kind: 'opener',
                     title: 'Tell me about yourself',
                     tags: ['backend', 'acme'],
                     script: 'I build resilient backend systems and lead platform improvements.',
@@ -809,6 +810,7 @@ describe('PrepPage', () => {
             {
               id: 'card-leadership',
               category: 'behavioral',
+              kind: 'story',
               title: 'Leadership story',
               tags: ['leadership'],
             },
@@ -879,6 +881,7 @@ describe('PrepPage', () => {
             {
               id: 'card-round-1',
               category: 'behavioral',
+              kind: 'story',
               title: 'Leadership story',
               tags: ['leadership'],
               perRoundState: [
@@ -957,6 +960,7 @@ describe('PrepPage', () => {
             {
               id: 'card-round-1',
               category: 'behavioral',
+              kind: 'story',
               title: 'Leadership story',
               tags: ['leadership'],
               perRoundState: [{ round: 1, status: 'practice-this' }],
@@ -1101,6 +1105,7 @@ describe('PrepPage', () => {
             {
               id: 'card-1',
               category: 'behavioral',
+              kind: 'story',
               title: 'Support escalation story',
               tags: ['incident'],
             },

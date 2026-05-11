@@ -28,14 +28,31 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       'I came up through the quant track but always spent my best time on the systems side. The pivot to engineering was recognition, not change.',
     elaboration:
       'Three years as a quantitative analyst, four years as a backend engineer. I bring quant rigor to platform — pricing engines, risk-calc services, and market-data pipelines where correctness matters as much as latency.',
-    origin: 'Math BS at Yale, computational finance MS at CMU, Recurse Center for the engineering pivot. The pivot looks abrupt on paper; in practice the engineering work had been the part of every quant role I cared about.',
+    origin:
+      'Math BS at Yale, computational finance MS at CMU, Recurse Center for the engineering pivot. The pivot looks abrupt on paper; in practice the engineering work had been the part of every quant role I cared about.',
   },
   self_model: {
     arc: [
-      { company: 'Atlas Asset Management', chapter: 'Quant analyst building backtest and risk infrastructure — the part of the job I loved most.' },
-      { company: 'Recurse Center', chapter: 'Three months of deliberate practice to fill the systems gaps — recursion, OS, networking.' },
-      { company: 'Glide Treasury', chapter: 'Bridge role — translated quant model into production microservice and ran the on-call.' },
-      { company: 'Petalwise', chapter: 'Senior backend engineer owning pricing platform; quant background is the moat, not a footnote.' },
+      {
+        company: 'Atlas Asset Management',
+        chapter:
+          'Quant analyst building backtest and risk infrastructure — the part of the job I loved most.',
+      },
+      {
+        company: 'Recurse Center',
+        chapter:
+          'Three months of deliberate practice to fill the systems gaps — recursion, OS, networking.',
+      },
+      {
+        company: 'Glide Treasury',
+        chapter:
+          'Bridge role — translated quant model into production microservice and ran the on-call.',
+      },
+      {
+        company: 'Petalwise',
+        chapter:
+          'Senior backend engineer owning pricing platform; quant background is the moat, not a footnote.',
+      },
     ],
     philosophy: [
       {
@@ -66,10 +83,15 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
     compensation: {
       base_floor: 205000,
       base_target: 245000,
-      notes: 'Domain fintech roles can pay above the band — quant-engineer dual qualification is rare and worth pricing in.',
+      notes:
+        'Domain fintech roles can pay above the band — quant-engineer dual qualification is rare and worth pricing in.',
       priorities: [
         { item: 'base salary', weight: 'high' },
-        { item: 'bonus structure', weight: 'medium', notes: 'Discretionary bonus over equity at private fintechs.' },
+        {
+          item: 'bonus structure',
+          weight: 'medium',
+          notes: 'Discretionary bonus over equity at private fintechs.',
+        },
       ],
     },
     work_model: {
@@ -82,10 +104,22 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         highest: 'M.S. Computational Finance, Carnegie Mellon University',
         show_on_resume: true,
       },
-      title_flexibility: ['Senior Backend Engineer', 'Senior Software Engineer', 'Quantitative Backend Engineer', 'Pricing Platform Engineer'],
+      title_flexibility: [
+        'Senior Backend Engineer',
+        'Senior Software Engineer',
+        'Quantitative Backend Engineer',
+        'Pricing Platform Engineer',
+      ],
     },
     interview_process: {
-      accepted_formats: ['hr-screen', 'hm-screen', 'tech-discussion', 'system-design', 'take-home', 'behavioral'],
+      accepted_formats: [
+        'hr-screen',
+        'hm-screen',
+        'tech-discussion',
+        'system-design',
+        'take-home',
+        'behavioral',
+      ],
       strong_fit_signals: [
         'Domain-grounded interview loops (system design in pricing/risk/trading).',
         'Take-home that respects time and grounds the loop in real work.',
@@ -102,13 +136,15 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         {
           id: 'fintech-domain',
           label: 'Fintech domain depth',
-          description: 'Roles where the quant-engineer bridge is the moat — pricing, risk, market data, trading systems.',
+          description:
+            'Roles where the quant-engineer bridge is the moat — pricing, risk, market data, trading systems.',
           weight: 'high',
         },
         {
           id: 'systems-with-math',
           label: 'Systems where math is load-bearing',
-          description: 'Backend roles where correctness is a latency requirement and quant rigor matters.',
+          description:
+            'Backend roles where correctness is a latency requirement and quant rigor matters.',
           weight: 'high',
         },
       ],
@@ -116,7 +152,8 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         {
           id: 'pure-leetcode',
           label: 'Pure leetcode loops',
-          description: 'Companies that gate exclusively on classical algorithm performance under time pressure.',
+          description:
+            'Companies that gate exclusively on classical algorithm performance under time pressure.',
           severity: 'soft',
         },
         {
@@ -133,7 +170,8 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       {
         id: 'backend',
         label: 'Backend Engineering',
-        positioning: 'Four years building production backend services with quant-grade correctness requirements.',
+        positioning:
+          'Four years building production backend services with quant-grade correctness requirements.',
         is_differentiator: true,
         items: [
           { name: 'Go', depth: 'strong', tags: ['backend', 'languages'] },
@@ -147,11 +185,16 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       {
         id: 'quant',
         label: 'Quantitative & Fintech',
-        positioning: 'Three years as a quant analyst plus four years building fintech backend — the bridge is the differentiator.',
+        positioning:
+          'Three years as a quant analyst plus four years building fintech backend — the bridge is the differentiator.',
         is_differentiator: true,
         items: [
           { name: 'Pricing engines', depth: 'strong', tags: ['quant', 'fintech'] },
-          { name: 'Risk modeling (VaR, stress testing)', depth: 'strong', tags: ['quant', 'fintech'] },
+          {
+            name: 'Risk modeling (VaR, stress testing)',
+            depth: 'strong',
+            tags: ['quant', 'fintech'],
+          },
           { name: 'Backtesting frameworks', depth: 'strong', tags: ['quant', 'fintech'] },
           { name: 'Market data pipelines', depth: 'strong', tags: ['quant', 'data'] },
           { name: 'Numerical methods', depth: 'strong', tags: ['quant'] },
@@ -190,18 +233,27 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       bullets: [
         {
           id: 'pw-streaming-pricing',
-          problem: 'Pricing engine ran in batch every five minutes; sales teams routinely quoted stale prices and customers churned on the discrepancy.',
-          action: 'Designed and shipped the streaming price engine — Kafka-backed event sourcing, in-memory price cache, gRPC fanout to consuming services.',
-          outcome: 'Price freshness moved from 5-minute batch to under 200ms; sales-team escalations on stale prices dropped to zero in three months.',
+          problem:
+            'Pricing engine ran in batch every five minutes; sales teams routinely quoted stale prices and customers churned on the discrepancy.',
+          action:
+            'Designed and shipped the streaming price engine — Kafka-backed event sourcing, in-memory price cache, gRPC fanout to consuming services.',
+          outcome:
+            'Price freshness moved from 5-minute batch to under 200ms; sales-team escalations on stale prices dropped to zero in three months.',
           impact: ['Price freshness 5min → 200ms', 'Sales escalations to zero in 3 months'],
-          metrics: { freshness_before_min: 5, freshness_after_ms: 200, escalations_after_months3: 0 },
+          metrics: {
+            freshness_before_min: 5,
+            freshness_after_ms: 200,
+            escalations_after_months3: 0,
+          },
           technologies: ['Go', 'Kafka', 'gRPC', 'PostgreSQL'],
           tags: ['backend', 'streaming', 'fintech'],
         },
         {
           id: 'pw-pricing-latency',
-          problem: 'Pricing API p99 latency was 380ms; SLO was 100ms and we were burning the budget every week.',
-          action: 'Profiled the hot path, replaced the database-backed price lookup with a versioned in-memory cache, and pre-computed the most-common derived prices.',
+          problem:
+            'Pricing API p99 latency was 380ms; SLO was 100ms and we were burning the budget every week.',
+          action:
+            'Profiled the hot path, replaced the database-backed price lookup with a versioned in-memory cache, and pre-computed the most-common derived prices.',
           outcome: 'Cut p99 latency from 380ms to 50ms and eliminated the SLO budget burn.',
           impact: ['p99 380ms → 50ms', 'SLO budget burn eliminated'],
           metrics: { p99_before_ms: 380, p99_after_ms: 50 },
@@ -210,10 +262,16 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         },
         {
           id: 'pw-correctness-tooling',
-          problem: 'Pricing-correctness regressions were caught in production by customer support, not in CI; the team had no shared language for "correct."',
-          action: 'Built a property-based test harness on top of the pricing service that ran 10k randomized scenarios per PR with quant-team-defined invariants.',
-          outcome: 'Caught three would-be production regressions in the first quarter and gave the quant team a shared correctness vocabulary with engineering.',
-          impact: ['Three production regressions caught pre-merge in Q1', 'Shared correctness vocabulary with quant team'],
+          problem:
+            'Pricing-correctness regressions were caught in production by customer support, not in CI; the team had no shared language for "correct."',
+          action:
+            'Built a property-based test harness on top of the pricing service that ran 10k randomized scenarios per PR with quant-team-defined invariants.',
+          outcome:
+            'Caught three would-be production regressions in the first quarter and gave the quant team a shared correctness vocabulary with engineering.',
+          impact: [
+            'Three production regressions caught pre-merge in Q1',
+            'Shared correctness vocabulary with quant team',
+          ],
           metrics: { regressions_caught_q1: 3 },
           technologies: ['Python', 'Hypothesis', 'GitHub Actions'],
           tags: ['backend', 'quant', 'testing'],
@@ -228,18 +286,26 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       bullets: [
         {
           id: 'gl-risk-service',
-          problem: 'Overnight batch risk calculation was the only way to get a portfolio-level risk number; trading desk could not get intraday exposure during a volatile market.',
-          action: 'Translated the existing R risk model into a Go microservice with incremental computation and per-position cache invalidation.',
-          outcome: 'Brought risk calculation from overnight batch to real-time intraday with sub-second p99 query latency.',
-          impact: ['Risk calc batch overnight → real-time intraday', 'Sub-second p99 query latency'],
+          problem:
+            'Overnight batch risk calculation was the only way to get a portfolio-level risk number; trading desk could not get intraday exposure during a volatile market.',
+          action:
+            'Translated the existing R risk model into a Go microservice with incremental computation and per-position cache invalidation.',
+          outcome:
+            'Brought risk calculation from overnight batch to real-time intraday with sub-second p99 query latency.',
+          impact: [
+            'Risk calc batch overnight → real-time intraday',
+            'Sub-second p99 query latency',
+          ],
           metrics: { p99_query_latency_sec: 1 },
           technologies: ['Go', 'PostgreSQL', 'R (read-only)'],
           tags: ['backend', 'fintech'],
         },
         {
           id: 'gl-on-call',
-          problem: 'Risk service launched without an on-call rotation; first month of operation had three weekend incidents handled ad-hoc.',
-          action: 'Built the runbook, drove the on-call rotation onboarding for four engineers, and instrumented the service with budget-driven alerts.',
+          problem:
+            'Risk service launched without an on-call rotation; first month of operation had three weekend incidents handled ad-hoc.',
+          action:
+            'Built the runbook, drove the on-call rotation onboarding for four engineers, and instrumented the service with budget-driven alerts.',
           outcome: 'Cut weekend ad-hoc incidents to zero in the second quarter post-launch.',
           impact: ['Weekend ad-hoc incidents to zero in Q2 post-launch'],
           metrics: { weekend_incidents_q2: 0, on_call_engineers_trained: 4 },
@@ -256,9 +322,12 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       bullets: [
         {
           id: 'at-backtest-framework',
-          problem: 'Strategy backtests took 4-8 hours each; quant team iterated on models slowly because the feedback loop was overnight.',
-          action: 'Built a parallelized backtest framework in Python that distributed the simulation across the team\'s shared compute cluster.',
-          outcome: 'Cut median backtest time from 6 hours to 25 minutes; the team shipped twice as many strategy revisions per quarter.',
+          problem:
+            'Strategy backtests took 4-8 hours each; quant team iterated on models slowly because the feedback loop was overnight.',
+          action:
+            "Built a parallelized backtest framework in Python that distributed the simulation across the team's shared compute cluster.",
+          outcome:
+            'Cut median backtest time from 6 hours to 25 minutes; the team shipped twice as many strategy revisions per quarter.',
           impact: ['Backtest time 6hr → 25min', 'Strategy revision velocity 2x'],
           metrics: { backtest_before_hr: 6, backtest_after_min: 25 },
           technologies: ['Python', 'Pandas', 'Dask'],
@@ -266,9 +335,12 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         },
         {
           id: 'at-risk-cpp',
-          problem: 'Live risk model in R could not keep up with intraday updates during market volatility; we missed the 2018 spike windows entirely.',
-          action: 'Migrated the risk model from R to C++ with thread-safe updates, working alongside the quant lead on the math correctness.',
-          outcome: 'Achieved 100x speedup on live runs; risk model held up through the next two volatility events without missing updates.',
+          problem:
+            'Live risk model in R could not keep up with intraday updates during market volatility; we missed the 2018 spike windows entirely.',
+          action:
+            'Migrated the risk model from R to C++ with thread-safe updates, working alongside the quant lead on the math correctness.',
+          outcome:
+            'Achieved 100x speedup on live runs; risk model held up through the next two volatility events without missing updates.',
           impact: ['100x speedup on live risk runs', 'Held up through two volatility events'],
           metrics: { speedup_factor: 100 },
           technologies: ['C++', 'R (legacy)'],
@@ -311,8 +383,8 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
     voice_skill: 'diane-voice',
     resume_skill: 'diane-resume',
     accuracy: {
-      'never_claim': ['software engineering experience before 2020', 'CS degree'],
-      'always_include': 'quant-to-engineering pivot framing in any narrative-shape question',
+      never_claim: ['software engineering experience before 2020', 'CS degree'],
+      always_include: 'quant-to-engineering pivot framing in any narrative-shape question',
     },
   },
   search_vectors: [
@@ -320,7 +392,8 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       id: VECTORS.backend,
       title: 'Backend Engineering',
       priority: 'high',
-      thesis: 'Senior backend engineer with quant-grade correctness rigor and four years of production fintech systems behind me.',
+      thesis:
+        'Senior backend engineer with quant-grade correctness rigor and four years of production fintech systems behind me.',
       target_roles: ['Senior Backend Engineer', 'Senior Software Engineer'],
       keywords: {
         primary: ['backend engineering', 'distributed systems', 'Go', 'Python'],
@@ -333,20 +406,35 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       id: VECTORS.quant,
       title: 'Quantitative Engineering',
       priority: 'high',
-      thesis: 'Quantitative backend engineer who bridges quant and engineering — pricing, risk, and market-data systems where correctness is a latency requirement.',
-      target_roles: ['Quantitative Backend Engineer', 'Pricing Platform Engineer', 'Risk Platform Engineer'],
+      thesis:
+        'Quantitative backend engineer who bridges quant and engineering — pricing, risk, and market-data systems where correctness is a latency requirement.',
+      target_roles: [
+        'Quantitative Backend Engineer',
+        'Pricing Platform Engineer',
+        'Risk Platform Engineer',
+      ],
       keywords: {
         primary: ['quantitative engineering', 'pricing engine', 'risk modeling', 'fintech'],
         secondary: ['backtesting', 'numerical methods', 'C++'],
       },
-      supporting_skills: ['Pricing engines', 'Risk modeling (VaR, stress testing)', 'Backtesting frameworks'],
-      supporting_bullets: ['pw-streaming-pricing', 'gl-risk-service', 'at-risk-cpp', 'at-backtest-framework'],
+      supporting_skills: [
+        'Pricing engines',
+        'Risk modeling (VaR, stress testing)',
+        'Backtesting frameworks',
+      ],
+      supporting_bullets: [
+        'pw-streaming-pricing',
+        'gl-risk-service',
+        'at-risk-cpp',
+        'at-backtest-framework',
+      ],
     },
     {
       id: VECTORS.data,
       title: 'Data Engineering',
       priority: 'medium',
-      thesis: 'Data engineer comfortable with streaming and time-series workloads; built market-data and pricing pipelines at scale.',
+      thesis:
+        'Data engineer comfortable with streaming and time-series workloads; built market-data and pricing pipelines at scale.',
       target_roles: ['Senior Data Engineer', 'Streaming Systems Engineer'],
       keywords: {
         primary: ['data engineering', 'streaming systems', 'Kafka'],
@@ -363,7 +451,8 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         topic: 'Classical algorithm interview prep',
         description:
           'I solve unfamiliar algorithm problems by derivation but lose minutes to candidates with traditional CS prep. This is the single biggest filter against my background in non-domain interview loops.',
-        action: 'Daily warm-up: one classical algorithm problem before each interview week. Track which patterns I lose time on.',
+        action:
+          'Daily warm-up: one classical algorithm problem before each interview week. Track which patterns I lose time on.',
         severity: 'high',
       },
       {
@@ -371,14 +460,17 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
         topic: 'Imposter spiral on CS fundamentals',
         description:
           'Pure-CS-fundamentals questions (compilers, OS internals, networking deep) trigger imposter loops that visibly affect my answers. The fix is rehearsal, not avoidance.',
-        action: 'Pre-rehearse the pivot story so it lands as confident in 90 seconds. Build domain-grounded answers for OS/networking probes that lean on real work.',
+        action:
+          'Pre-rehearse the pivot story so it lands as confident in 90 seconds. Build domain-grounded answers for OS/networking probes that lean on real work.',
         severity: 'medium',
       },
       {
         id: 'oq-staff-loop',
         topic: 'First staff-level interview loop',
-        description: 'No staff-level interview experience yet; have done senior loops at three companies but the staff format is new.',
-        action: 'When the first staff loop comes up, do an explicit warm-up loop with a peer before the real one.',
+        description:
+          'No staff-level interview experience yet; have done senior loops at three companies but the staff format is new.',
+        action:
+          'When the first staff loop comes up, do an explicit warm-up loop with a peer before the real one.',
         severity: 'medium',
       },
     ],
@@ -573,7 +665,7 @@ export const dianeOkaforResume: ResumeData = {
             [VECTORS.quant]: 'include',
             [VECTORS.data]: 'include',
           },
-          text: 'Built a parallelized backtest framework in Python that distributed simulations across the team\'s compute cluster; cut median backtest time from 6 hours to 25 minutes and doubled strategy revision velocity.',
+          text: "Built a parallelized backtest framework in Python that distributed simulations across the team's compute cluster; cut median backtest time from 6 hours to 25 minutes and doubled strategy revision velocity.",
         },
         {
           id: 'at-risk-cpp',
@@ -649,10 +741,13 @@ const CAPELL_R2: PipelineRound = {
   format: 'hm-screen',
   scheduledFor: '2026-04-01T17:00:00.000Z',
   durationMinutes: 60,
-  interviewers: [{ id: 'int-capell-hm', name: 'Rohan Patel', title: 'Director, Quantitative Engineering' }],
+  interviewers: [
+    { id: 'int-capell-hm', name: 'Rohan Patel', title: 'Director, Quantitative Engineering' },
+  ],
   outcome: 'advanced',
   outcomeAt: '2026-04-02T16:00:00.000Z',
-  notes: 'Rohan and I clicked on the pricing-correctness story; he asked for the system-design panel next.',
+  notes:
+    'Rohan and I clicked on the pricing-correctness story; he asked for the system-design panel next.',
   createdAt: '2026-03-26T14:30:00.000Z',
   updatedAt: '2026-04-02T16:00:00.000Z',
 }
@@ -673,9 +768,12 @@ const CAPELL_R3: PipelineRound = {
         role: 'Staff IC on the pricing platform team — owns the streaming pricing infrastructure.',
         background: 'Came up through HFT systems; ten years in quant engineering.',
         stack: 'C++, Go, Kafka.',
-        caresAbout: 'Correctness invariants under concurrency. Will probe how I think about race conditions in the pricing path.',
-        yourAngle: 'Lead with the property-based test harness — quant-team-defined invariants is exactly the framing he respects.',
-        keyTell: 'He nods slowly when something lands; if he stops nodding, the story is too vague.',
+        caresAbout:
+          'Correctness invariants under concurrency. Will probe how I think about race conditions in the pricing path.',
+        yourAngle:
+          'Lead with the property-based test harness — quant-team-defined invariants is exactly the framing he respects.',
+        keyTell:
+          'He nods slowly when something lands; if he stops nodding, the story is too vague.',
       },
       lineThatLands:
         'Correctness is a latency requirement — a wrong number in 5ms is worse than a right number in 50ms. The property-based harness was how we made that vocabulary shared between quant and engineering.',
@@ -705,7 +803,8 @@ const CAPELL_R4: PipelineRound = {
   ],
   outcome: 'advanced',
   outcomeAt: '2026-04-16T15:00:00.000Z',
-  notes: 'Helena offered same day; spent the round on growth trajectory and team-building interest.',
+  notes:
+    'Helena offered same day; spent the round on growth trajectory and team-building interest.',
   createdAt: '2026-04-09T18:30:00.000Z',
   updatedAt: '2026-04-16T15:00:00.000Z',
 }
@@ -730,7 +829,8 @@ export const dianeOkaforPipelineEntries: PipelineEntry[] = [
       'Domain-fit role — quant background is the lead, not the footnote. Streaming-pricing story is the flagship; property-based test harness is the differentiator.',
     skillMatch:
       'Strong: pricing engines, streaming systems, correctness tooling. Solid: HFT-adjacent latency. Working: their internal C++ idioms.',
-    nextStep: 'Offer received 2026-04-16. Decision deadline 2026-04-30 — currently negotiating bonus structure.',
+    nextStep:
+      'Offer received 2026-04-16. Decision deadline 2026-04-30 — currently negotiating bonus structure.',
     notes:
       'Helena offered same-day after the exec round. Bonus structure is the open lever — recruiter mentioned room above the posted band for the quant-engineer dual qualification.',
     appMethod: 'recruiter-inbound',
@@ -793,7 +893,10 @@ export const dianeOkaforPipelineEntries: PipelineEntry[] = [
     createdAt: '2026-04-22T17:00:00.000Z',
     history: [
       { date: '2026-04-22', note: 'Identified during job-search T1 sweep.' },
-      { date: '2026-04-23', note: 'T2 investigation completed — leetcode-heavy screen flagged as risk.' },
+      {
+        date: '2026-04-23',
+        note: 'T2 investigation completed — leetcode-heavy screen flagged as risk.',
+      },
     ],
     research: {
       status: 'investigated',
@@ -853,7 +956,8 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
           background: 'Ten years quant engineering, came up through HFT.',
           stack: 'C++, Go, Kafka.',
           caresAbout: 'Correctness invariants under concurrency.',
-          yourAngle: 'Property-based test harness with quant-team-defined invariants — exactly his framing.',
+          yourAngle:
+            'Property-based test harness with quant-team-defined invariants — exactly his framing.',
           keyTell: 'Stops nodding when stories get vague.',
         },
         lineThatLands:
@@ -870,18 +974,37 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
       'Do not over-claim solo ownership of the streaming engine — credit the platform team.',
     ],
     stackAlignment: [
-      { theirTech: 'Kafka-backed pricing', yourMatch: 'Designed and shipped at Petalwise.', confidence: 'Strong' },
-      { theirTech: 'C++ pricing path', yourMatch: 'Built C++ risk model at Atlas; production C++ in pricing is adjacent.', confidence: 'Solid' },
-      { theirTech: 'Property-based testing', yourMatch: 'Built the harness at Petalwise.', confidence: 'Strong' },
-      { theirTech: 'HFT-grade latency', yourMatch: 'Adjacent — pricing latency at 50ms p99 is not HFT scale.', confidence: 'Adjacent experience' },
+      {
+        theirTech: 'Kafka-backed pricing',
+        yourMatch: 'Designed and shipped at Petalwise.',
+        confidence: 'Strong',
+      },
+      {
+        theirTech: 'C++ pricing path',
+        yourMatch: 'Built C++ risk model at Atlas; production C++ in pricing is adjacent.',
+        confidence: 'Solid',
+      },
+      {
+        theirTech: 'Property-based testing',
+        yourMatch: 'Built the harness at Petalwise.',
+        confidence: 'Strong',
+      },
+      {
+        theirTech: 'HFT-grade latency',
+        yourMatch: 'Adjacent — pricing latency at 50ms p99 is not HFT scale.',
+        confidence: 'Adjacent experience',
+      },
     ],
     roundDebriefs: [
       {
         round: 1,
         date: '2026-03-25',
         intel: {
-          teamCulture: 'Mei described the team as "quant-and-engineering peers, not quant-with-engineering-support."',
-          other: { 'comp-lever': 'Bonus structure is the open lever; band is firm but bonus has room.' },
+          teamCulture:
+            'Mei described the team as "quant-and-engineering peers, not quant-with-engineering-support."',
+          other: {
+            'comp-lever': 'Bonus structure is the open lever; band is firm but bonus has room.',
+          },
         },
         questionsAsked: ['Background', 'Comp expectation', 'Why Capell'],
         surprises: [],
@@ -891,14 +1014,17 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
         round: 2,
         date: '2026-04-01',
         intel: {
-          topChallenge: 'Rohan called out latency-correctness coupling as the team\'s most-debated tradeoff.',
+          topChallenge:
+            "Rohan called out latency-correctness coupling as the team's most-debated tradeoff.",
         },
         questionsAsked: [
           'Walk through the streaming-pricing story',
           'How did the property-based harness get adopted by the quant team?',
           'What would you do differently?',
         ],
-        surprises: ['Rohan asked specifically about the quant-team adoption mechanism — not just the technology.'],
+        surprises: [
+          'Rohan asked specifically about the quant-team adoption mechanism — not just the technology.',
+        ],
         newIntel: ['Adoption framing matters at Capell, not just engineering quality.'],
       },
     ],
@@ -909,6 +1035,7 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
         id: 'card-capell-system-design',
         deckId: 'deck-capell-r3',
         category: 'technical',
+        kind: 'story',
         title: 'System design — streaming price engine',
         tags: ['system-design', 'fintech'],
         timeBudgetMinutes: 30,
@@ -954,13 +1081,20 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
           { value: '0', label: 'Sales escalations after 3 months' },
           { value: '3', label: 'Production regressions caught pre-merge in Q1' },
         ],
-        perRoundState: [{ round: 3, status: 'worked', notes: 'Anders specifically called this out as the differentiating story.' }],
+        perRoundState: [
+          {
+            round: 3,
+            status: 'worked',
+            notes: 'Anders specifically called this out as the differentiating story.',
+          },
+        ],
         updatedAt: '2026-04-09T18:30:00.000Z',
       },
       {
         id: 'card-capell-pivot-story',
         deckId: 'deck-capell-r3',
         category: 'behavioral',
+        kind: 'story',
         title: 'Pivot story — quant to engineering',
         tags: ['behavioral', 'pivot'],
         timeBudgetMinutes: 3,
@@ -977,13 +1111,21 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
           'Recurse Center is the deliberate-practice signal — names a real institution.',
           'Close with "moat, not footnote" — that framing tested well in mock loops.',
         ],
-        perRoundState: [{ round: 3, status: 'worked', notes: 'Hit the timing exactly; Anders asked a follow-up that landed in the prepared response.' }],
+        perRoundState: [
+          {
+            round: 3,
+            status: 'worked',
+            notes:
+              'Hit the timing exactly; Anders asked a follow-up that landed in the prepared response.',
+          },
+        ],
         updatedAt: '2026-04-09T18:30:00.000Z',
       },
       {
         id: 'card-capell-correctness-as-latency',
         deckId: 'deck-capell-r3',
         category: 'technical',
+        kind: 'story',
         title: 'Correctness-as-latency framing',
         tags: ['technical', 'fintech'],
         timeBudgetMinutes: 5,
@@ -998,13 +1140,20 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
           'Property-based testing is the implementation; the principle is shared correctness vocabulary between quant and engineering.',
           'Versioned reads + invariant-driven testing = the math decision and the engineering decision are the same decision.',
         ],
-        perRoundState: [{ round: 3, status: 'worked', notes: 'This was the line that Anders called out post-round.' }],
+        perRoundState: [
+          {
+            round: 3,
+            status: 'worked',
+            notes: 'This was the line that Anders called out post-round.',
+          },
+        ],
         updatedAt: '2026-04-09T18:30:00.000Z',
       },
       {
         id: 'card-capell-numbers',
         deckId: 'deck-capell-r3',
         category: 'metrics',
+        kind: 'story',
         title: 'Numbers cheatsheet',
         tags: ['metrics'],
         timeBudgetMinutes: 1,
@@ -1020,7 +1169,9 @@ export const dianeOkaforPrepDecks: PrepDeck[] = [
           'Risk service (Glide): overnight batch → real-time / sub-second p99',
           'Risk migration (Atlas): 100x speedup R → C++',
         ],
-        perRoundState: [{ round: 3, status: 'untested', notes: 'Did not need to surface explicitly.' }],
+        perRoundState: [
+          { round: 3, status: 'untested', notes: 'Did not need to surface explicitly.' },
+        ],
         updatedAt: '2026-04-09T18:30:00.000Z',
       },
     ],

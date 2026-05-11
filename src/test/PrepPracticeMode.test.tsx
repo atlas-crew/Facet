@@ -11,19 +11,35 @@ const mockCards: PrepCard[] = [
   {
     id: 'c1',
     category: 'opener',
+    kind: 'opener',
     title: 'Card 1',
     tags: ['tag1'],
     script: 'Script 1',
     keyPoints: ['Lead with the platform angle', 'Land on the two-minute through-line'],
   },
-  { id: 'c2', category: 'behavioral', title: 'Card 2', tags: ['tag2'], script: 'Script 2' },
-  { id: 'c3', category: 'technical', title: 'Card 3', tags: ['tag3'], script: 'Script 3' },
+  {
+    id: 'c2',
+    category: 'behavioral',
+    kind: 'story',
+    title: 'Card 2',
+    tags: ['tag2'],
+    script: 'Script 2',
+  },
+  {
+    id: 'c3',
+    category: 'technical',
+    kind: 'story',
+    title: 'Card 3',
+    tags: ['tag3'],
+    script: 'Script 3',
+  },
 ]
 
 const richHomeworkCards: PrepCard[] = [
   {
     id: 'story-card',
     category: 'behavioral',
+    kind: 'story',
     title: 'Tell me about your launch story',
     tags: ['launch', 'leadership'],
     keyPoints: ['Anchor on the launch week', 'Highlight how you kept the rollout steady'],
@@ -45,6 +61,7 @@ const richHomeworkCards: PrepCard[] = [
   {
     id: 'conditional-card',
     category: 'behavioral',
+    kind: 'story',
     title: 'Behavioral anchor',
     tags: ['feedback'],
     script: 'Keep the main answer concise first.',
@@ -60,6 +77,7 @@ const richHomeworkCards: PrepCard[] = [
   {
     id: 'story-only-card',
     category: 'behavioral',
+    kind: 'story',
     title: 'Talk through a turnaround story',
     tags: ['story'],
     storyBlocks: [
@@ -73,6 +91,7 @@ const richHomeworkCards: PrepCard[] = [
   {
     id: 'opener-card',
     category: 'opener',
+    kind: 'opener',
     title: 'Why this team',
     tags: ['opener'],
     script: 'Lead with mission fit and one crisp proof point.',
@@ -80,6 +99,7 @@ const richHomeworkCards: PrepCard[] = [
   {
     id: 'keypoints-card',
     category: 'technical',
+    kind: 'story',
     title: 'Explain the migration tradeoff',
     tags: ['architecture'],
     keyPoints: ['State the tradeoff first', 'Name the rollback and monitoring plan'],
@@ -89,6 +109,7 @@ const richHomeworkCards: PrepCard[] = [
 const toneHomeworkCard: PrepCard = {
   id: 'tone-card',
   category: 'behavioral',
+  kind: 'story',
   title: 'Handle follow-up pressure',
   tags: ['pressure'],
   script: 'Lead with the high-level framing first.',
@@ -109,6 +130,7 @@ const toneHomeworkCard: PrepCard = {
 const defaultToneHomeworkCard: PrepCard = {
   id: 'default-tone-card',
   category: 'behavioral',
+  kind: 'story',
   title: 'Handle a follow-up without explicit tone',
   tags: ['follow-up'],
   script: 'Start with the concise framing first.',
@@ -211,6 +233,7 @@ describe('PrepPracticeMode', () => {
           {
             id: 'variant-card',
             category: 'behavioral',
+            kind: 'story',
             title: 'Influence without authority',
             tags: ['influence'],
             storyVariants: [
@@ -341,11 +364,25 @@ describe('PrepPracticeMode', () => {
 
   it('requeues needs-work cards at the configured spacing and clamps near the end', () => {
     const spacedCards: PrepCard[] = [
-      { id: 's1', category: 'opener', title: 'Spaced 1', tags: [], script: 'A1' },
-      { id: 's2', category: 'behavioral', title: 'Spaced 2', tags: [], script: 'A2' },
-      { id: 's3', category: 'technical', title: 'Spaced 3', tags: [], script: 'A3' },
-      { id: 's4', category: 'project', title: 'Spaced 4', tags: [], script: 'A4' },
-      { id: 's5', category: 'situational', title: 'Spaced 5', tags: [], script: 'A5' },
+      { id: 's1', category: 'opener', kind: 'opener', title: 'Spaced 1', tags: [], script: 'A1' },
+      {
+        id: 's2',
+        category: 'behavioral',
+        kind: 'story',
+        title: 'Spaced 2',
+        tags: [],
+        script: 'A2',
+      },
+      { id: 's3', category: 'technical', kind: 'story', title: 'Spaced 3', tags: [], script: 'A3' },
+      { id: 's4', category: 'project', kind: 'story', title: 'Spaced 4', tags: [], script: 'A4' },
+      {
+        id: 's5',
+        category: 'situational',
+        kind: 'story',
+        title: 'Spaced 5',
+        tags: [],
+        script: 'A5',
+      },
     ]
 
     render(<PrepPracticeMode cards={spacedCards} onExit={() => {}} onRecordReview={() => {}} />)
@@ -471,6 +508,7 @@ describe('PrepPracticeMode', () => {
           {
             id: 'draft-card',
             category: 'behavioral',
+            kind: 'story',
             title: 'Incomplete draft',
             tags: ['draft'],
             script: '[[needs-review]]',
@@ -652,6 +690,7 @@ describe('PrepPracticeMode', () => {
           {
             id: 'draft-card',
             category: 'behavioral',
+            kind: 'story',
             title: 'Incomplete draft',
             tags: ['draft'],
             script: '[[needs-review]]',
@@ -951,10 +990,31 @@ describe('PrepPracticeMode', () => {
 
   it('changes card order when the shuffle random sequence changes', () => {
     const orderedCards: PrepCard[] = [
-      { id: 'o1', category: 'opener', title: 'Ordered 1', tags: [], script: 'One' },
-      { id: 'o2', category: 'behavioral', title: 'Ordered 2', tags: [], script: 'Two' },
-      { id: 'o3', category: 'technical', title: 'Ordered 3', tags: [], script: 'Three' },
-      { id: 'o4', category: 'project', title: 'Ordered 4', tags: [], script: 'Four' },
+      { id: 'o1', category: 'opener', kind: 'opener', title: 'Ordered 1', tags: [], script: 'One' },
+      {
+        id: 'o2',
+        category: 'behavioral',
+        kind: 'story',
+        title: 'Ordered 2',
+        tags: [],
+        script: 'Two',
+      },
+      {
+        id: 'o3',
+        category: 'technical',
+        kind: 'story',
+        title: 'Ordered 3',
+        tags: [],
+        script: 'Three',
+      },
+      {
+        id: 'o4',
+        category: 'project',
+        kind: 'story',
+        title: 'Ordered 4',
+        tags: [],
+        script: 'Four',
+      },
     ]
 
     render(<PrepPracticeMode cards={orderedCards} onExit={() => {}} onRecordReview={() => {}} />)
@@ -1319,6 +1379,7 @@ describe('PrepPracticeMode', () => {
           {
             id: 'placeholder-conditional-card',
             category: 'behavioral',
+            kind: 'story',
             title: 'Placeholder conditional',
             tags: ['draft'],
             script: 'Keep the core answer tight.',

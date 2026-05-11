@@ -28,13 +28,23 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       'Platform tooling should compress the time between intent and outcome. I build paved roads that beat any custom path.',
     elaboration:
       'Seven years across game-services backend, infra startups, and SaaS platform — I lead with platform impact in minutes-saved-per-deploy and dollars-saved-per-month, not architecture diagrams.',
-    origin: 'University of Texas CS, 2017. Started in game backend; pivoted to platform after running multiplayer matchmaking infra at scale.',
+    origin:
+      'University of Texas CS, 2017. Started in game backend; pivoted to platform after running multiplayer matchmaking infra at scale.',
   },
   self_model: {
     arc: [
-      { company: 'Helix Studios', chapter: 'Game backend engineer learning what real-time scale demands.' },
-      { company: 'Stria Cloud', chapter: 'Platform engineer at a fast infra startup — built an IDP from zero.' },
-      { company: 'Threadwell', chapter: 'Senior platform engineer scaling tooling for a mid-size SaaS.' },
+      {
+        company: 'Helix Studios',
+        chapter: 'Game backend engineer learning what real-time scale demands.',
+      },
+      {
+        company: 'Stria Cloud',
+        chapter: 'Platform engineer at a fast infra startup — built an IDP from zero.',
+      },
+      {
+        company: 'Threadwell',
+        chapter: 'Senior platform engineer scaling tooling for a mid-size SaaS.',
+      },
     ],
     philosophy: [
       {
@@ -70,16 +80,22 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
     compensation: {
       base_floor: 200000,
       base_target: 240000,
-      notes: 'Total comp matters more than base — open to equity-heavy structures at later-stage startups.',
+      notes:
+        'Total comp matters more than base — open to equity-heavy structures at later-stage startups.',
       priorities: [
         { item: 'total comp', weight: 'high' },
-        { item: 'equity vesting cliff', weight: 'high', notes: 'No 4-year cliff; prefer 1-year cliff with monthly thereafter.' },
+        {
+          item: 'equity vesting cliff',
+          weight: 'high',
+          notes: 'No 4-year cliff; prefer 1-year cliff with monthly thereafter.',
+        },
         { item: 'remote work', weight: 'high' },
       ],
     },
     work_model: {
       preference: 'remote',
-      flexibility: 'Open to two travel weeks per quarter for offsites or platform onboarding visits.',
+      flexibility:
+        'Open to two travel weeks per quarter for offsites or platform onboarding visits.',
       hard_no: 'Hybrid 3-day mandates.',
     },
     constraints: {
@@ -87,10 +103,21 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         highest: 'B.S. Computer Science, University of Texas at Austin',
         show_on_resume: true,
       },
-      title_flexibility: ['Senior Platform Engineer', 'Staff Platform Engineer', 'Senior Infrastructure Engineer'],
+      title_flexibility: [
+        'Senior Platform Engineer',
+        'Staff Platform Engineer',
+        'Senior Infrastructure Engineer',
+      ],
     },
     interview_process: {
-      accepted_formats: ['hr-screen', 'hm-screen', 'tech-discussion', 'system-design', 'behavioral', 'peer-panel'],
+      accepted_formats: [
+        'hr-screen',
+        'hm-screen',
+        'tech-discussion',
+        'system-design',
+        'behavioral',
+        'peer-panel',
+      ],
       strong_fit_signals: [
         'Platform team has a real charter and is not just embedded SRE.',
         'Cost is treated as an engineering metric, not just a finance one.',
@@ -100,20 +127,23 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         'No paved-road mandate — every team rolls their own infra.',
       ],
       max_rounds: 5,
-      onsite_preferences: 'One travel day per loop; final round can be onsite if scheduling-friendly.',
+      onsite_preferences:
+        'One travel day per loop; final round can be onsite if scheduling-friendly.',
     },
     matching: {
       prioritize: [
         {
           id: 'platform-charter',
           label: 'Real platform charter',
-          description: 'Platform team owns paved-road tooling with executive backing — not just on-call rotation.',
+          description:
+            'Platform team owns paved-road tooling with executive backing — not just on-call rotation.',
           weight: 'high',
         },
         {
           id: 'cost-engineering',
           label: 'Cost as an engineering metric',
-          description: 'Cost optimization is treated as an engineering responsibility, not a quarterly finance ask.',
+          description:
+            'Cost optimization is treated as an engineering responsibility, not a quarterly finance ask.',
           weight: 'medium',
         },
       ],
@@ -121,13 +151,15 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         {
           id: 'embedded-sre',
           label: 'Embedded SRE without charter',
-          description: 'Roles where "platform" means being on-call for someone else stack with no authority to change defaults.',
+          description:
+            'Roles where "platform" means being on-call for someone else stack with no authority to change defaults.',
           severity: 'hard',
         },
         {
           id: 'crypto-or-adtech',
           label: 'Crypto or adtech',
-          description: 'Domain mismatch with my track record and not where I want to spend the next chapter.',
+          description:
+            'Domain mismatch with my track record and not where I want to spend the next chapter.',
           severity: 'hard',
         },
       ],
@@ -138,10 +170,15 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       {
         id: 'platform',
         label: 'Platform Engineering',
-        positioning: 'Built internal developer platforms from zero and scaled them past 50 services.',
+        positioning:
+          'Built internal developer platforms from zero and scaled them past 50 services.',
         is_differentiator: true,
         items: [
-          { name: 'Internal Developer Platforms (IDP)', depth: 'expert', tags: ['platform', 'devex'] },
+          {
+            name: 'Internal Developer Platforms (IDP)',
+            depth: 'expert',
+            tags: ['platform', 'devex'],
+          },
           { name: 'Backstage', depth: 'strong', tags: ['platform'] },
           { name: 'Service catalogs', depth: 'strong', tags: ['platform'] },
           { name: 'Paved-road design', depth: 'expert', tags: ['platform', 'devex'] },
@@ -156,7 +193,11 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
           { name: 'Nomad', depth: 'strong', tags: ['platform', 'orchestration'] },
           { name: 'Multi-region failover', depth: 'strong', tags: ['sre', 'reliability'] },
           { name: 'SLO design', depth: 'strong', tags: ['sre', 'reliability'] },
-          { name: 'Observability (OTel, Prometheus)', depth: 'strong', tags: ['sre', 'observability'] },
+          {
+            name: 'Observability (OTel, Prometheus)',
+            depth: 'strong',
+            tags: ['sre', 'observability'],
+          },
           { name: 'Incident command', depth: 'hands-on-working', tags: ['sre', 'incident'] },
         ],
       },
@@ -204,39 +245,62 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       bullets: [
         {
           id: 'tw-deploy-time',
-          problem: 'Deploys took 22 minutes p50 and routinely failed at the canary step, which trained teams to deploy late at night to dodge traffic.',
-          action: 'Rebuilt the deploy pipeline around merge-queue-driven canary automation; replaced the legacy deployer with a Go service that managed traffic-shifting natively.',
-          outcome: 'Cut p50 deploy time from 22 minutes to 4 and moved 70% of deploys into business hours within a quarter.',
+          problem:
+            'Deploys took 22 minutes p50 and routinely failed at the canary step, which trained teams to deploy late at night to dodge traffic.',
+          action:
+            'Rebuilt the deploy pipeline around merge-queue-driven canary automation; replaced the legacy deployer with a Go service that managed traffic-shifting natively.',
+          outcome:
+            'Cut p50 deploy time from 22 minutes to 4 and moved 70% of deploys into business hours within a quarter.',
           impact: ['Deploy time 22m → 4m', '70% of deploys moved to business hours'],
-          metrics: { deploy_time_before_min: 22, deploy_time_after_min: 4, business_hours_deploy_pct: 70 },
+          metrics: {
+            deploy_time_before_min: 22,
+            deploy_time_after_min: 4,
+            business_hours_deploy_pct: 70,
+          },
           technologies: ['Go', 'GitHub Actions', 'Argo Rollouts'],
           tags: ['platform', 'sre'],
         },
         {
           id: 'tw-k8s-migration',
-          problem: 'Nomad cluster was off the supported version and the team that maintained it had churned out; we needed a path forward.',
-          action: 'Led the migration to Kubernetes — designed the migration playbook, wrote the service-by-service runbook, paired through the first ten cutovers.',
-          outcome: 'Migrated 65 services off Nomad in seven months with zero customer-impacting incidents.',
-          impact: ['65 services off Nomad in 7 months', 'Zero customer-impacting incidents during migration'],
+          problem:
+            'Nomad cluster was off the supported version and the team that maintained it had churned out; we needed a path forward.',
+          action:
+            'Led the migration to Kubernetes — designed the migration playbook, wrote the service-by-service runbook, paired through the first ten cutovers.',
+          outcome:
+            'Migrated 65 services off Nomad in seven months with zero customer-impacting incidents.',
+          impact: [
+            '65 services off Nomad in 7 months',
+            'Zero customer-impacting incidents during migration',
+          ],
           metrics: { services_migrated: 65, migration_months: 7, customer_incidents: 0 },
           technologies: ['Kubernetes', 'Nomad', 'ArgoCD', 'Terraform'],
           tags: ['platform', 'kubernetes', 'sre'],
         },
         {
           id: 'tw-observability-cost',
-          problem: 'Observability bill was $200K/year and growing — Datadog cardinality was the main driver and nobody owned it.',
-          action: 'Audited cardinality, killed the worst tags, switched the long-tail metrics to Prometheus + Grafana Cloud, kept Datadog only for infra dashboards.',
-          outcome: 'Cut the annual observability bill from $200K to $40K with no engineer pushback on the cutover.',
+          problem:
+            'Observability bill was $200K/year and growing — Datadog cardinality was the main driver and nobody owned it.',
+          action:
+            'Audited cardinality, killed the worst tags, switched the long-tail metrics to Prometheus + Grafana Cloud, kept Datadog only for infra dashboards.',
+          outcome:
+            'Cut the annual observability bill from $200K to $40K with no engineer pushback on the cutover.',
           impact: ['Observability spend $200K → $40K/yr', '80% cost reduction'],
-          metrics: { obs_spend_before_usd_yr: 200000, obs_spend_after_usd_yr: 40000, reduction_pct: 80 },
+          metrics: {
+            obs_spend_before_usd_yr: 200000,
+            obs_spend_after_usd_yr: 40000,
+            reduction_pct: 80,
+          },
           technologies: ['Prometheus', 'Grafana Cloud', 'OpenTelemetry'],
           tags: ['platform', 'cost', 'observability'],
         },
         {
           id: 'tw-blue-green',
-          problem: 'No safe rollback path beyond redeploying the previous SHA, which meant every bad deploy was at minimum a 22-minute customer impact window.',
-          action: 'Built blue-green infrastructure with automatic traffic-flip on SLO-budget breach.',
-          outcome: 'Reduced mean time to rollback from 18 minutes to 90 seconds across 65 services.',
+          problem:
+            'No safe rollback path beyond redeploying the previous SHA, which meant every bad deploy was at minimum a 22-minute customer impact window.',
+          action:
+            'Built blue-green infrastructure with automatic traffic-flip on SLO-budget breach.',
+          outcome:
+            'Reduced mean time to rollback from 18 minutes to 90 seconds across 65 services.',
           impact: ['MTTR-to-rollback 18m → 90s'],
           metrics: { mttr_rollback_before_min: 18, mttr_rollback_after_sec: 90 },
           technologies: ['Argo Rollouts', 'Kubernetes'],
@@ -252,9 +316,12 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       bullets: [
         {
           id: 'sc-idp-build',
-          problem: 'Engineering org was 30 → 120 in eighteen months and every new team rebuilt deploy and observability from scratch.',
-          action: 'Built the internal developer platform from zero — service template generator, paved-road CI, default observability wiring, central Backstage catalog.',
-          outcome: 'Onboarded 50 services to the platform in 18 months with median time-to-first-deploy under 10 minutes for new services.',
+          problem:
+            'Engineering org was 30 → 120 in eighteen months and every new team rebuilt deploy and observability from scratch.',
+          action:
+            'Built the internal developer platform from zero — service template generator, paved-road CI, default observability wiring, central Backstage catalog.',
+          outcome:
+            'Onboarded 50 services to the platform in 18 months with median time-to-first-deploy under 10 minutes for new services.',
           impact: ['50 services onto IDP in 18 months', 'Median time-to-first-deploy under 10 min'],
           metrics: { services_onboarded: 50, months: 18, ttfd_median_min: 10 },
           technologies: ['Backstage', 'Go', 'Terraform', 'GitHub Actions'],
@@ -262,9 +329,12 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         },
         {
           id: 'sc-multicloud',
-          problem: 'Single-cloud (AWS) dependency was the top three risks on every quarterly review; one of our largest customers required GCP for residency reasons.',
-          action: 'Architected the multi-cloud control plane — abstracted region/cloud as a deployment dimension in the IDP, partnered with security on the cross-cloud IAM model.',
-          outcome: 'Brought the GCP customer live in eight weeks; multi-cloud became a default option for the next ten services.',
+          problem:
+            'Single-cloud (AWS) dependency was the top three risks on every quarterly review; one of our largest customers required GCP for residency reasons.',
+          action:
+            'Architected the multi-cloud control plane — abstracted region/cloud as a deployment dimension in the IDP, partnered with security on the cross-cloud IAM model.',
+          outcome:
+            'Brought the GCP customer live in eight weeks; multi-cloud became a default option for the next ten services.',
           impact: ['Cross-cloud delivery in 8 weeks', 'Multi-cloud as default for new services'],
           metrics: { weeks_to_first_gcp: 8, services_multicloud_after: 10 },
           technologies: ['AWS', 'GCP', 'Crossplane', 'Terraform'],
@@ -272,8 +342,10 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         },
         {
           id: 'sc-failover',
-          problem: 'Control plane was single-region; an AWS us-east-1 outage took the platform down for 90 minutes during the previous summer.',
-          action: 'Designed and implemented active-active multi-region failover for the control plane, with synthetic traffic verifying both regions every 60 seconds.',
+          problem:
+            'Control plane was single-region; an AWS us-east-1 outage took the platform down for 90 minutes during the previous summer.',
+          action:
+            'Designed and implemented active-active multi-region failover for the control plane, with synthetic traffic verifying both regions every 60 seconds.',
           outcome: 'Cut control-plane MTTR for regional events from 90 minutes to 4.',
           impact: ['Control-plane MTTR 90m → 4m for regional events'],
           metrics: { mttr_before_min: 90, mttr_after_min: 4 },
@@ -290,8 +362,10 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       bullets: [
         {
           id: 'hs-matchmaking',
-          problem: 'Matchmaking service was buckling at 30k concurrent players; the previous engineer had moved on and the queues were hand-tuned.',
-          action: 'Rewrote matchmaking around a sharded queue model with tunable per-region weights; ran the load tests against production traffic shadow.',
+          problem:
+            'Matchmaking service was buckling at 30k concurrent players; the previous engineer had moved on and the queues were hand-tuned.',
+          action:
+            'Rewrote matchmaking around a sharded queue model with tunable per-region weights; ran the load tests against production traffic shadow.',
           outcome: 'Scaled to 80k concurrent players with p99 match-time under three seconds.',
           impact: ['30k → 80k concurrent capacity', 'p99 match-time under 3s'],
           metrics: { concurrent_before: 30000, concurrent_after: 80000, p99_match_time_sec: 3 },
@@ -300,8 +374,10 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         },
         {
           id: 'hs-session-latency',
-          problem: 'Player session APIs had p99 latency above 800ms which translated to visible lobby lag during peak.',
-          action: 'Profiled the hot path, moved session state to a regional Redis cluster, and added a thin write-through cache for the auth lookup.',
+          problem:
+            'Player session APIs had p99 latency above 800ms which translated to visible lobby lag during peak.',
+          action:
+            'Profiled the hot path, moved session state to a regional Redis cluster, and added a thin write-through cache for the auth lookup.',
           outcome: 'Cut p99 from 800ms to 120ms with no infra cost increase.',
           impact: ['p99 800ms → 120ms', 'No infra cost increase'],
           metrics: { p99_before_ms: 800, p99_after_ms: 120 },
@@ -333,8 +409,8 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
     voice_skill: 'marcus-voice',
     resume_skill: 'marcus-resume',
     accuracy: {
-      'never_claim': 'team management or direct reports',
-      'always_include': ['concrete numbers in the headline', 'cost or time delta where present'],
+      never_claim: 'team management or direct reports',
+      always_include: ['concrete numbers in the headline', 'cost or time delta where present'],
     },
   },
   search_vectors: [
@@ -342,23 +418,41 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       id: VECTORS.platform,
       title: 'Platform Engineering',
       priority: 'high',
-      thesis: 'Senior platform engineer who builds paved-road tooling that compresses the time from intent to outcome.',
+      thesis:
+        'Senior platform engineer who builds paved-road tooling that compresses the time from intent to outcome.',
       target_roles: ['Senior Platform Engineer', 'Staff Platform Engineer', 'Platform Lead'],
       keywords: {
-        primary: ['platform engineering', 'internal developer platform', 'IDP', 'paved roads', 'developer experience'],
+        primary: [
+          'platform engineering',
+          'internal developer platform',
+          'IDP',
+          'paved roads',
+          'developer experience',
+        ],
         secondary: ['Backstage', 'service catalog', 'cost engineering', 'Crossplane'],
       },
-      supporting_skills: ['Internal Developer Platforms (IDP)', 'Paved-road design', 'Cost engineering'],
+      supporting_skills: [
+        'Internal Developer Platforms (IDP)',
+        'Paved-road design',
+        'Cost engineering',
+      ],
       supporting_bullets: ['sc-idp-build', 'tw-deploy-time', 'tw-observability-cost'],
     },
     {
       id: VECTORS.sre,
       title: 'SRE & Reliability',
       priority: 'medium',
-      thesis: 'Reliability engineer with multi-region failover, SLO design, and incident-response track record.',
+      thesis:
+        'Reliability engineer with multi-region failover, SLO design, and incident-response track record.',
       target_roles: ['Senior SRE', 'Senior Reliability Engineer'],
       keywords: {
-        primary: ['SRE', 'reliability engineering', 'SLO', 'multi-region failover', 'incident response'],
+        primary: [
+          'SRE',
+          'reliability engineering',
+          'SLO',
+          'multi-region failover',
+          'incident response',
+        ],
         secondary: ['observability', 'OpenTelemetry', 'Prometheus'],
       },
       supporting_skills: ['Kubernetes', 'Multi-region failover', 'SLO design'],
@@ -368,7 +462,8 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       id: VECTORS.backend,
       title: 'Backend Engineering',
       priority: 'low',
-      thesis: 'Backend engineer with Go primary stack, Rust working knowledge, and game-services scale background.',
+      thesis:
+        'Backend engineer with Go primary stack, Rust working knowledge, and game-services scale background.',
       target_roles: ['Senior Backend Engineer'],
       keywords: {
         primary: ['Go', 'backend engineering', 'distributed systems'],
@@ -385,7 +480,8 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
         topic: 'Strategic / executive framing',
         description:
           'Glass Foundry rejection cited "too tactical" framing. I default to operational stories; need to practice strategic framings deliberately.',
-        action: 'Build a deliberate-practice cycle on three strategic prompts before next staff-level loop.',
+        action:
+          'Build a deliberate-practice cycle on three strategic prompts before next staff-level loop.',
         severity: 'high',
       },
       {
@@ -465,7 +561,8 @@ export const marcusKimResume: ResumeData = {
     {
       id: 'sg-platform-mk',
       label: 'Platform',
-      content: 'Internal Developer Platforms • Backstage • Paved-road design • Service catalogs • Cost engineering',
+      content:
+        'Internal Developer Platforms • Backstage • Paved-road design • Service catalogs • Cost engineering',
       vectors: {
         [VECTORS.platform]: { priority: 'include', order: 1 },
         [VECTORS.sre]: { priority: 'include', order: 2 },
@@ -475,7 +572,8 @@ export const marcusKimResume: ResumeData = {
     {
       id: 'sg-sre-mk',
       label: 'SRE & Reliability',
-      content: 'Kubernetes • Nomad • Multi-region failover • SLO design • OpenTelemetry • Incident command',
+      content:
+        'Kubernetes • Nomad • Multi-region failover • SLO design • OpenTelemetry • Incident command',
       vectors: {
         [VECTORS.platform]: { priority: 'include', order: 2 },
         [VECTORS.sre]: { priority: 'include', order: 1 },
@@ -712,7 +810,8 @@ const GLASS_R2: PipelineRound = {
   ],
   outcome: 'advanced',
   outcomeAt: '2026-03-12T13:00:00.000Z',
-  notes: 'Aisha pushed on multi-cloud strategy and the platform charter at Threadwell — felt strong.',
+  notes:
+    'Aisha pushed on multi-cloud strategy and the platform charter at Threadwell — felt strong.',
   createdAt: '2026-03-05T10:30:00.000Z',
   updatedAt: '2026-03-12T13:00:00.000Z',
 }
@@ -760,7 +859,8 @@ export const marcusKimPipelineEntries: PipelineEntry[] = [
     presetId: null,
     resumeVariant: '',
     resumeGeneration: null,
-    positioning: 'Lead with Stria IDP build (zero-to-fifty services) and Threadwell deploy-time rebuild.',
+    positioning:
+      'Lead with Stria IDP build (zero-to-fifty services) and Threadwell deploy-time rebuild.',
     skillMatch:
       'Strong: IDP design, paved-road tooling, Kubernetes, cost engineering. Solid: multi-cloud. Working: GCP-native tooling.',
     nextStep: 'Recruiter screen scheduled 2026-04-28 with Priya — light prep deck in workspace.',
@@ -794,8 +894,16 @@ export const marcusKimPipelineEntries: PipelineEntry[] = [
       ],
       people: [],
       sources: [
-        { label: 'Halcyon Engineering Blog — Backstage Adoption', url: 'https://example.com/halcyon/blog/backstage', kind: 'company' },
-        { label: 'Aki Tanaka KubeCon talk 2025', url: 'https://example.com/kubecon/aki-tanaka', kind: 'company' },
+        {
+          label: 'Halcyon Engineering Blog — Backstage Adoption',
+          url: 'https://example.com/halcyon/blog/backstage',
+          kind: 'company',
+        },
+        {
+          label: 'Aki Tanaka KubeCon talk 2025',
+          url: 'https://example.com/kubecon/aki-tanaka',
+          kind: 'company',
+        },
       ],
       searchQueries: ['Halcyon Labs platform engineering', 'Aki Tanaka IDP'],
       lastInvestigatedAt: '2026-04-22T09:30:00.000Z',
@@ -829,7 +937,8 @@ export const marcusKimPipelineEntries: PipelineEntry[] = [
     rounds: 3,
     format: ['hr-screen', 'hm-screen', 'system-design'],
     rejectionStage: 'technical',
-    rejectionReason: 'Hiring committee felt the framing was too tactical; wanted multi-year strategic vision and more executive exposure.',
+    rejectionReason:
+      'Hiring committee felt the framing was too tactical; wanted multi-year strategic vision and more executive exposure.',
     offerAmount: '',
     dateApplied: '2026-02-26',
     dateClosed: '2026-03-22',
@@ -841,7 +950,10 @@ export const marcusKimPipelineEntries: PipelineEntry[] = [
       { date: '2026-03-02', note: 'Recruiter screen scheduled.' },
       { date: '2026-03-05', note: 'Advanced from recruiter screen.' },
       { date: '2026-03-12', note: 'Advanced from HM screen.' },
-      { date: '2026-03-22', note: 'Rejected after technical panel — feedback logged in awareness.' },
+      {
+        date: '2026-03-22',
+        note: 'Rejected after technical panel — feedback logged in awareness.',
+      },
     ],
     interviewRounds: [GLASS_R1, GLASS_R2, GLASS_R3],
   },
@@ -859,7 +971,8 @@ export const marcusKimPrepDecks: PrepDeck[] = [
     companyUrl: 'https://example.com/halcyon',
     skillMatch:
       'Strong: IDP design, paved-road tooling, Kubernetes, cost engineering. Solid: multi-cloud. Working: GCP-native tooling.',
-    positioning: 'Lead with Stria IDP zero-to-fifty story; mention deploy-time rebuild as the second beat.',
+    positioning:
+      'Lead with Stria IDP zero-to-fifty story; mention deploy-time rebuild as the second beat.',
     roundType: 'hr-screen',
     roundNumber: 1,
     notes:
@@ -871,11 +984,13 @@ export const marcusKimPrepDecks: PrepDeck[] = [
     ],
     questionsToAsk: [
       {
-        question: 'What does the next 100-service milestone look like for the platform team — is it adoption-first or capability-first?',
+        question:
+          'What does the next 100-service milestone look like for the platform team — is it adoption-first or capability-first?',
         context: 'Surfaces whether the role is paved-road or feature-build.',
       },
       {
-        question: 'How does Halcyon decide what becomes a paved-road default versus a self-service option?',
+        question:
+          'How does Halcyon decide what becomes a paved-road default versus a self-service option?',
         context: 'Validates the platform charter — Aki has talked about this publicly.',
       },
       {
@@ -899,6 +1014,7 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         id: 'card-halcyon-opener',
         deckId: 'deck-halcyon-r1',
         category: 'opener',
+        kind: 'opener',
         title: '60-second self-intro',
         tags: ['opener'],
         timeBudgetMinutes: 1,
@@ -921,6 +1037,7 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         id: 'card-halcyon-motivation',
         deckId: 'deck-halcyon-r1',
         category: 'behavioral',
+        kind: 'story',
         title: 'Why Halcyon, why now',
         tags: ['behavioral', 'motivation'],
         timeBudgetMinutes: 2,
@@ -930,7 +1047,7 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         vectorId: VECTORS.platform,
         pipelineEntryId: 'pipe-halcyon',
         script:
-          "Two reasons. First, the platform charter at Halcyon is real — Aki has been public about IDPs that do not fight the user, which is exactly the model that worked for me at Stria. Second, the 100-service milestone is the size where paved-road defaults stop being optional and start being load-bearing — that is the part of the platform lifecycle I am best at.",
+          'Two reasons. First, the platform charter at Halcyon is real — Aki has been public about IDPs that do not fight the user, which is exactly the model that worked for me at Stria. Second, the 100-service milestone is the size where paved-road defaults stop being optional and start being load-bearing — that is the part of the platform lifecycle I am best at.',
         scriptLabel: 'Default',
         keyPoints: [
           'Charter validated by Aki public talks.',
@@ -943,6 +1060,7 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         id: 'card-halcyon-comp',
         deckId: 'deck-halcyon-r1',
         category: 'situational',
+        kind: 'story',
         title: 'Comp expectation',
         tags: ['situational', 'comp'],
         timeBudgetMinutes: 1,
@@ -952,7 +1070,7 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         vectorId: VECTORS.platform,
         pipelineEntryId: 'pipe-halcyon',
         script:
-          "Targeting $215K to $255K base depending on equity structure. I value a meaningful equity refresh cadence over a higher base — happy to talk through the tradeoffs if you have a sense of the band.",
+          'Targeting $215K to $255K base depending on equity structure. I value a meaningful equity refresh cadence over a higher base — happy to talk through the tradeoffs if you have a sense of the band.',
         scriptLabel: 'Default — band first, then flexibility',
         keyPoints: [
           'State the band, not a single number.',
@@ -1003,7 +1121,8 @@ export const marcusKimPrepDecks: PrepDeck[] = [
           background: 'Former infra lead at a hyperscaler; promoted from staff a year ago.',
           stack: 'Architecture review, multi-year roadmaps, capacity planning.',
           caresAbout: 'Multi-year strategic framing, not point-in-time technical detail.',
-          yourAngle: 'Did not surface multi-year cost framing — this is the gap that drove the rejection.',
+          yourAngle:
+            'Did not surface multi-year cost framing — this is the gap that drove the rejection.',
           keyTell: 'She asks "what does year three look like" when probing for strategic depth.',
         },
       },
@@ -1019,16 +1138,29 @@ export const marcusKimPrepDecks: PrepDeck[] = [
     ],
     stackAlignment: [
       { theirTech: 'Go services', yourMatch: 'Primary language; six years.', confidence: 'Strong' },
-      { theirTech: 'Service mesh (Envoy)', yourMatch: 'Working knowledge from Threadwell; not the primary tool.', confidence: 'Working knowledge' },
-      { theirTech: 'Multi-region failover', yourMatch: 'Designed and shipped at Stria.', confidence: 'Strong' },
-      { theirTech: 'Multi-year platform roadmap', yourMatch: 'Adjacent — operated within roadmaps but did not own one.', confidence: 'Adjacent experience' },
+      {
+        theirTech: 'Service mesh (Envoy)',
+        yourMatch: 'Working knowledge from Threadwell; not the primary tool.',
+        confidence: 'Working knowledge',
+      },
+      {
+        theirTech: 'Multi-region failover',
+        yourMatch: 'Designed and shipped at Stria.',
+        confidence: 'Strong',
+      },
+      {
+        theirTech: 'Multi-year platform roadmap',
+        yourMatch: 'Adjacent — operated within roadmaps but did not own one.',
+        confidence: 'Adjacent experience',
+      },
     ],
     roundDebriefs: [
       {
         round: 1,
         date: '2026-03-04',
         intel: {
-          teamCulture: 'Recruiter described platform team as "engineering-first" — worth probing in HM screen.',
+          teamCulture:
+            'Recruiter described platform team as "engineering-first" — worth probing in HM screen.',
           other: { 'comp-band': 'Tom mentioned $245K–$285K base + meaningful equity refresh.' },
         },
         questionsAsked: ['Standard background and motivation', 'Comp expectation', 'Timeline'],
@@ -1039,8 +1171,10 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         round: 2,
         date: '2026-03-11',
         intel: {
-          teamCulture: 'Aisha described the platform team as having three IC tracks and one EM — IC ladder is real.',
-          topChallenge: 'Aisha called out service-mesh adoption as the current top-of-mind problem.',
+          teamCulture:
+            'Aisha described the platform team as having three IC tracks and one EM — IC ladder is real.',
+          topChallenge:
+            'Aisha called out service-mesh adoption as the current top-of-mind problem.',
           aiUsage: 'AI tooling is being evaluated but not adopted yet.',
         },
         questionsAsked: [
@@ -1055,7 +1189,8 @@ export const marcusKimPrepDecks: PrepDeck[] = [
           'Service mesh is a current pain point — could have brought it into round 3 framing.',
           'Aisha was warm; the technical panel was where the temperature dropped.',
         ],
-        notes: 'Felt strong leaving the call. In retrospect, should have asked Aisha what year-three platform success looks like at Glass.',
+        notes:
+          'Felt strong leaving the call. In retrospect, should have asked Aisha what year-three platform success looks like at Glass.',
       },
     ],
     generatedAt: '2026-03-15T11:00:00.000Z',
@@ -1065,6 +1200,7 @@ export const marcusKimPrepDecks: PrepDeck[] = [
         id: 'card-glass-system-design',
         deckId: 'deck-glass-r3',
         category: 'technical',
+        kind: 'story',
         title: 'System design — multi-cloud control plane',
         tags: ['system-design', 'platform'],
         timeBudgetMinutes: 30,
@@ -1097,13 +1233,20 @@ export const marcusKimPrepDecks: PrepDeck[] = [
           'Cross-cloud IAM was the integration risk — partner with security early.',
           'Closer should have led with the multi-year framing — that was the rejection signal.',
         ],
-        perRoundState: [{ round: 3, status: 'fumbled', notes: 'Closer landed flat with Jenna; she wanted year-three framing earlier.' }],
+        perRoundState: [
+          {
+            round: 3,
+            status: 'fumbled',
+            notes: 'Closer landed flat with Jenna; she wanted year-three framing earlier.',
+          },
+        ],
         updatedAt: '2026-03-22T17:00:00.000Z',
       },
       {
         id: 'card-glass-paved-road',
         deckId: 'deck-glass-r3',
         category: 'behavioral',
+        kind: 'story',
         title: 'How you decide what becomes a paved-road default',
         tags: ['behavioral', 'platform'],
         timeBudgetMinutes: 8,
@@ -1118,13 +1261,20 @@ export const marcusKimPrepDecks: PrepDeck[] = [
           'Reversibility — every default needs a documented exit path.',
           'Cost — the default has to be cheaper, not just easier.',
         ],
-        perRoundState: [{ round: 3, status: 'worked', notes: 'Yusuf was visibly engaged; this was the high point of the round.' }],
+        perRoundState: [
+          {
+            round: 3,
+            status: 'worked',
+            notes: 'Yusuf was visibly engaged; this was the high point of the round.',
+          },
+        ],
         updatedAt: '2026-03-22T17:00:00.000Z',
       },
       {
         id: 'card-glass-routes-around',
         deckId: 'deck-glass-r3',
         category: 'situational',
+        kind: 'story',
         title: 'Team routing around platform tooling',
         tags: ['situational', 'platform'],
         timeBudgetMinutes: 5,
@@ -1138,7 +1288,13 @@ export const marcusKimPrepDecks: PrepDeck[] = [
           'Talk to the team first; assume design defect.',
           'Carrots before sticks — what would make the paved road faster than their custom path?',
         ],
-        perRoundState: [{ round: 3, status: 'untested', notes: 'Did not come up — Jenna shifted to year-three framing instead.' }],
+        perRoundState: [
+          {
+            round: 3,
+            status: 'untested',
+            notes: 'Did not come up — Jenna shifted to year-three framing instead.',
+          },
+        ],
         updatedAt: '2026-03-22T17:00:00.000Z',
       },
     ],

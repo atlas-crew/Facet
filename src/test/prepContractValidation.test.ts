@@ -95,6 +95,7 @@ describe('prep contract validation', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['opener'],
             notes: 'Lead with the broad arc.',
@@ -103,6 +104,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'technical',
+            kind: 'story',
             title: 'What is your Go experience?',
             tags: ['gap-framing'],
             notes: 'Bridge from adjacent systems work.',
@@ -111,6 +113,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'Leadership story',
             tags: ['leadership'],
             notes: 'Handled hard things well.',
@@ -243,6 +246,7 @@ describe('prep contract validation', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['opener'],
             notes:
@@ -253,6 +257,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Why this role/company?',
             tags: ['opener'],
             notes:
@@ -263,6 +268,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'situational',
+            kind: 'story',
             title: 'Jordan Lee, Director of Platform',
             tags: ['intel'],
             notes:
@@ -278,6 +284,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'technical',
+            kind: 'story',
             title: "What you know, what you don't: Go",
             tags: ['gap-framing'],
             notes: 'I have adjacent experience with distributed systems work and can ramp quickly.',
@@ -299,6 +306,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'Leadership story',
             tags: ['leadership'],
             notes:
@@ -309,6 +317,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Why this team now?',
             tags: ['landmine'],
             notes: 'Lead with the fit between the team and the work.',
@@ -318,6 +327,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'situational',
+            kind: 'story',
             title: 'What could go wrong here?',
             tags: ['landmine'],
             notes: 'The risk is overclaiming before the evidence is there.',
@@ -497,6 +507,89 @@ describe('prep contract validation', () => {
     )
   })
 
+  it('reports missing and invalid PrepCard kind discriminators from generated cards', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        rules: [
+          'Lead with specific evidence.',
+          'Keep answers conversational.',
+          'Name tradeoffs plainly.',
+        ],
+        categoryGuidance: {
+          behavioral: 'Use concrete stories and keep the answer conversational.',
+        },
+        cards: [
+          {
+            category: 'behavioral',
+            title: 'Leadership story',
+            tags: ['leadership'],
+            script: 'I handled the release by sequencing the riskiest migration first.',
+          },
+          {
+            category: 'technical',
+            kind: 'freeform',
+            title: 'Architecture tradeoff',
+            tags: ['architecture'],
+            script:
+              'I would name the constraint, pick the boring design, and explain the tradeoff.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            title: 'Valid story',
+            tags: ['leadership'],
+            script: 'I led the release by sequencing the riskiest migration first.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generatePrepDeck('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['hm-screen'],
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.deck.cards.slice(0, 3).map((card) => [card.title, card.kind])).toEqual([
+      ['Leadership story', 'story'],
+      ['Architecture tradeoff', 'story'],
+      ['Valid story', 'story'],
+    ])
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'cards[0].kind',
+          kind: 'missing-field',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          field: 'cards[1].kind',
+          kind: 'invalid-field',
+          severity: 'error',
+        }),
+      ]),
+    )
+  })
+
   it('auto-injects landmine cards when the LLM omits them', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
@@ -525,6 +618,7 @@ describe('prep contract validation', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['opener'],
             notes:
@@ -535,6 +629,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Why this role/company?',
             tags: ['opener'],
             notes:
@@ -545,6 +640,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'situational',
+            kind: 'story',
             title: 'Jordan Lee, Director of Platform',
             tags: ['intel'],
             notes:
@@ -560,6 +656,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'technical',
+            kind: 'story',
             title: "What you know, what you don't: Go",
             tags: ['gap-framing'],
             notes: 'I have adjacent experience with distributed systems work and can ramp quickly.',
@@ -581,6 +678,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'technical',
+            kind: 'story',
             title: 'What you know, what you do not: Kubernetes',
             tags: ['gap-framing'],
             notes:
@@ -603,6 +701,7 @@ describe('prep contract validation', () => {
           },
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'Leadership story',
             tags: ['leadership'],
             notes:

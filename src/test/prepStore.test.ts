@@ -183,6 +183,7 @@ describe('prepStore', () => {
         {
           id: 'card-intel-1',
           category: 'situational',
+          kind: 'story',
           title: 'Sample Panelist',
           tags: ['intel'],
           interviewerIds: ['interviewer-1'],
@@ -212,6 +213,7 @@ describe('prepStore', () => {
     const cardId = usePrepStore.getState().addCard(deckId, {
       title: 'Tell me about yourself',
       category: 'opener',
+      kind: 'opener',
       tags: ['backend'],
     })
 
@@ -232,6 +234,26 @@ describe('prepStore', () => {
     expect(deck.durableMeta?.revision).toBe(4)
   })
 
+  it('infers card kind from legacy shape when runtime input has a malformed kind', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Opening answer',
+      category: 'opener',
+      kind: 'freeform' as never,
+      tags: [],
+    })
+
+    const card = usePrepStore.getState().decks[0].cards.find((entry) => entry.id === cardId)
+    expect(card?.kind).toBe('opener')
+  })
+
   it('assigns stable ids to new conditionals created from partial card data', () => {
     const deckId = usePrepStore.getState().createDeck({
       title: 'Prep',
@@ -244,6 +266,7 @@ describe('prepStore', () => {
     const cardId = usePrepStore.getState().addCard(deckId, {
       title: 'Pushback handling',
       category: 'behavioral',
+      kind: 'story',
       tags: ['leadership'],
       conditionals: [
         {
@@ -275,6 +298,7 @@ describe('prepStore', () => {
         {
           id: 'pushback::legacy-card',
           category: 'behavioral',
+          kind: 'story',
           title: 'Legacy imported card',
           tags: [],
         },
@@ -295,6 +319,7 @@ describe('prepStore', () => {
       cards: [
         {
           category: 'opener',
+          kind: 'opener',
           title: 'Tell me about yourself',
           tags: [' backend '],
           script: ' Lead with platform reliability. ',
@@ -325,6 +350,7 @@ describe('prepStore', () => {
         id: expect.stringMatching(/^prep-card-/),
         deckId,
         category: 'behavioral',
+        kind: 'story',
         title: 'Untitled Prep Card',
         tags: [],
       }),
@@ -341,6 +367,7 @@ describe('prepStore', () => {
         {
           id: 'table-card',
           category: 'technical',
+          kind: 'story',
           title: 'Tradeoff table',
           tags: ['systems'],
           tableData: {
@@ -370,6 +397,7 @@ describe('prepStore', () => {
     const cardId = usePrepStore.getState().addCard(deckId, {
       title: 'Leadership example',
       category: 'behavioral',
+      kind: 'story',
       tags: ['leadership'],
     })
 
@@ -402,6 +430,7 @@ describe('prepStore', () => {
     const cardId = usePrepStore.getState().addCard(deckId, {
       title: 'Why did you leave?',
       category: 'opener',
+      kind: 'opener',
       tags: ['departure'],
       pushbackScript: 'Here is the fuller answer if they ask why.',
       pushbackLabel: 'If they ask why',
@@ -444,6 +473,7 @@ describe('prepStore', () => {
           id: 'story-card',
           title: 'Influence without authority',
           category: 'behavioral',
+          kind: 'story',
           tags: ['influence'],
           storyVariants: [
             {
@@ -682,6 +712,7 @@ describe('prepStore', () => {
             {
               id: 'prep-card-malformed',
               category: 'behavioral',
+              kind: 'story',
               title: 'Handle malformed data',
               tags: ['cleanup'],
               followUps: [
@@ -754,6 +785,7 @@ describe('prepStore', () => {
         {
           id: 'card-1',
           category: 'behavioral',
+          kind: 'story',
           title: 'Leadership story',
           tags: [],
           timeBudgetMinutes: 2.5,
@@ -942,6 +974,7 @@ describe('prepStore', () => {
             {
               id: 'prep-card-valid',
               category: 'behavioral',
+              kind: 'story',
               title: 'Valid card',
               tags: [],
               perRoundState: [
@@ -1026,6 +1059,7 @@ describe('prepStore', () => {
         {
           id: 'prep-card-export',
           category: 'behavioral',
+          kind: 'story',
           title: 'Export card',
           tags: [],
           pushbackScript: 'Fuller answer if they ask for more.',
@@ -1152,6 +1186,7 @@ describe('prepStore', () => {
           {
             id: 'prep-card-rich',
             category: 'behavioral',
+            kind: 'story',
             title: ' Leadership story ',
             tags: [' leadership ', ''],
             perRoundState: [
@@ -1258,6 +1293,7 @@ describe('prepStore', () => {
     const cardId = usePrepStore.getState().addCard(deckId, {
       title: 'Original card',
       category: 'behavioral',
+      kind: 'story',
       tags: [],
     })
 
@@ -1381,6 +1417,7 @@ describe('prepStore', () => {
     const cardId = usePrepStore.getState().addCard(deckId, {
       title: 'Original card',
       category: 'behavioral',
+      kind: 'story',
       tags: [],
     })
 
@@ -1389,6 +1426,7 @@ describe('prepStore', () => {
         id: cardId,
         deckId,
         category: 'behavioral',
+        kind: 'story',
         title: ' Replacement card ',
         tags: [' ownership ', ''],
         alternativeTitle: ' Backup incident ',
@@ -1443,6 +1481,7 @@ describe('prepStore', () => {
         {
           id: 'prep-card-alt-placeholder',
           category: 'behavioral',
+          kind: 'story',
           title: 'Backup story',
           tags: [],
           alternativeTitle: 'Alternative: migration story',

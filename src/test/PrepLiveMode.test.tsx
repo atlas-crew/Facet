@@ -73,6 +73,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-1',
       category: 'opener',
+      kind: 'opener',
       title: 'Tell me about yourself',
       tags: ['intro'],
       script: 'I lead backend platform work and enjoy scaling teams and systems.',
@@ -87,6 +88,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-1b',
       category: 'opener',
+      kind: 'opener',
       title: 'Why this role/company?',
       tags: ['motivation'],
       script:
@@ -106,6 +108,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-1c',
       category: 'opener',
+      kind: 'opener',
       title: 'Why did you leave your last role?',
       tags: ['departure'],
       script:
@@ -125,6 +128,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-2',
       category: 'behavioral',
+      kind: 'story',
       title: 'Describe a hard stakeholder moment',
       tags: ['stakeholders'],
       script: 'I aligned engineering and product on a reliability roadmap.',
@@ -159,6 +163,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-3',
       category: 'technical',
+      kind: 'story',
       title: 'How do you debug a flaky distributed system?',
       tags: ['debugging'],
       script: 'Start with blast radius, recent changes, and observability gaps.',
@@ -169,6 +174,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-4',
       category: 'project',
+      kind: 'story',
       title: 'A project you are proud of',
       tags: ['ownership'],
       script: 'I led a migration that cut deploy time in half.',
@@ -182,6 +188,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-5',
       category: 'metrics',
+      kind: 'story',
       title: 'Reliability metrics',
       tags: ['outcomes'],
       metrics: [
@@ -193,6 +200,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-6',
       category: 'situational',
+      kind: 'story',
       title: 'A tradeoff scenario',
       tags: ['judgment'],
       script: 'I would optimize for customer impact first.',
@@ -201,6 +209,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-landmine-1',
       category: 'technical',
+      kind: 'story',
       title: 'Landmine: overstate Kubernetes',
       tags: ['landmine'],
       notes: 'You know the orchestration layer, but not every production detail.',
@@ -210,6 +219,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-landmine-2',
       category: 'metrics',
+      kind: 'story',
       title: 'Landmine: cite a number you cannot defend',
       tags: ['landmine'],
       notes: 'Every number needs a source and a denominator.',
@@ -219,6 +229,7 @@ const mockDeck: PrepDeck = {
     {
       id: 'card-landmine-3',
       category: 'opener',
+      kind: 'opener',
       title: 'Landmine: give a generic why this role answer',
       tags: ['landmine'],
       notes: 'The motivation answer should sound specific to this role, not interchangeable.',
@@ -239,6 +250,7 @@ const alternateDeck: PrepDeck = {
     {
       id: 'alt-card-1',
       category: 'opener',
+      kind: 'opener',
       title: 'Tell me about yourself',
       tags: ['intro'],
       script: 'I build product engineering teams that deliver clean execution under pressure.',
@@ -247,6 +259,7 @@ const alternateDeck: PrepDeck = {
     {
       id: 'alt-card-2',
       category: 'behavioral',
+      kind: 'story',
       title: 'Coach through a scope disagreement',
       tags: ['coaching'],
       script:

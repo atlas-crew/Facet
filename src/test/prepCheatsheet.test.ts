@@ -62,6 +62,7 @@ const deck: PrepDeck = {
     {
       id: 'opener-1',
       category: 'opener',
+      kind: 'opener',
       title: 'Tell me about yourself',
       tags: ['opener'],
       keyPoints: ['Keep it under 90 seconds', 'Lead with platform impact'],
@@ -72,6 +73,7 @@ const deck: PrepDeck = {
     {
       id: 'opener-2',
       category: 'opener',
+      kind: 'opener',
       title: 'Why this role/company?',
       tags: ['opener', 'motivation'],
       script:
@@ -90,6 +92,7 @@ const deck: PrepDeck = {
     {
       id: 'opener-3',
       category: 'opener',
+      kind: 'opener',
       title: 'Why did you leave your last role?',
       tags: ['opener', 'departure'],
       script:
@@ -100,6 +103,7 @@ const deck: PrepDeck = {
     {
       id: 'behavioral-1',
       category: 'behavioral',
+      kind: 'story',
       title: 'Resolve a stakeholder conflict',
       tags: ['behavioral'],
       storyBlocks: [
@@ -111,6 +115,7 @@ const deck: PrepDeck = {
     {
       id: 'project-1',
       category: 'project',
+      kind: 'story',
       title: 'Platform migration',
       tags: ['project'],
       storyBlocks: [
@@ -120,6 +125,7 @@ const deck: PrepDeck = {
     {
       id: 'technical-1',
       category: 'technical',
+      kind: 'story',
       title: 'Debug a flaky distributed system',
       tags: ['technical'],
       metrics: [
@@ -130,6 +136,7 @@ const deck: PrepDeck = {
     {
       id: 'situational-1',
       category: 'situational',
+      kind: 'story',
       title: 'Tradeoffs in a fast-moving rollout',
       tags: ['situational'],
       warning: 'Always state assumptions before picking a path.',
@@ -137,6 +144,7 @@ const deck: PrepDeck = {
     {
       id: 'metrics-1',
       category: 'metrics',
+      kind: 'story',
       title: 'Key numbers to remember',
       tags: ['metrics'],
       metrics: [{ value: '40+', label: 'Engineers supported' }],
@@ -312,6 +320,7 @@ describe('derivePrepCheatsheetSections', () => {
         {
           id: 'opener-4',
           category: 'opener',
+          kind: 'opener',
           title: 'Walk me through your background',
           tags: ['intro'],
           script: 'I grew from infra work into product-facing platform leadership.',

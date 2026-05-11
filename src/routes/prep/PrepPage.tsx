@@ -41,6 +41,7 @@ import type { InterviewFormat, PipelineEntry } from '../../types/pipeline'
 import type { JDAnalysis, JDAnalysisDriftStatus } from '../../types/jdAnalysis'
 import type {
   PrepCard,
+  PrepCardPatch,
   PrepCardRoundStatus,
   PrepCategory,
   PrepContractViolation,
@@ -422,7 +423,7 @@ function resolvePrepGenerationContext(
   }
 }
 
-function shouldPromotePrepCardToManual(patch: Partial<PrepCard>): boolean {
+function shouldPromotePrepCardToManual(patch: PrepCardPatch): boolean {
   return USER_OWNED_PREP_CARD_FIELDS.some((field) => field in patch)
 }
 
@@ -1180,7 +1181,7 @@ export function PrepPage() {
   }, [activeDeck, addCard])
 
   const handleUpdateCard = useCallback(
-    (cardId: string, patch: Partial<PrepCard>) => {
+    (cardId: string, patch: PrepCardPatch) => {
       if (!activeDeck) return
       const currentCard = activeDeck.cards.find((card) => card.id === cardId)
       updateCard(

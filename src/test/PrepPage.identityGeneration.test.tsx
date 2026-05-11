@@ -290,6 +290,7 @@ describe('PrepPage identity generation', () => {
                 cards: [
                   {
                     category: 'opener',
+                    kind: 'opener',
                     title: 'Tell me about yourself',
                     tags: ['backend', 'acme'],
                     script: 'I build resilient backend systems and lead platform improvements.',
@@ -409,6 +410,7 @@ describe('PrepPage identity generation', () => {
                   cards: [
                     {
                       category: 'opener',
+                      kind: 'opener',
                       title: 'Tell me about yourself',
                       tags: ['backend', 'acme'],
                       script: 'I build resilient backend systems.',
@@ -574,6 +576,7 @@ describe('PrepPage identity generation', () => {
         {
           id: 'card-1',
           category: 'technical',
+          kind: 'story',
           title: 'Original technical card',
           tags: ['technical'],
           script: '[[needs-review]] add the rollout denominator',
@@ -613,6 +616,7 @@ describe('PrepPage identity generation', () => {
         {
           id: 'card-gap',
           category: 'opener',
+          kind: 'opener',
           title: 'Why this role',
           tags: ['opener'],
           script: '[[needs-review]] add the departure context bridge.',
@@ -688,6 +692,7 @@ describe('PrepPage identity generation', () => {
         {
           id: 'card-1',
           category: 'technical',
+          kind: 'story',
           title: 'Original technical card',
           tags: ['technical'],
           script: '[[needs-review]] add the rollout denominator',
@@ -708,6 +713,7 @@ describe('PrepPage identity generation', () => {
                 cards: [
                   {
                     category: 'technical',
+                    kind: 'story',
                     title: 'Refreshed technical card',
                     tags: ['technical'],
                     script: 'The rollout served roughly 120 engineers across six product teams.',

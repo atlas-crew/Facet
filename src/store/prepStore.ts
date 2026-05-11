@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type {
   PrepCard,
+  PrepCardBase,
+  PrepCardKind,
+  PrepCardPatch,
   PrepCardConfidence,
   PrepCardRoundState,
   PrepCardRoundStatus,
@@ -39,6 +42,7 @@ import {
   PREP_INTERVIEWER_LIKELY_ROLE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
   isPrepStackAlignmentConfidence,
+  resolvePrepCardKind,
 } from '../types/prep'
 import type { InterviewFormat } from '../types/pipeline'
 import { INTERVIEW_FORMAT_VALUES } from '../types/pipeline'
@@ -112,8 +116,8 @@ interface PrepState {
   createDeck: (input: CreateDeckInput) => string
   updateDeck: (deckId: string, patch: Partial<Omit<PrepDeck, 'id' | 'cards'>>) => void
   replaceDeckCards: (deckId: string, cards: PrepCard[]) => void
-  addCard: (deckId: string, partial?: Partial<PrepCard>) => string
-  updateCard: (deckId: string, cardId: string, patch: Partial<PrepCard>) => void
+  addCard: (deckId: string, partial?: PrepCardPatch) => string
+  updateCard: (deckId: string, cardId: string, patch: PrepCardPatch) => void
   /** reviewKey may be a card id or a synthetic pushback practice key. */
   recordCardReview: (deckId: string, reviewKey: string, confidence: PrepCardConfidence) => boolean
   duplicateCard: (deckId: string, cardId: string) => void
@@ -126,6 +130,11 @@ interface PrepState {
 interface SanitizeOptions {
   preserveDrafts?: boolean
   defaultTitle?: string
+}
+
+type PrepCardSanitizeInput = PrepCardPatch & {
+  id?: unknown
+  deckId?: unknown
 }
 
 function sanitizeText(value: unknown, options: SanitizeOptions = {}): string | undefined {
@@ -168,7 +177,7 @@ function sanitizeCardRoundStatus(value: unknown): PrepCardRoundStatus | undefine
 
 function createEmptyCard(
   deckId: string,
-  partial: Partial<PrepCard> = {},
+  partial: PrepCardSanitizeInput = {},
   options: SanitizeOptions = {},
 ): PrepCard {
   const category =
@@ -182,9 +191,19 @@ function createEmptyCard(
     partial.source === 'ai' || partial.source === 'manual' || partial.source === 'imported'
       ? partial.source
       : 'manual'
+  const kind =
+    resolvePrepCardKind(partial.kind, partial) ??
+    resolvePrepCardKind(undefined, {
+      category,
+      tags: partial.tags,
+      interviewerIds: partial.interviewerIds,
+    }) ??
+    'story'
+
   return {
     id,
     deckId,
+    kind,
     category,
     title: sanitizeText(partial.title, options) || options.defaultTitle || 'New Prep Card',
     tags: sanitizeStringList(partial.tags, options) ?? [],
@@ -851,7 +870,11 @@ function sanitizeStackAlignment(
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions = {}): PrepCard {
+function sanitizeCard(
+  deckId: string,
+  card: PrepCardSanitizeInput,
+  options: SanitizeOptions = {},
+): PrepCard {
   // AI generation, JSON import, and persisted snapshots can all bypass static typing.
   const baseCard = createEmptyCard(deckId, card, {
     ...options,
@@ -865,6 +888,24 @@ function sanitizeCard(deckId: string, card: PrepCard, options: SanitizeOptions =
     deckId,
     updatedAt: now(),
   }
+}
+
+function cardWithKind(base: PrepCardBase, kind: PrepCardKind): PrepCard {
+  return { ...base, kind }
+}
+
+function applyCardPatch(deckId: string, card: PrepCard, patch: PrepCardPatch): PrepCard {
+  // Legacy/runtime callers can still provide prohibited identity fields; updateCard keeps them pinned.
+  const runtimePatch = patch as PrepCardPatch & { id?: unknown; deckId?: unknown }
+  const { id: _ignoredId, deckId: _ignoredDeckId, kind: patchKind, ...safePatch } = runtimePatch
+  const mergedCard = {
+    ...card,
+    ...safePatch,
+    id: card.id,
+    deckId: card.deckId ?? deckId,
+  }
+  const kind = resolvePrepCardKind(patchKind ?? card.kind, mergedCard) ?? card.kind
+  return cardWithKind({ ...mergedCard, updatedAt: now() }, kind)
 }
 
 function shouldKeepStudyProgressEntry(
@@ -1269,7 +1310,9 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
         deckId,
         (deck) => ({
           ...deck,
-          cards: deck.cards.map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
+          cards: deck.cards.map((card) =>
+            card.id === cardId ? applyCardPatch(deckId, card, patch) : card,
+          ),
         }),
         { preserveDrafts: true },
       ),

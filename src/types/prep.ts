@@ -348,7 +348,58 @@ export interface PrepStoryVariant {
   when?: string
 }
 
-export interface PrepCard {
+export const PREP_CARD_KIND_VALUES = [
+  'opener',
+  'intel',
+  'story',
+  'anchor',
+  'scenario',
+  'deep-dive',
+  'closer',
+  'reference',
+  'followup-qa',
+] as const
+
+export type PrepCardKind = (typeof PREP_CARD_KIND_VALUES)[number]
+
+export function isPrepCardKind(value: unknown): value is PrepCardKind {
+  return typeof value === 'string' && (PREP_CARD_KIND_VALUES as readonly string[]).includes(value)
+}
+
+export function parsePrepCardKind(value: unknown): PrepCardKind | undefined {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  return isPrepCardKind(normalized) ? normalized : undefined
+}
+
+/**
+ * `category` is the topical bucket users scan by; `kind` is the card's
+ * structural/rendering shape. They may match for openers, but they are
+ * independent axes: a technical card can still be a story-shaped card.
+ * Missing legacy kinds fall back through tag/interviewer/category inference; explicit
+ * malformed kinds return undefined so callers choose their boundary behavior.
+ */
+export function resolvePrepCardKind(
+  value: unknown,
+  context: { category?: unknown; tags?: unknown; interviewerIds?: unknown } = {},
+): PrepCardKind | undefined {
+  const parsed = parsePrepCardKind(value)
+  if (parsed) return parsed
+  if (value !== undefined && value !== null) return undefined
+
+  const tags = Array.isArray(context.tags)
+    ? context.tags.flatMap((tag) => (typeof tag === 'string' ? [tag.trim().toLowerCase()] : []))
+    : []
+
+  // Inference priority is intentionally legacy-shape based, not the PREP_CARD_KIND_VALUES order.
+  if (tags.includes('intel')) return 'intel'
+  if (Array.isArray(context.interviewerIds) && context.interviewerIds.length >= 1) {
+    return 'intel'
+  }
+  if (context.category === 'opener') return 'opener'
+  return 'story'
+}
+
+export interface PrepCardBase {
   id: string
   deckId?: string
   category: PrepCategory
@@ -390,6 +441,93 @@ export interface PrepCard {
     rows: string[][]
   }
   perRoundState?: PrepCardRoundState[]
+}
+
+export interface PrepOpenerCard extends PrepCardBase {
+  kind: 'opener'
+}
+
+export interface PrepIntelCard extends PrepCardBase {
+  kind: 'intel'
+}
+
+export interface PrepStoryCard extends PrepCardBase {
+  kind: 'story'
+}
+
+export interface PrepAnchorCard extends PrepCardBase {
+  kind: 'anchor'
+}
+
+export interface PrepScenarioCard extends PrepCardBase {
+  kind: 'scenario'
+}
+
+export interface PrepDeepDiveCard extends PrepCardBase {
+  kind: 'deep-dive'
+}
+
+export interface PrepCloserCard extends PrepCardBase {
+  kind: 'closer'
+}
+
+export interface PrepReferenceCard extends PrepCardBase {
+  kind: 'reference'
+}
+
+export interface PrepFollowUpQACard extends PrepCardBase {
+  kind: 'followup-qa'
+}
+
+export type PrepCard =
+  | PrepOpenerCard
+  | PrepIntelCard
+  | PrepStoryCard
+  | PrepAnchorCard
+  | PrepScenarioCard
+  | PrepDeepDiveCard
+  | PrepCloserCard
+  | PrepReferenceCard
+  | PrepFollowUpQACard
+
+export type PrepCardPatch = Partial<Omit<PrepCardBase, 'id' | 'deckId'>> & {
+  kind?: PrepCardKind
+}
+
+export function isOpenerCard(card: PrepCard): card is PrepOpenerCard {
+  return card.kind === 'opener'
+}
+
+export function isIntelCard(card: PrepCard): card is PrepIntelCard {
+  return card.kind === 'intel'
+}
+
+export function isStoryCard(card: PrepCard): card is PrepStoryCard {
+  return card.kind === 'story'
+}
+
+export function isAnchorCard(card: PrepCard): card is PrepAnchorCard {
+  return card.kind === 'anchor'
+}
+
+export function isScenarioCard(card: PrepCard): card is PrepScenarioCard {
+  return card.kind === 'scenario'
+}
+
+export function isDeepDiveCard(card: PrepCard): card is PrepDeepDiveCard {
+  return card.kind === 'deep-dive'
+}
+
+export function isCloserCard(card: PrepCard): card is PrepCloserCard {
+  return card.kind === 'closer'
+}
+
+export function isReferenceCard(card: PrepCard): card is PrepReferenceCard {
+  return card.kind === 'reference'
+}
+
+export function isFollowUpQACard(card: PrepCard): card is PrepFollowUpQACard {
+  return card.kind === 'followup-qa'
 }
 
 export interface PrepCardStudyState {
@@ -462,6 +600,7 @@ export interface PrepDeck {
 
 export const PREP_CONTRACT_VIOLATION_KINDS = [
   'missing-field',
+  'invalid-field',
   'short-prose',
   'missing-coaching',
   'missing-intel',

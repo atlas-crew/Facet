@@ -5,12 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PrepCardView } from '../routes/prep/PrepCardView'
 import { PrepCollapsibleSection } from '../routes/prep/PrepCollapsibleSection'
-import type { PrepCard, PrepInterviewer } from '../types/prep'
+import type { PrepCard, PrepCardPatch, PrepInterviewer } from '../types/prep'
 
-function makeCard(overrides: Partial<PrepCard> = {}): PrepCard {
+function makeCard(overrides: PrepCardPatch = {}): PrepCard {
   return {
     id: 'card-1',
     category: 'behavioral',
+    kind: 'story',
     title: 'Tell me about a tough project',
     tags: ['leadership'],
     source: 'manual',
@@ -24,7 +25,7 @@ function EditableHarness({ initialCard }: { initialCard?: PrepCard }) {
   return (
     <PrepCardView
       card={card}
-      onUpdateCard={(_, patch) => setCard((current) => ({ ...current, ...patch }))}
+      onUpdateCard={(_, patch) => setCard((current) => makeCard({ ...current, ...patch }))}
       onDuplicateCard={vi.fn()}
       onRemoveCard={vi.fn()}
     />
@@ -667,6 +668,7 @@ describe('PrepCardView', () => {
     }
     const card = makeCard({
       category: 'situational',
+      kind: 'intel',
       title: 'Sample Panelist',
       tags: ['intel'],
       interviewerIds: ['iv-1'],
@@ -692,6 +694,7 @@ describe('PrepCardView', () => {
   it('falls through to the generic read-only layout when no matching interviewer is provided', () => {
     const card = makeCard({
       category: 'situational',
+      kind: 'story',
       title: 'Panel member',
       tags: ['intel'],
       interviewerIds: ['iv-missing'],
@@ -706,6 +709,29 @@ describe('PrepCardView', () => {
     expect(screen.getByText('Generic coaching note.')).toBeTruthy()
   })
 
+  it('uses card.kind rather than tags alone when dispatching read-only intel cards', () => {
+    const interviewer: PrepInterviewer = {
+      id: 'iv-1',
+      name: 'Sample Panelist',
+      intel: {
+        role: 'Runs the platform team',
+      },
+    }
+    const card = makeCard({
+      category: 'situational',
+      kind: 'story',
+      title: 'Sample Panelist story',
+      tags: ['intel'],
+      interviewerIds: ['iv-1'],
+      notes: 'Render this as a normal story until the kind is intel.',
+    })
+
+    const { container } = render(<PrepCardView readOnly card={card} interviewers={[interviewer]} />)
+
+    expect(container.querySelector('.prep-intel-card')).toBeNull()
+    expect(screen.getByText('Render this as a normal story until the kind is intel.')).toBeTruthy()
+  })
+
   it('omits empty intel rows while still rendering the line-that-lands block', () => {
     const interviewer: PrepInterviewer = {
       id: 'iv-2',
@@ -717,6 +743,7 @@ describe('PrepCardView', () => {
     }
     const card = makeCard({
       category: 'situational',
+      kind: 'intel',
       title: 'Minimal Intel',
       tags: ['intel'],
       interviewerIds: ['iv-2'],

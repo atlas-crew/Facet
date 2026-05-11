@@ -3,6 +3,7 @@ import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucid
 import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
 import type {
   PrepCard,
+  PrepCardPatch,
   PrepConditional,
   PrepDeepDive,
   PrepFollowUp,
@@ -31,7 +32,7 @@ import {
 
 interface PrepCardViewProps {
   card: PrepCard
-  onUpdateCard?: (cardId: string, patch: Partial<PrepCard>) => void
+  onUpdateCard?: (cardId: string, patch: PrepCardPatch) => void
   onDuplicateCard?: (cardId: string) => void
   onRemoveCard?: (cardId: string) => void
   readOnly?: boolean
@@ -41,6 +42,15 @@ interface PrepCardViewProps {
    * intel layout instead of the generic card layout.
    */
   interviewers?: PrepInterviewer[]
+}
+
+function renderReadOnlyKindCard(
+  card: PrepCard,
+  linkedInterviewer: PrepInterviewer | undefined,
+  needsReview: boolean,
+): ReactElement | null {
+  if (card.kind !== 'intel' || !linkedInterviewer) return null
+  return <IntelCardReadOnly card={card} interviewer={linkedInterviewer} needsReview={needsReview} />
 }
 
 export function PrepCardView({
@@ -99,11 +109,8 @@ export function PrepCardView({
 
   if (readOnly) {
     const linkedInterviewer = resolveLinkedInterviewer(card, interviewers)
-    if (linkedInterviewer) {
-      return (
-        <IntelCardReadOnly card={card} interviewer={linkedInterviewer} needsReview={needsReview} />
-      )
-    }
+    const kindCard = renderReadOnlyKindCard(card, linkedInterviewer, needsReview)
+    if (kindCard) return kindCard
 
     return (
       <div className={`prep-card${needsReview ? ' prep-card-needs-review' : ''}`}>

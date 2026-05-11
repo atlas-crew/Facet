@@ -1,10 +1,12 @@
 import {
   PREP_COMPANY_AI_POSTURE_STRENGTH_VALUES,
+  PREP_CARD_KIND_VALUES,
   PREP_CATEGORY_VALUES,
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_INTERVIEWER_LIKELY_ROLE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
+  resolvePrepCardKind,
 } from '../types/prep'
 import type {
   PrepCard,
@@ -53,6 +55,11 @@ const PREP_TIMEOUT_MS = 240000
  * `MAX_REQUEST_TOKENS >= 8192` — otherwise the proxy silently clamps.
  */
 const PREP_MAX_TOKENS = 8192
+const RAW_KIND_LOG_TRUNCATE = 64
+
+function truncateForLog(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value
+}
 
 interface PrepGenerationPayload {
   deckTitle: string
@@ -606,6 +613,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
       return []
     }
     const category = record.category as PrepCategory
+    const kind = resolvePrepCardKind(record.kind, record) ?? 'story'
 
     const tags = Array.isArray(record.tags)
       ? record.tags
@@ -617,6 +625,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
     return [
       {
         id: createId('prep-card'),
+        kind,
         category,
         title: record.title.trim(),
         tags,
@@ -949,10 +958,11 @@ function validatePrepGenerationContract(params: {
   >
   generatedCards: PrepCard[]
   hasParsedCards: boolean
+  rawCards: unknown
   request: PrepGenerationRequest
 }): PrepContractViolation[] {
   const violations: PrepContractViolation[] = []
-  const { deck, generatedCards, hasParsedCards, request } = params
+  const { deck, generatedCards, hasParsedCards, rawCards, request } = params
 
   if (!hasParsedCards) {
     addViolation(violations, {
@@ -960,6 +970,36 @@ function validatePrepGenerationContract(params: {
       field: 'cards',
       message: 'Expected the generated prep payload to include a cards array.',
       severity: 'error',
+    })
+  }
+
+  if (Array.isArray(rawCards)) {
+    rawCards.forEach((rawCard, index) => {
+      const rawRecord =
+        rawCard && typeof rawCard === 'object' ? (rawCard as Record<string, unknown>) : undefined
+      const cardId = isString(rawRecord?.id) ? rawRecord.id.trim() || undefined : undefined
+      const rawKind = rawRecord?.kind
+      if (!isString(rawKind) || rawKind.trim() === '') {
+        addViolation(violations, {
+          kind: 'missing-field',
+          cardId,
+          field: `cards[${index}].kind`,
+          message: 'Expected every generated prep card to include a required kind discriminator.',
+          severity: 'error',
+        })
+        return
+      }
+      const normalizedRawKind = rawKind.trim()
+      const displayedRawKind = truncateForLog(normalizedRawKind, RAW_KIND_LOG_TRUNCATE)
+      if (!(PREP_CARD_KIND_VALUES as readonly string[]).includes(normalizedRawKind)) {
+        addViolation(violations, {
+          kind: 'invalid-field',
+          cardId,
+          field: `cards[${index}].kind`,
+          message: `Expected generated prep card kind to match PREP_CARD_KIND_VALUES, received "${displayedRawKind}".`,
+          severity: 'error',
+        })
+      }
     })
   }
 
@@ -1175,6 +1215,7 @@ function buildGapFramingFallbackCards(
     return {
       id: createId('prep-card'),
       category: 'technical',
+      kind: 'story',
       title: `What you know, what you don't: ${row.theirTech}`,
       tags: Array.from(new Set(['gap-framing', 'transferable-experience', techTag])),
       notes: acknowledgement,
@@ -1240,6 +1281,7 @@ function canonicalizeTaggedCard(card: PrepCard, tag: string): PrepCard {
 }
 
 function buildLandmineCard(params: {
+  kind?: PrepCard['kind']
   category: PrepCategory
   title: string
   notes: string
@@ -1249,6 +1291,7 @@ function buildLandmineCard(params: {
 }): PrepCard {
   return {
     id: createId('prep-card'),
+    kind: params.kind ?? 'story',
     category: params.category,
     title: params.title,
     tags: [LANDMINE_TAG],
@@ -1306,6 +1349,7 @@ function buildLandmineFallbackCards(
     addCard(
       buildLandmineCard({
         category: 'technical',
+        kind: 'story',
         title: 'Landmine: overstate ' + techName,
         notes: confidenceLabel,
         warning:
@@ -1329,6 +1373,7 @@ function buildLandmineFallbackCards(
     addCard(
       buildLandmineCard({
         category: 'metrics',
+        kind: 'story',
         title: 'Landmine: cite a number you cannot defend',
         notes: strongestMetric
           ? 'Keep the source, denominator, and time window ready for ' +
@@ -1347,6 +1392,7 @@ function buildLandmineFallbackCards(
     addCard(
       buildLandmineCard({
         category: 'opener',
+        kind: 'opener',
         title: 'Landmine: give a generic why this role answer',
         notes:
           'The interviewer is testing whether you can make this role feel specific, not interchangeable.',
@@ -1373,6 +1419,7 @@ function buildLandmineFallbackCards(
     addCard(
       buildLandmineCard({
         category: 'behavioral',
+        kind: 'story',
         title: 'Landmine: turn your transition into a complaint',
         notes:
           'A departure answer should be calm, brief, and future-facing instead of emotional or defensive.',
@@ -1388,6 +1435,7 @@ function buildLandmineFallbackCards(
     addCard(
       buildLandmineCard({
         category: 'behavioral',
+        kind: 'story',
         title: 'Landmine: hide your role inside a team win',
         notes: 'Shared work is fine, but your decisions still need to be audible.',
         warning: 'Do not let we-language erase your own contribution.',
@@ -1402,6 +1450,7 @@ function buildLandmineFallbackCards(
     addCard(
       buildLandmineCard({
         category: 'situational',
+        kind: 'story',
         title: 'Landmine: pretend the org chart is settled',
         notes:
           'Useful interviewer intel should be grounded in the research you actually have, not guessed from titles.',
@@ -1421,6 +1470,7 @@ function buildLandmineFallbackCards(
   const genericTemplates = [
     buildLandmineCard({
       category: 'situational',
+      kind: 'story',
       title: 'Landmine: answer the question you wished they asked',
       notes:
         'The safer answer is usually the one that directly addresses the question in front of you.',
@@ -1435,6 +1485,7 @@ function buildLandmineFallbackCards(
     }),
     buildLandmineCard({
       category: 'situational',
+      kind: 'story',
       title: 'Landmine: over-explain the setup',
       notes: 'A long setup can make a sharp answer feel evasive.',
       warning: 'Do not spend the first minute on backstory before the point lands.',
@@ -1444,6 +1495,7 @@ function buildLandmineFallbackCards(
     }),
     buildLandmineCard({
       category: 'situational',
+      kind: 'story',
       title: 'Landmine: sound vague when they want a concrete example',
       notes: 'Vagueness usually reads like missing ownership or missing memory.',
       warning:
@@ -1606,6 +1658,7 @@ function ensureRoundAwareRemediationCards(
 
     fallbackCards.push({
       id: createId('prep-card'),
+      kind: 'story',
       category: match.card.category,
       title: remediationTitle,
       tags: Array.from(new Set([...(match.card.tags ?? []), PRACTICE_THIS_TAG])),
@@ -1753,6 +1806,7 @@ Response schema:
   "cards": [
     {
       "category": "opener|behavioral|technical|project|metrics|situational",
+      "kind": "opener|intel|story|anchor|scenario|deep-dive|closer|reference|followup-qa",
       "title": "string",
       "tags": ["string"],
       "timeBudgetMinutes": "optional number",
@@ -1962,6 +2016,7 @@ Return JSON only (inside the tags).`
     },
     generatedCards,
     hasParsedCards: Array.isArray(parsed.cards),
+    rawCards: parsed.cards,
     request,
   })
   logPrepContractViolations(request, contractViolations)

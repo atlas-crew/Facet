@@ -167,6 +167,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['backend'],
             script: 'I build resilient backend systems.',
@@ -215,6 +216,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'Leadership story',
             tags: ['leadership'],
             script: 'Lead with the incident response story.',
@@ -504,6 +506,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -542,6 +545,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -549,6 +553,7 @@ describe('generateInterviewPrep', () => {
           },
           {
             category: 'technical',
+            kind: 'story',
             title: 'How do you debug a distributed system?',
             tags: ['debugging'],
             script: 'Start with the blast radius.',
@@ -589,6 +594,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -618,6 +624,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -654,6 +661,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -703,6 +711,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'situational',
+            kind: 'story',
             title: 'Alice — intel',
             tags: ['intel'],
             interviewerIds: ['iv-1'],
@@ -843,6 +852,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'Leadership story',
             tags: [' leadership ', 'backend'],
             script: 'Lead with the incident response story.',
@@ -1069,6 +1079,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'technical',
+            kind: 'story',
             title: 'Frontend systems',
             tags: ['frontend'],
             script: 'Lead with production JavaScript systems.',
@@ -1140,6 +1151,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -1169,7 +1181,7 @@ describe('generateInterviewPrep', () => {
 
   it('repairs malformed JSON when the model drops a closing array bracket near the end', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
-      '<result>\n{"deckTitle":"Acme Staff Engineer Prep","companyResearchSummary":"Acme is scaling carefully.","cards":[{"category":"opener","title":"Tell me about yourself","tags":["intro"],"script":"I build reliable systems.","keyPoints":["Lead with platform depth","Close with outcomes"}]}\n</result>',
+      '<result>\n{"deckTitle":"Acme Staff Engineer Prep","companyResearchSummary":"Acme is scaling carefully.","cards":[{"category":"opener","kind":"opener","title":"Tell me about yourself","tags":["intro"],"script":"I build reliable systems.","keyPoints":["Lead with platform depth","Close with outcomes"}]}\n</result>',
     )
 
     const result = await generateInterviewPrep('https://ai.example/proxy', {
@@ -1191,6 +1203,7 @@ describe('generateInterviewPrep', () => {
     expect(result.cards).toHaveLength(4)
     expect(result.cards[0]).toMatchObject({
       category: 'opener',
+      kind: 'opener',
       title: 'Tell me about yourself',
       script: 'I build reliable systems.',
       keyPoints: ['Lead with platform depth', 'Close with outcomes'],
@@ -1213,6 +1226,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'situational',
+            kind: 'story',
             title: 'Named people intel',
             tags: ['intel'],
             script: 'Focus on the hiring manager and team shape.',
@@ -1261,6 +1275,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'technical',
+            kind: 'story',
             title: 'How do you debug a flaky distributed system?',
             tags: ['debugging'],
             script: 'Start with blast radius and the most recent changes.',
@@ -1287,6 +1302,7 @@ describe('generateInterviewPrep', () => {
     expect(gapCards).toHaveLength(2)
     expect(gapCards[0]).toMatchObject({
       category: 'technical',
+      kind: 'story',
       title: "What you know, what you don't: GovCloud",
       notes: 'I have not shipped GovCloud directly yet.',
       scriptLabel: 'Bridge This Gap',
@@ -1307,6 +1323,7 @@ describe('generateInterviewPrep', () => {
     )
     expect(gapCards[1]).toMatchObject({
       category: 'technical',
+      kind: 'story',
       title: "What you know, what you don't: Go",
     })
     expect(gapCards[1].script).toBe(
@@ -1344,6 +1361,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'technical',
+            kind: 'story',
             title: 'How do you debug a flaky distributed system?',
             tags: ['debugging'],
             script: 'Start with blast radius and the most recent changes.',
@@ -1383,6 +1401,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'behavioral',
+            kind: 'story',
             title: "What you know, what you don't: GovCloud",
             tags: ['gap-framing'],
             notes: 'I have not shipped GovCloud directly yet.',
@@ -1427,6 +1446,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'What you know, what you don’t: GovCloud',
             tags: ['transferable-experience'],
             notes: 'I have not shipped GovCloud directly yet.',
@@ -1470,6 +1490,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'behavioral',
+            kind: 'story',
             title: 'Gap framing',
             tags: ['Gap-Framing', 'transferable-experience'],
             notes: 'I have not shipped GovCloud directly yet.',
@@ -1550,6 +1571,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -1583,6 +1605,7 @@ describe('generateInterviewPrep', () => {
         {
           id: 'card-r1',
           category: 'behavioral',
+          kind: 'story',
           title: 'Leadership story',
           tags: ['leadership'],
           perRoundState: [{ round: 1, status: 'fumbled', notes: 'Lead with the decision sooner.' }],
@@ -1613,6 +1636,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -1631,6 +1655,7 @@ describe('generateInterviewPrep', () => {
         {
           id: 'card-r1',
           category: 'behavioral',
+          kind: 'story',
           title: 'Leadership story',
           tags: ['leadership'],
           script: 'Walk through the incident response timeline.',
@@ -1663,6 +1688,7 @@ describe('generateInterviewPrep', () => {
         cards: [
           {
             category: 'opener',
+            kind: 'opener',
             title: 'Tell me about yourself',
             tags: ['intro'],
             script: 'I build reliable systems.',
@@ -1681,6 +1707,7 @@ describe('generateInterviewPrep', () => {
         {
           id: 'card-r2',
           category: 'behavioral',
+          kind: 'story',
           title: 'Leadership story',
           tags: ['leadership'],
           perRoundState: [{ round: 1, status: 'fumbled', notes: 'Old round 1 miss.' }],

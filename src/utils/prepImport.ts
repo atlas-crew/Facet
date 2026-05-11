@@ -1,12 +1,24 @@
-import type { PrepCard, PrepCategory, PrepDeck, PrepMetric, PrepNumbersToKnow, PrepStackAlignmentRow } from '../types/prep'
-import { isPrepStackAlignmentConfidence } from '../types/prep'
+import type {
+  PrepCard,
+  PrepCategory,
+  PrepDeck,
+  PrepMetric,
+  PrepNumbersToKnow,
+  PrepStackAlignmentRow,
+} from '../types/prep'
+import { isPrepStackAlignmentConfidence, resolvePrepCardKind } from '../types/prep'
 import { createId } from './idUtils'
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
 const now = () => new Date().toISOString()
 
 const VALID_CATEGORIES = new Set<string>([
-  'opener', 'behavioral', 'technical', 'project', 'metrics', 'situational',
+  'opener',
+  'behavioral',
+  'technical',
+  'project',
+  'metrics',
+  'situational',
 ])
 
 const nullableString = (value: unknown): string | null =>
@@ -25,11 +37,13 @@ function validateMetricList(raw: unknown): PrepMetric[] | undefined {
           : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     return value && label
-      ? [{
-          id: typeof record.id === 'string' ? record.id : undefined,
-          value,
-          label,
-        }]
+      ? [
+          {
+            id: typeof record.id === 'string' ? record.id : undefined,
+            value,
+            label,
+          },
+        ]
       : []
   })
 
@@ -78,22 +92,24 @@ function validateCard(raw: unknown): PrepCard | null {
   if (typeof c.id !== 'string' || !c.id) return null
   if (typeof c.title !== 'string' || !c.title) return null
   if (!VALID_CATEGORIES.has(c.category as string)) return null
+  const cardKind = resolvePrepCardKind(c.kind, c) ?? resolvePrepCardKind(undefined, c)
+  if (!cardKind) return null
 
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
 
   // Tags must be string array
-  const tags = Array.isArray(c.tags)
-    ? c.tags.filter((t): t is string => typeof t === 'string')
-    : []
+  const tags = Array.isArray(c.tags) ? c.tags.filter((t): t is string => typeof t === 'string') : []
 
   // Follow-ups: array of {question, answer} pairs
   const followUps = Array.isArray(c.followUps)
-    ? c.followUps.filter(
-        (f): f is { question: string; answer: string } =>
-          f && typeof f === 'object' &&
-          typeof f.question === 'string' &&
-          typeof f.answer === 'string'
-      )
+    ? c.followUps
+        .filter(
+          (f): f is { question: string; answer: string } =>
+            f &&
+            typeof f === 'object' &&
+            typeof f.question === 'string' &&
+            typeof f.answer === 'string',
+        )
         .map((item) => ({
           id:
             typeof (item as Record<string, unknown>).id === 'string'
@@ -106,12 +122,14 @@ function validateCard(raw: unknown): PrepCard | null {
 
   // Deep dives: array of {title, content}
   const deepDives = Array.isArray(c.deepDives)
-    ? c.deepDives.filter(
-        (d): d is { title: string; content: string } =>
-          d && typeof d === 'object' &&
-          typeof d.title === 'string' &&
-          typeof d.content === 'string'
-      )
+    ? c.deepDives
+        .filter(
+          (d): d is { title: string; content: string } =>
+            d &&
+            typeof d === 'object' &&
+            typeof d.title === 'string' &&
+            typeof d.content === 'string',
+        )
         .map((item) => ({
           id:
             typeof (item as Record<string, unknown>).id === 'string'
@@ -134,7 +152,7 @@ function validateCard(raw: unknown): PrepCard | null {
       td.headers.every((h: unknown) => typeof h === 'string') &&
       Array.isArray(td.rows) &&
       td.rows.every(
-        (r: unknown) => Array.isArray(r) && r.every((cell: unknown) => typeof cell === 'string')
+        (r: unknown) => Array.isArray(r) && r.every((cell: unknown) => typeof cell === 'string'),
       )
     ) {
       tableData = { headers: td.headers as string[], rows: td.rows as string[][] }
@@ -144,14 +162,13 @@ function validateCard(raw: unknown): PrepCard | null {
   return {
     id: c.id as string,
     deckId: str(c.deckId),
+    kind: cardKind,
     category: c.category as PrepCategory,
     title: c.title as string,
     tags,
     notes: str(c.notes),
     source:
-      c.source === 'ai' || c.source === 'manual' || c.source === 'imported'
-        ? c.source
-        : undefined,
+      c.source === 'ai' || c.source === 'manual' || c.source === 'imported' ? c.source : undefined,
     company: str(c.company),
     role: str(c.role),
     vectorId: str(c.vectorId),
@@ -195,10 +212,8 @@ function validateDeck(raw: unknown): PrepDeck | null {
     skillMatch: typeof deck.skillMatch === 'string' ? deck.skillMatch : undefined,
     positioning: typeof deck.positioning === 'string' ? deck.positioning : undefined,
     notes: typeof deck.notes === 'string' ? deck.notes : undefined,
-    companyResearch:
-      typeof deck.companyResearch === 'string' ? deck.companyResearch : undefined,
-    jobDescription:
-      typeof deck.jobDescription === 'string' ? deck.jobDescription : undefined,
+    companyResearch: typeof deck.companyResearch === 'string' ? deck.companyResearch : undefined,
+    jobDescription: typeof deck.jobDescription === 'string' ? deck.jobDescription : undefined,
     jdAnalysisId: nullableString(deck.jdAnalysisId),
     jdAnalysisGeneratedAt: nullableString(deck.jdAnalysisGeneratedAt),
     jdAnalysisModelVersion: nullableString(deck.jdAnalysisModelVersion),
@@ -224,7 +239,11 @@ export interface PrepImportResult {
 export function parsePrepImport(file: File): Promise<PrepImportResult> {
   return new Promise((resolve) => {
     if (file.size > MAX_IMPORT_BYTES) {
-      resolve({ decks: [], skipped: 0, error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.` })
+      resolve({
+        decks: [],
+        skipped: 0,
+        error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.`,
+      })
       return
     }
 
@@ -234,7 +253,11 @@ export function parsePrepImport(file: File): Promise<PrepImportResult> {
         const parsed = JSON.parse(ev.target?.result as string)
         const raw = Array.isArray(parsed) ? parsed : null
         if (!raw) {
-          resolve({ decks: [], skipped: 0, error: 'Expected a JSON array of prep cards or prep decks.' })
+          resolve({
+            decks: [],
+            skipped: 0,
+            error: 'Expected a JSON array of prep cards or prep decks.',
+          })
           return
         }
 

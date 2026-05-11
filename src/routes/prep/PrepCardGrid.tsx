@@ -1,9 +1,9 @@
-import type { PrepCard, PrepInterviewer } from '../../types/prep'
+import type { PrepCard, PrepCardPatch, PrepInterviewer } from '../../types/prep'
 import { PrepCardView } from './PrepCardView'
 
 interface PrepCardGridProps {
   cards: PrepCard[]
-  onUpdateCard: (cardId: string, patch: Partial<PrepCard>) => void
+  onUpdateCard: (cardId: string, patch: PrepCardPatch) => void
   onDuplicateCard: (cardId: string) => void
   onRemoveCard: (cardId: string) => void
   layout?: 'responsive' | 'single'
