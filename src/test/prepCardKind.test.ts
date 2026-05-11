@@ -3,6 +3,8 @@ import {
   PREP_CARD_KIND_VALUES,
   PREP_CONTRACT_VIOLATION_KINDS,
   PREP_SCRIPT_KIND_VALUES,
+  type PrepDecisionTreeNode,
+  type PrepPhasedFrameworkPhase,
   isAnchorCard,
   isCloserCard,
   isDeepDiveCard,
@@ -18,7 +20,7 @@ import {
   parsePrepScriptKind,
   resolvePrepCardKind,
 } from '../types/prep'
-import type { PrepCard, PrepCardKind } from '../types/prep'
+import type { PrepCard, PrepCardBase, PrepCardKind } from '../types/prep'
 
 const guardByKind = {
   opener: isOpenerCard,
@@ -33,13 +35,22 @@ const guardByKind = {
 } satisfies Record<PrepCardKind, (card: PrepCard) => boolean>
 
 function makeCard(kind: PrepCardKind): PrepCard {
-  return {
+  const base: PrepCardBase = {
     id: `${kind}-card`,
     category: kind === 'opener' ? 'opener' : 'behavioral',
-    kind,
     title: `${kind} card`,
     tags: [],
   }
+
+  if (kind === 'scenario') {
+    return {
+      ...base,
+      kind,
+      whyLikely: 'The interviewer has asked comparable architecture tradeoff questions.',
+    }
+  }
+
+  return { ...base, kind } as PrepCard
 }
 
 describe('prep card kind helpers', () => {
@@ -123,5 +134,43 @@ describe('prep card kind helpers', () => {
         expect(guard(card)).toBe(card.kind === kind)
       })
     })
+  })
+
+  it('models scenario decision trees and phased frameworks', () => {
+    const decisionTree = [
+      {
+        title: 'Choose the migration path',
+        options: [
+          {
+            option: 'Strangler migration',
+            whenRight: 'Traffic can move incrementally.',
+            tradeoff: 'Requires routing discipline.',
+          },
+        ],
+        recommendation: 'Pick the incremental route when production risk dominates.',
+        trap: 'Do not hand-wave data consistency.',
+      },
+    ] satisfies PrepDecisionTreeNode[]
+    const phasedFramework = [
+      {
+        phase: 'Map risk',
+        timeframe: 'Week 1',
+        bullets: ['Inventory blast radius', 'Pick rollback points'],
+      },
+    ] satisfies PrepPhasedFrameworkPhase[]
+    const card: PrepCard = {
+      id: 'scenario-card',
+      kind: 'scenario',
+      category: 'situational',
+      title: 'How would you migrate the platform?',
+      tags: ['system-design'],
+      whyLikely: 'The role is explicitly about platform migrations.',
+      decisionTree,
+      phasedFramework,
+    }
+
+    expect(isScenarioCard(card)).toBe(true)
+    expect(card.decisionTree?.[0]?.options?.[0]?.tradeoff).toBe('Requires routing discipline.')
+    expect(card.phasedFramework?.[0]?.bullets).toContain('Pick rollback points')
   })
 })

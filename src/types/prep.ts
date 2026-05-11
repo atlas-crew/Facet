@@ -348,6 +348,25 @@ export interface PrepStoryVariant {
   when?: string
 }
 
+export interface PrepDecisionOption {
+  option: string
+  whenRight: string
+  tradeoff: string
+}
+
+export interface PrepDecisionTreeNode {
+  title: string
+  options?: PrepDecisionOption[]
+  recommendation?: string
+  trap?: string
+}
+
+export interface PrepPhasedFrameworkPhase {
+  phase: string
+  timeframe?: string
+  bullets: string[]
+}
+
 export const PREP_SCRIPT_KIND_VALUES = [
   // `opener` and `closer` intentionally overlap with PrepCardKind values;
   // this enum names the script's rhetorical role, not the card's shape.
@@ -487,6 +506,9 @@ export interface PrepAnchorCard extends PrepCardBase {
 
 export interface PrepScenarioCard extends PrepCardBase {
   kind: 'scenario'
+  whyLikely: string
+  decisionTree?: PrepDecisionTreeNode[]
+  phasedFramework?: PrepPhasedFrameworkPhase[]
 }
 
 export interface PrepDeepDiveCard extends PrepCardBase {
@@ -516,9 +538,10 @@ export type PrepCard =
   | PrepReferenceCard
   | PrepFollowUpQACard
 
-export type PrepCardPatch = Partial<Omit<PrepCardBase, 'id' | 'deckId'>> & {
-  kind?: PrepCardKind
-}
+export type PrepCardPatch = Partial<Omit<PrepCardBase, 'id' | 'deckId'>> &
+  Partial<Pick<PrepScenarioCard, 'whyLikely' | 'decisionTree' | 'phasedFramework'>> & {
+    kind?: PrepCardKind
+  }
 
 export function isOpenerCard(card: PrepCard): card is PrepOpenerCard {
   return card.kind === 'opener'
@@ -611,6 +634,8 @@ export interface PrepDeck {
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
   contractViolations?: PrepContractViolation[]
+  openerCardId?: string
+  closerCardId?: string
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string

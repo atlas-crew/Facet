@@ -8,15 +8,23 @@ import { PrepCollapsibleSection } from '../routes/prep/PrepCollapsibleSection'
 import type { PrepCard, PrepCardPatch, PrepInterviewer } from '../types/prep'
 
 function makeCard(overrides: PrepCardPatch = {}): PrepCard {
-  return {
+  const card = {
     id: 'card-1',
     category: 'behavioral',
     kind: 'story',
     title: 'Tell me about a tough project',
     tags: ['leadership'],
-    source: 'manual',
+    source: 'manual' as const,
     ...overrides,
   }
+  if (card.kind === 'scenario') {
+    return {
+      ...card,
+      kind: 'scenario',
+      whyLikely: card.whyLikely ?? '',
+    } as PrepCard
+  }
+  return card as PrepCard
 }
 
 function EditableHarness({ initialCard }: { initialCard?: PrepCard }) {
@@ -746,6 +754,151 @@ describe('PrepCardView', () => {
 
     expect(container.querySelector('.prep-intel-card')).toBeNull()
     expect(screen.getByText('Render this as a normal story until the kind is intel.')).toBeTruthy()
+  })
+
+  it('renders scenario decision trees with option table, recommendation, and trap', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          category: 'situational',
+          kind: 'scenario',
+          title: 'How would you migrate the platform?',
+          tags: ['system-design'],
+          whyLikely: 'The role asks for platform migration judgment.',
+          notes: 'Use the migration example only if they ask for an architecture tradeoff.',
+          scriptLabel: 'Frame it this way',
+          script: 'I would move traffic incrementally while preserving rollback points.',
+          keyPoints: ['Name the rollback plan.', 'Tie the path to customer risk.'],
+          storyBlocks: [
+            { label: 'problem', text: 'The legacy path carried tenant-specific coupling.' },
+            { label: 'result', text: 'The rollout reduced support load during migration.' },
+          ],
+          decisionTree: [
+            {
+              title: 'Pick the migration path',
+              options: [
+                {
+                  option: 'Strangler migration',
+                  whenRight: 'Traffic can move incrementally.',
+                  tradeoff: 'Requires disciplined routing.',
+                },
+                {
+                  option: 'Big bang',
+                  whenRight: 'The old path cannot run in parallel.',
+                  tradeoff: 'Higher cutover risk.',
+                },
+              ],
+              recommendation: 'Pick the strangler path unless data coupling blocks it.',
+              trap: 'Do not pretend the migration is only code movement.',
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(container.querySelector('.prep-scenario-card')).toBeTruthy()
+    expect(screen.getByText('Why likely')).toBeTruthy()
+    expect(screen.getByText('The role asks for platform migration judgment.')).toBeTruthy()
+    expect(
+      screen.getByText('Use the migration example only if they ask for an architecture tradeoff.'),
+    ).toBeTruthy()
+    expect(screen.getByText('Frame it this way')).toBeTruthy()
+    expect(
+      screen.getByText('I would move traffic incrementally while preserving rollback points.'),
+    ).toBeTruthy()
+    expect(screen.getByText('Name the rollback plan.')).toBeTruthy()
+    expect(screen.getByText('The legacy path carried tenant-specific coupling.')).toBeTruthy()
+    expect(screen.getByText('Option')).toBeTruthy()
+    expect(screen.getByText('When Right')).toBeTruthy()
+    expect(screen.getByText('Tradeoff')).toBeTruthy()
+    expect(screen.getByText('Strangler migration')).toBeTruthy()
+    expect(screen.getByText('Pick the strangler path unless data coupling blocks it.')).toBeTruthy()
+    expect(screen.getByText('Do not pretend the migration is only code movement.')).toBeTruthy()
+  })
+
+  it('renders scenario phased frameworks as rollout phases', () => {
+    render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          category: 'situational',
+          kind: 'scenario',
+          title: 'How would you roll this out?',
+          tags: ['system-design'],
+          whyLikely: 'The interview loop emphasizes staged delivery.',
+          phasedFramework: [
+            {
+              phase: 'Map risk',
+              timeframe: 'Week 1',
+              bullets: ['Inventory blast radius', 'Pick rollback points'],
+            },
+            {
+              phase: 'Ramp traffic',
+              bullets: ['Start with low-risk tenants', 'Watch saturation and support load'],
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Map risk')).toBeTruthy()
+    expect(screen.getByText('Week 1')).toBeTruthy()
+    expect(screen.getByText('Inventory blast radius')).toBeTruthy()
+    expect(screen.getByText('Ramp traffic')).toBeTruthy()
+    expect(screen.getByText('Watch saturation and support load')).toBeTruthy()
+  })
+
+  it('renders scenario supporting sections and needs-review state', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          category: 'situational',
+          kind: 'scenario',
+          title: 'How would you handle a risky migration?',
+          tags: ['risk'],
+          whyLikely: '[[needs-review]]',
+          warning: 'Do not skip rollback planning.',
+          script: '[[needs-review]]',
+          followUps: [{ question: 'What if rollback fails?', answer: 'Name the manual stopgap.' }],
+          deepDives: [{ title: 'Migration risk', content: 'Rehearse cutover ownership.' }],
+          conditionals: [
+            {
+              trigger: 'If they frame this as pure speed',
+              response: 'Reframe around blast radius.',
+              tone: 'trap',
+            },
+            {
+              trigger: 'If they ask for a shortcut',
+              response: 'Bridge to staged rollout.',
+              tone: 'pivot',
+            },
+          ],
+          metrics: [{ value: '30%', label: 'reduction in incident load' }],
+          tableData: {
+            headers: ['Path', 'Risk'],
+            rows: [['Parallel run', 'Reconciliation cost']],
+          },
+        })}
+      />,
+    )
+
+    expect(container.querySelector('.prep-card-needs-review')).toBeTruthy()
+    expect(screen.getByText('Needs Review')).toBeTruthy()
+    expect(screen.queryByText('Why likely')).toBeNull()
+    expect(screen.getByText('Do not skip rollback planning.')).toBeTruthy()
+    expect(screen.getByText('What if rollback fails?')).toBeTruthy()
+    expect(screen.getByText('Name the manual stopgap.')).toBeTruthy()
+    expect(screen.getByText('Migration risk')).toBeTruthy()
+    expect(screen.getByText('Rehearse cutover ownership.')).toBeTruthy()
+    expect(container.querySelector('.prep-conditional-pair-trap')).toBeTruthy()
+    expect(container.querySelector('.prep-conditional-pair-reframe')).toBeTruthy()
+    expect(container.querySelector('.prep-conditional-pivot')).toBeTruthy()
+    expect(screen.getByText('30%')).toBeTruthy()
+    expect(screen.getByText('reduction in incident load')).toBeTruthy()
+    expect(screen.getByText('Path')).toBeTruthy()
+    expect(screen.getByText('Parallel run')).toBeTruthy()
   })
 
   it('omits empty intel rows while still rendering the line-that-lands block', () => {

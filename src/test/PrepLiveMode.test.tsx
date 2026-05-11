@@ -478,6 +478,86 @@ describe('PrepLiveMode', () => {
     expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Projects')
   })
 
+  it('routes keyboard navigation through deck bookends when present', () => {
+    const bookendedDeck: PrepDeck = {
+      ...mockDeck,
+      openerCardId: 'card-1b',
+      closerCardId: 'card-3',
+    }
+    const { container } = render(<PrepLiveMode deck={bookendedDeck} />)
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Why this role/company?',
+    )
+
+    fireEvent.keyDown(document.body, { key: 'Home' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Why this role/company?',
+    )
+
+    fireEvent.keyDown(document.body, { key: 'End' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Technical Topics',
+    )
+
+    fireEvent.keyDown(document.body, { key: 'J' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Technical Topics',
+    )
+
+    fireEvent.keyDown(document.body, { key: 'K' })
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Risks and Reminders',
+    )
+  })
+
+  it('ignores unknown deck bookend ids', () => {
+    const { container } = render(
+      <PrepLiveMode
+        deck={{
+          ...mockDeck,
+          openerCardId: 'missing-opener',
+          closerCardId: 'missing-closer',
+        }}
+      />,
+    )
+
+    fireEvent.keyDown(document.body, { key: 'Home' })
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain('Overview')
+  })
+
+  it('ignores duplicate closer bookend ids instead of rendering the same card twice', () => {
+    render(
+      <PrepLiveMode
+        deck={{
+          ...mockDeck,
+          openerCardId: 'card-1b',
+          closerCardId: 'card-1b',
+        }}
+      />,
+    )
+
+    const motivationNavLinks = screen
+      .getAllByRole('button')
+      .filter(
+        (button) =>
+          button.classList.contains('prep-live-nav-link') &&
+          button.textContent?.includes('Why this role/company?'),
+      )
+    expect(motivationNavLinks).toHaveLength(1)
+  })
+
+  it('keeps the active pre-interview section selected after collapsing pre-interview', () => {
+    const { container } = render(<PrepLiveMode deck={mockDeck} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pre-interview' }))
+
+    expect(container.querySelector('.prep-live-nav-link-active')?.textContent).toContain(
+      'Tell me about yourself',
+    )
+  })
+
   it('resets the timer from the visible control', () => {
     render(<PrepLiveMode deck={mockDeck} />)
 

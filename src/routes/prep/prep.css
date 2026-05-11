@@ -4196,6 +4196,116 @@
   border-bottom: none;
 }
 
+/* ── Scenario Cards ── */
+
+.prep-scenario-card {
+  border-left: 3px solid var(--accent-cyan);
+}
+
+.prep-scenario-why,
+.prep-scenario-recommendation,
+.prep-scenario-trap,
+.prep-scenario-node,
+.prep-scenario-phase,
+.prep-scenario-support-block {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  padding: var(--space-3);
+}
+
+.prep-scenario-why {
+  background: color-mix(in srgb, var(--accent-cyan) 8%, var(--bg-inset));
+  border-color: color-mix(in srgb, var(--accent-cyan) 18%, var(--border-subtle));
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-scenario-label {
+  margin-bottom: 4px;
+  color: var(--accent-cyan);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prep-scenario-decision-tree,
+.prep-scenario-framework,
+.prep-scenario-support-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.prep-scenario-keypoints {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-scenario-node,
+.prep-scenario-phase {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.prep-scenario-node h4,
+.prep-scenario-phase h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.prep-scenario-recommendation {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--success) 8%, var(--bg-inset));
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-scenario-recommendation .prep-scenario-label {
+  color: var(--success);
+}
+
+.prep-scenario-trap {
+  border-color: color-mix(in srgb, var(--status-critical) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--status-critical) 8%, var(--bg-inset));
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-scenario-trap .prep-scenario-label {
+  color: var(--status-critical);
+}
+
+.prep-scenario-phase-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.prep-scenario-timeframe {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.prep-scenario-phase ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 /* ── Empty State ── */
 
 .prep-empty {

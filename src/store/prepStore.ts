@@ -4,6 +4,7 @@ import type {
   PrepCardBase,
   PrepCardKind,
   PrepCardPatch,
+  PrepScenarioCard,
   PrepCardConfidence,
   PrepCardRoundState,
   PrepCardRoundStatus,
@@ -100,6 +101,8 @@ interface CreateDeckInput {
   contextGaps?: PrepContextGap[]
   contextGapAnswers?: Record<string, string>
   contractViolations?: PrepContractViolation[]
+  openerCardId?: string
+  closerCardId?: string
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
@@ -137,6 +140,11 @@ type PrepCardSanitizeInput = PrepCardPatch & {
   id?: unknown
   deckId?: unknown
 }
+
+type PrepScenarioFields = Partial<
+  Pick<PrepScenarioCard, 'whyLikely' | 'decisionTree' | 'phasedFramework'>
+>
+type PrepCardBaseWithScenarioFields = PrepCardBase & PrepScenarioFields
 
 function sanitizeText(value: unknown, options: SanitizeOptions = {}): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -201,10 +209,9 @@ function createEmptyCard(
     }) ??
     'story'
 
-  return {
+  const baseCard: PrepCardBaseWithScenarioFields = {
     id,
     deckId,
-    kind,
     category,
     title: sanitizeText(partial.title, options) || options.defaultTitle || 'New Prep Card',
     tags: sanitizeStringList(partial.tags, options) ?? [],
@@ -245,8 +252,16 @@ function createEmptyCard(
     })),
     metrics: sanitizeMetrics(partial.metrics, options),
     tableData: sanitizeTableData(partial.tableData, options),
+    whyLikely: sanitizeText(partial.whyLikely, options),
+    decisionTree: sanitizeScenarioDecisionTree(partial.decisionTree),
+    phasedFramework: sanitizeScenarioPhasedFramework(partial.phasedFramework),
     perRoundState: sanitizeCardRoundState(partial.perRoundState, options),
   }
+  return cardWithKind(baseCard, kind, {
+    whyLikely: baseCard.whyLikely,
+    decisionTree: baseCard.decisionTree,
+    phasedFramework: baseCard.phasedFramework,
+  })
 }
 
 function sanitizeStringList(
@@ -260,6 +275,56 @@ function sanitizeStringList(
   }
   const filtered = sanitized.filter(Boolean)
   return filtered.length > 0 ? filtered : undefined
+}
+
+function sanitizeScenarioDecisionTree(value: unknown): PrepScenarioFields['decisionTree'] {
+  if (!Array.isArray(value)) return undefined
+  const nodes = value.flatMap((node) => {
+    if (!node || typeof node !== 'object') return []
+    const record = node as Record<string, unknown>
+    const title = sanitizeText(record.title) ?? ''
+    if (!title) return []
+    const options = Array.isArray(record.options)
+      ? record.options.flatMap((option) => {
+          if (!option || typeof option !== 'object') return []
+          const item = option as Record<string, unknown>
+          const optionText = sanitizeText(item.option) ?? ''
+          const whenRight = sanitizeText(item.whenRight) ?? ''
+          const tradeoff = sanitizeText(item.tradeoff) ?? ''
+          return optionText && whenRight && tradeoff
+            ? [{ option: optionText, whenRight, tradeoff }]
+            : []
+        })
+      : undefined
+    return [
+      {
+        title,
+        options: options && options.length > 0 ? options : undefined,
+        recommendation: sanitizeText(record.recommendation),
+        trap: sanitizeText(record.trap),
+      },
+    ]
+  })
+  return nodes.length > 0 ? nodes : undefined
+}
+
+function sanitizeScenarioPhasedFramework(value: unknown): PrepScenarioFields['phasedFramework'] {
+  if (!Array.isArray(value)) return undefined
+  const phases = value.flatMap((phase) => {
+    if (!phase || typeof phase !== 'object') return []
+    const record = phase as Record<string, unknown>
+    const phaseTitle = sanitizeText(record.phase) ?? ''
+    const bullets = sanitizeStringList(record.bullets as string[]) ?? []
+    if (!phaseTitle || bullets.length === 0) return []
+    return [
+      {
+        phase: phaseTitle,
+        timeframe: sanitizeText(record.timeframe),
+        bullets,
+      },
+    ]
+  })
+  return phases.length > 0 ? phases : undefined
 }
 
 function sanitizeTableData(
@@ -892,7 +957,20 @@ function sanitizeCard(
   }
 }
 
-function cardWithKind(base: PrepCardBase, kind: PrepCardKind): PrepCard {
+function cardWithKind(
+  base: PrepCardBaseWithScenarioFields,
+  kind: PrepCardKind,
+  scenarioFields: PrepScenarioFields = {},
+): PrepCard {
+  if (kind === 'scenario') {
+    return {
+      ...base,
+      kind,
+      whyLikely: scenarioFields.whyLikely?.trim() ?? '',
+      decisionTree: scenarioFields.decisionTree,
+      phasedFramework: scenarioFields.phasedFramework,
+    }
+  }
   return { ...base, kind }
 }
 
@@ -919,7 +997,32 @@ function applyCardPatch(deckId: string, card: PrepCard, patch: PrepCardPatch): P
       ? undefined
       : parsePrepScriptKind(patchScriptKind)
     : card.scriptKind
-  return cardWithKind({ ...mergedCard, scriptKind, updatedAt: now() }, kind)
+  const runtimeScenarioFields = card as PrepCard & PrepScenarioFields
+  const previousScenarioFields: PrepScenarioFields = {
+    whyLikely: runtimeScenarioFields.whyLikely,
+    decisionTree: runtimeScenarioFields.decisionTree,
+    phasedFramework: runtimeScenarioFields.phasedFramework,
+  }
+  const isScenarioTransition = card.kind !== 'scenario' && kind === 'scenario'
+  // Preserve scenario drafts across temporary kind toggles; only the scenario renderer reads them.
+  const nextWhyLikely =
+    'whyLikely' in safePatch
+      ? sanitizeText(safePatch.whyLikely)
+      : isScenarioTransition
+        ? (previousScenarioFields.whyLikely ?? '[[needs-review]]')
+        : previousScenarioFields.whyLikely
+  return cardWithKind({ ...mergedCard, scriptKind, updatedAt: now() }, kind, {
+    ...previousScenarioFields,
+    whyLikely: nextWhyLikely,
+    decisionTree:
+      'decisionTree' in safePatch
+        ? sanitizeScenarioDecisionTree(safePatch.decisionTree)
+        : previousScenarioFields.decisionTree,
+    phasedFramework:
+      'phasedFramework' in safePatch
+        ? sanitizeScenarioPhasedFramework(safePatch.phasedFramework)
+        : previousScenarioFields.phasedFramework,
+  })
 }
 
 function shouldKeepStudyProgressEntry(
@@ -944,6 +1047,14 @@ function sanitizeDeck(
   const timestamp = now()
   const cards = deck.cards.map((card) => sanitizeCard(deck.id, card, options))
   const cardsById = new Map(cards.map((card) => [card.id, card]))
+  const openerCardId = sanitizeIdentifier(deck.openerCardId)
+  const closerCardId = sanitizeIdentifier(deck.closerCardId)
+  const resolvedOpenerCardId =
+    openerCardId && cardsById.has(openerCardId) ? openerCardId : undefined
+  const resolvedCloserCardId =
+    closerCardId && closerCardId !== resolvedOpenerCardId && cardsById.has(closerCardId)
+      ? closerCardId
+      : undefined
   const studyProgress = Object.fromEntries(
     Object.entries(deck.studyProgress ?? {}).flatMap(([reviewKey, state]) => {
       if (
@@ -1016,6 +1127,8 @@ function sanitizeDeck(
     contextGaps: sanitizeContextGaps(deck.contextGaps, options),
     contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers, options),
     contractViolations: sanitizeContractViolations(deck.contractViolations),
+    openerCardId: resolvedOpenerCardId,
+    closerCardId: resolvedCloserCardId,
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
     cards,
@@ -1250,6 +1363,8 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
       contextGaps: input.contextGaps,
       contextGapAnswers: input.contextGapAnswers,
       contractViolations: input.contractViolations,
+      openerCardId: input.openerCardId,
+      closerCardId: input.closerCardId,
       roundNumber: input.roundNumber,
       roundDebriefs: input.roundDebriefs,
       generatedAt: input.generatedAt,

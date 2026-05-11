@@ -119,4 +119,213 @@ describe('prepImport', () => {
     ])
     expect(result.skipped).toBe(0)
   })
+
+  it('imports scenario fields and drops invalid or duplicate deck bookends', async () => {
+    const file = new File(
+      [
+        JSON.stringify([
+          {
+            id: 'prep-deck-scenario',
+            title: 'Scenario Deck',
+            company: 'Acme',
+            role: 'Staff Engineer',
+            pipelineEntryId: 'pipeline-1',
+            pipelineRoundId: 'round-1',
+            roundType: 'system-design',
+            roundNumber: 1,
+            interviewers: [
+              {
+                id: 'interviewer-1',
+                name: 'Sample Panelist',
+                intel: { role: 'Engineering Manager' },
+              },
+            ],
+            categoryGuidance: {
+              situational: 'Answer the scenario directly.',
+            },
+            rules: ['Be specific.'],
+            openerCardId: 'scenario-card',
+            closerCardId: 'missing-card',
+            updatedAt: '2026-04-22T10:00:00.000Z',
+            cards: [
+              {
+                id: 'scenario-card',
+                title: 'How would you migrate the platform?',
+                category: 'situational',
+                kind: 'scenario',
+                tags: ['system-design'],
+                scriptLabel: ' Frame it ',
+                script: ' Use a staged rollout answer. ',
+                keyPoints: [' Name rollback. ', ' ', ' Show risk ownership. '],
+                storyBlocks: [
+                  { label: 'problem', text: ' Legacy path is coupled. ' },
+                  { label: 'result', text: ' Support load stayed low. ' },
+                ],
+                storyVariants: [
+                  {
+                    label: 'Migration variant',
+                    storyBlocks: [{ label: 'problem', text: ' Variant problem. ' }],
+                    keyPoints: [' Variant point. '],
+                    roleContext: ' Platform migration ',
+                    when: ' When they ask for another proof point ',
+                  },
+                  {
+                    label: 'Drop missing blocks',
+                    storyBlocks: [],
+                  },
+                  {
+                    storyBlocks: [{ label: 'problem', text: ' Drop missing label. ' }],
+                  },
+                ],
+                conditionals: [
+                  {
+                    trigger: ' If they push for big-bang migration ',
+                    response: ' Acknowledge speed, then name blast-radius risk. ',
+                    tone: 'pivot',
+                  },
+                  {
+                    trigger: ' If they use an unknown tone ',
+                    response: ' Keep the response and drop the tone. ',
+                    tone: 'mystery',
+                  },
+                ],
+                interviewerIds: [' interviewer-1 ', ' '],
+                perRoundState: [{ round: 1, status: 'practice-this', notes: ' Review once. ' }],
+                timeBudgetMinutes: 3.5,
+                whyLikely: ' The role emphasizes staged migrations. ',
+                decisionTree: [
+                  {
+                    title: ' Pick the path ',
+                    options: [
+                      {
+                        option: ' Strangler ',
+                        whenRight: ' Traffic can move gradually. ',
+                        tradeoff: ' Requires routing discipline. ',
+                      },
+                    ],
+                    recommendation: ' Move incrementally. ',
+                    trap: ' Do not hand-wave data consistency. ',
+                  },
+                ],
+                phasedFramework: [
+                  {
+                    phase: ' Map risk ',
+                    timeframe: ' Week 1 ',
+                    bullets: [' Inventory blast radius ', ' ', ' Pick rollback points '],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            id: 'prep-deck-duplicate-bookends',
+            title: 'Duplicate Bookends',
+            company: 'Acme',
+            role: 'Staff Engineer',
+            pipelineEntryId: null,
+            pipelineRoundId: null,
+            openerCardId: 'bookend-card',
+            closerCardId: 'bookend-card',
+            updatedAt: '2026-04-22T10:00:00.000Z',
+            cards: [
+              {
+                id: 'bookend-card',
+                title: 'Tell me about yourself',
+                category: 'opener',
+                kind: 'opener',
+                tags: ['intro'],
+              },
+            ],
+          },
+        ]),
+      ],
+      'prep.json',
+      { type: 'application/json' },
+    )
+
+    const result = await parsePrepImport(file)
+
+    expect(result.error).toBeNull()
+    expect(result.decks[0]).toMatchObject({
+      openerCardId: 'scenario-card',
+      closerCardId: undefined,
+      pipelineRoundId: 'round-1',
+      roundType: 'system-design',
+      roundNumber: 1,
+      interviewers: [
+        {
+          id: 'interviewer-1',
+          name: 'Sample Panelist',
+          intel: { role: 'Engineering Manager' },
+        },
+      ],
+      categoryGuidance: {
+        situational: 'Answer the scenario directly.',
+      },
+      rules: ['Be specific.'],
+    })
+    expect(result.decks[0]?.cards[0]).toMatchObject({
+      kind: 'scenario',
+      scriptLabel: ' Frame it ',
+      script: ' Use a staged rollout answer. ',
+      keyPoints: ['Name rollback.', 'Show risk ownership.'],
+      storyBlocks: [
+        { label: 'problem', text: 'Legacy path is coupled.' },
+        { label: 'result', text: 'Support load stayed low.' },
+      ],
+      storyVariants: [
+        expect.objectContaining({
+          id: expect.stringMatching(/^prep-story-variant-/),
+          label: 'Migration variant',
+          storyBlocks: [{ label: 'problem', text: 'Variant problem.' }],
+          keyPoints: ['Variant point.'],
+          roleContext: 'Platform migration',
+          when: 'When they ask for another proof point',
+        }),
+      ],
+      conditionals: [
+        {
+          trigger: 'If they push for big-bang migration',
+          response: 'Acknowledge speed, then name blast-radius risk.',
+          tone: 'pivot',
+        },
+        {
+          trigger: 'If they use an unknown tone',
+          response: 'Keep the response and drop the tone.',
+          tone: undefined,
+        },
+      ],
+      interviewerIds: ['interviewer-1'],
+      perRoundState: [{ round: 1, status: 'practice-this', notes: 'Review once.' }],
+      timeBudgetMinutes: 3.5,
+      whyLikely: 'The role emphasizes staged migrations.',
+      decisionTree: [
+        {
+          title: 'Pick the path',
+          options: [
+            {
+              option: 'Strangler',
+              whenRight: 'Traffic can move gradually.',
+              tradeoff: 'Requires routing discipline.',
+            },
+          ],
+          recommendation: 'Move incrementally.',
+          trap: 'Do not hand-wave data consistency.',
+        },
+      ],
+      phasedFramework: [
+        {
+          phase: 'Map risk',
+          timeframe: 'Week 1',
+          bullets: ['Inventory blast radius', 'Pick rollback points'],
+        },
+      ],
+    })
+    expect(result.decks[1]).toMatchObject({
+      openerCardId: 'bookend-card',
+      closerCardId: undefined,
+      pipelineEntryId: null,
+      pipelineRoundId: null,
+    })
+  })
 })

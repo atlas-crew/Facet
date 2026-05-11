@@ -429,6 +429,80 @@ function filterSections(
     .filter((section): section is PrepCheatsheetSection => section !== null)
 }
 
+function sectionContainsCard(section: PrepCheatsheetSection, cardId: string): boolean {
+  return section.items.some((item) => item.cardId === cardId)
+}
+
+function orderBookendItems(
+  items: PrepCheatsheetItem[],
+  openerCardId: string | undefined,
+  closerCardId: string | undefined,
+): PrepCheatsheetItem[] {
+  const effectiveCloserCardId = closerCardId === openerCardId ? undefined : closerCardId
+  const openerIndex = openerCardId ? items.findIndex((item) => item.cardId === openerCardId) : -1
+  const closerIndex = effectiveCloserCardId
+    ? items.findIndex((item) => item.cardId === effectiveCloserCardId)
+    : -1
+
+  if (openerIndex === -1 && closerIndex === -1) return items
+
+  const openerItems = openerIndex === -1 ? [] : [items[openerIndex]]
+  const closerItems = closerIndex === -1 ? [] : [items[closerIndex]]
+  const middleItems = items.filter((_item, index) => index !== openerIndex && index !== closerIndex)
+  const orderedItems = [...openerItems, ...middleItems, ...closerItems]
+
+  return orderedItems.every((item, index) => item === items[index]) ? items : orderedItems
+}
+
+function orderSectionsWithBookends(
+  sections: PrepCheatsheetSection[],
+  deck: Pick<PrepDeck, 'cards' | 'openerCardId' | 'closerCardId'>,
+): PrepCheatsheetSection[] {
+  const cards = Array.isArray(deck.cards) ? deck.cards : []
+  const cardIds = new Set(cards.map((card) => card.id))
+  const openerCardId =
+    deck.openerCardId && cardIds.has(deck.openerCardId) ? deck.openerCardId : undefined
+  const closerCardId =
+    deck.closerCardId && deck.closerCardId !== openerCardId && cardIds.has(deck.closerCardId)
+      ? deck.closerCardId
+      : undefined
+
+  if (!openerCardId && !closerCardId) return sections
+
+  const sectionsWithOrderedItems = sections.map((section) => {
+    const sectionOpenerCardId = openerCardId && sectionContainsCard(section, openerCardId)
+    const sectionCloserCardId = closerCardId && sectionContainsCard(section, closerCardId)
+    const items = orderBookendItems(
+      section.items,
+      sectionOpenerCardId ? openerCardId : undefined,
+      sectionCloserCardId ? closerCardId : undefined,
+    )
+    return items === section.items ? section : { ...section, items }
+  })
+  const openerSection = openerCardId
+    ? sectionsWithOrderedItems.find((section) => sectionContainsCard(section, openerCardId))
+    : undefined
+  const closerSection = closerCardId
+    ? sectionsWithOrderedItems.find((section) => sectionContainsCard(section, closerCardId))
+    : undefined
+
+  if (openerSection && openerSection === closerSection) {
+    return sectionsWithOrderedItems
+  }
+
+  if (!openerSection && !closerSection) return sectionsWithOrderedItems
+
+  const middleSections = sectionsWithOrderedItems.filter(
+    (section) => section.id !== openerSection?.id && section.id !== closerSection?.id,
+  )
+
+  return [
+    ...(openerSection ? [openerSection] : []),
+    ...middleSections,
+    ...(closerSection && closerSection.id !== openerSection?.id ? [closerSection] : []),
+  ]
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   const element = target instanceof HTMLElement ? target : null
   if (!element) return false
@@ -755,11 +829,23 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
     () => filterSections(sections, searchQuery, cardsById),
     [cardsById, searchQuery, sections],
   )
+  const bookendOrderingDeck = useMemo(
+    () => ({
+      cards: deckCards,
+      openerCardId: deck.openerCardId,
+      closerCardId: deck.closerCardId,
+    }),
+    [deck.closerCardId, deck.openerCardId, deckCards],
+  )
+  const bookendedSections = useMemo(
+    () => orderSectionsWithBookends(filteredSections, bookendOrderingDeck),
+    [bookendOrderingDeck, filteredSections],
+  )
   const visibleSectionLegend = useMemo(() => {
-    const reservedShortcuts = collectReservedSectionShortcuts(filteredSections)
+    const reservedShortcuts = collectReservedSectionShortcuts(bookendedSections)
 
     return dedupeSectionShortcuts(
-      filteredSections.map((section) => {
+      bookendedSections.map((section) => {
         const metaKey = getSectionMetaKey(section)
         const meta = SECTION_META[metaKey]
         const phase = meta?.phase ?? ('live' as SectionPhase)
@@ -777,7 +863,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
         }
       }) satisfies LiveSection[],
     )
-  }, [filteredSections])
+  }, [bookendedSections])
   const preSections = useMemo(
     () => visibleSectionLegend.filter((section) => section.phase === 'pre'),
     [visibleSectionLegend],
@@ -838,9 +924,12 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
   }, [visibleSectionLegend])
   const timerState = useMemo(() => getLiveTimerState(elapsedSeconds), [elapsedSeconds])
   const anchorCard = useMemo(() => deriveAnchorCard(deck), [deck])
+  const activeSectionPool =
+    preInterviewOpen || liveSections.length === 0 ? visibleSectionLegend : liveSections
+  // When pre-interview is collapsed, keep navigation and timing aligned to the visible live list.
   const effectiveActiveSectionId =
-    filteredSections.find((section) => section.id === activeSectionId)?.id ??
-    filteredSections[0]?.id ??
+    activeSectionPool.find((section) => section.id === activeSectionId)?.id ??
+    activeSectionPool[0]?.id ??
     null
   const deckMeta = [deck.company, deck.role].filter(Boolean).join(' · ') || 'Interview prep set'
 
@@ -904,6 +993,17 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
 
     return cancelScroll
   }, [pendingScrollSectionId, preInterviewOpen, scrollToSection])
+
+  const togglePreInterviewOpen = useCallback(() => {
+    if (
+      preInterviewOpen &&
+      liveSections.length > 0 &&
+      !liveSections.some((section) => section.id === activeSectionId)
+    ) {
+      setActiveSectionId(liveSections[0].id)
+    }
+    setPreInterviewOpen((open) => !open)
+  }, [activeSectionId, liveSections, preInterviewOpen])
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return
@@ -1292,7 +1392,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
               <button
                 type="button"
                 className={`prep-live-nav-group-toggle ${preInterviewOpen ? 'prep-live-nav-group-toggle-open' : ''}`}
-                onClick={() => setPreInterviewOpen((open) => !open)}
+                onClick={togglePreInterviewOpen}
                 aria-expanded={preInterviewOpen}
               >
                 <ChevronRight
@@ -1342,7 +1442,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
           collapsible
           defaultOpen
         />
-        {filteredSections.length === 0 ? (
+        {visibleSectionLegend.length === 0 ? (
           <div className="prep-empty">
             <h2>No cheatsheet sections match that search</h2>
             <p>Clear the search to get the full interview view back.</p>
@@ -1365,7 +1465,7 @@ function PrepLiveModeInner({ deck, onBack }: PrepLiveModeProps) {
                     type="button"
                     className="prep-btn"
                     aria-expanded={preInterviewOpen}
-                    onClick={() => setPreInterviewOpen((open) => !open)}
+                    onClick={togglePreInterviewOpen}
                   >
                     {preInterviewOpen ? 'Collapse pre-interview' : 'Expand pre-interview'}
                   </button>

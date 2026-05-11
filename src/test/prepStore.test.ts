@@ -160,6 +160,132 @@ describe('prepStore', () => {
     )
   })
 
+  it('sanitizes deck bookends against the current card ids', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [
+        {
+          id: 'opener-card',
+          category: 'opener',
+          kind: 'opener',
+          title: 'Tell me about yourself',
+          tags: ['intro'],
+        },
+        {
+          id: 'closer-card',
+          category: 'situational',
+          kind: 'closer',
+          title: 'Close the round',
+          tags: ['closer'],
+        },
+      ],
+      openerCardId: ' opener-card ',
+      closerCardId: 'missing-card',
+    })
+
+    let deck = usePrepStore.getState().decks.find((item) => item.id === deckId)
+    expect(deck?.openerCardId).toBe('opener-card')
+    expect(deck?.closerCardId).toBeUndefined()
+
+    usePrepStore.getState().updateDeck(deckId, {
+      openerCardId: 'closer-card',
+      closerCardId: 'closer-card',
+    })
+
+    deck = usePrepStore.getState().decks.find((item) => item.id === deckId)
+    expect(deck?.openerCardId).toBe('closer-card')
+    expect(deck?.closerCardId).toBeUndefined()
+  })
+
+  it('normalizes scenario kind transitions without leaking shape-specific fields', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Migration tradeoff',
+      category: 'situational',
+      kind: 'story',
+      tags: ['system-design'],
+      notes: 'Likely because the role owns platform migration.',
+    })
+
+    usePrepStore.getState().updateCard(deckId, cardId, {
+      kind: 'scenario',
+      whyLikely: ' The role asks for rollout sequencing. ',
+      decisionTree: [
+        {
+          title: 'Pick the path',
+          recommendation: 'Move traffic gradually.',
+        },
+      ],
+      phasedFramework: [
+        {
+          phase: 'Map dependencies',
+          timeframe: 'Week 1',
+          bullets: ['Inventory owners'],
+        },
+        {
+          phase: ' ',
+          bullets: ['Drop this phase'],
+        },
+      ],
+    })
+
+    let card = usePrepStore.getState().decks[0].cards[0]
+    expect(card.kind).toBe('scenario')
+    expect(card).toMatchObject({
+      whyLikely: 'The role asks for rollout sequencing.',
+      decisionTree: [{ title: 'Pick the path', recommendation: 'Move traffic gradually.' }],
+      phasedFramework: [
+        {
+          phase: 'Map dependencies',
+          timeframe: 'Week 1',
+          bullets: ['Inventory owners'],
+        },
+      ],
+    })
+
+    usePrepStore.getState().updateCard(deckId, cardId, { kind: 'story' })
+
+    card = usePrepStore.getState().decks[0].cards[0]
+    expect(card.kind).toBe('story')
+    expect(card).toMatchObject({
+      whyLikely: 'The role asks for rollout sequencing.',
+      decisionTree: [{ title: 'Pick the path', recommendation: 'Move traffic gradually.' }],
+      phasedFramework: [
+        {
+          phase: 'Map dependencies',
+          timeframe: 'Week 1',
+          bullets: ['Inventory owners'],
+        },
+      ],
+    })
+
+    usePrepStore.getState().updateCard(deckId, cardId, { kind: 'scenario' })
+    usePrepStore.getState().updateCard(deckId, cardId, { tags: ['edited'] })
+
+    card = usePrepStore.getState().decks[0].cards[0]
+    expect(card.kind).toBe('scenario')
+    expect(card).toMatchObject({
+      whyLikely: 'The role asks for rollout sequencing.',
+      decisionTree: [{ title: 'Pick the path', recommendation: 'Move traffic gradually.' }],
+      phasedFramework: [
+        {
+          phase: 'Map dependencies',
+          timeframe: 'Week 1',
+          bullets: ['Inventory owners'],
+        },
+      ],
+    })
+  })
+
   it('threads interviewers through createDeck and links them to cards by id', () => {
     const deckId = usePrepStore.getState().createDeck({
       title: 'Acme Onsite',

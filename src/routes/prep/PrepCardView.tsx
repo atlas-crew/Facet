@@ -49,12 +49,305 @@ function renderReadOnlyKindCard(
   linkedInterviewer: PrepInterviewer | undefined,
   needsReview: boolean,
 ): ReactElement | null {
+  if (card.kind === 'scenario') {
+    return <ScenarioCardReadOnly card={card} needsReview={needsReview} />
+  }
   if (card.kind !== 'intel' || !linkedInterviewer) return null
   return <IntelCardReadOnly card={card} interviewer={linkedInterviewer} needsReview={needsReview} />
 }
 
 function getScriptClassName(card: PrepCard): string {
   return card.scriptKind ? `prep-script prep-script-${card.scriptKind}` : 'prep-script'
+}
+
+function ScenarioCardReadOnly({
+  card,
+  needsReview,
+}: {
+  card: Extract<PrepCard, { kind: 'scenario' }>
+  needsReview: boolean
+}) {
+  const displayTitle = getPrepDisplayText(card.title) || 'Scenario'
+  const whyLikely = isPrepPlaceholderOnly(card.whyLikely)
+    ? ''
+    : getPrepSourceAwareText(card.whyLikely, card.source)
+  const displayNotes = getPrepSourceAwareText(card.notes, card.source)
+  const displayWarning = getPrepSourceAwareText(card.warning, card.source)
+  const displayScript = getPrepSourceAwareText(card.script, card.source)
+  const displayScriptLabel = getPrepDefaultText(card.scriptLabel) || 'Say This'
+  const displayAlternativeTitle = getPrepSourceAwareText(card.alternativeTitle, card.source)
+  const displayAlternativeScript = getPrepSourceAwareText(card.alternativeScript, card.source)
+  const renderedScript = displayScript === 'Needs review' ? '' : displayScript
+  const renderedAlternativeScript =
+    displayAlternativeScript === 'Needs review' ? '' : displayAlternativeScript
+  const hasRenderedAlternative = Boolean(displayAlternativeTitle || renderedAlternativeScript)
+  const readOnlyStoryBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const readOnlyKeyPoints = filterPrepKeyPoints(card.keyPoints)
+  const readOnlyFollowUps = filterPrepFollowUps(card.followUps)
+  const readOnlyDeepDives = filterPrepDeepDives(card.deepDives)
+  const readOnlyConditionals = filterPrepConditionals(card.conditionals)
+  const readOnlyMetrics = filterPrepMetrics(card.metrics)
+  const decisionTree = (card.decisionTree ?? []).filter(
+    (node) =>
+      getPrepDisplayText(node.title) ||
+      (node.options?.length ?? 0) > 0 ||
+      getPrepDisplayText(node.recommendation) ||
+      getPrepDisplayText(node.trap),
+  )
+  const phasedFramework = (card.phasedFramework ?? []).filter(
+    (phase) => getPrepDisplayText(phase.phase) && phase.bullets.length > 0,
+  )
+
+  return (
+    <div className={`prep-card prep-scenario-card${needsReview ? ' prep-card-needs-review' : ''}`}>
+      <div className="prep-card-header">
+        <h3 className="prep-card-title">{displayTitle}</h3>
+        <div className="prep-card-meta">
+          <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
+          {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+        </div>
+      </div>
+
+      {card.tags.length > 0 && (
+        <div className="prep-tags">
+          {card.tags.map((tag) => (
+            <span key={tag} className="prep-tag">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {whyLikely ? (
+        <div className="prep-scenario-why">
+          <div className="prep-scenario-label">Why likely</div>
+          {whyLikely}
+        </div>
+      ) : null}
+
+      {displayNotes ? (
+        <div className="prep-script">
+          <div className="prep-script-label">Notes</div>
+          {displayNotes}
+        </div>
+      ) : null}
+
+      {displayWarning ? (
+        <div className="prep-warning">
+          <div className="prep-warning-label">Caution</div>
+          {displayWarning}
+        </div>
+      ) : null}
+
+      {renderedScript ? (
+        <div className={getScriptClassName(card)}>
+          <div className="prep-script-label">{displayScriptLabel}</div>
+          {renderedScript}
+        </div>
+      ) : null}
+
+      {readOnlyStoryBlocks.length > 0 ? (
+        <div className="prep-scenario-support-grid">
+          {readOnlyStoryBlocks.map((block, index) => (
+            <div key={`${block.label}-${index}`} className="prep-scenario-support-block">
+              <div className="prep-scenario-label">{block.label}</div>
+              {getPrepSourceAwareText(block.text, card.source)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {readOnlyKeyPoints.length > 0 ? (
+        <ul className="prep-scenario-keypoints">
+          {readOnlyKeyPoints.map((point, index) => (
+            <li key={`${point}-${index}`}>{getPrepSourceAwareText(point, card.source)}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      {hasRenderedAlternative ? (
+        <details className="prep-deepdive prep-alternative-story">
+          <summary>{displayAlternativeTitle || 'Alternative Story'}</summary>
+          <div className="prep-deepdive-content">
+            {getPrepParagraphs(renderedAlternativeScript || displayAlternativeTitle, 'spoken').map(
+              (paragraph, index) => (
+                <p key={paragraph + ':' + index}>{paragraph}</p>
+              ),
+            )}
+          </div>
+        </details>
+      ) : null}
+
+      {decisionTree.length > 0 ? (
+        <div className="prep-scenario-decision-tree">
+          {decisionTree.map((node, index) => {
+            const title = getPrepDisplayText(node.title) || `Decision ${index + 1}`
+            const recommendation = getPrepDisplayText(node.recommendation)
+            const trap = getPrepDisplayText(node.trap)
+
+            return (
+              <section key={`${title}-${index}`} className="prep-scenario-node">
+                <h4>{title}</h4>
+                {node.options && node.options.length > 0 ? (
+                  <div className="prep-table-wrap">
+                    <table className="prep-table prep-scenario-options">
+                      <thead>
+                        <tr>
+                          <th>Option</th>
+                          <th>When Right</th>
+                          <th>Tradeoff</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {node.options.map((option, optionIndex) => (
+                          <tr key={`${option.option}-${optionIndex}`}>
+                            <td>{getPrepDisplayText(option.option)}</td>
+                            <td>{getPrepDisplayText(option.whenRight)}</td>
+                            <td>{getPrepDisplayText(option.tradeoff)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {recommendation ? (
+                  <div className="prep-scenario-recommendation">
+                    <div className="prep-scenario-label">What I'd pick</div>
+                    {recommendation}
+                  </div>
+                ) : null}
+                {trap ? (
+                  <div className="prep-scenario-trap">
+                    <div className="prep-scenario-label">Trap</div>
+                    {trap}
+                  </div>
+                ) : null}
+              </section>
+            )
+          })}
+        </div>
+      ) : null}
+
+      {phasedFramework.length > 0 ? (
+        <div className="prep-scenario-framework">
+          {phasedFramework.map((phase, index) => (
+            <section key={`${phase.phase}-${index}`} className="prep-scenario-phase">
+              <div className="prep-scenario-phase-header">
+                <h4>{getPrepDisplayText(phase.phase)}</h4>
+                {phase.timeframe ? (
+                  <span className="prep-scenario-timeframe">
+                    {getPrepDisplayText(phase.timeframe)}
+                  </span>
+                ) : null}
+              </div>
+              <ul>
+                {phase.bullets.map((bullet, bulletIndex) => (
+                  <li key={`${bullet}-${bulletIndex}`}>{getPrepDisplayText(bullet)}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : null}
+
+      {readOnlyFollowUps.length > 0 ? (
+        <div className="prep-followups">
+          {readOnlyFollowUps.map((followUp, index) => (
+            <div key={followUp.id ?? index} className="prep-followup">
+              <div className="prep-followup-q">
+                {getPrepSourceAwareText(followUp.question, card.source)}
+              </div>
+              <div className="prep-followup-a">
+                {getPrepSourceAwareText(followUp.answer, card.source)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {readOnlyDeepDives.length > 0 ? (
+        <div>
+          {readOnlyDeepDives.map((deepDive, index) => (
+            <details key={deepDive.id ?? index} className="prep-deepdive">
+              <summary>{getPrepDisplayText(deepDive.title) || 'Details'}</summary>
+              <div className="prep-deepdive-content">
+                {getPrepSourceAwareText(deepDive.content, card.source)}
+              </div>
+            </details>
+          ))}
+        </div>
+      ) : null}
+
+      {readOnlyConditionals.length > 0 ? (
+        <div className="prep-conditionals">
+          {readOnlyConditionals.map((conditional, index) => {
+            const tone = resolvePrepConditionalTone(conditional)
+            const key = conditional.id ?? `${conditional.trigger}-${conditional.response}-${index}`
+
+            return tone === 'trap' ? (
+              <div key={key} className="prep-conditional-pair-grid">
+                <div className="prep-conditional-pair prep-conditional-pair-trap">
+                  <div className="prep-conditional-label">Trap</div>
+                  <div className="prep-conditional-response">
+                    {getPrepSourceAwareText(conditional.trigger, card.source)}
+                  </div>
+                </div>
+                <div className="prep-conditional-pair prep-conditional-pair-reframe">
+                  <div className="prep-conditional-label">Reframe</div>
+                  <div className="prep-conditional-response">
+                    {getPrepSourceAwareText(conditional.response, card.source)}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div key={key} className={`prep-conditional prep-conditional-${tone}`}>
+                <div className="prep-conditional-label">
+                  {getPrepSourceAwareText(conditional.trigger, card.source)}
+                </div>
+                <div className="prep-conditional-response">
+                  {getPrepSourceAwareText(conditional.response, card.source)}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+
+      {readOnlyMetrics.length > 0 ? (
+        <div className="prep-metrics">
+          {readOnlyMetrics.map((metric, index) => (
+            <div key={metric.id ?? index} className="prep-metric">
+              <span className="prep-metric-value">{getPrepDisplayText(metric.value)}</span>
+              <span className="prep-metric-label">{getPrepDisplayText(metric.label)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {card.tableData && card.tableData.headers.length > 0 ? (
+        <div className="prep-table-wrap">
+          <table className="prep-table">
+            <thead>
+              <tr>
+                {card.tableData.headers.map((header, index) => (
+                  <th key={`${header}-${index}`}>{getPrepDisplayText(header)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {card.tableData.rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={`${rowIndex}-${cellIndex}`}>{getPrepDisplayText(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export function PrepCardView({

@@ -328,6 +328,9 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain(
       '"scriptKind": "optional opener|honest-bridge|closer|line-that-lands|pivot"',
     )
+    expect(systemPrompt).toContain('"whyLikely": "required string when kind is scenario"')
+    expect(systemPrompt).toContain('"decisionTree"')
+    expect(systemPrompt).toContain('"phasedFramework"')
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Structured Pipeline Entry Context')
@@ -454,6 +457,9 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('use those exact metrics')
     expect(userPrompt).toContain('return a stackAlignment table')
     expect(userPrompt).toContain('source of truth for stackAlignment.confidence')
+    expect(userPrompt).toContain('kind "scenario"')
+    expect(userPrompt).toContain('decisionTree or phasedFramework')
+    expect(userPrompt).toContain('option, whenRight, and tradeoff columns')
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
     expect(userPrompt).toContain('tag "gap-framing"')
     expect(userPrompt).toContain('Generate 3 to 5 landmine cards tagged "landmine"')
@@ -1297,6 +1303,258 @@ describe('generateInterviewPrep', () => {
     ])
   })
 
+  it('sets deck bookend card ids from opener and closer card kinds', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            kind: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable platform systems for product teams.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            title: 'Decision story',
+            tags: ['judgment'],
+            script: 'I sequenced the rollout around the highest-risk dependency first.',
+          },
+          {
+            category: 'situational',
+            kind: 'closer',
+            title: 'Close the round',
+            tags: ['closer'],
+            script: 'The thread across my work is turning operational pain into calmer systems.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    const opener = result.deck.cards.find((card) => card.kind === 'opener')
+    const closer = result.deck.cards.find((card) => card.kind === 'closer')
+
+    expect(result.deck.openerCardId).toBe(opener?.id)
+    expect(result.deck.closerCardId).toBe(closer?.id)
+    expect(result.deck.cards.some((card) => card.id === result.deck.openerCardId)).toBe(true)
+    expect(result.deck.cards.some((card) => card.id === result.deck.closerCardId)).toBe(true)
+    expect(result.contractViolations).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'openerCardId' }),
+        expect.objectContaining({ field: 'closerCardId' }),
+      ]),
+    )
+  })
+
+  it('normalizes generated scenario cards with decision trees and phased frameworks', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'situational',
+            kind: 'scenario',
+            title: 'How would you migrate the platform?',
+            tags: ['system-design'],
+            whyLikely: 'The role asks for platform migration judgment.',
+            decisionTree: [
+              {
+                title: 'Pick the migration path',
+                options: [
+                  {
+                    option: 'Strangler migration',
+                    whenRight: 'Traffic can move incrementally.',
+                    tradeoff: 'Requires disciplined routing.',
+                  },
+                  {
+                    option: 'Big bang',
+                    whenRight: 'The old path cannot run in parallel.',
+                    tradeoff: 'Higher cutover risk.',
+                  },
+                ],
+                recommendation: 'Pick the strangler path unless data coupling blocks it.',
+                trap: 'Do not pretend the migration is only code movement.',
+              },
+            ],
+            phasedFramework: [
+              {
+                phase: 'Map risk',
+                timeframe: 'Week 1',
+                bullets: ['Inventory blast radius', 'Pick rollback points'],
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards[0]).toMatchObject({
+      kind: 'scenario',
+      category: 'situational',
+      whyLikely: 'The role asks for platform migration judgment.',
+      decisionTree: [
+        {
+          title: 'Pick the migration path',
+          options: [
+            {
+              option: 'Strangler migration',
+              whenRight: 'Traffic can move incrementally.',
+              tradeoff: 'Requires disciplined routing.',
+            },
+            {
+              option: 'Big bang',
+              whenRight: 'The old path cannot run in parallel.',
+              tradeoff: 'Higher cutover risk.',
+            },
+          ],
+          recommendation: 'Pick the strangler path unless data coupling blocks it.',
+          trap: 'Do not pretend the migration is only code movement.',
+        },
+      ],
+      phasedFramework: [
+        {
+          phase: 'Map risk',
+          timeframe: 'Week 1',
+          bullets: ['Inventory blast radius', 'Pick rollback points'],
+        },
+      ],
+    })
+  })
+
+  it('drops malformed scenario decision nodes and phased framework phases', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'situational',
+            kind: 'scenario',
+            title: 'How would you sequence the rollout?',
+            tags: ['system-design'],
+            whyLikely: 'The role owns migration sequencing.',
+            decisionTree: [
+              {
+                title: ' ',
+                recommendation: 'Drop this malformed node.',
+              },
+              {
+                title: 'Pick the path',
+                options: [
+                  {
+                    option: 'Parallel run',
+                    whenRight: 'Both systems can run safely.',
+                    tradeoff: 'Requires reconciliation.',
+                  },
+                  {
+                    option: 'Missing tradeoff',
+                    whenRight: 'This should be dropped.',
+                  },
+                ],
+              },
+              {
+                title: 'Retained node without valid options',
+                options: [
+                  {
+                    option: 'Incomplete',
+                    tradeoff: 'No whenRight.',
+                  },
+                ],
+              },
+            ],
+            phasedFramework: [
+              {
+                phase: 'Map dependencies',
+                timeframe: 'Week 1',
+                bullets: ['Inventory owners'],
+              },
+              {
+                phase: ' ',
+                bullets: ['Drop this phase'],
+              },
+              {
+                phase: 'No bullets',
+                bullets: [' '],
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards[0]).toMatchObject({
+      kind: 'scenario',
+      decisionTree: [
+        {
+          title: 'Pick the path',
+          options: [
+            {
+              option: 'Parallel run',
+              whenRight: 'Both systems can run safely.',
+              tradeoff: 'Requires reconciliation.',
+            },
+          ],
+        },
+        {
+          title: 'Retained node without valid options',
+          options: undefined,
+        },
+      ],
+      phasedFramework: [
+        {
+          phase: 'Map dependencies',
+          timeframe: 'Week 1',
+          bullets: ['Inventory owners'],
+        },
+      ],
+    })
+  })
+
   it('reports invalid model-provided scriptKind values', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
@@ -1507,6 +1765,11 @@ describe('generateInterviewPrep', () => {
 
     expect(landmineCards).toHaveLength(3)
     expect(intelCards).toHaveLength(1)
+    expect(result.contractViolations).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'missing-landmine', field: 'cards' }),
+      ]),
+    )
     expect(
       landmineCards.find((card) => card.title === 'Landmine: give a generic why this role answer')
         ?.scriptKind,
@@ -1516,6 +1779,32 @@ describe('generateInterviewPrep', () => {
         .filter((card) => card.title !== 'Landmine: give a generic why this role answer')
         .every((card) => card.scriptKind === undefined),
     ).toBe(true)
+  })
+
+  it('keeps remediation fallback cards when the model returns an empty cards array', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards.length).toBeGreaterThan(0)
+    expect(result.cards.every((card) => card.tags.includes('landmine'))).toBe(true)
   })
 
   it('adds fallback technical gap-framing cards when alignment shows gaps and the model omits them', async () => {
@@ -1890,7 +2179,15 @@ describe('generateInterviewPrep', () => {
             confidence: 'Adjacent experience',
           },
         ],
-        cards: [],
+        cards: [
+          {
+            category: 'technical',
+            kind: 'story',
+            title: 'Debug a flaky cluster',
+            tags: ['debugging'],
+            script: 'Start with blast radius and recent deploys.',
+          },
+        ],
       }),
     )
 

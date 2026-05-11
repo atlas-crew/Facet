@@ -22,7 +22,9 @@ import type {
   PrepGenerationRequest,
   PrepGenerationResult,
   PrepIdentityMetricCandidate,
+  PrepDecisionTreeNode,
   PrepDeck,
+  PrepPhasedFrameworkPhase,
   PrepInterviewer,
   PrepInterviewerIntel,
   PrepInterviewerLikelyRole,
@@ -42,6 +44,7 @@ import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 import { hasOwnAnswerTemplate, normalizePrepAnswerTemplate } from './prepAnswerTemplate'
+import { isPrepPlaceholderOnly } from './prepCardContent'
 import { projectForAudience } from './audienceFilter'
 import type { AudienceProjection } from './audienceFilter'
 import {
@@ -95,6 +98,8 @@ interface PrepInterviewPrepResult {
   deck: PrepDeck
   contractViolations: PrepContractViolation[]
 }
+
+type PrepDeckBookends = Pick<PrepDeck, 'openerCardId' | 'closerCardId'>
 
 const STACK_ALIGNMENT_CONFIDENCE_ALIASES: Record<PrepStackAlignmentConfidence, readonly string[]> =
   {
@@ -515,6 +520,64 @@ function normalizeStoryVariants(value: unknown): PrepStoryVariant[] | undefined 
   return variants.length > 0 ? variants : undefined
 }
 
+function normalizeDecisionTree(value: unknown): PrepDecisionTreeNode[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const nodes = value.flatMap((node) => {
+    if (!node || typeof node !== 'object') return []
+    const record = node as Record<string, unknown>
+    const title = isString(record.title) ? record.title.trim() : ''
+    if (!title) return []
+
+    const options = Array.isArray(record.options)
+      ? record.options.flatMap((option) => {
+          if (!option || typeof option !== 'object') return []
+          const item = option as Record<string, unknown>
+          const optionText = isString(item.option) ? item.option.trim() : ''
+          const whenRight = isString(item.whenRight) ? item.whenRight.trim() : ''
+          const tradeoff = isString(item.tradeoff) ? item.tradeoff.trim() : ''
+          return optionText && whenRight && tradeoff
+            ? [{ option: optionText, whenRight, tradeoff }]
+            : []
+        })
+      : undefined
+
+    const recommendation = isString(record.recommendation)
+      ? record.recommendation.trim() || undefined
+      : undefined
+    const trap = isString(record.trap) ? record.trap.trim() || undefined : undefined
+
+    return [
+      {
+        title,
+        options: options && options.length > 0 ? options : undefined,
+        recommendation,
+        trap,
+      },
+    ]
+  })
+  return nodes.length > 0 ? nodes : undefined
+}
+
+function normalizePhasedFramework(value: unknown): PrepPhasedFrameworkPhase[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const phases = value.flatMap((phase) => {
+    if (!phase || typeof phase !== 'object') return []
+    const record = phase as Record<string, unknown>
+    const phaseTitle = isString(record.phase) ? record.phase.trim() : ''
+    const bullets = normalizeStringList(record.bullets)
+    if (!phaseTitle || !bullets) return []
+
+    return [
+      {
+        phase: phaseTitle,
+        timeframe: isString(record.timeframe) ? record.timeframe.trim() || undefined : undefined,
+        bullets,
+      },
+    ]
+  })
+  return phases.length > 0 ? phases : undefined
+}
+
 function getUniqueStoryVariantId(baseId: string, seenIds: Set<string>): string {
   let id = baseId
   let suffix = 2
@@ -643,7 +706,7 @@ function normalizeCategoryGuidance(value: unknown): Record<string, string> | und
 }
 
 function normalizeCards(cards: unknown[]): PrepCard[] {
-  return cards.flatMap((card) => {
+  return cards.flatMap((card): PrepCard[] => {
     if (!card || typeof card !== 'object') return []
     const record = card as Record<string, unknown>
     if (!isString(record.title) || !isString(record.category)) return []
@@ -679,86 +742,100 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
           })
         : undefined)
 
-    return [
-      {
-        id: createId('prep-card'),
-        kind,
-        category,
-        title,
-        tags,
-        timeBudgetMinutes: normalizeTimeBudgetMinutes(record.timeBudgetMinutes),
-        notes: isString(record.notes) ? record.notes.trim() : undefined,
-        script,
-        scriptKind,
-        scriptLabel,
-        pushbackScript: isString(record.pushbackScript)
-          ? record.pushbackScript.trim() || undefined
+    const normalizedCard: Omit<PrepCard, 'kind'> = {
+      id: createId('prep-card'),
+      category,
+      title,
+      tags,
+      timeBudgetMinutes: normalizeTimeBudgetMinutes(record.timeBudgetMinutes),
+      notes: isString(record.notes) ? record.notes.trim() : undefined,
+      script,
+      scriptKind,
+      scriptLabel,
+      pushbackScript: isString(record.pushbackScript)
+        ? record.pushbackScript.trim() || undefined
+        : undefined,
+      pushbackLabel: isString(record.pushbackLabel)
+        ? record.pushbackLabel.trim() || undefined
+        : undefined,
+      alternativeTitle: isString(record.alternativeTitle)
+        ? record.alternativeTitle.trim() || undefined
+        : undefined,
+      alternativeScript: isString(record.alternativeScript)
+        ? record.alternativeScript.trim() || undefined
+        : undefined,
+      warning: isString(record.warning) ? record.warning.trim() : undefined,
+      storyBlocks: normalizeStoryBlocks(record.storyBlocks),
+      storyVariants: normalizeStoryVariants(record.storyVariants),
+      keyPoints: normalizeStringList(record.keyPoints),
+      followUps: Array.isArray(record.followUps)
+        ? record.followUps.flatMap((followUp) => {
+            if (!followUp || typeof followUp !== 'object') return []
+            const item = followUp as Record<string, unknown>
+            return isString(item.question) && isString(item.answer)
+              ? [
+                  {
+                    question: item.question.trim(),
+                    answer: item.answer.trim(),
+                  },
+                ]
+              : []
+          })
+        : undefined,
+      deepDives: Array.isArray(record.deepDives)
+        ? record.deepDives.flatMap((deepDive) => {
+            if (!deepDive || typeof deepDive !== 'object') return []
+            const item = deepDive as Record<string, unknown>
+            return isString(item.title) && isString(item.content)
+              ? [{ title: item.title.trim(), content: item.content.trim() }]
+              : []
+          })
+        : undefined,
+      conditionals: normalizeConditionals(record.conditionals),
+      metrics: Array.isArray(record.metrics)
+        ? record.metrics.flatMap((metric) => {
+            if (!metric || typeof metric !== 'object') return []
+            const item = metric as Record<string, unknown>
+            return isString(item.value) && isString(item.label)
+              ? [{ value: item.value.trim(), label: item.label.trim() }]
+              : []
+          })
+        : undefined,
+      tableData:
+        record.tableData && typeof record.tableData === 'object'
+          ? {
+              headers: Array.isArray((record.tableData as { headers?: unknown[] }).headers)
+                ? ((record.tableData as { headers: unknown[] }).headers.filter(
+                    isString,
+                  ) as string[])
+                : [],
+              rows: Array.isArray((record.tableData as { rows?: unknown[] }).rows)
+                ? (record.tableData as { rows: unknown[] }).rows.flatMap((row) =>
+                    Array.isArray(row) && row.every(isString) ? [row] : [],
+                  )
+                : [],
+            }
           : undefined,
-        pushbackLabel: isString(record.pushbackLabel)
-          ? record.pushbackLabel.trim() || undefined
-          : undefined,
-        alternativeTitle: isString(record.alternativeTitle)
-          ? record.alternativeTitle.trim() || undefined
-          : undefined,
-        alternativeScript: isString(record.alternativeScript)
-          ? record.alternativeScript.trim() || undefined
-          : undefined,
-        warning: isString(record.warning) ? record.warning.trim() : undefined,
-        storyBlocks: normalizeStoryBlocks(record.storyBlocks),
-        storyVariants: normalizeStoryVariants(record.storyVariants),
-        keyPoints: normalizeStringList(record.keyPoints),
-        followUps: Array.isArray(record.followUps)
-          ? record.followUps.flatMap((followUp) => {
-              if (!followUp || typeof followUp !== 'object') return []
-              const item = followUp as Record<string, unknown>
-              return isString(item.question) && isString(item.answer)
-                ? [
-                    {
-                      question: item.question.trim(),
-                      answer: item.answer.trim(),
-                    },
-                  ]
-                : []
-            })
-          : undefined,
-        deepDives: Array.isArray(record.deepDives)
-          ? record.deepDives.flatMap((deepDive) => {
-              if (!deepDive || typeof deepDive !== 'object') return []
-              const item = deepDive as Record<string, unknown>
-              return isString(item.title) && isString(item.content)
-                ? [{ title: item.title.trim(), content: item.content.trim() }]
-                : []
-            })
-          : undefined,
-        conditionals: normalizeConditionals(record.conditionals),
-        metrics: Array.isArray(record.metrics)
-          ? record.metrics.flatMap((metric) => {
-              if (!metric || typeof metric !== 'object') return []
-              const item = metric as Record<string, unknown>
-              return isString(item.value) && isString(item.label)
-                ? [{ value: item.value.trim(), label: item.label.trim() }]
-                : []
-            })
-          : undefined,
-        tableData:
-          record.tableData && typeof record.tableData === 'object'
-            ? {
-                headers: Array.isArray((record.tableData as { headers?: unknown[] }).headers)
-                  ? ((record.tableData as { headers: unknown[] }).headers.filter(
-                      isString,
-                    ) as string[])
-                  : [],
-                rows: Array.isArray((record.tableData as { rows?: unknown[] }).rows)
-                  ? (record.tableData as { rows: unknown[] }).rows.flatMap((row) =>
-                      Array.isArray(row) && row.every(isString) ? [row] : [],
-                    )
-                  : [],
-              }
-            : undefined,
-        interviewerIds: normalizeStringList(record.interviewerIds),
-        source: 'ai',
-      },
-    ]
+      interviewerIds: normalizeStringList(record.interviewerIds),
+      source: 'ai' as const,
+    }
+
+    if (kind === 'scenario') {
+      return [
+        {
+          ...normalizedCard,
+          kind,
+          whyLikely:
+            isString(record.whyLikely) && record.whyLikely.trim()
+              ? record.whyLikely.trim()
+              : '[[needs-review]]',
+          decisionTree: normalizeDecisionTree(record.decisionTree),
+          phasedFramework: normalizePhasedFramework(record.phasedFramework),
+        },
+      ]
+    }
+
+    return [{ ...normalizedCard, kind } as PrepCard]
   })
 }
 
@@ -927,12 +1004,35 @@ function countWords(text: string): number {
 }
 
 function getCardValidationText(card: PrepCard): string {
+  const scenarioParts =
+    card.kind === 'scenario'
+      ? [
+          card.whyLikely,
+          ...(card.decisionTree ?? []).flatMap((node) => [
+            node.title,
+            node.recommendation,
+            node.trap,
+            ...(node.options ?? []).flatMap((option) => [
+              option.option,
+              option.whenRight,
+              option.tradeoff,
+            ]),
+          ]),
+          ...(card.phasedFramework ?? []).flatMap((phase) => [
+            phase.phase,
+            phase.timeframe,
+            ...phase.bullets,
+          ]),
+        ]
+      : []
+
   return [
     card.title,
     card.notes,
     card.warning,
     card.script,
     card.pushbackScript,
+    ...scenarioParts,
     ...(card.keyPoints ?? []),
     ...(card.storyBlocks ?? []).map((block) => block.text),
     ...(card.storyVariants ?? []).flatMap((variant) => [
@@ -959,6 +1059,46 @@ function isPrepOpenerCard(card: PrepCard): boolean {
     (card.category === 'opener' ||
       (card.tags?.some((tag) => tag.trim().toLowerCase() === 'opener') ?? false))
   )
+}
+
+function resolvePrepDeckBookends(cards: PrepCard[]): PrepDeckBookends {
+  // The prompt orders the best opener and closer first, so the first matching card wins.
+  return {
+    openerCardId: cards.find((card) => card.kind === 'opener')?.id,
+    closerCardId: cards.find((card) => card.kind === 'closer')?.id,
+  }
+}
+
+function validatePrepDeckBookends(
+  deck: Pick<PrepDeck, 'cards' | 'openerCardId' | 'closerCardId'>,
+  violations: PrepContractViolation[],
+): void {
+  const cardIds = new Set(deck.cards.map((card) => card.id))
+  const bookends = [
+    ['openerCardId', deck.openerCardId],
+    ['closerCardId', deck.closerCardId],
+  ] as const
+
+  for (const [field, cardId] of bookends) {
+    if (!cardId) continue
+    if (cardIds.has(cardId)) continue
+
+    addViolation(violations, {
+      kind: 'invalid-field',
+      field,
+      message: `Expected ${field} to reference an existing prep card id.`,
+      severity: 'error',
+    })
+  }
+
+  if (deck.openerCardId && deck.closerCardId && deck.openerCardId === deck.closerCardId) {
+    addViolation(violations, {
+      kind: 'invalid-field',
+      field: 'closerCardId',
+      message: 'Expected closerCardId to reference a different card than openerCardId.',
+      severity: 'error',
+    })
+  }
 }
 
 function isPrepGapFramingCard(card: PrepCard): boolean {
@@ -1010,7 +1150,14 @@ function logPrepContractViolations(
 function validatePrepGenerationContract(params: {
   deck: Pick<
     PrepDeck,
-    'title' | 'rules' | 'cards' | 'stackAlignment' | 'categoryGuidance' | 'contextGaps'
+    | 'title'
+    | 'rules'
+    | 'cards'
+    | 'stackAlignment'
+    | 'categoryGuidance'
+    | 'contextGaps'
+    | 'openerCardId'
+    | 'closerCardId'
   >
   generatedCards: PrepCard[]
   hasParsedCards: boolean
@@ -1028,6 +1175,8 @@ function validatePrepGenerationContract(params: {
       severity: 'error',
     })
   }
+
+  validatePrepDeckBookends(deck, violations)
 
   if (Array.isArray(rawCards)) {
     rawCards.forEach((rawCard, index) => {
@@ -1073,6 +1222,20 @@ function validatePrepGenerationContract(params: {
           })
         }
       }
+    })
+  }
+
+  for (const card of deck.cards) {
+    if (card.kind !== 'scenario') continue
+    if (card.whyLikely.trim() && !isPrepPlaceholderOnly(card.whyLikely)) continue
+
+    addViolation(violations, {
+      kind: 'missing-field',
+      cardId: card.id,
+      field: 'whyLikely',
+      message:
+        'Scenario cards need whyLikely so the decision tree is grounded in the role, company, or interviewer context.',
+      severity: 'error',
     })
   }
 
@@ -1356,7 +1519,7 @@ function canonicalizeTaggedCard(card: PrepCard, tag: string): PrepCard {
 }
 
 function buildLandmineCard(params: {
-  kind?: PrepCard['kind']
+  kind?: 'opener' | 'story'
   category: PrepCategory
   title: string
   notes: string
@@ -1364,6 +1527,7 @@ function buildLandmineCard(params: {
   script: string
   keyPoints: string[]
 }): PrepCard {
+  // Landmine fallbacks are opener/story shaped; scenario cards use the dedicated decision renderer.
   return {
     id: createId('prep-card'),
     kind: params.kind ?? 'story',
@@ -1902,6 +2066,9 @@ Response schema:
       "deepDives": [{ "title": "string", "content": "string" }],
       "conditionals": [{ "trigger": "string", "response": "string", "tone": "pivot|trap|escalation" }],
       "metrics": [{ "value": "string", "label": "string" }],
+      "whyLikely": "required string when kind is scenario",
+      "decisionTree": [{ "title": "string", "options": [{ "option": "string", "whenRight": "string", "tradeoff": "string" }], "recommendation": "optional string", "trap": "optional string" }],
+      "phasedFramework": [{ "phase": "string", "timeframe": "optional string", "bullets": ["string"] }],
       "interviewerIds": "optional string[] — ids from deck.interviewers this card is tuned for (intel cards should have exactly one)",
       "tableData": {
         "headers": ["string"],
@@ -1972,7 +2139,8 @@ Do not claim named-person intel unless it is grounded in a user-supplied round.i
 Translate structured metadata into natural coaching language. Never surface raw field-style phrasing like "no inbound signal noted", "app method", or "response status" in the generated copy.
 Use structured identity bullets to map problem -> problem, action -> solution, and outcome/impact -> result story blocks on behavioral and project cards whenever possible.
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
-When the round includes scenario questions or technical/system-design content, generate an answerTemplate at the deck level: a reusable 5-step drill framework for "How would you..." questions. Otherwise, omit answerTemplate. For technical, system-design, or architecture-heavy rounds, aim for 5 to 8 situational drill cards that follow the template; for behavioral, hiring-manager, recruiter, or general rounds, aim for 2 to 3. Each drill should use category "situational", a scenario-question title, a full script that follows the template, keyPoints as the concrete steps, and details/storyBlocks only when they add useful depth.
+When the round includes scenario questions or technical/system-design content, generate an answerTemplate at the deck level: a reusable 5-step drill framework for "How would you..." questions. Otherwise, omit answerTemplate. For technical, system-design, architecture-heavy, or tradeoff-heavy rounds, aim for 5 to 8 situational drill cards that follow the template; for behavioral, hiring-manager, recruiter, or general rounds, aim for 2 to 3. Each drill should use category "situational", kind "scenario", a scenario-question title, a required whyLikely grounding sentence, and either a decisionTree or phasedFramework.
+For scenario cards with competing approaches, use decisionTree with one or more nodes. Each node must include an options table with option, whenRight, and tradeoff columns; add recommendation for "What I'd pick" and trap for the interviewer trap or overclaim risk. For rollout/timeline scenarios, use phasedFramework instead: each phase needs a phase name, optional timeframe, and bullets. Keep scripts/keyPoints only as supporting live-mode cues; the decisionTree or phasedFramework is the primary structure.
 For opener cards, make keyPoints a beat sheet: ordered fallback cues that follow the candidate's through-line and the target role connection. Keep each cue around 8 words and do not prefix items with ordinals, bullets, or labels. Example: "Anchor identity in platform reliability"
 For all non-opener cards, including landmine and intel-tag people cards, make keyPoints glance points: compact noun-phrase bullets for recall, not alternate scripts or full sentences. Keep each glance point around 10 words. Example: "38% incident reduction"
 Build both beat sheets and glance points from Canonical JD Analysis requirements and evidenceMapping plus structured identity evidence. Do not infer keyPoints directly from Original Job Description Source Text except for source wording when canonical analysis omits a detail.
@@ -2084,21 +2252,6 @@ Return JSON only (inside the tags).`
   const generatedCards = normalizeCards(Array.isArray(parsed.cards) ? parsed.cards : [])
   const contextGaps = normalizeContextGaps(parsed.contextGaps)
   const categoryGuidance = normalizeCategoryGuidance(parsed.categoryGuidance)
-  const contractViolations = validatePrepGenerationContract({
-    deck: {
-      title: isString(parsed.deckTitle) ? parsed.deckTitle.trim() : '',
-      rules: normalizeStringList(parsed.rules),
-      cards: generatedCards,
-      stackAlignment,
-      categoryGuidance,
-      contextGaps,
-    },
-    generatedCards,
-    hasParsedCards: Array.isArray(parsed.cards),
-    rawCards: parsed.cards,
-    request,
-  })
-  logPrepContractViolations(request, contractViolations)
   const cards = ensureRoundAwareRemediationCards(
     ensureLandmineCards(
       ensureGapFramingCards(generatedCards, stackAlignment),
@@ -2109,9 +2262,27 @@ Return JSON only (inside the tags).`
     ),
     request,
   )
-  if (!isString(parsed.deckTitle) || cards.length === 0) {
+  if (!isString(parsed.deckTitle) || !Array.isArray(parsed.cards) || cards.length === 0) {
     throw new Error('Interview prep response schema was invalid.')
   }
+
+  const deckBookends = resolvePrepDeckBookends(cards)
+  const contractViolations = validatePrepGenerationContract({
+    deck: {
+      title: isString(parsed.deckTitle) ? parsed.deckTitle.trim() : '',
+      rules: normalizeStringList(parsed.rules),
+      cards,
+      stackAlignment,
+      categoryGuidance,
+      contextGaps,
+      ...deckBookends,
+    },
+    generatedCards: cards,
+    hasParsedCards: Array.isArray(parsed.cards),
+    rawCards: parsed.cards,
+    request,
+  })
+  logPrepContractViolations(request, contractViolations)
 
   const now = new Date().toISOString()
   // Gate: interviewers only flow onto the deck when the request targeted a
@@ -2149,6 +2320,7 @@ Return JSON only (inside the tags).`
     categoryGuidance,
     contextGaps,
     contextGapAnswers: request.contextGapAnswers,
+    ...deckBookends,
     roundNumber: request.roundNumber,
     roundDebriefs: request.priorRoundDebriefs,
     generatedAt: now,

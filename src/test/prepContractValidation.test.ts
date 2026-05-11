@@ -190,7 +190,6 @@ describe('prep contract validation', () => {
         expect.objectContaining({ kind: 'missing-field', field: 'script' }),
         expect.objectContaining({ kind: 'missing-field', field: 'storyBlocks' }),
         expect.objectContaining({ kind: 'missing-intel', field: 'cards' }),
-        expect.objectContaining({ kind: 'missing-landmine', field: 'cards' }),
         expect.objectContaining({ kind: 'missing-coaching', field: 'notes' }),
       ]),
     )
@@ -316,6 +315,16 @@ describe('prep contract validation', () => {
               'Talk about the team decision, the constraint you handled, and the result you moved.',
           },
           {
+            category: 'situational',
+            kind: 'closer',
+            title: 'Close the round',
+            tags: ['closer'],
+            notes: 'This close ties the role back to a concrete operating pattern.',
+            warning: 'Keep the close concise and leave room for their next question.',
+            script:
+              'The consistent thread in my work is making complex systems calmer for teams and customers.',
+          },
+          {
             category: 'opener',
             kind: 'opener',
             title: 'Why this team now?',
@@ -381,6 +390,12 @@ describe('prep contract validation', () => {
     })
 
     expect(result.contractViolations).toEqual([])
+    expect(result.deck.openerCardId).toBe(
+      result.deck.cards.find((card) => card.kind === 'opener')?.id,
+    )
+    expect(result.deck.closerCardId).toBe(
+      result.deck.cards.find((card) => card.kind === 'closer')?.id,
+    )
     expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
     expect(consoleWarnSpy).not.toHaveBeenCalledWith(
       '[prepGenerator] contract violations',
@@ -460,7 +475,7 @@ describe('prep contract validation', () => {
     ).rejects.toThrow('network down')
   })
 
-  it('surfaces a missing cards contract violation for an incomplete object root', async () => {
+  it('rejects an incomplete object root with a malformed cards field', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
@@ -468,43 +483,37 @@ describe('prep contract validation', () => {
       }),
     )
 
-    const result = await generatePrepDeck('https://ai.example/proxy', {
-      company: 'Acme',
-      role: 'Staff Engineer',
-      vectorId: 'backend',
-      vectorLabel: 'Backend',
-      jobDescription: 'Build distributed systems and platform tooling.',
-      jdAnalysis: testJdAnalysis,
-      pipelineEntryContext: {
+    await expect(
+      generatePrepDeck('https://ai.example/proxy', {
         company: 'Acme',
         role: 'Staff Engineer',
-        tier: '1',
-        status: 'interviewing',
-        appMethod: 'direct-apply',
-        response: 'interview-scheduled',
-        formats: ['hm-screen'],
-        research: {
-          status: 'investigated',
-          summary: 'Still mapping the team.',
-          interviewSignals: [],
-          sources: [],
-          searchQueries: [],
+        vectorId: 'backend',
+        vectorLabel: 'Backend',
+        jobDescription: 'Build distributed systems and platform tooling.',
+        jdAnalysis: testJdAnalysis,
+        pipelineEntryContext: {
+          company: 'Acme',
+          role: 'Staff Engineer',
+          tier: '1',
+          status: 'interviewing',
+          appMethod: 'direct-apply',
+          response: 'interview-scheduled',
+          formats: ['hm-screen'],
+          research: {
+            status: 'investigated',
+            summary: 'Still mapping the team.',
+            interviewSignals: [],
+            sources: [],
+            searchQueries: [],
+          },
         },
-      },
-      resumeContext: {
-        resume: {
-          basics: { name: 'Alex Example' },
+        resumeContext: {
+          resume: {
+            basics: { name: 'Alex Example' },
+          },
         },
-      },
-    })
-
-    expect(result.contractViolations).toContainEqual(
-      expect.objectContaining({
-        field: 'cards',
-        kind: 'missing-field',
-        severity: 'error',
       }),
-    )
+    ).rejects.toThrow('Interview prep response schema was invalid.')
   })
 
   it('reports missing and invalid PrepCard kind discriminators from generated cards', async () => {
@@ -590,6 +599,83 @@ describe('prep contract validation', () => {
         expect.objectContaining({
           field: 'cards[2].scriptKind',
           kind: 'invalid-field',
+          severity: 'error',
+        }),
+      ]),
+    )
+  })
+
+  it('reports missing scenario whyLikely fields from generated cards', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        rules: [
+          'Lead with specific evidence.',
+          'Keep answers conversational.',
+          'Name tradeoffs plainly.',
+        ],
+        categoryGuidance: {
+          situational: 'Earn attention by answering directly and then bridging to the evidence.',
+        },
+        cards: [
+          {
+            category: 'situational',
+            kind: 'scenario',
+            title: 'How would you migrate the platform?',
+            tags: ['system-design'],
+            decisionTree: [
+              {
+                title: 'Pick the migration path',
+                options: [
+                  {
+                    option: 'Strangler migration',
+                    whenRight: 'Traffic can move incrementally.',
+                    tradeoff: 'Requires disciplined routing.',
+                  },
+                ],
+                recommendation: 'Pick the incremental path when risk dominates.',
+                trap: 'Do not hand-wave data consistency.',
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const result = await generatePrepDeck('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['system-design'],
+      },
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.deck.cards[0]).toMatchObject({
+      kind: 'scenario',
+      whyLikely: '[[needs-review]]',
+    })
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'whyLikely',
+          kind: 'missing-field',
           severity: 'error',
         }),
       ]),
@@ -760,46 +846,43 @@ describe('prep contract validation', () => {
     expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
   })
 
-  it('reports a contract violation when the model omits the cards array entirely', async () => {
+  it('rejects generated output when the model omits the cards array entirely', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({
         deckTitle: 'Acme Staff Engineer Prep',
       }),
     )
 
-    const result = await generatePrepDeck('https://ai.example/proxy', {
-      company: 'Acme',
-      role: 'Staff Engineer',
-      vectorId: 'backend',
-      vectorLabel: 'Backend',
-      jobDescription: 'Build distributed systems and platform tooling.',
-      jdAnalysis: testJdAnalysis,
-      pipelineEntryContext: {
+    await expect(
+      generatePrepDeck('https://ai.example/proxy', {
         company: 'Acme',
         role: 'Staff Engineer',
-        tier: '1',
-        status: 'interviewing',
-        appMethod: 'direct-apply',
-        response: 'interview-scheduled',
-        formats: ['hm-screen'],
-        research: {
-          status: 'investigated',
-          summary: 'Still mapping the team.',
-          interviewSignals: [],
-          sources: [],
-          searchQueries: [],
+        vectorId: 'backend',
+        vectorLabel: 'Backend',
+        jobDescription: 'Build distributed systems and platform tooling.',
+        jdAnalysis: testJdAnalysis,
+        pipelineEntryContext: {
+          company: 'Acme',
+          role: 'Staff Engineer',
+          tier: '1',
+          status: 'interviewing',
+          appMethod: 'direct-apply',
+          response: 'interview-scheduled',
+          formats: ['hm-screen'],
+          research: {
+            status: 'investigated',
+            summary: 'Still mapping the team.',
+            interviewSignals: [],
+            sources: [],
+            searchQueries: [],
+          },
         },
-      },
-      resumeContext: {
-        resume: {
-          basics: { name: 'Alex Example' },
+        resumeContext: {
+          resume: {
+            basics: { name: 'Alex Example' },
+          },
         },
-      },
-    })
-
-    expect(result.contractViolations).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'missing-field', field: 'cards' })]),
-    )
-    expect(result.deck.cards.some((card) => card.tags.includes('landmine'))).toBe(true)
+      }),
+    ).rejects.toThrow('Interview prep response schema was invalid.')
   })
 })
