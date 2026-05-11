@@ -6,10 +6,8 @@ import type {
   SearchFeedbackEventBase,
   SearchFeedbackRating,
   SearchInstanceOverrides,
-  SearchInterviewPrefs,
   SearchProfile,
   SearchProfileConstraints,
-  SearchProfileFilters,
   SearchRequest,
   SearchRun,
   SearchRunNarrative,
@@ -18,7 +16,6 @@ import type {
   SalaryBand,
   SearchThesis,
   SearchThesisSignal,
-  SkillCatalogEntry,
 } from '../types/search'
 import { DEFAULT_SEARCH_MAX_RESULTS, EMPTY_SEARCH_INSTANCE_OVERRIDES } from '../types/search'
 import { createId } from '../utils/idUtils'
@@ -120,10 +117,6 @@ interface SearchState {
   activeResearchJob: ActiveResearchJobState | null
 
   setProfile: (profile: SearchProfileInput) => SearchProfile
-  updateProfileSkills: (skills: SkillCatalogEntry[]) => void
-  updateProfileConstraints: (constraints: SearchProfileConstraints) => void
-  updateProfileFilters: (filters: SearchProfileFilters) => void
-  updateProfileInterviewPrefs: (prefs: SearchInterviewPrefs) => void
   clearProfile: () => void
   addRequest: (request: SearchRequestInput) => SearchRequest
   updateRequest: (id: string, patch: Partial<SearchRequest>) => void
@@ -142,10 +135,6 @@ interface SearchState {
   ) => SearchThesis | null
   /** Toggle a skill id in the hidden-from-this-search set. */
   toggleThesisHiddenSkill: (id: string, skillId: string) => SearchThesis | null
-  /** Persist user correction notes to be included on the next regenerate. */
-  setThesisUserCorrections: (id: string, notes: string) => SearchThesis | null
-  /** Persist a custom-search directive that steers regeneration. */
-  setThesisCustomDirective: (id: string, directive: string) => SearchThesis | null
   setActiveThesis: (id: string | null) => void
   setActiveResearchJob: (job: ActiveResearchJobState) => void
   updateActiveResearchJob: (patch: Partial<ActiveResearchJobState>) => void
@@ -741,62 +730,6 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
     return hydrated
   },
 
-  updateProfileSkills: (skills) => {
-    set((state) =>
-      state.profile
-        ? {
-            profile: {
-              ...state.profile,
-              skills,
-              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-            },
-          }
-        : state,
-    )
-  },
-
-  updateProfileConstraints: (constraints) => {
-    set((state) =>
-      state.profile
-        ? {
-            profile: {
-              ...state.profile,
-              constraints,
-              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-            },
-          }
-        : state,
-    )
-  },
-
-  updateProfileFilters: (filters) => {
-    set((state) =>
-      state.profile
-        ? {
-            profile: {
-              ...state.profile,
-              filters,
-              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-            },
-          }
-        : state,
-    )
-  },
-
-  updateProfileInterviewPrefs: (interviewPrefs) => {
-    set((state) =>
-      state.profile
-        ? {
-            profile: {
-              ...state.profile,
-              interviewPrefs,
-              durableMeta: touchDurableMetadata(state.profile.durableMeta, now()),
-            },
-          }
-        : state,
-    )
-  },
-
   clearProfile: () => {
     set({ profile: null })
   },
@@ -988,14 +921,6 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
         hiddenSkillIds: Array.from(hidden),
       },
     })
-  },
-
-  setThesisUserCorrections: (id, notes) => {
-    return get().saveThesisRevision(id, { userCorrections: notes })
-  },
-
-  setThesisCustomDirective: (id, directive) => {
-    return get().saveThesisRevision(id, { customDirective: directive })
   },
 
   setActiveThesis: (id) => {

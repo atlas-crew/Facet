@@ -127,7 +127,7 @@ describe('searchStore', () => {
     })
   })
 
-  it('sets and updates the profile', () => {
+  it('sets the profile', () => {
     const profile = useSearchStore.getState().setProfile({
       skills: [],
       workSummary: [],
@@ -150,37 +150,7 @@ describe('searchStore', () => {
     })
 
     expect(profile.id).toMatch(/^sprof-/)
-
-    useSearchStore.getState().updateProfileSkills([
-      {
-        id: 'skl-1',
-        name: 'TypeScript',
-        category: 'backend',
-        depth: 'strong',
-      },
-    ])
-    useSearchStore.getState().updateProfileConstraints({
-      salary: { min: 250000, max: 250000, currency: 'USD' },
-      locations: ['Remote'],
-      clearance: '',
-      companySize: '',
-    })
-    useSearchStore.getState().updateProfileFilters({
-      prioritize: [{ label: 'platform', severity: 'soft' }],
-      avoid: [{ label: 'ad tech', severity: 'hard' }],
-    })
-    useSearchStore.getState().updateProfileInterviewPrefs({
-      strongFit: ['staff scope'],
-      redFlags: ['unclear ownership'],
-    })
-
-    const updated = useSearchStore.getState().profile
-    expect(updated?.skills).toHaveLength(1)
-    expect(updated?.constraints.salary).toEqual({ min: 250000, max: 250000, currency: 'USD' })
-    expect(updated?.filters.prioritize).toEqual([{ label: 'platform', severity: 'soft' }])
-    expect(updated?.interviewPrefs.strongFit).toEqual(['staff scope'])
-    expect(updated?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
-    expect(updated?.durableMeta?.revision).toBe(4)
+    expect(profile.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
   })
 
   it('adds, updates, and deletes requests', () => {
@@ -525,22 +495,7 @@ describe('searchStore', () => {
     })
   })
 
-  it('treats profile updaters as no-ops when no profile exists and supports clear/delete run', () => {
-    useSearchStore
-      .getState()
-      .updateProfileSkills([
-        { id: 'skl-1', name: 'TypeScript', category: 'backend', depth: 'strong' },
-      ])
-    useSearchStore.getState().updateProfileConstraints({
-      salary: { min: 0, max: 0 },
-      locations: [],
-      clearance: '',
-      companySize: '',
-    })
-    useSearchStore.getState().updateProfileFilters({ prioritize: [], avoid: [] })
-    useSearchStore.getState().updateProfileInterviewPrefs({ strongFit: [], redFlags: [] })
-    expect(useSearchStore.getState().profile).toBeNull()
-
+  it('supports clear/delete run', () => {
     useSearchStore.getState().setProfile({
       skills: [],
       workSummary: [],
@@ -677,26 +632,6 @@ describe('searchStore', () => {
     expect(afterToggleOn?.searchOverrides?.hiddenSkillIds).toEqual(['skl-rust'])
     const afterToggleOff = useSearchStore.getState().toggleThesisHiddenSkill(thesis.id, 'skl-rust')
     expect(afterToggleOff?.searchOverrides?.hiddenSkillIds).toEqual([])
-
-    const withCorrections = useSearchStore
-      .getState()
-      .setThesisUserCorrections(
-        thesis.id,
-        'Drop Kubernetes admin framing — focus on platform leverage.',
-      )
-    expect(withCorrections?.userCorrections).toBe(
-      'Drop Kubernetes admin framing — focus on platform leverage.',
-    )
-
-    const withDirective = useSearchStore
-      .getState()
-      .setThesisCustomDirective(
-        thesis.id,
-        'Research adjacent CTO roles at platform-modernization startups.',
-      )
-    expect(withDirective?.customDirective).toBe(
-      'Research adjacent CTO roles at platform-modernization startups.',
-    )
 
     expect(useSearchStore.getState().updateThesisOverrides('missing-thesis', {})).toBeNull()
   })
