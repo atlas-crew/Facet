@@ -4,12 +4,14 @@ title: Cross-source intake synthesis utility (resume arm)
 status: To Do
 assignee: []
 created_date: '2026-05-11 05:20'
+updated_date: '2026-05-11 05:21'
 labels:
   - feature
   - identity
   - multi-source-intake
 milestone: m-33
-dependencies: []
+dependencies:
+  - TASK-260
 modified_files:
   - src/utils/resumeScanner/intakeSynthesis.ts
   - src/test/intakeSynthesis.test.ts
