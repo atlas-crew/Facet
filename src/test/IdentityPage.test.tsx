@@ -413,6 +413,120 @@ describe('IdentityPage', () => {
     })
   })
 
+  it('appends multiple PDFs from a single drop in order', async () => {
+    const platformScan = scanFixture()
+    platformScan.fileName = 'platform.pdf'
+    const securityScan = scanFixture()
+    securityScan.fileName = 'security.pdf'
+
+    resumeScannerMocks.scanResumePdfMock.mockReset()
+    resumeScannerMocks.scanResumePdfMock
+      .mockResolvedValueOnce(platformScan)
+      .mockResolvedValueOnce(securityScan)
+
+    render(<IdentityPage />)
+
+    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+      dataTransfer: {
+        files: [
+          new File(['%PDF-1.4'], 'platform.pdf', { type: 'application/pdf' }),
+          new File(['%PDF-1.4'], 'security.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().intakeSources).toHaveLength(2)
+    })
+    const sources = useIdentityStore.getState().intakeSources
+    expect(sources[0]?.kind === 'resume' && sources[0].scan.fileName).toBe('platform.pdf')
+    expect(sources[1]?.kind === 'resume' && sources[1].scan.fileName).toBe('security.pdf')
+    expect(screen.getByRole('list', { name: 'Intake sources' })).toBeTruthy()
+  })
+
+  it('isolates per-file scan failures without aborting the batch', async () => {
+    const goodScan = scanFixture()
+    goodScan.fileName = 'good.pdf'
+
+    resumeScannerMocks.scanResumePdfMock.mockReset()
+    resumeScannerMocks.scanResumePdfMock
+      .mockRejectedValueOnce(new Error('PDF text extraction failed.'))
+      .mockResolvedValueOnce(goodScan)
+
+    render(<IdentityPage />)
+
+    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+      dataTransfer: {
+        files: [
+          new File(['%PDF-1.4'], 'broken.pdf', { type: 'application/pdf' }),
+          new File(['%PDF-1.4'], 'good.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().intakeSources).toHaveLength(1)
+    })
+    expect(screen.getByText('PDF text extraction failed.')).toBeTruthy()
+    expect(screen.getByText('broken.pdf')).toBeTruthy()
+    const sources = useIdentityStore.getState().intakeSources
+    expect(sources[0]?.kind === 'resume' && sources[0].scan.fileName).toBe('good.pdf')
+  })
+
+  it('removes an intake source via the per-card remove button', async () => {
+    const first = scanFixture()
+    first.fileName = 'one.pdf'
+    const second = scanFixture()
+    second.fileName = 'two.pdf'
+
+    resumeScannerMocks.scanResumePdfMock.mockReset()
+    resumeScannerMocks.scanResumePdfMock
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second)
+
+    render(<IdentityPage />)
+
+    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+      dataTransfer: {
+        files: [
+          new File(['%PDF-1.4'], 'one.pdf', { type: 'application/pdf' }),
+          new File(['%PDF-1.4'], 'two.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().intakeSources).toHaveLength(2)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove two.pdf' }))
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().intakeSources).toHaveLength(1)
+    })
+    expect(screen.queryByText('two.pdf')).toBeNull()
+  })
+
+  it('flags above-cap sources and surfaces a cap warning when more than 10 sources exist', async () => {
+    const sources = Array.from({ length: 11 }, (_, index) => {
+      const scan = scanFixture()
+      scan.fileName = `resume-${index + 1}.pdf`
+      return {
+        kind: 'resume' as const,
+        id: `intake-${index + 1}`,
+        scan,
+      }
+    })
+    useIdentityStore.setState({ intakeSources: sources })
+
+    render(<IdentityPage />)
+
+    expect(
+      screen.getByText(/1 source above the 10-source cap won't contribute to synthesis/),
+    ).toBeTruthy()
+    expect(screen.getAllByText('Over cap')).toHaveLength(1)
+  })
+
   it('rejects non-PDF uploads before invoking the scanner', async () => {
     resumeScannerMocks.scanResumePdfMock.mockClear()
     const { container } = render(<IdentityPage />)

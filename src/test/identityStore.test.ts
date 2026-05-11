@@ -1691,3 +1691,107 @@ describe('identityStore model_revision', () => {
     })
   })
 })
+
+describe('identityStore intake sources (multi-source intake)', () => {
+  const createResumeSource = (id: string, fileName: string, userLabel?: string): IntakeSource => ({
+    kind: 'resume',
+    id,
+    userLabel,
+    scan: { ...createScanResult(), fileName },
+  })
+
+  it('appends sources in order and keeps the first as the active scan', () => {
+    const first = createResumeSource('intake-1', 'platform.pdf')
+    const second = createResumeSource('intake-2', 'security.pdf')
+
+    useIdentityStore.getState().appendIntakeSource(first)
+    useIdentityStore.getState().appendIntakeSource(second)
+
+    const sources = useIdentityStore.getState().intakeSources
+    expect(sources.map((entry) => entry.id)).toEqual(['intake-1', 'intake-2'])
+    expect(getActiveResumeScan(useIdentityStore.getState())?.fileName).toBe('platform.pdf')
+  })
+
+  it('seeds draftDocument and warnings on the first append only', () => {
+    const first = createResumeSource('intake-1', 'first.pdf')
+    first.scan = {
+      ...first.scan,
+      warnings: [
+        { code: 'two-column-layout', severity: 'warning', message: 'First file warning.' },
+      ],
+    }
+    const second = createResumeSource('intake-2', 'second.pdf')
+    second.scan = {
+      ...second.scan,
+      warnings: [
+        { code: 'two-column-layout', severity: 'warning', message: 'Second file warning.' },
+      ],
+    }
+
+    useIdentityStore.getState().appendIntakeSource(first)
+    expect(useIdentityStore.getState().draftDocument.length).toBeGreaterThan(0)
+    expect(useIdentityStore.getState().warnings).toEqual(['First file warning.'])
+
+    const draftAfterFirst = useIdentityStore.getState().draftDocument
+    useIdentityStore.getState().appendIntakeSource(second)
+
+    expect(useIdentityStore.getState().draftDocument).toBe(draftAfterFirst)
+    expect(useIdentityStore.getState().warnings).toEqual(['First file warning.'])
+  })
+
+  it('removes a non-primary source without touching the active scan', () => {
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-1', 'one.pdf'))
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-2', 'two.pdf'))
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-3', 'three.pdf'))
+
+    useIdentityStore.getState().removeIntakeSource('intake-2')
+
+    expect(useIdentityStore.getState().intakeSources.map((entry) => entry.id)).toEqual([
+      'intake-1',
+      'intake-3',
+    ])
+    expect(getActiveResumeScan(useIdentityStore.getState())?.fileName).toBe('one.pdf')
+  })
+
+  it('promotes the next source when the active one is removed', () => {
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-1', 'one.pdf'))
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-2', 'two.pdf'))
+
+    useIdentityStore.getState().removeIntakeSource('intake-1')
+
+    expect(useIdentityStore.getState().intakeSources.map((entry) => entry.id)).toEqual(['intake-2'])
+    expect(getActiveResumeScan(useIdentityStore.getState())?.fileName).toBe('two.pdf')
+  })
+
+  it('is a no-op when removing an unknown id', () => {
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-1', 'one.pdf'))
+    const before = useIdentityStore.getState().intakeSources
+
+    useIdentityStore.getState().removeIntakeSource('does-not-exist')
+
+    expect(useIdentityStore.getState().intakeSources).toBe(before)
+  })
+
+  it('sets, trims, and clears the userLabel on a source by id', () => {
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-1', 'one.pdf'))
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-2', 'two.pdf'))
+
+    useIdentityStore.getState().setIntakeSourceLabel('intake-2', '  security  ')
+    expect(useIdentityStore.getState().intakeSources[1]?.userLabel).toBe('security')
+
+    useIdentityStore.getState().setIntakeSourceLabel('intake-2', '   ')
+    expect(useIdentityStore.getState().intakeSources[1]?.userLabel).toBeUndefined()
+  })
+
+  it('persists intakeSources including userLabel across reload shapes', async () => {
+    useIdentityStore.getState().appendIntakeSource(createResumeSource('intake-1', 'one.pdf'))
+    useIdentityStore.getState().setIntakeSourceLabel('intake-1', 'platform')
+
+    const persisted = await readPersistedIdentityState()
+    expect(persisted.state.intakeSources?.[0]).toMatchObject({
+      kind: 'resume',
+      id: 'intake-1',
+      userLabel: 'platform',
+    })
+  })
+})
