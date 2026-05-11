@@ -1,10 +1,11 @@
 ---
 id: TASK-263
 title: Proposed-vectors review pane and acceptance flow
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 05:21'
+updated_date: '2026-05-11 11:34'
 labels:
   - feature
   - identity
@@ -64,6 +65,34 @@ REFERENCES:
 - [ ] #9 When draft is applied to identity, any remaining proposedVectors are NOT carried over (the user must accept before applying)
 - [ ] #10 Tests cover: render with proposed vectors, accept promotion to search_vectors, reject removal, edit-then-accept flow, empty-state hiding, draft-application clears staging
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## Implementation plan
+
+### Placement
+`<ProposedVectorsCard />` renders at the **top of `identity-section-stack`** in `IdentityPage`, above the enrichment banner and workbench grid. Sibling-depth with future Phase-3 Self Model proposal panes.
+
+### Files
+1. **`src/types/identity.ts`** — add `ProposedSearchVectorPatch` type (partial of `title`, `thesis`, `keywords`).
+2. **`src/store/identityStore.ts`** —
+   - Actions: `acceptProposedVector(id)`, `rejectProposedVector(id)`, `editProposedVector(id, patch)`.
+   - Accept: strip `evidenceSources`, mint fresh `createId('search-vector')`, push to `draft.identity.search_vectors`, splice from staging, re-derive `draftDocument`.
+   - Update `applyDraft` to drop `draft.proposedVectors` after apply (AC #9).
+   - Export selectors `hasProposedVectors(state)`, `getProposedVectorById(state, id)`.
+3. **`src/routes/identity/ProposedVectorsCard.tsx`** (new) — section + card per vector with title, thesis, supporting_bullets (resolved via `resolveBulletLabel`), evidence sources, and three actions. Inline edit form covers title/thesis/keywords only (priority/subtitle/target_roles stay read-only).
+4. **`src/routes/identity/IdentityPage.tsx`** — read `draft`, wire store handlers, render `ProposedVectorsCard` at top of stack. Set page notice on each action.
+5. **`src/routes/identity/identity.css`** — reuse existing card/btn/chip/field classes; add `identity-proposed-vectors` wrapper for spacing if needed.
+6. **`src/test/ProposedVectorsCard.test.tsx`** (new) — covers AC #10: render, accept, reject, edit-then-accept, empty-state hiding, draft-application clears staging.
+
+### Test approach
+Mount with real `useIdentityStore` (via `setState` to seed draft), exercise via `fireEvent`, assert via Testing Library role/text queries — mirrors `IdentityPage.test.tsx` style.
+
+### Risks
+- `supporting_bullets` may carry bullet IDs *or* free strings; `resolveBulletLabel` falls back to the raw value when no `role.bullets[].id` matches.
+- Staged vector edits must NOT bump `model_revision` — they live on draft, outside the identity revision counter.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
