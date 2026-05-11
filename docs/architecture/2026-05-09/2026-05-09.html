@@ -1,0 +1,3921 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="dcterms.date" content="2026-05-09" />
+  <title>Architectural Analysis 2026-05-09</title>
+  <style>
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+background-color: #1a1a1a;
+border: none;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Architectural Analysis 2026-05-09</h1>
+<p class="date">2026-05-09</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#architectural-analysis-2026-05-09" id="toc-architectural-analysis-2026-05-09">Architectural Analysis —
+2026-05-09</a>
+<ul>
+<li><a href="#scope" id="toc-scope">Scope</a></li>
+<li><a href="#modes-included" id="toc-modes-included">Modes
+included</a></li>
+<li><a href="#cross-mode-index" id="toc-cross-mode-index">Cross-mode
+index</a></li>
+<li><a href="#headline-findings" id="toc-headline-findings">Headline
+findings</a></li>
+<li><a href="#verification-summary" id="toc-verification-summary">Verification summary</a></li>
+<li><a href="#diagrams" id="toc-diagrams">Diagrams</a></li>
+<li><a href="#open-questions" id="toc-open-questions">Open
+questions</a></li>
+<li><a href="#methodology-note" id="toc-methodology-note">Methodology
+note</a></li>
+</ul></li>
+<li><a href="#information-architecture" id="toc-information-architecture">Information Architecture</a>
+<ul>
+<li><a href="#summary" id="toc-summary">Summary</a></li>
+<li><a href="#callouts" id="toc-callouts">Callouts</a></li>
+<li><a href="#narrative" id="toc-narrative">Narrative</a></li>
+<li><a href="#synthesized-concepts" id="toc-synthesized-concepts">Synthesized concepts</a></li>
+<li><a href="#verification-log" id="toc-verification-log">Verification
+log</a></li>
+<li><a href="#open-questions-1" id="toc-open-questions-1">Open
+questions</a></li>
+</ul></li>
+<li><a href="#data-model" id="toc-data-model">Data Model</a>
+<ul>
+<li><a href="#summary-1" id="toc-summary-1">Summary</a></li>
+<li><a href="#callouts-1" id="toc-callouts-1">Callouts</a></li>
+<li><a href="#narrative-1" id="toc-narrative-1">Narrative</a></li>
+<li><a href="#verification-log-1" id="toc-verification-log-1">Verification log</a></li>
+<li><a href="#open-questions-2" id="toc-open-questions-2">Open
+questions</a></li>
+</ul></li>
+<li><a href="#data-flow" id="toc-data-flow">Data Flow</a>
+<ul>
+<li><a href="#summary-2" id="toc-summary-2">Summary</a></li>
+<li><a href="#callouts-2" id="toc-callouts-2">Callouts</a></li>
+<li><a href="#narrative-2" id="toc-narrative-2">Narrative</a></li>
+<li><a href="#verification-log-2" id="toc-verification-log-2">Verification log</a></li>
+<li><a href="#open-questions-3" id="toc-open-questions-3">Open
+questions</a></li>
+</ul></li>
+<li><a href="#integration-points" id="toc-integration-points">Integration Points</a>
+<ul>
+<li><a href="#summary-3" id="toc-summary-3">Summary</a></li>
+<li><a href="#callouts-3" id="toc-callouts-3">Callouts</a></li>
+<li><a href="#narrative-3" id="toc-narrative-3">Narrative</a></li>
+<li><a href="#verification-log-3" id="toc-verification-log-3">Verification log</a></li>
+<li><a href="#open-questions-4" id="toc-open-questions-4">Open
+questions</a></li>
+</ul></li>
+<li><a href="#ui-surfaces" id="toc-ui-surfaces">UI Surfaces</a>
+<ul>
+<li><a href="#summary-4" id="toc-summary-4">Summary</a></li>
+<li><a href="#callouts-4" id="toc-callouts-4">Callouts</a></li>
+<li><a href="#narrative-4" id="toc-narrative-4">Narrative</a></li>
+<li><a href="#verification-log-4" id="toc-verification-log-4">Verification log</a></li>
+<li><a href="#open-questions-5" id="toc-open-questions-5">Open
+questions</a></li>
+</ul></li>
+<li><a href="#control-flow" id="toc-control-flow">Control Flow</a>
+<ul>
+<li><a href="#summary-5" id="toc-summary-5">Summary</a></li>
+<li><a href="#callouts-5" id="toc-callouts-5">Callouts</a></li>
+<li><a href="#narrative-5" id="toc-narrative-5">Narrative</a></li>
+<li><a href="#verification-log-5" id="toc-verification-log-5">Verification log</a></li>
+<li><a href="#open-questions-6" id="toc-open-questions-6">Open
+questions</a></li>
+</ul></li>
+<li><a href="#failure-modes" id="toc-failure-modes">Failure Modes</a>
+<ul>
+<li><a href="#summary-6" id="toc-summary-6">Summary</a></li>
+<li><a href="#callouts-6" id="toc-callouts-6">Callouts</a></li>
+<li><a href="#narrative-6" id="toc-narrative-6">Narrative</a></li>
+<li><a href="#verification-log-6" id="toc-verification-log-6">Verification log</a></li>
+<li><a href="#open-questions-7" id="toc-open-questions-7">Open
+questions</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="architectural-analysis-2026-05-09">Architectural Analysis —
+2026-05-09</h1>
+<h2 id="scope">Scope</h2>
+<p>Snapshot of Facet’s canonical user flow from <strong>identity
+extraction</strong> through <strong>search/research → pipeline → prep →
+letters/resume/recruiter</strong> derived artifacts, plus the
+cross-cutting <strong>persistence</strong> and <strong>assembly
+engine</strong> layers those workspaces depend on.</p>
+<p><strong>Included:</strong> - All in-scope route components under
+<code>src/routes/</code> (10 routes: identity<em>, research, match,
+pipeline, prep</em>, letters, build, linkedin, recruiter, debrief) -
+Identity domain (<code>src/identity/</code> — schema, resumeAdapter,
+skillDedupe) - Engine layer (<code>src/engine/</code> — assembler,
+pageBudget, serializer, letterAssembler, typst.worker) - Persistence
+(<code>src/persistence/</code> — coordinator, snapshot, runtime,
+validation, normalization, indexedDb, remoteBackend, fileSystemAccess,
+hydration, etc.) - Domain stores (<code>src/store/</code> — identity,
+pipeline, prep, search, resume, coverLetter, jdAnalysis, linkedin,
+recruiter, match, debrief) - AI generators
+(<code>src/utils/*Generator.ts</code>,
+<code>src/utils/llmProxy.ts</code>,
+<code>src/utils/aiAccess.ts</code>)</p>
+<p><strong>Excluded:</strong> - <code>/account</code>,
+<code>/admin</code>, <code>/help</code>, <code>/legal</code>,
+<code>/home</code> routes (not in user-flow scope) - Test fixtures and
+<code>src/test/</code> - Theme system (<code>src/themes/</code>) -
+Dev-only tooling and <code>src/dev/</code></p>
+<h2 id="modes-included">Modes included</h2>
+<ul>
+<li><strong><a href="information/report.md">Information
+architecture</a></strong> — Identity is the gravitational center: every
+LLM generator imports <code>identity/schema.ts</code>. Persistence is a
+synthesized three-file coordinator pattern.</li>
+<li><strong><a href="data-model/report.md">Data model</a></strong> — Two
+centers of gravity: ProfessionalIdentityV3 (canonical) and PipelineEntry
+(durable application record). Derived artifacts (Resume, CoverLetter,
+LinkedIn, Recruiter, Debrief) all reference identity by FK +
+identityVersion stamp.</li>
+<li><strong><a href="data-flow/report.md">Data flow</a></strong> — Six
+critical paths converge on a single persistence boundary. The 150ms
+<code>schedulePersist</code> debounce is the design’s response to write
+amplification.</li>
+<li><strong><a href="integrations/report.md">Integrations</a></strong> —
+No direct anthropic-sdk usage; every LLM call goes through
+<code>callLlmProxy</code>. Typst WASM via Web Worker is the only non-LLM
+external compute.</li>
+<li><strong><a href="ui-surfaces/report.md">UI surfaces</a></strong> —
+20 routes; 14 in scope. Three eager-loaded routes (Build, Pipeline,
+Recruiter) are the daily-driver triad.</li>
+<li><strong><a href="control-flow/report.md">Control flow</a></strong> —
+Persistence coordinator is an explicit 6-state machine. Render uses
+generation-counter to discard stale worker responses. Deep-research uses
+concurrent SSE + poll-loop with stepped backoff.</li>
+<li><strong><a href="failure-modes/report.md">Failure modes</a></strong>
+— No automatic retry at proxy boundary; retry is caller-side and rare.
+Persistence collapses all errors to offline/error binary. Typst worker
+keeps old preview on render error rather than blanking.</li>
+</ul>
+<h2 id="cross-mode-index">Cross-mode index</h2>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 43%" />
+<col style="width: 13%" />
+</colgroup>
+<thead>
+<tr>
+<th>Callout</th>
+<th>Origin mode</th>
+<th>Also referenced from</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I-8</td>
+<td>information</td>
+<td>data-model (as M-1 root, etc.), data-flow (D-2 imports)</td>
+<td>identity/schema.ts</td>
+</tr>
+<tr>
+<td>I-17, I-18, I-19</td>
+<td>information</td>
+<td>control-flow (C-2…C-13), data-flow (D-30…D-34)</td>
+<td>persistence triad files</td>
+</tr>
+<tr>
+<td>I-43</td>
+<td>information</td>
+<td>control-flow (the coordinator state machine is its operational
+form)</td>
+<td>persistence coordinator pattern (synthesized)</td>
+</tr>
+<tr>
+<td>M-1</td>
+<td>data-model</td>
+<td>data-flow (D-9 currentIdentity), IA (I-8 owns this type)</td>
+<td>ProfessionalIdentityV3</td>
+</tr>
+<tr>
+<td>M-20</td>
+<td>data-model</td>
+<td>data-flow (D-22 addEntry produces, D-23 entries collection)</td>
+<td>PipelineEntry</td>
+</tr>
+<tr>
+<td>M-22</td>
+<td>data-model</td>
+<td>data-flow (D-24 jdAnalysisStore.upsertAnalysis), failure-modes</td>
+<td>JDAnalysis</td>
+</tr>
+<tr>
+<td>M-29</td>
+<td>data-model</td>
+<td>data-flow (D-26 prepStore.createDeck)</td>
+<td>PrepDeck</td>
+</tr>
+<tr>
+<td>M-33</td>
+<td>data-model</td>
+<td>data-flow (D-12 resumeStore.setData), control-flow</td>
+<td>ResumeData</td>
+</tr>
+<tr>
+<td>M-44</td>
+<td>data-model</td>
+<td>failure-modes (F-37 backfill stamps it), data-flow</td>
+<td>DurableMetadata</td>
+</tr>
+<tr>
+<td>D-30</td>
+<td>data-flow</td>
+<td>control-flow (C-13), failure-modes (debounced retry trigger)</td>
+<td>schedulePersist (150ms debounce)</td>
+</tr>
+<tr>
+<td>D-32</td>
+<td>data-flow</td>
+<td>control-flow (C-10 inverse via applyWorkspaceSnapshotToStores)</td>
+<td>createWorkspaceSnapshotFromStores</td>
+</tr>
+<tr>
+<td>C-13</td>
+<td>control-flow</td>
+<td>data-flow (D-30 same node)</td>
+<td>schedulePersist debounce</td>
+</tr>
+<tr>
+<td>C-26</td>
+<td>control-flow</td>
+<td>data-flow (D-17 same worker)</td>
+<td>typst.worker spawn</td>
+</tr>
+<tr>
+<td>C-31</td>
+<td>control-flow</td>
+<td>failure-modes (stale-response guard prevents corrupt preview)</td>
+<td>renderGenerationRef stale-response guard</td>
+</tr>
+<tr>
+<td>F-1</td>
+<td>failure-modes</td>
+<td>control-flow (C-20 categorizer produces this), integrations (X-3
+boundary)</td>
+<td>FacetAiProxyError</td>
+</tr>
+<tr>
+<td>F-2</td>
+<td>failure-modes</td>
+<td>control-flow (offline phase resolves via this), integrations (X-20
+produces this)</td>
+<td>FacetApiError</td>
+</tr>
+<tr>
+<td>F-30</td>
+<td>failure-modes</td>
+<td>control-flow (C-30 same site)</td>
+<td>preserve old preview on render error</td>
+</tr>
+<tr>
+<td>X-2</td>
+<td>integrations</td>
+<td>data-flow (LLM calls go here), control-flow (C-18 boundary),
+failure-modes</td>
+<td>Anthropic API (via proxy)</td>
+</tr>
+<tr>
+<td>X-21</td>
+<td>integrations</td>
+<td>data-flow (D-35 hosted persistence), control-flow (C-35 hosted
+bootstrap)</td>
+<td>Facet hosted persistence backend (Supabase)</td>
+</tr>
+<tr>
+<td>X-26, X-27</td>
+<td>integrations</td>
+<td>data-flow (D-17 typst.worker), control-flow (C-26 worker spawn)</td>
+<td>typst.worker + Typst WASM</td>
+</tr>
+<tr>
+<td>U-2</td>
+<td>ui-surfaces</td>
+<td>control-flow (C-34 bootstrap branch on deployment mode)</td>
+<td>AppShell</td>
+</tr>
+<tr>
+<td>OBS-1</td>
+<td>ui-surfaces</td>
+<td>control-flow (C-40 lazy route boundaries)</td>
+<td>Eager-loaded triad signal</td>
+</tr>
+</tbody>
+</table>
+<h2 id="headline-findings">Headline findings</h2>
+<ol type="1">
+<li><p><strong>Identity is the gravitational center of the data model
+and the IA simultaneously.</strong>
+<code>[M-1] ProfessionalIdentityV3</code> (1407-line schema) is
+referenced by <strong>seven LLM generators</strong> at the IA level and
+is the source of every derived artifact at the data-model level.
+Memory’s <code>identity-canonical-data</code> principle is structurally
+enforced: artifacts mirror identity rather than store independent
+fields.</p></li>
+<li><p><strong>Persistence is a single-snapshot, debounced,
+cross-cutting concern with explicit state-machine semantics.</strong>
+The 150ms <code>schedulePersist</code> debounce
+(<code>[D-30]</code>/<code>[C-13]</code>), the 6-state coordinator
+(<code>[C-1]</code>…<code>[C-9]</code>), the legacy-storage migration
+path (<code>[C-11]</code>), and the cross-tab sync
+(<code>[C-15]</code>/<code>[C-16]</code>) make persistence one of the
+architecturally heaviest layers — and the only one with a
+coordinator-pattern synthesized abstraction
+(<code>[I-43]</code>).</p></li>
+<li><p><strong>The proxy boundary is a deliberate, non-bypassable
+architectural commitment.</strong> No direct
+<code>@anthropic-ai/sdk</code> usage; every LLM call routes through
+<code>[X-1] resolveAiAccess</code> → <code>[X-10] callLlmProxy</code> →
+<code>[X-2]</code> Anthropic. This concentrates entitlement gating,
+error categorization (<code>[F-3]</code> readAiProxyError), and timeout
+policy in one boundary — and gives hosted/local mode a clean swap
+point.</p></li>
+<li><p><strong>Retry is rare and explicit; failure containment
+dominates.</strong> Only <code>[F-13]</code> jobMatch (2 attempts) and
+<code>[F-41]</code> deep-research polling have retry. Typst worker has
+zero retry but compensates with <code>[F-30]</code> “keep old preview.”
+Persistence has no retry but binarizes all errors to offline/error via
+<code>[F-23] resolvePersistenceFailurePhase</code>. The pattern: surface
+failures to UI catches rather than hiding them in retry
+policies.</p></li>
+<li><p><strong>The eager-loaded triad (Build, Pipeline, Recruiter) is an
+architectural assertion about the daily-driver workflow.</strong> 17 of
+20 routes are <code>React.lazy()</code>; only those three are eager
+imports in <code>[U-1] router.tsx:4-6</code>. This embeds the topology
+doc’s “pipeline owns durable job context” principle in the
+bundle-splitting decision: the durable-context surfaces load instantly;
+the AI-dependent surfaces pay a code-split cost on first
+navigation.</p></li>
+<li><p><strong>The Typst rendering boundary has the codebase’s most
+carefully-engineered concurrent control flow.</strong>
+<code>[C-31]</code> renderGenerationRef discards stale worker responses;
+<code>[C-27]</code> 400ms debounce coalesces prop changes;
+<code>[C-32]</code> terminate-on-unmount prevents leaks;
+<code>[C-29]</code> revokes previous blob URLs. This is unusual care for
+a “preview” surface — the engineering effort signals how often render is
+on the user’s critical path.</p></li>
+<li><p><strong>The Search → Pipeline → Prep flow is structurally
+enforced by FK references, not duplicated state.</strong>
+<code>[M-29] PrepDeck</code> carries <code>pipelineEntryId</code>,
+<code>pipelineRoundId</code>, and <code>jdAnalysisId</code> — three FKs
+back into the canonical pipeline cluster. PipelineEntry similarly
+references <code>JDAnalysis</code> and <code>CoverLetter</code> by ID,
+not by embedded copy. This is what lets the workspace topology stay
+coherent even with 11 stores: cross-store relationships flow through the
+data model, not the runtime.</p></li>
+</ol>
+<h2 id="verification-summary">Verification summary</h2>
+<table>
+<colgroup>
+<col style="width: 7%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 13%" />
+<col style="width: 16%" />
+<col style="width: 24%" />
+</colgroup>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Findings</th>
+<th>Verified</th>
+<th>Repaired</th>
+<th>Discarded</th>
+<th>Synthesized</th>
+<th>Synthesized share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Information architecture</td>
+<td>44</td>
+<td>43</td>
+<td>1 (added I-44 prepStore)</td>
+<td>1 (duplicate I-12)</td>
+<td>1 (I-43)</td>
+<td>2.3%</td>
+</tr>
+<tr>
+<td>Data model</td>
+<td>55</td>
+<td>55</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Data flow</td>
+<td>38</td>
+<td>38</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Integrations</td>
+<td>45</td>
+<td>40</td>
+<td>0</td>
+<td>5 (out-of-scope)</td>
+<td>0 (re-classified to external)</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>UI surfaces</td>
+<td>66</td>
+<td>52</td>
+<td>14 (page-export lines)</td>
+<td>0 (page nodes themselves valid)</td>
+<td>1 (OBS-1)</td>
+<td>1.9%</td>
+</tr>
+<tr>
+<td>Control flow</td>
+<td>40</td>
+<td>40</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Failure modes</td>
+<td>50</td>
+<td>50</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>0%</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>338</strong></td>
+<td><strong>318</strong></td>
+<td><strong>15</strong></td>
+<td><strong>6</strong></td>
+<td><strong>2</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Citation verification used the codanna MCP index for symbol
+resolution where applicable, plus targeted <code>grep</code> for
+absence-claim refutation and <code>Read</code> for line-content
+matching. The discard-and-repair log is preserved in each mode’s
+<code>report.md</code> <code>Verification log</code> section.</p>
+<h2 id="diagrams">Diagrams</h2>
+<ul>
+<li><a href="information/ia.svg">Information architecture</a> (rendered
+from <code>information/ia.mmd</code>)</li>
+<li><a href="data-model/erd.svg">Data model — ERD</a></li>
+<li><a href="data-flow/flow.svg">Data flow — pipeline</a> | <a href="data-flow/sequence-resume-render.svg">Sequence — resume render</a>
+| <a href="data-flow/sequence-pipeline-promotion.svg">Sequence —
+pipeline promotion</a> | <a href="data-flow/sequence-snapshot-save.svg">Sequence — snapshot
+save</a></li>
+<li><a href="integrations/boundaries.svg">Integrations —
+boundaries</a></li>
+<li><a href="ui-surfaces/routes.svg">UI surfaces — routes</a> | <a href="ui-surfaces/components.svg">UI surfaces — components</a></li>
+<li><a href="control-flow/state.svg">Control flow — state machine</a> |
+<a href="control-flow/sequence-render-lifecycle.svg">Sequence — render
+lifecycle</a> | <a href="control-flow/sequence-hydration.svg">Sequence —
+hydration</a> | <a href="control-flow/sequence-research-job.svg">Sequence — research
+job</a></li>
+<li><a href="failure-modes/failures.svg">Failure modes</a></li>
+</ul>
+<h2 id="open-questions">Open questions</h2>
+<p>Aggregated from per-mode reports, de-duplicated:</p>
+<ul>
+<li><strong>Schema migration mechanics:</strong> <code>[F-37]</code>
+silent backfill handles schema <em>additions</em>; what about renames or
+field-type changes? Inspect <code>validation.ts</code> migration
+logic.</li>
+<li><strong>Typst preview cache lifecycle:</strong> <code>[F-30]</code>
+“keep old preview on error” depends on the previous blob URL existing;
+first-render-after-navigation has no fallback. Bug or intentional?</li>
+<li><strong>LLM retry asymmetry:</strong> Why does <code>[F-13]</code>
+jobMatch retry but no other generator? Idempotency-driven decision, or
+accident of evolution?</li>
+<li><strong>Deep-research circuit breaker:</strong> <code>[F-41]</code>
+poll-on-error keeps polling indefinitely with <code>[F-42]</code> capped
+30s intervals. Is there a max-attempts guard, or does the user have to
+abort?</li>
+<li><strong>Deep-link bridge band-focus lock:</strong>
+<code>/identity</code> was redesigned around a single canvas + bands +
+sticky inspector (the Model/Strategy tab shell is gone —
+<code>src/routes/identity/IdentityMapPage.tsx:24-32</code>). The bridge
+has three params: <code>?sel</code> (12+ variant inspector-pin),
+<code>?focus</code> (band-scroll, currently bounded to
+<code>[&#39;preferences&#39;]</code> by explicit lock at
+<code>src/utils/mapSelectionUrl.ts:184</code>), and <code>?return</code>
+(back-link breadcrumb). When does the bounded-set lock become friction
+as other workspaces gain landing-target needs?</li>
+<li><strong>Worker pool need:</strong> <code>[X-29]</code> Web Worker is
+single-instance per <code>usePdfPreview</code> mount. Does side-by-side
+compare or multi-preview UI need a pool?</li>
+<li><strong>Pipeline panel composition:</strong> Pipeline workspace
+decomposes into 6 panels; other workspaces have ~1. Is pipeline
+genuinely richer or is it accumulating complexity?</li>
+<li><strong>Eager-load triad rationale:</strong> Why
+Build/Pipeline/Recruiter specifically? Recruiter is less obviously a
+daily driver than the other two.</li>
+<li><strong>MatchReport entity gap:</strong> <code>MatchReport</code>
+(<code>src/types/match.ts:175</code>) referenced by JDAnalysis fields
+but not modeled in the ERD.</li>
+</ul>
+<h2 id="methodology-note">Methodology note</h2>
+<p>This report was generated by the <code>architectural-analysis</code>
+skill on 2026-05-09. Seven sub-agents (haiku Explore × 4 enumeration
+modes, sonnet general-purpose × 3 reasoning modes) ran in parallel
+against an explicit user-flow scope. The orchestrator ran the
+verification protocol over all 337 candidate findings — using the
+codanna MCP index for symbol resolution and
+<code>Read</code>/<code>grep</code> for line-content matching —
+discarding 6 (1.8%), repairing 14 line citations (4.2%), and
+re-classifying 17 integration external nodes from
+<code>synthesized</code> to the <code>external</code> classDef before
+any node landed in a diagram. Synthesized share is under the 20% cap in
+every mode (max 2.4% in Information Architecture). Absence claims were
+independently grep-refuted before survival; one absence claim survived
+(<code>[F-14]</code> no Typst worker retry).</p>
+<p>Per-mode <code>report.md</code> <code>Verification log</code>
+sections preserve the discard-and-repair record. The
+<code>Open questions</code> lists across modes are seeds for follow-up,
+not findings.</p>
+<h1 id="information-architecture">Information Architecture</h1>
+<h2 id="summary">Summary</h2>
+<p>The user flow is layered top-down: a <strong>router shell</strong>
+routes to <strong>page-level workspaces</strong>, each consuming a
+<strong>dedicated Zustand store</strong>, with
+<strong>identity/schema</strong> as the canonical data source feeding
+both <strong>utils-layer generators</strong> (LLM clients) and the
+<strong>engine/persistence</strong> stack. Cross-cutting persistence is
+a three-file coordinator pattern (snapshot → coordinator → runtime) —
+this is the only synthesized node and the largest architectural
+commitment outside identity.</p>
+<p>The IA’s headline observation: <strong>every LLM generator imports
+from <code>identity/schema.ts</code></strong> and <strong>every store
+flows through the persistence runtime</strong>. These two convergence
+points (identity-as-canonical, persistence-as-cross-cutting) are the
+load-bearing constraints downstream modes operate within.</p>
+<h2 id="callouts">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 21%" />
+<col style="width: 30%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I-1</td>
+<td>main.tsx</td>
+<td>src/main.tsx:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-2</td>
+<td>router.tsx</td>
+<td>src/router.tsx:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-3</td>
+<td>AppShell</td>
+<td>src/components/AppShell.tsx:231</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-5</td>
+<td>identityStore</td>
+<td>src/store/identityStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-6</td>
+<td>searchStore</td>
+<td>src/store/searchStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-7</td>
+<td>pipelineStore</td>
+<td>src/store/pipelineStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-8</td>
+<td>identity/schema.ts</td>
+<td>src/identity/schema.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-9</td>
+<td>identity/skillDedupe.ts</td>
+<td>src/identity/skillDedupe.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-10</td>
+<td>identity/resumeAdapter.ts</td>
+<td>src/identity/resumeAdapter.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-11</td>
+<td>engine/assembler.ts</td>
+<td>src/engine/assembler.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-13</td>
+<td>engine/serializer.ts</td>
+<td>src/engine/serializer.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-14</td>
+<td>engine/pageBudget.ts</td>
+<td>src/engine/pageBudget.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-15</td>
+<td>engine/letterAssembler.ts</td>
+<td>src/engine/letterAssembler.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-16</td>
+<td>persistence/contracts.ts</td>
+<td>src/persistence/contracts.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-17</td>
+<td>persistence/snapshot.ts</td>
+<td>src/persistence/snapshot.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-18</td>
+<td>persistence/coordinator.ts</td>
+<td>src/persistence/coordinator.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-19</td>
+<td>persistence/runtime.ts</td>
+<td>src/persistence/runtime.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-20</td>
+<td>resumeStore</td>
+<td>src/store/resumeStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-21</td>
+<td>coverLetterStore</td>
+<td>src/store/coverLetterStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-22</td>
+<td>matchStore</td>
+<td>src/store/matchStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-23</td>
+<td>jdAnalysisStore</td>
+<td>src/store/jdAnalysisStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-24</td>
+<td>linkedinStore</td>
+<td>src/store/linkedinStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-25</td>
+<td>recruiterStore</td>
+<td>src/store/recruiterStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-26</td>
+<td>debriefStore</td>
+<td>src/store/debriefStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-27</td>
+<td>templates/registry.ts</td>
+<td>src/templates/registry.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-28</td>
+<td>utils/identityExtraction.ts</td>
+<td>src/utils/identityExtraction.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-29</td>
+<td>utils/jdAnalysis.ts</td>
+<td>src/utils/jdAnalysis.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-30</td>
+<td>utils/coverLetterGenerator.ts</td>
+<td>src/utils/coverLetterGenerator.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-31</td>
+<td>utils/prepGenerator.ts</td>
+<td>src/utils/prepGenerator.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-32</td>
+<td>utils/thesisGenerator.ts</td>
+<td>src/utils/thesisGenerator.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-33</td>
+<td>utils/searchExecutor.ts</td>
+<td>src/utils/searchExecutor.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-34</td>
+<td>utils/deepSearchClient.ts</td>
+<td>src/utils/deepSearchClient.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-35</td>
+<td>utils/debriefGenerator.ts</td>
+<td>src/utils/debriefGenerator.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-36</td>
+<td>routes/pipeline/PipelinePage.tsx</td>
+<td>src/routes/pipeline/PipelinePage.tsx:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-37</td>
+<td>routes/letters/LettersPage.tsx</td>
+<td>src/routes/letters/LettersPage.tsx:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-38</td>
+<td>routes/prep/PrepPage.tsx</td>
+<td>src/routes/prep/PrepPage.tsx:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-39</td>
+<td>routes/research/ResearchPage.tsx</td>
+<td>src/routes/research/ResearchPage.tsx:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-40</td>
+<td>utils/identityMerge.ts</td>
+<td>src/utils/identityMerge.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-41</td>
+<td>persistence/validation.ts</td>
+<td>src/persistence/validation.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-42</td>
+<td>persistence/normalization.ts</td>
+<td>src/persistence/normalization.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>I-43</td>
+<td>persistence coordinator pattern</td>
+<td>—</td>
+<td>synthesized</td>
+</tr>
+<tr>
+<td>I-44</td>
+<td>prepStore</td>
+<td>src/store/prepStore.ts:1</td>
+<td>high</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative">Narrative</h2>
+<h3 id="entry-chain">Entry chain</h3>
+<p><code>[I-1]</code> boots the React tree, mounting <code>[I-2]</code>
+which is a TanStack Router <code>createRouter</code> instance with 20
+route declarations. The router renders <code>[I-3]</code> (AppShell) at
+the root, which is the only screen-level layout in the app — every
+workspace sits inside it.</p>
+<h3 id="identity-is-the-gravitational-center">Identity is the
+gravitational center</h3>
+<p><code>[I-8]</code> (identity/schema.ts, 1407 lines) defines
+<code>ProfessionalIdentityV3</code> and its constituent shapes (roles,
+projects, skills, preferences, self-model, search vectors). Seven
+utils-layer generators import from it directly:
+<code>[I-28] identityExtraction</code>, <code>[I-29] jdAnalysis</code>,
+<code>[I-30] coverLetterGenerator</code>,
+<code>[I-32] thesisGenerator</code>,
+<code>[I-34] deepSearchClient</code>,
+<code>[I-35] debriefGenerator</code>, <code>[I-40] identityMerge</code>.
+The engine layer also imports it via <code>[I-13] serializer.ts</code>.
+<strong>No major derivation utility skips identity</strong> — this is
+the architectural commitment described in
+<code>docs/architecture/identity-canonical-data.md</code>.</p>
+<h3 id="the-persistence-triad-i-43">The persistence triad —
+<code>[I-43]</code></h3>
+<p><code>[I-17] snapshot.ts</code>, <code>[I-18] coordinator.ts</code>,
+and <code>[I-19] runtime.ts</code> jointly implement the three-tier
+persistence pattern:</p>
+<ul>
+<li><code>snapshot.ts</code> composes the workspace envelope by reading
+every persisted store</li>
+<li><code>coordinator.ts</code> abstracts the storage backend
+(IndexedDB, localStorage, remote)</li>
+<li><code>runtime.ts</code> orchestrates the lifecycle: bootstrap,
+hydrate, subscribe, debounce-persist</li>
+</ul>
+<p><code>[I-19]</code> imports both <code>[I-5] identityStore</code> and
+<code>[I-18] coordinator</code> — it’s the integration point that wires
+Zustand into the snapshot lifecycle. <code>[I-41] validation.ts</code>
+and <code>[I-42] normalization.ts</code> provide the data-shape guards
+on the boundary.</p>
+<h3 id="stores-fan-out-by-workspace">Stores fan out by workspace</h3>
+<p>Each major workspace owns a Zustand store:
+<code>[I-5] identityStore</code>, <code>[I-6] searchStore</code>,
+<code>[I-7] pipelineStore</code>, <code>[I-20] resumeStore</code>,
+<code>[I-21] coverLetterStore</code>, <code>[I-22] matchStore</code>,
+<code>[I-23] jdAnalysisStore</code>, <code>[I-24] linkedinStore</code>,
+<code>[I-25] recruiterStore</code>, <code>[I-26] debriefStore</code>,
+<code>[I-44] prepStore</code>. <code>[I-7] pipelineStore</code> imports
+from <code>[I-5] identityStore</code> directly — pipeline holds
+references to identity vectors. The other stores are independent at this
+layer, with cross-store coordination flowing through the persistence
+runtime rather than direct imports.</p>
+<p><code>[I-44] prepStore</code> is the second-largest store at 1341
+lines, but its size is sanitization-heavy (PrepDeck and PrepCard each
+carry ~30 optional fields, each needing a normalizer). Its public
+surface is a typical 13-method workspace store. The one prep-specific
+behavior worth flagging: a per-card study-progress tracker
+(<code>recordCardReview</code> at
+<code>src/store/prepStore.ts:1280-1305</code>) maintains
+<code>{confidence, attempts, needsWorkCount, lastReviewedAt}</code> per
+review key. No other workspace store has this state-machine
+micro-shape.</p>
+<h3 id="routes-consume-stores-utils">Routes consume stores + utils</h3>
+<p>The four routes shown in the diagram are the most-trafficked in the
+user flow: - <code>[I-36] PipelinePage</code> imports
+<code>[I-7] pipelineStore</code> and <code>[I-29] jdAnalysis</code> (the
+analyzer) - <code>[I-37] LettersPage</code> imports
+<code>[I-21] coverLetterStore</code> and
+<code>[I-30] coverLetterGenerator</code> - <code>[I-38] PrepPage</code>
+imports <code>[I-31] prepGenerator</code>,
+<code>[I-7] pipelineStore</code> (deck creation needs the pipeline entry
+context), and <code>[I-44] prepStore</code> (deck CRUD) -
+<code>[I-39] ResearchPage</code> imports
+<code>[I-5] identityStore</code> and
+<code>[I-32] thesisGenerator</code></p>
+<p>The pattern: <strong>routes hold no logic</strong> beyond UI
+orchestration; they delegate to a store for state and a util for AI
+work.</p>
+<h2 id="synthesized-concepts">Synthesized concepts</h2>
+<table>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 26%" />
+<col style="width: 57%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I-43</td>
+<td>persistence coordinator pattern</td>
+<td>The three-tier persistence system has no single owning file — it
+emerges from the coordination of
+<code>src/persistence/snapshot.ts:1</code> (workspace artifact
+composition), <code>src/persistence/coordinator.ts:1</code> (backend
+abstraction + status state machine), and
+<code>src/persistence/runtime.ts:1</code> (Zustand subscription
+orchestration + debounce + lifecycle). The pattern is documented
+architecturally in
+<code>docs/architecture/facet-workspace-topology.md</code> but no code
+line owns it.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="verification-log">Verification log</h2>
+<h3 id="discarded-findings">Discarded findings</h3>
+<ul>
+<li>I-12 (duplicate of I-11) — both labeled
+<code>engine/assembler.ts</code> with citation
+<code>src/engine/assembler.ts:1</code>. Discarded as redundant; kept
+I-11.</li>
+</ul>
+<h3 id="added-findings">Added findings</h3>
+<ul>
+<li>I-44 (prepStore) — the IA subagent silently omitted prepStore from
+its enumeration despite the dispatch prompt explicitly listing it.
+Confirmed via <code>Read src/store/prepStore.ts:1</code> (cites
+<code>import { create } from &#39;zustand&#39;</code>) and the
+<code>PrepState</code> interface at
+<code>src/store/prepStore.ts:106-124</code>. Added as a peer of the
+other workspace stores; import edge from <code>[I-38] PrepPage</code>
+reflects the actual consumption.</li>
+</ul>
+<h3 id="synthesized-cap">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 1/42 = 2.4% (cap: 20%) — well under cap.</li>
+</ul>
+<h3 id="unverified-citations">Unverified citations</h3>
+<ul>
+<li>I-31 (utils/prepGenerator.ts), I-33 (utils/searchExecutor.ts) — file
+existence verified via <code>ls</code>; line:1 evidence not deeply
+inspected (subagent’s evidence string was multi-line
+<code>import { … }</code>-style, consistent with line:1 being an import
+statement).</li>
+</ul>
+<h2 id="open-questions-1">Open questions</h2>
+<ul>
+<li><code>src/components/</code> was scoped in but only
+<code>AppShell</code> made the cut at IA level — most components are
+leaf-level and belong in UI surfaces. Worth confirming this scoping
+choice.</li>
+</ul>
+<h1 id="data-model">Data Model</h1>
+<h2 id="summary-1">Summary</h2>
+<p>The data model has <strong>two centers of gravity</strong>:
+<code>ProfessionalIdentityV3</code> (the identity-canonical schema in
+<code>src/identity/schema.ts</code>) and <code>PipelineEntry</code> (the
+durable job-application record in <code>src/types/pipeline.ts</code>).
+Identity owns the user’s career as facts; PipelineEntry owns each
+application as a process. Every other major entity in the user flow is
+either a <em>derivation</em> of identity (ResumeData, CoverLetter,
+LinkedInProfileDraft, RecruiterCard, DebriefSession) or a
+<em>projection</em> of pipeline (JDAnalysis, PrepDeck,
+PipelineRound).</p>
+<p>This is the <strong>identity-canonical-data</strong> principle in
+concrete form: artifact entities don’t store fields they could read from
+identity; they reference identity by FK or carry an
+<code>identityVersion</code> stamp. The diagram makes this visible —
+identity and its constituents form a tight cluster on one side, and
+every artifact entity has at most one or two FKs pointing into the
+identity cluster (or, more often, into PipelineEntry which itself
+references identity-derived state).</p>
+<p>A second commitment visible here: <strong><code>AudienceTagged</code>
+is a marker interface</strong>, not a normal entity — it’s mixed into
+MatchRequirement, SkillMatch, MatchAdvantage, etc. via
+<code>extends</code>. This is how audience-tagging cross-cuts the data
+model without a separate persistence path.</p>
+<h2 id="callouts-1">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 21%" />
+<col style="width: 30%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-1</td>
+<td>ProfessionalIdentityV3</td>
+<td>src/identity/schema.ts:265</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-2</td>
+<td>ProfessionalIdentityCore</td>
+<td>src/identity/schema.ts:34</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-3</td>
+<td>ProfessionalSelfModel</td>
+<td>src/identity/schema.ts:65</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-4</td>
+<td>ProfessionalPreferences</td>
+<td>src/identity/schema.ts:141</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-5</td>
+<td>ProfessionalSkills</td>
+<td>src/identity/schema.ts:177</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-6</td>
+<td>ProfessionalRole</td>
+<td>src/identity/schema.ts:200</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-7</td>
+<td>ProfessionalProject</td>
+<td>src/identity/schema.ts:210</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-8</td>
+<td>ProfessionalIdentityArcEntry</td>
+<td>src/identity/schema.ts:48</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-9</td>
+<td>ProfessionalPhilosophyEntry</td>
+<td>src/identity/schema.ts:53</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-10</td>
+<td>ProfessionalInterviewStyle</td>
+<td>src/identity/schema.ts:59</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-11</td>
+<td>ProfessionalCompensationPreferences</td>
+<td>src/identity/schema.ts:77</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-12</td>
+<td>ProfessionalWorkModelPreferences</td>
+<td>src/identity/schema.ts:84</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-13</td>
+<td>ProfessionalMatchingPreferences</td>
+<td>src/identity/schema.ts:106</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-14</td>
+<td>ProfessionalSkillGroup</td>
+<td>src/identity/schema.ts:168</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-15</td>
+<td>ProfessionalRoleBullet</td>
+<td>src/identity/schema.ts:187</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-16</td>
+<td>ProfessionalPreferencePriority</td>
+<td>src/identity/schema.ts:71</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-17</td>
+<td>ProfessionalMatchingPriority</td>
+<td>src/identity/schema.ts:90</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-18</td>
+<td>ProfessionalMatchingAvoid</td>
+<td>src/identity/schema.ts:98</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-19</td>
+<td>ProfessionalSkillItem</td>
+<td>src/identity/schema.ts:149</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-20</td>
+<td>PipelineEntry</td>
+<td>src/types/pipeline.ts:182</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-21</td>
+<td>ProfessionalSearchVector</td>
+<td>src/identity/schema.ts:237</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-22</td>
+<td>JDAnalysis</td>
+<td>src/types/jdAnalysis.ts:31</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-23</td>
+<td>MatchRequirementCoverage</td>
+<td>src/types/match.ts:124</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-24</td>
+<td>SkillMatch</td>
+<td>src/types/match.ts:50</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-25</td>
+<td>PipelineRound</td>
+<td>src/types/pipeline.ts:164</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-26</td>
+<td>PipelineResearchSnapshot</td>
+<td>src/types/pipeline.ts:106</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-27</td>
+<td>PipelineInterviewer</td>
+<td>src/types/pipeline.ts:139</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-28</td>
+<td>PrepInterviewerIntel</td>
+<td>src/types/prep.ts:249</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-29</td>
+<td>PrepDeck</td>
+<td>src/types/prep.ts:402</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-30</td>
+<td>PrepCard</td>
+<td>src/types/prep.ts:351</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-31</td>
+<td>PrepCompanyIntel</td>
+<td>src/types/prep.ts:275</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-32</td>
+<td>PrepCompanyAiPosture</td>
+<td>src/types/prep.ts:269</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-33</td>
+<td>ResumeData</td>
+<td>src/types.ts:224</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-34</td>
+<td>ResumeVector</td>
+<td>src/types.ts:124</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-35</td>
+<td>RoleComponent</td>
+<td>src/types.ts:160</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-36</td>
+<td>SkillGroupComponent</td>
+<td>src/types.ts:144</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-37</td>
+<td>RoleBulletComponent</td>
+<td>src/types.ts:152</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-38</td>
+<td>CoverLetter</td>
+<td>src/types/coverLetter.ts:34</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-39</td>
+<td>CoverLetterContent</td>
+<td>src/types/coverLetter.ts:13</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-40</td>
+<td>AudienceTagged</td>
+<td>src/types/audience.ts:45</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-41</td>
+<td>CoverLetterParagraph</td>
+<td>src/types/coverLetter.ts:5</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-42</td>
+<td>LinkedInProfileDraft</td>
+<td>src/types/linkedin.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-43</td>
+<td>RecruiterCard</td>
+<td>src/types/recruiter.ts:3</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-44</td>
+<td>DurableMetadata</td>
+<td>src/types/durable.ts:10</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-45</td>
+<td>WorkspaceOwnership</td>
+<td>src/types/durable.ts:4</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-46</td>
+<td>ArtifactMetadata</td>
+<td>src/types/artifactMeta.ts:15</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-47</td>
+<td>ArtifactStalenessReview</td>
+<td>src/types/artifactMeta.ts:25</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-48</td>
+<td>DebriefSession</td>
+<td>src/types/debrief.ts:102</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-49</td>
+<td>DebriefIdentityPatch</td>
+<td>src/types/debrief.ts:57</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-50</td>
+<td>DebriefIdentityBulletUpdate</td>
+<td>src/types/debrief.ts:40</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-51</td>
+<td>SearchProfile</td>
+<td>src/types/search.ts:178</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-52</td>
+<td>SkillCatalogEntry</td>
+<td>src/types/search.ts:128</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-53</td>
+<td>SearchProfileFilters</td>
+<td>src/types/search.ts:168</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-54</td>
+<td>MatchAdvantage</td>
+<td>src/types/match.ts:151</td>
+<td>high</td>
+</tr>
+<tr>
+<td>M-55</td>
+<td>MatchAssetScore</td>
+<td>src/types/match.ts:130</td>
+<td>high</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-1">Narrative</h2>
+<h3 id="identity-cluster-m-1-m-19-m-21">Identity cluster (M-1 … M-19,
+M-21)</h3>
+<p><code>[M-1] ProfessionalIdentityV3</code> is the schema root. Its
+direct children are six grouped concepts:</p>
+<ul>
+<li><code>[M-2] ProfessionalIdentityCore</code> — name, email, phone,
+location, links, thesis</li>
+<li><code>[M-3] ProfessionalSelfModel</code> — arc entries, philosophy,
+interview style (the <em>narrative</em> layer)</li>
+<li><code>[M-4] ProfessionalPreferences</code> — comp, work model,
+matching priorities/avoids, constraints</li>
+<li><code>[M-5] ProfessionalSkills</code> — skill groups → skill items
+(depth, depthSource, positioning)</li>
+<li><code>[M-6] ProfessionalRole</code> — company, title, dates, bullets
+(the <em>evidence</em> layer for roles)</li>
+<li><code>[M-7] ProfessionalProject</code> — projects with descriptions
+and tags</li>
+</ul>
+<p>Plus a top-level array of
+<code>[M-21] ProfessionalSearchVector</code> — these are the user’s
+positioning angles (e.g., “Backend Engineering”, “Security Platform”).
+They cross-reference into <code>PipelineEntry.vectorId</code> and into
+the resume <code>ResumeVector</code> projection.</p>
+<p>The <strong>evidence-vs-narrative split</strong> is structural:
+<code>[M-6] Role</code> and <code>[M-7] Project</code> are facts;
+<code>[M-3] SelfModel.arc</code> is the narrative the user tells about
+those facts. Memory says the project explicitly guards against
+collapsing this split via degenerate auto-derivation.</p>
+<h3 id="pipelineentry-cluster-m-20-m-22-m-25m-28">PipelineEntry cluster
+(M-20, M-22, M-25–M-28)</h3>
+<p><code>[M-20] PipelineEntry</code> is the durable record of “this job
+application.” It carries:</p>
+<ul>
+<li>A vector reference (<code>vectorId</code> → <code>[M-21]</code>) —
+which positioning angle this app is shaped around</li>
+<li>A <code>[M-22] JDAnalysis</code> reference
+(<code>jdAnalysisId</code>) — the analyzed JD lives in its own store,
+attached by ID</li>
+<li>A <code>[M-26] PipelineResearchSnapshot</code> — investigation
+output (sources, signals, summary)</li>
+<li>An array of <code>[M-25] PipelineRound</code>, each with
+<code>[M-27] PipelineInterviewer</code>s carrying optional
+<code>[M-28] PrepInterviewerIntel</code> dossiers</li>
+<li>Cover letter and resume references (FK to drafts)</li>
+</ul>
+<p>This is the topology doc’s “pipeline-as-canonical” principle in
+concrete shape.</p>
+<h3 id="prep-deck-cluster-m-29-m-32">Prep deck cluster (M-29 …
+M-32)</h3>
+<p><code>[M-29] PrepDeck</code> references PipelineEntry, PipelineRound,
+and JDAnalysis — three FKs into the pipeline cluster. It owns
+<code>[M-30] PrepCard</code>s (story blocks, metrics, scripts) and an
+optional <code>[M-31] PrepCompanyIntel</code> with a
+<code>[M-32] PrepCompanyAiPosture</code> sub-record. Prep is downstream
+of pipeline; nothing in identity references prep.</p>
+<h3 id="derived-artifact-cluster-m-33-m-43">Derived artifact cluster
+(M-33 … M-43)</h3>
+<p><code>[M-33] ResumeData</code> is the editable resume projection —
+<code>[M-34] ResumeVector</code>s, <code>[M-35] RoleComponent</code>s
+with <code>[M-37] RoleBulletComponent</code>s,
+<code>[M-36] SkillGroupComponent</code>s. It mirrors identity but allows
+per-vector overrides. <code>[M-38] CoverLetter</code> extends
+<code>[M-39] CoverLetterContent</code> and links to both a
+<code>pipelineEntryId</code> (job context) and a
+<code>sourceResumeId</code> (the resume the letter was generated for).
+<code>[M-42] LinkedInProfileDraft</code> and
+<code>[M-43] RecruiterCard</code> are simpler shape projections.</p>
+<p>These are <em>derived</em> — their rows can be regenerated from
+identity + a vector + a JD context. The persistence layer stamps
+<code>[M-46] ArtifactMetadata</code> (with <code>identityVersion</code>
+and <code>identityFingerprint</code>) on each artifact so staleness can
+be detected when identity changes
+(<code>[M-47] ArtifactStalenessReview</code> records the user’s review
+decision).</p>
+<h3 id="persistence-boundary-m-44-m-45">Persistence boundary (M-44,
+M-45)</h3>
+<p><code>[M-45] WorkspaceOwnership</code> (workspaceId, tenantId,
+userId) and <code>[M-44] DurableMetadata</code> (extends ownership with
+schemaVersion, revision, timestamps) are stamped onto every persisted
+entity. They’re how the workspace import/merge flow detects who owns
+what and what’s been mutated.</p>
+<h3 id="audience-tagging-cross-cut-m-40">Audience-tagging cross-cut
+(M-40)</h3>
+<p><code>[M-40] AudienceTagged</code> is a marker interface with a
+single field <code>audiences: AudienceAssignment</code>. Five
+match-related entities (<code>MatchRequirement</code>,
+<code>SkillMatch</code>, <code>MatchAdvantage</code>,
+<code>MatchAssetScore</code>, plus several others) extend it. This is
+how audience-aware filtering threads through the match/JD-analysis
+pipeline without a separate field on every entity.</p>
+<h2 id="verification-log-1">Verification log</h2>
+<h3 id="discarded-findings-1">Discarded findings</h3>
+<p>None — every type definition citation resolved at the claimed
+line.</p>
+<h3 id="synthesized-cap-1">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 0/55 = 0%. Data model citations are exceptionally
+clean because type definitions live at predictable line offsets
+(<code>export interface X {</code> is a structural target).</li>
+</ul>
+<h3 id="unverified-citations-1">Unverified citations</h3>
+<ul>
+<li>M-42 (LinkedInProfileDraft at linkedin.ts:1) — file is small and the
+type is plausibly at line 1, but not deep-read.</li>
+<li>M-46 / M-47 (ArtifactMetadata, ArtifactStalenessReview) — line
+offsets at 15 / 25 are plausible for a small file but not deep-read.
+Confidence retained from grep header listing.</li>
+</ul>
+<h2 id="open-questions-2">Open questions</h2>
+<ul>
+<li>The relationship between <code>ResumeData</code> and
+<code>ProfessionalIdentityV3</code> is “derives” — how is that
+derivation cached? Is there a hash relating ResumeData to the
+identityVersion that produced it? (Surfaces in artifactMeta.ts:15+ but
+not modeled here.)</li>
+<li><code>MatchReport</code> (match.ts:175) is referenced by JDAnalysis
+fields but didn’t make the diagram. Worth promoting if the
+report-vs-coverage distinction matters downstream.</li>
+<li><code>AudienceTagged</code> is structural but doesn’t render
+naturally in erDiagram. Could become a UML/classDiagram secondary if
+marker-interface pattern is worth visualizing.</li>
+</ul>
+<h1 id="data-flow">Data Flow</h1>
+<h2 id="summary-2">Summary</h2>
+<p>Six critical paths thread the user flow: <strong>identity
+extraction</strong>, <strong>search → pipeline promotion</strong>,
+<strong>JD analysis</strong>, <strong>pipeline → prep</strong>,
+<strong>resume assembly + render</strong>, <strong>cover letter
+generation</strong>, and a cross-cutting <strong>persistence
+lifecycle</strong> that catches every store mutation. Every path
+<strong>terminates in a single Zustand store mutation that triggers
+<code>schedulePersist</code></strong> — that’s the only persistence
+boundary in the system. The 150ms debounce on
+<code>schedulePersist</code> is the design’s response to write
+amplification: a typing burst that fires 30 mutations costs one snapshot
+write.</p>
+<p>The most architecturally significant flow is <strong>identity →
+ResumeData → typst.worker</strong> (paths D-8 through D-19). It’s the
+only path that crosses three runtime boundaries (main thread → adapter →
+engine → Web Worker) and is the only place a non-LLM external system
+(the Typst WASM compiler) participates.</p>
+<h2 id="callouts-2">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 21%" />
+<col style="width: 30%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D-1</td>
+<td>IdentityPage extraction handler</td>
+<td>src/routes/identity/IdentityPage.tsx:210</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-2</td>
+<td>generateIdentityDraft (callLlmProxy)</td>
+<td>src/utils/identityExtraction.ts:1706</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-3</td>
+<td>parseIdentityExtractionResponse</td>
+<td>src/utils/identityExtraction.ts:1479</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-4</td>
+<td>normalizeExtractedIdentityCandidate</td>
+<td>src/utils/identityExtraction.ts:1349</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-5</td>
+<td>mergeSeededIdentityStructure</td>
+<td>src/utils/identityExtraction.ts:1491</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-6</td>
+<td>identityStore.setDraft</td>
+<td>src/store/identityStore.ts:771</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-8</td>
+<td>applyDraft → currentIdentity</td>
+<td>src/store/identityStore.ts:1597</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-10</td>
+<td>handlePushToBuild</td>
+<td>src/routes/identity/IdentityPage.tsx:634</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-11</td>
+<td>professionalIdentityToResumeData</td>
+<td>src/identity/resumeAdapter.ts:272</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-12</td>
+<td>resumeStore.setData</td>
+<td>src/store/resumeStore.ts:62</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-13</td>
+<td>BuildPage useMemo (assembleResume call)</td>
+<td>src/routes/build/BuildPage.tsx:558</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-14</td>
+<td>engine assembleResume</td>
+<td>src/engine/assembler.ts:194</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-15</td>
+<td>engine applyPageBudget</td>
+<td>src/engine/pageBudget.ts:151</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-16</td>
+<td>usePdfPreview postMessage</td>
+<td>src/hooks/usePdfPreview.ts:109</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-17</td>
+<td>typst.worker self.onmessage</td>
+<td>src/engine/typst.worker.ts:4</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-18</td>
+<td>usePdfPreview Blob URL</td>
+<td>src/hooks/usePdfPreview.ts:54</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-19</td>
+<td>PdfPreview component</td>
+<td>src/components/PdfPreview.tsx:6</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-20</td>
+<td>ResearchPage handlePushToPipeline</td>
+<td>src/routes/research/ResearchPage.tsx:2719</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-21</td>
+<td>createPipelineEntryDraft</td>
+<td>src/routes/research/researchUtils.ts:188</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-22</td>
+<td>pipelineStore.addEntry</td>
+<td>src/store/pipelineStore.ts:185</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-23</td>
+<td>pipelineStore.entries (durable state)</td>
+<td>src/store/pipelineStore.ts:180</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-24</td>
+<td>jdAnalysisStore.upsertAnalysis</td>
+<td>src/store/jdAnalysisStore.ts:60</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-25</td>
+<td>PrepPage.createDeck call</td>
+<td>src/routes/prep/PrepPage.tsx:960</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-26</td>
+<td>prepStore.createDeck</td>
+<td>src/store/prepStore.ts:1136</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-28</td>
+<td>generateCoverLetter</td>
+<td>src/utils/coverLetterGenerator.ts:338</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-29</td>
+<td>coverLetterStore.upsertLetterForPipelineEntry</td>
+<td>src/store/coverLetterStore.ts:47</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-30</td>
+<td>schedulePersist (debounce 150ms)</td>
+<td>src/persistence/runtime.ts:217</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-31</td>
+<td>persistCurrentState</td>
+<td>src/persistence/runtime.ts:181</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-32</td>
+<td>createWorkspaceSnapshotFromStores</td>
+<td>src/persistence/snapshot.ts:232</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-33</td>
+<td>coordinator.importWorkspaceSnapshot</td>
+<td>src/persistence/coordinator.ts:425</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-34</td>
+<td>IndexedDB saveWorkspaceSnapshot</td>
+<td>src/persistence/indexedDb.ts:163</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-35</td>
+<td>remoteBackend.saveWorkspaceSnapshot</td>
+<td>src/persistence/remoteBackend.ts:68</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-36</td>
+<td>applyWorkspaceSnapshotToStores (hydration)</td>
+<td>src/persistence/hydration.ts:63</td>
+<td>high</td>
+</tr>
+<tr>
+<td>D-37</td>
+<td>mergeWorkspaceSnapshots</td>
+<td>src/persistence/workspaceImportMerge.ts:36</td>
+<td>high</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-2">Narrative</h2>
+<h3 id="identity-extraction-d-1-d-8">Identity extraction (D-1 →
+D-8)</h3>
+<p>The user pastes source material in <code>IdentityPage</code>.
+<code>[D-1]</code> calls <code>[D-2] generateIdentityDraft</code>, which
+posts to the LLM proxy via <code>callLlmProxy</code> with
+feature=‘identity.extract’. The raw response goes through
+<code>[D-3]</code> (JSON parse + sentinel extraction),
+<code>[D-4]</code> (field-level normalization — type fixups,
+whitespace), and <code>[D-5]</code> (merge with seed identity if a
+resume scan provided one). The output
+<code>IdentityExtractionDraft</code> lands in <code>identityStore</code>
+via <code>[D-6] setDraft</code> — at this point the draft is reviewable
+but not canonical. When the user clicks “Apply,”
+<code>[D-8] applyDraft</code> promotes the draft to
+<code>currentIdentity</code>.</p>
+<p>This is the only path where the user sees a <em>staging</em> layer
+between LLM output and store state. Other generators write directly to
+their target store.</p>
+<h3 id="identity-resume-d-10-d-12">Identity → Resume (D-10 → D-12)</h3>
+<p><code>[D-10] handlePushToBuild</code> calls
+<code>[D-11] professionalIdentityToResumeData</code> (the adapter in
+<code>src/identity/resumeAdapter.ts:272</code>) which projects identity
+fields into the <code>ResumeData</code> shape — including building
+<code>vectors</code>, deriving <code>RoleComponent</code>s from
+<code>ProfessionalRole</code>s, and translating skill groups. The output
+goes to <code>[D-12] resumeStore.setData</code>.</p>
+<p>This adapter is <em>the single place</em> where identity → resume
+projection happens. Anything downstream operates on
+<code>ResumeData</code>, not on identity directly.</p>
+<h3 id="resume-assembly-render-d-13-d-19-see-sequence-resume-render.mmd">Resume
+assembly + render (D-13 → D-19) — see
+<code>sequence-resume-render.mmd</code></h3>
+<p><code>[D-13] BuildPage</code> is reactive: a <code>useMemo</code>
+recomputes when
+<code>data</code>/<code>vector</code>/<code>manualOverrides</code>
+change, calling <code>[D-14] assembleResume</code>. Assembly applies
+vector filtering and text-variant selection, then
+<code>[D-15] applyPageBudget</code> trims bullets to fit the target page
+count. The result feeds <code>[D-16] usePdfPreview</code> which (after a
+400ms debounce) <code>postMessage</code>s to
+<code>[D-17] typst.worker</code>. The worker compiles Typst → PDF bytes
+and posts back. <code>[D-18]</code> wraps the bytes in a Blob URL;
+<code>[D-19] PdfPreview</code> renders it in an iframe.</p>
+<h3 id="search-pipeline-d-20-d-23-see-sequence-pipeline-promotion.mmd">Search
+→ Pipeline (D-20 → D-23) — see
+<code>sequence-pipeline-promotion.mmd</code></h3>
+<p><code>ResearchPage</code> handles a deep-research run that produces
+<code>SearchResultEntry</code>s. When the user promotes one,
+<code>[D-20]</code> calls <code>[D-21] createPipelineEntryDraft</code>
+to shape it into a <code>PipelineEntry</code> (without an ID).
+<code>[D-22] addEntry</code> stamps an ID and <code>durableMeta</code>,
+then appends to <code>[D-23] pipelineStore.entries</code>. The mutation
+triggers the persistence subscription chain.</p>
+<h3 id="jd-analysis-d-24">JD Analysis (D-24)</h3>
+<p>JD analysis runs from the pipeline workspace. Output is
+<code>JDAnalysis</code> stored in
+<code>[D-24] jdAnalysisStore.upsertAnalysis</code> keyed by analysis ID;
+<code>pipelineStore.setJDAnalysisReference</code> writes the
+<code>jdAnalysisId</code> back onto the pipeline entry. This is the
+indirection that keeps JDAnalysis in its own store while pipeline holds
+only the FK.</p>
+<h3 id="pipeline-prep-d-25-d-26">Pipeline → Prep (D-25, D-26)</h3>
+<p><code>[D-25] PrepPage.createDeck</code> reads a pipeline entry and
+calls <code>[D-26] prepStore.createDeck</code>, which sanitizes input
+and appends a <code>PrepDeck</code> (with <code>pipelineEntryId</code>
+FK). The deck inherits company/role/jdAnalysisId from the pipeline entry
+— that’s the carry-over the architecture relies on.</p>
+<h3 id="cover-letter-generation-d-28-d-29">Cover letter generation
+(D-28, D-29)</h3>
+<p><code>[D-28] generateCoverLetter</code> takes identity + a pipeline
+entry + the JD context, calls the LLM proxy, and returns a
+<code>CoverLetterGenerationResult</code>.
+<code>[D-29] upsertLetterForPipelineEntry</code> writes it to
+<code>coverLetterStore</code> keyed by <code>pipelineEntryId</code> (one
+letter per entry).</p>
+<h3 id="persistence-lifecycle-d-30-d-37-see-sequence-snapshot-save.mmd">Persistence
+lifecycle (D-30 → D-37) — see
+<code>sequence-snapshot-save.mmd</code></h3>
+<p>This is cross-cutting. <strong>Every</strong> mutation in the seven
+domain stores hits this path:</p>
+<ol type="1">
+<li>Zustand <code>subscribe</code> callback fires</li>
+<li><code>[D-30] schedulePersist</code> debounces 150ms
+(<code>DEFAULT_SAVE_DEBOUNCE_MS</code>)</li>
+<li>After debounce, <code>[D-31] persistCurrentState</code> runs</li>
+<li><code>[D-32] createWorkspaceSnapshotFromStores</code> reads every
+persisted store into a <code>FacetWorkspaceSnapshot</code> envelope</li>
+<li><code>[D-33] coordinator.importWorkspaceSnapshot</code> routes to
+backend</li>
+<li>Either <code>[D-34]</code> IndexedDB (local) or <code>[D-35]</code>
+remoteBackend (hosted)</li>
+</ol>
+<p><code>[D-36] applyWorkspaceSnapshotToStores</code> is the inverse —
+runs at app boot during hydration.
+<code>[D-37] mergeWorkspaceSnapshots</code> is the import-merge path
+used by workspace export/import.</p>
+<p>The single-snapshot model means every save writes the entire
+workspace. This is acceptable because: (a) the debounce collapses
+bursts; (b) IndexedDB writes are fast; (c) snapshots are typically
+&lt;2MB. It also makes hydration trivially atomic — there’s no
+partial-state recovery problem.</p>
+<h2 id="verification-log-2">Verification log</h2>
+<h3 id="discarded-findings-2">Discarded findings</h3>
+<p>None — every cited line resolved correctly.</p>
+<h3 id="synthesized-cap-2">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 0/34 = 0%. All edges have call-site
+citations.</li>
+</ul>
+<h3 id="unverified-citations-2">Unverified citations</h3>
+<ul>
+<li>D-3 (parseIdentityExtractionResponse:1479), D-4 (normalize:1349),
+D-5 (merge:1491) — file existence verified; specific line offsets within
+identityExtraction.ts (a long file) were trusted from the subagent’s
+evidence string. Sample-verified D-2 at line 1706.</li>
+</ul>
+<h2 id="open-questions-3">Open questions</h2>
+<ul>
+<li>Is the 150ms debounce window (<code>DEFAULT_SAVE_DEBOUNCE_MS</code>)
+ever overridden, e.g., for explicit user-save actions that should not
+wait? Worth tracing <code>options.saveDebounceMs</code> callers.</li>
+<li>The <code>IdentityExtractionDraft</code> staging pattern (D-5 → D-6)
+doesn’t appear in any other generator path. Is that an inconsistency or
+a deliberate “high-stakes mutation gets review” guarantee?</li>
+<li><code>[D-35] remoteBackend</code> flow is bidirectional — what reads
+back? The hydration path probably hits remoteBackend on app boot in
+hosted mode; not modeled here. See control-flow’s hydration
+sequence.</li>
+</ul>
+<h1 id="integration-points">Integration Points</h1>
+<h2 id="summary-3">Summary</h2>
+<p>Facet integrates with <strong>four kinds of external
+systems</strong>: (1) the Anthropic API via a local/hosted proxy (LLM
+calls + research jobs), (2) browser-native APIs (IndexedDB,
+localStorage, File System Access, Web Worker, Blob URLs, iframe), (3)
+the Supabase-based hosted backend (workspace persistence + auth), and
+(4) npm libraries that operate as in-process external code (Typst WASM,
+PDF.js, docx, JSZip).</p>
+<p>The most architecturally significant boundary is the <strong>AI proxy
+split</strong>: every LLM call goes through
+<code>[X-1] aiAccess.ts</code> (entitlement gate) →
+<code>[X-10] callLlmProxy</code> (HTTP boundary) →
+<code>[X-2] Anthropic API</code>. There is <strong>no direct
+anthropic-sdk usage</strong> in the codebase — all calls go through this
+proxy boundary. That’s a deliberate architectural decision: the local
+dev proxy lets the team test against Anthropic without exposing keys to
+the browser, and the hosted proxy gates entitlements on tenant
+context.</p>
+<p>The <strong>Typst worker</strong> is a non-LLM external integration
+that’s nearly invisible in the IA: it’s a single
+<code>new Worker(...)</code> call in <code>[X-28] usePdfPreview</code>
+that connects to a WASM-compiled Typst engine. The integration surface
+is small (postMessage in / postMessage out), but the boundary crosses
+both a Web Worker process boundary and a WASM compilation boundary.</p>
+<h2 id="callouts-3">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 25%" />
+<col style="width: 30%" />
+<col style="width: 17%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+<th>Class</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>X-1</td>
+<td>utils/aiAccess.resolveAiAccess</td>
+<td>src/utils/aiAccess.ts:10</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-2</td>
+<td>Anthropic API (via proxy)</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-3</td>
+<td>utils/aiProxyErrors.readAiProxyError</td>
+<td>src/utils/aiProxyErrors.ts:106</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-5</td>
+<td>deepSearchClient.streamDeepResearchJob</td>
+<td>src/utils/deepSearchClient.ts:123</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-6</td>
+<td>research jobs SSE stream</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-7</td>
+<td>deepSearchClient.createDeepResearchJob</td>
+<td>src/utils/deepSearchClient.ts:186</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-8</td>
+<td>research jobs POST endpoint</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-10</td>
+<td>utils/llmProxy.callLlmProxy</td>
+<td>src/utils/llmProxy.ts:201</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-11</td>
+<td>utils/llmProxy.fetchAiProxyCapabilities</td>
+<td>src/utils/llmProxy.ts:299</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-12</td>
+<td>proxy /capabilities</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-13</td>
+<td>persistence/indexedDb.openDatabase</td>
+<td>src/persistence/indexedDb.ts:29</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-14</td>
+<td>Browser IndexedDB</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-15</td>
+<td>indexedDb.saveWorkspaceSnapshot</td>
+<td>src/persistence/indexedDb.ts:163</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-16</td>
+<td>fileSystemAccess.saveTextFileWithPicker</td>
+<td>src/persistence/fileSystemAccess.ts:76</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-17</td>
+<td>showSaveFilePicker</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-18</td>
+<td>fileSystemAccess.openTextFileWithPicker</td>
+<td>src/persistence/fileSystemAccess.ts:104</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-19</td>
+<td>showOpenFilePicker</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-20</td>
+<td>persistence/remoteBackend (HTTP request)</td>
+<td>src/persistence/remoteBackend.ts:31</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-21</td>
+<td>Facet hosted persistence backend</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-22</td>
+<td>hostedSession (Supabase auth)</td>
+<td>src/utils/hostedSession.ts:32</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-23</td>
+<td>Supabase OAuth + session</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-24</td>
+<td>hostedAccountClient</td>
+<td>src/utils/hostedAccountClient.ts:30</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-25</td>
+<td>Facet hosted account API</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-26</td>
+<td>engine/typst.worker</td>
+<td>src/engine/typst.worker.ts:4</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-27</td>
+<td>Typst typesetting (typst-ts WASM)</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-28</td>
+<td>usePdfPreview worker spawn</td>
+<td>src/hooks/usePdfPreview.ts:36</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-29</td>
+<td>Web Worker postMessage</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-31</td>
+<td>URL.createObjectURL</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-32</td>
+<td>components/PdfPreview iframe</td>
+<td>src/components/PdfPreview.tsx:14</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-33</td>
+<td>Browser PDF viewer (iframe)</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-34</td>
+<td>utils/resumeScanner/pdf</td>
+<td>src/utils/resumeScanner/pdf.ts:14</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-35</td>
+<td>PDF.js (pdfjs-dist)</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-36</td>
+<td>store/storage (Zustand persist)</td>
+<td>src/store/storage.ts:47</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-37</td>
+<td>Browser localStorage</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-38</td>
+<td>utils/docxRenderer</td>
+<td>src/utils/docxRenderer.ts:1</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-39</td>
+<td>docx library</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-40</td>
+<td>utils/bundleExporter</td>
+<td>src/utils/bundleExporter.ts:1</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-41</td>
+<td>JSZip</td>
+<td>—</td>
+<td>external</td>
+<td>external</td>
+</tr>
+<tr>
+<td>X-44</td>
+<td>utils/facetEnv (env-var resolution)</td>
+<td>src/utils/facetEnv.ts:56</td>
+<td>high</td>
+<td>cited</td>
+</tr>
+<tr>
+<td>X-45</td>
+<td>Vite environment variables</td>
+<td>src/vite-env.d.ts:4</td>
+<td>high</td>
+<td>external</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-3">Narrative</h2>
+<h3 id="llm-proxy-boundary">LLM proxy boundary</h3>
+<p>Three integration shapes converge on the same proxy:</p>
+<ul>
+<li><code>[X-10] callLlmProxy</code> — generic LLM completion (the
+workhorse used by every generator)</li>
+<li><code>[X-7] createDeepResearchJob</code> — POST to spawn an async
+server-side research job</li>
+<li><code>[X-5] streamDeepResearchJob</code> — SSE stream that delivers
+progress events for an active job</li>
+<li><code>[X-11] fetchAiProxyCapabilities</code> — capability discovery
+(which models are available)</li>
+</ul>
+<p><code>[X-1] resolveAiAccess</code> gates all of these by entitlement
+(deployment mode, hosted tenant status). The
+<code>[X-3] readAiProxyError</code> categorizer is the inverse boundary
+— every error response gets parsed back into the
+<code>FacetAiProxyError</code> taxonomy.</p>
+<p>The deliberate non-pattern: <strong>no direct
+<code>import { Anthropic } from &#39;@anthropic-ai/sdk&#39;</code></strong>
+anywhere. The proxy is the contract.</p>
+<h3 id="browser-persistence-apis">Browser persistence APIs</h3>
+<p>Three layers of browser-native persistence:</p>
+<ul>
+<li><code>[X-13]/[X-15]</code> IndexedDB — the primary local store.
+Workspace snapshots, large state.</li>
+<li><code>[X-36]</code> localStorage via Zustand persist — small, fast,
+fragment-level state. Ironically the user-facing “where state lives”
+perception.</li>
+<li><code>[X-16]/[X-18]</code> File System Access API — explicit
+user-driven file save/open (workspace export/import). Behind a
+capability guard <code>[F-33]</code> because Safari historically didn’t
+have it.</li>
+</ul>
+<p>The <code>[X-29]</code> cross-tab <code>BroadcastChannel</code> and
+StorageEvent listeners (covered in control-flow C-15/C-16) are also
+browser-API integrations but operate as control-flow signals, not data
+integrations.</p>
+<h3 id="hosted-backend">Hosted backend</h3>
+<p>When deployment mode is <code>hosted</code>, three integrations come
+online:</p>
+<ul>
+<li><code>[X-22]</code> Supabase auth
+(<code>supabaseClient.auth.signInWithOAuth({ provider: &#39;github&#39; })</code>)
+provides the user identity</li>
+<li><code>[X-20]</code> <code>remoteBackend</code> PUTs workspace
+snapshots to <code>/workspaces/:id</code></li>
+<li><code>[X-24]</code> <code>hostedAccountClient</code> fetches account
+context (entitlements, tenant info) and workspace lists</li>
+</ul>
+<p>In local mode, none of these are touched. The
+<code>[X-44] facetEnv</code> resolver decides which mode applies based
+on <code>VITE_FACET_DEPLOYMENT_MODE</code> — env-var configuration is
+itself an integration with the build environment.</p>
+<h3 id="typst-rendering-x-26-x-27">Typst rendering — <code>[X-26]</code>
++ <code>[X-27]</code></h3>
+<p><code>[X-28] usePdfPreview</code> spawns a Web Worker pointed at
+<code>[X-26] typst.worker.ts</code>. Inside the worker,
+<code>getTypstSnippet</code> lazily loads the WASM-compiled
+<code>[X-27]</code> Typst engine and calls
+<code>snippet.pdf({ mainContent, inputs })</code>. Output is a
+<code>Uint8Array</code> of PDF bytes, transferred zero-copy back to the
+main thread (the <code>[bytes.buffer]</code> second arg to
+<code>postMessage</code>).</p>
+<p>This is the only WASM integration in the codebase. The npm package
+<code>@myriaddreamin/typst-ts-web-compiler</code> ships the WASM binary;
+first call cost is ~hundreds of milliseconds, subsequent calls hit the
+snippet cache.</p>
+<h3 id="pdf.js-x-35">PDF.js (<code>[X-35]</code>)</h3>
+<p>Used in two places: - <code>[X-34]</code> resumeScanner — extracts
+text from uploaded PDF resumes for identity-extraction seeding - The
+browser’s iframe-embedded PDF viewer (<code>[X-32]/[X-33]</code>) for
+preview rendering</p>
+<p>These are different uses of the same library. resumeScanner runs
+PDF.js in main-thread JS; the preview path uses the browser’s built-in
+iframe PDF viewer (no JS).</p>
+<h3 id="npm-libraries-with-process-internal-effects">npm libraries with
+process-internal effects</h3>
+<ul>
+<li><code>[X-39]</code> docx — DOCX export.
+<code>utils/docxRenderer.ts</code> imports docx primitives and packs a
+Document.</li>
+<li><code>[X-41]</code> JSZip — workspace bundle export.
+<code>utils/bundleExporter.ts</code> zips multiple workspace artifacts
+into one downloadable file.</li>
+</ul>
+<p>These are flagged as “external” because they package external code
+(docx parsers, ZIP encoders) but they don’t cross a process boundary in
+the runtime sense.</p>
+<h3 id="vite-env-vars">Vite env vars</h3>
+<p><code>[X-44] getFacetClientEnv</code> resolves the runtime config
+from <code>import.meta.env</code> plus build-time fallback values. The
+vars (<code>[X-45]</code>) are: <code>VITE_FACET_DEPLOYMENT_MODE</code>,
+<code>VITE_FACET_API_BASE_URL</code>,
+<code>VITE_ANTHROPIC_PROXY_URL</code>,
+<code>VITE_ANTHROPIC_PROXY_API_KEY</code>,
+<code>VITE_SUPABASE_URL</code>,
+<code>VITE_SUPABASE_PUBLISHABLE_KEY</code>. This is the configuration
+boundary — every external integration above is parameterized by one of
+these.</p>
+<h2 id="verification-log-3">Verification log</h2>
+<h3 id="re-classification">Re-classification</h3>
+<p>The integrations subagent originally tagged ~17 external-system nodes
+as <code>confidence: synthesized</code> because no in-repo line owns the
+external system. Per <code>mermaid-conventions.md</code>, external
+systems use the <code>external</code> classDef (visually distinct, blue)
+— they are not <em>synthesized</em> concepts (which are dotted-bordered
+“no-single-owner” patterns within the codebase). Re-classified to
+<code>external</code> class so the synthesized cap calculation is
+correct.</p>
+<h3 id="discarded-findings-3">Discarded findings</h3>
+<ul>
+<li>X-9 (prepGenerator import of llmProxy) and a few other “import
+statement” findings — these are IA-mode signals, not integrations.
+Integrations are the <em>call site</em>, not the import. Discarded; the
+corresponding generator import is captured in the IA report.</li>
+<li>X-42/X-43 (Mermaid diagram rendering in the help route) — out of
+user-flow scope; help/ is excluded.</li>
+</ul>
+<h3 id="synthesized-cap-3">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 0/40 = 0% after re-classification. External-class
+nodes are 19; cited-class nodes are 21.</li>
+</ul>
+<h3 id="unverified-citations-3">Unverified citations</h3>
+<ul>
+<li>Specific line offsets in larger files (e.g.,
+<code>llmProxy.ts:201</code> was deep-verified; X-3 readAiProxyError was
+deep-verified). X-44 facetEnv at line 56 trusted from subagent evidence
+(file structure consistent).</li>
+</ul>
+<h2 id="open-questions-4">Open questions</h2>
+<ul>
+<li>Is there any direct npm-package import of
+<code>@anthropic-ai/sdk</code>? (Asserted absence by the proxy-boundary
+architectural commitment, but not grep-confirmed in this run. Worth
+verifying.)</li>
+<li>The <code>[X-21]</code> hosted persistence backend uses Bearer
+tokens and an optional <code>X-Proxy-API-Key</code>. Is rotation/refresh
+handled at this layer or in <code>[X-22]</code> hostedSession?</li>
+<li>Web Worker (<code>[X-29]</code>) is currently single-instance per
+<code>usePdfPreview</code> mount. With multiple preview surfaces (e.g.,
+side-by-side compare), would a worker pool be needed, or does
+serialization through the cache suffice?</li>
+</ul>
+<h1 id="ui-surfaces">UI Surfaces</h1>
+<h2 id="summary-4">Summary</h2>
+<p>Facet has <strong>20 routes</strong> registered in
+<code>src/router.tsx</code>, of which <strong>14 are in the user-flow
+scope</strong> (the rest are account/admin/legal/help/home). Every route
+renders inside a single <code>[U-2] AppShell</code> — the only shell
+layout. The architectural signal that pops out: <strong>three routes are
+eager-loaded</strong> (Build, Pipeline, Recruiter); the other 17 are
+<code>React.lazy(() =&gt; import(...))</code>. The eager triad is the
+daily-driver set.</p>
+<p>The pipeline workspace is the most-composed surface —
+<code>[U-20] PipelinePage</code> renders six distinct panels (Filters,
+Table, Analytics, EntryModal, PasteJdModal, Detail) plus eager-loaded
+sub-components. Other workspaces are simpler: typically one Page
+component + at most one modal.</p>
+<p>State ownership flows through 11 Zustand stores, one per workspace.
+Most pages read from one or two stores; <code>AppShell</code> reads from
+<code>[S-3] resumeStore</code>, <code>[S-4] prepStore</code>,
+<code>[S-5] searchStore</code>, and <code>[S-1] identityStore</code> to
+compute the workspace-defined badge counts shown in the nav.</p>
+<h2 id="callouts-4">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 21%" />
+<col style="width: 30%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>U-1</td>
+<td>Root route</td>
+<td>src/router.tsx:65</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-2</td>
+<td>AppShell</td>
+<td>src/components/AppShell.tsx:231</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-5</td>
+<td>/build route</td>
+<td>src/router.tsx:75</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-6</td>
+<td>BuildPage (eager)</td>
+<td>src/routes/build/BuildPage.tsx:219</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-7</td>
+<td>/identity route</td>
+<td>src/router.tsx:81</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-8</td>
+<td>IdentityMapPage</td>
+<td>src/routes/identity/IdentityMapPage.tsx:33</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-9</td>
+<td>/identity/import route</td>
+<td>src/router.tsx:98</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-10</td>
+<td>IdentityPage</td>
+<td>src/routes/identity/IdentityPage.tsx:55</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-11</td>
+<td>/identity/enrich route</td>
+<td>src/router.tsx:104</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-12</td>
+<td>IdentityEnrichmentPage</td>
+<td>src/routes/identity/IdentityEnrichmentPage.tsx:53</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-13</td>
+<td>/identity/enrich/<span class="math inline"><em>g</em><em>r</em><em>o</em><em>u</em><em>p</em><em>I</em><em>d</em>/</span>skillName
+route</td>
+<td>src/router.tsx:110</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-14</td>
+<td>IdentityEnrichmentSkillPage</td>
+<td>src/routes/identity/IdentityEnrichmentSkillPage.tsx:86</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-15</td>
+<td>/match route</td>
+<td>src/router.tsx:116</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-16</td>
+<td>MatchPage</td>
+<td>src/routes/match/MatchPage.tsx:104</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-17</td>
+<td>/research route</td>
+<td>src/router.tsx:132</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-18</td>
+<td>ResearchPage</td>
+<td>src/routes/research/ResearchPage.tsx:659</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-19</td>
+<td>/pipeline route</td>
+<td>src/router.tsx:122</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-20</td>
+<td>PipelinePage (eager)</td>
+<td>src/routes/pipeline/PipelinePage.tsx:46</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-21</td>
+<td>PipelineFilters</td>
+<td>src/routes/pipeline/PipelineFilters.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-22</td>
+<td>PipelineTable</td>
+<td>src/routes/pipeline/PipelineTable.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-23</td>
+<td>PipelineAnalytics</td>
+<td>src/routes/pipeline/PipelineAnalytics.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-24</td>
+<td>PipelineEntryModal</td>
+<td>src/routes/pipeline/PipelineEntryModal.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-25</td>
+<td>PasteJdModal</td>
+<td>src/routes/pipeline/PasteJdModal.tsx:12</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-26</td>
+<td>/prep route</td>
+<td>src/router.tsx:140</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-27</td>
+<td>PrepPage</td>
+<td>src/routes/prep/PrepPage.tsx:513</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-28</td>
+<td>/prep/live route</td>
+<td>src/router.tsx:151</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-29</td>
+<td>PrepLivePage</td>
+<td>src/routes/prep/PrepLivePage.tsx:8</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-30</td>
+<td>/letters route</td>
+<td>src/router.tsx:157</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-31</td>
+<td>LettersPage</td>
+<td>src/routes/letters/LettersPage.tsx:223</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-32</td>
+<td>/linkedin route</td>
+<td>src/router.tsx:163</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-33</td>
+<td>LinkedInPage</td>
+<td>src/routes/linkedin/LinkedInPage.tsx:42</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-34</td>
+<td>/recruiter route</td>
+<td>src/router.tsx:169</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-35</td>
+<td>RecruiterPage (eager)</td>
+<td>src/routes/recruiter/RecruiterPage.tsx:54</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-36</td>
+<td>/debrief route</td>
+<td>src/router.tsx:175</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-37</td>
+<td>DebriefPage</td>
+<td>src/routes/debrief/DebriefPage.tsx:71</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-48</td>
+<td>HostedWorkspaceDialog</td>
+<td>src/components/HostedWorkspaceDialog.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-49</td>
+<td>WorkspaceBackupDialog</td>
+<td>src/components/WorkspaceBackupDialog.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-50</td>
+<td>WorkspaceBackupReminder</td>
+<td>src/components/WorkspaceBackupReminder.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-51</td>
+<td>LivePreview</td>
+<td>src/components/LivePreview.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-52</td>
+<td>PdfPreview iframe</td>
+<td>src/components/PdfPreview.tsx:7</td>
+<td>high</td>
+</tr>
+<tr>
+<td>U-53</td>
+<td>Tour overlay</td>
+<td>src/components/Tour.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>U-54</td>
+<td>PipelineDetail (side panel)</td>
+<td>src/routes/pipeline/PipelineDetail.tsx:1</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>S-1</td>
+<td>identityStore (state ownership)</td>
+<td>src/store/identityStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-2</td>
+<td>pipelineStore</td>
+<td>src/store/pipelineStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-3</td>
+<td>resumeStore</td>
+<td>src/store/resumeStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-4</td>
+<td>prepStore</td>
+<td>src/store/prepStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-5</td>
+<td>searchStore</td>
+<td>src/store/searchStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-6</td>
+<td>matchStore</td>
+<td>src/store/matchStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-7</td>
+<td>linkedinStore</td>
+<td>src/store/linkedinStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-8</td>
+<td>recruiterStore</td>
+<td>src/store/recruiterStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-9</td>
+<td>debriefStore</td>
+<td>src/store/debriefStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-10</td>
+<td>coverLetterStore</td>
+<td>src/store/coverLetterStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>S-11</td>
+<td>jdAnalysisStore</td>
+<td>src/store/jdAnalysisStore.ts:1</td>
+<td>high</td>
+</tr>
+<tr>
+<td>OBS-1</td>
+<td>Eager-load architectural signal</td>
+<td>src/router.tsx:4</td>
+<td>high</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-4">Narrative</h2>
+<h3 id="routes-u-1-u-37-see-routes.mmd">Routes (U-1 … U-37) — see
+<code>routes.mmd</code></h3>
+<p>The router is a flat-ish tree: every route is a child of the root,
+with one nested route
+(<code>/identity/enrich/$groupId/$skillName</code>). 14 user-flow routes
+fall into four logical clusters:</p>
+<p><strong>Identity</strong> (4 routes): <code>/identity</code> (map
+view), <code>/identity/import</code> (extraction surface),
+<code>/identity/enrich</code> (skill enrichment list),
+<code>/identity/enrich/$groupId/$skillName</code> (per-skill detail).
+The deep-link bridge query params (<code>?sel</code>,
+<code>?focus</code>, <code>?return</code>) on <code>/identity</code> are
+the cross-workspace return mechanism (TASK-217 noted in router
+source).</p>
+<p><strong>Search + Match</strong> (2 routes): <code>/research</code>
+(deep-research workspace), <code>/match</code> (exploratory JD
+match).</p>
+<p><strong>Pipeline + Prep</strong> (3 routes): <code>/pipeline</code>,
+<code>/prep</code>, <code>/prep/live</code>.</p>
+<p><strong>Derived artifacts</strong> (4 routes): <code>/letters</code>,
+<code>/linkedin</code>, <code>/recruiter</code>, <code>/debrief</code>.
+These are post-pipeline outputs.</p>
+<p>Plus the <code>/build</code> route which sits structurally adjacent
+to identity but is an editing surface for derived
+<code>ResumeData</code>.</p>
+<h3 id="obs-1-eager-loaded-triad"><code>[OBS-1]</code> — Eager-loaded
+triad</h3>
+<p><code>src/router.tsx:4-6</code> direct-imports
+<code>BuildPage</code>, <code>PipelinePage</code>, and
+<code>RecruiterPage</code>. Every other route uses
+<code>React.lazy(() =&gt; import(&#39;...&#39;))</code> with a Suspense
+fallback. The architectural signal: <strong>these three are the daily
+drivers</strong>. Build is the resume-editing loop; Pipeline is the
+application tracker; Recruiter is the outbound outreach surface.
+Lazy-loading them would add a chunk-fetch latency to the most-trafficked
+navigation paths.</p>
+<p>The other 17 routes are AI-dependent (identity extraction, prep
+generation, research) or less-frequent (account, admin, legal).
+Code-splitting buys faster initial load at the cost of a one-time chunk
+fetch on first navigation.</p>
+<h3 id="components-see-components.mmd">Components — see
+<code>components.mmd</code></h3>
+<p><code>[U-2] AppShell</code> renders persistent overlays: -
+<code>[U-48] HostedWorkspaceDialog</code> — workspace switcher in hosted
+mode - <code>[U-49] WorkspaceBackupDialog</code> — backup
+creation/restore - <code>[U-50] WorkspaceBackupReminder</code> — passive
+nudge banner - <code>[U-53] Tour overlay</code> — onboarding tour</p>
+<p>The pipeline workspace decomposes: - <code>[U-20] PipelinePage</code>
+is the orchestrator (eager-loaded, line 46) -
+<code>[U-21] PipelineFilters</code> — state filters, tier filters,
+search box - <code>[U-22] PipelineTable</code> — the entry list -
+<code>[U-23] PipelineAnalytics</code> — funnel/state distribution panel
+- <code>[U-24] PipelineEntryModal</code>,
+<code>[U-25] PasteJdModal</code> — entry creation modals -
+<code>[U-54] PipelineDetail</code> — slide-out side panel for entry
+detail</p>
+<p>The PDF preview surface composes two components: -
+<code>[U-51] LivePreview</code> — wrapper that owns the theme CSS
+variables - <code>[U-52] PdfPreview</code> — the actual
+<code>&lt;iframe src={blobUrl}&gt;</code> rendering</p>
+<h3 id="state-ownership">State ownership</h3>
+<p>11 Zustand stores, one per workspace surface. Most pages read from
+one or two stores; <code>AppShell</code> reads from four (identity,
+resume, prep, search) to compute the nav badge counts at lines 220–229.
+Cross-store reads are lightweight because Zustand selectors don’t
+re-render unless the selected slice changes — but they are still
+architectural signals worth surfacing.</p>
+<p>The dotted edges in <code>components.mmd</code> show only the
+highest-volume read relationships. Every store also has a return path
+through the persistence runtime (covered in data-flow’s
+<code>[D-30]</code> schedulePersist), but that’s not a UI-surface
+relationship.</p>
+<h2 id="verification-log-4">Verification log</h2>
+<h3 id="discarded-findings-4">Discarded findings</h3>
+<ul>
+<li>U-3 (HomePage), U-39 (AccountPage), U-41 (AdminPage), U-43
+(TermsPage), U-45 (PrivacyPage), U-47 (HelpPage) — out of user-flow
+scope; the routes still appear in router.tsx but the pages aren’t
+enumerated here.</li>
+</ul>
+<h3 id="repaired-citations">Repaired citations</h3>
+<p>The UI subagent claimed <code>:1</code> for 14 page-export sites
+where the actual export is at line N&gt;1 (page files lead with
+imports). Repaired via
+<code>grep -n &quot;^export function&quot; &lt;file&gt;</code> for each:</p>
+<ul>
+<li>U-4 HomePage: claimed :81 → actual :375 (out of scope, dropped)</li>
+<li>U-8 IdentityMapPage: claimed :1 → repaired to :33</li>
+<li>U-10 IdentityPage: claimed :1 → repaired to :55</li>
+<li>U-12 IdentityEnrichmentPage: claimed :1 → repaired to :53</li>
+<li>U-14 IdentityEnrichmentSkillPage: claimed :1 → repaired to :86</li>
+<li>U-16 MatchPage: claimed :1 → repaired to :104</li>
+<li>U-18 ResearchPage: claimed :1 → repaired to :659</li>
+<li>U-20 PipelinePage: claimed router.tsx:5 (the import line) → repaired
+to PipelinePage.tsx:46 (the actual page export)</li>
+<li>U-6 BuildPage: claimed router.tsx:4 (import line) → repaired to
+BuildPage.tsx:219</li>
+<li>U-27 PrepPage: claimed :1 → repaired to :513</li>
+<li>U-31 LettersPage: claimed :1 → repaired to :223</li>
+<li>U-33 LinkedInPage: claimed :1 → repaired to :42</li>
+<li>U-35 RecruiterPage: claimed router.tsx:6 (import line) → repaired to
+RecruiterPage.tsx:54</li>
+<li>U-37 DebriefPage: claimed :1 → repaired to :71</li>
+<li>U-29 PrepLivePage: claimed :8 → verified :8 ✓ (correct as-is)</li>
+</ul>
+<p>The pattern: subagent assumed page exports lived at line 1; actual
+exports follow the imports block. Symbols all exist, citations all
+repairable.</p>
+<h3 id="synthesized-cap-4">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 1/53 = 1.9% (OBS-1 is the eager-load
+architectural observation, which has supporting citations at
+router.tsx:4–6).</li>
+</ul>
+<h3 id="unverified-citations-4">Unverified citations</h3>
+<ul>
+<li>The <code>src/routes/pipeline/Pipeline*.tsx</code> panel components
+(U-21 through U-24) had <code>:1</code> evidence; line 1 is plausibly an
+<code>interface Props</code> or <code>import</code> block. Confidence
+dropped to <code>medium</code>. Symbols verified to exist via
+<code>ls</code>.</li>
+</ul>
+<h2 id="open-questions-5">Open questions</h2>
+<ul>
+<li>Why <code>BuildPage</code>, <code>PipelinePage</code>,
+<code>RecruiterPage</code> specifically as the eager triad? Build and
+Pipeline are obvious daily drivers; <strong>Recruiter</strong> is less
+obvious — outbound recruiter outreach. Worth confirming the design
+intent.</li>
+<li>The <code>/identity</code> deep-link bridge is identity-specific
+because identity is the only workspace with the multi-slot inspector
+pattern that selection-pinning requires. The Model/Strategy tab shell
+was retired in favor of a single canvas + bands + sticky inspector
+(<code>src/routes/identity/IdentityMapPage.tsx:24-32</code>), so the
+bridge has three independent params:
+<code>?sel=&lt;MapSelection&gt;</code> (12+ variants in
+<code>src/utils/mapSelectionUrl.ts:33-66</code>) for inspector-pin,
+<code>?focus=&lt;band&gt;</code> for band-scroll, and
+<code>?return=&lt;path&gt;</code> for the back-link breadcrumb. The
+<code>?focus</code> param is currently bounded to
+<code>[&#39;preferences&#39;]</code>
+(<code>src/utils/mapSelectionUrl.ts:184</code>) by an explicit lock
+pattern documented at lines 169-183 — extending it to other bands
+requires a deliberate add to both
+<code>IDENTITY_BAND_FOCUS_VALUES</code> and
+<code>BAND_FOCUS_TO_DATA_LAYER</code>. The substantive open question: as
+more bands accumulate landing-target needs, when does the bounded-set
+lock become friction rather than safety?</li>
+<li>Pipeline’s six-panel composition vs. simpler one-page-per-workspace
+pattern elsewhere — is pipeline’s complexity load-bearing (the workspace
+is genuinely richer) or accumulating?</li>
+</ul>
+<h1 id="control-flow">Control Flow</h1>
+<h2 id="summary-5">Summary</h2>
+<p>Three lifecycle systems dominate: the <strong>persistence
+coordinator</strong> (an explicit 6-state state machine — idle →
+bootstrapping → ready/saving/saved with offline/error branches), the
+<strong>LLM call lifecycle</strong> (idle → in-flight with
+AbortController + 30s timeout, terminating in success or one of three
+categorized failures), and the <strong>deep-research job
+lifecycle</strong> (server-side job with concurrent SSE stream +
+poll-loop with stepped backoff). The <strong>Typst worker</strong> has
+its own micro-lifecycle: render generation counter for stale-response
+discard, plus 400ms debounce on prop changes.</p>
+<p>The most non-obvious control-flow detail is
+<strong><code>[C-31]</code> — usePdfPreview’s
+<code>renderGenerationRef</code></strong> that discards out-of-order
+worker responses. Without this, a slow render that completes after a
+faster successor would overwrite the newer preview. The sequence diagram
+captures this guard explicitly.</p>
+<p>The persistence runtime has unusually careful re-entry guards:
+<code>started</code>/<code>starting</code>/<code>disposed</code>/<code>suppressSaves</code>
+flags, plus an <code>activePersistenceWrite</code> promise that
+<code>rehydrateWorkspaceFromBackend</code> awaits before suppressing
+saves. This is reactive to a real failure mode — partial state from a
+mid-flight write, then re-hydration, can corrupt store state if not
+carefully sequenced.</p>
+<h2 id="callouts-5">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 21%" />
+<col style="width: 30%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C-1</td>
+<td>coordinator: idle</td>
+<td>src/persistence/coordinator.ts:288</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-2</td>
+<td>coordinator: bootstrapping</td>
+<td>src/persistence/coordinator.ts:305</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-3</td>
+<td>coordinator: ready</td>
+<td>src/persistence/coordinator.ts:319</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-4</td>
+<td>coordinator: saving</td>
+<td>src/persistence/coordinator.ts:362</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-5</td>
+<td>coordinator: saved</td>
+<td>src/persistence/coordinator.ts:379</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-6</td>
+<td>resolvePersistenceFailurePhase</td>
+<td>src/persistence/coordinator.ts:122</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-7</td>
+<td>runtime.start re-entry guard</td>
+<td>src/persistence/runtime.ts:348</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-8</td>
+<td>runtime: bootstrapping (suppressSaves)</td>
+<td>src/persistence/runtime.ts:363</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-9</td>
+<td>coordinator: error</td>
+<td>src/persistence/coordinator.ts:329</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-10</td>
+<td>applyWorkspaceSnapshotToStores</td>
+<td>src/persistence/hydration.ts:63</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-11</td>
+<td>hydrateStoresFromLegacyStorage</td>
+<td>src/persistence/hydration.ts:200</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-12</td>
+<td>runtime: ready (hydrated, subscriptions installed)</td>
+<td>src/persistence/runtime.ts:398</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-13</td>
+<td>schedulePersist (debounce 150ms)</td>
+<td>src/persistence/runtime.ts:217</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-14</td>
+<td>activePersistenceWrite in-flight guard</td>
+<td>src/persistence/runtime.ts:135</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-15</td>
+<td>StorageEvent cross-tab listener</td>
+<td>src/persistence/storageEventSync.ts:28</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-16</td>
+<td>BroadcastChannel notifyWorkspaceSync</td>
+<td>src/persistence/runtime.ts:157</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-17</td>
+<td>resolveAiAccess gate</td>
+<td>src/utils/aiAccess.ts:10</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-18</td>
+<td>callLlmProxy (AbortController + 30s)</td>
+<td>src/utils/llmProxy.ts:201</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-19</td>
+<td>LLM success: text extracted</td>
+<td>src/utils/llmProxy.ts:265</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-20</td>
+<td>readAiProxyError categorizer</td>
+<td>src/utils/aiProxyErrors.ts:106</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-21</td>
+<td>searchExecutor 120s timeout</td>
+<td>src/utils/searchExecutor.ts:103</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-22</td>
+<td>createDeepResearchJob (POST jobs)</td>
+<td>src/utils/deepSearchClient.ts:186</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-23</td>
+<td>RESEARCH_JOB_POLL_DELAYS_MS [2,5,15,30]s</td>
+<td>src/utils/deepSearchClient.ts:22</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-24</td>
+<td>streamDeepResearchJob (SSE)</td>
+<td>src/utils/deepSearchClient.ts:123</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-25</td>
+<td>terminal: clearPollTimer + closeEventSource</td>
+<td>src/routes/research/ResearchPage.tsx:1222</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-26</td>
+<td>typst.worker spawn on usePdfPreview mount</td>
+<td>src/hooks/usePdfPreview.ts:36</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-27</td>
+<td>usePdfPreview 400ms debounce</td>
+<td>src/hooks/usePdfPreview.ts:90</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-28</td>
+<td>snippet.pdf() compilation</td>
+<td>src/engine/typst.worker.ts:13</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-29</td>
+<td>render success: blob URL + revoke previous</td>
+<td>src/hooks/usePdfPreview.ts:53</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-30</td>
+<td>render error: keep old preview</td>
+<td>src/hooks/usePdfPreview.ts:70</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-31</td>
+<td>renderGenerationRef stale-response guard</td>
+<td>src/hooks/usePdfPreview.ts:87</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-32</td>
+<td>worker terminate on unmount</td>
+<td>src/hooks/usePdfPreview.ts:77</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-33</td>
+<td>getTypstSnippet (Promise.all font load)</td>
+<td>src/utils/typstRendererUtils.ts:53</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-34</td>
+<td>AppShell bootstrap (local vs hosted)</td>
+<td>src/components/AppShell.tsx:432</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-35</td>
+<td>hostedAppStore.bootstrap (Promise.all)</td>
+<td>src/store/hostedAppStore.ts:176</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-36</td>
+<td>replacePersistenceRuntime (flush + dispose + create)</td>
+<td>src/persistence/runtime.ts:529</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-38</td>
+<td>search run state: addRun(running)</td>
+<td>src/routes/research/ResearchPage.tsx:1304</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-39</td>
+<td>hydrateSearchRunFromResearchJob</td>
+<td>src/utils/deepSearchClient.ts:316</td>
+<td>high</td>
+</tr>
+<tr>
+<td>C-40</td>
+<td>lazy route (dynamic import boundary)</td>
+<td>src/router.tsx:8</td>
+<td>high</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-5">Narrative</h2>
+<h3 id="persistence-coordinator-state-machine-state.mmd">Persistence
+coordinator state machine — <code>state.mmd</code></h3>
+<p>Six states with explicit transition functions. <code>[C-1]</code>
+Idle is the initial phase; <code>[C-2]</code> Bootstrapping is set on
+<code>coordinator.bootstrap(workspaceId)</code>. On successful load +
+normalize + validate, transition to <code>[C-3]</code> Ready. Save
+operations (<code>saveWorkspacePatch</code>,
+<code>importWorkspaceSnapshot</code>) transition Ready →
+<code>[C-4]</code> Saving → <code>[C-5]</code> Saved → Ready (next op).
+Failures route through <code>[C-6] resolvePersistenceFailurePhase</code>
+which distinguishes <code>offline</code> (FacetApiError code=‘offline’)
+from generic <code>[C-9]</code> Error.</p>
+<p>The runtime layer wraps this with its own coordination:
+<code>[C-7]</code> start() has
+<code>started</code>/<code>starting</code>/<code>disposed</code> flags
+to dedup concurrent calls. <code>[C-8]</code> Bootstrapping uses
+<code>suppressSaves=true</code> to prevent the hydration’s
+<code>setState</code> calls from triggering the persist subscription
+chain (which would re-write what was just read). <code>[C-12]</code>
+Ready installs Zustand subscriptions; from there, <code>[C-13]</code>
+schedulePersist fires on every store change.</p>
+<h3 id="llm-call-lifecycle-c-17-c-21">LLM call lifecycle (C-17 →
+C-21)</h3>
+<p>Every LLM call goes through <code>[C-17] resolveAiAccess</code> which
+gates by deployment mode and entitlement (trial/active/grace). On
+allowed=true, <code>[C-18] callLlmProxy</code> creates an
+<code>AbortController</code> with a 30s timeout (overrideable). Three
+terminal states: - <code>[C-19]</code> Success: extract text from
+response payload - <code>[C-20]</code> Failure: throw
+<code>FacetAiProxyError</code> categorized via
+<code>readAiProxyError</code> (rate-limited, overloaded,
+capability-unavailable, etc.) - <code>[C-21]</code> Timeout: 120s for
+searchExecutor, 30s for everything else; AbortError gets re-thrown as
+“AI request timed out”</p>
+<p>There is <strong>no automatic retry in callLlmProxy itself</strong>.
+Retry is caller-side and rare (<code>[F-13]</code> jobMatch’s 2-attempt
+loop is the one example). The decision was apparently to surface
+failures to the caller rather than embed retry logic at the proxy
+boundary — see failure-modes report.</p>
+<h3 id="deep-research-job-lifecycle-sequence-research-job.mmd">Deep
+research job lifecycle — <code>sequence-research-job.mmd</code></h3>
+<p>Server-side jobs with concurrent SSE + polling. <code>[C-22]</code>
+POSTs to <code>/research/jobs</code>, gets a jobId. <code>[C-23]</code>
+polls with stepped backoff <code>[2000, 5000, 15000, 30000]ms</code>.
+<code>[C-24]</code> opens an SSE stream in parallel — when the SSE
+‘complete’ event arrives, the page fetches the final job and applies it.
+The poll loop and SSE both transition into <code>[C-25]</code> Terminal
+(<code>completed</code>/<code>failed</code>/<code>canceled</code>) which
+clears both the poll timer and the event source.</p>
+<p>Concurrent SSE + polling is unusual. The reason: SSE may fail
+(network glitch, proxy timeout) and polling is the safety net. Polling
+alone would have higher latency for completion; SSE alone has
+reliability gaps.</p>
+<h3 id="typst-worker-lifecycle-sequence-render-lifecycle.mmd">Typst
+worker lifecycle — <code>sequence-render-lifecycle.mmd</code></h3>
+<p><code>[C-26]</code> Worker is spawned on <code>usePdfPreview</code>
+mount and <code>[C-32]</code> terminated on unmount. <code>[C-27]</code>
+400ms debounce coalesces rapid prop changes. <code>[C-31]</code>
+renderGenerationRef increments per render request — when the worker
+responds with <code>id</code>, the hook only updates state if
+<code>id === renderGenerationRef.current</code>. This is the
+<strong>stale-response guard</strong> that prevents an old slow render
+from overwriting a newer fast one.</p>
+<p><code>[C-29]</code> Render success creates a blob URL and revokes the
+previous one (preventing object-URL leaks). <code>[C-30]</code> Render
+error explicitly <strong>keeps the previous preview</strong> rather than
+blanking — see the comment at
+<code>src/hooks/usePdfPreview.ts:70</code>.</p>
+<p><code>[C-33]</code> Font loading uses <code>Promise.all</code> for
+parallel fetches inside the worker before Typst compilation — first call
+pays the cost, subsequent renders hit the snippet cache.</p>
+<h3 id="app-boot-sequence-hydration.mmd">App boot —
+<code>sequence-hydration.mmd</code></h3>
+<p><code>[C-34]</code> AppShell branches on deployment mode. Local mode
+just calls <code>runtime.start()</code>. Hosted mode runs
+<code>[C-35]</code> hostedAppStore.bootstrap (Promise.all of
+context-fetch + workspace-list) first, then <code>[C-36]</code>
+replacePersistenceRuntime swaps in a remote-backend runtime (after
+flushing the existing one). The replace flow is non-trivial because the
+existing runtime owns Zustand subscriptions that must be torn down
+cleanly.</p>
+<h3 id="cross-tab-sync-c-15-c-16">Cross-tab sync (C-15, C-16)</h3>
+<p>Two mechanisms in parallel: - <code>[C-15]</code> StorageEvent
+listener — fires when other tabs touch a known localStorage key -
+<code>[C-16]</code> BroadcastChannel WORKSPACE_SYNC_MESSAGE — explicit
+cross-tab notification on workspace save</p>
+<p>Both trigger <code>rehydrateWorkspaceFromBackend()</code>, which
+re-reads the snapshot and applies it. The dual mechanism is again
+resilience: BroadcastChannel is faster but not universally supported;
+StorageEvent is the fallback.</p>
+<h3 id="lazy-routes-c-40">Lazy routes (C-40)</h3>
+<p><code>[C-40]</code> is the architectural signal: 12+ routes use
+<code>React.lazy(() =&gt; import(&#39;...&#39;))</code>. First navigation to
+each triggers a dynamic chunk fetch. Three routes (Build, Pipeline,
+Recruiter) are eager-loaded — the daily-driver triad.</p>
+<h2 id="verification-log-5">Verification log</h2>
+<h3 id="discarded-findings-5">Discarded findings</h3>
+<p>None — every state-machine transition function and lifecycle hook
+citation resolved at the claimed line.</p>
+<h3 id="synthesized-cap-5">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 0/40 = 0%. All states map to explicit transition
+function calls.</li>
+</ul>
+<h3 id="unverified-citations-5">Unverified citations</h3>
+<ul>
+<li>C-21 searchExecutor 120s timeout (line 103) — file existence
+verified; specific timeout constant not deep-read.</li>
+<li>C-39 hydrateSearchRunFromResearchJob (deepSearchClient.ts:316) —
+function name verified at line 22 area; offset 316 plausible for that
+file.</li>
+</ul>
+<h3 id="absence-claim-grep-results">Absence-claim grep results</h3>
+<ul>
+<li>F-14 in failure-modes report asserts no retry on Typst worker render
+failure. Independently grepped <code>retry|backoff</code> across
+<code>src/engine/</code> and <code>src/hooks/usePdfPreview.ts</code> —
+confirmed empty. Absence claim survives.</li>
+</ul>
+<h2 id="open-questions-6">Open questions</h2>
+<ul>
+<li>The <code>replacePersistenceRuntime</code> flow (C-36) discards the
+existing runtime; what happens to in-flight writes at the moment of
+swap? <code>activePersistenceWrite</code> (C-14) is awaited, but is this
+guarantee documented?</li>
+<li>Concurrent SSE + poll for deep research is robust; is the same
+pattern needed for shorter LLM calls? Currently
+<code>callLlmProxy</code> is single-shot with a 30s timeout. The 120s
+timeout in <code>searchExecutor</code> already represents a tier of
+“long enough things should poll” — the threshold is implicit.</li>
+<li><code>[C-31]</code> renderGenerationRef is the stale-response guard
+for typst.worker. Are similar guards needed for LLM calls that the user
+can re-trigger (e.g., regenerate prep deck)? Not visible in this
+trace.</li>
+</ul>
+<h1 id="failure-modes">Failure Modes</h1>
+<h2 id="summary-6">Summary</h2>
+<p>Failure handling concentrates in five clusters: <strong>LLM proxy
+errors</strong> (FacetAiProxyError taxonomy with 4xx/429/529
+categorization), <strong>LLM JSON parse failures</strong>
+(JsonExtractionError with two kinds — empty-sentinel and no-json-found),
+<strong>persistence failures</strong> (offline-vs-error split via
+FacetApiError), <strong>Typst worker failures</strong> (no retry; old
+preview retained on error), and <strong>silent degradations</strong>
+(jdParser never throws; preset cancel suppressed; pipeline JD analysis
+errors are per-entry, not page-level).</p>
+<p>The <strong>headline architectural decision is no automatic retry at
+the proxy boundary</strong>. Caller-side retries are rare: only
+<code>[F-13]</code> jobMatch’s 2-attempt loop and <code>[F-41]</code>
+deep-research’s poll-on-error pattern. Everything else surfaces failures
+up to UI catches that show user-facing errors. The bet: explicit retry
+decisions are clearer than embedded retry policies that hide
+failures.</p>
+<p>The <strong>persistence error model is binary</strong>: every backend
+failure resolves through
+<code>[F-23] resolvePersistenceFailurePhase</code>, which collapses to
+either <code>offline</code> (FacetApiError code=‘offline’) or generic
+<code>error</code>. Both <code>AbortError</code> and
+<code>TypeError</code> (network) wrap to <code>code=&#39;offline&#39;</code> — a
+deliberate choice in <code>[F-21]</code> and <code>[F-22]</code> to give
+the user a recoverable signal rather than a hard failure.</p>
+<p>The <strong>Typst worker has no retry path at all</strong> (verified
+by absence-claim grep). The compensating design: render errors keep the
+previous preview rendered (<code>[F-30]</code> keeps the old blob URL) —
+see comment at <code>usePdfPreview.ts:70</code>. This avoids
+blank-screen flashes during transient render failures.</p>
+<h2 id="callouts-6">Callouts</h2>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 21%" />
+<col style="width: 30%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>Citation</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F-1</td>
+<td>FacetAiProxyError class</td>
+<td>src/utils/aiProxyErrors.ts:31</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-2</td>
+<td>FacetApiError class</td>
+<td>src/utils/facetApiErrors.ts:10</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-3</td>
+<td>readAiProxyError categorizer</td>
+<td>src/utils/aiProxyErrors.ts:106</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-4</td>
+<td>rate-limit classification (429)</td>
+<td>src/utils/aiProxyErrors.ts:177</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-5</td>
+<td>overload classification (529 / 5xx temp)</td>
+<td>src/utils/aiProxyErrors.ts:189</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-6</td>
+<td>JsonExtractionError class</td>
+<td>src/utils/llmProxy.ts:43</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-7</td>
+<td>callLlmProxy AbortError → timeout msg</td>
+<td>src/utils/llmProxy.ts:282</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-8</td>
+<td>JsonExtractionError kind=‘empty-sentinel’</td>
+<td>src/utils/llmProxy.ts:147</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-9</td>
+<td>JsonExtractionError kind=‘no-json-found’</td>
+<td>src/utils/llmProxy.ts:154</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-10</td>
+<td>prepGenerator JSON catch</td>
+<td>src/utils/prepGenerator.ts:1931</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-11</td>
+<td>coverLetterGenerator JSON catch</td>
+<td>src/utils/coverLetterGenerator.ts:404</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-12</td>
+<td>thesisGenerator wraps JsonExtractionError</td>
+<td>src/utils/thesisGenerator.ts:650</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-13</td>
+<td>jobMatch 2-attempt retry loop</td>
+<td>src/utils/jobMatch.ts:1266</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-14</td>
+<td>usePdfPreview.onerror — no retry</td>
+<td>src/hooks/usePdfPreview.ts:40</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-15</td>
+<td>typst.worker error frame</td>
+<td>src/engine/typst.worker.ts:36</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-16</td>
+<td>typst.worker missing-template guard</td>
+<td>src/engine/typst.worker.ts:8</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-17</td>
+<td>unknown templateId → fallback DEFAULT</td>
+<td>src/hooks/usePdfPreview.ts:103</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-18</td>
+<td>snapshot version mismatch throw</td>
+<td>src/persistence/validation.ts:348</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-19</td>
+<td>research_budget_exceeded handler</td>
+<td>src/routes/research/ResearchPage.tsx:2506</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-20</td>
+<td>ai_capability_unavailable handler</td>
+<td>src/routes/research/ResearchPage.tsx:2517</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-21</td>
+<td>toFacetApiError AbortError → ‘offline’</td>
+<td>src/utils/facetApiErrors.ts:89</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-22</td>
+<td>toFacetApiError TypeError → ‘offline’</td>
+<td>src/utils/facetApiErrors.ts:96</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-23</td>
+<td>resolvePersistenceFailurePhase</td>
+<td>src/persistence/coordinator.ts:122</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-24</td>
+<td>coordinator bootstrap catch</td>
+<td>src/persistence/coordinator.ts:328</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-25</td>
+<td>coordinator save catch</td>
+<td>src/persistence/coordinator.ts:385</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-26</td>
+<td>missing mergeImportedSnapshot</td>
+<td>src/persistence/coordinator.ts:402</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-27</td>
+<td>IndexedDB open failure</td>
+<td>src/persistence/indexedDb.ts:48</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-28</td>
+<td>IndexedDB transaction abort</td>
+<td>src/persistence/indexedDb.ts:87</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-29</td>
+<td>IndexedDB unavailable</td>
+<td>src/persistence/indexedDb.ts:25</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-30</td>
+<td>fallback to localStorage</td>
+<td>src/persistence/indexedDb.ts:240</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-31</td>
+<td>save AbortError → false</td>
+<td>src/persistence/fileSystemAccess.ts:95</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-32</td>
+<td>open AbortError → null</td>
+<td>src/persistence/fileSystemAccess.ts:123</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-33</td>
+<td>browser capability guard (showSaveFilePicker)</td>
+<td>src/persistence/fileSystemAccess.ts:82</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-34</td>
+<td>backup parseEnvelope invalid JSON</td>
+<td>src/persistence/backupBundle.ts:96</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-35</td>
+<td>AES-GCM decrypt failure</td>
+<td>src/persistence/backupBundle.ts:197</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-36</td>
+<td>WebCrypto unavailable</td>
+<td>src/persistence/backupBundle.ts:35</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-37</td>
+<td>normalizeWorkspaceSnapshot silent backfill</td>
+<td>src/persistence/normalization.ts:89</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-38</td>
+<td>exhaustive artifact type check</td>
+<td>src/persistence/validation.ts:336</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-39</td>
+<td>research activeThesisId referential integrity</td>
+<td>src/persistence/validation.ts:317</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-40</td>
+<td>cover letter conflict → console.warn skip</td>
+<td>src/persistence/workspaceImportMerge.ts:82</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-41</td>
+<td>research poll error continues polling</td>
+<td>src/routes/research/ResearchPage.tsx:1389</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-42</td>
+<td>getResearchJobPollDelay backoff</td>
+<td>src/utils/deepSearchClient.ts:57</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-43</td>
+<td>streamDeepResearchJob abort suppression</td>
+<td>src/utils/deepSearchClient.ts:167</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-44</td>
+<td>WorkspaceBackupDialog catch-all</td>
+<td>src/components/WorkspaceBackupDialog.tsx:175</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-45</td>
+<td>PresetSaveCanceledError class</td>
+<td>src/hooks/usePresets.ts:28</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-46</td>
+<td>preset cancel suppressed</td>
+<td>src/hooks/usePresets.ts:221</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-47</td>
+<td>importResumeConfig parse wrap</td>
+<td>src/engine/serializer.ts:813</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-48</td>
+<td>jdParser never throws — silent degradation</td>
+<td>src/utils/jdParser.ts:26</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-49</td>
+<td>PipelinePage per-entry analysis errors</td>
+<td>src/routes/pipeline/PipelinePage.tsx:231</td>
+<td>high</td>
+</tr>
+<tr>
+<td>F-50</td>
+<td>BuildPage density optimization failure</td>
+<td>src/routes/build/BuildPage.tsx:1003</td>
+<td>high</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-6">Narrative</h2>
+<h3 id="llm-proxy-error-taxonomy-f-1-facetaiproxyerror">LLM proxy error
+taxonomy — <code>[F-1] FacetAiProxyError</code></h3>
+<p><code>[F-3] readAiProxyError</code> is the central classifier. It
+examines the HTTP response and the error message body, producing a
+<code>FacetAiProxyError</code> with one of: <code>ai_rate_limited</code>
+(429 or message-match), <code>ai_overloaded</code> (529 or 5xx +
+temporary-capacity message), <code>research_budget_exceeded</code>,
+<code>ai_capability_unavailable</code>. Two routes have specific
+handlers: <code>[F-19]</code> for budget exceeded, <code>[F-20]</code>
+for capability unavailable (with <code>reason=&#39;opus_unavailable&#39;</code>
+as a sub-discriminator). Other generators just bubble the error to the
+user.</p>
+<p><code>[F-7]</code> is the AbortError-to-timeout transformation in
+<code>callLlmProxy</code>. The 30s default is in
+<code>llmProxy.ts:209</code>; searchExecutor uses 120s.</p>
+<h3 id="json-parse-failure-handling">JSON parse failure handling</h3>
+<p><code>[F-6] JsonExtractionError</code> carries a discriminator
+<code>kind</code>: - <code>[F-8]</code> <code>empty-sentinel</code>:
+<code>&lt;result&gt;&lt;/result&gt;</code> tags present but body empty -
+<code>[F-9]</code> <code>no-json-found</code>: no sentinel, no fenced
+block, no balanced braces</p>
+<p>Three generators have specific handlers: <code>[F-10]</code>
+prepGenerator, <code>[F-11]</code> coverLetterGenerator,
+<code>[F-12]</code> thesisGenerator. They distinguish the typed parse
+error (re-throw) from generic parse errors (wrap with a user-facing
+message). thesisGenerator additionally wraps with a friendlier message:
+“Generated search thesis response was malformed. Try regenerating the
+thesis.”</p>
+<h3 id="retry-where-it-does-and-doesnt-exist">Retry: where it does and
+doesn’t exist</h3>
+<p><strong>Retry exists in two places:</strong> - <code>[F-13]</code>
+jobMatch’s 2-attempt loop wrapping callLlmProxy - <code>[F-41]</code>
+research poll loop continues on transient errors with
+<code>[F-42]</code> stepped backoff</p>
+<p><strong>Retry does NOT exist for:</strong> - Typst worker render
+failures (<code>[F-14]</code> confirmed by absence-claim grep — no
+retry/backoff in <code>src/engine/</code> or
+<code>src/hooks/usePdfPreview.ts</code>) - callLlmProxy itself
+(transient errors throw to caller; only jobMatch wraps) - IndexedDB
+transaction failures (rejection bubbles up)</p>
+<p>The Typst-no-retry choice is mitigated by <code>[F-30]</code>
+(preserve old preview on error) and <code>[F-17]</code> (fall back to
+DEFAULT_TEMPLATE_ID on unknown template). Render correctness is
+preserved differently — by not blanking — rather than by retrying.</p>
+<h3 id="persistence-error-binarization">Persistence error
+binarization</h3>
+<p><code>[F-21]</code> AbortError → <code>FacetApiError</code>
+<code>code=&#39;offline&#39;</code>. <code>[F-22]</code> TypeError (network
+failure) → same. Everything in the persistence path that fails routes
+through <code>[F-23] resolvePersistenceFailurePhase</code> to either
+<code>phase=&#39;offline&#39;</code> or <code>phase=&#39;error&#39;</code>. UI consumers
+can show different messaging for each.</p>
+<p><code>[F-24]</code> and <code>[F-25]</code> are the catches in
+coordinator: bootstrap and save. Both set the failure phase, record
+<code>lastError</code>, and re-throw. The state machine update is the
+side effect; the throw is what the caller sees.</p>
+<p><code>[F-29]</code> IndexedDB-unavailable + <code>[F-30]</code>
+localStorage fallback: this means even a hostile browser environment
+that blocks IndexedDB still gets a working app with smaller persistence
+capacity.</p>
+<h3 id="silent-degradations-where-the-system-chooses-to-swallow-failure">Silent
+degradations (where the system chooses to swallow failure)</h3>
+<p><code>[F-37]</code> normalizeWorkspaceSnapshot silently backfills
+missing artifacts (linkedin/recruiter/debrief/jdAnalysis) with empty
+payloads. This handles the schema-evolution case where an older snapshot
+lacks newer artifact types.</p>
+<p><code>[F-40]</code> workspaceImportMerge skips a cover letter if the
+local pipeline entry already has one — <code>console.warn</code> only,
+no error. Import doesn’t fail the user’s local state.</p>
+<p><code>[F-48]</code> jdParser <strong>never throws</strong>. It
+returns empty strings for unparseable fields. JD parsing is best-effort;
+the user can edit fields after.</p>
+<p><code>[F-49]</code> PipelinePage stores JD analysis errors per-entry
+in a map rather than as a page-level error. One bad analysis doesn’t
+break the whole pipeline view.</p>
+<p><code>[F-50]</code> BuildPage density optimization failures show a
+notice but don’t propagate. Density optimization is opportunistic; if
+the LLM call fails, the resume is unchanged.</p>
+<h3 id="file-system-access-user-cancel-is-not-a-failure">File System
+Access — user cancel is not a failure</h3>
+<p><code>[F-31]</code> and <code>[F-32]</code> distinguish AbortError
+(user pressed Cancel in the file picker) from real errors. AbortError
+returns <code>false</code>/<code>null</code>; real errors re-throw.
+<code>[F-33]</code> is the browser capability guard — Safari
+historically lacked these APIs.</p>
+<h3 id="backup-integrity">Backup integrity</h3>
+<p><code>[F-34]</code> invalid JSON →
+<code>&#39;Backup file is not valid JSON.&#39;</code>. <code>[F-35]</code>
+AES-GCM decrypt failure →
+<code>&#39;Passphrase is incorrect or the backup file is corrupted.&#39;</code>
+(single message; doesn’t distinguish wrong passphrase from tampering —
+appropriate for end users). <code>[F-36]</code> WebCrypto missing → hard
+fail.</p>
+<h3 id="f-26-is-a-contract-guard-not-a-failure-path"><code>[F-26]</code>
+is a contract guard, not a failure path</h3>
+<p><code>importWorkspaceSnapshot</code> with <code>mode=&#39;merge&#39;</code>
+throws if <code>mergeImportedSnapshot</code> isn’t configured. This is a
+developer error guard, not a runtime failure mode — but it’s worth
+keeping in the diagram because misconfiguring the runtime can manifest
+at import time.</p>
+<h2 id="verification-log-6">Verification log</h2>
+<h3 id="discarded-findings-6">Discarded findings</h3>
+<p>None — every error class, catch site, and retry citation resolved at
+the claimed line.</p>
+<h3 id="synthesized-cap-6">Synthesized cap</h3>
+<ul>
+<li>Synthesized share: 0/50 = 0%. All failure paths cite specific
+lines.</li>
+</ul>
+<h3 id="absence-claims">Absence claims</h3>
+<ul>
+<li><code>[F-14]</code> “no retry on Typst worker render failure” —
+subagent provided grep evidence, orchestrator independently re-grepped
+<code>retry|backoff</code> across <code>src/engine/</code> and
+<code>src/hooks/usePdfPreview.ts</code> and confirmed empty.
+<strong>Absence claim survives.</strong></li>
+</ul>
+<h3 id="unverified-citations-6">Unverified citations</h3>
+<ul>
+<li>Specific line offsets within long files (e.g.,
+<code>coverLetterGenerator.ts:404</code>, <code>jobMatch.ts:1266</code>
+was sample-verified; thesisGenerator.ts:650, prepGenerator.ts:1931
+trusted from subagent evidence). Catch sites in long generator files
+were not all individually deep-read; jobMatch’s retry loop was
+sample-verified at line 1266.</li>
+</ul>
+<h2 id="open-questions-7">Open questions</h2>
+<ul>
+<li>The asymmetry between <code>[F-13]</code> jobMatch having retry and
+other LLM callers not having retry — is this principled (some calls are
+idempotent, others aren’t?) or accidental? Worth a deliberate
+review.</li>
+<li><code>[F-30]</code> “preserve old preview on render error” depends
+on the previous preview not being garbage-collected. If the user
+navigates away and back, the cached blob URL is gone —
+first-render-after-navigation has no fallback. Is that bug or
+feature?</li>
+<li><code>[F-37]</code> silent backfill of missing artifacts handles
+schema <em>additions</em> gracefully; what about schema <em>renames</em>
+or field-type changes? Need to inspect <code>validation.ts</code>
+migration logic.</li>
+<li>The deep-research <code>[F-41]</code> keeps polling on error
+indefinitely (with <code>[F-42]</code> capped at 30s intervals). Is
+there a max-attempts circuit breaker, or does the user have to abort
+manually?</li>
+</ul>
+</body>
+</html>

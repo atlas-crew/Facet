@@ -1,0 +1,65 @@
+%% UI Surfaces — major shared components, modals, and state ownership.
+%% Date: 2026-05-09
+
+graph LR
+    subgraph shell["Shell + persistent overlays"]
+        U2["[U-2] AppShell"]
+        U48["[U-48] HostedWorkspaceDialog"]
+        U49["[U-49] WorkspaceBackupDialog"]
+        U50["[U-50] WorkspaceBackupReminder"]
+        U53["[U-53] Tour overlay"]
+    end
+
+    subgraph preview["Live PDF preview"]
+        U51["[U-51] LivePreview"]
+        U52["[U-52] PdfPreview iframe"]
+    end
+
+    subgraph pipeline_panels["Pipeline workspace panels"]
+        U20["[U-20] PipelinePage"]
+        U21["[U-21] PipelineFilters"]
+        U22["[U-22] PipelineTable"]
+        U23["[U-23] PipelineAnalytics"]
+        U24["[U-24] PipelineEntryModal"]
+        U25["[U-25] PasteJdModal"]
+        U54["[U-54] PipelineDetail (side panel)"]
+    end
+
+    subgraph stores["State ownership (Zustand stores)"]
+        S1["[S-1] identityStore"]
+        S2["[S-2] pipelineStore"]
+        S3["[S-3] resumeStore"]
+        S4["[S-4] prepStore"]
+        S5["[S-5] searchStore"]
+        S6["[S-6] matchStore"]
+        S7["[S-7] linkedinStore"]
+        S8["[S-8] recruiterStore"]
+        S9["[S-9] debriefStore"]
+        S10["[S-10] coverLetterStore"]
+        S11["[S-11] jdAnalysisStore"]
+    end
+
+    U2 --> U48
+    U2 --> U49
+    U2 --> U50
+    U2 --> U53
+
+    U20 --> U21
+    U20 --> U22
+    U20 --> U23
+    U20 --> U24
+    U20 --> U25
+    U20 --> U54
+
+    S1 -.->|"reads"| U2
+    S1 -.->|"reads"| U20
+    S2 -.->|"reads"| U20
+    S3 -.->|"reads"| U2
+    S4 -.->|"reads"| U2
+    S5 -.->|"reads"| U2
+    S10 -.->|"reads"| U20
+
+    classDef cited fill:#fff,stroke:#333,stroke-width:1px
+    classDef state fill:#e8f4f8,stroke:#3b6ea5,stroke-width:1px
+    class U2,U20,U21,U22,U23,U24,U25,U48,U49,U50,U51,U52,U53,U54 cited
+    class S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,S11 state

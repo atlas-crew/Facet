@@ -1,0 +1,96 @@
+%% Integrations — every external system Facet touches.
+%% Date: 2026-05-09
+%% Trust zones: this codebase / browser APIs / spawned worker / external HTTP services / npm libs.
+
+graph LR
+    subgraph code["this codebase"]
+        X1["[X-1] utils/aiAccess.ts"]
+        X3["[X-3] utils/aiProxyErrors.ts"]
+        X5["[X-5] utils/deepSearchClient.streamDeepResearchJob"]
+        X7["[X-7] utils/deepSearchClient.createDeepResearchJob"]
+        X10["[X-10] utils/llmProxy.callLlmProxy"]
+        X11["[X-11] utils/llmProxy.fetchAiProxyCapabilities"]
+        X13["[X-13] persistence/indexedDb (open)"]
+        X15["[X-15] persistence/indexedDb (saveWorkspaceSnapshot)"]
+        X16["[X-16] persistence/fileSystemAccess (save)"]
+        X18["[X-18] persistence/fileSystemAccess (open)"]
+        X20["[X-20] persistence/remoteBackend (HTTP)"]
+        X22["[X-22] utils/hostedSession (Supabase auth)"]
+        X24["[X-24] utils/hostedAccountClient"]
+        X28["[X-28] hooks/usePdfPreview (worker spawn)"]
+        X32["[X-32] components/PdfPreview iframe"]
+        X34["[X-34] utils/resumeScanner/pdf"]
+        X36["[X-36] store/storage (Zustand persist)"]
+        X38["[X-38] utils/docxRenderer"]
+        X40["[X-40] utils/bundleExporter"]
+        X44["[X-44] utils/facetEnv"]
+        X26["[X-26] engine/typst.worker"]
+    end
+
+    subgraph workerZone["spawned worker"]
+        X27["[X-27] Typst (typst-ts WASM)"]
+    end
+
+    subgraph browser["browser APIs"]
+        X14["[X-14] IndexedDB"]
+        X17["[X-17] showSaveFilePicker"]
+        X19["[X-19] showOpenFilePicker"]
+        X29["[X-29] Web Worker postMessage"]
+        X31["[X-31] URL.createObjectURL"]
+        X33["[X-33] PDF viewer (iframe)"]
+        X37["[X-37] localStorage"]
+    end
+
+    subgraph external["external HTTP services"]
+        X2["[X-2] Anthropic API (via local proxy)"]
+        X6["[X-6] research jobs proxy (SSE stream)"]
+        X8["[X-8] research jobs proxy (POST)"]
+        X12["[X-12] proxy /capabilities"]
+        X21["[X-21] Facet hosted persistence backend (Supabase)"]
+        X23["[X-23] Supabase OAuth + session mgmt"]
+        X25["[X-25] Facet hosted account API"]
+    end
+
+    subgraph npm["npm libraries (process-internal but external code)"]
+        X35["[X-35] PDF.js (pdfjs-dist)"]
+        X39["[X-39] docx (DOCX generation)"]
+        X41["[X-41] JSZip"]
+    end
+
+    subgraph buildtime["build-time config"]
+        X45["[X-45] Vite env vars (VITE_*)"]
+    end
+
+    X1 -->|"AI access gate"| X10
+    X10 -->|"HTTPS POST /v1/messages"| X2
+    X11 -->|"GET /capabilities"| X12
+    X3 -->|"reads response.text()"| X2
+    X5 -->|"GET /research/jobs/:id/stream (SSE)"| X6
+    X7 -->|"POST /research/jobs"| X8
+
+    X13 -->|"globalThis.indexedDB.open"| X14
+    X15 -->|"transactional write"| X14
+    X16 -->|"showSaveFilePicker"| X17
+    X18 -->|"showOpenFilePicker"| X19
+    X20 -->|"PUT /workspaces/:id"| X21
+    X22 -->|"createClient + signInWithOAuth"| X23
+    X24 -->|"Bearer-token HTTP"| X25
+
+    X28 -->|"new Worker(typst.worker.ts)"| X26
+    X26 -->|"typst-ts snippet.pdf"| X27
+    X28 -->|"postMessage / onmessage"| X29
+    X28 -->|"createObjectURL(blob)"| X31
+    X32 -->|"<iframe src={blobUrl}>"| X33
+
+    X34 -->|"pdfjs.getDocument"| X35
+    X38 -->|"docx Document/Packer"| X39
+    X40 -->|"new JSZip()"| X41
+
+    X36 -->|"Zustand persist via storage"| X37
+
+    X44 -->|"resolves all env"| X45
+
+    classDef cited fill:#fff,stroke:#333,stroke-width:1px
+    classDef external fill:#f0f4ff,stroke:#3b6ea5,stroke-width:1px
+    class X1,X3,X5,X7,X10,X11,X13,X15,X16,X18,X20,X22,X24,X26,X28,X32,X34,X36,X38,X40,X44 cited
+    class X2,X6,X8,X12,X14,X17,X19,X21,X23,X25,X27,X29,X31,X33,X35,X37,X39,X41,X45 external

@@ -1,0 +1,90 @@
+%% UI Surfaces — route tree.
+%% Date: 2026-05-09
+%% 20 routes registered in router.tsx; 14 are in user-flow scope.
+%% Eager-loaded triad annotated.
+
+graph TD
+    U1["[U-1] Root route"]
+    U2["[U-2] AppShell (the only shell)"]
+    U1 --> U2
+
+    subgraph eager["Eager-loaded daily-driver triad"]
+        U5["[U-5] /build"]
+        U6["[U-6] BuildPage"]
+        U19["[U-19] /pipeline"]
+        U20["[U-20] PipelinePage"]
+        U34["[U-34] /recruiter"]
+        U35["[U-35] RecruiterPage"]
+    end
+
+    subgraph identity_route["Identity workspace"]
+        U7["[U-7] /identity"]
+        U8["[U-8] IdentityMapPage"]
+        U9["[U-9] /identity/import"]
+        U10["[U-10] IdentityPage"]
+        U11["[U-11] /identity/enrich"]
+        U12["[U-12] IdentityEnrichmentPage"]
+        U13["[U-13] /identity/enrich/$groupId/$skillName"]
+        U14["[U-14] IdentityEnrichmentSkillPage"]
+    end
+
+    subgraph search_match["Search + Match"]
+        U15["[U-15] /match"]
+        U16["[U-16] MatchPage"]
+        U17["[U-17] /research"]
+        U18["[U-18] ResearchPage"]
+    end
+
+    subgraph prep_routes["Prep"]
+        U26["[U-26] /prep"]
+        U27["[U-27] PrepPage"]
+        U28["[U-28] /prep/live"]
+        U29["[U-29] PrepLivePage"]
+    end
+
+    subgraph artifact_routes["Derived artifacts"]
+        U30["[U-30] /letters"]
+        U31["[U-31] LettersPage"]
+        U32["[U-32] /linkedin"]
+        U33["[U-33] LinkedInPage"]
+        U36["[U-36] /debrief"]
+        U37["[U-37] DebriefPage"]
+    end
+
+    U2 --> U5
+    U5 --> U6
+    U2 --> U19
+    U19 --> U20
+    U2 --> U34
+    U34 --> U35
+
+    U2 --> U7
+    U7 --> U8
+    U2 --> U9
+    U9 --> U10
+    U2 --> U11
+    U11 --> U12
+    U2 --> U13
+    U13 --> U14
+
+    U2 --> U15
+    U15 --> U16
+    U2 --> U17
+    U17 --> U18
+
+    U2 --> U26
+    U26 --> U27
+    U2 --> U28
+    U28 --> U29
+
+    U2 --> U30
+    U30 --> U31
+    U2 --> U32
+    U32 --> U33
+    U2 --> U36
+    U36 --> U37
+
+    classDef cited fill:#fff,stroke:#333,stroke-width:1px
+    classDef eager fill:#fdf6e3,stroke:#b58900,stroke-width:2px
+    class U1,U2,U7,U8,U9,U10,U11,U12,U13,U14,U15,U16,U17,U18,U26,U27,U28,U29,U30,U31,U32,U33,U36,U37 cited
+    class U5,U6,U19,U20,U34,U35 eager

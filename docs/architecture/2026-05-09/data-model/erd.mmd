@@ -1,0 +1,70 @@
+%% Data model — entities and relationships across the Facet user-flow scope.
+%% Date: 2026-05-09
+%% Callouts (M-N) carried in report.md; erDiagram syntax does not embed them.
+
+erDiagram
+    ProfessionalIdentityV3 ||--o{ ProfessionalRole : "contains"
+    ProfessionalIdentityV3 ||--o{ ProfessionalProject : "contains"
+    ProfessionalIdentityV3 ||--|| ProfessionalSkills : "has"
+    ProfessionalIdentityV3 ||--|| ProfessionalSelfModel : "has"
+    ProfessionalIdentityV3 ||--|| ProfessionalPreferences : "has"
+    ProfessionalIdentityV3 ||--|| ProfessionalIdentityCore : "has"
+    ProfessionalIdentityV3 ||--o{ ProfessionalSearchVector : "vectors"
+
+    ProfessionalRole ||--o{ ProfessionalRoleBullet : "bullets"
+    ProfessionalSkills ||--o{ ProfessionalSkillGroup : "groups"
+    ProfessionalSkillGroup ||--o{ ProfessionalSkillItem : "items"
+
+    ProfessionalSelfModel ||--o{ ProfessionalIdentityArcEntry : "arc"
+    ProfessionalSelfModel ||--o{ ProfessionalPhilosophyEntry : "philosophy"
+    ProfessionalSelfModel ||--|| ProfessionalInterviewStyle : "interview_style"
+
+    ProfessionalPreferences ||--|| ProfessionalCompensationPreferences : "compensation"
+    ProfessionalPreferences ||--|| ProfessionalWorkModelPreferences : "work_model"
+    ProfessionalPreferences ||--|| ProfessionalMatchingPreferences : "matching"
+    ProfessionalMatchingPreferences ||--o{ ProfessionalMatchingPriority : "prioritize"
+    ProfessionalMatchingPreferences ||--o{ ProfessionalMatchingAvoid : "avoid"
+
+    PipelineEntry }o--o| ProfessionalSearchVector : "vectorId"
+    PipelineEntry ||--o| JDAnalysis : "jdAnalysisId"
+    PipelineEntry ||--o| CoverLetter : "coverLetterId"
+    PipelineEntry ||--o{ PipelineRound : "interviewRounds"
+    PipelineEntry ||--o| PipelineResearchSnapshot : "research"
+    PipelineRound ||--o{ PipelineInterviewer : "interviewers"
+    PipelineInterviewer ||--o| PrepInterviewerIntel : "dossier"
+
+    JDAnalysis ||--o{ MatchRequirementCoverage : "requirements"
+    JDAnalysis ||--o{ SkillMatch : "skill_matches"
+    MatchRequirement ||--o{ MatchRequirementCoverage : "extends"
+
+    PrepDeck ||--o{ PrepCard : "cards"
+    PrepDeck }o--o| PipelineEntry : "pipelineEntryId"
+    PrepDeck }o--o| PipelineRound : "pipelineRoundId"
+    PrepDeck }o--o| JDAnalysis : "jdAnalysisId"
+    PrepDeck ||--o| PrepCompanyIntel : "companyIntel"
+    PrepCompanyIntel ||--o| PrepCompanyAiPosture : "aiPosture"
+
+    ResumeData ||--o{ ResumeVector : "vectors"
+    ResumeData ||--o{ RoleComponent : "roles"
+    ResumeData ||--o{ SkillGroupComponent : "skill_groups"
+    RoleComponent ||--o{ RoleBulletComponent : "bullets"
+
+    CoverLetter ||--o{ CoverLetterParagraph : "paragraphs"
+    CoverLetter }o--|| PipelineEntry : "pipelineEntryId"
+    CoverLetter }o--|| ResumeData : "sourceResumeId"
+    CoverLetter ||..|| CoverLetterContent : "extends"
+
+    DebriefSession }o--o| PipelineEntry : "pipelineEntryId"
+    DebriefSession ||--|| DebriefIdentityPatch : "identityDraft"
+    DebriefIdentityPatch ||--o{ DebriefIdentityBulletUpdate : "bulletUpdates"
+
+    SearchProfile ||--o{ SkillCatalogEntry : "skills"
+    SearchProfile ||--|| SearchProfileFilters : "filters"
+
+    AudienceTagged ||..|| MatchRequirement : "trait"
+    AudienceTagged ||..|| SkillMatch : "trait"
+    AudienceTagged ||..|| MatchAdvantage : "trait"
+
+    DurableMetadata ||..|| WorkspaceOwnership : "extends"
+    DurableMetadata ||..|| PipelineEntry : "stamps"
+    DurableMetadata ||..|| ResumeData : "stamps"

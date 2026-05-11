@@ -1,0 +1,43 @@
+%% Control flow — persistence coordinator state machine + LLM call lifecycle.
+%% Date: 2026-05-09
+
+stateDiagram-v2
+    [*] --> Idle: app construct
+
+    state "Persistence Coordinator" as Coord {
+        Idle --> Bootstrapping: bootstrap(workspaceId)
+        Bootstrapping --> Ready: snapshot loaded + normalized + validated
+        Bootstrapping --> Error: load fails
+        Bootstrapping --> Offline: load fails (FacetApiError code='offline')
+        Ready --> Saving: saveWorkspacePatch / importWorkspaceSnapshot
+        Saving --> Saved: backend write succeeds
+        Saving --> Error: backend write fails (non-offline)
+        Saving --> Offline: backend write fails (offline)
+        Saved --> Ready: next operation
+        Error --> Bootstrapping: retry bootstrap
+        Offline --> Bootstrapping: connectivity restored, retry
+    }
+
+    note right of Idle
+        [C-1] coordinator.ts:288
+        phase: 'idle'
+    end note
+    note right of Bootstrapping
+        [C-2] coordinator.ts:305
+    end note
+    note right of Ready
+        [C-3] coordinator.ts:319
+    end note
+    note right of Saving
+        [C-4] coordinator.ts:362
+    end note
+    note right of Saved
+        [C-5] coordinator.ts:379
+    end note
+    note right of Offline
+        [C-6] resolvePersistenceFailurePhase
+        coordinator.ts:122
+    end note
+    note right of Error
+        [C-9] coordinator.ts:329
+    end note

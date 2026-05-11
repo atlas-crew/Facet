@@ -1,0 +1,29 @@
+%% Sequence: Deep research job lifecycle — concurrent SSE stream + poll loop.
+
+sequenceDiagram
+    actor User
+    participant RP as "[C-38] ResearchPage addRun"
+    participant Job as "[C-22] createDeepResearchJob"
+    participant Poll as "[C-23] poll loop (back-off 2s/5s/15s/30s)"
+    participant SSE as "[C-24] streamDeepResearchJob"
+    participant Hyd as "[C-39] hydrateSearchRunFromResearchJob"
+    participant Term as "[C-25] terminal: clear timers"
+
+    User->>RP: submit thesis search
+    RP->>Job: POST /research/jobs
+    Job-->>RP: {jobId, status: 'queued'|'running'}
+    RP->>Poll: setActiveResearchJob, fire pollJob(0)
+    par concurrent
+        RP->>SSE: openResearchEventSource(jobId)
+        SSE-->>RP: SSE 'progress' / 'partial' events
+    and
+        Poll->>Poll: setTimeout(getResearchJobPollDelay(attempt))
+        Poll-->>RP: status updates
+    end
+    alt SSE 'complete' event
+        SSE->>Hyd: fetchDeepResearchJob → applyResearchJobUpdate
+    else poll detects terminal
+        Poll->>Hyd: fetchDeepResearchJob → applyResearchJobUpdate
+    end
+    Hyd->>Term: TERMINAL_RESEARCH_JOB_STATUSES.has(status)
+    Term->>Term: clearPollTimer + closeEventSource + setIsSearching(false)

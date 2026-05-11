@@ -1,0 +1,115 @@
+%% Information architecture — Facet user-flow scope (Identity → Search → Pipeline → Prep → Letters/Resume/Recruiter)
+%% Date: 2026-05-09
+%% Every node has a `path:line` citation in report.md.
+
+graph TD
+    subgraph entry["entry"]
+        I1["[I-1] main.tsx"]
+        I2["[I-2] router.tsx"]
+        I3["[I-3] AppShell"]
+    end
+
+    subgraph identity_pkg["src/identity/"]
+        I8["[I-8] schema.ts"]
+        I10["[I-10] resumeAdapter.ts"]
+        I9["[I-9] skillDedupe.ts"]
+    end
+
+    subgraph engine_pkg["src/engine/"]
+        I11["[I-11] assembler.ts"]
+        I13["[I-13] serializer.ts"]
+        I14["[I-14] pageBudget.ts"]
+        I15["[I-15] letterAssembler.ts"]
+    end
+
+    subgraph persist["src/persistence/"]
+        I16["[I-16] contracts.ts"]
+        I17["[I-17] snapshot.ts"]
+        I18["[I-18] coordinator.ts"]
+        I19["[I-19] runtime.ts"]
+        I41["[I-41] validation.ts"]
+        I42["[I-42] normalization.ts"]
+        I43["[I-43] coordinator pattern"]
+    end
+
+    subgraph stores["src/store/"]
+        I5["[I-5] identityStore"]
+        I6["[I-6] searchStore"]
+        I7["[I-7] pipelineStore"]
+        I20["[I-20] resumeStore"]
+        I21["[I-21] coverLetterStore"]
+        I22["[I-22] matchStore"]
+        I23["[I-23] jdAnalysisStore"]
+        I24["[I-24] linkedinStore"]
+        I25["[I-25] recruiterStore"]
+        I26["[I-26] debriefStore"]
+        I44["[I-44] prepStore"]
+    end
+
+    subgraph utils_pkg["src/utils/ (LLM generators + clients)"]
+        I28["[I-28] identityExtraction"]
+        I29["[I-29] jdAnalysis"]
+        I30["[I-30] coverLetterGenerator"]
+        I31["[I-31] prepGenerator"]
+        I32["[I-32] thesisGenerator"]
+        I33["[I-33] searchExecutor"]
+        I34["[I-34] deepSearchClient"]
+        I35["[I-35] debriefGenerator"]
+        I40["[I-40] identityMerge"]
+    end
+
+    subgraph routes_pkg["src/routes/"]
+        I36["[I-36] PipelinePage"]
+        I37["[I-37] LettersPage"]
+        I38["[I-38] PrepPage"]
+        I39["[I-39] ResearchPage"]
+    end
+
+    subgraph templates_pkg["src/templates/"]
+        I27["[I-27] registry.ts"]
+    end
+
+    I1 --> I2
+    I2 --> I3
+
+    I11 -->|imports| I14
+    I13 -->|imports| I8
+    I13 -->|imports| I10
+    I9 -->|imports| I8
+    I10 -->|imports| I8
+
+    I28 -->|imports| I8
+    I29 -->|imports| I8
+    I30 -->|imports| I8
+    I32 -->|imports| I8
+    I34 -->|imports| I8
+    I35 -->|imports| I8
+    I40 -->|imports| I8
+
+    I7 -->|imports| I5
+
+    I17 -->|imports| I21
+    I17 -->|imports| I16
+    I18 -->|imports| I16
+    I19 -->|imports| I5
+    I19 -->|imports| I18
+    I41 -->|imports| I16
+
+    I36 -->|imports| I7
+    I36 -->|imports| I29
+    I37 -->|imports| I21
+    I37 -->|imports| I30
+    I38 -->|imports| I31
+    I38 -->|imports| I7
+    I38 -->|imports| I44
+    I39 -->|imports| I5
+    I39 -->|imports| I32
+
+    I43 -.-> I17
+    I43 -.-> I18
+    I43 -.-> I19
+
+    classDef cited fill:#fff,stroke:#333,stroke-width:1px
+    classDef synthesized fill:#fff,stroke:#888,stroke-width:1px,stroke-dasharray:5
+    class I1,I2,I3,I5,I6,I7,I8,I9,I10,I11,I13,I14,I15,I16,I17,I18,I19,I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36,I37,I38,I39,I40,I41,I42,I44 cited
+    class I43 synthesized

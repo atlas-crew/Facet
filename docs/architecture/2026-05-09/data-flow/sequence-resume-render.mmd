@@ -1,0 +1,26 @@
+%% Sequence: Resume render lifecycle.
+%% From a user data/vector/override change to a rendered PDF blob URL.
+
+sequenceDiagram
+    actor User
+    participant BP as "[D-13] BuildPage"
+    participant ASM as "[D-14] assembler"
+    participant PB as "[D-15] pageBudget"
+    participant HK as "[D-16] usePdfPreview"
+    participant W as "[D-17] typst.worker"
+    participant Blob as "[D-18] Blob URL"
+
+    User->>BP: data / vector / overrides change
+    Note over BP: useMemo recomputes
+    BP->>ASM: assembleResume(data, options)
+    ASM->>PB: applyPageBudget(assembled, opts)
+    PB-->>ASM: AssemblyResult.resume
+    ASM-->>BP: AssemblyResult
+    BP->>HK: pass assembled to hook
+    Note over HK: 400ms debounce, generation++
+    HK->>W: postMessage({id, data, theme, fontFiles, template})
+    W->>W: snippet.pdf({mainContent, inputs})
+    W->>HK: postMessage({id, type:'success', bytes}, [bytes.buffer])
+    Note over HK: discard if id != current generation
+    HK->>Blob: URL.createObjectURL(blob)
+    Blob-->>User: rendered PDF in iframe

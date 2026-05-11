@@ -1,0 +1,26 @@
+%% Sequence: App-boot hydration flow (local mode).
+%% Hosted mode adds replacePersistenceRuntime steps before this sequence.
+
+sequenceDiagram
+    participant App as "[C-34] AppShell useEffect"
+    participant Re as "[C-7] runtime.start re-entry guard"
+    participant Boot as "[C-8] suppressSaves=true, coordinator.bootstrap"
+    participant Cb as "[C-2] coordinator: bootstrapping"
+    participant Cr as "[C-3] coordinator: ready"
+    participant Hyd as "[C-10] applyWorkspaceSnapshotToStores"
+    participant Sub as "[C-12] hydrated=true, installSubscriptions"
+
+    App->>Re: getPersistenceRuntime.start
+    alt first call
+        Re->>Boot: set starting promise, suppressSaves true
+        Boot->>Cb: coordinator.bootstrap workspaceId
+        Cb->>Cr: backend.loadWorkspaceSnapshot then normalize then validate
+        alt snapshot found
+            Cr->>Hyd: applyWorkspaceSnapshotToStores snapshot
+        else no snapshot - legacy users
+            Cr->>Hyd: hydrateStoresFromLegacyStorage then persistCurrentState
+        end
+        Hyd->>Sub: hydrated true, store.subscribe schedulePersist
+    else already started
+        Re-->>App: return existing started promise
+    end

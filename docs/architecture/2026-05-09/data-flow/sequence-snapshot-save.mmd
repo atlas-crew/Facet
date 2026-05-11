@@ -1,0 +1,24 @@
+%% Sequence: Snapshot save lifecycle (any store mutation).
+%% Models the cross-cutting persistence path that fires for every write.
+
+sequenceDiagram
+    participant Store as "Any Zustand store"
+    participant SP as "[D-30] schedulePersist (debounce 150ms)"
+    participant Run as "[D-31] persistCurrentState"
+    participant Snap as "[D-32] createWorkspaceSnapshotFromStores"
+    participant Coord as "[D-33] coordinator.importWorkspaceSnapshot"
+    participant Local as "[D-34] IndexedDB"
+    participant Remote as "[D-35] remoteBackend (hosted only)"
+
+    Store->>SP: subscribe callback fires on setState
+    Note over SP: clearTimeout + setTimeout(150ms)
+    SP->>Run: persistCurrentState() after debounce
+    Run->>Snap: coordinator.exportWorkspaceSnapshot({workspaceId, workspaceName})
+    Note over Snap: reads every persisted store
+    Snap-->>Run: FacetWorkspaceSnapshot envelope
+    Run->>Coord: coordinator.importWorkspaceSnapshot(currentSnapshot)
+    alt local mode
+        Coord->>Local: backend.saveWorkspaceSnapshot(resolved)
+    else hosted mode
+        Coord->>Remote: PUT /workspaces/:id with snapshot
+    end

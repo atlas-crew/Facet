@@ -1,0 +1,25 @@
+%% Sequence: Resume render lifecycle with debounce + generation guard.
+
+sequenceDiagram
+    actor User
+    participant H as "[C-27] usePdfPreview (400ms debounce)"
+    participant G as "[C-31] generation counter"
+    participant W as "[C-26] typst.worker (Worker)"
+    participant FC as "[C-33] getTypstSnippet (font cache)"
+    participant TS as "[C-28] snippet.pdf()"
+    participant Blob as "[C-29] Blob URL / preview state"
+
+    User->>H: resume/theme prop changes (useEffect re-runs)
+    H->>G: increment renderGenerationRef, clearTimeout
+    H->>W: setTimeout(400ms) → postMessage({id:generation, ...})
+    W->>FC: getTypstSnippet(fontFiles) — Promise.all font fetches
+    FC-->>W: cached snippet
+    W->>TS: snippet.pdf({mainContent, inputs})
+    TS-->>W: Uint8Array bytes
+    W->>H: postMessage({id, type:'success', bytes}, [bytes.buffer])
+    H->>G: check id === renderGenerationRef.current
+    alt id matches
+        H->>Blob: createObjectURL(blob), revoke previous, setPreviewBlobUrl
+    else id stale
+        Note over H: discard, don't update preview
+    end

@@ -1,0 +1,105 @@
+%% Data flow — steady-state pipeline through Facet's user flow.
+%% Date: 2026-05-09
+%% Six critical paths: identity extraction, search→pipeline, JD analysis,
+%% pipeline→prep, resume assembly, cover letter, persistence.
+
+flowchart LR
+    subgraph extract["Identity Extraction"]
+        D1["[D-1] IdentityPage handler"]
+        D2["[D-2] generateIdentityDraft<br/>(callLlmProxy)"]
+        D3["[D-3] parseIdentityExtractionResponse"]
+        D4["[D-4] normalizeExtractedIdentityCandidate"]
+        D5["[D-5] mergeSeededIdentityStructure"]
+        D6["[D-6] identityStore.setDraft"]
+        D8["[D-8] applyDraft → currentIdentity"]
+    end
+
+    subgraph adapt["Identity → Resume"]
+        D10["[D-10] handlePushToBuild"]
+        D11["[D-11] professionalIdentityToResumeData"]
+        D12["[D-12] resumeStore.setData"]
+    end
+
+    subgraph assemble["Resume Assembly"]
+        D13["[D-13] BuildPage useMemo"]
+        D14["[D-14] assembleResume"]
+        D15["[D-15] applyPageBudget"]
+        D16["[D-16] usePdfPreview postMessage"]
+        D17["[D-17] typst.worker"]
+        D18["[D-18] Blob URL"]
+        D19[("[D-19] PdfPreview iframe")]
+    end
+
+    subgraph search["Search → Pipeline"]
+        D20["[D-20] ResearchPage handler"]
+        D21["[D-21] createPipelineEntryDraft"]
+        D22["[D-22] pipelineStore.addEntry"]
+        D23[("[D-23] pipelineStore.entries")]
+    end
+
+    subgraph jd["JD Analysis"]
+        D24["[D-24] jdAnalysisStore.upsertAnalysis"]
+    end
+
+    subgraph prep["Pipeline → Prep"]
+        D25["[D-25] PrepPage.createDeck"]
+        D26["[D-26] prepStore.createDeck"]
+    end
+
+    subgraph cover["Cover Letter"]
+        D28["[D-28] generateCoverLetter"]
+        D29["[D-29] coverLetterStore.upsertLetterForPipelineEntry"]
+    end
+
+    subgraph persist["Persistence Lifecycle"]
+        D30["[D-30] schedulePersist (150ms)"]
+        D31["[D-31] persistCurrentState"]
+        D32["[D-32] createWorkspaceSnapshotFromStores"]
+        D33["[D-33] coordinator.importWorkspaceSnapshot"]
+        D34[("[D-34] IndexedDB")]
+        D35[("[D-35] remoteBackend (hosted)")]
+    end
+
+    D1 -->|"sourceMaterial"| D2
+    D2 -->|"raw LLM JSON"| D3
+    D3 --> D4
+    D4 --> D5
+    D5 -->|"IdentityExtractionDraft"| D6
+    D6 -->|"applyDraft()"| D8
+    D8 -->|"currentIdentity"| D10
+    D10 -->|"professionalIdentityToResumeData"| D11
+    D11 -->|"ResumeData"| D12
+
+    D12 --> D13
+    D13 -->|"assembleResume(data)"| D14
+    D14 -->|"AssembledResume"| D15
+    D15 -->|"AssemblyResult"| D16
+    D16 -->|"postMessage"| D17
+    D17 -->|"PDF bytes"| D18
+    D18 --> D19
+
+    D20 -->|"SearchResultEntry"| D21
+    D21 -->|"PipelineEntry draft"| D22
+    D22 --> D23
+    D23 -.->|"read at deck creation"| D25
+    D24 -.->|"jdAnalysisId stored"| D22
+
+    D25 --> D26
+
+    D28 -->|"CoverLetterGenerationResult"| D29
+
+    D6 -.->|"mutation"| D30
+    D12 -.->|"mutation"| D30
+    D22 -.->|"mutation"| D30
+    D24 -.->|"mutation"| D30
+    D26 -.->|"mutation"| D30
+    D29 -.->|"mutation"| D30
+
+    D30 -->|"after debounce"| D31
+    D31 --> D32
+    D32 -->|"FacetWorkspaceSnapshot"| D33
+    D33 --> D34
+    D33 -.->|"hosted mode"| D35
+
+    classDef cited fill:#fff,stroke:#333,stroke-width:1px
+    class D1,D2,D3,D4,D5,D6,D8,D10,D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,D21,D22,D23,D24,D25,D26,D28,D29,D30,D31,D32,D33,D34,D35 cited

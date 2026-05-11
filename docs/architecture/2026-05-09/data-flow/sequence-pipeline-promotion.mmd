@@ -1,0 +1,24 @@
+%% Sequence: Search opportunity → Pipeline entry promotion + persistence.
+
+sequenceDiagram
+    actor User
+    participant RP as "[D-20] ResearchPage"
+    participant DR as "[D-21] createPipelineEntryDraft"
+    participant PS as "[D-22] pipelineStore.addEntry"
+    participant SP as "[D-30] schedulePersist (150ms)"
+    participant Run as "[D-31] persistCurrentState"
+    participant Snap as "[D-32] createWorkspaceSnapshotFromStores"
+    participant DB as "[D-34] IndexedDB"
+
+    User->>RP: click "Push to Pipeline"
+    RP->>DR: createPipelineEntryDraft(entry, vectorId)
+    DR-->>RP: PipelineEntry draft
+    RP->>PS: addPipelineEntry(pipelineEntry)
+    Note over PS: Zustand mutation triggers subscribe()
+    PS->>SP: schedulePersist()
+    Note over SP: clearSaveTimer + setTimeout(150ms)
+    SP->>Run: persistCurrentState()
+    Run->>Snap: coordinator.exportWorkspaceSnapshot()
+    Snap-->>Run: FacetWorkspaceSnapshot
+    Run->>DB: backend.saveWorkspaceSnapshot(snapshot)
+    DB-->>Run: persisted
