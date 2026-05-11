@@ -740,7 +740,7 @@ describe('thesisGenerator', () => {
     expect(violations).toEqual(
       expect.arrayContaining([
         'narrative: expected 3-5 paragraphs with at least 240 characters',
-        'competitiveMoat: missing or too short',
+        'competitiveMoat: too short — author at least 40 characters on Identity → Self Model',
         'searchLanes[0].rationale: expected prose rationale with at least 2 sentences',
         'skillDepthMap: expected at least one skill-depth entry',
         'skillDepthMap: missing identity skills: Kubernetes',

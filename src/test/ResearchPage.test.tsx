@@ -701,9 +701,7 @@ describe('ResearchPage', () => {
     fireEvent.change(narrative, {
       target: { value: 'Edited thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.' },
     })
-    fireEvent.change(screen.getByLabelText('Advantage 1 combination'), {
-      target: { value: 'Deployment architecture plus product judgment' },
-    })
+    // Unfair advantages are now identity-canonical (read-only in research). Edited on Identity → Self Model.
     fireEvent.change(screen.getByLabelText('Interview strategy'), {
       target: { value: 'Open with tradeoffs, then map evidence to platform leverage.' },
     })
@@ -747,9 +745,6 @@ describe('ResearchPage', () => {
     expect(savedThesis).toMatchObject({
       source: 'user-edited',
       narrative: 'Edited thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
-      unfairAdvantages: [
-        expect.objectContaining({ combination: 'Deployment architecture plus product judgment' }),
-      ],
       interviewStrategy: 'Open with tradeoffs, then map evidence to platform leverage.',
       lookFor: [
         expect.objectContaining({ label: 'platform modernization' }),
@@ -2281,55 +2276,9 @@ describe('ResearchPage', () => {
     })
   })
 
-  it('adds and removes unfair advantage rows with stable ids', async () => {
-    const thesis = buildTestThesis({
-      id: 'thesis-advantage-crud',
-      unfairAdvantages: [
-        {
-          id: 'sadv-original',
-          combination: 'Original combination',
-          targetCompanyProfile: 'Original target company profile',
-        },
-      ],
-    })
-    useSearchStore.setState((state) => ({
-      ...state,
-      theses: [thesis],
-      activeThesisId: thesis.id,
-    }))
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Add advantage' }))
-    fireEvent.change(screen.getByLabelText('Advantage 2 combination'), {
-      target: { value: 'New combination' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
-
-    await waitFor(() => {
-      expect(useSearchStore.getState().theses[0]?.unfairAdvantages).toHaveLength(2)
-    })
-    expect(useSearchStore.getState().theses[0]?.unfairAdvantages[1]).toMatchObject({
-      id: expect.stringMatching(/^sadv-/),
-      combination: 'New combination',
-      targetCompanyProfile: 'Describe the target company profile',
-    })
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove advantage' })[1]!)
-    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
-
-    await waitFor(() => {
-      expect(useSearchStore.getState().theses[0]?.unfairAdvantages).toEqual([
-        {
-          id: 'sadv-original',
-          combination: 'Original combination',
-          targetCompanyProfile: 'Original target company profile',
-        },
-      ])
-    })
-  })
+  // Removed: 'adds and removes unfair advantage rows with stable ids'.
+  // Unfair advantages are now identity-canonical (Self Model band on Identity).
+  // Research displays them read-only and snapshots from identity at thesis-gen time.
 
   it('removes a keyword combination directly without disturbing siblings', async () => {
     const thesis = buildTestThesis({

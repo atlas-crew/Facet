@@ -181,13 +181,14 @@ export function buildStaleSelectionNotice(selection: MapSelection | null): strin
  * and the page honors them independently (selection drives the inspector;
  * focus drives the scroll position on mount).
  */
-export const IDENTITY_BAND_FOCUS_VALUES = ['preferences'] as const
+export const IDENTITY_BAND_FOCUS_VALUES = ['preferences', 'self-model'] as const
 export type IdentityBandFocus = (typeof IDENTITY_BAND_FOCUS_VALUES)[number]
 
 const IDENTITY_BAND_FOCUS_SET: ReadonlySet<string> = new Set(IDENTITY_BAND_FOCUS_VALUES)
 
 const BAND_FOCUS_TO_DATA_LAYER: Record<IdentityBandFocus, string> = {
   preferences: 'prefs',
+  'self-model': 'self',
 }
 
 export function validateBandFocus(value: string | undefined | null): IdentityBandFocus | null {

@@ -1744,55 +1744,11 @@ export function ResearchPage() {
     setThesisDraftIsDirty(true)
   }
 
-  const updateThesisAdvantage = (
-    index: number,
-    patch: Partial<SearchThesis['unfairAdvantages'][number]>,
-  ) => {
-    setThesisDraft((current) =>
-      current
-        ? {
-            ...current,
-            unfairAdvantages: current.unfairAdvantages.map((advantage, advantageIndex) =>
-              advantageIndex === index ? { ...advantage, ...patch } : advantage,
-            ),
-          }
-        : current,
-    )
-    setThesisDraftIsDirty(true)
-  }
-
-  const addThesisAdvantage = () => {
-    setThesisDraft((current) =>
-      current
-        ? {
-            ...current,
-            unfairAdvantages: [
-              ...current.unfairAdvantages,
-              {
-                id: createId('sadv'),
-                combination: 'New advantage combination',
-                targetCompanyProfile: 'Describe the target company profile',
-              },
-            ],
-          }
-        : current,
-    )
-    setThesisDraftIsDirty(true)
-  }
-
-  const removeThesisAdvantage = (index: number) => {
-    setThesisDraft((current) =>
-      current
-        ? {
-            ...current,
-            unfairAdvantages: current.unfairAdvantages.filter(
-              (_, advantageIndex) => advantageIndex !== index,
-            ),
-          }
-        : current,
-    )
-    setThesisDraftIsDirty(true)
-  }
+  // Moat + advantages editing moved to identity (Self Model band). Research
+  // displays them read-only as snapshots from the active thesis; the canonical
+  // source is identity, and the regenerate cycle re-snapshots them onto each
+  // new thesis at gen time. (Removed handlers: updateThesisAdvantage,
+  // addThesisAdvantage, removeThesisAdvantage.)
 
   const addThesisAvoid = () => {
     setThesisDraft((current) =>
@@ -3372,18 +3328,34 @@ export function ResearchPage() {
                     />
                   </label>
 
-                  <label className="research-field research-field-span">
-                    <span>Competitive moat</span>
-                    <textarea
-                      className="research-textarea"
-                      rows={3}
-                      aria-label="Competitive moat"
-                      value={thesisDraft.competitiveMoat}
-                      onChange={(event) =>
-                        updateThesisDraft({ competitiveMoat: event.target.value })
-                      }
-                    />
-                  </label>
+                  <div className="research-field research-field-span">
+                    <div className="research-summary-header">
+                      <span>Competitive moat</span>
+                      <button
+                        type="button"
+                        className="research-btn research-btn-link"
+                        onClick={() =>
+                          void navigate({
+                            to: '/identity',
+                            search: { focus: 'self-model', return: '/research' },
+                          })
+                        }
+                      >
+                        Edit on Identity →
+                      </button>
+                    </div>
+                    {thesisDraft.competitiveMoat ? (
+                      <p className="research-summary-text">{thesisDraft.competitiveMoat}</p>
+                    ) : (
+                      <p className="research-muted">
+                        No competitive moat captured on Identity yet. Edit on Identity → Self Model,
+                        then regenerate this thesis to surface it here.
+                      </p>
+                    )}
+                    <p className="research-muted research-summary-meta">
+                      Sourced from your Self Model. Snapshotted at thesis generation time.
+                    </p>
+                  </div>
 
                   <label className="research-field research-field-span">
                     <span>Interview strategy</span>
@@ -3485,55 +3457,45 @@ export function ResearchPage() {
                   </label>
                 </div>
 
-                <section className="research-stack" aria-label="Thesis unfair advantages">
+                <section className="research-stack" aria-label="Unfair advantages">
                   <div className="research-vector-card-header">
                     <h3 className="research-subtitle">Unfair advantages</h3>
-                    <button type="button" className="research-btn" onClick={addThesisAdvantage}>
-                      Add advantage
+                    <button
+                      type="button"
+                      className="research-btn research-btn-link"
+                      onClick={() =>
+                        void navigate({
+                          to: '/identity',
+                          search: { focus: 'self-model', return: '/research' },
+                        })
+                      }
+                    >
+                      Edit on Identity →
                     </button>
                   </div>
                   {thesisDraft.unfairAdvantages.length === 0 ? (
-                    <p className="research-muted">No advantage cards yet.</p>
+                    <p className="research-muted">
+                      No unfair advantages captured on Identity yet. Edit on Identity → Self Model,
+                      then regenerate to expand each into a target-company-profile lens for this thesis.
+                    </p>
                   ) : (
-                    thesisDraft.unfairAdvantages.map((advantage, index) => (
-                      <div key={advantage.id} className="research-thesis-editor-card">
-                        <div className="research-form-grid">
-                          <label className="research-field">
-                            <span>Combination</span>
-                            <input
-                              className="research-input"
-                              aria-label={`Advantage ${index + 1} combination`}
-                              value={advantage.combination}
-                              onChange={(event) =>
-                                updateThesisAdvantage(index, { combination: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field research-field-span">
-                            <span>Target company profile</span>
-                            <textarea
-                              className="research-textarea"
-                              rows={2}
-                              aria-label={`Advantage ${index + 1} target company profile`}
-                              value={advantage.targetCompanyProfile}
-                              onChange={(event) =>
-                                updateThesisAdvantage(index, {
-                                  targetCompanyProfile: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-                        <button
-                          type="button"
-                          className="research-btn research-btn-danger"
-                          onClick={() => removeThesisAdvantage(index)}
-                        >
-                          Remove advantage
-                        </button>
-                      </div>
-                    ))
+                    <ul className="research-summary-list">
+                      {thesisDraft.unfairAdvantages.map((advantage) => (
+                        <li key={advantage.id} className="research-summary-advantage">
+                          <strong className="research-summary-advantage-combination">
+                            {advantage.combination}
+                          </strong>
+                          <p className="research-summary-advantage-context">
+                            {advantage.targetCompanyProfile}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
                   )}
+                  <p className="research-muted research-summary-meta">
+                    Sourced from your Self Model strings; expanded at generation time.
+                    Snapshotted to this thesis.
+                  </p>
                 </section>
 
                 <section className="research-stack" aria-label="Thesis search lanes">

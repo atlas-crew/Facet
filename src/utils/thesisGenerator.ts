@@ -473,12 +473,18 @@ export function normalizeGeneratedSearchThesis(
     feedbackEventIds.has(id),
   )
   const directiveTrimmed = context.customDirective?.trim()
+  // competitiveMoat is identity-canonical (per audit A-thesis-narrative-fields):
+  // sourced from `identity.self_model.competitive_moat` at thesis-build time
+  // and snapshotted onto the thesis so historical theses reflect what was true
+  // at run time. The LLM does NOT generate it; any value in `record.competitiveMoat`
+  // is ignored.
+  const competitiveMoat = normalizeString(identity.self_model?.competitive_moat ?? '')
   return {
     id: normalizeString(record.id) || createId('sthesis'),
     createdAt: normalizeString(record.createdAt) || createdAt,
     updatedAt: normalizeString(record.updatedAt) || createdAt,
     narrative: normalizeString(record.narrative),
-    competitiveMoat: normalizeString(record.competitiveMoat),
+    competitiveMoat,
     unfairAdvantages: normalizeUnfairAdvantages(record.unfairAdvantages),
     searchLanes: lanes,
     interviewStrategy: normalizeString(record.interviewStrategy),
@@ -504,8 +510,11 @@ export function validateSearchThesis(
   if (thesis.narrative.length < 240 || paragraphCount(thesis.narrative) < 3) {
     violations.push('narrative: expected 3-5 paragraphs with at least 240 characters')
   }
-  if (!thesis.competitiveMoat || thesis.competitiveMoat.length < 40) {
-    violations.push('competitiveMoat: missing or too short')
+  // competitiveMoat is identity-canonical (sourced from identity.self_model.competitive_moat).
+  // An empty moat is a legitimate "not authored yet" state, not a contract violation.
+  // We only flag a moat that was authored too tersely.
+  if (thesis.competitiveMoat && thesis.competitiveMoat.length < 40) {
+    violations.push('competitiveMoat: too short — author at least 40 characters on Identity → Self Model')
   }
   if (thesis.searchLanes.length === 0) {
     violations.push('searchLanes: expected at least one strategic lane')
@@ -581,8 +590,7 @@ export async function generateSearchThesisFromIdentity(
     'Response schema:',
     '{',
     '  "narrative": "3-5 paragraphs weaving moat -> unfair advantages -> search lanes -> signals",',
-    '  "competitiveMoat": "specific strategic moat",',
-    '  "unfairAdvantages": [{ "combination": "string", "targetCompanyProfile": "string" }],',
+    '  "unfairAdvantages": [{ "combination": "expanded from identity.self_model.unfair_advantages[i]", "targetCompanyProfile": "search-stage description of what kind of company values this combination" }],',
     '  "searchLanes": [{ "id": "optional", "title": "string", "rationale": "2+ sentence prose", "competitiveContext": "optional prose", "targetSignals": ["string"] }],',
     '  "interviewStrategy": "string",',
     '  "lookFor": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }],',
@@ -602,6 +610,8 @@ export async function generateSearchThesisFromIdentity(
     'Contract:',
     '- narrative must be 3-5 paragraphs, not bullets.',
     '- every lane rationale must be prose, not fragments.',
+    '- competitiveMoat is sourced from identity.self_model.competitive_moat at thesis-build time. Do NOT emit it in the response; the orchestrator copies it directly. The narrative still references the moat verbatim.',
+    '- For each string in identity.self_model.unfair_advantages[], emit exactly one `unfairAdvantages` entry: keep `combination` as the user-authored phrase verbatim, derive a per-search `targetCompanyProfile` (the kind of company that would specifically value this combination for this lane). Do not invent new advantages beyond what identity declared.',
     '- use lookFor/avoid for search-stage signals; do not emit duplicate searchOverrides.filters.',
     '- signal severity is hard for non-negotiable constraints, conditional when a qualifier matters, and soft for preferences.',
     '- cover every user skill unless the identity explicitly marks it irrelevant or avoid (emit each as a `skillDepthMap` entry; depth/context/searchSignal will be sourced from identity).',
