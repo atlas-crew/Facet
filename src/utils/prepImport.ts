@@ -6,7 +6,11 @@ import type {
   PrepNumbersToKnow,
   PrepStackAlignmentRow,
 } from '../types/prep'
-import { isPrepStackAlignmentConfidence, resolvePrepCardKind } from '../types/prep'
+import {
+  isPrepStackAlignmentConfidence,
+  parsePrepScriptKind,
+  resolvePrepCardKind,
+} from '../types/prep'
 import { createId } from './idUtils'
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -175,6 +179,7 @@ function validateCard(raw: unknown): PrepCard | null {
     pipelineEntryId: str(c.pipelineEntryId) ?? null,
     updatedAt: str(c.updatedAt),
     script: str(c.script),
+    scriptKind: parsePrepScriptKind(c.scriptKind),
     warning: str(c.warning),
     followUps: followUps && followUps.length > 0 ? followUps : undefined,
     deepDives: deepDives && deepDives.length > 0 ? deepDives : undefined,

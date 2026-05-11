@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PREP_CARD_KIND_VALUES,
   PREP_CONTRACT_VIOLATION_KINDS,
+  PREP_SCRIPT_KIND_VALUES,
   isAnchorCard,
   isCloserCard,
   isDeepDiveCard,
@@ -9,10 +10,12 @@ import {
   isIntelCard,
   isOpenerCard,
   isPrepCardKind,
+  isPrepScriptKind,
   isReferenceCard,
   isScenarioCard,
   isStoryCard,
   parsePrepCardKind,
+  parsePrepScriptKind,
   resolvePrepCardKind,
 } from '../types/prep'
 import type { PrepCard, PrepCardKind } from '../types/prep'
@@ -60,6 +63,22 @@ describe('prep card kind helpers', () => {
     expect(parsePrepCardKind('  story\n')).toBe('story')
     expect(parsePrepCardKind('STORY')).toBeUndefined()
     expect(parsePrepCardKind(123)).toBeUndefined()
+  })
+
+  it('validates and parses explicit script kind values', () => {
+    expect(PREP_SCRIPT_KIND_VALUES).toEqual([
+      'opener',
+      'honest-bridge',
+      'closer',
+      'line-that-lands',
+      'pivot',
+    ])
+    expect(isPrepScriptKind('honest-bridge')).toBe(true)
+    expect(isPrepScriptKind(' honest-bridge ')).toBe(false)
+    expect(isPrepScriptKind('HONEST-BRIDGE')).toBe(false)
+    expect(parsePrepScriptKind('  line-that-lands\n')).toBe('line-that-lands')
+    expect(parsePrepScriptKind('line_that_lands')).toBeUndefined()
+    expect(parsePrepScriptKind(null)).toBeUndefined()
   })
 
   it('infers missing legacy card kinds in priority order', () => {

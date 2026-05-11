@@ -41,6 +41,7 @@ import {
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_INTERVIEWER_LIKELY_ROLE_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
+  parsePrepScriptKind,
   isPrepStackAlignmentConfidence,
   resolvePrepCardKind,
 } from '../types/prep'
@@ -220,6 +221,7 @@ function createEmptyCard(
     interviewerIds: sanitizeIdentifierList(partial.interviewerIds),
     updatedAt: now(),
     script: sanitizeText(partial.script, options),
+    scriptKind: parsePrepScriptKind(partial.scriptKind),
     scriptLabel: sanitizeText(partial.scriptLabel, options),
     pushbackScript: sanitizeText(partial.pushbackScript, options),
     pushbackLabel: sanitizeText(partial.pushbackLabel, options),
@@ -897,7 +899,13 @@ function cardWithKind(base: PrepCardBase, kind: PrepCardKind): PrepCard {
 function applyCardPatch(deckId: string, card: PrepCard, patch: PrepCardPatch): PrepCard {
   // Legacy/runtime callers can still provide prohibited identity fields; updateCard keeps them pinned.
   const runtimePatch = patch as PrepCardPatch & { id?: unknown; deckId?: unknown }
-  const { id: _ignoredId, deckId: _ignoredDeckId, kind: patchKind, ...safePatch } = runtimePatch
+  const {
+    id: _ignoredId,
+    deckId: _ignoredDeckId,
+    kind: patchKind,
+    scriptKind: patchScriptKind,
+    ...safePatch
+  } = runtimePatch
   const mergedCard = {
     ...card,
     ...safePatch,
@@ -905,7 +913,13 @@ function applyCardPatch(deckId: string, card: PrepCard, patch: PrepCardPatch): P
     deckId: card.deckId ?? deckId,
   }
   const kind = resolvePrepCardKind(patchKind ?? card.kind, mergedCard) ?? card.kind
-  return cardWithKind({ ...mergedCard, updatedAt: now() }, kind)
+  const hasScriptKindPatch = 'scriptKind' in runtimePatch
+  const scriptKind = hasScriptKindPatch
+    ? patchScriptKind === undefined || patchScriptKind === null
+      ? undefined
+      : parsePrepScriptKind(patchScriptKind)
+    : card.scriptKind
+  return cardWithKind({ ...mergedCard, scriptKind, updatedAt: now() }, kind)
 }
 
 function shouldKeepStudyProgressEntry(

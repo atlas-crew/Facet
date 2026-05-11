@@ -325,6 +325,9 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('categoryGuidance')
     expect(systemPrompt).toContain('"rules"')
     expect(systemPrompt).toContain('conditionals')
+    expect(systemPrompt).toContain(
+      '"scriptKind": "optional opener|honest-bridge|closer|line-that-lands|pivot"',
+    )
 
     expect(userPrompt).toContain('Structured Identity Context')
     expect(userPrompt).toContain('Structured Pipeline Entry Context')
@@ -476,6 +479,10 @@ describe('generateInterviewPrep', () => {
       'Generate dedicated opener cards for the predictable opening questions',
     )
     expect(userPrompt).toContain('Always include a "Tell me about yourself" opener card')
+    expect(userPrompt).toContain('set scriptKind to "opener"')
+    expect(userPrompt).toContain('provide scriptKind as the structural role')
+    expect(userPrompt).toContain('"line-that-lands"')
+    expect(userPrompt).toContain('set scriptKind to "honest-bridge"')
     expect(userPrompt).toContain('make the "Tell me about yourself" opener a 3-act career arc')
     expect(userPrompt).toContain('union of distinct sourceLabel values')
     expect(userPrompt).toContain('one "note" thesis')
@@ -1179,6 +1186,252 @@ describe('generateInterviewPrep', () => {
     expect(result.stackAlignment).toBeUndefined()
   })
 
+  it('infers structural script kinds for opener, one-liner, and closer scripts', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            kind: 'opener',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems for teams that need calm releases.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            title: 'Platform adoption takeaway',
+            tags: ['adoption'],
+            scriptLabel: 'The One-Liner',
+            script:
+              'I make platform changes stick by making the migration easier than the old path.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'closer',
+            title: 'Close the round',
+            tags: ['closer'],
+            scriptLabel: 'Closing Takeaway',
+            script: 'The thread across my work is turning operational pain into calmer systems.',
+          },
+          {
+            category: 'technical',
+            kind: 'story',
+            scriptKind: 'pivot',
+            title: 'Bridge this gap without overclaiming',
+            tags: ['gap-framing'],
+            script: 'I would pivot from the gap to the transferable systems pattern.',
+          },
+          {
+            category: 'situational',
+            kind: 'story',
+            title: 'Reframe the risk question',
+            tags: ['risk'],
+            script: 'Pivot back to the strongest evidence before answering the edge case.',
+          },
+          {
+            category: 'technical',
+            kind: 'story',
+            title: 'Bridge this gap without a canonical tag',
+            tags: ['risk'],
+            script: 'Bridge this gap by naming the adjacent platform proof first.',
+          },
+          {
+            category: 'technical',
+            kind: 'story',
+            title: 'Honest bridge for missing depth',
+            tags: ['risk'],
+            script: 'Use an honest bridge before naming the ramp plan.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            title: 'End with the migration summary',
+            tags: ['migration'],
+            script: 'Wrap-up by connecting the migration decision to the business outcome.',
+          },
+          {
+            category: 'situational',
+            kind: 'story',
+            title: 'Move from risk to evidence',
+            tags: ['risk'],
+            script: 'Transition from the risk question to the strongest operational evidence.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            title: 'Detailed project story',
+            tags: ['delivery'],
+            script: 'I led a multi-team migration by sequencing the highest-risk dependency first.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards.slice(0, 10).map((card) => [card.title, card.scriptKind])).toEqual([
+      ['Tell me about yourself', 'opener'],
+      ['Platform adoption takeaway', 'line-that-lands'],
+      ['Close the round', 'closer'],
+      ['Bridge this gap without overclaiming', 'pivot'],
+      ['Reframe the risk question', 'pivot'],
+      ['Bridge this gap without a canonical tag', 'honest-bridge'],
+      ['Honest bridge for missing depth', 'honest-bridge'],
+      ['End with the migration summary', 'closer'],
+      ['Move from risk to evidence', 'pivot'],
+      ['Detailed project story', undefined],
+    ])
+  })
+
+  it('reports invalid model-provided scriptKind values', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'opener',
+            kind: 'opener',
+            scriptKind: 'speech',
+            title: 'Tell me about yourself',
+            tags: ['intro'],
+            script: 'I build reliable systems.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            scriptKind: 42,
+            title: 'Leadership story',
+            tags: ['leadership'],
+            script: 'I led the release by sequencing the riskiest migration first.',
+          },
+          {
+            category: 'behavioral',
+            kind: 'story',
+            scriptKind: null,
+            title: 'Strategy story',
+            tags: ['strategy'],
+            script: 'I sequenced the rollout around the highest-risk dependency first.',
+          },
+          {
+            category: 'situational',
+            kind: 'story',
+            scriptKind: '   ',
+            title: 'Pivot story',
+            tags: ['pivot'],
+            script: 'Pivot back to the strongest evidence.',
+          },
+          {
+            category: 'situational',
+            kind: 'story',
+            scriptKind:
+              'not-a-real-script-kind-value-that-is-long-enough-to-trigger-the-log-truncation-branch',
+            title: 'Long invalid script kind',
+            tags: ['pivot'],
+            script: 'Pivot back to the strongest evidence.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'cards[0].scriptKind',
+          kind: 'invalid-field',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          field: 'cards[1].scriptKind',
+          kind: 'invalid-field',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          field: 'cards[3].scriptKind',
+          kind: 'invalid-field',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          field: 'cards[4].scriptKind',
+          kind: 'invalid-field',
+          message: expect.stringContaining(
+            'not-a-real-script-kind-value-that-is-long-enough-to-trigger-t...',
+          ),
+          severity: 'error',
+        }),
+      ]),
+    )
+    expect(result.contractViolations).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'cards[2].scriptKind',
+        }),
+      ]),
+    )
+    expect(result.cards[0].scriptKind).toBe('opener')
+    expect(result.cards[0].scriptKind).not.toBe('speech')
+  })
+
+  it('infers honest-bridge script kind from smart-quote gap titles', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'technical',
+            kind: 'story',
+            title: 'What you know, what you don’t: GovCloud',
+            tags: ['transferable-experience'],
+            script: 'I want to be direct: I have not shipped GovCloud directly yet.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards[0].scriptKind).toBe('honest-bridge')
+  })
+
   it('repairs malformed JSON when the model drops a closing array bracket near the end', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       '<result>\n{"deckTitle":"Acme Staff Engineer Prep","companyResearchSummary":"Acme is scaling carefully.","cards":[{"category":"opener","kind":"opener","title":"Tell me about yourself","tags":["intro"],"script":"I build reliable systems.","keyPoints":["Lead with platform depth","Close with outcomes"}]}\n</result>',
@@ -1254,6 +1507,15 @@ describe('generateInterviewPrep', () => {
 
     expect(landmineCards).toHaveLength(3)
     expect(intelCards).toHaveLength(1)
+    expect(
+      landmineCards.find((card) => card.title === 'Landmine: give a generic why this role answer')
+        ?.scriptKind,
+    ).toBe('opener')
+    expect(
+      landmineCards
+        .filter((card) => card.title !== 'Landmine: give a generic why this role answer')
+        .every((card) => card.scriptKind === undefined),
+    ).toBe(true)
   })
 
   it('adds fallback technical gap-framing cards when alignment shows gaps and the model omits them', async () => {
@@ -1306,6 +1568,7 @@ describe('generateInterviewPrep', () => {
       title: "What you know, what you don't: GovCloud",
       notes: 'I have not shipped GovCloud directly yet.',
       scriptLabel: 'Bridge This Gap',
+      scriptKind: 'honest-bridge',
       warning: 'Do not imply direct GovCloud ownership. Lean on the transferable proof instead.',
       source: 'ai',
     })
@@ -1430,6 +1693,97 @@ describe('generateInterviewPrep', () => {
     expect(result.cards).toHaveLength(4)
     expect(result.cards[0].category).toBe('technical')
     expect(result.cards[0].tags).toEqual(['gap-framing'])
+    expect(result.cards[0].scriptKind).toBe('honest-bridge')
+  })
+
+  it('preserves explicit script kinds on AI-authored gap-framing cards with scripts', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'GovCloud',
+            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            confidence: 'Gap',
+          },
+        ],
+        cards: [
+          {
+            category: 'behavioral',
+            kind: 'story',
+            scriptKind: 'closer',
+            title: "What you know, what you don't: GovCloud",
+            tags: ['gap-framing'],
+            notes: 'I have not shipped GovCloud directly yet.',
+            script: 'Close by naming the ramp plan.',
+            warning: 'Do not pretend the gap is already closed.',
+            keyPoints: ['Transferable proof from regulated environments.'],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards[0].category).toBe('technical')
+    expect(result.cards[0].scriptKind).toBe('closer')
+  })
+
+  it('clears script kinds on AI-authored gap-framing cards without scripts', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        stackAlignment: [
+          {
+            theirTech: 'GovCloud',
+            yourMatch: 'Shipped regulated platform migrations and audit-heavy environments.',
+            confidence: 'Gap',
+          },
+        ],
+        cards: [
+          {
+            category: 'behavioral',
+            kind: 'story',
+            scriptKind: 'honest-bridge',
+            title: "What you know, what you don't: GovCloud",
+            tags: ['gap-framing'],
+            notes: 'I have not shipped GovCloud directly yet.',
+            warning: 'Do not pretend the gap is already closed.',
+            keyPoints: ['Transferable proof from regulated environments.'],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards[0].category).toBe('technical')
+    expect(result.cards[0].script).toBeUndefined()
+    expect(result.cards[0].scriptKind).toBeUndefined()
   })
 
   it('adds a fallback gap-framing card when the AI title drifts without the canonical tag', async () => {

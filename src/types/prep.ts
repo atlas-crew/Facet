@@ -348,6 +348,27 @@ export interface PrepStoryVariant {
   when?: string
 }
 
+export const PREP_SCRIPT_KIND_VALUES = [
+  // `opener` and `closer` intentionally overlap with PrepCardKind values;
+  // this enum names the script's rhetorical role, not the card's shape.
+  'opener',
+  'honest-bridge',
+  'closer',
+  'line-that-lands',
+  'pivot',
+] as const
+
+export type PrepScriptKind = (typeof PREP_SCRIPT_KIND_VALUES)[number]
+
+export function isPrepScriptKind(value: unknown): value is PrepScriptKind {
+  return typeof value === 'string' && (PREP_SCRIPT_KIND_VALUES as readonly string[]).includes(value)
+}
+
+export function parsePrepScriptKind(value: unknown): PrepScriptKind | undefined {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  return isPrepScriptKind(normalized) ? normalized : undefined
+}
+
 export const PREP_CARD_KIND_VALUES = [
   'opener',
   'intel',
@@ -421,6 +442,11 @@ export interface PrepCardBase {
   updatedAt?: string
 
   script?: string
+  /**
+   * Structural script role used by renderers and generators. Keep
+   * `scriptLabel` as prose for the user's eyes.
+   */
+  scriptKind?: PrepScriptKind
   scriptLabel?: string
   /** Expanded same-question answer when the interviewer asks for more detail. */
   pushbackScript?: string

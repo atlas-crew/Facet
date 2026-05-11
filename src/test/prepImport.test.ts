@@ -87,6 +87,7 @@ describe('prepImport', () => {
             title: 'Legacy opener',
             category: 'opener',
             tags: ['intro'],
+            scriptKind: 'opener',
           },
           {
             id: 'prep-card-invalid',
@@ -109,6 +110,7 @@ describe('prepImport', () => {
       expect.objectContaining({
         id: 'prep-card-legacy',
         kind: 'opener',
+        scriptKind: 'opener',
       }),
       expect.objectContaining({
         id: 'prep-card-invalid',

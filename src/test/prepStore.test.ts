@@ -247,11 +247,47 @@ describe('prepStore', () => {
       title: 'Opening answer',
       category: 'opener',
       kind: 'freeform' as never,
+      scriptKind: 'speech' as never,
       tags: [],
     })
 
     const card = usePrepStore.getState().decks[0].cards.find((entry) => entry.id === cardId)
     expect(card?.kind).toBe('opener')
+    expect(card?.scriptKind).toBeUndefined()
+  })
+
+  it('clears script kind when a runtime patch provides a malformed or empty value', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      cards: [],
+    })
+
+    const cardId = usePrepStore.getState().addCard(deckId, {
+      title: 'Bridge the gap',
+      category: 'technical',
+      kind: 'story',
+      script: 'Name the gap and bridge to the transferable pattern.',
+      scriptKind: 'honest-bridge',
+      tags: ['gap-framing'],
+    })
+
+    usePrepStore.getState().updateCard(deckId, cardId, {
+      title: 'Updated bridge',
+      scriptKind: 'speech' as never,
+    })
+
+    const card = usePrepStore.getState().decks[0].cards.find((entry) => entry.id === cardId)
+    expect(card?.title).toBe('Updated bridge')
+    expect(card?.scriptKind).toBeUndefined()
+
+    usePrepStore.getState().updateCard(deckId, cardId, { scriptKind: 'honest-bridge' })
+    usePrepStore.getState().updateCard(deckId, cardId, { scriptKind: undefined })
+
+    const clearedCard = usePrepStore.getState().decks[0].cards.find((entry) => entry.id === cardId)
+    expect(clearedCard?.scriptKind).toBeUndefined()
   })
 
   it('assigns stable ids to new conditionals created from partial card data', () => {

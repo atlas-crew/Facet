@@ -647,6 +647,22 @@ describe('PrepCardView', () => {
     expect(container.querySelector('table')).toBeNull()
   })
 
+  it('adds script kind classes to read-only script blocks', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          script: 'Name the gap, then bridge to the transferable pattern.',
+          scriptKind: 'honest-bridge',
+          scriptLabel: 'Bridge This Gap',
+        })}
+      />,
+    )
+
+    expect(container.querySelector('.prep-script-honest-bridge')).toBeTruthy()
+    expect(screen.getByText('Bridge This Gap')).toBeTruthy()
+  })
+
   it('renders the read-only notes block when notes are present', () => {
     render(<PrepCardView readOnly card={makeCard({ notes: 'Coaching note.' })} />)
 

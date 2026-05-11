@@ -538,6 +538,7 @@ describe('prep contract validation', () => {
           {
             category: 'behavioral',
             kind: 'story',
+            scriptKind: 'monologue',
             title: 'Valid story',
             tags: ['leadership'],
             script: 'I led the release by sequencing the riskiest migration first.',
@@ -583,6 +584,11 @@ describe('prep contract validation', () => {
         }),
         expect.objectContaining({
           field: 'cards[1].kind',
+          kind: 'invalid-field',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          field: 'cards[2].scriptKind',
           kind: 'invalid-field',
           severity: 'error',
         }),

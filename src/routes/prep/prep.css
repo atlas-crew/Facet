@@ -3690,9 +3690,11 @@
 /* ── Content Blocks ── */
 
 .prep-script {
+  --prep-script-accent: var(--success);
+  --prep-script-bg: var(--bg-inset);
   position: relative;
-  background: var(--bg-inset);
-  border-left: 3px solid var(--success);
+  background: var(--prep-script-bg);
+  border-left: 3px solid var(--prep-script-accent);
   border-radius: 0 6px 6px 0;
   padding: var(--space-3);
   font-size: 13px;
@@ -3700,12 +3702,43 @@
   color: var(--text-secondary);
 }
 
+.prep-script-opener {
+  --prep-script-accent: var(--accent-primary);
+  --prep-script-bg: var(--accent-primary-subtle);
+  --prep-script-bg: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-inset));
+  color: var(--text-primary);
+}
+
+.prep-script-honest-bridge {
+  --prep-script-accent: var(--warning);
+  --prep-script-bg: var(--bg-inset);
+  --prep-script-bg: color-mix(in srgb, var(--warning) 9%, var(--bg-inset));
+}
+
+.prep-script-closer {
+  --prep-script-accent: var(--accent-violet);
+  --prep-script-bg: var(--bg-inset);
+  --prep-script-bg: color-mix(in srgb, var(--accent-violet) 8%, var(--bg-inset));
+}
+
+.prep-script-line-that-lands {
+  --prep-script-accent: var(--accent-cyan);
+  --prep-script-bg: var(--bg-inset);
+  --prep-script-bg: color-mix(in srgb, var(--accent-cyan) 8%, var(--bg-inset));
+}
+
+.prep-script-pivot {
+  --prep-script-accent: var(--accent-orange);
+  --prep-script-bg: var(--bg-inset);
+  --prep-script-bg: color-mix(in srgb, var(--accent-orange) 8%, var(--bg-inset));
+}
+
 .prep-script-label {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--success);
+  color: var(--prep-script-accent);
   margin-bottom: 4px;
 }
 

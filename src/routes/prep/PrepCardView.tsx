@@ -53,6 +53,10 @@ function renderReadOnlyKindCard(
   return <IntelCardReadOnly card={card} interviewer={linkedInterviewer} needsReview={needsReview} />
 }
 
+function getScriptClassName(card: PrepCard): string {
+  return card.scriptKind ? `prep-script prep-script-${card.scriptKind}` : 'prep-script'
+}
+
 export function PrepCardView({
   card,
   onUpdateCard,
@@ -95,6 +99,7 @@ export function PrepCardView({
   const renderedAlternativeScript =
     displayAlternativeScript === 'Needs review' ? '' : displayAlternativeScript
   const hasRenderedAlternative = Boolean(displayAlternativeTitle || renderedAlternativeScript)
+  const scriptClassName = getScriptClassName(card)
 
   const copyScript = async () => {
     if (!canCopyScript) return
@@ -147,7 +152,7 @@ export function PrepCardView({
         )}
 
         {renderedScript ? (
-          <div className="prep-script">
+          <div className={scriptClassName}>
             <div className="prep-script-label">{displayScriptLabel}</div>
             {renderedScript}
             <button

@@ -5,7 +5,9 @@ import {
   PREP_CONTEXT_GAP_PRIORITY_VALUES,
   PREP_CONDITIONAL_TONE_VALUES,
   PREP_INTERVIEWER_LIKELY_ROLE_VALUES,
+  PREP_SCRIPT_KIND_VALUES,
   PREP_STORY_BLOCK_LABEL_VALUES,
+  parsePrepScriptKind,
   resolvePrepCardKind,
 } from '../types/prep'
 import type {
@@ -29,6 +31,7 @@ import type {
   PrepPipelineEntryContext,
   PrepPipelineRoundInterviewerContext,
   PrepQuestionToAsk,
+  PrepScriptKind,
   PrepStackAlignmentConfidence,
   PrepStackAlignmentRow,
   PrepStoryBlock,
@@ -589,6 +592,41 @@ function normalizeConditionals(value: unknown): PrepConditional[] | undefined {
   return conditionals.length > 0 ? conditionals : undefined
 }
 
+function inferPrepScriptKind(params: {
+  category: PrepCategory
+  kind: PrepCard['kind']
+  tags: string[]
+  title: string
+  script?: string
+  scriptLabel?: string
+}): PrepScriptKind | undefined {
+  // Prompted scriptKind wins; this legacy fallback favors safety-critical gap
+  // framing before display-copy one-liners, openers, closers, then pivots.
+  const searchable = [params.title, params.scriptLabel ?? '', params.script ?? '', ...params.tags]
+    .join(' ')
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+
+  if (
+    params.tags.some((tag) => tag.trim().toLowerCase() === 'gap-framing') ||
+    /(?:bridge this gap|honest bridge|what you know, what you don't|transferable)/.test(searchable)
+  ) {
+    return 'honest-bridge'
+  }
+
+  if (/(?:line that lands|one-liner|one liner)/.test(searchable)) {
+    return 'line-that-lands'
+  }
+
+  if (params.kind === 'opener' || params.category === 'opener') return 'opener'
+  if (params.kind === 'closer' || /(?:closer|closing|takeaway|wrap[- ]?up)/.test(searchable)) {
+    return 'closer'
+  }
+  if (/(?:pivot|reframe|transition)/.test(searchable)) return 'pivot'
+
+  return undefined
+}
+
 function normalizeCategoryGuidance(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, guidance]) => {
@@ -621,20 +659,38 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
           .map((tag) => tag.trim())
           .filter(Boolean)
       : []
+    const title = record.title.trim()
+    const script = isString(record.script) ? record.script.trim() || undefined : undefined
+    const scriptLabel = isString(record.scriptLabel)
+      ? record.scriptLabel.trim() || undefined
+      : undefined
+    // Missing or null scriptKind means "infer from legacy/generated copy"; use an
+    // explicit enum value when the model needs to prevent copy-based ambiguity.
+    const scriptKind =
+      parsePrepScriptKind(record.scriptKind) ??
+      (script
+        ? inferPrepScriptKind({
+            category,
+            kind,
+            tags,
+            title,
+            script,
+            scriptLabel,
+          })
+        : undefined)
 
     return [
       {
         id: createId('prep-card'),
         kind,
         category,
-        title: record.title.trim(),
+        title,
         tags,
         timeBudgetMinutes: normalizeTimeBudgetMinutes(record.timeBudgetMinutes),
         notes: isString(record.notes) ? record.notes.trim() : undefined,
-        script: isString(record.script) ? record.script.trim() : undefined,
-        scriptLabel: isString(record.scriptLabel)
-          ? record.scriptLabel.trim() || undefined
-          : undefined,
+        script,
+        scriptKind,
+        scriptLabel,
         pushbackScript: isString(record.pushbackScript)
           ? record.pushbackScript.trim() || undefined
           : undefined,
@@ -1000,6 +1056,23 @@ function validatePrepGenerationContract(params: {
           severity: 'error',
         })
       }
+
+      const rawScriptKind = rawRecord?.scriptKind
+      if (rawScriptKind !== undefined && rawScriptKind !== null) {
+        const normalizedScriptKind = isString(rawScriptKind) ? rawScriptKind.trim() : ''
+        if (!(PREP_SCRIPT_KIND_VALUES as readonly string[]).includes(normalizedScriptKind)) {
+          const displayedScriptKind = isString(rawScriptKind)
+            ? truncateForLog(normalizedScriptKind, RAW_KIND_LOG_TRUNCATE)
+            : String(rawScriptKind)
+          addViolation(violations, {
+            kind: 'invalid-field',
+            cardId,
+            field: `cards[${index}].scriptKind`,
+            message: `Expected generated prep card scriptKind to match PREP_SCRIPT_KIND_VALUES, received "${displayedScriptKind}".`,
+            severity: 'error',
+          })
+        }
+      }
     })
   }
 
@@ -1220,6 +1293,7 @@ function buildGapFramingFallbackCards(
       tags: Array.from(new Set(['gap-framing', 'transferable-experience', techTag])),
       notes: acknowledgement,
       scriptLabel: 'Bridge This Gap',
+      scriptKind: 'honest-bridge',
       script: `I want to be direct: ${acknowledgement} What transfers well is ${transferableProof}. ${boundedRamp}`,
       warning,
       keyPoints: [
@@ -1247,6 +1321,7 @@ function ensureGapFramingCards(
               'gap-framing',
             ]),
           ),
+          scriptKind: card.script ? (card.scriptKind ?? 'honest-bridge') : undefined,
         }
       : card,
   )
@@ -1297,6 +1372,7 @@ function buildLandmineCard(params: {
     tags: [LANDMINE_TAG],
     notes: params.notes,
     scriptLabel: 'Predicted trap',
+    scriptKind: params.kind === 'opener' || params.category === 'opener' ? 'opener' : undefined,
     script: params.script,
     warning: params.warning,
     keyPoints: params.keyPoints,
@@ -1812,6 +1888,7 @@ Response schema:
       "timeBudgetMinutes": "optional number",
       "notes": "optional string",
       "script": "optional string",
+      "scriptKind": "optional opener|honest-bridge|closer|line-that-lands|pivot",
       "scriptLabel": "optional string",
       "pushbackScript": "optional string",
       "pushbackLabel": "optional string",
@@ -1906,16 +1983,17 @@ Generate dedicated opener cards for the predictable opening questions instead of
 - Always include a "Why this role/company?" opener card grounded in the job description and company research. If the motivation proof is thin, use [[needs-review]] or [[fill-in: why this company now]] instead of guessing.
   - Include a "Why did you leave your last role?" opener card when departure context is available in structured identity context or contextGapAnswers.
   - When departure context is missing but the answer matters, add a contextGap for identity.departureContext or use a [[fill-in: your departure reason]] placeholder in that opener instead of inventing a reason.
-  - Title opener cards clearly so they can render as standalone live sections, and keep each opener script to roughly 75 seconds with a 2 minute answer budget.
+  - Title opener cards clearly so they can render as standalone live sections, keep each opener script to roughly 75 seconds with a 2 minute answer budget, and set scriptKind to "opener" when an opener card has a script.
   - Generate 3 to 5 landmine cards tagged "landmine" that capture predicted traps, risky follow-ups, and places the candidate may overclaim or go generic. Keep them concise, specific, and grounded in the supplied evidence.
   - Preserve the existing intel-tag people cards; do not reclassify named-person intel as landmines.
   - Add timeBudgetMinutes to every card so live mode can track section budgets. Use realistic interview timing: openers 1.5 to 2 minutes, behavioral/project answers 2 to 3 minutes, technical answers 3 to 5 minutes, situational answers 2 to 3 minutes, and metrics/reference answers 1 to 2 minutes.
-If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner".
+If a card has a script, also provide a short scriptLabel such as "Say This", "Lead With", or "The One-Liner". Also provide scriptKind as the structural role: "opener" for opening scripts, "honest-bridge" for gap-framing scripts, "closer" for closing/takeaway scripts, "line-that-lands" for interviewer-tuned one-liners, and "pivot" for transition/reframe scripts. scriptLabel is prose for the user; scriptKind is the enum for rendering.
 For behavioral and project cards with storyBlocks:
 - Add exactly one storyBlocks entry with label "closer" after problem/solution/result; this closer is the quotable one-sentence takeaway.
 - Keep the closer at 20 words or fewer and reference a specific system, metric, decision, or candidate evidence.
 - Anchor the closer in Canonical JD Analysis strengthsToLead and positioningRecommendations plus structured candidate evidence from identity bullets, candidate metrics, and skillMatches; do not derive it by raw-job re-inference.
 - Only use scriptLabel "The One-Liner" when the card script itself is the standalone takeaway instead of a full answer.
+- Set scriptKind to "line-that-lands" when the script is a one-liner takeaway, and to "closer" when the script is an end-of-section closing answer.
 - Keep every one-liner concrete, role-specific, and evidence-backed, never generic motivational copy.
 For behavioral cards where Canonical JD Analysis evidenceMapping shows multiple credible stories for the same question, add storyVariants with 2 to 3 options instead of forcing every story into the top-level storyBlocks. The first storyVariants entry is the primary/default. Give each variant a concise label, optional roleContext, optional when guidance, its own storyBlocks, and optional keyPoints. If only one credible story exists, omit storyVariants and use storyBlocks.
 For opener, behavioral, and situational cards, include conditionals when there is likely interviewer pushback, skepticism, or a risky follow-up. Use trigger for the push, response for the coached pivot or answer, and tone to mark pivot, trap, or escalation moments.
@@ -1937,6 +2015,7 @@ Mark those cards with the tag "gap-framing" and keep them in category "technical
 For each gap-framing card:
 - put the honest acknowledgment in notes
 - put the bridge language in script
+- set scriptKind to "honest-bridge"
 - put the pitfall in warning
 - put 3 to 4 transferable-experience bullets in keyPoints, grounded in the actual "yourMatch" evidence
 Do not generate gap-framing cards when stackAlignment contains only Strong, Solid, or Working knowledge entries.
