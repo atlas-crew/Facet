@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - Nicholas Ferguson
 created_date: '2026-05-10 16:25'
-updated_date: '2026-05-11 05:37'
+updated_date: '2026-05-11 06:29'
 labels:
   - research
   - phase-1-cull
@@ -16,6 +16,10 @@ milestone: m-31
 dependencies: []
 references:
   - docs/audits/2026-05-10/report.md
+modified_files:
+  - src/routes/research/ResearchPage.tsx
+  - src/routes/research/research.css
+  - src/test/ResearchPage.test.tsx
 priority: medium
 ---
 
@@ -87,12 +91,12 @@ Specifically preserve:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Three action-grouped sections render: depth changes proposed (expanded by default), depths confirmed (collapsed by default), new skills surfaced (expanded by default)
-- [ ] #2 Group categorization logic uses identity skill matching (skillNamesMatch or normalizeSkillKey) and correctly assigns each skillDepthMap entry to one group
-- [ ] #3 Empty groups render with explanatory copy, not hidden
-- [ ] #4 Writeback flow (handleRequestSkillDepthWriteback, pendingSkillWriteback, identityRevision guard at ResearchPage.tsx:843-861) is unchanged; existing tests still pass without modification
-- [ ] #5 Group counts in section headers reflect entry counts accurately
-- [ ] #6 npm run typecheck passes; npx vitest run passes
+- [x] #1 Three action-grouped sections render: depth changes proposed (expanded by default), depths confirmed (collapsed by default), new skills surfaced (expanded by default)
+- [x] #2 Group categorization logic uses identity skill matching (skillNamesMatch or normalizeSkillKey) and correctly assigns each skillDepthMap entry to one group
+- [x] #3 Empty groups render with explanatory copy, not hidden
+- [x] #4 Writeback flow (handleRequestSkillDepthWriteback, pendingSkillWriteback, identityRevision guard at ResearchPage.tsx:843-861) is unchanged; existing tests still pass without modification
+- [x] #5 Group counts in section headers reflect entry counts accurately
+- [x] #6 npm run typecheck passes; npx vitest run passes
 - [ ] #7 Manual smoke verifies all four scenarios: mixed-group thesis, confirm flow, concurrency guard, empty-state copy
 <!-- AC:END -->
 
@@ -142,12 +146,18 @@ Specifically preserve:
 - Any change to `handleRequestSkillDepthWriteback`, `buildSkillDepthValueChanges`, `buildSkillDepthMutation`, `describeImpact`, `pendingSkillWriteback` state machine, or the concurrency guard at 826-843.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented Commit 4 as planned with one mid-implementation correction. The user-approved 'read-only surfaced' affordance broke two existing tests because the existing Write back handler returns a useful 'Could not find X in the Identity skill model' error for unmatched skills — that affordance is doing real work today, not dead UI. Updated surfaced to render the full edit form + Write back button to preserve the helpful blocking behavior (AC#4 — existing tests pass unmodified). Confirmed group keeps the edit form (so the existing 'edit search signal/calibration on a generated thesis' test still works) but drops the Write back button since depth already matches. The grouping + collapsed-by-default state are what differentiate confirmed visually now, not stripped affordances.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
