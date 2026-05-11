@@ -131,6 +131,24 @@ export interface ResumeScanResult {
   progress: ResumeScanProgress
 }
 
+/**
+ * Discriminated union for sources fed into multi-source identity intake (m-33).
+ *
+ * Phase 1 wires only the `resume` arm — a parsed PDF resume scan with an
+ * optional positioning-hint label. Future arms are reserved as seam plug
+ * points so adding them later is purely additive:
+ *
+ *   { kind: 'jd';         id; userLabel?; sourceUrl?; analysis: JDAnalysis }
+ *   { kind: 'agent-dump'; id; agentName?; text: string }
+ *
+ * Discriminate on `kind` before destructuring. Intake-time state only — never
+ * persisted into `ProfessionalIdentityV3`; discarded after draft acceptance.
+ */
+export type IntakeSource =
+  | { kind: 'resume'; id: string; userLabel?: string; scan: ResumeScanResult }
+  // Phase 2 plug point: | { kind: 'jd'; id: string; userLabel?: string; sourceUrl?: string; analysis: JDAnalysis }
+  // Phase 3 plug point: | { kind: 'agent-dump'; id: string; agentName?: string; text: string }
+
 export interface IdentityChangeLogEntry {
   id: string
   createdAt: string
