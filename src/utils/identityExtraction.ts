@@ -41,6 +41,20 @@ Return JSON only with this exact top-level shape:
         }
       ]
     }
+  ],
+  "proposed_vectors": [
+    {
+      "id": string,
+      "title": string,
+      "priority": "include" | "exclude",
+      "subtitle": string,
+      "thesis": string,
+      "target_roles": string[],
+      "keywords": { "primary": string[], "secondary": string[] },
+      "supporting_skills": string[],
+      "supporting_bullets": string[],
+      "evidence_sources": string[]
+    }
   ]
 }
 Use this minimal valid shape for the identity object:
@@ -140,7 +154,20 @@ Rules:
 - Every bullet in identity.roles should have a matching bullets entry.
 - rewrite should read like the final bullet text and surface assumptions inline when useful.
 - follow_up_questions should be short and concrete, prioritizing missing matching, vector, or awareness inputs when helpful.
-- Do not wrap the JSON in markdown fences.`
+- Do not wrap the JSON in markdown fences.
+
+Multi-source evidence:
+- The user prompt always carries an evidence_blocks object with three channels: { "resumes": [...], "jds": [...], "agent_dumps": [...] }. In Phase 1 only the resumes channel is populated; jds and agent_dumps will be empty arrays. Treat empty channels as 'no signal from this source type' rather than as missing data.
+- Each resumes entry contains source_file, optional user_label (a positioning hint like "platform" or "security"), and a flattened bullets list. Each bullet carries role_id, bullet_id, and a text variant from that source. The same (role_id, bullet_id) may appear under multiple resumes when sources overlap — those are variants of the same bullet.
+Variant handling:
+- Union not intersection: when multiple variants are provided for the same bullet, merge facts by union. Preserve every named technology, metric, and impact statement that appears in any variant. Do not drop facts that appear in only one variant.
+- Confidence ladder maps to variant agreement: a fact stated in 2+ variants is "confirmed". A fact stated in 1 variant is "stated". An inference not present in any variant is "guessing".
+- Phrasing diversity feeds field richness: if variants emphasize different angles of the same achievement (one says "scaled to 10M users", another says "reduced p99 by 40%"), include both in impact[]. Variants are evidence, not duplicates to average.
+Proposed vectors:
+- proposed_vectors must always be present as an array, using [] when no clear positioning angle emerges.
+- Use user_label hints as the strongest signal for vector titling when present. A label like "platform" with 2+ supporting resumes is a strong candidate; a label appearing once with no reinforcing evidence is weak.
+- evidence_sources is a free-form list of human-readable provenance strings, e.g. ["2 resumes labeled platform", "resume labeled security"]. One string per distinct contributing source-bucket.
+- For single-source extractions (N=1) with no positioning hints, emit proposed_vectors as []. Do not invent angles the source material does not support.`
 
 export const BULLET_DEEPENING_SYSTEM_PROMPT = `You are Facet's bullet deepening agent.
 Decompose exactly one scanned resume bullet from Professional Identity Schema v3.1 source_text into structured fields.
