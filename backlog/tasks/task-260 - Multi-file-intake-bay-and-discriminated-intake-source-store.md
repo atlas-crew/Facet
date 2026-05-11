@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 05:27'
+updated_date: '2026-05-11 05:28'
 labels:
   - feature
   - identity
@@ -68,35 +68,40 @@ REFERENCES:
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-## Atomic commit decomposition
+## Atomic commit decomposition (revised — 4 commits for cleaner review surfaces)
 
-**Commit 1** — `feat(identity): introduce IntakeSource discriminated union and intakeSources store slot`
-- `src/types/identity.ts`: IntakeSource union with `resume` arm wired; jd/agent-dump slots as TODO comments naming planned shape; JSDoc on the seam intent.
-- `src/store/identityStore.ts`: replace `scanResult: ResumeScanResult | null` with `intakeSources: IntakeSource[]`. All 50+ internal references route through a `getActiveResumeScan(state)` helper (N=1 invariant holds because UI still single-file at this commit). Bump persist `version: 4 → 5` with migrate that maps persisted `scanResult: X` → `intakeSources: [{ kind: 'resume', id: <new>, scan: X }]` (or `[]` when null). Update `partialize`, `normalizePersistedIdentityState`, `merge`, `unwrapPersistedIdentityState`.
-- `src/routes/identity/IdentityPage.tsx`: consumers refactored to read via `getActiveResumeScan` selector.
-- Tests: `identityStore.test.ts` covers new store API + N=1 regression + persist migration; `IdentityPage.test.tsx` assertions preserved for N=1.
+**Commit 1** — `feat(identity): add IntakeSource discriminated union type`
+- `src/types/identity.ts`: add `IntakeSource` union (resume arm only) with JSDoc on the discriminator and the seam intent for future Phase 2/3 sources (`jd`, `agent-dump`).
+- No consumers yet. Pure type addition. Tests untouched.
+- ACs: #1, #11.
 
-**Commit 2** — `feat(identity): multi-file intake selection and file-card list UI`
+**Commit 2** — `feat(identity): replace scanResult slot with intakeSources array (N=1 preserved)`
+- `src/store/identityStore.ts`: rename slot `scanResult: ResumeScanResult | null` → `intakeSources: IntakeSource[]`. Introduce `getActiveResumeScan(state)` helper. All internal helpers/actions route through it. `setScanResult` becomes a single-source facade that replaces `intakeSources` with `[{kind:'resume', id, scan}]` or `[]`. Bump persist `version: 4 → 5` with migrate that maps old `scanResult` field → single-element `intakeSources` (or `[]`). Update `partialize`, `normalizePersistedIdentityState`, `merge`, `unwrapPersistedIdentityState`.
+- `src/routes/identity/IdentityPage.tsx`: consumers read via `getActiveResumeScan` selector.
+- `src/test/identityStore.test.ts`, `src/test/IdentityPage.test.tsx`: existing assertions updated to the new shape; N=1 semantics preserved.
+- ACs: #2, #7, #9.
+
+**Commit 3** — `feat(identity): multi-file intake selection and file-card list UI`
 - `ExtractionAgentCard.tsx`: `<input multiple>`, multi-file drag-drop, per-source file cards (filename, counts, userLabel input, remove button).
 - `IdentityPage.tsx`: sequential scan plumbing with isolated failure handling.
-- Tests: multi-file drop sequencing, mid-batch failure isolation, removal.
+- ACs: #3, #4, #5, #6.
 
-**Commit 3** — `feat(identity): enforce 10-source intake cap`
-- `ExtractionAgentCard.tsx`: cap-of-10 enforcement, above-cap inline warning.
-- Tests: cap enforcement, above-cap removal still works.
+**Commit 4** — `feat(identity): enforce 10-source intake cap`
+- `ExtractionAgentCard.tsx`: cap enforcement, above-cap inline warning, remove still works above cap.
+- ACs: #8.
+
+**Test Writing Loop** runs after each feature commit, audits gaps, may add a test commit. **Lint Gate** runs last per atomic feature, may add a style commit. AC #10 lands distributed across these loops.
 
 ## Persistence considerations (per facet-persistence-changes)
 
-- `scanResult` IS in `identityStore.partialize` (line 1674) → real Zustand version bump required (`4 → 5`).
-- `scanResult` is NOT in `src/persistence/` (workspace snapshot) → no snapshot adapter or contracts.ts touches needed.
+- `scanResult` IS in `identityStore.partialize` (line 1674) → Zustand `version: 4 → 5` with migrate required.
+- `scanResult` is NOT in `src/persistence/` (workspace snapshot) → no snapshot adapter touches needed.
 - `intakeSources` stays Zustand-store-only (transient intake state, discarded after draft acceptance).
-- Pre-launch posture permits dropping the migrate fallback if it grows complex, but the transform here is one-liner-cheap, so we keep it for local-dev convenience.
+- Pre-launch posture permits dropping the migrate fallback if it grows complex; the transform here is one-liner-cheap so we keep it.
 
 ## Agent-loops cadence
 
-Per atomic commit: Code Change Loop (`specialist-review.sh` on source files) → cortex git commit → Test Writing Loop (`diff-test-audit.sh`) → cortex git commit if tests added → Lint Gate → cortex git commit if lint changes.
-
-Reviewer rotation: scripts try Claude last (since this session is Claude Opus); first review attempts route to Gemini/Codex via the provider-aware script.
+Per atomic feature commit: Code Change Loop (`specialist-review.sh` on source files) → cortex git commit → Test Writing Loop (`diff-test-audit.sh --git`) → cortex git commit if gaps fixed → Lint Gate → cortex git commit if lint changed. Reviewer rotation: provider-aware script keeps Claude (current session model family) last; Gemini/Codex attempted first.
 <!-- SECTION:PLAN:END -->
 
 ## Definition of Done
