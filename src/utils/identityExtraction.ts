@@ -1832,7 +1832,7 @@ const buildEvidenceBlocks = (synthesisSeed: SynthesisSeed | null | undefined): E
   return { resumes, jds: [], agent_dumps: [] }
 }
 
-const buildExtractionPrompt = ({
+export const buildExtractionPrompt = ({
   sourceMaterial,
   correctionNotes,
   existingDraft,

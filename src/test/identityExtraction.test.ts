@@ -15,11 +15,13 @@ import {
   BULLET_DEEPENING_SYSTEM_PROMPT,
   EXTRACTION_SYSTEM_PROMPT,
   buildDeepenBulletPrompt,
+  buildExtractionPrompt,
   deepenIdentityBullet,
   generateIdentityDraft,
   parseDeepenIdentityBulletResponse,
   parseIdentityExtractionResponse,
 } from '../utils/identityExtraction'
+import type { SynthesisSeed } from '../types/identity'
 import { callLlmProxy } from '../utils/llmProxy'
 
 const responseIdentityResult = importProfessionalIdentity({
@@ -1129,4 +1131,168 @@ describe('identity bullet deepening', () => {
     )
   })
 
+})
+
+describe('identity extraction with multi-source synthesis seed', () => {
+  const makeSynthesisSeed = (
+    overrides: Partial<SynthesisSeed> = {},
+  ): SynthesisSeed => ({
+    identity: responseBody.identity,
+    bulletVariantPools: {},
+    roleVariantTitles: {},
+    ...overrides,
+  })
+
+  it('always emits evidence_blocks with three channels, even when no synthesis seed is provided', () => {
+    const prompt = buildExtractionPrompt({
+      sourceMaterial: 'Pasted resume text.',
+      synthesisSeed: null,
+    })
+    expect(prompt).toContain('evidence_blocks:')
+    expect(prompt).toContain('"resumes": []')
+    expect(prompt).toContain('"jds": []')
+    expect(prompt).toContain('"agent_dumps": []')
+  })
+
+  it('pivots bulletVariantPools into per-source resumes entries with attributed bullets', () => {
+    const seed = makeSynthesisSeed({
+      bulletVariantPools: {
+        contoso: [
+          { source: 'platform.pdf', label: 'platform', text: 'Ported the platform to K8s.' },
+          { source: 'platform.pdf', label: 'platform', text: 'Migrated CI/CD to GitHub Actions.' },
+          { source: 'security.pdf', label: 'security', text: 'Hardened SSO with mTLS.' },
+        ],
+      },
+    })
+    const prompt = buildExtractionPrompt({
+      sourceMaterial: 'Some source text.',
+      synthesisSeed: seed,
+    })
+    // Both sources rendered as separate resumes entries, each with their own
+    // attributed bullets under the same canonical role_id.
+    expect(prompt).toContain('"source_file": "platform.pdf"')
+    expect(prompt).toContain('"user_label": "platform"')
+    expect(prompt).toContain('"source_file": "security.pdf"')
+    expect(prompt).toContain('"user_label": "security"')
+    expect(prompt).toContain('"role_id": "contoso"')
+    expect(prompt).toContain('"text": "Ported the platform to K8s."')
+    expect(prompt).toContain('"text": "Hardened SSO with mTLS."')
+  })
+
+  it('surfaces roleVariantTitles in the prompt body when older titles were superseded', () => {
+    const seed = makeSynthesisSeed({
+      roleVariantTitles: {
+        contoso: ['Senior Platform Engineer'],
+      },
+    })
+    const prompt = buildExtractionPrompt({
+      sourceMaterial: 'Some text.',
+      synthesisSeed: seed,
+    })
+    expect(prompt).toContain('Older role titles superseded by the most-recent scan')
+    expect(prompt).toContain('Senior Platform Engineer')
+  })
+
+  it('populates draft.proposedVectors when the LLM response carries proposed_vectors', () => {
+    const draft = parseIdentityExtractionResponse(
+      JSON.stringify({
+        ...responseBody,
+        proposed_vectors: [
+          {
+            id: 'platform-vector',
+            title: 'Platform Engineering',
+            priority: 'high',
+            thesis: 'Build platform systems that make hard things routine.',
+            target_roles: ['Staff Platform Engineer'],
+            keywords: {
+              primary: ['kubernetes', 'platform'],
+              secondary: ['migration'],
+            },
+            evidence_sources: ['2 resumes labeled platform'],
+          },
+        ],
+      }),
+    )
+    expect(draft.proposedVectors).toHaveLength(1)
+    const vector = draft.proposedVectors![0]
+    expect(vector.title).toBe('Platform Engineering')
+    expect(vector.priority).toBe('high')
+    expect(vector.evidenceSources).toEqual(['2 resumes labeled platform'])
+  })
+
+  it('leaves draft.proposedVectors undefined when the LLM omits the field (N=1 graceful path)', () => {
+    const draft = parseIdentityExtractionResponse(JSON.stringify(responseBody))
+    expect(draft.proposedVectors).toBeUndefined()
+  })
+
+  it('leaves draft.proposedVectors undefined when proposed_vectors is an empty array', () => {
+    const draft = parseIdentityExtractionResponse(
+      JSON.stringify({ ...responseBody, proposed_vectors: [] }),
+    )
+    expect(draft.proposedVectors).toBeUndefined()
+  })
+
+  it('drops invalid proposed_vectors entries and surfaces a warning', () => {
+    const draft = parseIdentityExtractionResponse(
+      JSON.stringify({
+        ...responseBody,
+        proposed_vectors: [
+          { id: 'bad', priority: 'high' }, // missing title and thesis
+          {
+            id: 'good',
+            title: 'Backend',
+            priority: 'medium',
+            thesis: 'Backend engineering vector.',
+            target_roles: [],
+            keywords: { primary: [], secondary: [] },
+            evidence_sources: ['resume labeled backend'],
+          },
+        ],
+      }),
+    )
+    expect(draft.proposedVectors).toHaveLength(1)
+    expect(draft.proposedVectors![0].title).toBe('Backend')
+    expect(
+      draft.warnings.some((warning) =>
+        warning.includes('Dropped invalid proposed_vectors[0] entry'),
+      ),
+    ).toBe(true)
+  })
+
+  it('coerces invalid priority on proposed vectors to medium with a warning', () => {
+    const draft = parseIdentityExtractionResponse(
+      JSON.stringify({
+        ...responseBody,
+        proposed_vectors: [
+          {
+            id: 'platform',
+            title: 'Platform',
+            priority: 'include', // pre-fix priority value the prompt previously documented
+            thesis: 'Platform vector.',
+            target_roles: [],
+            keywords: { primary: [], secondary: [] },
+            evidence_sources: ['resume labeled platform'],
+          },
+        ],
+      }),
+    )
+    expect(draft.proposedVectors![0].priority).toBe('medium')
+    expect(
+      draft.warnings.some((warning) =>
+        warning.includes('Normalized invalid proposed_vectors[0].priority to "medium"'),
+      ),
+    ).toBe(true)
+  })
+
+  it('records a warning when proposed_vectors is not an array', () => {
+    const draft = parseIdentityExtractionResponse(
+      JSON.stringify({ ...responseBody, proposed_vectors: 'oops' }),
+    )
+    expect(draft.proposedVectors).toBeUndefined()
+    expect(
+      draft.warnings.some((warning) =>
+        warning.includes('Normalized invalid proposed_vectors into an empty array'),
+      ),
+    ).toBe(true)
+  })
 })
