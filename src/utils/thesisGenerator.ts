@@ -73,12 +73,6 @@ const sentenceCount = (value: string): number =>
     .map((part) => part.trim())
     .filter(Boolean).length
 
-const paragraphCount = (value: string): number =>
-  value
-    .split(/\n\s*\n/)
-    .map((part) => part.trim())
-    .filter(Boolean).length
-
 const normalizeSkillKey = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ')
 
 const identitySkillEntries = (
@@ -483,11 +477,9 @@ export function normalizeGeneratedSearchThesis(
     id: normalizeString(record.id) || createId('sthesis'),
     createdAt: normalizeString(record.createdAt) || createdAt,
     updatedAt: normalizeString(record.updatedAt) || createdAt,
-    narrative: normalizeString(record.narrative),
     competitiveMoat,
     unfairAdvantages: normalizeUnfairAdvantages(record.unfairAdvantages),
     searchLanes: lanes,
-    interviewStrategy: normalizeString(record.interviewStrategy),
     lookFor: normalizeLookFor(record.lookFor, legacyFilters.prioritize),
     avoid: normalizeAvoid(record.avoid, legacyFilters.avoid),
     ...(timeline ? { timeline } : {}),
@@ -507,9 +499,6 @@ export function validateSearchThesis(
   identity?: ProfessionalIdentityV3 | null,
 ): string[] {
   const violations: string[] = []
-  if (thesis.narrative.length < 240 || paragraphCount(thesis.narrative) < 3) {
-    violations.push('narrative: expected 3-5 paragraphs with at least 240 characters')
-  }
   // competitiveMoat is identity-canonical (sourced from identity.self_model.competitive_moat).
   // An empty moat is a legitimate "not authored yet" state, not a contract violation.
   // We only flag a moat that was authored too tersely.
@@ -575,7 +564,6 @@ export async function generateSearchThesisFromIdentity(
     '- `unfairAdvantages[].depth` is duplicate. Express depth through the `combination` phrase itself ("Production Kubernetes + product-aware platform judgment") rather than a separate depth field.',
     '',
     'Editorial fields with guardrails (LLM generates per-thesis but stays grounded):',
-    "- `interviewStrategy`: search-tailored emphasis for THIS specific role/lane — what to lead with in this search's interview process. Do NOT restate the candidate's general prep approach (which lives on `identity.self_model.interview_style.prep_strategy`).",
     '- `skillDepthMap[].calibration`: per-thesis honest framing ("not a K8s admin; building around it is fine"). Cite identity calibration_notes; do not invent new claims about the candidate.',
     '',
     'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction — it represents intent the identity model does not encode.',
@@ -589,10 +577,8 @@ export async function generateSearchThesisFromIdentity(
     '',
     'Response schema:',
     '{',
-    '  "narrative": "3-5 paragraphs weaving moat -> unfair advantages -> search lanes -> signals",',
     '  "unfairAdvantages": [{ "combination": "expanded from identity.self_model.unfair_advantages[i]", "targetCompanyProfile": "search-stage description of what kind of company values this combination" }],',
     '  "searchLanes": [{ "id": "optional", "title": "string", "rationale": "2+ sentence prose", "competitiveContext": "optional prose", "targetSignals": ["string"] }],',
-    '  "interviewStrategy": "string",',
     '  "lookFor": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }],',
     '  "avoid": [{ "label": "string", "condition": "optional qualifier", "severity": "hard|soft|conditional" }],',
     '  "timeline": { "urgency": "critical|active|exploratory", "deadline": "optional ISO date", "strategyImpact": "string" },',
@@ -608,7 +594,6 @@ export async function generateSearchThesisFromIdentity(
     '}',
     '',
     'Contract:',
-    '- narrative must be 3-5 paragraphs, not bullets.',
     '- every lane rationale must be prose, not fragments.',
     '- competitiveMoat is sourced from identity.self_model.competitive_moat at thesis-build time. Do NOT emit it in the response; the orchestrator copies it directly. The narrative still references the moat verbatim.',
     '- For each string in identity.self_model.unfair_advantages[], emit exactly one `unfairAdvantages` entry: keep `combination` as the user-authored phrase verbatim, derive a per-search `targetCompanyProfile` (the kind of company that would specifically value this combination for this lane). Do not invent new advantages beyond what identity declared.',

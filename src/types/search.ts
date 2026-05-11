@@ -553,22 +553,12 @@ export interface SearchThesis {
   createdAt: string
   updatedAt: string
 
-  /**
-   * Cohesive 3-5 paragraph strategic explanation weaving moat → advantages → lanes → signals
-   * into a single story the user reads top-to-bottom. Required: users evaluate whether to
-   * commit to Phase 2 deep research by reading this argument, so without it the thesis is a
-   * structured dataset but not persuasive.
-   */
-  narrative: string
-
   /** What makes this candidate structurally different. */
   competitiveMoat: string
   /** Rare skill combinations with depth validation. */
   unfairAdvantages: SearchUnfairAdvantage[]
   /** 2-4 strategic angles to search along, each with rationale. */
   searchLanes: SearchLane[]
-  /** Connects candidate archetype to interview format advantage. */
-  interviewStrategy: string
   /** Signals to look for in target companies. */
   lookFor: SearchThesisSignal[]
   /** What to avoid, with qualifying conditions. */

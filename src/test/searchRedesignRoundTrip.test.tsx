@@ -111,12 +111,6 @@ vi.mock('../utils/thesisGenerator', async () => {
   }
 })
 
-const NARRATIVE_PARAGRAPHS = [
-  'This thesis positions Alex as a platform engineer whose strongest signal is translating infrastructure complexity into reliable product delivery. The search should privilege companies where platform leverage, deployment architecture, and customer-facing reliability all matter together.',
-  'The unfair advantage is the pairing of Kubernetes delivery work with clear product-facing judgment. That combination should show up in roles that need someone to design around infrastructure constraints without turning the job into pure cluster administration.',
-  'The strongest lanes are platform modernization and developer-productivity infrastructure. Both lanes let the candidate use depth in Kubernetes while keeping the search calibrated toward systems ownership, architecture judgment, and cross-functional delivery.',
-]
-
 type RoundTripThesisSignalInput = string | Partial<SearchThesisSignal>
 type RoundTripThesisOverrides = Partial<Omit<SearchThesis, 'lookFor' | 'avoid'>> & {
   lookFor?: RoundTripThesisSignalInput[]
@@ -149,7 +143,6 @@ const buildRoundTripThesis = (overrides: RoundTripThesisOverrides = {}): SearchT
     id: 'thesis-rt-initial',
     createdAt: '2026-03-10T10:00:00.000Z',
     updatedAt: '2026-03-10T10:00:00.000Z',
-    narrative: NARRATIVE_PARAGRAPHS.join('\n\n'),
     competitiveMoat:
       'Production Kubernetes delivery paired with product-aware platform judgment and evidence of making complex deployment constraints legible.',
     unfairAdvantages: [
@@ -170,7 +163,6 @@ const buildRoundTripThesis = (overrides: RoundTripThesisOverrides = {}): SearchT
         targetSignals: ['platform modernization', 'developer leverage'],
       },
     ],
-    interviewStrategy: 'Lead with deployment architecture tradeoffs and product delivery outcomes.',
     lookFor: normalizeRoundTripSignals(lookFor ?? ['platform modernization', 'developer leverage']),
     avoid: normalizeRoundTripSignals(
       avoid ?? [
@@ -290,9 +282,6 @@ const buildRegeneratedThesis = (eventId: string): SearchThesis =>
     createdAt: '2026-03-10T10:30:00.000Z',
     updatedAt: '2026-03-10T10:30:00.000Z',
     feedbackIncorporated: [eventId],
-    narrative: NARRATIVE_PARAGRAPHS.concat(
-      'The regenerated thesis explicitly excludes pure cluster-administration roles based on user feedback. Future search runs in this thesis will treat that boundary as a hard avoid rather than a soft signal.',
-    ).join('\n\n'),
   })
 
 describe('Search redesign round-trip (parent TASK-151)', () => {
@@ -459,7 +448,6 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
       .theses.find((thesis) => thesis.id === initialThesis.id)
     expect(generatedThesis).toBeDefined()
     expect(generatedThesis?.feedbackIncorporated).toEqual([])
-    expect(generatedThesis?.narrative.length ?? 0).toBeGreaterThanOrEqual(240)
     expect(generatedThesis?.searchLanes.length ?? 0).toBeGreaterThanOrEqual(1)
 
     // ── Phase 2: deep search launch seam ──────────────────────────────────────

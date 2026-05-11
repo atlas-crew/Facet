@@ -68,7 +68,6 @@ const createTestThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis =
   id: 'sthesis-1',
   createdAt: '2026-03-10T10:06:00.000Z',
   updatedAt: '2026-03-10T10:06:00.000Z',
-  narrative: 'Use security platform depth to target builder-friendly teams.',
   competitiveMoat: 'Owned platform systems.',
   unfairAdvantages: [
     {
@@ -85,7 +84,6 @@ const createTestThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis =
       targetSignals: ['WAF', 'edge security'],
     },
   ],
-  interviewStrategy: 'work sample',
   lookFor: [{ id: 'ssig-1', label: 'builder-friendly interviews', severity: 'soft' }],
   avoid: [{ id: 'ssig-2', label: 'Leetcode-heavy loops', severity: 'soft' }],
   keywordCombinations: [

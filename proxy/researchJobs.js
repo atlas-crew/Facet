@@ -654,9 +654,6 @@ function validateCreatePayload(body) {
         ? thesisSnapshot.id.trim()
         : ''
   if (!thesisId) return { error: 'Research job requires thesisId.' }
-  if (typeof thesisSnapshot.narrative !== 'string' || !thesisSnapshot.narrative.trim()) {
-    return { error: 'Research job thesisSnapshot must include narrative.' }
-  }
   if (!Array.isArray(thesisSnapshot.skillDepthMap) || thesisSnapshot.skillDepthMap.length === 0) {
     return { error: 'Research job thesisSnapshot must include identity evidence.' }
   }

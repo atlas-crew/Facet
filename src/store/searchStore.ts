@@ -635,18 +635,25 @@ const hydrateThesis = (thesis: SearchThesisInput): SearchThesis => {
   // hydrateOverrides intentionally drops filters so repeated hydration is a no-op.
   const legacyFilters = thesis.searchOverrides?.filters
   const hydratedOverrides = hydrateOverrides(thesis.searchOverrides)
-  const { searchOverrides: _legacySearchOverrides, ...thesisWithoutLegacyOverrides } = thesis
+  // narrative + interviewStrategy were dropped from SearchThesis (task-252); destructure
+  // them out so legacy persisted theses don't smuggle the fields through the spread.
+  const {
+    searchOverrides: _legacySearchOverrides,
+    narrative: _legacyNarrative,
+    interviewStrategy: _legacyInterviewStrategy,
+    ...thesisWithoutLegacyOverrides
+  } = thesis as SearchThesisInput & { narrative?: unknown; interviewStrategy?: unknown }
   void _legacySearchOverrides
+  void _legacyNarrative
+  void _legacyInterviewStrategy
   return {
     ...thesisWithoutLegacyOverrides,
-    narrative: thesis.narrative ?? '',
     competitiveMoat: thesis.competitiveMoat ?? '',
     unfairAdvantages: (thesis.unfairAdvantages ?? []).map((advantage) => ({
       ...advantage,
       id: advantage.id ?? createId('sadv'),
     })),
     searchLanes: thesis.searchLanes ?? [],
-    interviewStrategy: thesis.interviewStrategy ?? '',
     lookFor: normalizeLookForSignals(thesis.lookFor, legacyFilters?.prioritize),
     avoid: normalizeAvoidSignals(thesis.avoid, legacyFilters?.avoid),
     keywordCombinations: (thesis.keywordCombinations ?? []).map((keyword) => ({

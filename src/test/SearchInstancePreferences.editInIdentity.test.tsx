@@ -41,11 +41,9 @@ const buildPreferenceThesis = (
   id: 'sthesis-preferences',
   createdAt: '2026-04-01T00:00:00.000Z',
   updatedAt: '2026-04-01T00:00:00.000Z',
-  narrative: '',
   competitiveMoat: '',
   unfairAdvantages: [],
   searchLanes: [],
-  interviewStrategy: '',
   lookFor: [],
   avoid: [],
   keywordCombinations: [],
@@ -60,56 +58,7 @@ const buildPreferenceThesis = (
   feedbackIncorporated: [],
 })
 
-describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
-  it('invokes the onNavigateToIdentity callback when the button is clicked', () => {
-    const onNavigateToIdentity = vi.fn()
-    render(
-      <SearchInstancePreferences
-        identityBase={baseIdentity}
-        activeThesis={null}
-        onUpdateOverrides={() => {}}
-        onEditThesisSignals={() => {}}
-        onNavigateToIdentity={onNavigateToIdentity}
-      />,
-    )
-
-    screen.getByRole('button', { name: 'Edit in Identity' }).click()
-    expect(onNavigateToIdentity).toHaveBeenCalledTimes(1)
-    expect(screen.getAllByText('Interview prep advantages')).toHaveLength(2)
-    expect(screen.getAllByText('Interview process risks')).toHaveLength(2)
-    expect(screen.queryByRole('button', { name: 'Edit look-for signals' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Edit avoid signals' })).toBeNull()
-    expect(
-      screen.getByText('Generate or select a thesis to edit look-for and avoid signals.'),
-    ).toBeTruthy()
-  })
-
-  it('component contract: parent owns the navigation shape — the button just fires the callback', () => {
-    // The retrofit lives on the caller (ResearchPage's onNavigateToIdentity prop
-    // implementation). This test pins the button's contract: it MUST call the
-    // prop on click. ResearchPage's implementation passes
-    // navigate({ to: '/identity', search: { focus: 'preferences', return: '/research' } })
-    // which is verified by the bridge tests in IdentityMapPage.deepLink.test.tsx
-    // (focus + return processing) and by manual eye-check on the dev server.
-    const callbacks: Array<() => void> = []
-    const onNavigateToIdentity = vi.fn(() => callbacks.push(() => {}))
-    render(
-      <SearchInstancePreferences
-        identityBase={baseIdentity}
-        activeThesis={null}
-        onUpdateOverrides={() => {}}
-        onEditThesisSignals={() => {}}
-        onNavigateToIdentity={onNavigateToIdentity}
-      />,
-    )
-
-    const button = screen.getByRole('button', { name: 'Edit in Identity' })
-    expect(button.tagName).toBe('BUTTON')
-    expect(button.getAttribute('type')).toBe('button')
-    button.click()
-    expect(onNavigateToIdentity).toHaveBeenCalledTimes(1)
-  })
-
+describe('SearchInstancePreferences', () => {
   it('routes search-stage signal edits to the thesis strategy surface', () => {
     const onEditThesisSignals = vi.fn()
     render(
@@ -119,11 +68,9 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
           id: 'sthesis-preferences',
           createdAt: '2026-04-01T00:00:00.000Z',
           updatedAt: '2026-04-01T00:00:00.000Z',
-          narrative: '',
           competitiveMoat: '',
           unfairAdvantages: [],
           searchLanes: [],
-          interviewStrategy: '',
           lookFor: [],
           avoid: [{ id: 'ssig-avoid-hard', label: 'Pure Cluster Admin', severity: 'hard' }],
           keywordCombinations: [],
@@ -134,7 +81,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         }}
         onUpdateOverrides={() => {}}
         onEditThesisSignals={onEditThesisSignals}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -158,11 +104,9 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
           id: 'sthesis-empty-signals',
           createdAt: '2026-04-01T00:00:00.000Z',
           updatedAt: '2026-04-01T00:00:00.000Z',
-          narrative: '',
           competitiveMoat: '',
           unfairAdvantages: [],
           searchLanes: [],
-          interviewStrategy: '',
           lookFor: [],
           avoid: [],
           keywordCombinations: [],
@@ -173,7 +117,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         }}
         onUpdateOverrides={() => {}}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -192,11 +135,9 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
           id: 'sthesis-preferences',
           createdAt: '2026-04-01T00:00:00.000Z',
           updatedAt: '2026-04-01T00:00:00.000Z',
-          narrative: '',
           competitiveMoat: '',
           unfairAdvantages: [],
           searchLanes: [],
-          interviewStrategy: '',
           lookFor: [],
           avoid: [],
           keywordCombinations: [],
@@ -212,7 +153,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         }}
         onUpdateOverrides={onUpdateOverrides}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -246,7 +186,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         activeThesis={buildPreferenceThesis()}
         onUpdateOverrides={onUpdateOverrides}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -285,7 +224,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         })}
         onUpdateOverrides={onUpdateOverrides}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -317,7 +255,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         activeThesis={buildPreferenceThesis()}
         onUpdateOverrides={onUpdateOverrides}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -350,7 +287,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         activeThesis={buildPreferenceThesis()}
         onUpdateOverrides={() => {}}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -369,7 +305,6 @@ describe('SearchInstancePreferences "Edit in Identity" retrofit', () => {
         activeThesis={buildPreferenceThesis()}
         onUpdateOverrides={() => {}}
         onEditThesisSignals={() => {}}
-        onNavigateToIdentity={() => {}}
       />,
     )
 
@@ -421,11 +356,9 @@ describe('Search assumptions transparency', () => {
           id: 'sthesis-assumptions',
           createdAt: '2026-04-01T00:00:00.000Z',
           updatedAt: '2026-04-01T00:00:00.000Z',
-          narrative: 'A thesis narrative.',
           competitiveMoat: 'A strong moat.',
           unfairAdvantages: [],
           searchLanes: [],
-          interviewStrategy: 'Lead with platform scope.',
           lookFor: [],
           avoid: [],
           keywordCombinations: [],

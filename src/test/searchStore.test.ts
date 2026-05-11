@@ -53,7 +53,6 @@ const buildSearchThesis = (overrides: SearchThesisTestOverrides = {}): SearchThe
     id: 'sthesis-1',
     createdAt: '2026-04-20T10:00:00.000Z',
     updatedAt: '2026-04-20T10:00:00.000Z',
-    narrative: 'A saved thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
     competitiveMoat: 'A specific platform moat with strong identity evidence.',
     unfairAdvantages: [],
     searchLanes: [
@@ -65,7 +64,6 @@ const buildSearchThesis = (overrides: SearchThesisTestOverrides = {}): SearchThe
         targetSignals: ['platform modernization'],
       },
     ],
-    interviewStrategy: 'Anchor on deployment architecture.',
     lookFor: normalizeTestSignals(lookFor ?? ['platform modernization']),
     avoid: normalizeTestSignals(avoid),
     keywordCombinations: [],
@@ -544,7 +542,6 @@ describe('searchStore', () => {
             targetCompanyProfile: 'Platform modernization teams',
           },
         ],
-        interviewStrategy: 'Preserve this interview strategy.',
         lookFor: ['platform modernization', 'developer leverage'],
         keywordCombinations: [
           { id: 'skwd-1', query: '"platform modernization"', lane: 'lane-1', noiseLevel: 'low' },
@@ -557,7 +554,7 @@ describe('searchStore', () => {
     expect(useSearchStore.getState().activeThesisId).toBe(first.id)
 
     const savedRevision = useSearchStore.getState().saveThesisRevision(first.id, {
-      narrative: 'Edited narrative.\n\nSecond paragraph.\n\nThird paragraph.',
+      competitiveMoat: 'An edited moat that still has plenty of length to satisfy validation.',
       searchLanes: [
         {
           id: 'lane-1',
@@ -572,9 +569,7 @@ describe('searchStore', () => {
     expect(savedRevision?.id).toBe(first.id)
     expect(savedRevision).toMatchObject({
       source: 'user-edited',
-      narrative: 'Edited narrative.\n\nSecond paragraph.\n\nThird paragraph.',
       unfairAdvantages: first.unfairAdvantages,
-      interviewStrategy: first.interviewStrategy,
       lookFor: first.lookFor,
       keywordCombinations: first.keywordCombinations,
       feedbackIncorporated: first.feedbackIncorporated,
@@ -741,7 +736,6 @@ describe('searchStore', () => {
       }).theses[0],
     ).toMatchObject({
       id: 'partial-thesis',
-      narrative: '',
       searchLanes: [],
       avoid: [],
       skillDepthMap: [],

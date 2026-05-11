@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import type { SyntheticEvent } from 'react'
-import { Sparkles, X } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import {
   EMPLOYMENT_TYPE_BANK,
   EMPLOYMENT_TYPE_LABELS,
@@ -23,7 +23,6 @@ import type {
   SearchRemotePolicy,
   SalaryBand,
   SearchThesis,
-  SkillCatalogEntry,
 } from '../../types/search'
 import { searchProfileFilterLabels } from '../../utils/searchProfileFilters'
 import { formatSalaryBand } from '../../utils/searchSalary'
@@ -88,9 +87,6 @@ const clampSalaryAmount = (value: string | number): number => {
   return Math.min(SALARY_SLIDER_MAX, Math.max(0, Math.round(parsed)))
 }
 
-const formatClearancePreference = (value: string): string =>
-  CLEARANCE_OPTIONS.find((option) => option.value === value)?.label ?? value
-
 interface ConstraintChipGroupProps<Value extends string> {
   label: string
   values: readonly Value[] | undefined
@@ -127,11 +123,6 @@ function ConstraintChipGroup<Value extends string>({
       </div>
     </fieldset>
   )
-}
-
-const formatDepthLabel = (depth: SkillCatalogEntry['depth']): string => {
-  if (depth === 'avoid') return 'Avoid'
-  return depth.charAt(0).toUpperCase() + depth.slice(1).replace('-', ' ')
 }
 
 interface SearchThesisWorkspaceProps {
@@ -296,15 +287,6 @@ export function SearchThesisWorkspace({
             )}
           </div>
 
-          {activeThesis.narrative ? (
-            <div className="research-thesis-narrative">
-              <h3 className="research-subtitle">Narrative</h3>
-              {activeThesis.narrative.split(/\n\s*\n/).map((paragraph, index) => (
-                <p key={index}>{paragraph.trim()}</p>
-              ))}
-            </div>
-          ) : null}
-
           <div className="research-thesis-controls">
             <label className="research-field">
               <span>Corrections (applied on regenerate)</span>
@@ -337,99 +319,11 @@ export function SearchThesisWorkspace({
   )
 }
 
-interface SearchSkillsTableProps {
-  skills: SkillCatalogEntry[]
-  hiddenSkillIds: string[]
-  hasActiveThesis: boolean
-  onToggleHidden: (skillId: string) => void
-}
-
-export function SearchSkillsTable({
-  skills,
-  hiddenSkillIds,
-  hasActiveThesis,
-  onToggleHidden,
-}: SearchSkillsTableProps) {
-  const hiddenSet = new Set(hiddenSkillIds)
-
-  return (
-    <section className="research-card research-skills-card" aria-label="Skills for this search">
-      <div className="research-card-header">
-        <div>
-          <h2>Skills</h2>
-          <p>
-            Identity skills the search will weigh.{' '}
-            {hasActiveThesis
-              ? 'Hide a skill to remove it from this search only — your identity is unchanged.'
-              : 'Generate a thesis to enable per-search hide controls.'}
-          </p>
-        </div>
-      </div>
-
-      {skills.length === 0 ? (
-        <p className="research-muted">No identity-derived skills yet.</p>
-      ) : (
-        <table className="research-skills-compact">
-          <thead>
-            <tr>
-              <th scope="col">Skill</th>
-              <th scope="col">Depth</th>
-              <th scope="col">Context</th>
-              <th scope="col" aria-label="Hide from this search" />
-            </tr>
-          </thead>
-          <tbody>
-            {skills.map((skill) => {
-              const hidden = hiddenSet.has(skill.id)
-              return (
-                <tr
-                  key={skill.id}
-                  className={hidden ? 'research-skill-hidden' : undefined}
-                  aria-disabled={hidden}
-                >
-                  <td className="research-skill-name">{skill.name || '(unnamed)'}</td>
-                  <td className="research-skill-depth">{formatDepthLabel(skill.depth)}</td>
-                  <td className="research-skill-context">{skill.context || '—'}</td>
-                  <td className="research-skill-action">
-                    {hasActiveThesis ? (
-                      hidden ? (
-                        <button
-                          type="button"
-                          className="research-btn research-btn-ghost"
-                          onClick={() => onToggleHidden(skill.id)}
-                          aria-label={`Restore ${skill.name || 'skill'} to this search`}
-                        >
-                          Restore
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="research-icon-btn"
-                          onClick={() => onToggleHidden(skill.id)}
-                          aria-label={`Hide ${skill.name || 'skill'} from this search`}
-                          title="Hide from this search"
-                        >
-                          <X size={14} />
-                        </button>
-                      )
-                    ) : null}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-    </section>
-  )
-}
-
 interface SearchInstancePreferencesProps {
   identityBase: Pick<SearchProfile, 'constraints' | 'filters' | 'interviewPrefs'>
   activeThesis: SearchThesis | null
   onUpdateOverrides: (patch: Partial<SearchInstanceOverrides>) => void
   onEditThesisSignals: (target: 'lookFor' | 'avoid') => void
-  onNavigateToIdentity: () => void
 }
 
 export function SearchInstancePreferences({
@@ -437,7 +331,6 @@ export function SearchInstancePreferences({
   activeThesis,
   onUpdateOverrides,
   onEditThesisSignals,
-  onNavigateToIdentity,
 }: SearchInstancePreferencesProps) {
   const thesisSignalsLabelId = useId()
   const overrides = activeThesis?.searchOverrides
@@ -458,9 +351,6 @@ export function SearchInstancePreferences({
         avoid: searchProfileFilterLabels(identityBase.filters.avoid),
       }
 
-  const companySizeLabel =
-    COMPANY_SIZE_OPTIONS.find((option) => option.value === identityBase.constraints.companySize)
-      ?.label ?? 'No preference'
   const [hardConstraintsOpen, setHardConstraintsOpen] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.sessionStorage.getItem(HARD_CONSTRAINTS_STORAGE_KEY) === 'open'
@@ -517,93 +407,6 @@ export function SearchInstancePreferences({
       </div>
 
       <div className="research-preferences-split">
-        <div className="research-preferences-base" aria-label="From identity">
-          <div className="research-preferences-base-header">
-            <h3 className="research-subtitle">From Identity</h3>
-            <button
-              type="button"
-              className="research-btn research-btn-ghost"
-              onClick={onNavigateToIdentity}
-            >
-              Edit in Identity
-            </button>
-          </div>
-          <dl className="research-preferences-readout">
-            <div>
-              <dt>Compensation anchor</dt>
-              <dd>
-                {formatSalaryBand(identityBase.constraints.salary) || (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Preferred locations</dt>
-              <dd>
-                {identityBase.constraints.locations.length > 0 ? (
-                  identityBase.constraints.locations.join(', ')
-                ) : (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Clearance</dt>
-              <dd>
-                {identityBase.constraints.clearance ? (
-                  formatClearancePreference(identityBase.constraints.clearance)
-                ) : (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Preferred company size</dt>
-              <dd>{companySizeLabel}</dd>
-            </div>
-            <div>
-              <dt>Prioritize</dt>
-              <dd>
-                {identityBase.filters.prioritize.length > 0 ? (
-                  searchProfileFilterLabels(identityBase.filters.prioritize).join(', ')
-                ) : (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Avoid</dt>
-              <dd>
-                {identityBase.filters.avoid.length > 0 ? (
-                  searchProfileFilterLabels(identityBase.filters.avoid).join(', ')
-                ) : (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Interview prep advantages</dt>
-              <dd>
-                {identityBase.interviewPrefs.strongFit.length > 0 ? (
-                  identityBase.interviewPrefs.strongFit.join(', ')
-                ) : (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Interview process risks</dt>
-              <dd>
-                {identityBase.interviewPrefs.redFlags.length > 0 ? (
-                  identityBase.interviewPrefs.redFlags.join(', ')
-                ) : (
-                  <span className="research-muted">—</span>
-                )}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
         <div className="research-preferences-overrides" aria-label="This search">
           <div className="research-preferences-overrides-header">
             <h3 className="research-subtitle">This Search</h3>

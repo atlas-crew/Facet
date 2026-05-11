@@ -79,7 +79,6 @@ function thesisSnapshot() {
     id: 'thesis-1',
     createdAt: '2026-03-15T11:00:00.000Z',
     updatedAt: '2026-03-15T11:05:00.000Z',
-    narrative: 'A focused security-platform thesis with concrete identity evidence.',
     competitiveMoat: 'Deep WAF and platform ownership.',
     unfairAdvantages: [
       {
@@ -96,7 +95,6 @@ function thesisSnapshot() {
         targetSignals: ['WAF', 'edge security'],
       },
     ],
-    interviewStrategy: 'Use architectural walkthroughs over Leetcode framing.',
     lookFor: ['security platform', 'edge protection'],
     avoid: [],
     keywordCombinations: [
@@ -452,7 +450,6 @@ describe('research job API', () => {
     const valid = researchPayload()
     const invalidPayloads = [
       {},
-      { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, narrative: '' } },
       { ...valid, thesisSnapshot: { ...valid.thesisSnapshot, skillDepthMap: [] } },
       { ...valid, params: undefined },
       { ...valid, params: { ...valid.params, focusLanes: undefined } },
@@ -1476,7 +1473,7 @@ describe('research job API', () => {
       id: created.jobId,
       status: 'canceled',
       thesisSnapshot: expect.objectContaining({
-        narrative: 'A focused security-platform thesis with concrete identity evidence.',
+        competitiveMoat: 'Deep WAF and platform ownership.',
       }),
       progress: { phase: 'canceled' },
     })

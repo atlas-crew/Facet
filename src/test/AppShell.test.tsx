@@ -124,7 +124,6 @@ const buildShellThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis =
   id: 'thesis-stale',
   createdAt: '2026-03-14T11:00:00.000Z',
   updatedAt: '2026-03-14T11:00:00.000Z',
-  narrative: 'Stale test thesis.',
   competitiveMoat: 'Platform execution.',
   unfairAdvantages: [],
   searchLanes: [
@@ -135,7 +134,6 @@ const buildShellThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis =
       targetSignals: ['platform'],
     },
   ],
-  interviewStrategy: 'Lead with platform execution.',
   lookFor: [],
   avoid: [],
   keywordCombinations: [],

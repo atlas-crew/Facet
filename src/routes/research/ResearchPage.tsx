@@ -83,7 +83,6 @@ import {
 import {
   SearchAssumptionsDisclosure,
   SearchInstancePreferences,
-  SearchSkillsTable,
   SearchThesisWorkspace,
 } from './searchWorkspaceComponents'
 import './research.css'
@@ -99,7 +98,6 @@ const RESEARCH_TAB_DEFS: Array<{ id: ResearchTab; label: string }> = [
 ]
 const TERMINAL_RESEARCH_JOB_STATUSES = new Set(['completed', 'failed', 'canceled'])
 type ResearchJobEventLogEntry = { id: number; text: string }
-type ThesisNoiseLevel = SearchThesis['keywordCombinations'][number]['noiseLevel']
 type ThesisUrgency = NonNullable<SearchThesis['timeline']>['urgency']
 type ThesisSkillCorrectionTarget = {
   groupId: string
@@ -160,16 +158,6 @@ const COMPANY_SIZE_OPTIONS: Array<{ value: SearchCompanySize | ''; label: string
   { value: 'any', label: 'Any size' },
 ]
 
-const THESIS_NOISE_LEVEL_OPTIONS: Array<{ value: ThesisNoiseLevel; label: string }> = [
-  { value: 'low', label: 'Low noise' },
-  { value: 'medium', label: 'Medium noise' },
-  { value: 'high', label: 'High noise' },
-]
-
-const THESIS_NOISE_LEVELS = new Set<ThesisNoiseLevel>(
-  THESIS_NOISE_LEVEL_OPTIONS.map((option) => option.value),
-)
-
 const THESIS_URGENCY_OPTIONS: Array<{ value: ThesisUrgency; label: string }> = [
   { value: 'exploratory', label: 'Exploratory' },
   { value: 'active', label: 'Active' },
@@ -186,9 +174,6 @@ const THESIS_SKILL_DEPTH_VALUES = new Set<ProfessionalSkillDepth>([
   'basic',
   'avoid',
 ])
-
-const isThesisNoiseLevel = (value: string): value is ThesisNoiseLevel =>
-  THESIS_NOISE_LEVELS.has(value as ThesisNoiseLevel)
 
 const isProfessionalSkillDepth = (value: string): value is ProfessionalSkillDepth =>
   THESIS_SKILL_DEPTH_VALUES.has(value as ProfessionalSkillDepth)
@@ -599,9 +584,7 @@ const getReadinessCopy = ({
       detail: currentIdentity
         ? 'Facet can pull skills, constraints, and strategy signals straight from Identity so Research starts from the same strategy model.'
         : 'Facet will infer skills, work history, and open questions from your resume so you can review them before running search.',
-      primaryActionLabel: currentIdentity
-        ? 'Build Profile from Identity'
-        : 'Build Profile from Resume',
+      primaryActionLabel: isSearching ? 'Running Search…' : 'Run Search',
     }
   }
 
@@ -684,7 +667,6 @@ export function ResearchPage() {
     markThesisStalenessReview,
     saveThesisRevision,
     updateThesisOverrides,
-    toggleThesisHiddenSkill,
     setActiveThesis,
     activeResearchJob,
     setActiveResearchJob,
@@ -906,10 +888,6 @@ export function ResearchPage() {
   const thesisTimelineStrategyMissing = Boolean(
     thesisDraft?.timeline?.urgency && !thesisDraft.timeline.strategyImpact.trim(),
   )
-  const thesisLaneIds = useMemo(
-    () => new Set(thesisDraft?.searchLanes.map((lane) => lane.id) ?? []),
-    [thesisDraft?.searchLanes],
-  )
   const pendingSkillWritebackEntry = pendingSkillWriteback
     ? (thesisDraft?.skillDepthMap[pendingSkillWriteback.skillIndex] ?? null)
     : null
@@ -983,7 +961,7 @@ export function ResearchPage() {
     resumeVersion: resumeData.version,
     isSearching,
   })
-  const primaryActionBusy = !effectiveProfile ? isInferring : isSearching
+  const primaryActionBusy = isSearching
   const budgetBadgeCopy = useMemo(() => getBudgetBadgeCopy(researchUsage), [researchUsage])
 
   const vectorOptions = useMemo(
@@ -1646,11 +1624,6 @@ export function ResearchPage() {
     }
   }
 
-  const updateThesisDraft = (patch: Partial<SearchThesis>) => {
-    setThesisDraft((current) => (current ? { ...current, ...patch } : current))
-    setThesisDraftIsDirty(true)
-  }
-
   const updateThesisLane = (index: number, patch: Partial<SearchThesis['searchLanes'][number]>) => {
     setThesisDraft((current) =>
       current
@@ -2296,62 +2269,6 @@ export function ResearchPage() {
     )
   }
 
-  const updateThesisKeywordCombination = (
-    index: number,
-    patch: Partial<SearchThesis['keywordCombinations'][number]>,
-  ) => {
-    setThesisDraft((current) =>
-      current
-        ? {
-            ...current,
-            keywordCombinations: current.keywordCombinations.map((entry, entryIndex) =>
-              entryIndex === index ? { ...entry, ...patch } : entry,
-            ),
-          }
-        : current,
-    )
-    setThesisDraftIsDirty(true)
-  }
-
-  const addThesisKeywordCombination = () => {
-    const firstLaneId = thesisDraft?.searchLanes[0]?.id
-    if (!firstLaneId) {
-      setThesisNotice('Add a search lane before adding keyword combinations.')
-      return
-    }
-    setThesisNotice(null)
-    setThesisDraft((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        keywordCombinations: [
-          ...current.keywordCombinations,
-          {
-            id: createId('skwd'),
-            query: '',
-            lane: firstLaneId,
-            noiseLevel: 'medium',
-          },
-        ],
-      }
-    })
-    setThesisDraftIsDirty(true)
-  }
-
-  const removeThesisKeywordCombination = (index: number) => {
-    setThesisDraft((current) =>
-      current
-        ? {
-            ...current,
-            keywordCombinations: current.keywordCombinations.filter(
-              (_, entryIndex) => entryIndex !== index,
-            ),
-          }
-        : current,
-    )
-    setThesisDraftIsDirty(true)
-  }
-
   const updateThesisTimeline = (
     patch: Omit<Partial<NonNullable<SearchThesis['timeline']>>, 'urgency'> & {
       urgency?: ThesisUrgency | ''
@@ -2411,17 +2328,6 @@ export function ResearchPage() {
       return
     }
 
-    const laneIds = new Set(thesisDraft.searchLanes.map((lane) => lane.id))
-    const invalidKeywords = thesisDraft.keywordCombinations.filter(
-      (entry) => !entry.lane || !laneIds.has(entry.lane),
-    )
-    if (invalidKeywords.length > 0) {
-      setPageError(
-        formatCount(invalidKeywords.length, 'keyword combination is', 'keyword combinations are') +
-          ' linked to a removed lane. Choose a current search lane before saving.',
-      )
-      return
-    }
     if (thesisDraft.timeline?.urgency && !thesisDraft.timeline.strategyImpact.trim()) {
       setPageError('Timeline strategy impact is required before saving thesis edits.')
       return
@@ -2767,11 +2673,11 @@ export function ResearchPage() {
           <button
             type="button"
             className="research-btn research-btn-primary"
-            onClick={() => void (!effectiveProfile ? handleInfer() : handleLaunchSearch())}
+            onClick={() => void handleLaunchSearch()}
             disabled={primaryActionBusy}
             aria-busy={primaryActionBusy}
           >
-            {effectiveProfile ? <Search size={16} /> : <Sparkles size={16} />}
+            <Search size={16} />
             {readinessCopy.primaryActionLabel}
           </button>
           <button type="button" className="research-btn" onClick={() => setActiveTab('profile')}>
@@ -2893,15 +2799,6 @@ export function ResearchPage() {
             />
 
             <div className="research-grid research-grid-two">
-              <SearchSkillsTable
-                skills={effectiveProfile.skills}
-                hiddenSkillIds={activeThesis?.searchOverrides?.hiddenSkillIds ?? []}
-                hasActiveThesis={Boolean(activeThesis)}
-                onToggleHidden={(skillId) => {
-                  if (!activeThesis) return
-                  toggleThesisHiddenSkill(activeThesis.id, skillId)
-                }}
-              />
               <SearchInstancePreferences
                 identityBase={effectiveProfile}
                 activeThesis={thesisDraft ?? activeThesis}
@@ -2910,12 +2807,6 @@ export function ResearchPage() {
                   updateThesisOverrides(activeThesis.id, patch)
                 }}
                 onEditThesisSignals={focusThesisSignalsEditor}
-                onNavigateToIdentity={() =>
-                  void navigate({
-                    to: '/identity',
-                    search: { focus: 'preferences', return: '/research' },
-                  })
-                }
               />
             </div>
           </>
@@ -3317,17 +3208,6 @@ export function ResearchPage() {
                 />
 
                 <div className="research-form-grid">
-                  <label className="research-field research-field-span">
-                    <span>Strategic narrative</span>
-                    <textarea
-                      className="research-textarea"
-                      rows={7}
-                      aria-label="Thesis narrative"
-                      value={thesisDraft.narrative}
-                      onChange={(event) => updateThesisDraft({ narrative: event.target.value })}
-                    />
-                  </label>
-
                   <div className="research-field research-field-span">
                     <div className="research-summary-header">
                       <span>Competitive moat</span>
@@ -3356,19 +3236,6 @@ export function ResearchPage() {
                       Sourced from your Self Model. Snapshotted at thesis generation time.
                     </p>
                   </div>
-
-                  <label className="research-field research-field-span">
-                    <span>Interview strategy</span>
-                    <textarea
-                      className="research-textarea"
-                      rows={3}
-                      aria-label="Interview strategy"
-                      value={thesisDraft.interviewStrategy}
-                      onChange={(event) =>
-                        updateThesisDraft({ interviewStrategy: event.target.value })
-                      }
-                    />
-                  </label>
 
                   <label className="research-field research-field-span">
                     <span>Look-for signals</span>
@@ -3587,112 +3454,6 @@ export function ResearchPage() {
                         </div>
                       </div>
                     ))
-                  )}
-                </section>
-
-                <section className="research-stack" aria-label="Thesis keyword combinations">
-                  <div className="research-vector-card-header">
-                    <h3 className="research-subtitle">Keyword combinations</h3>
-                    <button
-                      type="button"
-                      className="research-btn"
-                      onClick={addThesisKeywordCombination}
-                      disabled={thesisDraft.searchLanes.length === 0}
-                    >
-                      Add keyword
-                    </button>
-                  </div>
-                  {thesisDraft.keywordCombinations.length === 0 ? (
-                    <p className="research-muted">No keyword combinations yet.</p>
-                  ) : (
-                    thesisDraft.keywordCombinations.map((entry, index) => {
-                      const laneIsInvalid = !entry.lane || !thesisLaneIds.has(entry.lane)
-                      const laneErrorId = laneIsInvalid
-                        ? 'thesis-keyword-lane-error-' + entry.id
-                        : undefined
-                      return (
-                        <div
-                          key={entry.id}
-                          className="research-thesis-row research-thesis-keyword-row"
-                        >
-                          <label className="research-field">
-                            <span>Query</span>
-                            <input
-                              className="research-input"
-                              aria-label={`Keyword ${index + 1} query`}
-                              value={entry.query}
-                              onChange={(event) =>
-                                updateThesisKeywordCombination(index, { query: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field">
-                            <span>Lane</span>
-                            <select
-                              className={
-                                laneIsInvalid
-                                  ? 'research-select research-input-invalid'
-                                  : 'research-select'
-                              }
-                              aria-label={`Keyword ${index + 1} lane`}
-                              aria-invalid={laneIsInvalid ? 'true' : undefined}
-                              aria-describedby={laneErrorId}
-                              value={entry.lane}
-                              onChange={(event) =>
-                                updateThesisKeywordCombination(index, { lane: event.target.value })
-                              }
-                            >
-                              {thesisDraft.searchLanes.every((lane) => lane.id !== entry.lane) ? (
-                                <option value="" disabled>
-                                  Select lane
-                                </option>
-                              ) : null}
-                              {thesisDraft.searchLanes.map((lane) => (
-                                <option key={lane.id} value={lane.id}>
-                                  {lane.title}
-                                </option>
-                              ))}
-                            </select>
-                            {laneIsInvalid ? (
-                              <span
-                                id={laneErrorId}
-                                className="research-field-hint research-field-hint-error"
-                              >
-                                Choose a current search lane before saving.
-                              </span>
-                            ) : null}
-                          </label>
-                          <label className="research-field">
-                            <span>Noise</span>
-                            <select
-                              className="research-select"
-                              aria-label={`Keyword ${index + 1} noise`}
-                              value={entry.noiseLevel}
-                              onChange={(event) =>
-                                updateThesisKeywordCombination(index, {
-                                  noiseLevel: isThesisNoiseLevel(event.target.value)
-                                    ? event.target.value
-                                    : 'medium',
-                                })
-                              }
-                            >
-                              {THESIS_NOISE_LEVEL_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            className="research-btn research-btn-danger"
-                            onClick={() => removeThesisKeywordCombination(index)}
-                          >
-                            Remove keyword
-                          </button>
-                        </div>
-                      )
-                    })
                   )}
                 </section>
 

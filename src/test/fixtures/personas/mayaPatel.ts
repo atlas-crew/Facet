@@ -1740,8 +1740,6 @@ const mayaPatelResearchThesis: SearchThesis = {
   id: 'thesis-maya-payments-appsec',
   createdAt: '2026-04-20T12:00:00.000Z',
   updatedAt: '2026-04-20T12:20:00.000Z',
-  narrative:
-    'Maya’s strongest search lane is payments AppSec where product empathy, PCI evidence, and platform-security partnership all matter.\n\nPillar Systems fits because the posted role combines AppSec tooling, SAST/DAST rollout, threat modeling, and secrets partnership.\n\nThe search should prioritize teams that treat security tooling as developer workflow rather than compliance theater.',
   competitiveMoat:
     'Frontend-to-AppSec path plus PCI tokenization and SAST adoption metrics in a payments context.',
   unfairAdvantages: [
@@ -1759,8 +1757,6 @@ const mayaPatelResearchThesis: SearchThesis = {
       targetSignals: ['payments platform', 'SAST rollout', 'threat modeling', 'secret management'],
     },
   ],
-  interviewStrategy:
-    'Use tokenization for domain credibility, SAST rollout for adoption mechanics, and Vault rotation for platform partnership.',
   lookFor: [
     { id: 'sig-appsec-tooling', label: 'AppSec owns tooling, not just policy', severity: 'soft' },
   ],

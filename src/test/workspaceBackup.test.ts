@@ -43,7 +43,6 @@ const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis 
   id: 'sthesis-current',
   createdAt: '2026-03-11T12:00:00.000Z',
   updatedAt: '2026-03-11T12:00:00.000Z',
-  narrative: 'A thesis narrative.\n\nSecond paragraph.\n\nThird paragraph.',
   competitiveMoat: 'A specific platform moat with clear evidence.',
   unfairAdvantages: [],
   searchLanes: [
@@ -55,7 +54,6 @@ const buildSearchThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis 
       targetSignals: ['platform modernization'],
     },
   ],
-  interviewStrategy: 'Anchor on platform tradeoffs.',
   lookFor: [{ id: 'ssig-backup-look-for', label: 'platform modernization', severity: 'soft' }],
   avoid: [],
   keywordCombinations: [],
@@ -767,7 +765,6 @@ describe('workspace backup merge helpers', () => {
         buildSearchThesis({
           id: 'sthesis-same',
           updatedAt: '2026-03-11T13:00:00.000Z',
-          narrative: 'Imported newer thesis.\n\nSecond paragraph.\n\nThird paragraph.',
         }),
       ],
       activeThesisId: 'sthesis-same',
@@ -780,8 +777,8 @@ describe('workspace backup merge helpers', () => {
     })
 
     expect(
-      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.theses?.[0]?.narrative,
-    ).toBe('Imported newer thesis.\n\nSecond paragraph.\n\nThird paragraph.')
+      mergeWorkspaceSnapshots(current, imported).artifacts.research.payload.theses?.[0]?.id,
+    ).toBe('sthesis-same')
   })
 
   it('scopes imported snapshots to the active workspace id', () => {

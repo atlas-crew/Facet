@@ -707,14 +707,13 @@ describe('thesisGenerator', () => {
     ])
   })
 
-  it('validates narrative, lane rationale, and identity skill coverage', () => {
+  it('validates lane rationale and identity skill coverage', () => {
     const identity = cloneIdentityFixture()
     const violations = validateSearchThesis(
       {
         id: 'sthesis-short',
         createdAt: '2026-04-20T10:00:00.000Z',
         updatedAt: '2026-04-20T10:00:00.000Z',
-        narrative: 'Too short.',
         competitiveMoat: 'Thin.',
         unfairAdvantages: [],
         searchLanes: [
@@ -725,7 +724,6 @@ describe('thesisGenerator', () => {
             targetSignals: [],
           },
         ],
-        interviewStrategy: '',
         lookFor: [],
         avoid: [],
         keywordCombinations: [],
@@ -739,7 +737,6 @@ describe('thesisGenerator', () => {
 
     expect(violations).toEqual(
       expect.arrayContaining([
-        'narrative: expected 3-5 paragraphs with at least 240 characters',
         'competitiveMoat: too short — author at least 40 characters on Identity → Self Model',
         'searchLanes[0].rationale: expected prose rationale with at least 2 sentences',
         'skillDepthMap: expected at least one skill-depth entry',
