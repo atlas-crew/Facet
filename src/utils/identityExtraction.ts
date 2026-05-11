@@ -16,6 +16,7 @@ import type {
 } from '../types/identity'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError } from './llmProxy'
+import type { SynthesisSeed } from '../types/identity'
 
 const CONFIDENCE_VALUES: IdentityConfidence[] = ['stated', 'confirmed', 'guessing', 'corrected']
 const IDENTITY_EXTRACTION_TIMEOUT_MS = 120000
@@ -1622,29 +1623,122 @@ export const parseDeepenIdentityBulletResponse = (
   }
 }
 
+interface EvidenceBlocksResume {
+  source_file: string
+  user_label?: string
+  roles: Array<{
+    role_id: string
+    bullets: Array<{ text: string }>
+  }>
+}
+
+interface EvidenceBlocks {
+  resumes: EvidenceBlocksResume[]
+  jds: never[]
+  agent_dumps: never[]
+}
+
+/**
+ * Pivot the SynthesisSeed.bulletVariantPools (keyed by canonical role_id)
+ * into a per-source structure the LLM consumes as `evidence_blocks.resumes`.
+ * Each source file becomes one entry with its label and a flattened list of
+ * roles, each carrying that source's variant texts for that canonical role.
+ *
+ * jds and agent_dumps are always emitted as [] in Phase 1. The system prompt
+ * tells the LLM to treat empty channels as "no signal from this source type"
+ * so the structure stays declarative even for N=0 / N=1 / paste-mode inputs.
+ */
+const buildEvidenceBlocks = (synthesisSeed: SynthesisSeed | null | undefined): EvidenceBlocks => {
+  const resumes: EvidenceBlocksResume[] = []
+  if (!synthesisSeed) {
+    return { resumes, jds: [], agent_dumps: [] }
+  }
+
+  // Per-source map: source_file -> { user_label, roles: roleId -> texts[] }
+  const perSource = new Map<
+    string,
+    {
+      userLabel?: string
+      perRole: Map<string, string[]>
+      order: number
+    }
+  >()
+  let sourceOrderCounter = 0
+
+  for (const [roleId, variants] of Object.entries(synthesisSeed.bulletVariantPools)) {
+    for (const variant of variants) {
+      let entry = perSource.get(variant.source)
+      if (!entry) {
+        entry = {
+          userLabel: variant.label,
+          perRole: new Map(),
+          order: sourceOrderCounter++,
+        }
+        perSource.set(variant.source, entry)
+      } else if (!entry.userLabel && variant.label) {
+        entry.userLabel = variant.label
+      }
+      let texts = entry.perRole.get(roleId)
+      if (!texts) {
+        texts = []
+        entry.perRole.set(roleId, texts)
+      }
+      texts.push(variant.text)
+    }
+  }
+
+  const ordered = Array.from(perSource.entries()).sort(
+    ([, a], [, b]) => a.order - b.order,
+  )
+  for (const [sourceFile, entry] of ordered) {
+    resumes.push({
+      source_file: sourceFile,
+      ...(entry.userLabel ? { user_label: entry.userLabel } : {}),
+      roles: Array.from(entry.perRole.entries()).map(([roleId, texts]) => ({
+        role_id: roleId,
+        bullets: texts.map((text) => ({ text })),
+      })),
+    })
+  }
+
+  return { resumes, jds: [], agent_dumps: [] }
+}
+
 const buildExtractionPrompt = ({
   sourceMaterial,
   correctionNotes,
   existingDraft,
-  seedIdentity,
+  synthesisSeed,
 }: {
   sourceMaterial: string
   correctionNotes?: string
   existingDraft?: ProfessionalIdentityV3 | null
-  seedIdentity?: ProfessionalIdentityV3 | null
+  synthesisSeed?: SynthesisSeed | null
 }): string => {
   const parts = [
     'Source material:',
     sourceMaterial.trim(),
   ]
 
-  if (seedIdentity) {
+  if (synthesisSeed) {
     parts.push(
       '',
       'Scanned resume structure to deepen (preserve ids and role boundaries; decompose bullets from source_text):',
-      JSON.stringify(seedIdentity, null, 2),
+      JSON.stringify(synthesisSeed.identity, null, 2),
     )
+    const variantTitleEntries = Object.entries(synthesisSeed.roleVariantTitles ?? {})
+    if (variantTitleEntries.length > 0) {
+      parts.push(
+        '',
+        'Older role titles superseded by the most-recent scan (surface as assumptions if relevant):',
+        JSON.stringify(Object.fromEntries(variantTitleEntries), null, 2),
+      )
+    }
   }
+
+  // evidence_blocks is always emitted, even with all-empty channels, so the
+  // prompt structure stays uniform for N=0 / N=1 / N>=2 inputs.
+  parts.push('', 'evidence_blocks:', JSON.stringify(buildEvidenceBlocks(synthesisSeed), null, 2))
 
   if (existingDraft) {
     parts.push(
@@ -1720,20 +1814,20 @@ export const generateIdentityDraft = async ({
   sourceMaterial,
   correctionNotes,
   existingDraft,
-  seedIdentity,
+  synthesisSeed,
   signal,
 }: {
   endpoint: string
   sourceMaterial: string
   correctionNotes?: string
   existingDraft?: ProfessionalIdentityV3 | null
-  seedIdentity?: ProfessionalIdentityV3 | null
+  synthesisSeed?: SynthesisSeed | null
   signal?: AbortSignal
 }): Promise<IdentityExtractionDraft> => {
   const rawResponse = await callLlmProxy(
     endpoint,
     EXTRACTION_SYSTEM_PROMPT,
-    buildExtractionPrompt({ sourceMaterial, correctionNotes, existingDraft, seedIdentity }),
+    buildExtractionPrompt({ sourceMaterial, correctionNotes, existingDraft, synthesisSeed }),
     {
       feature: 'identity.extract',
       model: 'sonnet',
@@ -1743,7 +1837,7 @@ export const generateIdentityDraft = async ({
     },
   )
 
-  return parseIdentityExtractionResponse(rawResponse, seedIdentity)
+  return parseIdentityExtractionResponse(rawResponse, synthesisSeed?.identity ?? null)
 }
 
 export const deepenIdentityBullet = async ({

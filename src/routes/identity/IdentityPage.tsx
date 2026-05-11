@@ -13,7 +13,7 @@ import {
   generateIdentityDraft,
   parseIdentityExtractionResponse,
 } from '../../utils/identityExtraction'
-import { scanResumePdf } from '../../utils/resumeScanner'
+import { intakeSynthesis, scanResumePdf } from '../../utils/resumeScanner'
 import {
   resolveComparisonVectorAfterReplaceImport,
   resolveSelectedVectorAfterReplaceImport,
@@ -217,11 +217,13 @@ export function IdentityPage() {
       setPageError(null)
       setPageNotice(null)
       setIsGenerating(true)
+      const synthesisSeed =
+        shouldUseScan && intakeSources.length > 0 ? intakeSynthesis(intakeSources) : null
       const nextDraft = await generateIdentityDraft({
         endpoint: aiEndpoint,
         sourceMaterial: effectiveSourceMaterial,
         correctionNotes,
-        seedIdentity: shouldUseScan ? (scanResult?.identity ?? null) : null,
+        synthesisSeed,
         existingDraft: mode === 'regenerate' ? (draft?.identity ?? currentIdentity) : null,
         signal: controller.signal,
       })

@@ -35,9 +35,15 @@ vi.mock('../utils/identityExtraction', async () => {
   }
 })
 
-vi.mock('../utils/resumeScanner', () => ({
-  scanResumePdf: resumeScannerMocks.scanResumePdfMock,
-}))
+vi.mock('../utils/resumeScanner', async () => {
+  const actual = await vi.importActual<typeof import('../utils/resumeScanner')>(
+    '../utils/resumeScanner',
+  )
+  return {
+    ...actual,
+    scanResumePdf: resumeScannerMocks.scanResumePdfMock,
+  }
+})
 
 const scanFixture = (): ResumeScanResult => {
   const identity = cloneIdentityFixture()
@@ -312,17 +318,19 @@ describe('IdentityPage', () => {
       expect.objectContaining({
         sourceMaterial:
           'Alex Example\nExperience\n• Ported the platform to Kubernetes-based installs.',
-        seedIdentity: expect.objectContaining({
-          roles: [
-            expect.objectContaining({
-              bullets: [
-                expect.objectContaining({
-                  source_text:
-                    'Ported the platform to Kubernetes-based installs for on-prem customers.',
-                }),
-              ],
-            }),
-          ],
+        synthesisSeed: expect.objectContaining({
+          identity: expect.objectContaining({
+            roles: [
+              expect.objectContaining({
+                bullets: [
+                  expect.objectContaining({
+                    source_text:
+                      'Ported the platform to Kubernetes-based installs for on-prem customers.',
+                  }),
+                ],
+              }),
+            ],
+          }),
         }),
       }),
     )

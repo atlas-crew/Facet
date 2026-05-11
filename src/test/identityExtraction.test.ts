@@ -334,7 +334,7 @@ describe('identityExtraction', () => {
     const parsed = await generateIdentityDraft({
       endpoint: 'https://facet.test/api/ai',
       sourceMaterial: 'Jordan Example resume text',
-      seedIdentity,
+      synthesisSeed: { identity: seedIdentity, bulletVariantPools: {}, roleVariantTitles: {} },
     })
 
     expect(parsed.identity.roles).toHaveLength(2)
