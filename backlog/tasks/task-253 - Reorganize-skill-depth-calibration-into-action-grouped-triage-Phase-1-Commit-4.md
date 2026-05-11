@@ -3,11 +3,11 @@ id: TASK-253
 title: >-
   Reorganize skill-depth calibration into action-grouped triage (Phase 1, Commit
   4)
-status: In Progress
+status: To Do
 assignee:
   - Nicholas Ferguson
 created_date: '2026-05-10 16:25'
-updated_date: '2026-05-11 06:41'
+updated_date: '2026-05-11 06:50'
 labels:
   - research
   - phase-1-cull
@@ -152,6 +152,8 @@ Specifically preserve:
 Implemented Commit 4 as planned with one mid-implementation correction. The user-approved 'read-only surfaced' affordance broke two existing tests because the existing Write back handler returns a useful 'Could not find X in the Identity skill model' error for unmatched skills — that affordance is doing real work today, not dead UI. Updated surfaced to render the full edit form + Write back button to preserve the helpful blocking behavior (AC#4 — existing tests pass unmodified). Confirmed group keeps the edit form (so the existing 'edit search signal/calibration on a generated thesis' test still works) but drops the Write back button since depth already matches. The grouping + collapsed-by-default state are what differentiate confirmed visually now, not stripped affordances.
 
 User-observed manual-smoke surface bugs (1-letter-per-line constraints box, two visible 'Search Thesis' sections) traced to a pre-existing CSS gotcha unrelated to this task: `.research-panel { display: flex }` overrode the UA `hidden` attribute, so all three tab panels rendered simultaneously. Both reported symptoms followed from that — duplicate `<h2>Search Thesis</h2>` (one from SearchThesisWorkspace in the profile tab, one from the inline section in the search tab) and SearchInstancePreferences getting squeezed to half-width inside `research-grid-two` then further split by `research-preferences-split`. Added `.research-panel[hidden] { display: none }` to `research.css` matching the same pattern already established in `pipeline.css:593-594` and `prep.css:2039`/`3582`. Full vitest suite (171 files, 2370 tests) still green.
+
+Paused 2026-05-11 mid-implementation to pivot to task-205. Task-253 code changes remain in the working tree (uncommitted): the skill-depth grouping refactor in ResearchPage.tsx, the new tests in ResearchPage.test.tsx, the CSS additions in research.css. The panel-hidden fix (`.research-panel[hidden] { display: none }`) also lives in research.css and is genuinely useful regardless of task-205; will stay. AC#7 (manual smoke) deferred until after task-205 lands, since the constraints box layout bug user encountered during smoke is being structurally fixed by task-205 Phase B (delete `<SearchInstancePreferences>` from Research). Skill-depth grouping itself is fine on the Search tab where it lives.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
