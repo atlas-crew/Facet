@@ -1,9 +1,11 @@
 ---
 id: TASK-252
 title: 'Cull dead surfaces in research workspace (Phase 1, Commit 3)'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - claude
 created_date: '2026-05-10 16:25'
+updated_date: '2026-05-11 04:42'
 labels:
   - research
   - phase-1-cull
@@ -102,6 +104,62 @@ After changes:
 - [ ] #6 Full test suite passes; tests exercising removed UI are deleted or refactored
 - [ ] #7 Manual smoke verifies: thesis derive → search run → results triage → push-to-pipeline still works end-to-end
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## Reconnaissance (post-1ca4935 / fa7495e cull commits)
+
+Verified line numbers in current main:
+- Empty-state launcher: ResearchPage.tsx:2770 (conditional onClick) + 2773-2774 (icon switch)
+- Thesis narrative editor: ResearchPage.tsx:3325-3326
+- Interview strategy editor: ResearchPage.tsx:3361-3372
+- Keyword combinations UI: ResearchPage.tsx:3605-3680 (display) + 1705-1726 (remove handler) + 2301-2399 (patch/add handlers)
+- Thesis narrative display: searchWorkspaceComponents.tsx:299-306
+- SearchSkillsTable: searchWorkspaceComponents.tsx:340-425; rendered at ResearchPage.tsx:2896
+- Identity-base constraints readout: searchWorkspaceComponents.tsx:520-605
+- SearchThesis.narrative / SearchThesis.interviewStrategy: types/search.ts:562, 571
+- searchExecutor.ts confirmed clean — all `narrative` references are SearchRunNarrative (per-run), NOT thesis-level
+
+## Edit plan
+
+**A. UI surface removals (6 surfaces)**
+
+1. Empty-state launcher: drop the `!effectiveProfile ? handleInfer()` branch; use `handleLaunchSearch()` unconditionally; collapse the icon/label conditional
+2a. Thesis narrative editor block (textarea + label/wrapper)
+2b. Thesis narrative display (paragraph render block)
+3. Interview strategy editor block
+4. Keyword combinations UI + handlers; KEEP thesisSnapshot.keywordCombinations data flow
+5. Delete SearchSkillsTable component + its import + render site
+6. Remove `research-preferences-base` div (keep override editor)
+
+**B. Type-field removals**
+
+Remove `narrative` and `interviewStrategy` from `SearchThesis` in types/search.ts.
+
+**C. Cascading non-UI updates**
+
+- thesisGenerator.ts: drop fields from normalizeGeneratedSearchThesis, drop narrative violation, remove from prompt schema + contract
+- searchStore.ts: drop fields from hydrateThesis defaults
+
+**D. Test surgery**
+
+- ResearchPage.test.tsx: remove fields from default thesis + 6 fixtures; delete keyword-combo tests; remove "Thesis narrative"/"Interview strategy" interactions from edit-and-save test
+- thesisGenerator.test.ts: remove interviewStrategy from 8 fixtures; remove narrative-violation test scaffolding
+- persistence.test.ts, searchRedesignRoundTrip.test.tsx, workspaceBackup.test.ts, researchJobs.test.ts, deepSearchClient.test.ts: remove fields from top-level SearchThesis fixtures only (preserve `narrative: { ... }` SearchRun blocks)
+
+**E. Verification gates**
+
+1. npm run typecheck
+2. npx vitest run
+3. AC #3 grep: activeRunNarrative/narrativeState references intact
+4. AC #4 grep: keywordCombinations still flows in deepSearchClient + searchExecutor
+5. Manual smoke (owner): derive thesis → run search → triage results → push to pipeline → skill-depth writeback
+
+**F. Commit shape**
+
+Single atomic commit: `refactor(research): cull dead UI surfaces and thesis narrative/interviewStrategy fields`
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
