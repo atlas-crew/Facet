@@ -1,11 +1,11 @@
 ---
 id: TASK-258
 title: Add openerCardId and closerCardId deck bookends with Live Mode integration
-status: In Progress
+status: Done
 assignee:
-  - '@codex'
+  - '@myself'
 created_date: '2026-05-11 04:53'
-updated_date: '2026-05-11 07:00'
+updated_date: '2026-05-11 08:04'
 labels:
   - prep
   - types
@@ -37,13 +37,13 @@ Depends on TASK-254 — bookends point to cards with specific kinds ('opener', '
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 openerCardId?: string and closerCardId?: string added to PrepDeck in src/types/prep.ts
-- [ ] #2 prepGenerator.ts populates both fields when an opener (kind: 'opener') and a closer (kind: 'closer') are emitted
-- [ ] #3 PrepLiveMode navigation starts at openerCardId when present, ignoring section ordering for the first card
-- [ ] #4 PrepLiveMode navigation ends at closerCardId when present, ignoring section ordering for the last card
-- [ ] #5 Absent openerCardId / closerCardId falls back to today's behavior (first-card / last-card by current sort)
-- [ ] #6 Contract validator allows the optional fields and asserts they resolve to actual card IDs in deck.cards when set
-- [ ] #7 Regression tests cover navigation routing with bookends present and absent
+- [x] #1 openerCardId?: string and closerCardId?: string added to PrepDeck in src/types/prep.ts
+- [x] #2 prepGenerator.ts populates both fields when an opener (kind: 'opener') and a closer (kind: 'closer') are emitted
+- [x] #3 PrepLiveMode navigation starts at openerCardId when present, ignoring section ordering for the first card
+- [x] #4 PrepLiveMode navigation ends at closerCardId when present, ignoring section ordering for the last card
+- [x] #5 Absent openerCardId / closerCardId falls back to today's behavior (first-card / last-card by current sort)
+- [x] #6 Contract validator allows the optional fields and asserts they resolve to actual card IDs in deck.cards when set
+- [x] #7 Regression tests cover navigation routing with bookends present and absent
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -55,12 +55,24 @@ Depends on TASK-254 — bookends point to cards with specific kinds ('opener', '
 4. Add focused generator/contract and Live Mode regression tests, then run scoped Vitest, ESLint, typecheck, independent review/audit, backlog closure, and a cortex git commit.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Integrated the paused worker's bookend slice into the shared prep changes after resolving overlap with TASK-255. Added optional deck bookend fields, generator resolution from opener/closer card kinds, store/import sanitation for stale and duplicate ids, and Live Mode ordering/navigation guards for present, duplicate, and unknown ids. Verification: npx vitest run src/test/prepCardKind.test.ts src/test/PrepCardView.test.tsx src/test/PrepLiveMode.test.tsx src/test/prepGenerator.test.ts src/test/prepContractValidation.test.ts src/test/prepImport.test.ts src/test/prepStore.test.ts (223 tests passed); npm run typecheck -- --pretty false filtered to touched prep files (no output); npx eslint touched prep source/tests (clean). Review/audit artifacts: .agents/reviews/review-20260511-035206.md, .agents/reviews/test-audit-20260511-035410.md, .agents/reviews/test-audit-20260511-035709.md, .agents/reviews/test-audit-20260511-040058.md.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added PrepDeck opener/closer bookends, generator population, contract/store/import validation, and Live Mode keyboard/section ordering behavior with regression coverage.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
