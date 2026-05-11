@@ -1,4 +1,4 @@
-import type { ProfessionalIdentityV3 } from '../identity/schema'
+import type { ProfessionalIdentityV3, ProfessionalSearchVector } from '../identity/schema'
 
 export type IdentityConfidence = 'stated' | 'confirmed' | 'guessing' | 'corrected'
 
@@ -31,6 +31,21 @@ export type ResumeScanBulletExplanation = Pick<
   'summary' | 'rewrite' | 'assumptions' | 'warnings'
 >
 
+/**
+ * A search vector the extraction LLM proposes from multi-source positioning
+ * hints (m-33). Carries the same shape as a live `ProfessionalSearchVector`
+ * plus `evidenceSources` — free-form human-readable descriptions of which
+ * intake sources supported this angle (e.g. "2 resumes labeled platform").
+ *
+ * Lives on `IdentityExtractionDraft.proposedVectors` as a staging slot. The
+ * review pane (TASK-263) is responsible for moving accepted vectors into
+ * `identity.search_vectors[]`; this type is never persisted directly into the
+ * live identity to keep the user's explicit-acceptance gate honest.
+ */
+export interface ProposedSearchVector extends ProfessionalSearchVector {
+  evidenceSources: string[]
+}
+
 export interface IdentityExtractionDraft {
   generatedAt: string
   summary: string
@@ -38,6 +53,12 @@ export interface IdentityExtractionDraft {
   identity: ProfessionalIdentityV3
   bullets: IdentityDraftBullet[]
   warnings: string[]
+  /**
+   * Staging slot for LLM-proposed positioning vectors from multi-source intake.
+   * Optional and absent for legacy single-file extractions. Accepted vectors
+   * move to `identity.search_vectors[]` only through the explicit review flow.
+   */
+  proposedVectors?: ProposedSearchVector[]
 }
 
 export type IdentityApplyMode = 'replace' | 'merge'
