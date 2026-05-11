@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 05:25'
+updated_date: '2026-05-11 05:27'
 labels:
   - feature
   - identity
@@ -64,6 +64,40 @@ REFERENCES:
 - [ ] #10 New tests cover: multi-file drop sequencing, mid-batch scan failure isolation, source removal, cap enforcement, userLabel persistence in store
 - [ ] #11 Short JSDoc on the IntakeSource union explaining the discriminator and the seam intent for future Phase 2/3 sources
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## Atomic commit decomposition
+
+**Commit 1** — `feat(identity): introduce IntakeSource discriminated union and intakeSources store slot`
+- `src/types/identity.ts`: IntakeSource union with `resume` arm wired; jd/agent-dump slots as TODO comments naming planned shape; JSDoc on the seam intent.
+- `src/store/identityStore.ts`: replace `scanResult: ResumeScanResult | null` with `intakeSources: IntakeSource[]`. All 50+ internal references route through a `getActiveResumeScan(state)` helper (N=1 invariant holds because UI still single-file at this commit). Bump persist `version: 4 → 5` with migrate that maps persisted `scanResult: X` → `intakeSources: [{ kind: 'resume', id: <new>, scan: X }]` (or `[]` when null). Update `partialize`, `normalizePersistedIdentityState`, `merge`, `unwrapPersistedIdentityState`.
+- `src/routes/identity/IdentityPage.tsx`: consumers refactored to read via `getActiveResumeScan` selector.
+- Tests: `identityStore.test.ts` covers new store API + N=1 regression + persist migration; `IdentityPage.test.tsx` assertions preserved for N=1.
+
+**Commit 2** — `feat(identity): multi-file intake selection and file-card list UI`
+- `ExtractionAgentCard.tsx`: `<input multiple>`, multi-file drag-drop, per-source file cards (filename, counts, userLabel input, remove button).
+- `IdentityPage.tsx`: sequential scan plumbing with isolated failure handling.
+- Tests: multi-file drop sequencing, mid-batch failure isolation, removal.
+
+**Commit 3** — `feat(identity): enforce 10-source intake cap`
+- `ExtractionAgentCard.tsx`: cap-of-10 enforcement, above-cap inline warning.
+- Tests: cap enforcement, above-cap removal still works.
+
+## Persistence considerations (per facet-persistence-changes)
+
+- `scanResult` IS in `identityStore.partialize` (line 1674) → real Zustand version bump required (`4 → 5`).
+- `scanResult` is NOT in `src/persistence/` (workspace snapshot) → no snapshot adapter or contracts.ts touches needed.
+- `intakeSources` stays Zustand-store-only (transient intake state, discarded after draft acceptance).
+- Pre-launch posture permits dropping the migrate fallback if it grows complex, but the transform here is one-liner-cheap, so we keep it for local-dev convenience.
+
+## Agent-loops cadence
+
+Per atomic commit: Code Change Loop (`specialist-review.sh` on source files) → cortex git commit → Test Writing Loop (`diff-test-audit.sh`) → cortex git commit if tests added → Lint Gate → cortex git commit if lint changes.
+
+Reviewer rotation: scripts try Claude last (since this session is Claude Opus); first review attempts route to Gemini/Codex via the provider-aware script.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
