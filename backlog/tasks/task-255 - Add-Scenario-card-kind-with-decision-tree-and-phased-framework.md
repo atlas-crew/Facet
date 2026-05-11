@@ -1,9 +1,11 @@
 ---
 id: TASK-255
 title: Add Scenario card kind with decision tree and phased framework
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@myself'
 created_date: '2026-05-11 04:52'
+updated_date: '2026-05-11 06:59'
 labels:
   - prep
   - types
@@ -46,6 +48,18 @@ Depends on TASK-254 — without the union foundation there is no `kind` dispatch
 - [ ] #8 Contract validator asserts whyLikely is non-empty on every scenario card
 - [ ] #9 Regression tests cover renderer (option table + phased framework variants) and generator emission of scenario cards
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Fill the existing scenario discriminated-union shape with decision-tree and phased-framework domain types plus strict guards/normalization.\n2. Add a read-only PrepCardView scenario renderer for option-table, recommendation, trap, and phased-framework variants without changing unrelated card kinds.\n3. Extend prepGenerator normalization/prompt/contract validation so scenario cards carry whyLikely and decision/phased structures for technical or system-design rounds.\n4. Add focused tests for types, renderer variants, generator emission/normalization, and contract validation; run format, focused tests, lint/typecheck, independent review/audit, close TASK-255, and commit with cortex only.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Started TASK-255 locally while Worker Bookends owns TASK-258 in parallel. Scope is scenario card type/renderer/generator/validation only; avoid TASK-256 anchor, TASK-258 bookend, TASK-259 sections, and unrelated research/identity dirty files.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
