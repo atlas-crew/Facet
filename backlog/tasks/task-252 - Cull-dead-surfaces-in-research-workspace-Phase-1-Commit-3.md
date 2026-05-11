@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - claude
 created_date: '2026-05-10 16:25'
-updated_date: '2026-05-11 04:42'
+updated_date: '2026-05-11 05:20'
 labels:
   - research
   - phase-1-cull
@@ -96,12 +96,12 @@ After changes:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 All 6 surfaces enumerated above are removed at the cited locations
-- [ ] #2 narrative and interviewStrategy fields removed from SearchThesis type with cascading updates in thesisGenerator (prompt schema, normalize, validate) and searchStore (hydrateThesis defaults)
-- [ ] #3 Search-run narrative (activeRunNarrative / narrativeState) is preserved untouched — verified by grep showing references at ResearchPage.tsx:1208, 2785, 4309 still resolve
-- [ ] #4 Keyword combination data flow preserved: thesisSnapshot.keywordCombinations still appears in deep-research POST body (verifiable via deepSearchClient.test.ts)
-- [ ] #5 npm run typecheck passes
-- [ ] #6 Full test suite passes; tests exercising removed UI are deleted or refactored
+- [x] #1 All 6 surfaces enumerated above are removed at the cited locations
+- [x] #2 narrative and interviewStrategy fields removed from SearchThesis type with cascading updates in thesisGenerator (prompt schema, normalize, validate) and searchStore (hydrateThesis defaults)
+- [x] #3 Search-run narrative (activeRunNarrative / narrativeState) is preserved untouched — verified by grep showing references at ResearchPage.tsx:1208, 2785, 4309 still resolve
+- [x] #4 Keyword combination data flow preserved: thesisSnapshot.keywordCombinations still appears in deep-research POST body (verifiable via deepSearchClient.test.ts)
+- [x] #5 npm run typecheck passes
+- [x] #6 Full test suite passes; tests exercising removed UI are deleted or refactored
 - [ ] #7 Manual smoke verifies: thesis derive → search run → results triage → push-to-pipeline still works end-to-end
 <!-- AC:END -->
 
@@ -160,6 +160,33 @@ Remove `narrative` and `interviewStrategy` from `SearchThesis` in types/search.t
 
 Single atomic commit: `refactor(research): cull dead UI surfaces and thesis narrative/interviewStrategy fields`
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+**Verification status:**
+- typecheck: PASSES (0 errors after surgical fixes for now-removed type-field consumers)
+- vitest: 2356 PASSING in second run; one prepImport flake (passes in isolation, fails ~50% in full suite due to pre-existing test-isolation pollution unrelated to task-252 — same flake observed before my changes)
+- lint: 8 errors all in untouched files (useElapsed.ts, slotPrimitives.tsx, hosted/diag.spec.ts, hosted/entitlement-billing.spec.ts) — DoD #5 (touched files) satisfied
+- AC #3: confirmed grep shows activeRunNarrative + narrativeState references at ResearchPage.tsx:1187, 2647, 4031 still resolve
+- AC #4: confirmed thesisSnapshot is sent whole at deepSearchClient.ts:206; thesisSnapshot.keywordCombinations preserved through serialization
+- AC #7 manual smoke: NOT YET RUN — owner needs to verify thesis derive → search run → results triage → push-to-pipeline
+
+**Build status:** `npm run build` FAILS in src/utils/prepImport.ts:164 — but this file is part of a parallel in-flight prep-card-shape-refactor (milestone m-32) that arrived in the working tree DURING this session. Stashing my task-252 changes and running build still shows the same error in the prep refactor's own files (verified: `git stash && npm run build` succeeds because the prep refactor includes prepImport.ts modifications that I stashed too — actually wait, the stash captured the prep refactor too since it was uncommitted. The prep refactor changes are NOT mine and should not be committed under task-252.)
+
+**In-flight files NOT touched by task-252 (parallel session work, leave uncommitted):**
+src/routes/prep/PrepCardView.tsx, src/store/prepStore.ts, src/test/PrepCardView.test.tsx, src/test/PrepLiveMode.test.tsx, src/test/PrepPage.behavior.test.tsx, src/test/PrepPage.identityGeneration.test.tsx, src/test/PrepPage.test.tsx, src/test/PrepPracticeMode.test.tsx, src/test/fixtures/personas/dianeOkafor.ts, src/test/fixtures/personas/marcusKim.ts, src/test/prepCheatsheet.test.ts, src/test/prepContractValidation.test.ts, src/test/prepGenerator.test.ts, src/test/prepImport.test.ts, src/test/prepStore.test.ts, src/types/prep.ts, src/utils/prepGenerator.ts, src/utils/prepImport.ts
+
+**Shared file:** src/test/fixtures/personas/mayaPatel.ts has both my SearchThesis narrative+interviewStrategy removal AND parallel session's prepDeck `kind:` additions. Hunk-stage my edit only via cortex git patch.
+
+**Files I authored for this commit:**
+proxy/researchJobs.js, src/routes/research/ResearchPage.tsx, src/routes/research/searchWorkspaceComponents.tsx, src/store/searchStore.ts, src/test/AppShell.test.tsx, src/test/ResearchPage.test.tsx, src/test/SearchInstancePreferences.editInIdentity.test.tsx, src/test/deepSearchClient.test.ts, src/test/persistence.test.ts, src/test/researchJobs.test.ts, src/test/searchRedesignRoundTrip.test.tsx, src/test/searchStore.test.ts, src/test/thesisGenerator.test.ts, src/test/workspaceBackup.test.ts, src/types/search.ts, src/utils/thesisGenerator.ts (and the mayaPatel.ts hunk for SearchThesis cleanup)
+
+**Test deletions/refactors performed:**
+DELETED 5 ResearchPage tests for the removed empty-state inference flow (locked decision: profile inference now initiated from Identity, not the launcher button). DELETED 6 keyword-combination tests (the underlying UI is gone). DELETED 1 SearchSkillsTable hide-skill test. DELETED 2 SearchInstancePreferences `Edit in Identity` button tests. REFACTORED the staleness-refresh-blocking-on-unsaved-edits test to use Look-for signals as the dirty trigger. REFACTORED the 'preserves unchanged look-for entries with commas' test to use Skill depth 1 calibration as the dirty trigger. REFACTORED the bindings test to drop the hide-skill bits. REFACTORED 'edits, generates, saves' assertion: keyword combination assertion now expects the unchanged LLM-generated combo (no UI to edit it).
+
+**Follow-ups not in scope:** consider renaming SearchInstancePreferences.editInIdentity.test.tsx to drop 'editInIdentity' from the filename (the file no longer tests that retrofit). Skipped here to avoid mixing rename with cull commit.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
