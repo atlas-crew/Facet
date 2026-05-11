@@ -3,9 +3,11 @@ id: TASK-253
 title: >-
   Reorganize skill-depth calibration into action-grouped triage (Phase 1, Commit
   4)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - Nicholas Ferguson
 created_date: '2026-05-10 16:25'
+updated_date: '2026-05-11 05:37'
 labels:
   - research
   - phase-1-cull
@@ -93,6 +95,52 @@ Specifically preserve:
 - [ ] #6 npm run typecheck passes; npx vitest run passes
 - [ ] #7 Manual smoke verifies all four scenarios: mixed-group thesis, confirm flow, concurrency guard, empty-state copy
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## Implementation plan (approved scope: Commit 4 only)
+
+### Current state, verified
+- Commit 3 (cull dead surfaces) landed in 536322f. Skill-depth calibration now renders at `src/routes/research/ResearchPage.tsx:3513-3598` (not 3792-3850).
+- Writeback flow is `handleRequestSkillDepthWriteback` (line 2149) → `pendingSkillWriteback` state → confirmation modal at line 3121. Concurrency guard is at lines 826-843. None of this code will change.
+- `buildSkillDepthValueChanges` (line 271) scans `identity.skills.groups[].items` for a name match via `skillNamesMatch` and bails when there is no match, so "writeback" cannot create new identity skills today.
+
+### Categorization helper
+- New `useMemo` over `(thesisDraft.skillDepthMap, currentIdentity?.skills.groups)`.
+- Flatten identity skills once into a lookup keyed by normalized name; reuse `skillNamesMatch` for the same case-insensitive semantics writeback uses.
+- Return `{ proposed, confirmed, surfaced }` where each element is `{ entry, index }` so existing `handleRequestSkillDepthWriteback(index)` keeps targeting the canonical `skillDepthMap[index]`.
+- Categorization rule: no identity match → `surfaced`; match + same depth → `confirmed`; match + different depth → `proposed`.
+
+### Section rendering (replace lines 3513-3598)
+- Three `<section>`s wrapped in `<details open>` (`true` for proposed/surfaced, `false` for confirmed). Native `<details>` keeps a11y free and matches the existing pattern at lines 4090, 4237.
+- Each `<summary>` shows the group title and entry count.
+- Empty groups still render the `<details>` with the prescribed copy in the body:
+  - Proposed (empty): "No depth changes proposed. The thesis depths match your identity."
+  - Confirmed (empty): "No confirmed depths yet."
+  - Surfaced (empty): "No new skills surfaced. The thesis stayed within your identity skill set."
+
+### Per-group affordances
+- **Proposed**: full edit form + existing "Write back to Identity" button (handler unchanged; index is original `skillDepthMap` index).
+- **Confirmed**: compact row (`<skill> · <depth>` + truncated context), no inputs, no actions.
+- **Surfaced**: read-only display (user-approved option). Compact row similar to confirmed but with a "new skill" affordance/tag. Promotion to identity deferred to Phase 2.
+
+### Tests (`src/test/ResearchPage.test.tsx`)
+- Mixed-thesis test: assert section headers exist with correct counts (1/1/1).
+- Default-collapse test: confirmed `<details>` is not open by default; toggling reveals its entry.
+- Empty-state test: with an empty `skillDepthMap`, all three groups render with their empty-state copy.
+- Leave every existing skill-writeback test untouched (AC#4).
+
+### Verification
+- `npm run typecheck`
+- `npx vitest run src/test/ResearchPage.test.tsx`
+- Manual smoke: mixed-group thesis, confirm flow + concurrency guard, empty-state copy.
+
+### Out of scope (locked)
+- "Add to identity" action for surfaced skills (Phase 2).
+- Bulk-accept-all affordance (Phase 2).
+- Any change to `handleRequestSkillDepthWriteback`, `buildSkillDepthValueChanges`, `buildSkillDepthMutation`, `describeImpact`, `pendingSkillWriteback` state machine, or the concurrency guard at 826-843.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
