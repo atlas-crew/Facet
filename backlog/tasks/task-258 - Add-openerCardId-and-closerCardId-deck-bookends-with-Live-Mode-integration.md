@@ -1,9 +1,11 @@
 ---
 id: TASK-258
 title: Add openerCardId and closerCardId deck bookends with Live Mode integration
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-11 04:53'
+updated_date: '2026-05-11 07:00'
 labels:
   - prep
   - types
@@ -43,6 +45,15 @@ Depends on TASK-254 — bookends point to cards with specific kinds ('opener', '
 - [ ] #6 Contract validator allows the optional fields and asserts they resolve to actual card IDs in deck.cards when set
 - [ ] #7 Regression tests cover navigation routing with bookends present and absent
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add optional openerCardId/closerCardId fields to PrepDeck without changing persistence migrations because they are additive optional deck metadata.
+2. Populate bookend ids in prepGenerator from generated opener/closer cards and validate any explicit ids resolve to deck.cards.
+3. Route PrepLiveMode section ordering/navigation through deck bookends while preserving legacy ordering when ids are absent or invalid.
+4. Add focused generator/contract and Live Mode regression tests, then run scoped Vitest, ESLint, typecheck, independent review/audit, backlog closure, and a cortex git commit.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
