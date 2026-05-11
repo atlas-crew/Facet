@@ -4,12 +4,14 @@ title: Variant-aware identity extraction prompt and proposed-vectors response
 status: To Do
 assignee: []
 created_date: '2026-05-11 05:20'
+updated_date: '2026-05-11 05:21'
 labels:
   - feature
   - identity
   - multi-source-intake
 milestone: m-33
-dependencies: []
+dependencies:
+  - TASK-261
 modified_files:
   - src/utils/identityExtraction.ts
   - src/test/identityExtraction.test.ts
