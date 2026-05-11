@@ -4,12 +4,14 @@ title: User-facing copy for multi-source identity intake
 status: To Do
 assignee: []
 created_date: '2026-05-11 05:21'
+updated_date: '2026-05-11 05:21'
 labels:
   - documentation
   - identity
   - multi-source-intake
 milestone: m-33
-dependencies: []
+dependencies:
+  - TASK-260
 modified_files:
   - src/routes/identity/ExtractionAgentCard.tsx
   - src/routes/identity/identity.css
