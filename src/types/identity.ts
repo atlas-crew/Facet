@@ -149,6 +149,14 @@ export type IntakeSource =
   // Phase 2 plug point: | { kind: 'jd'; id: string; userLabel?: string; sourceUrl?: string; analysis: JDAnalysis }
   // Phase 3 plug point: | { kind: 'agent-dump'; id: string; agentName?: string; text: string }
 
+/**
+ * Soft cap on intake sources fed into a single synthesis run (m-33 LOCKED
+ * decision). Sources beyond this index remain in the array and can be removed
+ * by the user, but the UI flags them as "above cap" and downstream synthesis
+ * is responsible for ignoring them. Exported so both surfaces share one rule.
+ */
+export const INTAKE_SOURCE_CAP = 10
+
 export interface IdentityChangeLogEntry {
   id: string
   createdAt: string

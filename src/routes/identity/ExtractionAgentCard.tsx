@@ -1,6 +1,7 @@
 import { AlertCircle, RefreshCcw, ScanSearch, Sparkles, Upload, X } from 'lucide-react'
 import type { ChangeEvent, DragEvent, RefObject } from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
+import { INTAKE_SOURCE_CAP } from '../../types/identity'
 import type {
   IdentityIntakeMode,
   IdentityExtractionDraft,
@@ -230,73 +231,93 @@ export function ExtractionAgentCard({
             pass. Drop multiple resumes to feed variant context into the draft.
           </p>
           {intakeSources.length > 0 || failedFiles.length > 0 ? (
-            <ul className="identity-source-list" aria-label="Intake sources">
-              {intakeSources.map((source, index) => {
-                if (source.kind !== 'resume') {
-                  return null
-                }
-                const isActive = index === 0
-                return (
+            <>
+              {intakeSources.length > INTAKE_SOURCE_CAP ? (
+                <p className="identity-source-cap-warning" role="alert">
+                  {intakeSources.length - INTAKE_SOURCE_CAP} source
+                  {intakeSources.length - INTAKE_SOURCE_CAP === 1 ? '' : 's'} above the{' '}
+                  {INTAKE_SOURCE_CAP}-source cap won&apos;t contribute to synthesis. Remove some to
+                  bring the count to {INTAKE_SOURCE_CAP} or fewer.
+                </p>
+              ) : null}
+              <ul className="identity-source-list" aria-label="Intake sources">
+                {intakeSources.map((source, index) => {
+                  if (source.kind !== 'resume') {
+                    return null
+                  }
+                  const isActive = index === 0
+                  const isOverCap = index >= INTAKE_SOURCE_CAP
+                  const cardClassName = [
+                    'identity-source-card',
+                    isActive ? 'identity-source-card-active' : '',
+                    isOverCap ? 'identity-source-card-overcap' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
+                  return (
+                    <li key={source.id} className={cardClassName}>
+                      <div className="identity-source-card-row">
+                        <strong>{source.scan.fileName}</strong>
+                        <span className="identity-muted">{source.scan.pageCount} page(s)</span>
+                        {isActive ? (
+                          <span className="identity-source-card-badge">Primary</span>
+                        ) : null}
+                        {isOverCap ? (
+                          <span className="identity-source-card-badge identity-source-card-badge-warn">
+                            Over cap
+                          </span>
+                        ) : null}
+                        <button
+                          className="identity-btn identity-btn-icon"
+                          type="button"
+                          onClick={() => onRemoveSource(source.id)}
+                          aria-label={`Remove ${source.scan.fileName}`}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div className="identity-source-card-stats">
+                        <span>Roles {source.scan.counts.roles}</span>
+                        <span>Bullets {source.scan.counts.bullets}</span>
+                        <span>Skill groups {source.scan.counts.skillGroups}</span>
+                        <span>Projects {source.scan.counts.projects}</span>
+                      </div>
+                      <label className="identity-source-card-label">
+                        <span className="identity-label">Positioning hint</span>
+                        <input
+                          className="identity-input"
+                          type="text"
+                          value={source.userLabel ?? ''}
+                          onChange={(event) => onSetSourceLabel(source.id, event.target.value)}
+                          placeholder="e.g. platform, security, backend"
+                        />
+                      </label>
+                    </li>
+                  )
+                })}
+                {failedFiles.map((entry) => (
                   <li
-                    key={source.id}
-                    className={`identity-source-card${isActive ? ' identity-source-card-active' : ''}`}
+                    key={entry.id}
+                    className="identity-source-card identity-source-card-error"
+                    role="alert"
                   >
                     <div className="identity-source-card-row">
-                      <strong>{source.scan.fileName}</strong>
-                      <span className="identity-muted">{source.scan.pageCount} page(s)</span>
-                      {isActive ? (
-                        <span className="identity-source-card-badge">Primary</span>
-                      ) : null}
+                      <AlertCircle size={14} aria-hidden="true" />
+                      <strong>{entry.name}</strong>
                       <button
                         className="identity-btn identity-btn-icon"
                         type="button"
-                        onClick={() => onRemoveSource(source.id)}
-                        aria-label={`Remove ${source.scan.fileName}`}
+                        onClick={() => onDismissFailedFile(entry.id)}
+                        aria-label={`Dismiss ${entry.name}`}
                       >
                         <X size={14} />
                       </button>
                     </div>
-                    <div className="identity-source-card-stats">
-                      <span>Roles {source.scan.counts.roles}</span>
-                      <span>Bullets {source.scan.counts.bullets}</span>
-                      <span>Skill groups {source.scan.counts.skillGroups}</span>
-                      <span>Projects {source.scan.counts.projects}</span>
-                    </div>
-                    <label className="identity-source-card-label">
-                      <span className="identity-label">Positioning hint</span>
-                      <input
-                        className="identity-input"
-                        type="text"
-                        value={source.userLabel ?? ''}
-                        onChange={(event) => onSetSourceLabel(source.id, event.target.value)}
-                        placeholder="e.g. platform, security, backend"
-                      />
-                    </label>
+                    <p className="identity-source-card-error-message">{entry.error}</p>
                   </li>
-                )
-              })}
-              {failedFiles.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="identity-source-card identity-source-card-error"
-                  role="alert"
-                >
-                  <div className="identity-source-card-row">
-                    <AlertCircle size={14} aria-hidden="true" />
-                    <strong>{entry.name}</strong>
-                    <button
-                      className="identity-btn identity-btn-icon"
-                      type="button"
-                      onClick={() => onDismissFailedFile(entry.id)}
-                      aria-label={`Dismiss ${entry.name}`}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <p className="identity-source-card-error-message">{entry.error}</p>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </ul>
+            </>
           ) : null}
           {scanResult ? (
             <>
