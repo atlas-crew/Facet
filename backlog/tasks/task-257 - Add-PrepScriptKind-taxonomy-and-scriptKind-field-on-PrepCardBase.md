@@ -1,11 +1,11 @@
 ---
 id: TASK-257
 title: Add PrepScriptKind taxonomy and scriptKind field on PrepCardBase
-status: In Progress
+status: Done
 assignee:
   - '@myself'
 created_date: '2026-05-11 04:53'
-updated_date: '2026-05-11 06:21'
+updated_date: '2026-05-11 06:55'
 labels:
   - prep
   - types
@@ -39,14 +39,14 @@ Depends on TASK-254 — scriptKind lands on PrepCardBase, which is introduced by
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PrepScriptKind type + PREP_SCRIPT_KIND_VALUES const declared and exported from src/types/prep.ts
-- [ ] #2 scriptKind?: PrepScriptKind added to PrepCardBase
-- [ ] #3 Existing scriptLabel field retained unchanged (still user-facing prose, not structural enum)
-- [ ] #4 PrepCardView styles scripts by scriptKind — opener, honest-bridge, closer, line-that-lands, and pivot get distinct visual treatments
-- [ ] #5 prepGenerator.ts emits honest-bridge scripts when stack-alignment table shows a row with Gap confidence (per TASK-173 mapping)
-- [ ] #6 prepGenerator.ts emits opener / closer / line-that-lands scripts with appropriate scriptKind values
-- [ ] #7 Contract validator accepts the optional scriptKind field and rejects values outside PREP_SCRIPT_KIND_VALUES
-- [ ] #8 Regression tests cover scriptKind-aware rendering and generator emission of the honest-bridge pattern on Gap rows
+- [x] #1 PrepScriptKind type + PREP_SCRIPT_KIND_VALUES const declared and exported from src/types/prep.ts
+- [x] #2 scriptKind?: PrepScriptKind added to PrepCardBase
+- [x] #3 Existing scriptLabel field retained unchanged (still user-facing prose, not structural enum)
+- [x] #4 PrepCardView styles scripts by scriptKind — opener, honest-bridge, closer, line-that-lands, and pivot get distinct visual treatments
+- [x] #5 prepGenerator.ts emits honest-bridge scripts when stack-alignment table shows a row with Gap confidence (per TASK-173 mapping)
+- [x] #6 prepGenerator.ts emits opener / closer / line-that-lands scripts with appropriate scriptKind values
+- [x] #7 Contract validator accepts the optional scriptKind field and rejects values outside PREP_SCRIPT_KIND_VALUES
+- [x] #8 Regression tests cover scriptKind-aware rendering and generator emission of the honest-bridge pattern on Gap rows
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -59,14 +59,22 @@ Depends on TASK-254 — scriptKind lands on PrepCardBase, which is introduced by
 
 <!-- SECTION:NOTES:BEGIN -->
 Started TASK-257 from m-32 after TASK-254 landed in fe2949b. Loaded agent-loops, backlog-md, Facet placement/architecture, and persistence guidance. Scope is scriptKind taxonomy and rendering/generator validation only; no Scenario/Anchor/bookend behavior in this slice.
+
+Implemented PrepScriptKind taxonomy and scriptKind normalization across prep types, store patching, import, generator output/validation, and PrepCardView rendering. scriptLabel remains prose-only display copy. Verification: npm run format:files on touched prep files passed; npx vitest run src/test/prepCardKind.test.ts src/test/PrepCardView.test.tsx src/test/prepGenerator.test.ts src/test/prepContractValidation.test.ts src/test/prepImport.test.ts src/test/prepStore.test.ts passed (6 files, 137 tests); npx eslint on touched prep source/tests passed; prep-filtered typecheck produced no matching errors. Reviews: clean implementation review artifact .agents/reviews/review-20260511-023316.md; latest test audit .agents/reviews/test-audit-20260511-025241.md reports P0:0/P1:0 with P2 branch-combination suggestions only.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Prep cards now have a structural PrepScriptKind enum and optional scriptKind field, with strict parsing, contract validation, generator prompt/schema support, honest-bridge gap fallback emission, opener/closer/line-that-lands/pivot inference, and scriptKind-specific rendering classes. Focused prep tests/lint/typecheck passed; audit has no P0/P1 blockers.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
