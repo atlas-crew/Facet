@@ -16,7 +16,7 @@ import type {
 } from '../types/identity'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError } from './llmProxy'
-import type { SynthesisSeed } from '../types/identity'
+import type { ProposedSearchVector, SynthesisSeed } from '../types/identity'
 
 const CONFIDENCE_VALUES: IdentityConfidence[] = ['stated', 'confirmed', 'guessing', 'corrected']
 const IDENTITY_EXTRACTION_TIMEOUT_MS = 120000
@@ -1218,6 +1218,128 @@ const normalizePreferences = (
   }
 }
 
+/**
+ * Parse `proposed_vectors[]` from the extraction LLM response into staged
+ * ProposedSearchVector entries. Unlike normalizeSearchVectors, the result
+ * lives on draft.proposedVectors (TASK-262 staging slot) rather than being
+ * imported into identity.search_vectors[]. Invalid entries are dropped with
+ * warnings; missing or empty input returns an empty array so N=1 callers
+ * without a clear positioning angle get a graceful pass-through.
+ */
+const normalizeProposedVectors = (
+  value: unknown,
+): { value: ProposedSearchVector[]; warnings: string[] } => {
+  if (value === undefined) {
+    return { value: [], warnings: [] }
+  }
+  if (!Array.isArray(value)) {
+    return {
+      value: [],
+      warnings: ['Normalized invalid proposed_vectors into an empty array for AI extraction output.'],
+    }
+  }
+
+  const seenIds = new Map<string, number>()
+  const warnings: string[] = []
+  const normalized = value.flatMap((entry, index): ProposedSearchVector[] => {
+    if (!isRecord(entry) || typeof entry.title !== 'string' || typeof entry.thesis !== 'string') {
+      warnings.push(`Dropped invalid proposed_vectors[${index}] entry for AI extraction output.`)
+      return []
+    }
+
+    const id = normalizeDerivedEntryId(
+      entry.id,
+      'proposed-vector',
+      entry.title,
+      index,
+      `proposed_vectors[${index}]`,
+      seenIds,
+    )
+    const targetRoles = normalizeStringArrayField(
+      entry.target_roles,
+      `proposed_vectors[${index}].target_roles`,
+    )
+    const primaryKeywords = normalizeStringArrayField(
+      isRecord(entry.keywords) ? entry.keywords.primary : undefined,
+      `proposed_vectors[${index}].keywords.primary`,
+    )
+    const secondaryKeywords = normalizeStringArrayField(
+      isRecord(entry.keywords) ? entry.keywords.secondary : undefined,
+      `proposed_vectors[${index}].keywords.secondary`,
+    )
+    const supportingSkills =
+      entry.supporting_skills === undefined
+        ? { value: [], warnings: [] }
+        : normalizeStringArrayField(
+            entry.supporting_skills,
+            `proposed_vectors[${index}].supporting_skills`,
+          )
+    const supportingBullets =
+      entry.supporting_bullets === undefined
+        ? { value: [], warnings: [] }
+        : normalizeStringArrayField(
+            entry.supporting_bullets,
+            `proposed_vectors[${index}].supporting_bullets`,
+          )
+    const evidenceSources =
+      entry.evidence_sources === undefined
+        ? { value: [], warnings: [] }
+        : normalizeStringArrayField(
+            entry.evidence_sources,
+            `proposed_vectors[${index}].evidence_sources`,
+          )
+
+    warnings.push(
+      ...id.warnings,
+      ...targetRoles.warnings,
+      ...primaryKeywords.warnings,
+      ...secondaryKeywords.warnings,
+      ...supportingSkills.warnings,
+      ...supportingBullets.warnings,
+      ...evidenceSources.warnings,
+    )
+    if (!isRecord(entry.keywords)) {
+      warnings.push(
+        `Normalized invalid proposed_vectors[${index}].keywords into empty keyword arrays for AI extraction output.`,
+      )
+    }
+    if (
+      !(typeof entry.priority === 'string' && SEARCH_VECTOR_PRIORITY_VALUES.has(entry.priority as never))
+    ) {
+      warnings.push(
+        `Normalized invalid proposed_vectors[${index}].priority to "medium" for AI extraction output.`,
+      )
+    }
+
+    return [
+      {
+        id: id.value,
+        title: entry.title.trim(),
+        priority:
+          typeof entry.priority === 'string' && SEARCH_VECTOR_PRIORITY_VALUES.has(entry.priority as never)
+            ? (entry.priority as ProposedSearchVector['priority'])
+            : 'medium',
+        ...(typeof entry.subtitle === 'string' ? { subtitle: entry.subtitle.trim() } : {}),
+        thesis: entry.thesis.trim(),
+        target_roles: targetRoles.value,
+        keywords: {
+          primary: primaryKeywords.value,
+          secondary: secondaryKeywords.value,
+        },
+        ...(entry.supporting_skills !== undefined
+          ? { supporting_skills: supportingSkills.value }
+          : {}),
+        ...(entry.supporting_bullets !== undefined
+          ? { supporting_bullets: supportingBullets.value }
+          : {}),
+        evidenceSources: evidenceSources.value,
+      },
+    ]
+  })
+
+  return { value: normalized, warnings }
+}
+
 const normalizeSearchVectors = (
   value: unknown,
 ): { value: unknown[]; warnings: string[] } => {
@@ -1573,6 +1695,9 @@ export const parseIdentityExtractionResponse = (
     }
   }
 
+  const proposedVectorsResult = normalizeProposedVectors(root.proposed_vectors)
+  warningSet.push(...proposedVectorsResult.warnings)
+
   return {
     generatedAt: new Date().toISOString(),
     summary: assertString(root.summary, 'summary'),
@@ -1583,6 +1708,9 @@ export const parseIdentityExtractionResponse = (
     identity: finalImported.data,
     bullets: Array.from(bulletMap.values()),
     warnings: warningSet,
+    ...(proposedVectorsResult.value.length > 0
+      ? { proposedVectors: proposedVectorsResult.value }
+      : {}),
   }
 }
 
