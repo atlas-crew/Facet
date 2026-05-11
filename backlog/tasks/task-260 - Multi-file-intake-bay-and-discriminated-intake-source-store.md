@@ -1,9 +1,11 @@
 ---
 id: TASK-260
 title: Multi-file intake bay and discriminated intake-source store
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-05-11 05:20'
+updated_date: '2026-05-11 05:25'
 labels:
   - feature
   - identity
