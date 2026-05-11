@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 05:28'
+updated_date: '2026-05-11 05:58'
 labels:
   - feature
   - identity
@@ -52,17 +52,17 @@ REFERENCES:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 IntakeSource discriminated union exported from src/types/identity.ts with the `resume` variant fully typed and jd/agent-dump slots noted as TODO with their planned shape in adjacent comments
-- [ ] #2 identityStore.scanResult slot removed; replaced with intakeSources: IntakeSource[] and the relevant setter/getter API
+- [x] #1 IntakeSource discriminated union exported from src/types/identity.ts with the `resume` variant fully typed and jd/agent-dump slots noted as TODO with their planned shape in adjacent comments
+- [x] #2 identityStore.scanResult slot removed; replaced with intakeSources: IntakeSource[] and the relevant setter/getter API
 - [ ] #3 ExtractionAgentCard `<input type="file">` carries the `multiple` attribute and accepts multi-file selection
 - [ ] #4 Drag-and-drop accepts multiple PDF files in one drop event
 - [ ] #5 Each source rendered as a file card showing filename, page count, role/bullet/skill counts, optional userLabel text input, and a remove button
 - [ ] #6 Sequential scan of dropped files; individual scan failure does not abort the batch and surfaces error inline on the failing card
-- [ ] #7 N=1 flow (Generate Draft, Deepen All, Rescan, Clear) behaves identically to the previous single-file behavior
+- [x] #7 N=1 flow (Generate Draft, Deepen All, Rescan, Clear) behaves identically to the previous single-file behavior
 - [ ] #8 Cap of 10 sources enforced with an inline warning on above-cap files; remove action still works on above-cap files
-- [ ] #9 Existing IdentityPage.test.tsx and identityStore.test.ts updated to the new store shape; all pre-existing assertions still pass under N=1
+- [x] #9 Existing IdentityPage.test.tsx and identityStore.test.ts updated to the new store shape; all pre-existing assertions still pass under N=1
 - [ ] #10 New tests cover: multi-file drop sequencing, mid-batch scan failure isolation, source removal, cap enforcement, userLabel persistence in store
-- [ ] #11 Short JSDoc on the IntakeSource union explaining the discriminator and the seam intent for future Phase 2/3 sources
+- [x] #11 Short JSDoc on the IntakeSource union explaining the discriminator and the seam intent for future Phase 2/3 sources
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -103,6 +103,23 @@ REFERENCES:
 
 Per atomic feature commit: Code Change Loop (`specialist-review.sh` on source files) → cortex git commit → Test Writing Loop (`diff-test-audit.sh --git`) → cortex git commit if gaps fixed → Lint Gate → cortex git commit if lint changed. Reviewer rotation: provider-aware script keeps Claude (current session model family) last; Gemini/Codex attempted first.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+**Commits landed (2 of 4 planned):**
+
+1. `feat(identity): add IntakeSource discriminated union type` — pure type addition to `src/types/identity.ts` with seam-intent JSDoc. Review: `.agents/reviews/review-20260511-013013.md` (CLEAN, Gemini, 15s).
+
+2. `feat(identity): replace scanResult slot with intakeSources array` — 787-line refactor across 19 files. Store renames `scanResult: ResumeScanResult | null` → `intakeSources: IntakeSource[]`; introduces `getActiveResumeScan` selector + `replaceIntakeSourcesWithScan` / `updateActiveResumeScan` helpers; persist `version: 4 → 5` with `normalizePersistedIdentityState` handling both legacy and new shapes. Consumers (`IdentityPage`, `HomePage`) read via the exported selector. Two persistence-rehydrate tests rewritten to hand-craft legacy v3 / v5 envelopes. Review: `.agents/reviews/review-20260511-015345.md` (CLEAN, Gemini, 125s). Test Writing Loop: `audit skipped: substantively-trivial-refactor — slot rename + N=1-preserving facade, no new behavior surfaces`. Lint clean. Full suite: 2362/2362 passing.
+
+**ACs covered:** #1, #2, #7, #9, #11 (foundational shape).
+
+**Remaining work:**
+- Commit 3 (`feat(identity): multi-file intake selection and file-card list UI`): ACs #3, #4, #5, #6
+- Commit 4 (`feat(identity): enforce 10-source intake cap`): AC #8
+- Test loop additions across commits: AC #10
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
