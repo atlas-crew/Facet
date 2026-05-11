@@ -19,6 +19,11 @@ import { formatSearchProfileFilterEntry } from './searchProfileFilters'
 
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 
+// Stepped backoff for polling research-job status. The schedule is hardcoded
+// because deep-research jobs run for minutes and the cadence isn't latency-
+// sensitive — the SSE stream is the primary update channel; polling is the
+// fallback. Promote to env-configurable only if the hosted backend ever
+// exposes a tunable completion-cadence contract.
 export const RESEARCH_JOB_POLL_DELAYS_MS = [2000, 5000, 15000, 30000] as const
 
 export const DEEP_RESEARCH_OUTPUT_CONTRACT = [
