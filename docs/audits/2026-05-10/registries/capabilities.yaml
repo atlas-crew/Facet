@@ -1,0 +1,106 @@
+# Capabilities registry — producers consumed by research workspace
+# Generated 2026-05-10 by wiring-audit skill (capability enumerator: general-purpose, sonnet)
+
+capabilities:
+  # ── searchStore.ts — primary research state ──────────────────────────────
+  - { id: C-1, kind: exported_hook, identifier: useSearchStore, location: src/store/searchStore.ts:729 }
+  - { id: C-2, kind: exported_function, identifier: setProfile, location: src/store/searchStore.ts:738 }
+  - { id: C-3, kind: exported_function, identifier: updateProfileSkills, location: src/store/searchStore.ts:744 }
+  - { id: C-4, kind: exported_function, identifier: updateProfileConstraints, location: src/store/searchStore.ts:758 }
+  - { id: C-5, kind: exported_function, identifier: updateProfileFilters, location: src/store/searchStore.ts:772 }
+  - { id: C-6, kind: exported_function, identifier: updateProfileInterviewPrefs, location: src/store/searchStore.ts:786 }
+  - { id: C-7, kind: exported_function, identifier: clearProfile, location: src/store/searchStore.ts:800 }
+  - { id: C-8, kind: exported_function, identifier: addRequest, location: src/store/searchStore.ts:804 }
+  - { id: C-9, kind: exported_function, identifier: updateRequest, location: src/store/searchStore.ts:810 }
+  - { id: C-10, kind: exported_function, identifier: deleteRequest, location: src/store/searchStore.ts:825 }
+  - { id: C-11, kind: exported_function, identifier: addRun, location: src/store/searchStore.ts:843 }
+  - { id: C-12, kind: exported_function, identifier: updateRun, location: src/store/searchStore.ts:849 }
+  - { id: C-13, kind: exported_function, identifier: deleteRun, location: src/store/searchStore.ts:881 }
+  - { id: C-14, kind: exported_function, identifier: getRunsForRequest, location: src/store/searchStore.ts:894 }
+  - { id: C-15, kind: exported_function, identifier: addThesis, location: src/store/searchStore.ts:896 }
+  - { id: C-16, kind: exported_function, identifier: markThesisStalenessReview, location: src/store/searchStore.ts:909 }
+  - { id: C-17, kind: exported_function, identifier: saveThesisRevision, location: src/store/searchStore.ts:932 }
+  - { id: C-18, kind: exported_function, identifier: updateThesisOverrides, location: src/store/searchStore.ts:963 }
+  - { id: C-19, kind: exported_function, identifier: toggleThesisHiddenSkill, location: src/store/searchStore.ts:975 }
+  - { id: C-20, kind: exported_function, identifier: setThesisUserCorrections, location: src/store/searchStore.ts:993 }
+  - { id: C-21, kind: exported_function, identifier: setThesisCustomDirective, location: src/store/searchStore.ts:997 }
+  - { id: C-22, kind: exported_function, identifier: setActiveThesis, location: src/store/searchStore.ts:1001 }
+  - { id: C-23, kind: exported_function, identifier: setActiveResearchJob, location: src/store/searchStore.ts:1007 }
+  - { id: C-24, kind: exported_function, identifier: updateActiveResearchJob, location: src/store/searchStore.ts:1011 }
+  - { id: C-25, kind: exported_function, identifier: clearActiveResearchJob, location: src/store/searchStore.ts:1019 }
+  - { id: C-26, kind: exported_function, identifier: addFeedbackEvent, location: src/store/searchStore.ts:1027 }
+  - { id: C-27, kind: exported_function, identifier: markFeedbackApplied, location: src/store/searchStore.ts:1049 }
+  - { id: C-28, kind: exported_function, identifier: markFeedbackReflectedInThesis, location: src/store/searchStore.ts:1067 }
+  - { id: C-29, kind: exported_function, identifier: getUnreflectedFeedback, location: src/store/searchStore.ts:1087 }
+  - { id: C-30, kind: exported_function, identifier: getFeedbackEventsForRun, location: src/store/searchStore.ts:1095 }
+
+  # ── identityStore.ts — research-relevant subset ──────────────────────────
+  - { id: C-33, kind: exported_hook, identifier: useIdentityStore, location: src/store/identityStore.ts:682 }
+  - { id: C-34, kind: exported_function, identifier: updateCurrentMatching, location: src/store/identityStore.ts:1372 }
+  - { id: C-35, kind: exported_function, identifier: updateCurrentSearchVectors, location: src/store/identityStore.ts:1392 }
+  - { id: C-36, kind: exported_function, identifier: updateCurrentAwarenessQuestions, location: src/store/identityStore.ts:1399 }
+  - { id: C-37, kind: exported_function, identifier: saveSkillEnrichment, location: src/store/identityStore.ts:1418 }
+
+  # ── jdAnalysisStore.ts ───────────────────────────────────────────────────
+  - { id: C-45, kind: exported_hook, identifier: useJDAnalysisStore, location: src/store/jdAnalysisStore.ts:55 }
+  - { id: C-46, kind: exported_function, identifier: upsertAnalysis, location: src/store/jdAnalysisStore.ts:60 }
+  - { id: C-47, kind: exported_function, identifier: findByPipelineEntry, location: src/store/jdAnalysisStore.ts:84 }
+
+  # ── pipelineStore.ts (research-relevant: addEntry only) ──────────────────
+  - { id: C-49, kind: exported_hook, identifier: usePipelineStore, location: src/store/pipelineStore.ts:179 }
+  - { id: C-50, kind: exported_function, identifier: addEntry, location: src/store/pipelineStore.ts:185 }
+
+  # ── thesisGenerator.ts ───────────────────────────────────────────────────
+  - { id: C-52, kind: exported_function, identifier: generateSearchThesisFromIdentity, location: src/utils/thesisGenerator.ts:549, consumed_env: [VITE_ANTHROPIC_PROXY_URL, VITE_ANTHROPIC_PROXY_API_KEY] }
+  - { id: C-53, kind: exported_function, identifier: validateSearchThesis, location: src/utils/thesisGenerator.ts:499 }
+  - { id: C-54, kind: exported_function, identifier: normalizeGeneratedSearchThesis, location: src/utils/thesisGenerator.ts:457 }
+  - { id: C-55, kind: exported_function, identifier: buildThesisGenerationPrompt, location: src/utils/thesisGenerator.ts:149 }
+
+  # ── deepSearchClient.ts ──────────────────────────────────────────────────
+  - { id: C-56, kind: exported_function, identifier: createDeepResearchJob, location: src/utils/deepSearchClient.ts:186 }
+  - { id: C-57, kind: exported_function, identifier: streamDeepResearchJob, location: src/utils/deepSearchClient.ts:123 }
+  - { id: C-58, kind: exported_function, identifier: fetchDeepResearchJob, location: src/utils/deepSearchClient.ts:212 }
+  - { id: C-59, kind: exported_function, identifier: cancelDeepResearchJob, location: src/utils/deepSearchClient.ts:221 }
+  - { id: C-60, kind: exported_function, identifier: fetchResearchUsage, location: src/utils/deepSearchClient.ts:233 }
+  - { id: C-61, kind: exported_function, identifier: hydrateSearchRunFromResearchJob, location: src/utils/deepSearchClient.ts:315 }
+  - { id: C-62, kind: exported_function, identifier: buildDeepResearchIdentityEvidence, location: src/utils/deepSearchClient.ts:241 }
+  - { id: C-63, kind: exported_function, identifier: getResearchJobPollDelay, location: src/utils/deepSearchClient.ts:57 }
+
+  # ── llmProxy.ts ──────────────────────────────────────────────────────────
+  - { id: C-78, kind: exported_function, identifier: callLlmProxy, location: src/utils/llmProxy.ts:201, consumed_env: [VITE_ANTHROPIC_PROXY_URL, VITE_ANTHROPIC_PROXY_API_KEY] }
+  - { id: C-79, kind: exported_function, identifier: fetchAiProxyCapabilities, location: src/utils/llmProxy.ts:299 }
+  - { id: C-80, kind: exported_function, identifier: extractJsonBlock, location: src/utils/llmProxy.ts:111 }
+
+  # ── aiAccess.ts ──────────────────────────────────────────────────────────
+  - { id: C-82, kind: exported_function, identifier: resolveAiAccess, location: src/utils/aiAccess.ts:10 }
+
+  # ── aiProxyErrors.ts ─────────────────────────────────────────────────────
+  - { id: C-83, kind: exported_function, identifier: readAiProxyError, location: src/utils/aiProxyErrors.ts:106 }
+
+  # ── thesisSignals.ts / identityFillStrength.ts / mapSelectionUrl.ts ──────
+  - { id: C-84, kind: exported_function, identifier: reconcileThesisSignalsFromLabels, location: src/utils/thesisSignals.ts:15 }
+  - { id: C-86, kind: exported_function, identifier: searchStrategyFillStrength, location: src/utils/identityFillStrength.ts:231 }
+  - { id: C-93, kind: exported_function, identifier: validateReturnUrl, location: src/utils/mapSelectionUrl.ts:249 }
+  - { id: C-95, kind: exported_function, identifier: validateBandFocus, location: src/utils/mapSelectionUrl.ts:193 }
+
+  # ── HTTP routes (external boundary) ──────────────────────────────────────
+  - { id: C-102, kind: http_route, identifier: "POST <endpoint>", method: POST, location: src/utils/llmProxy.ts:225, note: "Anthropic proxy /v1/messages-shape body" }
+  - { id: C-103, kind: http_route, identifier: "GET <endpoint>/capabilities", method: GET, location: src/utils/llmProxy.ts:304 }
+  - { id: C-104, kind: http_route, identifier: "POST /research/jobs", method: POST, location: src/utils/deepSearchClient.ts:196 }
+  - { id: C-105, kind: http_route, identifier: "GET /research/jobs/:jobId/stream", method: GET, location: src/utils/deepSearchClient.ts:132 }
+  - { id: C-106, kind: http_route, identifier: "GET /research/jobs/:jobId", method: GET, location: src/utils/deepSearchClient.ts:213 }
+  - { id: C-107, kind: http_route, identifier: "POST /research/jobs/:jobId/cancel", method: POST, location: src/utils/deepSearchClient.ts:222 }
+  - { id: C-108, kind: http_route, identifier: "GET /research/usage", method: GET, location: src/utils/deepSearchClient.ts:234 }
+
+  # ── Env var consumers ────────────────────────────────────────────────────
+  - { id: C-110, kind: env_var_consumer, identifier: VITE_FACET_DEPLOYMENT_MODE, location: src/utils/facetEnv.ts:60, documented_in_env_example: true }
+  - { id: C-111, kind: env_var_consumer, identifier: VITE_ANTHROPIC_PROXY_URL, location: src/utils/facetEnv.ts:67, documented_in_env_example: true }
+  - { id: C-112, kind: env_var_consumer, identifier: VITE_ANTHROPIC_PROXY_API_KEY, location: src/utils/facetEnv.ts:72, documented_in_env_example: true }
+  - { id: C-113, kind: env_var_consumer, identifier: VITE_FACET_API_BASE_URL, location: src/utils/facetEnv.ts:63, documented_in_env_example: false }
+  - { id: C-114, kind: env_var_consumer, identifier: VITE_SUPABASE_URL, location: src/utils/facetEnv.ts:75, documented_in_env_example: true }
+  - { id: C-115, kind: env_var_consumer, identifier: VITE_SUPABASE_PUBLISHABLE_KEY, location: src/utils/facetEnv.ts:79, documented_in_env_example: true }
+
+  # ── Config key consumers ─────────────────────────────────────────────────
+  - { id: C-116, kind: config_key_consumer, identifier: RESEARCH_JOB_POLL_DELAYS_MS, location: src/utils/deepSearchClient.ts:22 }
+  - { id: C-117, kind: config_key_consumer, identifier: DEEP_RESEARCH_OUTPUT_CONTRACT, location: src/utils/deepSearchClient.ts:24 }
+  - { id: C-118, kind: config_key_consumer, identifier: IDENTITY_BAND_FOCUS_VALUES, location: src/utils/mapSelectionUrl.ts:184 }

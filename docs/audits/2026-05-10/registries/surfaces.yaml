@@ -1,0 +1,151 @@
+# Surfaces registry — research workspace
+# Generated 2026-05-10 by wiring-audit skill (surface enumerator: general-purpose, sonnet)
+# Identifier conventions per references/audit-protocol.md
+#
+# Granularity note: the surface enumerator emitted one consumption per Zustand
+# selector destructured from a store hook. The diff key for the audit is
+# (kind, identifier) where identifier = the store hook symbol; per-selector
+# specificity is preserved here for reference but does not multiply the diff.
+
+surfaces:
+  - id: S-1
+    label: ResearchPage
+    location: src/routes/research/ResearchPage.tsx:659
+    kind: page
+    consumes:
+      # Hook imports (kind=hook-import)
+      - kind: hook-import
+        identifier: useResumeStore
+        location: src/routes/research/ResearchPage.tsx:662
+        selector: data
+      - kind: hook-import
+        identifier: useIdentityStore
+        location: src/routes/research/ResearchPage.tsx:663
+        selectors: [currentIdentity, saveSkillEnrichment, updateCurrentMatching]
+      - kind: hook-import
+        identifier: useCoverLetterStore
+        location: src/routes/research/ResearchPage.tsx:666
+        selectors: [templates, updateTemplate]
+      - kind: hook-import
+        identifier: usePrepStore
+        location: src/routes/research/ResearchPage.tsx:668
+        selectors: [decks, updateDeck]
+      - kind: hook-import
+        identifier: usePipelineStore
+        location: src/routes/research/ResearchPage.tsx:670
+        selectors: [entries, addEntry]
+      - kind: hook-import
+        identifier: useSearchStore
+        location: src/routes/research/ResearchPage.tsx:672
+        selectors:
+          - profile
+          - requests
+          - runs
+          - setProfile
+          - clearProfile
+          - addRequest
+          - addRun
+          - updateRun
+          - theses
+          - activeThesisId
+          - addThesis
+          - markThesisStalenessReview
+          - saveThesisRevision
+          - updateThesisOverrides
+          - toggleThesisHiddenSkill
+          - setActiveThesis
+          - activeResearchJob
+          - setActiveResearchJob
+          - updateActiveResearchJob
+          - clearActiveResearchJob
+          - getUnreflectedFeedback
+          - markFeedbackReflectedInThesis
+          - feedbackEvents
+          - addFeedbackEvent
+          - markFeedbackApplied
+      - kind: hook-import
+        identifier: useSearch  # TanStack Router
+        location: src/routes/research/ResearchPage.tsx:661
+        selector: review
+      # Imported util functions (kind=exported_function)
+      - { kind: exported_function, identifier: createDeepResearchJob, location: src/routes/research/ResearchPage.tsx:1324, evidence: "created = await createDeepResearchJob({ endpoint, thesisSnapshot, params, identityEvidence })" }
+      - { kind: exported_function, identifier: streamDeepResearchJob, location: src/routes/research/ResearchPage.tsx:1258, evidence: "eventSourceRef.current = streamDeepResearchJob(aiEndpoint, jobId, { onEvent, onError, onClose })" }
+      - { kind: exported_function, identifier: fetchDeepResearchJob, location: src/routes/research/ResearchPage.tsx:1378, evidence: "void fetchDeepResearchJob(aiEndpoint, activeResearchJobId)" }
+      - { kind: exported_function, identifier: cancelDeepResearchJob, location: src/routes/research/ResearchPage.tsx:2626 }
+      - { kind: exported_function, identifier: fetchResearchUsage, location: src/routes/research/ResearchPage.tsx:1131 }
+      - { kind: exported_function, identifier: getResearchJobPollDelay, location: src/routes/research/ResearchPage.tsx:1384 }
+      - { kind: exported_function, identifier: hydrateSearchRunFromResearchJob, location: src/routes/research/ResearchPage.tsx:1206 }
+      - { kind: exported_function, identifier: buildDeepResearchIdentityEvidence, location: src/routes/research/ResearchPage.tsx:2576 }
+      - { kind: exported_function, identifier: generateSearchThesisFromIdentity, location: src/routes/research/ResearchPage.tsx:1594, evidence: "await generateSearchThesisFromIdentity(currentIdentity, aiEndpoint, feedbackEvents, { ...userCorrections, ...customDirective, ...modelFallback })" }
+      - { kind: exported_function, identifier: validateSearchThesis, location: src/routes/research/ResearchPage.tsx:1068 }
+      - { kind: exported_function, identifier: fetchAiProxyCapabilities, location: src/routes/research/ResearchPage.tsx:1148 }
+      - { kind: exported_function, identifier: reconcileThesisSignalsFromLabels, location: src/routes/research/ResearchPage.tsx:2479 }
+      - { kind: exported_function, identifier: inferSearchProfileFromIdentity, location: src/routes/research/ResearchPage.tsx:1533, note: "out-of-audit-scope; resolves to utils/searchProfileInference.ts" }
+      - { kind: exported_function, identifier: inferSearchProfile, location: src/routes/research/ResearchPage.tsx:1549, note: "out-of-audit-scope; utils/searchProfileInference.ts" }
+      - { kind: exported_function, identifier: adaptIdentityToSearchProfile, location: src/routes/research/ResearchPage.tsx:921, note: "out-of-audit-scope; resolves to utils/identitySearchProfile.ts:331" }
+      - { kind: exported_function, identifier: skillNamesMatch, location: src/routes/research/ResearchPage.tsx:2278, note: "out-of-audit-scope; utils/identityEnrichment.ts:18" }
+      - { kind: exported_function, identifier: FacetAiProxyError, location: src/routes/research/ResearchPage.tsx:2507, kind_detail: instanceof-check }
+      # Permission signals
+      - { kind: permission_signal, identifier: aiEndpoint-guard, location: src/routes/research/ResearchPage.tsx:1122, evidence: "if (!aiEndpoint) { throw new Error('AI research is disabled. Configure VITE_ANTHROPIC_PROXY_URL.') }" }
+      - { kind: permission_signal, identifier: identity-required-for-thesis, location: src/routes/research/ResearchPage.tsx:1572 }
+      - { kind: permission_signal, identifier: identity-required-for-skill-writeback, location: src/routes/research/ResearchPage.tsx:2221 }
+      - { kind: permission_signal, identifier: budget-exceeded-check, location: src/routes/research/ResearchPage.tsx:2507 }
+      - { kind: permission_signal, identifier: opus-capability-check, location: src/routes/research/ResearchPage.tsx:2517 }
+      # Routes (TanStack Router useNavigate calls)
+      - { kind: route, identifier: /pipeline, location: src/routes/research/ResearchPage.tsx:2730 }
+      - { kind: route, identifier: /identity, location: src/routes/research/ResearchPage.tsx:2735, search_params: "{ focus: 'preferences', return: '/research' }" }
+      - { kind: route, identifier: /identity, location: src/routes/research/ResearchPage.tsx:2958 }
+      # Env vars (consumed indirectly via getFacetClientEnv wrapper)
+      - { kind: env-var, identifier: VITE_ANTHROPIC_PROXY_URL, location: src/routes/research/ResearchPage.tsx:916, note: "indirect via getFacetClientEnv().anthropicProxyUrl" }
+    user_labels:
+      - { text: "Generate Thesis", location: src/routes/research/ResearchPage.tsx:2996 }
+      - { text: "Regenerate Thesis", location: src/routes/research/ResearchPage.tsx:2995 }
+      - { text: "Add to Pipeline", location: src/routes/research/ResearchPage.tsx:4771 }
+      - { text: "Write back to Identity", location: src/routes/research/ResearchPage.tsx:3865 }
+      - { text: "Look-for signals", location: src/routes/research/ResearchPage.tsx:3402 }
+      - { text: "Avoid and qualifying conditions", location: src/routes/research/ResearchPage.tsx:3738 }
+      - { text: "Skill-depth calibration", location: src/routes/research/ResearchPage.tsx:3791 }
+      - { text: "Competitive moat", location: src/routes/research/ResearchPage.tsx:3376 }
+      - { text: "Unfair advantages", location: src/routes/research/ResearchPage.tsx:3488 }
+      - { text: "Search Thesis", location: src/routes/research/ResearchPage.tsx:2975 }
+
+  - id: S-2
+    label: searchWorkspaceComponents
+    location: src/routes/research/searchWorkspaceComponents.tsx:1
+    kind: component-module
+    consumes:
+      - { kind: exported_function, identifier: searchProfileFilterLabels, location: src/routes/research/searchWorkspaceComponents.tsx:28, note: out-of-audit-scope }
+      - { kind: exported_function, identifier: formatSalaryBand, location: src/routes/research/searchWorkspaceComponents.tsx:29, note: out-of-audit-scope }
+    user_labels:
+      - { text: "Generate Thesis", location: src/routes/research/searchWorkspaceComponents.tsx:213 }
+      - { text: "Regenerate Thesis", location: src/routes/research/searchWorkspaceComponents.tsx:213 }
+      - { text: "Regenerate with changes", location: src/routes/research/searchWorkspaceComponents.tsx:212 }
+      - { text: "Corrections (applied on regenerate)", location: src/routes/research/searchWorkspaceComponents.tsx:310 }
+      - { text: "Custom search direction", location: src/routes/research/searchWorkspaceComponents.tsx:325 }
+      - { text: "Thesis search signals", location: src/routes/research/searchWorkspaceComponents.tsx:767 }
+      - { text: "Edit look-for signals", location: src/routes/research/searchWorkspaceComponents.tsx:799 }
+      - { text: "Edit avoid signals", location: src/routes/research/searchWorkspaceComponents.tsx:807 }
+
+  - id: S-3
+    label: researchUtils
+    location: src/routes/research/researchUtils.ts:1
+    kind: utility-module
+    consumes:
+      - { kind: exported_function, identifier: createSeededPipelineResearchSnapshot, location: src/routes/research/researchUtils.ts:16, note: out-of-audit-scope }
+      - { kind: exported_function, identifier: normalizeJobDescriptionSourceUrl, location: src/routes/research/researchUtils.ts:4, note: out-of-audit-scope }
+      - { kind: exported_function, identifier: normalizeJobDescriptionText, location: src/routes/research/researchUtils.ts:4, note: out-of-audit-scope }
+
+  - id: S-4
+    label: stalenessRefreshHandlers
+    location: src/routes/research/stalenessRefreshHandlers.ts:1
+    kind: utility-module
+    consumes:
+      - { kind: hook-import, identifier: useCoverLetterStore, location: src/routes/research/stalenessRefreshHandlers.ts:5, selectors: [letters, updateLetter], note: "via getState()" }
+      - { kind: hook-import, identifier: useIdentityStore, location: src/routes/research/stalenessRefreshHandlers.ts:6, selector: currentIdentity, note: "via getState()" }
+      - { kind: hook-import, identifier: useJDAnalysisStore, location: src/routes/research/stalenessRefreshHandlers.ts:7, selector: analyses, note: "via getState()" }
+      - { kind: hook-import, identifier: usePipelineStore, location: src/routes/research/stalenessRefreshHandlers.ts:8, selector: entries, note: "via getState()" }
+      - { kind: hook-import, identifier: usePrepStore, location: src/routes/research/stalenessRefreshHandlers.ts:9, selector: decks, note: "via getState()" }
+      - { kind: hook-import, identifier: useResumeStore, location: src/routes/research/stalenessRefreshHandlers.ts:10, selector: resumes, note: "via getState()" }
+      - { kind: exported_function, identifier: regenerateCoverLetterForEntry, location: src/routes/research/stalenessRefreshHandlers.ts:20, note: out-of-audit-scope }
+      - { kind: exported_function, identifier: resolvePipelineJdAnalysis, location: src/routes/research/stalenessRefreshHandlers.ts:20, note: out-of-audit-scope }
+      - { kind: exported_function, identifier: regeneratePrepDeckForEntry, location: src/routes/research/stalenessRefreshHandlers.ts:23, note: out-of-audit-scope }
