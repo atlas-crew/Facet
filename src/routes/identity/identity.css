@@ -1118,3 +1118,56 @@
   padding-left: var(--space-4);
   color: var(--text-secondary);
 }
+
+.identity-proposed-vectors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.identity-proposed-vectors-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.identity-proposed-vectors-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.identity-proposed-vector h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.identity-proposed-vector-thesis {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.identity-proposed-vector-keywords {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.identity-proposed-vector-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.identity-proposed-vector-bullets {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.identity-proposed-vector-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

@@ -27,6 +27,8 @@ import type {
   IdentityExtractionDraft,
   IntakeSource,
   MapSelection,
+  ProposedSearchVector,
+  ProposedSearchVectorPatch,
   ResumeScanBulletExplanation,
   ResumeScanBulletProgress,
   ResumeScanBulletStatus,
@@ -161,6 +163,9 @@ interface IdentityState {
   clearSkillSkip: (groupId: string, skillName: string) => void
   addSkillToCurrentIdentity: (groupId: string, skillName: string) => void
   removeSkillFromCurrentIdentity: (groupId: string, skillName: string) => void
+  acceptProposedVector: (id: string) => void
+  rejectProposedVector: (id: string) => void
+  editProposedVector: (id: string, patch: ProposedSearchVectorPatch) => void
   clearDraft: () => void
   clearScanResult: () => void
   clearLastError: () => void
@@ -433,6 +438,16 @@ export const getActiveResumeScan = (
   const first = state.intakeSources?.[0]
   return first?.kind === 'resume' ? first.scan : null
 }
+
+export const hasProposedVectors = (state: {
+  draft?: IdentityExtractionDraft | null
+}): boolean => (state.draft?.proposedVectors?.length ?? 0) > 0
+
+export const getProposedVectorById = (
+  state: { draft?: IdentityExtractionDraft | null },
+  id: string,
+): ProposedSearchVector | null =>
+  state.draft?.proposedVectors?.find((vector) => vector.id === id) ?? null
 
 /**
  * Single-source facade used by setScanResult. Replaces the entire intakeSources
@@ -1694,6 +1709,104 @@ export const useIdentityStore = create<IdentityState>()(
 
           return syncIdentityDocument(state, nextIdentity)
         }),
+      acceptProposedVector: (id) =>
+        set((state) => {
+          const draft = state.draft
+          const staged = draft?.proposedVectors
+          if (!draft || !staged?.length) {
+            return {}
+          }
+
+          const target = staged.find((vector) => vector.id === id)
+          if (!target) {
+            return {}
+          }
+
+          // Strip evidenceSources (LLM provenance metadata) and re-id so the
+          // accepted vector enters identity.search_vectors[] with a fresh stable
+          // id that won't collide with the staging id retained in changelog.
+          const { evidenceSources: _evidenceSources, ...rest } = target
+          const accepted: ProfessionalSearchVector = {
+            ...rest,
+            id: createId('search-vector'),
+          }
+
+          const nextStaging = staged.filter((vector) => vector.id !== id)
+          const nextIdentity: ProfessionalIdentityV3 = {
+            ...draft.identity,
+            search_vectors: [...(draft.identity.search_vectors ?? []), accepted],
+          }
+
+          return {
+            draft: {
+              ...draft,
+              identity: nextIdentity,
+              proposedVectors: nextStaging.length > 0 ? nextStaging : undefined,
+            },
+            draftDocument: formatIdentityDocument(nextIdentity),
+            lastError: null,
+          }
+        }),
+      rejectProposedVector: (id) =>
+        set((state) => {
+          const draft = state.draft
+          const staged = draft?.proposedVectors
+          if (!draft || !staged?.length) {
+            return {}
+          }
+
+          const nextStaging = staged.filter((vector) => vector.id !== id)
+          if (nextStaging.length === staged.length) {
+            return {}
+          }
+
+          return {
+            draft: {
+              ...draft,
+              proposedVectors: nextStaging.length > 0 ? nextStaging : undefined,
+            },
+          }
+        }),
+      editProposedVector: (id, patch) =>
+        set((state) => {
+          const draft = state.draft
+          const staged = draft?.proposedVectors
+          if (!draft || !staged?.length) {
+            return {}
+          }
+
+          let didChange = false
+          const nextStaging = staged.map((vector) => {
+            if (vector.id !== id) {
+              return vector
+            }
+            didChange = true
+            return {
+              ...vector,
+              ...(patch.title !== undefined ? { title: patch.title } : {}),
+              ...(patch.thesis !== undefined ? { thesis: patch.thesis } : {}),
+              ...(patch.keywords !== undefined
+                ? {
+                    keywords: {
+                      primary: patch.keywords.primary,
+                      secondary: patch.keywords.secondary,
+                    },
+                  }
+                : {}),
+            }
+          })
+
+          if (!didChange) {
+            return {}
+          }
+
+          return {
+            draft: {
+              ...draft,
+              proposedVectors: nextStaging,
+            },
+          }
+        }),
       clearDraft: () => set({ draft: null, draftDocument: '', lastError: null }),
       clearScanResult: () =>
         set({
@@ -1750,6 +1863,12 @@ export const useIdentityStore = create<IdentityState>()(
         }
 
         set((state) => ({
+          // Drop draft.proposedVectors on apply — unaccepted vectors must NOT
+          // ride along into the live identity (AC #9 / TASK-263). Users must
+          // explicitly accept each vector before applying the draft.
+          draft: state.draft
+            ? { ...state.draft, proposedVectors: undefined }
+            : state.draft,
           currentIdentity: result.data,
           warnings: result.warnings,
           draftDocument: formatIdentityDocument(result.data),

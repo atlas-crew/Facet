@@ -27,6 +27,7 @@ import { BulletConfidenceCard } from './BulletConfidenceCard'
 import { DraftSummaryCard } from './DraftSummaryCard'
 import { ExtractionAgentCard } from './ExtractionAgentCard'
 import { IdentityModelBuilderCard } from './IdentityModelBuilderCard'
+import { ProposedVectorsCard } from './ProposedVectorsCard'
 import './identity.css'
 
 const downloadJson = (filename: string, content: string) => {
@@ -119,6 +120,9 @@ export function IdentityPage() {
   const updateScannedEducationEntry = useIdentityStore((state) => state.updateScannedEducationEntry)
   const importIdentity = useIdentityStore((state) => state.importIdentity)
   const applyDraft = useIdentityStore((state) => state.applyDraft)
+  const acceptProposedVector = useIdentityStore((state) => state.acceptProposedVector)
+  const rejectProposedVector = useIdentityStore((state) => state.rejectProposedVector)
+  const editProposedVector = useIdentityStore((state) => state.editProposedVector)
   const selectedVector = useUiStore((state) => state.selectedVector)
   const comparisonVector = useUiStore((state) => state.comparisonVector)
   const setSelectedVector = useUiStore((state) => state.setSelectedVector)
@@ -710,6 +714,30 @@ export function IdentityPage() {
     setPageNotice('Exported the current draft document.')
   }
 
+  const handleAcceptProposedVector = (id: string) => {
+    const vector = draft?.proposedVectors?.find((entry) => entry.id === id)
+    acceptProposedVector(id)
+    setPageError(null)
+    setPageNotice(
+      vector ? `Accepted "${vector.title}" into search vectors.` : 'Accepted proposed vector.',
+    )
+  }
+
+  const handleRejectProposedVector = (id: string) => {
+    const vector = draft?.proposedVectors?.find((entry) => entry.id === id)
+    rejectProposedVector(id)
+    setPageError(null)
+    setPageNotice(
+      vector ? `Rejected proposed vector "${vector.title}".` : 'Rejected proposed vector.',
+    )
+  }
+
+  const handleEditProposedVector: typeof editProposedVector = (id, patch) => {
+    editProposedVector(id, patch)
+    setPageError(null)
+    setPageNotice('Updated proposed vector. Accept it when you are ready to keep it.')
+  }
+
   const handlePushToBuild = () => {
     if (!currentIdentity) {
       setPageNotice(null)
@@ -950,6 +978,13 @@ export function IdentityPage() {
       ) : null}
       <div className="identity-workspace-panel">
         <div className="identity-section-stack">
+          <ProposedVectorsCard
+            draft={draft}
+            onAccept={handleAcceptProposedVector}
+            onReject={handleRejectProposedVector}
+            onEdit={handleEditProposedVector}
+          />
+
           {currentIdentity && enrichmentProgress && enrichmentProgress.total > 0 ? (
             <section className="identity-card identity-enrichment-banner">
               <div className="identity-card-header">

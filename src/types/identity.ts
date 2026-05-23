@@ -46,6 +46,21 @@ export interface ProposedSearchVector extends ProfessionalSearchVector {
   evidenceSources: string[]
 }
 
+/**
+ * Patch shape for in-place edits to a staged proposed vector (TASK-263). The
+ * review pane lets users adjust title / thesis / keywords before accepting;
+ * priority, subtitle, target_roles, and supporting_bullets stay read-only so
+ * the editor doesn't broaden into a full search-vector form.
+ */
+export interface ProposedSearchVectorPatch {
+  title?: string
+  thesis?: string
+  keywords?: {
+    primary: string[]
+    secondary: string[]
+  }
+}
+
 export interface IdentityExtractionDraft {
   generatedAt: string
   summary: string
