@@ -3,11 +3,11 @@ id: TASK-253
 title: >-
   Reorganize skill-depth calibration into action-grouped triage (Phase 1, Commit
   4)
-status: To Do
+status: Done
 assignee:
   - Nicholas Ferguson
 created_date: '2026-05-10 16:25'
-updated_date: '2026-05-11 06:50'
+updated_date: '2026-05-23 17:10'
 labels:
   - research
   - phase-1-cull
@@ -19,7 +19,9 @@ references:
 modified_files:
   - src/routes/research/ResearchPage.tsx
   - src/routes/research/research.css
+  - src/routes/research/searchWorkspaceComponents.tsx
   - src/test/ResearchPage.test.tsx
+  - src/test/SearchInstancePreferences.editInIdentity.test.tsx
 priority: medium
 ---
 
@@ -154,7 +156,26 @@ Implemented Commit 4 as planned with one mid-implementation correction. The user
 User-observed manual-smoke surface bugs (1-letter-per-line constraints box, two visible 'Search Thesis' sections) traced to a pre-existing CSS gotcha unrelated to this task: `.research-panel { display: flex }` overrode the UA `hidden` attribute, so all three tab panels rendered simultaneously. Both reported symptoms followed from that — duplicate `<h2>Search Thesis</h2>` (one from SearchThesisWorkspace in the profile tab, one from the inline section in the search tab) and SearchInstancePreferences getting squeezed to half-width inside `research-grid-two` then further split by `research-preferences-split`. Added `.research-panel[hidden] { display: none }` to `research.css` matching the same pattern already established in `pipeline.css:593-594` and `prep.css:2039`/`3582`. Full vitest suite (171 files, 2370 tests) still green.
 
 Paused 2026-05-11 mid-implementation to pivot to task-205. Task-253 code changes remain in the working tree (uncommitted): the skill-depth grouping refactor in ResearchPage.tsx, the new tests in ResearchPage.test.tsx, the CSS additions in research.css. The panel-hidden fix (`.research-panel[hidden] { display: none }`) also lives in research.css and is genuinely useful regardless of task-205; will stay. AC#7 (manual smoke) deferred until after task-205 lands, since the constraints box layout bug user encountered during smoke is being structurally fixed by task-205 Phase B (delete `<SearchInstancePreferences>` from Research). Skill-depth grouping itself is fine on the Search tab where it lives.
+
+Closed 2026-05-23 in commit `d65b245 refactor(research): consolidate launcher skill triage`. The final landed shape combines the Commit 4 skill-depth grouping with the now-obsolete profile/preferences surface cull because the UI removal and grouping were intertwined in `ResearchPage.tsx`: the research workspace now starts on Search Launcher, removes the Profile Editor tab, keeps regeneration guidance inside the launcher, removes the dead `SearchThesisWorkspace` / `SearchInstancePreferences` component surface, and renders skill-depth entries in proposed / confirmed / surfaced groups with counts and empty-state copy.
+
+Verification run at closeout:
+- `npm run typecheck` passed.
+- `npx vitest run src/test/ResearchPage.test.tsx` passed: 82 tests.
+- `npx eslint src/routes/research/ResearchPage.tsx src/routes/research/searchWorkspaceComponents.tsx src/test/ResearchPage.test.tsx` passed.
+
+AC#7 remains unchecked because the closeout pass did not rerun a fresh manual browser/multi-tab smoke for all four listed scenarios. The relevant behavior is covered by the focused ResearchPage tests and the unchanged skill-writeback tests; manual browser smoke can be repeated as a separate release-readiness check if needed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Shipped the research workspace Phase 1 Commit 4 work in `d65b245 refactor(research): consolidate launcher skill triage`. `ResearchPage` now categorizes `skillDepthMap` entries against identity skills into depth changes proposed, depths confirmed, and new skills surfaced; each group renders with accurate counts and prescribed empty-state copy, while existing writeback indexes continue to target the canonical `skillDepthMap` entries.
+
+The same commit removes the obsolete Profile Editor tab and dead preference/thesis component surface that had become entangled with the triage UI after the Phase 1 cull. Regeneration guidance now lives inside Search Launcher, hidden tab panels respect `[hidden]`, and the old `SearchInstancePreferences.editInIdentity` test file was removed with the component it covered.
+
+Closeout verification: `npm run typecheck`; `npx vitest run src/test/ResearchPage.test.tsx` (82 tests); `npx eslint src/routes/research/ResearchPage.tsx src/routes/research/searchWorkspaceComponents.tsx src/test/ResearchPage.test.tsx`.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
