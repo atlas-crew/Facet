@@ -1753,6 +1753,117 @@ describe('ResearchPage', () => {
     expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(2)
   })
 
+  it('groups skill-depth entries into proposed/confirmed/surfaced sections with counts', async () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups[0]!.items = [
+      { name: 'Kubernetes', tags: ['platform'], depth: 'strong' },
+      { name: 'Terraform', tags: ['platform'], depth: 'working' },
+    ]
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-skill-depth-groups',
+      skillDepthMap: [
+        {
+          skill: 'Kubernetes',
+          depth: 'expert',
+          context: 'Architected delivery paths.',
+          searchSignal: 'Prioritize architecture.',
+        },
+        {
+          skill: 'Terraform',
+          depth: 'working',
+          context: 'Wrote modules at Contoso.',
+          searchSignal: 'Mid-signal match.',
+        },
+        {
+          skill: 'Rust',
+          depth: 'working',
+          context: 'Side projects.',
+          searchSignal: 'Surface-only.',
+        },
+      ],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+
+    expect(screen.getByText('Depth changes proposed (1)')).toBeTruthy()
+    expect(screen.getByText('Depths confirmed (1)')).toBeTruthy()
+    expect(screen.getByText('New skills surfaced (1)')).toBeTruthy()
+
+    const proposedDetails = screen
+      .getByText('Depth changes proposed (1)')
+      .closest('details') as HTMLDetailsElement
+    const confirmedDetails = screen
+      .getByText('Depths confirmed (1)')
+      .closest('details') as HTMLDetailsElement
+    const surfacedDetails = screen
+      .getByText('New skills surfaced (1)')
+      .closest('details') as HTMLDetailsElement
+
+    expect(proposedDetails.open).toBe(true)
+    expect(confirmedDetails.open).toBe(false)
+    expect(surfacedDetails.open).toBe(true)
+
+    // Proposed and surfaced entries expose the existing Write back button.
+    // (Surfaced entries surface a helpful "skill not in Identity" error on click;
+    // the writeback handler is the canonical place that decides whether the
+    // mutation is valid, so keeping the affordance preserves that feedback path.)
+    expect(
+      screen.getByRole('button', { name: 'Write skill depth 1 back to Identity' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Write skill depth 3 back to Identity' }),
+    ).toBeTruthy()
+    // Confirmed entries have no Write back button — depth already matches Identity.
+    expect(
+      screen.queryByRole('button', { name: 'Write skill depth 2 back to Identity' }),
+    ).toBeNull()
+  })
+
+  it('renders explanatory empty-state copy when no skill-depth entries exist', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const thesis = buildTestThesis({
+      id: 'thesis-skill-depth-empty',
+      skillDepthMap: [],
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      theses: [thesis],
+      activeThesisId: thesis.id,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+
+    expect(screen.getByText('Depth changes proposed (0)')).toBeTruthy()
+    expect(screen.getByText('Depths confirmed (0)')).toBeTruthy()
+    expect(screen.getByText('New skills surfaced (0)')).toBeTruthy()
+    expect(
+      screen.getByText('No depth changes proposed. The thesis depths match your identity.'),
+    ).toBeTruthy()
+    expect(screen.getByText('No confirmed depths yet.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'No new skills surfaced. The thesis stayed within your identity skill set.',
+      ),
+    ).toBeTruthy()
+  })
+
   it('uses the reviewed active thesis when launching deep research', async () => {
     const identity = cloneIdentityFixture()
     identity.model_revision = 4
@@ -2208,127 +2319,6 @@ describe('ResearchPage', () => {
     })
   })
 
-  it('routes preference-panel look-for signal edits to the thesis strategy surface', async () => {
-    const thesis = buildTestThesis({
-      id: 'thesis-preference-signal-route',
-      lookFor: [
-        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
-      ],
-      avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin', severity: 'soft' }],
-    })
-    useSearchStore.setState((state) => ({
-      ...state,
-      theses: [thesis],
-      activeThesisId: thesis.id,
-    }))
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    expect(screen.getByRole('tab', { name: 'Profile Editor' }).getAttribute('aria-selected')).toBe(
-      'true',
-    )
-    expect(screen.queryByLabelText('Prioritize')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit look-for signals' }))
-
-    expect(screen.getByRole('tab', { name: 'Search Launcher' }).getAttribute('aria-selected')).toBe(
-      'true',
-    )
-    const lookForSignalsInput = screen.getByLabelText('Look-for signals')
-    expect(lookForSignalsInput).toBeTruthy()
-    await waitFor(() => {
-      expect(document.activeElement).toBe(lookForSignalsInput)
-    })
-  })
-
-  it('keeps preference-panel thesis signals read-only without legacy filter toggles', async () => {
-    const thesis = buildTestThesis({
-      id: 'thesis-preference-signals-read-only',
-      lookFor: [
-        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
-        { id: 'ssig-devex-existing', label: 'developer leverage', severity: 'soft' },
-      ],
-      avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin work', severity: 'soft' }],
-    })
-    useSearchStore.setState((state) => ({
-      ...state,
-      theses: [thesis],
-      activeThesisId: thesis.id,
-    }))
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    const signalReadout = screen.getByRole('group', { name: 'Thesis search signals' })
-    expect(within(signalReadout).getByText('Look for')).toBeTruthy()
-    expect(
-      within(signalReadout).getByText(/platform modernization, developer leverage/i),
-    ).toBeTruthy()
-    expect(within(signalReadout).getByText('Avoid')).toBeTruthy()
-    expect(within(signalReadout).getByText(/pure admin work/i)).toBeTruthy()
-    expect(within(signalReadout).queryAllByRole('checkbox')).toEqual([])
-    expect(within(signalReadout).queryByLabelText('Prioritize')).toBeNull()
-    expect(within(signalReadout).queryByLabelText('Avoid')).toBeNull()
-    expect(
-      within(signalReadout).queryByRole('button', { name: /disable.*platform modernization/i }),
-    ).toBeNull()
-    expect(screen.getByRole('button', { name: 'Edit look-for signals' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Edit avoid signals' })).toBeTruthy()
-  })
-
-  it('routes preference-panel avoid signal edits to the thesis avoid editor', async () => {
-    const thesis = buildTestThesis({
-      id: 'thesis-preference-avoid-route',
-      lookFor: [
-        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
-      ],
-      avoid: [{ id: 'ssig-avoid-existing', label: 'pure admin', severity: 'soft' }],
-    })
-    useSearchStore.setState((state) => ({
-      ...state,
-      theses: [thesis],
-      activeThesisId: thesis.id,
-    }))
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Edit avoid signals' }))
-
-    expect(screen.getByRole('tab', { name: 'Search Launcher' }).getAttribute('aria-selected')).toBe(
-      'true',
-    )
-    const avoidEditor = screen.getByLabelText('Avoid 1 label')
-    await waitFor(() => {
-      expect(document.activeElement).toBe(avoidEditor)
-    })
-  })
-
-  it('routes an empty avoid list to the add avoid action in the thesis editor', async () => {
-    const thesis = buildTestThesis({
-      id: 'thesis-preference-empty-avoid-route',
-      lookFor: [
-        { id: 'ssig-platform-existing', label: 'platform modernization', severity: 'hard' },
-      ],
-      avoid: [],
-    })
-    useSearchStore.setState((state) => ({
-      ...state,
-      theses: [thesis],
-      activeThesisId: thesis.id,
-    }))
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Edit avoid signals' }))
-
-    const avoidEditor = await screen.findByRole('button', { name: 'Add avoid signal' })
-    await waitFor(() => {
-      expect(document.activeElement).toBe(avoidEditor)
-    })
-  })
-
   it('adds avoid signals in canonical signal shape from the thesis editor', async () => {
     const thesis = buildTestThesis({
       id: 'thesis-add-avoid-signal',
@@ -2536,7 +2526,7 @@ describe('ResearchPage', () => {
       expect(alerts.some((alert) => alert.textContent?.includes('billing is resolved'))).toBe(true)
     })
 
-    expect(screen.getByRole('tab', { name: 'Profile Editor' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Search Launcher' })).toBeTruthy()
   })
 
   it('hides the stale warning when resume and profile versions match', async () => {
@@ -2764,7 +2754,9 @@ describe('ResearchPage', () => {
   })
 
   it('blocks search launch until an active thesis exists', async () => {
-    useSearchStore.setState((state) => ({ ...state, profile: null, requests: [], runs: [] }))
+    // Keep the default profile in place; this test exercises the no-thesis blocker,
+    // not the no-profile empty state (which is covered elsewhere).
+    useSearchStore.setState((state) => ({ ...state, requests: [], runs: [] }))
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
 
@@ -2775,7 +2767,6 @@ describe('ResearchPage', () => {
         .getByRole('button', { name: /Generate a thesis to launch search/i })
         .hasAttribute('disabled'),
     ).toBe(true)
-    expect(screen.getByText('Create a profile before launching search.')).toBeTruthy()
     expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
   })
 
@@ -3208,27 +3199,28 @@ describe('ResearchPage', () => {
     const { ResearchPage } = await import('../routes/research/ResearchPage')
     render(<ResearchPage />)
 
-    const profileTab = screen.getByRole('tab', { name: 'Profile Editor' })
     const searchTab = screen.getByRole('tab', { name: 'Search Launcher' })
     const resultsTab = screen.getByRole('tab', { name: 'Results Viewer' })
 
-    fireEvent.keyDown(profileTab, { key: 'ArrowRight' })
     expect(searchTab.getAttribute('aria-selected')).toBe('true')
 
-    fireEvent.keyDown(searchTab, { key: 'ArrowLeft' })
-    expect(profileTab.getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(searchTab, { key: 'ArrowRight' })
+    expect(resultsTab.getAttribute('aria-selected')).toBe('true')
 
-    fireEvent.keyDown(profileTab, { key: 'End' })
+    fireEvent.keyDown(resultsTab, { key: 'ArrowLeft' })
+    expect(searchTab.getAttribute('aria-selected')).toBe('true')
+
+    fireEvent.keyDown(searchTab, { key: 'End' })
     expect(resultsTab.getAttribute('aria-selected')).toBe('true')
 
     fireEvent.keyDown(resultsTab, { key: 'Home' })
-    expect(profileTab.getAttribute('aria-selected')).toBe('true')
+    expect(searchTab.getAttribute('aria-selected')).toBe('true')
 
-    fireEvent.keyDown(profileTab, { key: 'ArrowLeft' })
+    fireEvent.keyDown(searchTab, { key: 'ArrowLeft' })
     expect(resultsTab.getAttribute('aria-selected')).toBe('true')
 
     fireEvent.keyDown(resultsTab, { key: 'ArrowRight' })
-    expect(profileTab.getAttribute('aria-selected')).toBe('true')
+    expect(searchTab.getAttribute('aria-selected')).toBe('true')
   })
 
   it('shows the empty results state when no runs exist', async () => {
@@ -3349,134 +3341,6 @@ describe('ResearchPage', () => {
       'value',
       'edge platform, reliability leadership',
     )
-  })
-
-  it('binds profile editor constraints, signals, and interview prefs to the active thesis', async () => {
-    const baseConstraints = {
-      salary: { min: 210000, max: 320000, currency: 'USD' },
-      locations: ['Remote'],
-      clearance: '',
-      companySize: 'growth' as const,
-      industriesToAvoid: [],
-      fundingStagesAcceptable: [],
-      remotePolicies: [],
-      remotePolicyNote: '',
-      employmentTypes: [],
-    }
-    const baseInterviewPrefs = {
-      strongFit: ['architecture discussion'],
-      redFlags: ['leetcode-heavy loops'],
-    }
-    const thesis = buildTestThesis({
-      id: 'thesis-profile-editor-bindings',
-      lookFor: ['platform modernization'],
-      avoid: ['pure admin'],
-      keywordCombinations: [
-        {
-          id: 'skwd-profile-bindings',
-          query: '"platform modernization"',
-          lane: 'lane-platform',
-          noiseLevel: 'low',
-        },
-      ],
-      searchOverrides: {
-        constraints: baseConstraints,
-        interviewPrefs: baseInterviewPrefs,
-        hiddenSkillIds: [],
-      },
-    })
-    useSearchStore.setState((state) => ({
-      ...state,
-      profile: {
-        ...state.profile!,
-        skills: [
-          {
-            id: 'skill-k8s',
-            name: 'Kubernetes',
-            category: 'platform',
-            depth: 'strong',
-            context: 'Production platform delivery.',
-          },
-        ],
-        constraints: baseConstraints,
-        filters: {
-          prioritize: [{ label: 'identity prioritize', severity: 'soft' }],
-          avoid: [{ label: 'identity avoid', severity: 'soft' }],
-        },
-        interviewPrefs: baseInterviewPrefs,
-      },
-      theses: [thesis],
-      activeThesisId: thesis.id,
-    }))
-
-    const { ResearchPage } = await import('../routes/research/ResearchPage')
-    render(<ResearchPage />)
-
-    const signalReadout = screen.getByRole('group', { name: 'Thesis search signals' })
-    expect(within(signalReadout).getByText(/platform modernization/i)).toBeTruthy()
-    expect(within(signalReadout).getByText(/pure admin/i)).toBeTruthy()
-
-    fireEvent.click(screen.getByText('Hard constraints'))
-    fireEvent.change(screen.getByLabelText('Salary minimum amount'), {
-      target: { value: '240000' },
-    })
-    fireEvent.change(screen.getByLabelText('Salary maximum amount'), {
-      target: { value: '410000' },
-    })
-    fireEvent.change(screen.getByLabelText('Clearance requirement'), {
-      target: { value: 'not-required' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Firearms / defense' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Series B' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Remote friendly' }))
-    fireEvent.click(screen.getByRole('button', { name: '1099 contract' }))
-    fireEvent.change(screen.getByLabelText('Preferred locations'), {
-      target: { value: 'Remote, Denver' },
-    })
-    fireEvent.change(screen.getByLabelText('Preferred company size'), {
-      target: { value: 'public' },
-    })
-    fireEvent.change(screen.getByLabelText('Interview prep advantages'), {
-      target: { value: 'system design, platform storytelling' },
-    })
-    fireEvent.change(screen.getByLabelText('Interview process risks'), {
-      target: { value: 'leetcode-only loops, unpaid take-home' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Edit look-for signals' }))
-    fireEvent.change(screen.getByLabelText('Look-for signals'), {
-      target: { value: 'platform modernization, reliability leadership' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save thesis edits' }))
-
-    await waitFor(() => {
-      const updated = useSearchStore
-        .getState()
-        .theses.find((candidate) => candidate.id === thesis.id)
-      expect(updated?.lookFor.map((signal) => signal.label)).toEqual([
-        'platform modernization',
-        'reliability leadership',
-      ])
-      expect(updated?.searchOverrides).toMatchObject({
-        constraints: {
-          salary: { min: 240000, max: 410000, currency: 'USD' },
-          clearance: 'not-required',
-          industriesToAvoid: ['firearms-defense'],
-          fundingStagesAcceptable: ['series-b'],
-          remotePolicies: ['remote-friendly'],
-          employmentTypes: ['1099-contract'],
-          locations: ['Remote', 'Denver'],
-          companySize: 'public',
-        },
-        interviewPrefs: {
-          strongFit: ['system design', 'platform storytelling'],
-          redFlags: ['leetcode-only loops', 'unpaid take-home'],
-        },
-      })
-      expect(updated?.searchLanes).toEqual(thesis.searchLanes)
-      expect(updated?.skillDepthMap).toEqual(thesis.skillDepthMap)
-      expect(updated?.keywordCombinations).toEqual(thesis.keywordCombinations)
-      expect(updated?.source).toBe('user-edited')
-    })
   })
 
   it('switches active runs and shows failed-run details', async () => {

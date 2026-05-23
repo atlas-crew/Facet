@@ -80,19 +80,14 @@ import {
   normalizeMaxResults,
   splitTags,
 } from './researchUtils'
-import {
-  SearchAssumptionsDisclosure,
-  SearchInstancePreferences,
-  SearchThesisWorkspace,
-} from './searchWorkspaceComponents'
+import { SearchAssumptionsDisclosure } from './searchWorkspaceComponents'
 import './research.css'
 
-type ResearchTab = 'profile' | 'search' | 'results'
+type ResearchTab = 'search' | 'results'
 type ThesisSignalEditTarget = 'lookFor' | 'avoid'
 type ThesisSignalsFocusRequest = { id: number; target: ThesisSignalEditTarget }
-const RESEARCH_TABS: ResearchTab[] = ['profile', 'search', 'results']
+const RESEARCH_TABS: ResearchTab[] = ['search', 'results']
 const RESEARCH_TAB_DEFS: Array<{ id: ResearchTab; label: string }> = [
-  { id: 'profile', label: 'Profile Editor' },
   { id: 'search', label: 'Search Launcher' },
   { id: 'results', label: 'Results Viewer' },
 ]
@@ -281,6 +276,46 @@ const buildSkillDepthValueChanges = (
     return [{ field: 'skills.' + skill.name + '.depth', before, after: newDepth }]
   }
   return []
+}
+
+type SkillDepthGroupEntry = {
+  entry: SearchThesis['skillDepthMap'][number]
+  index: number
+}
+
+type SkillDepthGroups = {
+  proposed: SkillDepthGroupEntry[]
+  confirmed: SkillDepthGroupEntry[]
+  surfaced: SkillDepthGroupEntry[]
+}
+
+const categorizeSkillDepthEntries = (
+  entries: SearchThesis['skillDepthMap'],
+  identity: ProfessionalIdentityV3 | null,
+): SkillDepthGroups => {
+  const groups: SkillDepthGroups = { proposed: [], confirmed: [], surfaced: [] }
+  const identitySkills: { name: string; depth: string | undefined }[] = []
+  if (identity) {
+    for (const group of identity.skills.groups) {
+      for (const item of group.items) {
+        identitySkills.push({
+          name: item.name,
+          depth: typeof item.depth === 'string' ? item.depth : undefined,
+        })
+      }
+    }
+  }
+  entries.forEach((entry, index) => {
+    const match = identitySkills.find((skill) => skillNamesMatch(skill.name, entry.skill))
+    if (!match) {
+      groups.surfaced.push({ entry, index })
+    } else if (match.depth === entry.depth) {
+      groups.confirmed.push({ entry, index })
+    } else {
+      groups.proposed.push({ entry, index })
+    }
+  })
+  return groups
 }
 
 const formatOptionalCount = (
@@ -666,7 +701,6 @@ export function ResearchPage() {
     addThesis,
     markThesisStalenessReview,
     saveThesisRevision,
-    updateThesisOverrides,
     setActiveThesis,
     activeResearchJob,
     setActiveResearchJob,
@@ -679,7 +713,7 @@ export function ResearchPage() {
     markFeedbackApplied,
   } = useSearchStore()
 
-  const [activeTab, setActiveTab] = useState<ResearchTab>('profile')
+  const [activeTab, setActiveTab] = useState<ResearchTab>('search')
   const [requestDraft, setRequestDraft] = useState(() => {
     const initialThesis = theses.find((thesis) => thesis.id === activeThesisId) ?? null
     return buildRequestDraft(profile, initialThesis)
@@ -891,6 +925,10 @@ export function ResearchPage() {
   const pendingSkillWritebackEntry = pendingSkillWriteback
     ? (thesisDraft?.skillDepthMap[pendingSkillWriteback.skillIndex] ?? null)
     : null
+  const skillDepthGroups = useMemo(
+    () => categorizeSkillDepthEntries(thesisDraft?.skillDepthMap ?? [], currentIdentity),
+    [thesisDraft?.skillDepthMap, currentIdentity],
+  )
   const aiEndpoint = useMemo(() => sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl), [])
 
   const identityDerivedProfile = useMemo(
@@ -1423,7 +1461,7 @@ export function ResearchPage() {
       setTabByOffset(current, -1)
     } else if (event.key === 'Home') {
       event.preventDefault()
-      setActiveTab('profile')
+      setActiveTab('search')
     } else if (event.key === 'End') {
       event.preventDefault()
       setActiveTab('results')
@@ -1549,7 +1587,7 @@ export function ResearchPage() {
   ) => {
     if (!currentIdentity) {
       setPageError('Generate a thesis from the Identity model before running thesis-driven search.')
-      setActiveTab('profile')
+      setActiveTab('search')
       return
     }
 
@@ -2396,7 +2434,7 @@ export function ResearchPage() {
     }
     if (!effectiveProfile || !executableProfile) {
       setPageError('Build or restore a search profile before launching search.')
-      setActiveTab('profile')
+      setActiveTab('search')
       return
     }
     // Mirror the proxy's lanes-only contract before a deep-research job is submitted.
@@ -2680,9 +2718,6 @@ export function ResearchPage() {
             <Search size={16} />
             {readinessCopy.primaryActionLabel}
           </button>
-          <button type="button" className="research-btn" onClick={() => setActiveTab('profile')}>
-            Review Profile
-          </button>
           {effectiveProfile ? (
             <button
               type="button"
@@ -2768,7 +2803,7 @@ export function ResearchPage() {
         ))}
       </div>
 
-      <ResearchPanel tabId="profile" active={activeTab === 'profile'}>
+      <ResearchPanel tabId="search" active={activeTab === 'search'}>
         {!effectiveProfile ? (
           <div className="research-empty">
             <h2>No search profile yet</h2>
@@ -2779,41 +2814,6 @@ export function ResearchPage() {
             </p>
           </div>
         ) : (
-          <>
-            <SearchThesisWorkspace
-              activeThesis={activeThesis}
-              isGeneratingThesis={isGeneratingThesis}
-              isSearching={isSearching}
-              hasIdentity={Boolean(currentIdentity)}
-              correctionsDraft={correctionsDraft}
-              onCorrectionsChange={setCorrectionsDraft}
-              directiveDraft={directiveDraft}
-              onDirectiveChange={setDirectiveDraft}
-              onRegenerate={() =>
-                void handleGenerateThesis({
-                  userCorrections: correctionsDraft,
-                  customDirective: directiveDraft,
-                })
-              }
-              onCorrectAssumption={handleCorrectSearchAssumption}
-            />
-
-            <div className="research-grid research-grid-two">
-              <SearchInstancePreferences
-                identityBase={effectiveProfile}
-                activeThesis={thesisDraft ?? activeThesis}
-                onUpdateOverrides={(patch) => {
-                  if (!activeThesis) return
-                  updateThesisOverrides(activeThesis.id, patch)
-                }}
-                onEditThesisSignals={focusThesisSignalsEditor}
-              />
-            </div>
-          </>
-        )}
-      </ResearchPanel>
-
-      <ResearchPanel tabId="search" active={activeTab === 'search'}>
         <div className="research-grid research-grid-two">
           <section className="research-card research-field-span research-thesis-card">
             <div className="research-card-header">
@@ -2829,7 +2829,13 @@ export function ResearchPage() {
                 <button
                   type="button"
                   className="research-btn"
-                  onClick={() => void handleGenerateThesis({ switchToSearchTab: true })}
+                  onClick={() =>
+                    void handleGenerateThesis({
+                      switchToSearchTab: true,
+                      userCorrections: correctionsDraft,
+                      customDirective: directiveDraft,
+                    })
+                  }
                   disabled={
                     !currentIdentity || isGeneratingThesis || isSearching || thesisDraftIsDirty
                   }
@@ -2890,6 +2896,37 @@ export function ResearchPage() {
               <div className="research-warning" role="status">
                 {thesisNotice}
               </div>
+            ) : null}
+
+            {currentIdentity ? (
+              <details className="research-log">
+                <summary>Regeneration guidance (corrections + custom directive)</summary>
+                <div className="research-form-grid">
+                  <label className="research-field research-field-span">
+                    <span>Corrections (applied on next regenerate)</span>
+                    <textarea
+                      className="research-textarea"
+                      rows={3}
+                      value={correctionsDraft}
+                      onChange={(event) => setCorrectionsDraft(event.target.value)}
+                      placeholder="What should the model adjust on the next regeneration? e.g. 'Drop Kubernetes admin framing — emphasize platform leverage.'"
+                    />
+                  </label>
+                  <label className="research-field research-field-span">
+                    <span>Custom search direction</span>
+                    <input
+                      className="research-input"
+                      value={directiveDraft}
+                      onChange={(event) => setDirectiveDraft(event.target.value)}
+                      placeholder='e.g. "Research adjacent CTO roles at platform-modernization startups"'
+                    />
+                    <small className="research-muted">
+                      Persists across regenerations. Use this for search angles the model would not
+                      infer on its own.
+                    </small>
+                  </label>
+                </div>
+              </details>
             ) : null}
 
             {thesisFallbackOffer ? (
@@ -3512,89 +3549,297 @@ export function ResearchPage() {
 
                 <section className="research-stack" aria-label="Thesis skill depth map">
                   <h3 className="research-subtitle">Skill-depth calibration</h3>
-                  {thesisDraft.skillDepthMap.length === 0 ? (
-                    <p className="research-muted">No skill-depth entries yet.</p>
-                  ) : (
-                    thesisDraft.skillDepthMap.map((entry, index) => (
-                      <div key={`${entry.skill}-${index}`} className="research-thesis-editor-card">
-                        <div className="research-form-grid">
-                          <label className="research-field">
-                            <span>Skill</span>
-                            <input
-                              className="research-input"
-                              aria-label={`Skill depth ${index + 1} skill`}
-                              value={entry.skill}
-                              onChange={(event) =>
-                                updateThesisSkillDepth(index, { skill: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field">
-                            <span>Depth</span>
-                            <input
-                              className="research-input"
-                              aria-label={`Skill depth ${index + 1} depth`}
-                              value={entry.depth}
-                              onChange={(event) =>
-                                updateThesisSkillDepth(index, { depth: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field research-field-span">
-                            <span>Context</span>
-                            <textarea
-                              className="research-textarea"
-                              rows={2}
-                              aria-label={`Skill depth ${index + 1} context`}
-                              value={entry.context}
-                              onChange={(event) =>
-                                updateThesisSkillDepth(index, { context: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field research-field-span">
-                            <span>Search signal</span>
-                            <textarea
-                              className="research-textarea"
-                              rows={2}
-                              aria-label={`Skill depth ${index + 1} search signal`}
-                              value={entry.searchSignal}
-                              onChange={(event) =>
-                                updateThesisSkillDepth(index, { searchSignal: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="research-field research-field-span">
-                            <span>Calibration</span>
-                            <textarea
-                              className="research-textarea"
-                              rows={2}
-                              aria-label={`Skill depth ${index + 1} calibration`}
-                              value={entry.calibration ?? ''}
-                              onChange={(event) =>
-                                updateThesisSkillDepth(index, { calibration: event.target.value })
-                              }
-                            />
-                          </label>
+
+                  <details
+                    className="research-log research-skill-depth-group"
+                    open
+                    aria-label="Depth changes proposed"
+                  >
+                    <summary>
+                      Depth changes proposed ({skillDepthGroups.proposed.length})
+                    </summary>
+                    {skillDepthGroups.proposed.length === 0 ? (
+                      <p className="research-muted">
+                        No depth changes proposed. The thesis depths match your identity.
+                      </p>
+                    ) : (
+                      skillDepthGroups.proposed.map(({ entry, index }) => (
+                        <div
+                          key={`proposed-${entry.skill}-${index}`}
+                          className="research-thesis-editor-card"
+                        >
+                          <div className="research-form-grid">
+                            <label className="research-field">
+                              <span>Skill</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} skill`}
+                                value={entry.skill}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { skill: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field">
+                              <span>Depth</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} depth`}
+                                value={entry.depth}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { depth: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Context</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} context`}
+                                value={entry.context}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { context: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Search signal</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} search signal`}
+                                value={entry.searchSignal}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, {
+                                    searchSignal: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Calibration</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} calibration`}
+                                value={entry.calibration ?? ''}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, {
+                                    calibration: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="research-thesis-actions">
+                            <button
+                              type="button"
+                              className="research-btn"
+                              onClick={() => handleRequestSkillDepthWriteback(index)}
+                              disabled={!currentIdentity}
+                              aria-label={`Write skill depth ${index + 1} back to Identity`}
+                            >
+                              Write back to Identity
+                            </button>
+                            <span className="research-muted">
+                              Updates this Identity skill as depthSource='corrected' and bumps
+                              model revision.
+                            </span>
+                          </div>
                         </div>
-                        <div className="research-thesis-actions">
-                          <button
-                            type="button"
-                            className="research-btn"
-                            onClick={() => handleRequestSkillDepthWriteback(index)}
-                            disabled={!currentIdentity}
-                            aria-label={`Write skill depth ${index + 1} back to Identity`}
-                          >
-                            Write back to Identity
-                          </button>
-                          <span className="research-muted">
-                            Updates this Identity skill as depthSource='corrected' and bumps model
-                            revision.
-                          </span>
+                      ))
+                    )}
+                  </details>
+
+                  <details
+                    className="research-log research-skill-depth-group"
+                    aria-label="Depths confirmed"
+                  >
+                    <summary>
+                      Depths confirmed ({skillDepthGroups.confirmed.length})
+                    </summary>
+                    {skillDepthGroups.confirmed.length === 0 ? (
+                      <p className="research-muted">No confirmed depths yet.</p>
+                    ) : (
+                      skillDepthGroups.confirmed.map(({ entry, index }) => (
+                        <div
+                          key={`confirmed-${entry.skill}-${index}`}
+                          className="research-thesis-editor-card"
+                        >
+                          <div className="research-form-grid">
+                            <label className="research-field">
+                              <span>Skill</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} skill`}
+                                value={entry.skill}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { skill: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field">
+                              <span>Depth</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} depth`}
+                                value={entry.depth}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { depth: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Context</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} context`}
+                                value={entry.context}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { context: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Search signal</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} search signal`}
+                                value={entry.searchSignal}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, {
+                                    searchSignal: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Calibration</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} calibration`}
+                                value={entry.calibration ?? ''}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, {
+                                    calibration: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                          </div>
+                          <p className="research-muted">
+                            Depth matches your Identity skill. No writeback needed.
+                          </p>
                         </div>
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </details>
+
+                  <details
+                    className="research-log research-skill-depth-group"
+                    open
+                    aria-label="New skills surfaced"
+                  >
+                    <summary>
+                      New skills surfaced ({skillDepthGroups.surfaced.length})
+                    </summary>
+                    {skillDepthGroups.surfaced.length === 0 ? (
+                      <p className="research-muted">
+                        No new skills surfaced. The thesis stayed within your identity skill set.
+                      </p>
+                    ) : (
+                      skillDepthGroups.surfaced.map(({ entry, index }) => (
+                        <div
+                          key={`surfaced-${entry.skill}-${index}`}
+                          className="research-thesis-editor-card"
+                        >
+                          <div className="research-form-grid">
+                            <label className="research-field">
+                              <span>Skill</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} skill`}
+                                value={entry.skill}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { skill: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field">
+                              <span>Depth</span>
+                              <input
+                                className="research-input"
+                                aria-label={`Skill depth ${index + 1} depth`}
+                                value={entry.depth}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { depth: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Context</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} context`}
+                                value={entry.context}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, { context: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Search signal</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} search signal`}
+                                value={entry.searchSignal}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, {
+                                    searchSignal: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label className="research-field research-field-span">
+                              <span>Calibration</span>
+                              <textarea
+                                className="research-textarea"
+                                rows={2}
+                                aria-label={`Skill depth ${index + 1} calibration`}
+                                value={entry.calibration ?? ''}
+                                onChange={(event) =>
+                                  updateThesisSkillDepth(index, {
+                                    calibration: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="research-thesis-actions">
+                            <button
+                              type="button"
+                              className="research-btn"
+                              onClick={() => handleRequestSkillDepthWriteback(index)}
+                              disabled={!currentIdentity}
+                              aria-label={`Write skill depth ${index + 1} back to Identity`}
+                            >
+                              Write back to Identity
+                            </button>
+                            <span className="research-muted">
+                              This skill is not yet in your Identity. Writeback will surface a
+                              fixable error if the name doesn&apos;t resolve.
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </details>
                 </section>
               </div>
             )}
@@ -3850,6 +4095,7 @@ export function ResearchPage() {
             </div>
           </section>
         </div>
+        )}
       </ResearchPanel>
 
       <ResearchPanel tabId="results" active={activeTab === 'results'}>
