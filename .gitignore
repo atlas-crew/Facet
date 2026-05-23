@@ -175,6 +175,10 @@ vite.config.ts.timestamp-*
 test-results/
 data/
 .agents/reviews/
+.agents/reviews/*.stderr.log
+.agents/reviews/*.invalid.md
+.agents/reviews/*.partial.md
+.agents/reviews/*.prompt.md
 .agents/fixes/
 **/reviews/
 **/fixes/
