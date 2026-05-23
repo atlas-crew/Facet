@@ -40,7 +40,7 @@ interface ExtractionAgentCardProps {
   onSetIntakeMode: (mode: IdentityIntakeMode) => void
   onSetSourceMaterial: (value: string) => void
   onSetCorrectionNotes: (value: string) => void
-  onGenerate: (mode: 'fresh' | 'regenerate') => Promise<void>
+  onGenerate: (mode: 'fresh' | 'regenerate') => void
   onDeepenAll: () => Promise<void>
   onCancelDeepenAll: () => void
   onUploadChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>

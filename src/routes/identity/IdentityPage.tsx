@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Download, FileJson, Upload } from 'lucide-react'
 import { professionalIdentityToResumeData } from '../../identity/resumeAdapter'
+import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
@@ -19,6 +28,7 @@ import {
   resolveSelectedVectorAfterReplaceImport,
 } from '../../utils/importSelection'
 import { parseJsonWithRepair } from '../../utils/jsonParsing'
+import { useFocusTrap } from '../../utils/useFocusTrap'
 import {
   findNextPendingIdentitySkill,
   getIdentityEnrichmentProgress,
@@ -53,12 +63,38 @@ const assertNever = (value: never): never => {
   throw new Error(`Unexpected identity action: ${String(value)}`)
 }
 
+const hasPopulatedIdentity = (identity: ProfessionalIdentityV3 | null) =>
+  Boolean(
+    identity &&
+    ([
+      identity.identity.name,
+      identity.identity.display_name,
+      identity.identity.email,
+      identity.identity.phone,
+      identity.identity.location,
+      identity.identity.title,
+      identity.identity.thesis,
+      identity.identity.elaboration,
+      identity.identity.origin,
+    ].some((value) => value?.trim()) ||
+      (identity.identity.links ?? []).some((link) => link.url.trim()) ||
+      (identity.roles ?? []).length > 0 ||
+      (identity.projects ?? []).length > 0 ||
+      (identity.education ?? []).length > 0 ||
+      (identity.profiles ?? []).length > 0 ||
+      (identity.skills.groups ?? []).length > 0 ||
+      (identity.search_vectors?.length ?? 0) > 0),
+  )
+
 export function IdentityPage() {
   const navigate = useNavigate()
   const importRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
   const primaryActionButtonRef = useRef<HTMLButtonElement>(null)
   const draftPanelRef = useRef<HTMLDivElement>(null)
+  const replaceConfirmModalRef = useRef<HTMLDivElement>(null)
+  const replaceConfirmCancelRef = useRef<HTMLButtonElement>(null)
+  const replaceConfirmReturnFocusRef = useRef<HTMLElement | null>(null)
   const generateAbortRef = useRef<AbortController | null>(null)
   const scanAbortRef = useRef<AbortController | null>(null)
   // Single-bullet and bulk deepening are intentionally mutually exclusive in the UI.
@@ -71,6 +107,9 @@ export function IdentityPage() {
   const [isScanning, setIsScanning] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
   const [pageNotice, setPageNotice] = useState<string | null>(null)
+  const [pendingReplaceGenerateMode, setPendingReplaceGenerateMode] = useState<
+    'fresh' | 'regenerate' | null
+  >(null)
   // Transient list of files that failed to scan within a batch. Surfaces inline
   // per AC #6; never persisted, dismissed manually by the user.
   const [failedFiles, setFailedFiles] = useState<{ id: string; name: string; error: string }[]>([])
@@ -255,6 +294,72 @@ export function IdentityPage() {
       }
     }
   }
+
+  // Fresh upload-intake generation replaces the identity draft source with synthesized sources.
+  const shouldConfirmIntakeReplacement = (mode: 'fresh' | 'regenerate') =>
+    mode === 'fresh' &&
+    intakeMode === 'upload' &&
+    Boolean(scanResult) &&
+    intakeSources.length > 0 &&
+    hasPopulatedIdentity(currentIdentity)
+
+  const requestGenerate = (mode: 'fresh' | 'regenerate') => {
+    if (shouldConfirmIntakeReplacement(mode)) {
+      replaceConfirmReturnFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setPendingReplaceGenerateMode(mode)
+      return
+    }
+
+    void runGenerate(mode)
+  }
+
+  const closeReplaceGenerate = useCallback(() => {
+    const returnFocusTarget = replaceConfirmReturnFocusRef.current
+    replaceConfirmReturnFocusRef.current = null
+    setPendingReplaceGenerateMode(null)
+
+    window.requestAnimationFrame(() => {
+      if (returnFocusTarget?.isConnected) {
+        returnFocusTarget.focus()
+      }
+    })
+  }, [])
+
+  const cancelReplaceGenerate = useCallback(() => {
+    closeReplaceGenerate()
+  }, [closeReplaceGenerate])
+
+  const confirmReplaceGenerate = () => {
+    const mode = pendingReplaceGenerateMode
+    if (!mode) {
+      return
+    }
+
+    closeReplaceGenerate()
+    void runGenerate(mode)
+  }
+
+  useFocusTrap(Boolean(pendingReplaceGenerateMode), replaceConfirmModalRef)
+
+  useEffect(() => {
+    if (!pendingReplaceGenerateMode) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        cancelReplaceGenerate()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [cancelReplaceGenerate, pendingReplaceGenerateMode])
 
   const recordFailedFile = (name: string, error: string) => {
     setFailedFiles((prev) => [...prev, { id: createId('intake-failed'), name, error }])
@@ -551,7 +656,8 @@ export function IdentityPage() {
         deepenAbortRef.current = controller
         const result = await deepenIdentityBullet({
           endpoint: aiEndpoint,
-          identity: getActiveResumeScan(useIdentityStore.getState())?.identity ?? currentScan.identity,
+          identity:
+            getActiveResumeScan(useIdentityStore.getState())?.identity ?? currentScan.identity,
           roleId: target.roleId,
           bulletId: target.bulletId,
           correctionNotes,
@@ -886,7 +992,7 @@ export function IdentityPage() {
         handleContinueSkillEnrichment()
         break
       case 'generate':
-        void runGenerate('fresh')
+        void requestGenerate('fresh')
         break
       case 'pushToBuild':
         handlePushToBuild()
@@ -904,6 +1010,49 @@ export function IdentityPage() {
 
   return (
     <div className="identity-page">
+      {pendingReplaceGenerateMode ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="identity-replace-confirm-title"
+          aria-describedby="identity-replace-confirm-description identity-replace-confirm-cancel-note"
+        >
+          <div
+            className="modal-card identity-confirm-card"
+            ref={replaceConfirmModalRef}
+            tabIndex={-1}
+          >
+            <header className="modal-header">
+              <h2 id="identity-replace-confirm-title">Replace current identity?</h2>
+            </header>
+            <p id="identity-replace-confirm-description" className="identity-confirm-copy">
+              Generating from these sources will replace your current identity. Continue?
+            </p>
+            <p id="identity-replace-confirm-cancel-note" className="identity-muted">
+              Cancel returns to the intake bay without calling the AI generator or changing the
+              current draft.
+            </p>
+            <footer className="identity-confirm-actions">
+              <button
+                ref={replaceConfirmCancelRef}
+                className="identity-btn"
+                type="button"
+                onClick={cancelReplaceGenerate}
+              >
+                Cancel
+              </button>
+              <button
+                className="identity-btn identity-btn-primary"
+                type="button"
+                onClick={confirmReplaceGenerate}
+              >
+                Continue
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
       <header className="identity-header identity-header-sticky">
         <div className="identity-header-main">
           <p className="identity-eyebrow">Identity Workspace</p>
@@ -1042,7 +1191,7 @@ export function IdentityPage() {
               onSetIntakeMode={setIntakeMode}
               onSetSourceMaterial={setSourceMaterial}
               onSetCorrectionNotes={setCorrectionNotes}
-              onGenerate={runGenerate}
+              onGenerate={requestGenerate}
               onDeepenAll={handleDeepenAll}
               onCancelDeepenAll={handleCancelDeepenAll}
               onUploadChange={handleUploadChange}

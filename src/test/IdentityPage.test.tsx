@@ -36,9 +36,8 @@ vi.mock('../utils/identityExtraction', async () => {
 })
 
 vi.mock('../utils/resumeScanner', async () => {
-  const actual = await vi.importActual<typeof import('../utils/resumeScanner')>(
-    '../utils/resumeScanner',
-  )
+  const actual =
+    await vi.importActual<typeof import('../utils/resumeScanner')>('../utils/resumeScanner')
   return {
     ...actual,
     scanResumePdf: resumeScannerMocks.scanResumePdfMock,
@@ -180,6 +179,22 @@ const setupExportMocks = (url: string, expectedFilename: string) => ({
   }),
 })
 
+const getSourceIntakeSection = (): HTMLElement => {
+  const heading = screen.getByRole('heading', { name: 'Source Intake' })
+  const section = heading.closest('section')
+  if (!section) {
+    throw new Error('Source Intake section not found.')
+  }
+  return section
+}
+
+const clickSourceGenerateDraft = () => {
+  const button = within(getSourceIntakeSection()).getByRole('button', { name: 'Generate Draft' })
+  button.focus()
+  fireEvent.click(button)
+  return button
+}
+
 describe('IdentityPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', 'https://ai.example/proxy')
@@ -295,13 +310,15 @@ describe('IdentityPage', () => {
       },
     )
 
-    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.source_text).toBe(
-      'Ported the platform to Kubernetes-based installs for on-prem customers.',
-    )
+    expect(
+      getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.source_text,
+    ).toBe('Ported the platform to Kubernetes-based installs for on-prem customers.')
     fireEvent.change(screen.getByDisplayValue('Facet'), {
       target: { value: 'Facet OSS' },
     })
-    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.projects[0]?.name).toBe('Facet OSS')
+    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.projects[0]?.name).toBe(
+      'Facet OSS',
+    )
     expect(screen.getByText(/two-column layout/i)).toBeTruthy()
 
     fireEvent.click(
@@ -334,6 +351,304 @@ describe('IdentityPage', () => {
         }),
       }),
     )
+  })
+
+  it('asks for confirmation before generated intake sources replace a populated identity', async () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    const generateButton = clickSourceGenerateDraft()
+
+    const dialog = screen.getByRole('dialog', { name: 'Replace current identity?' })
+    expect(
+      within(dialog).getByText(
+        'Generating from these sources will replace your current identity. Continue?',
+      ),
+    ).toBeTruthy()
+
+    const cancelButton = within(dialog).getByRole('button', { name: 'Cancel' })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cancelButton)
+    })
+
+    const continueButton = within(dialog).getByRole('button', { name: 'Continue' })
+    fireEvent.keyDown(cancelButton, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(continueButton)
+    fireEvent.keyDown(continueButton, { key: 'Tab' })
+    expect(document.activeElement).toBe(cancelButton)
+
+    fireEvent.click(cancelButton)
+
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(0)
+    expect(useIdentityStore.getState().draft).toBeNull()
+    await waitFor(() => {
+      expect(document.activeElement).toBe(generateButton)
+    })
+  })
+
+  it('continues intake generation when the replace confirmation is accepted', async () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    clickSourceGenerateDraft()
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Replace current identity?' })).getByRole(
+        'button',
+        { name: 'Continue' },
+      ),
+    )
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+  })
+
+  it('dismisses the intake replacement confirmation with Escape', async () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    clickSourceGenerateDraft()
+
+    const dialog = screen.getByRole('dialog', { name: 'Replace current identity?' })
+    const cancelButton = within(dialog).getByRole('button', { name: 'Cancel' })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cancelButton)
+    })
+
+    fireEvent.keyDown(cancelButton, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('treats identity core fields as populated before intake replacement', async () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.roles = []
+    currentIdentity.profiles = []
+    currentIdentity.skills.groups = []
+    currentIdentity.identity.name = 'Current Candidate'
+    useIdentityStore.setState({
+      currentIdentity,
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    clickSourceGenerateDraft()
+
+    expect(screen.getByRole('dialog', { name: 'Replace current identity?' })).toBeTruthy()
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('treats link-only identity content as populated before intake replacement', async () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.roles = []
+    currentIdentity.projects = []
+    currentIdentity.education = []
+    currentIdentity.profiles = []
+    currentIdentity.skills.groups = []
+    currentIdentity.search_vectors = []
+    currentIdentity.identity = {
+      ...currentIdentity.identity,
+      name: '',
+      display_name: '',
+      email: '',
+      phone: '',
+      location: '',
+      title: '',
+      thesis: '',
+      elaboration: '',
+      origin: '',
+      links: [{ id: 'portfolio', url: 'https://example.com' }],
+    }
+    useIdentityStore.setState({
+      currentIdentity,
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    clickSourceGenerateDraft()
+
+    expect(screen.getByRole('dialog', { name: 'Replace current identity?' })).toBeTruthy()
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('does not ask for replacement confirmation when regenerating from intake sources', async () => {
+    const currentIdentity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity,
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    fireEvent.click(within(getSourceIntakeSection()).getByRole('button', { name: 'Regenerate' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        existingDraft: currentIdentity,
+      }),
+    )
+  })
+
+  it('does not ask for replacement confirmation in paste mode with a populated identity', async () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+      intakeMode: 'paste',
+      sourceMaterial: 'Alex Example\nExperience\nBuilt platform migration tools.',
+    })
+
+    render(<IdentityPage />)
+
+    clickSourceGenerateDraft()
+
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('keeps populated identities on the Send to Build header action while intake owns guarded generation', async () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    expect(
+      within(screen.getByRole('banner')).queryByRole('button', { name: 'Generate Draft' }),
+    ).toBeNull()
+    expect(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Send to Build' }),
+    ).toBeTruthy()
+  })
+
+  it('bypasses replacement confirmation when the current identity shell is still empty', async () => {
+    const emptyIdentity = cloneIdentityFixture()
+    emptyIdentity.roles = []
+    emptyIdentity.projects = []
+    emptyIdentity.education = []
+    emptyIdentity.profiles = []
+    emptyIdentity.skills.groups = []
+    emptyIdentity.search_vectors = []
+    emptyIdentity.identity = {
+      ...emptyIdentity.identity,
+      name: '',
+      display_name: '',
+      email: '',
+      phone: '',
+      location: '',
+      title: '',
+      links: [],
+      thesis: '',
+      elaboration: '',
+      origin: '',
+    }
+    useIdentityStore.setState({
+      currentIdentity: emptyIdentity,
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    clickSourceGenerateDraft()
+
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('treats whitespace-only identity core fields as empty before intake replacement', async () => {
+    const emptyIdentity = cloneIdentityFixture()
+    emptyIdentity.roles = []
+    emptyIdentity.projects = []
+    emptyIdentity.education = []
+    emptyIdentity.profiles = []
+    emptyIdentity.skills.groups = []
+    emptyIdentity.search_vectors = []
+    emptyIdentity.identity = {
+      ...emptyIdentity.identity,
+      name: '   ',
+      display_name: '',
+      email: '',
+      phone: '',
+      location: '',
+      title: '',
+      links: [],
+      thesis: '',
+      elaboration: '',
+      origin: '',
+    }
+    useIdentityStore.setState({
+      currentIdentity: emptyIdentity,
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    clickSourceGenerateDraft()
+
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('keeps low-risk extraction repairs out of the visible warning banner', async () => {
@@ -488,9 +803,7 @@ describe('IdentityPage', () => {
     second.fileName = 'two.pdf'
 
     resumeScannerMocks.scanResumePdfMock.mockReset()
-    resumeScannerMocks.scanResumePdfMock
-      .mockResolvedValueOnce(first)
-      .mockResolvedValueOnce(second)
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
 
     render(<IdentityPage />)
 
@@ -796,10 +1109,31 @@ describe('IdentityPage', () => {
     })
 
     expect(getActiveResumeScan(useIdentityStore.getState())?.counts.editedBullets).toBe(1)
-    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.problem).toBe(
-      'Cloud-only delivery blocked on-prem customer installs.',
-    )
+    expect(
+      getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.problem,
+    ).toBe('Cloud-only delivery blocked on-prem customer installs.')
     expect(screen.getAllByText('Edited').length).toBeGreaterThan(0)
+  })
+
+  it('does not gate per-bullet deepening behind the intake replacement confirmation', async () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+    })
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByText('Deepen'))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(0)
   })
 
   it('shows structured-only deepen results inline even when prose fields stay empty', async () => {
@@ -911,8 +1245,9 @@ describe('IdentityPage', () => {
     })
     expect(getActiveResumeScan(useIdentityStore.getState())?.counts.failedBullets).toBe(1)
     expect(
-      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets['contoso::platform-migration']
-        ?.status,
+      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets[
+        'contoso::platform-migration'
+      ]?.status,
     ).toBe('failed')
   })
 
@@ -1072,13 +1407,16 @@ describe('IdentityPage', () => {
 
     await waitFor(() => {
       expect(
-        getActiveResumeScan(useIdentityStore.getState())?.progress.bullets['contoso::platform-migration']
-          ?.status,
+        getActiveResumeScan(useIdentityStore.getState())?.progress.bullets[
+          'contoso::platform-migration'
+        ]?.status,
       ).toBe('completed')
     })
 
     expect(
-      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets['contoso::second-migration']?.status,
+      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets[
+        'contoso::second-migration'
+      ]?.status,
     ).toBe('idle')
     expect((screen.getByText('Deepen All') as HTMLButtonElement).disabled).toBe(false)
   })
@@ -1189,9 +1527,9 @@ describe('IdentityPage', () => {
 
     fireEvent.blur(impactField)
 
-    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.impact).toEqual([
-      impactValue,
-    ])
+    expect(
+      getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.impact,
+    ).toEqual([impactValue])
   })
 
   it('cancels bulk deepening without failing the current bullet', async () => {
