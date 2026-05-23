@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-08 23:43'
+updated_date: '2026-05-09 04:20'
 labels:
   - prep
   - identity-model
@@ -99,6 +99,17 @@ Starting TASK-173. Plan: document the explicit identity skill depth → PrepStac
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 Implemented explicit identity/search skill depth to PrepStackAlignmentConfidence mapping in src/utils/prepSkillDepthMapping.ts. Prep generation now annotates Canonical JD Analysis skillMatches with prepStackConfidence, gives the prompt the mapping as source of truth, and caps returned stackAlignment confidence from the mapped skill ceiling. Documented the mapping in doc-25 and marked TASK-173 done in doc-41. Verification: npm run format:files -- src/utils/prepSkillDepthMapping.ts src/utils/prepGenerator.ts src/test/prepSkillDepthMapping.test.ts src/test/prepGenerator.test.ts backlog/docs/doc-25...; npx vitest run src/test/prepSkillDepthMapping.test.ts src/test/prepGenerator.test.ts (30 tests); npx eslint src/utils/prepSkillDepthMapping.ts src/utils/prepGenerator.ts src/test/prepSkillDepthMapping.test.ts src/test/prepGenerator.test.ts; npm run typecheck; npm run build. Review: specialist-review.sh --git -- src/utils/prepSkillDepthMapping.ts src/utils/prepGenerator.ts was run through multiple iterations; reviewer-raised P1 issues were hardened in the final code before local gates passed.
+
+**Correction (2026-05-09):** the rationale in the Final Summary above ("closed as fully subsumed") was based on an audit snapshot that missed concurrent work. While the audit was running, commit `ba040e6 feat(prep): map skill depth to stack confidence` (2026-05-08 19:43) shipped the actual mapping mechanism in a richer form than the original task proposed:
+
+- `src/utils/prepSkillDepthMapping.ts` (NEW, 130 LOC): exports `PrepSkillDepth` (union of `ProfessionalSkillDepth | SearchSkillDepth`), `PREP_SKILL_DEPTH_CONFIDENCE_ROWS` (table-driven mapping for all 7 depth levels), `MISSING_SKILL_DEPTH_CONFIDENCE`, plus calibration helpers (`buildStackAlignmentConfidenceCeilings`, `applyStackAlignmentConfidenceCeilings`, `findStackAlignmentConfidenceCeiling`, `pickLowerStackConfidence`, `isLowerStackConfidence`, `warnStackAlignmentConfidenceCollision`).
+- `src/test/prepSkillDepthMapping.test.ts` (NEW, 68 LOC): dedicated coverage for mapping + calibration ceilings.
+- `src/utils/prepGenerator.ts` (+133 LOC): wires the mapping into generation; collision warnings surface.
+- `src/test/prepGenerator.test.ts` (+128 LOC): integration coverage.
+
+The richer shape (table + ceilings + collision warnings) addresses original ACs #1–7 in a more durable way than a single `mapSkillDepthToStackConfidence` function would have. Calibration is implemented as confidence ceilings (`applyStackAlignmentConfidenceCeilings`) rather than as a single calibration parameter on the mapping function — same outcome (anti-overselling Strong→Solid), better separation of concerns.
+
+So the correct closure rationale is **shipped as a richer mechanism**, not **subsumed**. The audit conclusion that JDAnalysis.skillMatches projects userDepth/matchQuality/presentationGuidance directly is also true (the canonical projection IS available), but the team chose to ship explicit prep-side mapping on top of it for the calibration/collision-warning ergonomics. Both observations stand; the closure verdict (Done) is correct.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
