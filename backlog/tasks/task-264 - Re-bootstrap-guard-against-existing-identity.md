@@ -1,10 +1,10 @@
 ---
 id: TASK-264
 title: Re-bootstrap guard against existing identity
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-05-11 05:20'
-updated_date: '2026-05-11 05:21'
+updated_date: '2026-05-23 22:52'
 labels:
   - feature
   - identity
