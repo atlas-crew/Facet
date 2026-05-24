@@ -1,11 +1,11 @@
 ---
 id: TASK-189.1
 title: Bootstrap admin auth and webhooks view
-status: In Progress
+status: Done
 assignee:
   - '@worker-b'
 created_date: '2026-04-22 03:28'
-updated_date: '2026-05-10 00:59'
+updated_date: '2026-05-24 17:18'
 labels:
   - admin
   - auth
@@ -104,14 +104,22 @@ Implementation plan (Worker B):
 4. Run focused tests first, then typecheck/lint/build as appropriate; update TASK-189.1 AC/DoD and commit atomically with cortex git commit.
 
 Implemented admin auth/webhooks bootstrap. Verification: targeted admin tests pass (npm run test -- src/test/adminApi.test.ts src/test/AppShellAdminNav.test.tsx src/test/AdminPage.test.tsx src/test/hostedSession.test.ts); npm run typecheck passes; scoped eslint over admin/proxy/session touched files passes; npm run build passes. Full npm run lint still fails on unrelated existing files: src/hooks/useElapsed.ts, src/routes/identity/inspectorSlots/slotPrimitives.tsx, tests/hosted/diag.spec.ts, tests/hosted/entitlement-billing.spec.ts. Independent review artifacts: .agents/reviews/review-20260509-203503.md, review-20260509-204026.md, review-20260509-204422.md, review-20260509-204818.md. Test audit artifact: .agents/reviews/test-audit-20260509-205147.md; admin-relevant gaps addressed with hostedSession and Postgres admin-store query coverage; remaining billing gaps belong to Worker A billing-pass migration.
+
+Final closeout (Codex, 2026-05-24): verified the full quality gates after the admin bootstrap implementation. `pnpm run test` passed (173 files, 2453 tests); `pnpm run lint` passed; `pnpm run build` passed with existing chunk-size warnings; `git diff --check` passed; and `pnpm exec vitest run src/test/useElapsed.test.ts` passed (1 file, 7 tests). During closeout, fixed the elapsed timer reset semantics regression from the prior lint cleanup in `src/hooks/useElapsed.ts` and committed it as `fix(hooks): preserve elapsed reset semantics`.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed. Admin auth/webhooks bootstrap was already implemented and covered; final DoD gates now pass. Verification: `pnpm run test` (173 files, 2453 tests), `pnpm exec vitest run src/test/useElapsed.test.ts` (1 file, 7 tests), `pnpm run lint`, `pnpm run build`, and `git diff --check`.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
+- [x] #3 All tests pass successfully
 - [x] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
+- [x] #5 Linters report no WARNINGS or ERRORS
 - [x] #6 The project builds successfully
 <!-- DOD:END -->
