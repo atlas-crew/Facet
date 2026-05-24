@@ -1,10 +1,11 @@
 ---
 id: TASK-189
 title: Add platform admin panel and admin role
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-22 03:27'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 19:13'
 labels:
   - admin
   - auth
@@ -70,19 +71,25 @@ Subtasks 2–4 are independent of each other and can ship in any order.
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 Founder's Supabase user has app_metadata.role = 'admin' claim set (manual SQL)
-- [ ] #2 Proxy returns 403 for any /admin/* request whose JWT lacks the admin claim
-- [ ] #3 SPA hides the /admin route from sidebar nav for non-admin users
-- [ ] #4 All four read-only views (actors, workspaces, billing, webhooks) are reachable from /admin
-- [ ] #5 workspace_memberships.role CHECK constraint remains unchanged (still 'owner' only)
-- [ ] #6 No write/mutation admin endpoints exist in the proxy
+- [x] #2 Proxy returns 403 for any /admin/* request whose JWT lacks the admin claim
+- [x] #3 SPA hides the /admin route from sidebar nav for non-admin users
+- [x] #4 All four read-only views (actors, workspaces, billing, webhooks) are reachable from /admin
+- [x] #5 workspace_memberships.role CHECK constraint remains unchanged (still 'owner' only)
+- [x] #6 No write/mutation admin endpoints exist in the proxy
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-24 Codex parent status refresh after closing TASK-189.3 and TASK-189.4: all four read-only admin views are now implemented (webhooks, actors, workspaces, billing) and covered by admin auth/rate-limit tests plus UI tests. Parent remains In Progress rather than Done because AC #1 is the manual Supabase app_metadata.role=admin claim-set prerequisite and was not verified in this code loop. Verification for the completed code path: focused admin tests passed (3 files, 64 tests), full test suite passed (173 files, 2501 tests), lint/typecheck/build/diff whitespace passed. No write/mutation admin endpoints were added; workspace_memberships.role CHECK remains owner-only in the existing migration.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
