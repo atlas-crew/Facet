@@ -1,11 +1,11 @@
 ---
 id: TASK-189
 title: Add platform admin panel and admin role
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-22 03:27'
-updated_date: '2026-05-24 19:13'
+updated_date: '2026-05-24 22:10'
 labels:
   - admin
   - auth
@@ -70,7 +70,7 @@ Subtasks 2–4 are independent of each other and can ship in any order.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Founder's Supabase user has app_metadata.role = 'admin' claim set (manual SQL)
+- [x] #1 Founder's Supabase user has app_metadata.role = 'admin' claim set (manual SQL)
 - [x] #2 Proxy returns 403 for any /admin/* request whose JWT lacks the admin claim
 - [x] #3 SPA hides the /admin route from sidebar nav for non-admin users
 - [x] #4 All four read-only views (actors, workspaces, billing, webhooks) are reachable from /admin
@@ -82,7 +82,15 @@ Subtasks 2–4 are independent of each other and can ship in any order.
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-24 Codex parent status refresh after closing TASK-189.3 and TASK-189.4: all four read-only admin views are now implemented (webhooks, actors, workspaces, billing) and covered by admin auth/rate-limit tests plus UI tests. Parent remains In Progress rather than Done because AC #1 is the manual Supabase app_metadata.role=admin claim-set prerequisite and was not verified in this code loop. Verification for the completed code path: focused admin tests passed (3 files, 64 tests), full test suite passed (173 files, 2501 tests), lint/typecheck/build/diff whitespace passed. No write/mutation admin endpoints were added; workspace_memberships.role CHECK remains owner-only in the existing migration.
+
+2026-05-24 closeout: verified the founder account is nick@atlascrew.dev, updated Supabase auth.users.raw_app_meta_data for that user to role=admin via the Supabase Management API database query endpoint, and confirmed the hosted app/admin path works after re-auth. The earlier ncf423@gmail.com note was stale; no matching auth user was present for that email during verification. Also shipped and deployed hosted Account sign-out in commit a4d33de so future JWT refresh/re-auth is available in-product.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Platform admin panel is complete. All four read-only admin views are implemented and deployed, admin authorization is enforced by the proxy using the Supabase app_metadata.role=admin claim, non-admin users do not see the admin nav, workspace membership roles remain owner-only, and no admin mutation endpoints were added. Final manual prerequisite is satisfied for nick@atlascrew.dev, and hosted sign-out is live so admin JWT refresh is available without localStorage surgery.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
