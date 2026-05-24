@@ -145,9 +145,12 @@ describe('hostedWorkspaceStore', () => {
           updatedAt: '2026-03-14T12:10:00.000Z',
           payload: {
             ...created.snapshot.artifacts.resume.payload,
-            meta: {
-              ...created.snapshot.artifacts.resume.payload.meta,
-              name: 'Durable User',
+            data: {
+              ...created.snapshot.artifacts.resume.payload.data,
+              meta: {
+                ...created.snapshot.artifacts.resume.payload.data.meta,
+                name: 'Durable User',
+              },
             },
           },
         },
@@ -193,6 +196,66 @@ describe('hostedWorkspaceStore', () => {
     expect(persisted.actors[0]?.workspaces[0]?.workspaceId).toBe('durable-1')
     expect(persisted.workspaces[0]?.workspaceId).toBe('durable-1')
     expect(persisted.snapshots[0]?.workspace.id).toBe('durable-1')
+  })
+
+  it('creates current-shape empty snapshots for hosted workspaces', async () => {
+    const { createInMemoryHostedWorkspaceStore } = await loadHostedWorkspaceStoreModule()
+    const store = createInMemoryHostedWorkspaceStore({
+      actors: [{ ...baseActor, workspaces: [] }],
+      workspaces: [],
+      snapshots: [],
+    })
+
+    const created = await store.createWorkspace(
+      { ...baseActor, workspaces: [], workspaceMemberships: [] },
+      { name: 'Current Shape Workspace', workspaceId: 'current-shape' },
+      '2026-03-14T12:00:00.000Z',
+    )
+
+    expect(Object.keys(created.snapshot.artifacts).sort()).toEqual([
+      'coverLetters',
+      'debrief',
+      'jdAnalysis',
+      'linkedin',
+      'pipeline',
+      'prep',
+      'recruiter',
+      'research',
+      'resume',
+    ])
+    expect(created.snapshot.artifacts.resume.payload).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          meta: expect.objectContaining({ name: '' }),
+          vectors: [],
+        }),
+        resumes: [
+          expect.objectContaining({
+            id: 'current-shape-default-resume',
+            content: expect.objectContaining({
+              meta: expect.objectContaining({ name: '' }),
+              vectors: [],
+            }),
+          }),
+        ],
+        snapshots: [],
+        activeResumeId: 'current-shape-default-resume',
+      }),
+    )
+    expect(created.snapshot.artifacts.jdAnalysis.payload).toEqual({ analyses: [] })
+    expect(created.snapshot.artifacts.coverLetters.payload).toEqual({
+      letters: [],
+      snapshots: [],
+    })
+    expect(created.snapshot.artifacts.research.payload).toEqual({
+      profile: null,
+      requests: [],
+      runs: [],
+      theses: [],
+      activeThesisId: null,
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
   })
 
   it('returns null for unknown actors and empty lists for actors without workspaces', async () => {
@@ -440,9 +503,12 @@ describe('hostedWorkspaceStore', () => {
           updatedAt: '2026-03-14T12:10:00.000Z',
           payload: {
             ...first.snapshot.artifacts.resume.payload,
-            meta: {
-              ...first.snapshot.artifacts.resume.payload.meta,
-              name: 'Tenant One Updated',
+            data: {
+              ...first.snapshot.artifacts.resume.payload.data,
+              meta: {
+                ...first.snapshot.artifacts.resume.payload.data.meta,
+                name: 'Tenant One Updated',
+              },
             },
           },
         },
@@ -458,8 +524,10 @@ describe('hostedWorkspaceStore', () => {
         artifacts: expect.objectContaining({
           resume: expect.objectContaining({
             payload: expect.objectContaining({
-              meta: expect.objectContaining({
-                name: 'Tenant One Updated',
+              data: expect.objectContaining({
+                meta: expect.objectContaining({
+                  name: 'Tenant One Updated',
+                }),
               }),
             }),
           }),
@@ -599,9 +667,12 @@ describe('hostedWorkspaceStore', () => {
             ...savedSnapshot.artifacts.resume,
             payload: {
               ...savedSnapshot.artifacts.resume.payload,
-              meta: {
-                ...savedSnapshot.artifacts.resume.payload.meta,
-                name: 'Conflicting Save',
+              data: {
+                ...savedSnapshot.artifacts.resume.payload.data,
+                meta: {
+                  ...savedSnapshot.artifacts.resume.payload.data.meta,
+                  name: 'Conflicting Save',
+                },
               },
             },
           },
@@ -908,7 +979,7 @@ describe('hostedWorkspaceStore', () => {
 
     created.workspace.name = 'Mutated Summary'
     created.snapshot.workspace.name = 'Mutated Snapshot'
-    created.snapshot.artifacts.resume.payload.meta.name = 'Mutated User'
+    created.snapshot.artifacts.resume.payload.data.meta.name = 'Mutated User'
 
     await expect(store.getActor(baseActor.userId)).resolves.toEqual({
       tenantId: baseActor.tenantId,
@@ -933,8 +1004,10 @@ describe('hostedWorkspaceStore', () => {
         artifacts: expect.objectContaining({
           resume: expect.objectContaining({
             payload: expect.objectContaining({
-              meta: expect.objectContaining({
-                name: '',
+              data: expect.objectContaining({
+                meta: expect.objectContaining({
+                  name: '',
+                }),
               }),
             }),
           }),
@@ -975,9 +1048,12 @@ describe('hostedWorkspaceStore', () => {
           updatedAt: '2026-03-14T12:10:00.000Z',
           payload: {
             ...renamed.snapshot.artifacts.resume.payload,
-            meta: {
-              ...renamed.snapshot.artifacts.resume.payload.meta,
-              name: 'Saved Memory User',
+            data: {
+              ...renamed.snapshot.artifacts.resume.payload.data,
+              meta: {
+                ...renamed.snapshot.artifacts.resume.payload.data.meta,
+                name: 'Saved Memory User',
+              },
             },
           },
         },
@@ -985,7 +1061,7 @@ describe('hostedWorkspaceStore', () => {
     }
     const saved = await store.saveWorkspace(savedSnapshot)
     saved.workspace.name = 'Mutated Saved Snapshot'
-    saved.artifacts.resume.payload.meta.name = 'Mutated Saved User'
+    saved.artifacts.resume.payload.data.meta.name = 'Mutated Saved User'
 
     await expect(store.loadWorkspace(baseActor.tenantId, 'memory-1')).resolves.toEqual(
       expect.objectContaining({
@@ -996,8 +1072,10 @@ describe('hostedWorkspaceStore', () => {
         artifacts: expect.objectContaining({
           resume: expect.objectContaining({
             payload: expect.objectContaining({
-              meta: expect.objectContaining({
-                name: 'Saved Memory User',
+              data: expect.objectContaining({
+                meta: expect.objectContaining({
+                  name: 'Saved Memory User',
+                }),
               }),
             }),
           }),
@@ -1106,7 +1184,26 @@ describe('hostedWorkspaceStore', () => {
       },
     ])
     await expect(store.loadWorkspace(baseActor.tenantId, 'seeded-1')).resolves.toEqual(
-      createSeededSnapshot(),
+      expect.objectContaining({
+        artifacts: expect.objectContaining({
+          jdAnalysis: expect.objectContaining({
+            payload: { analyses: [] },
+          }),
+          coverLetters: expect.objectContaining({
+            payload: { letters: [], snapshots: [] },
+          }),
+          resume: expect.objectContaining({
+            payload: expect.objectContaining({
+              data: expect.objectContaining({
+                meta: expect.objectContaining({
+                  name: 'Seeded User',
+                }),
+                vectors: [],
+              }),
+            }),
+          }),
+        }),
+      }),
     )
     await expect(store.loadWorkspace(baseActor.tenantId, 'broken-1')).resolves.toBeNull()
   })
@@ -1166,7 +1263,7 @@ describe('hostedWorkspaceStore', () => {
     workspaces[0]!.name = 'Mutated List Workspace'
     workspaces[0]!.isDefault = false
     snapshot!.workspace.name = 'Mutated Loaded Workspace'
-    snapshot!.artifacts.resume.payload.meta.name = 'Mutated Loaded User'
+    snapshot!.artifacts.resume.payload.data.meta.name = 'Mutated Loaded User'
 
     await expect(store.getActor(baseActor.userId)).resolves.toEqual({
       tenantId: baseActor.tenantId,
@@ -1186,7 +1283,22 @@ describe('hostedWorkspaceStore', () => {
       },
     ])
     await expect(store.loadWorkspace(baseActor.tenantId, 'seeded-1')).resolves.toEqual(
-      createSeededSnapshot(),
+      expect.objectContaining({
+        workspace: expect.objectContaining({
+          name: 'Seeded Workspace',
+        }),
+        artifacts: expect.objectContaining({
+          resume: expect.objectContaining({
+            payload: expect.objectContaining({
+              data: expect.objectContaining({
+                meta: expect.objectContaining({
+                  name: 'Seeded User',
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
     )
   })
 })

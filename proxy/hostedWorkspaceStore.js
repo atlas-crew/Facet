@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { readFile, rename, writeFile } from 'node:fs/promises'
+import {
+  FACET_WORKSPACE_SNAPSHOT_VERSION,
+  createEmptyWorkspaceSnapshot,
+  normalizeWorkspaceSnapshotDefaults,
+} from './workspaceSnapshotDefaults.js'
 
-const FACET_WORKSPACE_SNAPSHOT_VERSION = 1
-const FACET_ARTIFACT_TYPES = ['resume', 'pipeline', 'prep', 'coverLetters', 'research', 'linkedin', 'recruiter', 'debrief']
 const fileWriteQueues = new Map()
 
 function isRecord(value) {
@@ -36,7 +39,10 @@ function validateWorkspaceName(value, message = 'Hosted workspace name is requir
   return trimmed
 }
 
-function validateTimestamp(value, message = 'Hosted workspace operations require a valid ISO timestamp.') {
+function validateTimestamp(
+  value,
+  message = 'Hosted workspace operations require a valid ISO timestamp.',
+) {
   const trimmed = typeof value === 'string' ? value.trim() : ''
   if (!trimmed || Number.isNaN(Date.parse(trimmed))) {
     throw createWorkspaceValidationError(message)
@@ -118,13 +124,19 @@ function normalizeWorkspaceRecord(value) {
   const workspaceId = typeof value.workspaceId === 'string' ? value.workspaceId.trim() : ''
   const name = typeof value.name === 'string' ? value.name.trim() : ''
   const revision =
-    typeof value.revision === 'number' && Number.isFinite(value.revision)
-      ? value.revision
-      : null
+    typeof value.revision === 'number' && Number.isFinite(value.revision) ? value.revision : null
   const updatedAt = typeof value.updatedAt === 'string' ? value.updatedAt : ''
   const createdAt = typeof value.createdAt === 'string' ? value.createdAt : updatedAt
 
-  if (!tenantId || !accountId || !workspaceId || !name || revision == null || !updatedAt || !createdAt) {
+  if (
+    !tenantId ||
+    !accountId ||
+    !workspaceId ||
+    !name ||
+    revision == null ||
+    !updatedAt ||
+    !createdAt
+  ) {
     return null
   }
 
@@ -154,82 +166,6 @@ function normalizeHostedWorkspaceDirectory(value) {
     snapshots: Array.isArray(value.snapshots)
       ? value.snapshots.filter((snapshot) => isRecord(snapshot))
       : [],
-  }
-}
-
-function createEmptySnapshot(actor, workspaceId, workspaceName, timestamp) {
-  const artifacts = Object.fromEntries(
-    FACET_ARTIFACT_TYPES.map((artifactType) => {
-      let payload
-
-      switch (artifactType) {
-        case 'resume':
-          payload = {
-            version: 1,
-            meta: { name: '', email: '', phone: '', location: '', links: [] },
-            target_lines: [],
-            profiles: [],
-            skill_groups: [],
-            roles: [],
-            projects: [],
-            education: [],
-            certifications: [],
-            vectors: [],
-            presets: [],
-          }
-          break
-        case 'pipeline':
-          payload = { entries: [] }
-          break
-        case 'prep':
-          payload = { decks: [] }
-          break
-        case 'coverLetters':
-          payload = { templates: [] }
-          break
-        case 'research':
-          payload = { profile: null, requests: [], runs: [] }
-          break
-        case 'linkedin':
-          payload = { drafts: [] }
-          break
-        case 'recruiter':
-          payload = { cards: [] }
-          break
-        case 'debrief':
-          payload = { sessions: [] }
-          break
-        default:
-          payload = {}
-      }
-
-      return [
-        artifactType,
-        {
-          artifactId: `${workspaceId}:${artifactType}`,
-          artifactType,
-          workspaceId,
-          schemaVersion: 1,
-          revision: 0,
-          updatedAt: timestamp,
-          payload,
-        },
-      ]
-    }),
-  )
-
-  return {
-    snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
-    tenantId: actor.tenantId,
-    userId: actor.userId,
-    workspace: {
-      id: workspaceId,
-      name: workspaceName,
-      revision: 0,
-      updatedAt: timestamp,
-    },
-    artifacts,
-    exportedAt: timestamp,
   }
 }
 
@@ -366,7 +302,8 @@ function createWorkspaceStoreApi({ readState, writeState }) {
 
   const loadWorkspaceRecord = async (tenantId, workspaceId) => {
     const state = await readState()
-    return cloneValue(state.snapshots.get(membershipKey(tenantId, workspaceId)) ?? null)
+    const snapshot = state.snapshots.get(membershipKey(tenantId, workspaceId)) ?? null
+    return snapshot ? normalizeWorkspaceSnapshotDefaults(snapshot) : null
   }
 
   return {
@@ -413,12 +350,17 @@ function createWorkspaceStoreApi({ readState, writeState }) {
       await writeState((state) => {
         const actor = actorUserId ? state.actors.get(actorUserId) : null
         if (!actor || actor.tenantId !== snapshot.tenantId) {
-          throw createWorkspaceValidationError('Hosted workspace save requires a provisioned actor.')
+          throw createWorkspaceValidationError(
+            'Hosted workspace save requires a provisioned actor.',
+          )
         }
 
-        const membership = actor.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
+        const membership =
+          actor.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
         if (!membership) {
-          throw createWorkspaceValidationError('Hosted workspace save requires workspace membership.')
+          throw createWorkspaceValidationError(
+            'Hosted workspace save requires workspace membership.',
+          )
         }
 
         const currentRecord = state.workspaces.get(key) ?? null
@@ -426,10 +368,14 @@ function createWorkspaceStoreApi({ readState, writeState }) {
         if (currentRecord) {
           const incomingRevision = snapshot.workspace?.revision
           if (typeof incomingRevision !== 'number' || !Number.isFinite(incomingRevision)) {
-            throw createWorkspaceValidationError('Hosted workspace save requires a numeric revision.')
+            throw createWorkspaceValidationError(
+              'Hosted workspace save requires a numeric revision.',
+            )
           }
           if (incomingRevision < currentRecord.revision) {
-            throw createWorkspaceValidationError('Hosted workspace save rejected a stale workspace revision.')
+            throw createWorkspaceValidationError(
+              'Hosted workspace save rejected a stale workspace revision.',
+            )
           }
           if (
             incomingRevision === currentRecord.revision &&
@@ -488,7 +434,9 @@ function createWorkspaceStoreApi({ readState, writeState }) {
     async createWorkspace(actor, input = {}, timestamp) {
       const actorRecord = await getActorRecord(actor.userId)
       if (!actorRecord) {
-        throw createWorkspaceValidationError('Hosted actor is not provisioned for workspace creation.')
+        throw createWorkspaceValidationError(
+          'Hosted actor is not provisioned for workspace creation.',
+        )
       }
 
       const operationTimestamp = validateTimestamp(timestamp)
@@ -514,7 +462,12 @@ function createWorkspaceStoreApi({ readState, writeState }) {
         role: 'owner',
         isDefault: wasEmpty || !actorRecord.workspaces.some((entry) => entry.isDefault),
       }
-      const snapshot = createEmptySnapshot(actorRecord, workspaceId, workspaceName, operationTimestamp)
+      const snapshot = createEmptyWorkspaceSnapshot(
+        actorRecord,
+        workspaceId,
+        workspaceName,
+        operationTimestamp,
+      )
       let createdMembership = cloneValue(membership)
 
       await writeState((state) => {
@@ -524,16 +477,17 @@ function createWorkspaceStoreApi({ readState, writeState }) {
 
         const writableActor = state.actors.get(actor.userId)
         if (!writableActor || writableActor.tenantId !== actor.tenantId) {
-          throw createWorkspaceValidationError('Hosted actor is not provisioned for workspace creation.')
+          throw createWorkspaceValidationError(
+            'Hosted actor is not provisioned for workspace creation.',
+          )
         }
 
         writableActor.workspaces.push(cloneValue(membership))
         writableActor.workspaces.sort(compareWorkspaceMemberships)
         ensureSingleDefault(writableActor.workspaces)
-        createdMembership =
-          cloneValue(
-            writableActor.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? membership,
-          )
+        createdMembership = cloneValue(
+          writableActor.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? membership,
+        )
 
         state.workspaces.set(key, cloneValue(workspace))
         state.snapshots.set(key, cloneValue(snapshot))
@@ -557,7 +511,8 @@ function createWorkspaceStoreApi({ readState, writeState }) {
         if (!actorRecord || actorRecord.tenantId !== actor.tenantId) {
           throw createWorkspaceValidationError('Hosted workspace rename requires owner access.')
         }
-        const membership = actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
+        const membership =
+          actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
         if (!membership || membership.role !== 'owner') {
           throw createWorkspaceValidationError('Hosted workspace rename requires owner access.')
         }
@@ -601,7 +556,8 @@ function createWorkspaceStoreApi({ readState, writeState }) {
         if (!actorRecord || actorRecord.tenantId !== actor.tenantId) {
           throw createWorkspaceValidationError('Hosted workspace deletion requires owner access.')
         }
-        const membership = actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
+        const membership =
+          actorRecord?.workspaces.find((entry) => entry.workspaceId === workspaceId) ?? null
         if (!membership || membership.role !== 'owner') {
           throw createWorkspaceValidationError('Hosted workspace deletion requires owner access.')
         }
@@ -613,10 +569,14 @@ function createWorkspaceStoreApi({ readState, writeState }) {
 
         const writableActor = state.actors.get(actor.userId)
         if (!writableActor) {
-          throw createWorkspaceValidationError('Hosted actor is not provisioned for workspace deletion.')
+          throw createWorkspaceValidationError(
+            'Hosted actor is not provisioned for workspace deletion.',
+          )
         }
 
-        writableActor.workspaces = writableActor.workspaces.filter((entry) => entry.workspaceId !== workspaceId)
+        writableActor.workspaces = writableActor.workspaces.filter(
+          (entry) => entry.workspaceId !== workspaceId,
+        )
         writableActor.workspaces.sort(compareWorkspaceMemberships)
         ensureSingleDefault(writableActor.workspaces)
         nextDefaultWorkspaceId =

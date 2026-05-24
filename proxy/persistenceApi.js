@@ -1,16 +1,9 @@
+import {
+  FACET_ARTIFACT_TYPES,
+  FACET_WORKSPACE_SNAPSHOT_VERSION,
+} from './workspaceSnapshotDefaults.js'
+
 const DEFAULT_LOCAL_WORKSPACE_ID = 'facet-local-workspace'
-const FACET_WORKSPACE_SNAPSHOT_VERSION = 1
-const FACET_ARTIFACT_TYPES = [
-  'resume',
-  'pipeline',
-  'jdAnalysis',
-  'prep',
-  'coverLetters',
-  'linkedin',
-  'recruiter',
-  'debrief',
-  'research',
-]
 
 export const DEFAULT_PERSISTENCE_AUTH_TOKENS = [
   {
@@ -29,11 +22,9 @@ export class PersistenceAuthError extends Error {
   }
 }
 
-const isRecord = (value) =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const isFiniteNumber = (value) =>
-  typeof value === 'number' && Number.isFinite(value)
+const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value)
 
 const cloneValue = (value) => {
   if (typeof structuredClone === 'function') {
@@ -91,7 +82,10 @@ export function parsePersistenceAuthTokens(raw) {
     const tenantId = typeof entry.tenantId === 'string' ? entry.tenantId.trim() : ''
     const userId = typeof entry.userId === 'string' ? entry.userId.trim() : ''
     const workspaces = Array.isArray(entry.workspaces)
-      ? entry.workspaces.filter((workspaceId) => typeof workspaceId === 'string').map((workspaceId) => workspaceId.trim()).filter(Boolean)
+      ? entry.workspaces
+          .filter((workspaceId) => typeof workspaceId === 'string')
+          .map((workspaceId) => workspaceId.trim())
+          .filter(Boolean)
       : []
 
     if (!token || !tenantId || !userId || workspaces.length === 0) {
@@ -144,8 +138,7 @@ function actorCanManageWorkspace(actor, workspaceId) {
   }
 
   return actor.workspaceMemberships.some(
-    (membership) =>
-      membership.workspaceId === workspaceId && membership.role === 'owner',
+    (membership) => membership.workspaceId === workspaceId && membership.role === 'owner',
   )
 }
 
@@ -247,16 +240,12 @@ function assertValidWorkspaceSnapshot(snapshot) {
   }
 
   if (
-    (
-      snapshot.tenantId !== null &&
+    (snapshot.tenantId !== null &&
       snapshot.tenantId !== undefined &&
-      typeof snapshot.tenantId !== 'string'
-    ) ||
-    (
-      snapshot.userId !== null &&
+      typeof snapshot.tenantId !== 'string') ||
+    (snapshot.userId !== null &&
       snapshot.userId !== undefined &&
-      typeof snapshot.userId !== 'string'
-    ) ||
+      typeof snapshot.userId !== 'string') ||
     typeof snapshot.exportedAt !== 'string'
   ) {
     throw new Error('Workspace snapshot must include valid tenant, user, and export metadata.')
@@ -307,7 +296,7 @@ function normalizeWorkspaceSnapshot(snapshot, actor, workspaceId, savedAt, curre
       name:
         typeof snapshot.workspace?.name === 'string' && snapshot.workspace.name.trim()
           ? snapshot.workspace.name.trim()
-          : currentSnapshot?.workspace.name ?? workspaceId,
+          : (currentSnapshot?.workspace.name ?? workspaceId),
       revision: nextWorkspaceRevision,
       updatedAt: savedAt,
     },
@@ -326,7 +315,7 @@ function normalizeWorkspaceSnapshot(snapshot, actor, workspaceId, savedAt, curre
               typeof incomingArtifact?.schemaVersion === 'number' &&
               Number.isFinite(incomingArtifact.schemaVersion)
                 ? incomingArtifact.schemaVersion
-                : currentArtifact?.schemaVersion ?? 1,
+                : (currentArtifact?.schemaVersion ?? 1),
             revision: (currentArtifact?.revision ?? 0) + 1,
             updatedAt: savedAt,
             payload: cloneValue(incomingArtifact?.payload),
@@ -431,16 +420,9 @@ export function createPersistenceApi({
           method: req.method,
           path: url.pathname,
         })
-        sendJson(
-          res,
-          error instanceof PersistenceAuthError ? error.status : 500,
-          {
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Persistence authentication failed.',
-          },
-        )
+        sendJson(res, error instanceof PersistenceAuthError ? error.status : 500, {
+          error: error instanceof Error ? error.message : 'Persistence authentication failed.',
+        })
         return
       }
 
@@ -449,7 +431,9 @@ export function createPersistenceApi({
       if (url.pathname === collectionRoute) {
         if (req.method === 'GET') {
           if (typeof store.listWorkspacesForActor !== 'function') {
-            sendJson(res, 405, { error: 'Workspace directory listing is not supported by this backend.' })
+            sendJson(res, 405, {
+              error: 'Workspace directory listing is not supported by this backend.',
+            })
             return
           }
 
@@ -475,7 +459,9 @@ export function createPersistenceApi({
           try {
             body = await readBody(req)
           } catch (error) {
-            sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body.' })
+            sendJson(res, 400, {
+              error: error instanceof Error ? error.message : 'Invalid JSON body.',
+            })
             return
           }
 
@@ -483,10 +469,7 @@ export function createPersistenceApi({
             const created = await store.createWorkspace(
               actor,
               {
-                name:
-                  body?.name === undefined
-                    ? undefined
-                    : validateWorkspaceNameInput(body.name),
+                name: body?.name === undefined ? undefined : validateWorkspaceNameInput(body.name),
                 workspaceId:
                   body?.workspaceId === undefined
                     ? undefined
@@ -496,7 +479,7 @@ export function createPersistenceApi({
             )
             const refreshedActor =
               typeof store.getActor === 'function'
-                ? (await store.getActor(actor.userId)) ?? actor
+                ? ((await store.getActor(actor.userId)) ?? actor)
                 : actor
 
             sendJson(res, 201, {
@@ -587,7 +570,9 @@ export function createPersistenceApi({
         try {
           body = await readBody(req)
         } catch (error) {
-          sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid JSON body.' })
+          sendJson(res, 400, {
+            error: error instanceof Error ? error.message : 'Invalid JSON body.',
+          })
           return
         }
 
@@ -641,7 +626,7 @@ export function createPersistenceApi({
           const deleted = await store.deleteWorkspace(actor, workspaceId)
           const refreshedActor =
             typeof store.getActor === 'function'
-              ? (await store.getActor(actor.userId)) ?? actor
+              ? ((await store.getActor(actor.userId)) ?? actor)
               : actor
 
           sendJson(res, 200, {
@@ -689,9 +674,7 @@ export function createPersistenceApi({
 
       const currentSnapshot = await store.loadWorkspace(actor.tenantId, workspaceId)
       const incomingWorkspaceName =
-        typeof snapshot.workspace?.name === 'string'
-          ? snapshot.workspace.name.trim()
-          : null
+        typeof snapshot.workspace?.name === 'string' ? snapshot.workspace.name.trim() : null
       if (
         currentSnapshot &&
         incomingWorkspaceName &&
@@ -719,7 +702,9 @@ export function createPersistenceApi({
           method: req.method,
           path: url.pathname,
         })
-        sendJson(res, 400, { error: error instanceof Error ? error.message : 'Invalid workspace snapshot.' })
+        sendJson(res, 400, {
+          error: error instanceof Error ? error.message : 'Invalid workspace snapshot.',
+        })
         return
       }
 

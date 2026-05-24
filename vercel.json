@@ -1,4 +1,10 @@
 {
   "buildCommand": "pnpm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/((?!api/|persistence/|anthropic/|proxy/|capabilities(?:/|$)|health(?:/|$)|assets/|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

@@ -45,23 +45,94 @@
           "revision": 0,
           "updatedAt": "2026-03-13T12:00:00.000Z",
           "payload": {
-            "version": 1,
-            "meta": {
-              "name": "",
-              "email": "",
-              "phone": "",
-              "location": "",
-              "links": []
+            "data": {
+              "version": 1,
+              "_overridesMigrated": true,
+              "generation": {
+                "mode": "single",
+                "vectorMode": "manual",
+                "source": "manual",
+                "pipelineEntryId": null,
+                "presetId": null,
+                "variantId": null,
+                "variantLabel": "",
+                "primaryVectorId": null,
+                "vectorIds": [],
+                "suggestedVectorIds": []
+              },
+              "theme": {
+                "preset": "ferguson-v12"
+              },
+              "meta": {
+                "name": "",
+                "email": "",
+                "phone": "",
+                "location": "",
+                "links": []
+              },
+              "target_lines": [],
+              "profiles": [],
+              "skill_groups": [],
+              "roles": [],
+              "projects": [],
+              "education": [],
+              "certifications": [],
+              "vectors": [],
+              "presets": []
             },
-            "target_lines": [],
-            "profiles": [],
-            "skill_groups": [],
-            "roles": [],
-            "projects": [],
-            "education": [],
-            "certifications": [],
-            "vectors": [],
-            "presets": []
+            "resumes": [
+              {
+                "id": "workspace-1-default-resume",
+                "content": {
+                  "version": 1,
+                  "_overridesMigrated": true,
+                  "generation": {
+                    "mode": "single",
+                    "vectorMode": "manual",
+                    "source": "manual",
+                    "pipelineEntryId": null,
+                    "presetId": null,
+                    "variantId": null,
+                    "variantLabel": "",
+                    "primaryVectorId": null,
+                    "vectorIds": [],
+                    "suggestedVectorIds": []
+                  },
+                  "theme": {
+                    "preset": "ferguson-v12"
+                  },
+                  "meta": {
+                    "name": "",
+                    "email": "",
+                    "phone": "",
+                    "location": "",
+                    "links": []
+                  },
+                  "target_lines": [],
+                  "profiles": [],
+                  "skill_groups": [],
+                  "roles": [],
+                  "projects": [],
+                  "education": [],
+                  "certifications": [],
+                  "vectors": [],
+                  "presets": []
+                },
+                "contentHash": "empty",
+                "origin": {
+                  "type": "vector",
+                  "vectorId": null,
+                  "vectorIds": [],
+                  "pipelineEntryId": null
+                },
+                "identityVersion": null,
+                "pipelineEntryId": null,
+                "createdAt": "2026-03-13T12:00:00.000Z",
+                "updatedAt": "2026-03-13T12:00:00.000Z"
+              }
+            ],
+            "snapshots": [],
+            "activeResumeId": "workspace-1-default-resume"
           }
         },
         "pipeline": {
@@ -73,6 +144,17 @@
           "updatedAt": "2026-03-13T12:00:00.000Z",
           "payload": {
             "entries": []
+          }
+        },
+        "jdAnalysis": {
+          "artifactId": "workspace-1:jdAnalysis",
+          "artifactType": "jdAnalysis",
+          "workspaceId": "workspace-1",
+          "schemaVersion": 1,
+          "revision": 0,
+          "updatedAt": "2026-03-13T12:00:00.000Z",
+          "payload": {
+            "analyses": []
           }
         },
         "prep": {
@@ -94,7 +176,41 @@
           "revision": 0,
           "updatedAt": "2026-03-13T12:00:00.000Z",
           "payload": {
-            "templates": []
+            "letters": [],
+            "snapshots": []
+          }
+        },
+        "linkedin": {
+          "artifactId": "workspace-1:linkedin",
+          "artifactType": "linkedin",
+          "workspaceId": "workspace-1",
+          "schemaVersion": 1,
+          "revision": 0,
+          "updatedAt": "2026-03-13T12:00:00.000Z",
+          "payload": {
+            "drafts": []
+          }
+        },
+        "recruiter": {
+          "artifactId": "workspace-1:recruiter",
+          "artifactType": "recruiter",
+          "workspaceId": "workspace-1",
+          "schemaVersion": 1,
+          "revision": 0,
+          "updatedAt": "2026-03-13T12:00:00.000Z",
+          "payload": {
+            "cards": []
+          }
+        },
+        "debrief": {
+          "artifactId": "workspace-1:debrief",
+          "artifactType": "debrief",
+          "workspaceId": "workspace-1",
+          "schemaVersion": 1,
+          "revision": 0,
+          "updatedAt": "2026-03-13T12:00:00.000Z",
+          "payload": {
+            "sessions": []
           }
         },
         "research": {
@@ -107,7 +223,11 @@
           "payload": {
             "profile": null,
             "requests": [],
-            "runs": []
+            "runs": [],
+            "theses": [],
+            "activeThesisId": null,
+            "feedbackEvents": [],
+            "activeResearchJob": null
           }
         }
       },

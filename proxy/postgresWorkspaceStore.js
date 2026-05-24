@@ -9,9 +9,11 @@
  */
 
 import { randomUUID } from 'node:crypto'
-
-const FACET_WORKSPACE_SNAPSHOT_VERSION = 1
-const FACET_ARTIFACT_TYPES = ['resume', 'pipeline', 'prep', 'coverLetters', 'research', 'linkedin', 'recruiter', 'debrief']
+import {
+  FACET_WORKSPACE_SNAPSHOT_VERSION,
+  createEmptyWorkspaceSnapshot,
+  normalizeWorkspaceSnapshotDefaults,
+} from './workspaceSnapshotDefaults.js'
 
 // ── Validation (mirrors hostedWorkspaceStore.js) ──────────────
 
@@ -32,7 +34,10 @@ function validateWorkspaceName(value, message = 'Hosted workspace name is requir
   return trimmed
 }
 
-function validateTimestamp(value, message = 'Hosted workspace operations require a valid ISO timestamp.') {
+function validateTimestamp(
+  value,
+  message = 'Hosted workspace operations require a valid ISO timestamp.',
+) {
   const trimmed = typeof value === 'string' ? value.trim() : ''
   if (!trimmed || Number.isNaN(Date.parse(trimmed))) {
     throw createValidationError(message)
@@ -49,68 +54,6 @@ function validateWorkspaceId(value) {
     throw createValidationError('Hosted workspace id must use letters, numbers, and hyphens only.')
   }
   return trimmed
-}
-
-// ── Empty snapshot factory (mirrors hostedWorkspaceStore.js) ──
-
-function createEmptySnapshot(actor, workspaceId, workspaceName, timestamp) {
-  const artifacts = Object.fromEntries(
-    FACET_ARTIFACT_TYPES.map((artifactType) => {
-      let payload
-      switch (artifactType) {
-        case 'resume':
-          payload = {
-            version: 1,
-            meta: { name: '', email: '', phone: '', location: '', links: [] },
-            target_lines: [], profiles: [], skill_groups: [],
-            roles: [], projects: [], education: [],
-            certifications: [], vectors: [], presets: [],
-          }
-          break
-        case 'pipeline':
-          payload = { entries: [] }
-          break
-        case 'prep':
-          payload = { decks: [] }
-          break
-        case 'coverLetters':
-          payload = { templates: [] }
-          break
-        case 'research':
-          payload = { profile: null, requests: [], runs: [] }
-          break
-        case 'linkedin':
-          payload = { drafts: [] }
-          break
-        case 'recruiter':
-          payload = { cards: [] }
-          break
-        case 'debrief':
-          payload = { sessions: [] }
-          break
-        default:
-          payload = {}
-      }
-      return [artifactType, {
-        artifactId: `${workspaceId}:${artifactType}`,
-        artifactType,
-        workspaceId,
-        schemaVersion: 1,
-        revision: 0,
-        updatedAt: timestamp,
-        payload,
-      }]
-    }),
-  )
-
-  return {
-    snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
-    tenantId: actor.tenantId,
-    userId: actor.userId,
-    workspace: { id: workspaceId, name: workspaceName, revision: 0, updatedAt: timestamp },
-    artifacts,
-    exportedAt: timestamp,
-  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -153,7 +96,7 @@ function assembleActor(actorRow, membershipRows) {
 
 /** Assemble a full snapshot from workspace + snapshot DB rows. */
 function assembleSnapshot(workspaceRow, snapshotRow) {
-  return {
+  return normalizeWorkspaceSnapshotDefaults({
     snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
     tenantId: workspaceRow.tenant_id,
     userId: snapshotRow.user_id,
@@ -161,15 +104,17 @@ function assembleSnapshot(workspaceRow, snapshotRow) {
       id: workspaceRow.workspace_id,
       name: workspaceRow.name,
       revision: workspaceRow.revision,
-      updatedAt: workspaceRow.updated_at instanceof Date
-        ? workspaceRow.updated_at.toISOString()
-        : workspaceRow.updated_at,
+      updatedAt:
+        workspaceRow.updated_at instanceof Date
+          ? workspaceRow.updated_at.toISOString()
+          : workspaceRow.updated_at,
     },
     artifacts: snapshotRow.artifacts,
-    exportedAt: snapshotRow.exported_at instanceof Date
-      ? snapshotRow.exported_at.toISOString()
-      : snapshotRow.exported_at,
-  }
+    exportedAt:
+      snapshotRow.exported_at instanceof Date
+        ? snapshotRow.exported_at.toISOString()
+        : snapshotRow.exported_at,
+  })
 }
 
 // ── Store factory ─────────────────────────────────────────────
@@ -253,7 +198,9 @@ export function createPostgresWorkspaceStore(pool) {
         if (currentRows.length > 0) {
           const currentRevision = currentRows[0].revision
           if (incomingRevision < currentRevision) {
-            throw createValidationError('Hosted workspace save rejected a stale workspace revision.')
+            throw createValidationError(
+              'Hosted workspace save rejected a stale workspace revision.',
+            )
           }
         }
 
@@ -265,7 +212,14 @@ export function createPostgresWorkspaceStore(pool) {
              name = EXCLUDED.name,
              revision = EXCLUDED.revision,
              updated_at = EXCLUDED.updated_at`,
-          [snapshot.tenantId, actorRows[0].tenant_id, workspaceId, workspaceName, incomingRevision, updatedAt],
+          [
+            snapshot.tenantId,
+            actorRows[0].tenant_id,
+            workspaceId,
+            workspaceName,
+            incomingRevision,
+            updatedAt,
+          ],
         )
 
         // Build normalized snapshot
@@ -273,7 +227,12 @@ export function createPostgresWorkspaceStore(pool) {
           snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
           tenantId: snapshot.tenantId,
           userId: actorUserId,
-          workspace: { id: workspaceId, name: workspaceName, revision: incomingRevision, updatedAt },
+          workspace: {
+            id: workspaceId,
+            name: workspaceName,
+            revision: incomingRevision,
+            updatedAt,
+          },
           artifacts: snapshot.artifacts ?? {},
           exportedAt,
         }
@@ -287,7 +246,14 @@ export function createPostgresWorkspaceStore(pool) {
              user_id = EXCLUDED.user_id,
              artifacts = EXCLUDED.artifacts,
              exported_at = EXCLUDED.exported_at`,
-          [snapshot.tenantId, workspaceId, incomingRevision, actorUserId, JSON.stringify(normalizedSnapshot.artifacts), exportedAt],
+          [
+            snapshot.tenantId,
+            workspaceId,
+            incomingRevision,
+            actorUserId,
+            JSON.stringify(normalizedSnapshot.artifacts),
+            exportedAt,
+          ],
         )
 
         return normalizedSnapshot
@@ -364,7 +330,7 @@ export function createPostgresWorkspaceStore(pool) {
         )
 
         // Insert empty snapshot
-        const snapshot = createEmptySnapshot(
+        const snapshot = createEmptyWorkspaceSnapshot(
           { tenantId: actor.tenantId, userId: actor.userId },
           workspaceId,
           workspaceName,
@@ -373,7 +339,13 @@ export function createPostgresWorkspaceStore(pool) {
         await client.query(
           `INSERT INTO workspace_snapshots (tenant_id, workspace_id, revision, user_id, artifacts, exported_at)
            VALUES ($1, $2, 0, $3, $4, $5)`,
-          [actor.tenantId, workspaceId, actor.userId, JSON.stringify(snapshot.artifacts), operationTimestamp],
+          [
+            actor.tenantId,
+            workspaceId,
+            actor.userId,
+            JSON.stringify(snapshot.artifacts),
+            operationTimestamp,
+          ],
         )
 
         const workspaceSummary = {
@@ -444,19 +416,22 @@ export function createPostgresWorkspaceStore(pool) {
           isDefault: membershipRows[0].is_default,
         }
 
-        const snapshot = sRows.length > 0 ? {
-          snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
-          tenantId: actor.tenantId,
-          userId: sRows[0].user_id,
-          workspace: {
-            id: workspaceId,
-            name: trimmedName,
-            revision: newRevision,
-            updatedAt: operationTimestamp,
-          },
-          artifacts: sRows[0].artifacts,
-          exportedAt: operationTimestamp,
-        } : null
+        const snapshot =
+          sRows.length > 0
+            ? {
+                snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
+                tenantId: actor.tenantId,
+                userId: sRows[0].user_id,
+                workspace: {
+                  id: workspaceId,
+                  name: trimmedName,
+                  revision: newRevision,
+                  updatedAt: operationTimestamp,
+                },
+                artifacts: sRows[0].artifacts,
+                exportedAt: operationTimestamp,
+              }
+            : null
 
         return { workspace: workspaceSummary, snapshot }
       })
@@ -485,10 +460,10 @@ export function createPostgresWorkspaceStore(pool) {
         }
 
         // Delete workspace (cascades to memberships and snapshots)
-        await client.query(
-          'DELETE FROM workspaces WHERE tenant_id = $1 AND workspace_id = $2',
-          [actor.tenantId, workspaceId],
-        )
+        await client.query('DELETE FROM workspaces WHERE tenant_id = $1 AND workspace_id = $2', [
+          actor.tenantId,
+          workspaceId,
+        ])
 
         // Reassign default if needed
         const { rows: remaining } = await client.query(
@@ -509,7 +484,8 @@ export function createPostgresWorkspaceStore(pool) {
             )
             defaultWorkspaceId = remaining[0].workspace_id
           } else {
-            defaultWorkspaceId = remaining.find((m) => m.is_default)?.workspace_id ?? remaining[0].workspace_id
+            defaultWorkspaceId =
+              remaining.find((m) => m.is_default)?.workspace_id ?? remaining[0].workspace_id
           }
         }
 

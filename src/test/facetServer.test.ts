@@ -745,6 +745,35 @@ describe('facetServer persistence API', () => {
       }),
     )
     expect(createdBody.snapshot.workspace.id).toBe(createdBody.workspace.workspaceId)
+    expect(Object.keys(createdBody.snapshot.artifacts).sort()).toEqual([
+      'coverLetters',
+      'debrief',
+      'jdAnalysis',
+      'linkedin',
+      'pipeline',
+      'prep',
+      'recruiter',
+      'research',
+      'resume',
+    ])
+    expect(createdBody.snapshot.artifacts.resume.payload.data.meta.name).toBe('')
+    expect(createdBody.snapshot.artifacts.resume.payload.resumes).toHaveLength(1)
+    expect(createdBody.snapshot.artifacts.coverLetters.payload).toEqual({
+      letters: [],
+      snapshots: [],
+    })
+
+    const immediateSave = await fetch(
+      `${baseUrl}/api/persistence/workspaces/${createdBody.workspace.workspaceId}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ snapshot: createdBody.snapshot }),
+      },
+    )
+    expect(immediateSave.status).toBe(200)
+    const immediateSaveBody = await immediateSave.json()
+    expect(immediateSaveBody.snapshot.workspace.revision).toBe(1)
 
     const listed = await fetch(`${baseUrl}/api/persistence/workspaces`, {
       method: 'GET',
@@ -755,7 +784,12 @@ describe('facetServer persistence API', () => {
       },
     })
     await expect(listed.json()).resolves.toEqual({
-      workspaces: [createdBody.workspace],
+      workspaces: [
+        {
+          ...createdBody.workspace,
+          revision: 1,
+        },
+      ],
       actor: expect.objectContaining({
         tenantId: 'tenant-1',
         userId: 'user-1',
@@ -777,7 +811,7 @@ describe('facetServer persistence API', () => {
       expect.objectContaining({
         workspaceId: createdBody.workspace.workspaceId,
         name: 'Renamed Hosted Workspace',
-        revision: 1,
+        revision: 2,
         isDefault: true,
       }),
     )
@@ -793,7 +827,7 @@ describe('facetServer persistence API', () => {
     )
     expect(saved.status).toBe(200)
     const savedBody = await saved.json()
-    expect(savedBody.snapshot.workspace.revision).toBe(2)
+    expect(savedBody.snapshot.workspace.revision).toBe(3)
     expect(savedBody.snapshot.workspace.name).toBe('Incoming Workspace')
 
     const syncedContext = await fetch(`${baseUrl}/api/account/context`, {
@@ -869,6 +903,145 @@ describe('facetServer persistence API', () => {
       'billing.context.success': 1,
       'persistence.save.success': 1,
     })
+  })
+
+  it('normalizes legacy hosted workspace snapshots before save validation', async () => {
+    const {
+      createFacetServer,
+      createInMemoryHostedWorkspaceStore,
+      createInMemoryHostedBillingStore,
+    } = await loadProxyModules()
+    const hosted = await buildHostedAuthFixture()
+    const workspaceStore = createInMemoryHostedWorkspaceStore({
+      actors: [
+        {
+          tenantId: 'tenant-1',
+          accountId: 'account-1',
+          userId: 'user-1',
+          email: 'member@example.com',
+          workspaces: [{ workspaceId: 'legacy-1', role: 'owner', isDefault: true }],
+        },
+      ],
+      workspaces: [
+        {
+          tenantId: 'tenant-1',
+          accountId: 'account-1',
+          workspaceId: 'legacy-1',
+          name: 'Legacy Workspace',
+          revision: 0,
+          updatedAt: '2026-03-14T11:00:00.000Z',
+          createdAt: '2026-03-14T11:00:00.000Z',
+        },
+      ],
+      snapshots: [
+        {
+          snapshotVersion: 1,
+          tenantId: 'tenant-1',
+          userId: 'user-1',
+          workspace: {
+            id: 'legacy-1',
+            name: 'Legacy Workspace',
+            revision: 0,
+            updatedAt: '2026-03-14T11:00:00.000Z',
+          },
+          artifacts: {
+            resume: {
+              artifactId: 'legacy-1:resume',
+              artifactType: 'resume',
+              workspaceId: 'legacy-1',
+              schemaVersion: 1,
+              revision: 0,
+              updatedAt: '2026-03-14T11:00:00.000Z',
+              payload: {
+                meta: {
+                  name: 'Legacy User',
+                  links: [],
+                },
+              },
+            },
+            pipeline: {
+              artifactId: 'legacy-1:pipeline',
+              artifactType: 'pipeline',
+              workspaceId: 'legacy-1',
+              schemaVersion: 1,
+              revision: 0,
+              updatedAt: '2026-03-14T11:00:00.000Z',
+              payload: { entries: [] },
+            },
+          },
+          exportedAt: '2026-03-14T11:00:00.000Z',
+        },
+      ],
+    })
+    const billingStore = createInMemoryHostedBillingStore([
+      {
+        tenantId: 'tenant-1',
+        accountId: 'account-1',
+        billingCustomer: null,
+        billingPass: null,
+        entitlement: {
+          planId: 'free',
+          status: 'inactive',
+          source: 'stripe',
+          features: [],
+          effectiveThrough: null,
+        },
+      },
+    ])
+    const { server } = createFacetServer({
+      authMode: 'hosted',
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      hostedAuth: {
+        issuer: 'https://supabase.example/auth/v1',
+        audience: 'authenticated',
+        jwks: hosted.jwks,
+      },
+      hostedWorkspaceStore: workspaceStore,
+      billingStore,
+      anthropicClient: {
+        messages: {
+          create: async () => ({ content: [], usage: { input_tokens: 0, output_tokens: 0 } }),
+        },
+      },
+      now: () => '2026-03-14T12:00:00.000Z',
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind legacy hosted persistence test server.')
+    }
+
+    const baseUrl = `http://127.0.0.1:${address.port}`
+    const headers = {
+      Authorization: `Bearer ${await createHostedSessionToken(hosted.privateKey)}`,
+      'Content-Type': 'application/json',
+      Origin: 'http://localhost:5173',
+      'X-Proxy-API-Key': 'proxy-key',
+    }
+    const loaded = await fetch(`${baseUrl}/api/persistence/workspaces/legacy-1`, {
+      headers,
+    })
+    expect(loaded.status).toBe(200)
+    const loadedBody = await loaded.json()
+    expect(loadedBody.snapshot.artifacts.jdAnalysis.payload).toEqual({ analyses: [] })
+    expect(loadedBody.snapshot.artifacts.resume.payload.data.meta.name).toBe('Legacy User')
+
+    const saved = await fetch(`${baseUrl}/api/persistence/workspaces/legacy-1`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ snapshot: loadedBody.snapshot }),
+    })
+    expect(saved.status).toBe(200)
+    const savedBody = await saved.json()
+    expect(savedBody.snapshot.workspace.revision).toBe(1)
+    expect(savedBody.snapshot.artifacts.jdAnalysis.revision).toBe(1)
+    expect(savedBody.snapshot.artifacts.resume.payload.data.meta.name).toBe('Legacy User')
   })
 
   it('rejects hosted AI requests when the entitlement is missing or inactive', async () => {
