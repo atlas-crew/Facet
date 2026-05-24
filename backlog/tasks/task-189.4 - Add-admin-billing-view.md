@@ -1,10 +1,11 @@
 ---
 id: TASK-189.4
 title: Add admin billing view
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-22 03:29'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 18:21'
 labels:
   - admin
   - proxy
@@ -78,6 +79,12 @@ Add `GET /admin/billing` mounted under `requireAdmin`:
 - [ ] #8 Integration tests cover happy path, NULL-fields path, and 403 path
 - [ ] #9 subscription_status extraction is tested against varying subscription JSONB shapes including NULL
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-24 Codex started parallel-agent implementation lane for admin billing. Worker split: proxy/API tests owned separately from admin UI/tests; coordinator will integrate, verify, commit, push, and close tasks when gates pass.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

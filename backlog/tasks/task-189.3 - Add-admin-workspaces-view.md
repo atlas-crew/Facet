@@ -1,10 +1,11 @@
 ---
 id: TASK-189.3
 title: Add admin workspaces view
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-22 03:28'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 18:21'
 labels:
   - admin
   - proxy
@@ -73,6 +74,12 @@ Add `GET /admin/workspaces` mounted under `requireAdmin`:
 - [ ] #7 Rows where revision !== snapshot_revision are visually highlighted
 - [ ] #8 Integration tests cover happy path, NULL snapshot path, and 403 path
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-24 Codex started parallel-agent implementation lane for admin workspaces. Worker split: proxy/API tests owned separately from admin UI/tests; coordinator will integrate, verify, commit, push, and close tasks when gates pass.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
