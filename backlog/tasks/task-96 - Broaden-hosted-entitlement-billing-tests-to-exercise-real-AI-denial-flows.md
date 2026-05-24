@@ -1,11 +1,11 @@
 ---
 id: TASK-96
 title: Broaden hosted entitlement billing tests to exercise real AI denial flows
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-08 16:54'
-updated_date: '2026-05-24 13:59'
+updated_date: '2026-05-24 14:07'
 labels:
   - tests
   - wave-1
@@ -40,6 +40,8 @@ Independent audit still flags shallow or missing AI-request coverage in hosted e
 Codex taking TASK-96. First loop: inspect hosted entitlement/JD-analysis tests against the pass lifecycle from TASK-242, add local regression coverage for real AI success and denial UX where feasible, then run focused/full gates and independent test audit.
 
 Implemented and committed as test(hosted): exercise entitlement denial flows. Hosted entitlement Playwright coverage now seeds a Pipeline entry plus identity, clicks the real Analyze JD UI, asserts a match.jd-analysis AI proxy request reaches the endpoint on success, asserts user-visible upgrade_required and billing_issue denial alerts, and verifies Refresh Billing State reload recovery. Verification: VITE_FACET_DEPLOYMENT_MODE=hosted npx playwright test tests/hosted/entitlement-billing.spec.ts --project=hosted passed (9 tests); pnpm typecheck passed; scoped eslint for touched hosted files passed; pnpm test passed (173 files / 2451 tests); pnpm build passed with existing chunk-size warning; git diff --check passed. Independent test audit: .agents/reviews/test-audit-20260524-095707.md via Gemini fallback after Claude emitted malformed output; P0/P1/P2 gaps = 0. Full pnpm lint remains blocked by pre-existing unrelated baseline errors in src/hooks/useElapsed.ts, src/routes/identity/inspectorSlots/slotPrimitives.tsx, and tests/hosted/diag.spec.ts, so DoD #8 is intentionally left unchecked.
+
+Closed per user direction on 2026-05-24. Acceptance criteria are complete and committed. DoD #8 remains unchecked because the only failing lint gate is unrelated repo-wide baseline debt documented above; scoped lint for TASK-96 touched files passed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
