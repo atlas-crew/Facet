@@ -23,16 +23,18 @@ function normalizeWebhookReceipt(value) {
     return null
   }
 
-  const eventId = typeof value.event_id === 'string'
-    ? value.event_id.trim()
-    : typeof value.eventId === 'string'
-      ? value.eventId.trim()
-      : ''
-  const eventType = typeof value.event_type === 'string'
-    ? value.event_type.trim()
-    : typeof value.eventType === 'string'
-      ? value.eventType.trim()
-      : ''
+  const eventId =
+    typeof value.event_id === 'string'
+      ? value.event_id.trim()
+      : typeof value.eventId === 'string'
+        ? value.eventId.trim()
+        : ''
+  const eventType =
+    typeof value.event_type === 'string'
+      ? value.event_type.trim()
+      : typeof value.eventType === 'string'
+        ? value.eventType.trim()
+        : ''
   const processedAt = normalizeProcessedAt(value.processed_at ?? value.processedAt)
 
   if (!eventId || !eventType || !processedAt) {
@@ -59,12 +61,79 @@ function normalizeWebhookReceipt(value) {
   }
 }
 
+function normalizeCreatedAt(value) {
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value
+  }
+
+  return null
+}
+
+function normalizeWorkspaceCount(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value))
+  }
+
+  if (typeof value === 'bigint') {
+    return Number(value)
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+  }
+
+  return 0
+}
+
+function normalizeActorRecord(value) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const userId =
+    typeof value.user_id === 'string'
+      ? value.user_id.trim()
+      : typeof value.userId === 'string'
+        ? value.userId.trim()
+        : ''
+  const tenantId =
+    typeof value.tenant_id === 'string'
+      ? value.tenant_id.trim()
+      : typeof value.tenantId === 'string'
+        ? value.tenantId.trim()
+        : null
+  const accountId =
+    typeof value.account_id === 'string'
+      ? value.account_id.trim()
+      : typeof value.accountId === 'string'
+        ? value.accountId.trim()
+        : null
+  const email = typeof value.email === 'string' ? value.email.trim() : null
+  const createdAt = normalizeCreatedAt(value.created_at ?? value.createdAt)
+
+  if (!userId || !createdAt) {
+    return null
+  }
+
+  return {
+    user_id: userId,
+    tenant_id: tenantId || null,
+    account_id: accountId || null,
+    email,
+    created_at: createdAt,
+    workspace_count: normalizeWorkspaceCount(value.workspace_count ?? value.workspaceCount),
+  }
+}
+
 function parseWebhookQuery(searchParams) {
   const rawLimit = searchParams.get('limit')
   const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 100
-  const limit = Number.isFinite(parsedLimit)
-    ? Math.max(1, Math.min(500, parsedLimit))
-    : 100
+  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(500, parsedLimit)) : 100
 
   const rawSince = searchParams.get('since')
   if (!rawSince) {
@@ -88,6 +157,30 @@ function parseWebhookQuery(searchParams) {
   }
 
   return { limit, since, error: null }
+}
+
+function parseActorsQuery(searchParams) {
+  const rawLimit = searchParams.get('limit')
+  const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 100
+  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(500, parsedLimit)) : 100
+  const tenantId = searchParams.get('tenant_id')?.trim() || null
+  const query = searchParams.get('q')?.trim() || null
+  if (query && query.length > 256) {
+    return {
+      limit,
+      tenantId,
+      query: null,
+      error: {
+        status: 400,
+        body: {
+          error: 'Admin actors search query must be 256 characters or fewer.',
+          code: 'invalid_query',
+        },
+      },
+    }
+  }
+
+  return { limit, tenantId, query, error: null }
 }
 
 export function requireAdmin(req, res, next, options = {}) {
@@ -117,8 +210,13 @@ export function requireAdmin(req, res, next, options = {}) {
   })
 }
 
-export function createInMemoryAdminStore(records = []) {
-  const receipts = records.map(normalizeWebhookReceipt).filter(Boolean)
+export function createInMemoryAdminStore(records = {}) {
+  const webhooks = Array.isArray(records) ? records : records.webhooks
+  const actors = Array.isArray(records) ? [] : records.actors
+  const receipts = Array.isArray(webhooks)
+    ? webhooks.map(normalizeWebhookReceipt).filter(Boolean)
+    : []
+  const actorRecords = Array.isArray(actors) ? actors.map(normalizeActorRecord).filter(Boolean) : []
 
   return {
     async listWebhookReceipts({ limit = 100, since = null } = {}) {
@@ -127,6 +225,21 @@ export function createInMemoryAdminStore(records = []) {
         receipts
           .filter((receipt) => sinceMs === null || Date.parse(receipt.processed_at) >= sinceMs)
           .sort((left, right) => Date.parse(right.processed_at) - Date.parse(left.processed_at))
+          .slice(0, limit),
+      )
+    },
+
+    async listActors({ limit = 100, tenantId = null, query = null } = {}) {
+      const normalizedQuery = typeof query === 'string' ? query.toLowerCase() : null
+      return cloneValue(
+        actorRecords
+          .filter((actor) => tenantId === null || actor.tenant_id === tenantId)
+          .filter(
+            (actor) =>
+              normalizedQuery === null ||
+              (actor.email ?? '').toLowerCase().includes(normalizedQuery),
+          )
+          .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
           .slice(0, limit),
       )
     },
@@ -147,6 +260,29 @@ export function createPostgresAdminStore(pool) {
 
       return rows.map(normalizeWebhookReceipt).filter(Boolean)
     },
+
+    async listActors({ limit = 100, tenantId = null, query = null } = {}) {
+      const { rows } = await pool.query(
+        `SELECT a.user_id,
+                a.tenant_id,
+                a.account_id,
+                a.email,
+                a.created_at,
+                (
+                  SELECT COUNT(*)::int
+                  FROM workspace_memberships m
+                  WHERE m.user_id = a.user_id AND m.tenant_id = a.tenant_id
+                ) AS workspace_count
+         FROM actors a
+         WHERE ($1::text IS NULL OR a.tenant_id = $1::text)
+           AND ($2::text IS NULL OR POSITION(lower($2::text) IN lower(COALESCE(a.email, ''))) > 0)
+         ORDER BY a.created_at DESC
+         LIMIT $3`,
+        [tenantId, query, limit],
+      )
+
+      return rows.map(normalizeActorRecord).filter(Boolean)
+    },
   }
 }
 
@@ -158,15 +294,19 @@ export function createAdminApi({
   onEvent,
 }) {
   const webhooksRoute = '/admin/webhooks'
+  const actorsRoute = '/admin/actors'
 
   return {
     canHandle(req) {
       const url = new URL(req.url ?? '/', 'http://localhost')
-      return req.method === 'GET' && url.pathname === webhooksRoute
+      return (
+        req.method === 'GET' && (url.pathname === webhooksRoute || url.pathname === actorsRoute)
+      )
     },
 
     async handle(req, res, sendJson) {
       const url = new URL(req.url ?? '/', 'http://localhost')
+      const eventScope = url.pathname === actorsRoute ? 'admin.actors' : 'admin.webhooks'
       let actor
       try {
         actor = await actorResolver(req)
@@ -176,7 +316,7 @@ export function createAdminApi({
           throw error
         }
 
-        onEvent?.('admin.webhooks', 'denied', {
+        onEvent?.(eventScope, 'denied', {
           code: 'auth_required',
           method: req.method,
           path: url.pathname,
@@ -196,16 +336,65 @@ export function createAdminApi({
       }
 
       let allowed = false
-      requireAdmin(req, res, () => {
-        allowed = true
-      }, { sendJson, logger })
+      requireAdmin(
+        req,
+        res,
+        () => {
+          allowed = true
+        },
+        { sendJson, logger },
+      )
 
       if (!allowed) {
-        onEvent?.('admin.webhooks', 'denied', {
+        onEvent?.(eventScope, 'denied', {
           method: req.method,
           path: url.pathname,
           userId: actor?.userId,
         })
+        return
+      }
+
+      if (url.pathname === actorsRoute) {
+        if (!adminStore || typeof adminStore.listActors !== 'function') {
+          sendJson(res, 500, {
+            error: 'Admin actors store is unavailable.',
+            code: 'admin_store_unavailable',
+          })
+          return
+        }
+
+        const query = parseActorsQuery(url.searchParams)
+        if (query.error) {
+          sendJson(res, query.error.status, query.error.body)
+          return
+        }
+
+        let actors
+        try {
+          actors = await adminStore.listActors({
+            limit: query.limit,
+            tenantId: query.tenantId,
+            query: query.query,
+          })
+        } catch (error) {
+          onEvent?.('admin.actors', 'error', {
+            code: 'actors_unavailable',
+            method: req.method,
+            path: url.pathname,
+            userId: actor.userId,
+          })
+          throw error
+        }
+        onEvent?.('admin.actors', 'success', {
+          actorCount: actors.length,
+          method: req.method,
+          path: url.pathname,
+          userId: actor.userId,
+        })
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('Pragma', 'no-cache')
+        res.setHeader('Vary', 'Authorization')
+        sendJson(res, 200, { actors })
         return
       }
 

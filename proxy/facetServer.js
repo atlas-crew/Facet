@@ -692,7 +692,8 @@ function resolveHostedRateLimitBucket(req, pathname) {
     return 'billingMutations'
   }
 
-  if (pathname === '/admin/webhooks' && req.method === 'GET') {
+  // Admin read endpoints all share a probe bucket before JWT verification.
+  if (pathname.startsWith('/admin/') && req.method === 'GET') {
     return 'adminProbes'
   }
 
