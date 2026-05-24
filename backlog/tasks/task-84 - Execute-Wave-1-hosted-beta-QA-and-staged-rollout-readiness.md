@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-03-12 16:07'
-updated_date: '2026-05-24 15:18'
+updated_date: '2026-05-24 16:06'
 labels:
   - feature
   - billing
@@ -57,6 +57,8 @@ Create the final release gate for Wave 1 hosted accounts. This task should bundl
 2026-05-24 Codex taking TASK-84 for final Wave 1 readiness execution. Plan: verify live hosted frontend/API/Supabase/Fly state; run staged hosted auth, persistence, migration/import, entitlement-denial, checkout/refund, restore, and rollback evidence where safe; update readiness docs/task with go/no-go decision and concrete receipts; request docs-architect review for the consolidated docs package if docs are changed.
 
 2026-05-24 Codex progress: fixed hosted workspace default snapshot blocker discovered during TASK-84 staging validation. Commit 96bd228 centralizes hosted snapshot defaults, adds jdAnalysis/current resume/cover-letter/research shapes, normalizes legacy hosted snapshots on read, updates the example hosted workspace file, and adds the SPA rewrite config. Verification: pnpm exec vitest run src/test/hostedWorkspaceStore.test.ts src/test/facetServer.test.ts (73 passed); scoped ESLint passed; git diff --check passed; pnpm run build passed with existing chunk-size warnings; independent review artifacts .agents/reviews/review-20260524-110527.md, review-20260524-110946.md, review-20260524-111323.md informed remediation; deployed Fly facet-api image deployment-01KSD8XWB3G39PW1BZ4XDZRQ37; live Supabase-session smoke against https://facet-api.fly.dev passed create workspace -> immediate generated snapshot save (revision 1, jdAnalysis revision 1) -> invalid pipeline payload returns 400 -> delete returns 200. Remaining TASK-84 blocker: Vercel frontend deploy failed because the configured Vercel token is invalid; https://myfacets.cv/account and https://facet-app-navy.vercel.app/account still return Vercel 404 until the SPA rewrite is deployed.
+
+2026-05-24 Vercel follow-up: pushed main to origin with cortex git push. Vercel production deployment dpl_5yvxDPU8cowDfV48EroroQjCADme (https://facet-qv1jqxbn9-atlas-crew.vercel.app) built Ready and aliases include https://myfacets.cv and https://facet-app-navy.vercel.app. Direct route checks now pass: https://myfacets.cv/account -> HTTP 200 index.html; https://facet-app-navy.vercel.app/account -> HTTP 200 index.html. The raw deployment URL is protected by Vercel SSO and returns 401, but production aliases serve correctly.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
