@@ -180,13 +180,15 @@ export function makeEntitlement(overrides?: Record<string, unknown>) {
     status: 'active',
     source: 'stripe',
     features: [
-      'build.jd-analysis',
       'build.bullet-reframe',
       'identity.extract',
       'identity.deepen',
       'match.jd-analysis',
+      'pipeline.t3.interviewer',
+      'research.deep-search',
       'research.profile-inference',
       'research.search',
+      'research.thesis',
       'prep.generate',
       'letters.generate',
       'linkedin.generate',
@@ -199,7 +201,7 @@ export function makeEntitlement(overrides?: Record<string, unknown>) {
 
 export function makeAiDenialResponse(
   reason: 'upgrade_required' | 'billing_issue',
-  feature = 'build.jd-analysis',
+  feature = 'match.jd-analysis',
 ) {
   return {
     error: `AI access denied: ${reason}`,
