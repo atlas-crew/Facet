@@ -2,9 +2,10 @@
 id: TASK-84
 title: Execute Wave 1 hosted beta QA and staged rollout readiness
 status: In Progress
-assignee: []
+assignee:
+  - '@codex'
 created_date: '2026-03-12 16:07'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 14:55'
 labels:
   - feature
   - billing
@@ -52,6 +53,8 @@ Create the final release gate for Wave 1 hosted accounts. This task should bundl
 2026-04-08: Operator reports that hosted sign-in and Stripe sandbox checkout were already validated outside this session. Those flows are no longer treated as missing setup blockers in the readiness gate. Remaining no-go items are the unrecorded hosted workspace or persistence or migration or recovery pass and the missing restore or rollback rehearsal.
 
 2026-05-06 Wave 1 consolidation: TASK-80, 81, 82, 83 closed Done. Their engineering and docs shipped between 2026-03-14 and 2026-04-08 per their respective notes; what remained were operator-action gates (docs-architect approval, hosted staging env, Stripe sandbox rehearsal, restore/rollback drill). Those gates are now consolidated here as the single holder for Wave 1 launch readiness. Five ACs added covering: TASK-81's three sync/entitlement/recovery verifications (rolled up unticked because the original agent never formally verified them — staging pass is the right place to do that once), docs-architect signoff on the consolidated docs package, and the missing restore/rollback rehearsal. Priority lowered to Low because Facet is pre-launch with no users; this task is dormant until a hosted-beta launch is actually scheduled. Existing dependencies on the now-closed sibling tasks are preserved for history but are effectively satisfied.
+
+2026-05-24 Codex taking TASK-84 for final Wave 1 readiness execution. Plan: verify live hosted frontend/API/Supabase/Fly state; run staged hosted auth, persistence, migration/import, entitlement-denial, checkout/refund, restore, and rollback evidence where safe; update readiness docs/task with go/no-go decision and concrete receipts; request docs-architect review for the consolidated docs package if docs are changed.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
