@@ -1,11 +1,11 @@
 ---
 id: TASK-84
 title: Execute Wave 1 hosted beta QA and staged rollout readiness
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-12 16:07'
-updated_date: '2026-05-24 16:06'
+updated_date: '2026-05-24 16:33'
 labels:
   - feature
   - billing
@@ -33,14 +33,14 @@ Create the final release gate for Wave 1 hosted accounts. This task should bundl
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A Wave 1 staging validation pass exists that covers hosted auth, workspace persistence, local-to-hosted migration, and AI entitlement gating.
+- [x] #1 A Wave 1 staging validation pass exists that covers hosted auth, workspace persistence, local-to-hosted migration, and AI entitlement gating.
 - [x] #2 Go or no-go launch criteria are written down and include rollback conditions for persistence or billing failures.
 - [x] #3 The first hosted beta rollout plan is staged, reversible, and explicitly bounded to Wave 1 scope.
-- [ ] #4 Hosted sync states (saving / saved / offline / error) verified against authoritative hosted runtime in staging (rolled up from TASK-81 AC #1).
-- [ ] #5 Entitlement-related failures and upgrade-required states surfaced distinctly from generic sync/persistence failures, verified in staging (rolled up from TASK-81 AC #2).
-- [ ] #6 Recoverable paths verified end-to-end in staging: retry, re-auth, and non-destructive fallback to local export/import (rolled up from TASK-81 AC #3).
-- [ ] #7 Docs-architect approval (8/10) recorded for the consolidated Wave 1 docs package (pricing-and-entitlements, hosted-accounts, beta-support-playbook, operations-runbook, beta-readiness-gate) — rolled up from TASK-80/82/83 DoD.
-- [ ] #8 Restore / rollback rehearsal recorded against hosted persistence (workspace restore from snapshot, billing rollback to local-mode fallback).
+- [x] #4 Hosted sync states (saving / saved / offline / error) verified against authoritative hosted runtime in staging (rolled up from TASK-81 AC #1).
+- [x] #5 Entitlement-related failures and upgrade-required states surfaced distinctly from generic sync/persistence failures, verified in staging (rolled up from TASK-81 AC #2).
+- [x] #6 Recoverable paths verified end-to-end in staging: retry, re-auth, and non-destructive fallback to local export/import (rolled up from TASK-81 AC #3).
+- [x] #7 Docs-architect approval (8/10) recorded for the consolidated Wave 1 docs package (pricing-and-entitlements, hosted-accounts, beta-support-playbook, operations-runbook, beta-readiness-gate) — rolled up from TASK-80/82/83 DoD.
+- [x] #8 Restore / rollback rehearsal recorded against hosted persistence (workspace restore from snapshot, billing rollback to local-mode fallback).
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -59,17 +59,25 @@ Create the final release gate for Wave 1 hosted accounts. This task should bundl
 2026-05-24 Codex progress: fixed hosted workspace default snapshot blocker discovered during TASK-84 staging validation. Commit 96bd228 centralizes hosted snapshot defaults, adds jdAnalysis/current resume/cover-letter/research shapes, normalizes legacy hosted snapshots on read, updates the example hosted workspace file, and adds the SPA rewrite config. Verification: pnpm exec vitest run src/test/hostedWorkspaceStore.test.ts src/test/facetServer.test.ts (73 passed); scoped ESLint passed; git diff --check passed; pnpm run build passed with existing chunk-size warnings; independent review artifacts .agents/reviews/review-20260524-110527.md, review-20260524-110946.md, review-20260524-111323.md informed remediation; deployed Fly facet-api image deployment-01KSD8XWB3G39PW1BZ4XDZRQ37; live Supabase-session smoke against https://facet-api.fly.dev passed create workspace -> immediate generated snapshot save (revision 1, jdAnalysis revision 1) -> invalid pipeline payload returns 400 -> delete returns 200. Remaining TASK-84 blocker: Vercel frontend deploy failed because the configured Vercel token is invalid; https://myfacets.cv/account and https://facet-app-navy.vercel.app/account still return Vercel 404 until the SPA rewrite is deployed.
 
 2026-05-24 Vercel follow-up: pushed main to origin with cortex git push. Vercel production deployment dpl_5yvxDPU8cowDfV48EroroQjCADme (https://facet-qv1jqxbn9-atlas-crew.vercel.app) built Ready and aliases include https://myfacets.cv and https://facet-app-navy.vercel.app. Direct route checks now pass: https://myfacets.cv/account -> HTTP 200 index.html; https://facet-app-navy.vercel.app/account -> HTTP 200 index.html. The raw deployment URL is protected by Vercel SSO and returns 401, but production aliases serve correctly.
+
+2026-05-24 final TASK-84 validation: committed docs(platform): record wave 1 beta validation (1df74a2) and lint baseline cleanup (86a8709). Live hosted API receipt /tmp/facet-task84-final-live.json passed 30/30 checks against https://facet-api.fly.dev, Supabase project zxcptjtlcvbtvzxybqio, Vercel aliases https://myfacets.cv and https://facet-app-navy.vercel.app, and Fly image deployment-01KSDBPBQBRW7F2FM00SDN4YHB. Browser receipt /tmp/facet-task84-browser.json passed 3/3 checks and rendered authenticated /account at https://myfacets.cv. Docs receipt recorded in docs/development/platform/wave-1-beta-validation-2026-05-24.md; readiness gate now records go decision. Docs-architect artifact .agents/reviews/docs-architect-task84-20260524-122922.md approved 9/10. Test-gap audit artifact .agents/reviews/test-audit-20260524-123130.md found no behavioral test gaps for the docs-only diff. Verification: pnpm run test:wave1 -> 5 files, 164 tests passed; pnpm run format:files:check on changed files -> pass; pnpm run lint -> pass; pnpm run build -> pass with existing chunk-size warnings; git diff --check -> pass.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Wave 1 hosted beta readiness is complete and marked go for the bounded beta scope. The final pass recorded live hosted auth, workspace persistence, sync saved/error/offline states, retry/re-auth/local export-import recovery, AI entitlement denial reasons, paid-pass activation, restore from known-good snapshot, and billing rollback fallback. Documentation now includes the 2026-05-24 validation receipt and aligned AI feature inventory; docs-architect approved the consolidated package at 9/10. Verification passed for Wave 1 tests, formatting, lint, build, and diff whitespace.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Documentation has been created/modified/removed as needed.
-- [ ] #3 Documentation changes were approved by the docs-architect (8/10 score required)
-- [ ] #4 Test changes were approved by a test gap analysis review
-- [ ] #5 Changes to integration points are covered by tests
-- [ ] #6 All tests pass successfully
-- [ ] #7 Automatic formatting was applied.
-- [ ] #8 Linters report no WARNINGS or ERRORS
-- [ ] #9 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Documentation has been created/modified/removed as needed.
+- [x] #3 Documentation changes were approved by the docs-architect (8/10 score required)
+- [x] #4 Test changes were approved by a test gap analysis review
+- [x] #5 Changes to integration points are covered by tests
+- [x] #6 All tests pass successfully
+- [x] #7 Automatic formatting was applied.
+- [x] #8 Linters report no WARNINGS or ERRORS
+- [x] #9 The project builds successfully
 <!-- DOD:END -->
