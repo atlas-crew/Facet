@@ -19,6 +19,9 @@ export function useElapsed(active: boolean): number {
 
   useEffect(() => {
     if (!active) {
+      // This hook promises an immediate visual reset when work stops.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setElapsedMs(0)
       return
     }
 
@@ -26,7 +29,8 @@ export function useElapsed(active: boolean): number {
       typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? performance.now()
         : Date.now()
-    const reset = setTimeout(() => setElapsedMs(0), 0)
+    // This hook promises an immediate visual reset on each activation.
+    setElapsedMs(0)
 
     const interval = setInterval(() => {
       const now =
@@ -37,12 +41,11 @@ export function useElapsed(active: boolean): number {
     }, 1000)
 
     return () => {
-      clearTimeout(reset)
       clearInterval(interval)
     }
   }, [active])
 
-  return active ? elapsedMs : 0
+  return elapsedMs
 }
 
 /** Format an elapsed-ms value as a compact human label: `"3s"`, `"47s"`, `"1m 12s"`. */
