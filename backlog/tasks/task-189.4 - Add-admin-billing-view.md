@@ -1,11 +1,11 @@
 ---
 id: TASK-189.4
 title: Add admin billing view
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-22 03:29'
-updated_date: '2026-05-24 18:21'
+updated_date: '2026-05-24 19:13'
 labels:
   - admin
   - proxy
@@ -69,29 +69,37 @@ Add `GET /admin/billing` mounted under `requireAdmin`:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `GET /admin/billing` returns rows from billing_accounts joined with actors for owner_email, ordered by updated_at DESC
-- [ ] #2 Endpoint supports ?limit (default 100, max 500), ?tenant_id filter, and ?account_id filter
-- [ ] #3 Endpoint is gated by existing requireAdmin middleware — returns 403 without admin claim
-- [ ] #4 NULL customer/subscription/entitlement fields are returned as JSON null, not dropped from the row
-- [ ] #5 /admin route has a 'Billing' subnav entry
-- [ ] #6 Billing view renders a table with owner_email, tenant_id, subscription_status, entitlement_summary, updated_at
-- [ ] #7 Row-click expands to show pretty-printed customer, subscription, and entitlement JSONB blobs
-- [ ] #8 Integration tests cover happy path, NULL-fields path, and 403 path
-- [ ] #9 subscription_status extraction is tested against varying subscription JSONB shapes including NULL
+- [x] #1 `GET /admin/billing` returns rows from billing_accounts joined with actors for owner_email, ordered by updated_at DESC
+- [x] #2 Endpoint supports ?limit (default 100, max 500), ?tenant_id filter, and ?account_id filter
+- [x] #3 Endpoint is gated by existing requireAdmin middleware — returns 403 without admin claim
+- [x] #4 NULL customer/subscription/entitlement fields are returned as JSON null, not dropped from the row
+- [x] #5 /admin route has a 'Billing' subnav entry
+- [x] #6 Billing view renders a table with owner_email, tenant_id, subscription_status, entitlement_summary, updated_at
+- [x] #7 Row-click expands to show pretty-printed customer, subscription, and entitlement JSONB blobs
+- [x] #8 Integration tests cover happy path, NULL-fields path, and 403 path
+- [x] #9 subscription_status extraction is tested against varying subscription JSONB shapes including NULL
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-24 Codex started parallel-agent implementation lane for admin billing. Worker split: proxy/API tests owned separately from admin UI/tests; coordinator will integrate, verify, commit, push, and close tasks when gates pass.
+
+2026-05-24 Codex parallel-agent closeout: implemented GET /admin/billing through the existing admin auth/rate-limit path, backed by in-memory and Postgres admin stores. Added the Billing admin tab with tenant/account filters, owner/status/entitlement summary columns, row expansion for raw customer/subscription/entitlement JSON, and explicit null-field handling. Integrated Copernicus proxy lane and Beauvoir UI lane, then remediated independent review/audit findings around billing payload telemetry, rate limits, JSON expansion accessibility, refresh coverage, and token failure handling. Verification: pnpm exec vitest run src/test/adminApi.test.ts src/test/AdminPage.test.tsx src/test/AppShellAdminNav.test.tsx passed (3 files, 64 tests); pnpm run lint passed; pnpm run typecheck passed; pnpm run build passed with existing chunk-size warnings; pnpm run test passed (173 files, 2501 tests); git diff --check passed. Review artifact: .agents/reviews/review-20260524-150829.md (P0/P1/P2 clear; P3 component-size/expansion-stability notes non-blocking). Test audits clean: .agents/reviews/test-audit-20260524-150101.md and .agents/reviews/test-audit-20260524-150703.md.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added the admin Billing view and /admin/billing API. The endpoint returns billing account rows joined to owner email, supports limit/tenant_id/account_id filters, is admin-gated and rate-limited, preserves JSON null fields, and emits sensitive-payload telemetry. The UI renders the Billing subnav/table, tenant/account filters, status and entitlement summaries, refresh/error/empty states, and expandable raw JSON details. Verification passed: focused admin tests (64), full test suite (2501), lint, typecheck, build, and diff whitespace.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
