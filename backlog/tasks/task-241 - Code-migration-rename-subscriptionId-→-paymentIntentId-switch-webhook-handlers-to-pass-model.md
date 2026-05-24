@@ -3,11 +3,11 @@ id: TASK-241
 title: >-
   Code migration: rename subscriptionId → paymentIntentId, switch webhook
   handlers to pass model
-status: In Progress
+status: Done
 assignee:
   - '@myself'
 created_date: '2026-05-07 21:11'
-updated_date: '2026-05-10 00:46'
+updated_date: '2026-05-24 01:46'
 labels:
   - billing
   - wave-1
@@ -120,13 +120,20 @@ Review artifacts:
 - .agents/reviews/review-20260509-203129.md found duplicate activation/partial refund/payment-failed blockers; remediated.
 - .agents/reviews/review-20260509-203544.md found additional normalization/idempotency/copy blockers; remediated.
 - .agents/reviews/review-20260509-204123.md had no P0s after remediation; remaining P1 concerns drove final single-activation-path/pass-history/store-contract cleanup.
+
+2026-05-24 closeout:
+- Applied Prettier to the recorded TASK-241 touched files and re-ran `npx prettier --check --ignore-unknown <TASK-241 files>` successfully.
+- Re-ran `npx vitest run src/test/billingApi.test.ts src/test/aiAccess.test.ts src/test/AppShell.test.tsx`: 3 files passed, 81 tests passed.
+- Re-ran `npm run typecheck`: passed.
+- Re-ran `npx eslint <TASK-241 touched files>`: passed.
+- Current full-suite blocker has moved to TASK-242 entitlement semantics: hosted facetServer tests use an `effectiveThrough` date that is now in the past and receive `402 access_expired`; the code-side subscriptionId/paymentIntentId migration remains complete.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 Regression tests were created for new behaviors
 - [x] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
+- [x] #3 Automatic formatting was applied to touched files
 - [x] #4 Linters report no WARNINGS or ERRORS for touched files
 - [x] #5 Regression tests pass for touched files
 <!-- DOD:END -->

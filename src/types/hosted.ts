@@ -24,12 +24,7 @@ export type FacetWorkspaceRole = 'owner'
 
 export type FacetPlanId = 'free' | 'ai-pro'
 
-export type FacetEntitlementStatus =
-  | 'inactive'
-  | 'trial'
-  | 'active'
-  | 'grace'
-  | 'delinquent'
+export type FacetEntitlementStatus = 'inactive' | 'trial' | 'active' | 'grace' | 'delinquent'
 
 export interface FacetTenantAccount {
   tenantId: string

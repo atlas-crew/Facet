@@ -150,11 +150,9 @@ describe('hostedAppStore', () => {
 
     await useHostedAppStore.getState().bootstrap()
 
-    expect(useHostedAppStore.getState().workspaces.map((workspace) => workspace.workspaceId)).toEqual([
-      'ws-a',
-      'ws-b',
-      'ws-z',
-    ])
+    expect(
+      useHostedAppStore.getState().workspaces.map((workspace) => workspace.workspaceId),
+    ).toEqual(['ws-a', 'ws-b', 'ws-z'])
   })
 
   it('surfaces auth-required state when no hosted session token exists', async () => {
@@ -313,10 +311,9 @@ describe('hostedAppStore', () => {
     await useHostedAppStore.getState().refresh()
 
     expect(useHostedAppStore.getState().selectedWorkspaceId).toBe('ws-1')
-    expect(useHostedAppStore.getState().workspaces.map((workspace) => workspace.workspaceId)).toEqual([
-      'ws-1',
-      'ws-3',
-    ])
+    expect(
+      useHostedAppStore.getState().workspaces.map((workspace) => workspace.workspaceId),
+    ).toEqual(['ws-1', 'ws-3'])
 
     hostedAccountClientMocks.fetchHostedAccountContext.mockResolvedValue({
       context: {
@@ -437,7 +434,12 @@ describe('hostedAppStore', () => {
 
     const firstBootstrap = useHostedAppStore.getState().bootstrap({
       localMigrationSnapshot: buildWorkspaceSnapshot({
-        workspace: { id: 'local-1', name: 'Local One', revision: 1, updatedAt: '2026-03-14T12:00:00.000Z' },
+        workspace: {
+          id: 'local-1',
+          name: 'Local One',
+          revision: 1,
+          updatedAt: '2026-03-14T12:00:00.000Z',
+        },
       }),
     })
     await vi.waitFor(() => {
@@ -446,7 +448,12 @@ describe('hostedAppStore', () => {
     })
     const secondBootstrap = useHostedAppStore.getState().bootstrap({
       localMigrationSnapshot: buildWorkspaceSnapshot({
-        workspace: { id: 'local-2', name: 'Local Two', revision: 2, updatedAt: '2026-03-14T12:01:00.000Z' },
+        workspace: {
+          id: 'local-2',
+          name: 'Local Two',
+          revision: 2,
+          updatedAt: '2026-03-14T12:01:00.000Z',
+        },
       }),
     })
 
@@ -505,8 +512,12 @@ describe('hostedAppStore', () => {
     const firstDirectory = createDeferred<{ workspaces: typeof workspaces }>()
     const { useHostedAppStore } = await import('../store/hostedAppStore')
 
-    hostedAccountClientMocks.fetchHostedAccountContext.mockImplementationOnce(() => firstContext.promise)
-    hostedAccountClientMocks.listHostedWorkspaces.mockImplementationOnce(() => firstDirectory.promise)
+    hostedAccountClientMocks.fetchHostedAccountContext.mockImplementationOnce(
+      () => firstContext.promise,
+    )
+    hostedAccountClientMocks.listHostedWorkspaces.mockImplementationOnce(
+      () => firstDirectory.promise,
+    )
 
     const firstBootstrap = useHostedAppStore.getState().bootstrap()
     await vi.waitFor(() => {
@@ -660,10 +671,9 @@ describe('hostedAppStore', () => {
     ).toBe('Renamed Workspace')
 
     await useHostedAppStore.getState().deleteWorkspace('ws-3')
-    expect(useHostedAppStore.getState().workspaces.map((workspace) => workspace.workspaceId)).toEqual([
-      'ws-2',
-      'ws-1',
-    ])
+    expect(
+      useHostedAppStore.getState().workspaces.map((workspace) => workspace.workspaceId),
+    ).toEqual(['ws-2', 'ws-1'])
     expect(useHostedAppStore.getState().selectedWorkspaceId).toBe('ws-2')
   })
 
@@ -746,9 +756,9 @@ describe('hostedAppStore', () => {
       lastError: 'Hosted session is not available.',
     })
 
-    await expect(useHostedAppStore.getState().renameWorkspace('ws-1', 'Broken Rename')).rejects.toThrow(
-      'Hosted session is not available.',
-    )
+    await expect(
+      useHostedAppStore.getState().renameWorkspace('ws-1', 'Broken Rename'),
+    ).rejects.toThrow('Hosted session is not available.')
     expect(useHostedAppStore.getState().mutationState).toBeNull()
 
     await expect(useHostedAppStore.getState().deleteWorkspace('ws-1')).rejects.toThrow(

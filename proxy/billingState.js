@@ -33,12 +33,11 @@ function normalizeBillingPass(value) {
     return null
   }
 
-  const paymentIntentId = typeof value.paymentIntentId === 'string' ? value.paymentIntentId.trim() : ''
+  const paymentIntentId =
+    typeof value.paymentIntentId === 'string' ? value.paymentIntentId.trim() : ''
   const planId = value.planId === 'ai-pro' ? 'ai-pro' : null
   const status =
-    value.status === 'active' ||
-    value.status === 'expired' ||
-    value.status === 'refunded'
+    value.status === 'active' || value.status === 'expired' || value.status === 'refunded'
       ? value.status
       : null
   const purchasedAt = typeof value.purchasedAt === 'string' ? value.purchasedAt : ''
@@ -59,12 +58,13 @@ function normalizeBillingPass(value) {
     expiresAt,
   }
   const history = Array.isArray(value.history)
-    ? value.history.map(normalizeBillingPass).filter(Boolean).map(({ history: _history, ...pass }) => pass)
+    ? value.history
+        .map(normalizeBillingPass)
+        .filter(Boolean)
+        .map(({ history: _history, ...pass }) => pass)
     : []
 
-  return history.length > 0
-    ? { ...normalized, history }
-    : normalized
+  return history.length > 0 ? { ...normalized, history } : normalized
 }
 
 function normalizeEntitlement(value) {
@@ -137,10 +137,14 @@ function keyFor(tenantId, accountId) {
 }
 
 export function createInMemoryHostedBillingStore(records = []) {
-  const state = new Map(records.map((entry) => {
-    const normalized = normalizeStateEntry(entry)
-    return normalized ? [keyFor(normalized.tenantId, normalized.accountId), normalized] : null
-  }).filter(Boolean))
+  const state = new Map(
+    records
+      .map((entry) => {
+        const normalized = normalizeStateEntry(entry)
+        return normalized ? [keyFor(normalized.tenantId, normalized.accountId), normalized] : null
+      })
+      .filter(Boolean),
+  )
 
   return {
     async getAccountState(tenantId, accountId) {
@@ -155,7 +159,8 @@ export function createInMemoryHostedBillingStore(records = []) {
       return cloneValue(normalized)
     },
     async findAccountStateByPaymentIntentId(paymentIntentId) {
-      const normalizedPaymentIntentId = typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
+      const normalizedPaymentIntentId =
+        typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
       if (!normalizedPaymentIntentId) {
         return null
       }
@@ -163,7 +168,9 @@ export function createInMemoryHostedBillingStore(records = []) {
       for (const entry of state.values()) {
         if (
           entry.billingPass?.paymentIntentId === normalizedPaymentIntentId ||
-          entry.billingPass?.history?.some((pass) => pass.paymentIntentId === normalizedPaymentIntentId)
+          entry.billingPass?.history?.some(
+            (pass) => pass.paymentIntentId === normalizedPaymentIntentId,
+          )
         ) {
           return cloneValue(entry)
         }
@@ -188,7 +195,9 @@ export function createFileHostedBillingStore(filePath) {
     async getAccountState(tenantId, accountId) {
       const accounts = await readAccounts()
       return cloneValue(
-        accounts.find((account) => account.tenantId === tenantId && account.accountId === accountId) ?? null,
+        accounts.find(
+          (account) => account.tenantId === tenantId && account.accountId === accountId,
+        ) ?? null,
       )
     },
     async upsertAccountState(entry) {
@@ -198,22 +207,30 @@ export function createFileHostedBillingStore(filePath) {
       }
 
       const accounts = await readAccounts()
-      const next = accounts.filter((account) => keyFor(account.tenantId, account.accountId) !== keyFor(normalized.tenantId, normalized.accountId))
+      const next = accounts.filter(
+        (account) =>
+          keyFor(account.tenantId, account.accountId) !==
+          keyFor(normalized.tenantId, normalized.accountId),
+      )
       next.push(normalized)
       await writeFile(filePath, JSON.stringify({ accounts: next }, null, 2))
       return cloneValue(normalized)
     },
     async findAccountStateByPaymentIntentId(paymentIntentId) {
-      const normalizedPaymentIntentId = typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
+      const normalizedPaymentIntentId =
+        typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
       if (!normalizedPaymentIntentId) {
         return null
       }
 
       const accounts = await readAccounts()
       return cloneValue(
-        accounts.find((account) =>
-          account.billingPass?.paymentIntentId === normalizedPaymentIntentId ||
-          account.billingPass?.history?.some((pass) => pass.paymentIntentId === normalizedPaymentIntentId),
+        accounts.find(
+          (account) =>
+            account.billingPass?.paymentIntentId === normalizedPaymentIntentId ||
+            account.billingPass?.history?.some(
+              (pass) => pass.paymentIntentId === normalizedPaymentIntentId,
+            ),
         ) ?? null,
       )
     },

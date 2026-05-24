@@ -30,8 +30,9 @@ function normalizeAccount(actor, state) {
 }
 
 function actorCanManageBilling(actor) {
-  return Array.isArray(actor.workspaceMemberships) && actor.workspaceMemberships.some(
-    (membership) => membership.role === 'owner',
+  return (
+    Array.isArray(actor.workspaceMemberships) &&
+    actor.workspaceMemberships.some((membership) => membership.role === 'owner')
   )
 }
 
@@ -59,7 +60,9 @@ function computeEffectiveThrough(fromDate, days) {
 }
 
 function isoFromStripeCreated(created) {
-  return typeof created === 'number' ? new Date(created * 1000).toISOString() : new Date().toISOString()
+  return typeof created === 'number'
+    ? new Date(created * 1000).toISOString()
+    : new Date().toISOString()
 }
 
 function resolveAccessDays(metadata) {
@@ -107,7 +110,8 @@ async function activatePass({
   purchasedAt,
   accessDays,
 }) {
-  const existingStateByPaymentIntent = await billingStore.findAccountStateByPaymentIntentId(paymentIntentId)
+  const existingStateByPaymentIntent =
+    await billingStore.findAccountStateByPaymentIntentId(paymentIntentId)
   if (existingStateByPaymentIntent?.billingPass) {
     return existingStateByPaymentIntent
   }
@@ -169,9 +173,7 @@ async function refundPass({ billingStore, paymentIntentId }) {
   }
   const isCurrentPass = currentState.billingPass.paymentIntentId === paymentIntentId
   const history = (currentState.billingPass.history ?? []).map((pass) =>
-    pass.paymentIntentId === paymentIntentId
-      ? { ...pass, status: 'refunded' }
-      : pass,
+    pass.paymentIntentId === paymentIntentId ? { ...pass, status: 'refunded' } : pass,
   )
 
   return billingStore.upsertAccountState({
@@ -221,10 +223,14 @@ async function markPaymentFailed({
   return billingStore.upsertAccountState({
     tenantId: currentState.tenantId,
     accountId: currentState.accountId,
-    billingCustomer: currentState.billingCustomer ?? (customerId ? {
-      provider: 'stripe',
-      customerId,
-    } : null),
+    billingCustomer:
+      currentState.billingCustomer ??
+      (customerId
+        ? {
+            provider: 'stripe',
+            customerId,
+          }
+        : null),
     billingPass: currentState.billingPass,
     entitlement: {
       planId: 'ai-pro',
@@ -281,7 +287,13 @@ export function createBillingWebhookHandler({
         const customerId = resolveStripeId(session.customer)
         const paymentIntentId = resolveStripeId(session.payment_intent)
 
-        if (!tenantId || !accountId || !customerId || !paymentIntentId || session.metadata?.source !== 'facet-checkout') {
+        if (
+          !tenantId ||
+          !accountId ||
+          !customerId ||
+          !paymentIntentId ||
+          session.metadata?.source !== 'facet-checkout'
+        ) {
           onEvent?.('billing.webhook', 'error', { code: 'missing_metadata', eventType: event.type })
           sendJson(res, 200, { received: true })
           return
@@ -333,7 +345,9 @@ export function createBillingWebhookHandler({
           return
         }
 
-        const nextState = paymentIntentId ? await refundPass({ billingStore, paymentIntentId }) : null
+        const nextState = paymentIntentId
+          ? await refundPass({ billingStore, paymentIntentId })
+          : null
 
         if (!nextState) {
           onEvent?.('billing.webhook', 'error', {
@@ -411,7 +425,8 @@ export function createBillingApi({
       const url = new URL(req.url ?? '/', 'http://localhost')
       return (
         (req.method === 'GET' && url.pathname === contextRoute) ||
-        (req.method === 'POST' && (url.pathname === customerRoute || url.pathname === checkoutRoute))
+        (req.method === 'POST' &&
+          (url.pathname === customerRoute || url.pathname === checkoutRoute))
       )
     },
 
@@ -472,7 +487,9 @@ export function createBillingApi({
           } else if (state?.billingCustomer?.customerId) {
             customer = await stripeClient.customers.retrieve(state.billingCustomer.customerId)
             if (customer.deleted) {
-              sendJson(res, 400, { error: 'Stored Stripe customer is deleted and cannot be reused.' })
+              sendJson(res, 400, {
+                error: 'Stored Stripe customer is deleted and cannot be reused.',
+              })
               return
             }
           } else {

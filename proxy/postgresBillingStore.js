@@ -50,7 +50,13 @@ export function createPostgresBillingStore(pool) {
            entitlement = EXCLUDED.entitlement,
            updated_at = now()
          RETURNING tenant_id, account_id, customer, pass, entitlement`,
-        [tenantId, accountId, JSON.stringify(customer), JSON.stringify(pass), JSON.stringify(entitlement)],
+        [
+          tenantId,
+          accountId,
+          JSON.stringify(customer),
+          JSON.stringify(pass),
+          JSON.stringify(entitlement),
+        ],
       )
 
       const row = rows[0]
@@ -64,7 +70,8 @@ export function createPostgresBillingStore(pool) {
     },
 
     async findAccountStateByPaymentIntentId(paymentIntentId) {
-      const normalizedPaymentIntentId = typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
+      const normalizedPaymentIntentId =
+        typeof paymentIntentId === 'string' ? paymentIntentId.trim() : ''
       if (!normalizedPaymentIntentId) {
         return null
       }

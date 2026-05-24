@@ -29,9 +29,7 @@ function formatDate(iso: string | null): string {
 
 function daysUntil(iso: string | null): number | null {
   if (!iso) return null
-  return Math.max(0, Math.ceil(
-    (new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-  ))
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
 }
 
 export function AccountPage() {
@@ -46,12 +44,13 @@ export function AccountPage() {
     return (
       <div className="account-page">
         <section className="account-card">
-          <div className="account-card-icon"><Shield size={20} /></div>
+          <div className="account-card-icon">
+            <Shield size={20} />
+          </div>
           <h3>Self-hosted mode</h3>
           <p>
             You're running Facet locally. AI features are available when
-            <code>VITE_ANTHROPIC_PROXY_URL</code> is configured.
-            No account or pass is needed.
+            <code>VITE_ANTHROPIC_PROXY_URL</code> is configured. No account or pass is needed.
           </p>
         </section>
       </div>
@@ -59,9 +58,10 @@ export function AccountPage() {
   }
 
   const isActive = entitlement?.status === 'active'
-  const isExpired = isActive && entitlement?.effectiveThrough
-    ? new Date(entitlement.effectiveThrough) < new Date()
-    : false
+  const isExpired =
+    isActive && entitlement?.effectiveThrough
+      ? new Date(entitlement.effectiveThrough) < new Date()
+      : false
   const isFree = !entitlement || entitlement.status === 'inactive'
   const remaining = daysUntil(entitlement?.effectiveThrough ?? null)
 
@@ -100,7 +100,9 @@ export function AccountPage() {
     <div className="account-page">
       {actor ? (
         <section className="account-card">
-          <div className="account-card-icon"><Shield size={20} /></div>
+          <div className="account-card-icon">
+            <Shield size={20} />
+          </div>
           <h3>Account</h3>
           <dl className="account-details">
             <dt>Email</dt>
@@ -124,7 +126,8 @@ export function AccountPage() {
               <dd>{remaining ?? '—'}</dd>
             </dl>
             <p className="account-note">
-              Purchase another pass to extend your access. Days are added to the current expiry date.
+              Purchase another pass to extend your access. Days are added to the current expiry
+              date.
             </p>
             <button
               className="btn-secondary"
@@ -135,12 +138,15 @@ export function AccountPage() {
               {checkoutLoading ? 'Starting checkout…' : `Extend Access — ${AI_PRO_PRICE_LABEL}`}
             </button>
             <p className="account-note">
-              7-day refund policy. Contact <a href="mailto:support@myfacets.cv">support@myfacets.cv</a> for assistance.
+              7-day refund policy. Contact{' '}
+              <a href="mailto:support@myfacets.cv">support@myfacets.cv</a> for assistance.
             </p>
           </>
         ) : isFree || isExpired ? (
           <>
-            <div className={`account-status ${isExpired ? 'account-status-expired' : 'account-status-free'}`}>
+            <div
+              className={`account-status ${isExpired ? 'account-status-expired' : 'account-status-free'}`}
+            >
               {isExpired ? 'Expired' : 'Free'}
             </div>
             <p>
@@ -154,16 +160,21 @@ export function AccountPage() {
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >
-              {checkoutLoading ? 'Starting checkout…' : `Get AI Pro — ${AI_PRO_PRICE_LABEL} for 90 days`}
+              {checkoutLoading
+                ? 'Starting checkout…'
+                : `Get AI Pro — ${AI_PRO_PRICE_LABEL} for 90 days`}
             </button>
             <p className="account-note">
-              7-day refund policy. <a href="/terms#6-ai-pro-access-and-payment">See terms</a> for details.
+              7-day refund policy. <a href="/terms#6-ai-pro-access-and-payment">See terms</a> for
+              details.
             </p>
           </>
         ) : (
           <>
             <div className="account-status account-status-issue">
-              {entitlement?.status === 'delinquent' ? 'Billing issue' : entitlement?.status ?? 'Unknown'}
+              {entitlement?.status === 'delinquent'
+                ? 'Billing issue'
+                : (entitlement?.status ?? 'Unknown')}
             </div>
             <p>There's an issue with your access. Contact support if this persists.</p>
           </>

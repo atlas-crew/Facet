@@ -121,11 +121,11 @@ async function startBillingServer(options?: {
   stripeClient?: {
     customers: {
       create: (...args: unknown[]) => Promise<{ id: string }>
-      retrieve: (customerId: string) => Promise<{ id: string, deleted: boolean }>
+      retrieve: (customerId: string) => Promise<{ id: string; deleted: boolean }>
     }
     checkout: {
       sessions: {
-        create: (...args: unknown[]) => Promise<{ id: string, url: string }>
+        create: (...args: unknown[]) => Promise<{ id: string; url: string }>
       }
     }
     webhooks?: {
@@ -173,8 +173,7 @@ async function startBillingServer(options?: {
       accountId: 'account-1',
       billingCustomer: options?.billingState?.billingCustomer ?? null,
       billingPass: options?.billingState?.billingPass ?? null,
-      entitlement:
-        options?.billingState?.entitlement ??
+      entitlement: options?.billingState?.entitlement ??
         options?.entitlement ?? {
           planId: 'free',
           status: 'inactive',
@@ -221,7 +220,8 @@ async function startBillingServer(options?: {
     persistenceStore: createInMemoryWorkspaceStore(),
     billingStore,
     stripeClient: options?.stripeClient === undefined ? defaultStripeClient : options.stripeClient,
-    stripePriceId: options?.stripePriceId === undefined ? 'price_ai_pro_pass' : options.stripePriceId,
+    stripePriceId:
+      options?.stripePriceId === undefined ? 'price_ai_pro_pass' : options.stripePriceId,
     stripeWebhookSecret: options?.stripeWebhookSecret,
     billingSuccessUrl: 'http://localhost:5173/settings/billing/success',
     billingCancelUrl: 'http://localhost:5173/settings/billing/cancel',
@@ -245,7 +245,8 @@ async function startBillingServer(options?: {
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
     accessToken: await createHostedSessionToken(hosted.privateKey, options?.tokenOptions),
-    createAccessToken: (tokenOptions = {}) => createHostedSessionToken(hosted.privateKey, tokenOptions),
+    createAccessToken: (tokenOptions = {}) =>
+      createHostedSessionToken(hosted.privateKey, tokenOptions),
   }
 }
 
@@ -282,15 +283,18 @@ describe('facetServer billing API', () => {
 
   afterEach(async () => {
     await Promise.all(
-      [...servers].map((server) => new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error)
-            return
-          }
-          resolve()
-        })
-      })),
+      [...servers].map(
+        (server) =>
+          new Promise<void>((resolve, reject) => {
+            server.close((error) => {
+              if (error) {
+                reject(error)
+                return
+              }
+              resolve()
+            })
+          }),
+      ),
     )
     servers.clear()
   })
@@ -1078,16 +1082,19 @@ describe('facetServer billing API', () => {
     })
     servers.add(checkoutFailure.server)
 
-    const checkoutFailureResponse = await fetch(`${checkoutFailure.baseUrl}/api/billing/checkout-session`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${checkoutFailure.accessToken}`,
-        Origin: 'http://localhost:5173',
-        'Content-Type': 'application/json',
-        'X-Proxy-API-Key': 'proxy-key',
+    const checkoutFailureResponse = await fetch(
+      `${checkoutFailure.baseUrl}/api/billing/checkout-session`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${checkoutFailure.accessToken}`,
+          Origin: 'http://localhost:5173',
+          'Content-Type': 'application/json',
+          'X-Proxy-API-Key': 'proxy-key',
+        },
+        body: JSON.stringify({}),
       },
-      body: JSON.stringify({}),
-    })
+    )
     expect(checkoutFailureResponse.status).toBe(502)
     await expect(checkoutFailureResponse.json()).resolves.toEqual({
       error: 'Hosted billing provider request failed.',
@@ -1197,7 +1204,6 @@ describe('facetServer billing API', () => {
     await expect(deletedResponse.json()).resolves.toEqual({
       error: 'Stored Stripe customer is deleted and cannot be reused.',
     })
-
   })
 
   it('returns provider errors when Stripe customer retrieval fails', async () => {
@@ -1309,16 +1315,19 @@ describe('facetServer billing API', () => {
     })
     servers.add(missingPrice.server)
 
-    const missingPriceResponse = await fetch(`${missingPrice.baseUrl}/api/billing/checkout-session`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${missingPrice.accessToken}`,
-        Origin: 'http://localhost:5173',
-        'Content-Type': 'application/json',
-        'X-Proxy-API-Key': 'proxy-key',
+    const missingPriceResponse = await fetch(
+      `${missingPrice.baseUrl}/api/billing/checkout-session`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${missingPrice.accessToken}`,
+          Origin: 'http://localhost:5173',
+          'Content-Type': 'application/json',
+          'X-Proxy-API-Key': 'proxy-key',
+        },
+        body: JSON.stringify({}),
       },
-      body: JSON.stringify({}),
-    })
+    )
     expect(missingPriceResponse.status).toBe(500)
     await expect(missingPriceResponse.json()).resolves.toEqual({
       error: 'Hosted billing is not fully configured.',
