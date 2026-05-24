@@ -1,13 +1,37 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountPage } from '../routes/account/AccountPage'
 import { useHostedAppStore } from '../store/hostedAppStore'
 import type { FacetHostedAccountContext } from '../types/hosted'
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
+const hostedSessionMocks = vi.hoisted(() => ({
+  getFacetDeploymentMode: vi.fn(() => 'hosted'),
+  signOutHostedSession: vi.fn(),
+}))
+
+const locationMocks = vi.hoisted(() => ({
+  reloadPage: vi.fn(),
+}))
+
 vi.mock('../utils/hostedSession', () => ({
-  getFacetDeploymentMode: () => 'hosted',
+  getFacetDeploymentMode: hostedSessionMocks.getFacetDeploymentMode,
+  signOutHostedSession: hostedSessionMocks.signOutHostedSession,
+}))
+
+vi.mock('../utils/windowLocation', () => ({
+  reloadPage: locationMocks.reloadPage,
 }))
 
 const hostedContext = (
@@ -34,6 +58,11 @@ const hostedContext = (
 
 describe('AccountPage', () => {
   beforeEach(() => {
+    hostedSessionMocks.getFacetDeploymentMode.mockReturnValue('hosted')
+    hostedSessionMocks.signOutHostedSession.mockReset()
+    hostedSessionMocks.signOutHostedSession.mockResolvedValue(undefined)
+    locationMocks.reloadPage.mockReset()
+
     useHostedAppStore.setState({
       deploymentMode: 'hosted',
       bootstrapStatus: 'ready',
@@ -155,5 +184,46 @@ describe('AccountPage', () => {
 
     expect(screen.getByText('Refunded')).toBeTruthy()
     expect(screen.getByText(/There's an issue with your access/)).toBeTruthy()
+  })
+
+  it('signs out of the current hosted browser session from the account card', async () => {
+    render(<AccountPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+
+    await waitFor(() => {
+      expect(hostedSessionMocks.signOutHostedSession).toHaveBeenCalledTimes(1)
+    })
+    expect(locationMocks.reloadPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the sign-out button while the hosted session is ending', async () => {
+    const signOut = createDeferred<void>()
+    hostedSessionMocks.signOutHostedSession.mockReturnValue(signOut.promise)
+
+    render(<AccountPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+
+    const button = screen.getByRole('button', { name: /signing out/i })
+    expect(button).toHaveProperty('disabled', true)
+    expect(locationMocks.reloadPage).not.toHaveBeenCalled()
+
+    signOut.resolve(undefined)
+
+    await waitFor(() => {
+      expect(locationMocks.reloadPage).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('announces hosted sign-out failures without reloading', async () => {
+    hostedSessionMocks.signOutHostedSession.mockRejectedValue(new Error('Network error'))
+
+    render(<AccountPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Network error')
+    expect(locationMocks.reloadPage).not.toHaveBeenCalled()
   })
 })

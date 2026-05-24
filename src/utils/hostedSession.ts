@@ -42,7 +42,12 @@ function getSupabaseClient() {
 export async function signInWithGitHub(): Promise<void> {
   const client = getSupabaseClient()
   if (!client) {
-    console.error('[hosted-session] Supabase client not configured. URL:', SUPABASE_URL, 'Key:', SUPABASE_PUBLISHABLE_KEY ? 'set' : 'missing')
+    console.error(
+      '[hosted-session] Supabase client not configured. URL:',
+      SUPABASE_URL,
+      'Key:',
+      SUPABASE_PUBLISHABLE_KEY ? 'set' : 'missing',
+    )
     return
   }
 
@@ -63,6 +68,18 @@ export async function signInWithGitHub(): Promise<void> {
     // Use window.location.href directly to avoid tracking protection
     // interception that blocks programmatic navigation
     window.location.href = data.url
+  }
+}
+
+export async function signOutHostedSession(): Promise<void> {
+  const client = getSupabaseClient()
+  if (!client) {
+    throw new Error('Supabase client is not configured.')
+  }
+
+  const { error } = await client.auth.signOut()
+  if (error) {
+    throw error
   }
 }
 
@@ -90,7 +107,9 @@ export async function getHostedAccessToken(): Promise<string | null> {
 
   if (hasAuthCode || hasHashTokens) {
     return new Promise<string | null>((resolve) => {
-      const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      const {
+        data: { subscription },
+      } = client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session?.access_token) {
           subscription.unsubscribe()
           // Clean up the URL

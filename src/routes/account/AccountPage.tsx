@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Shield, Clock, Zap, AlertCircle } from 'lucide-react'
+import { Shield, Clock, Zap, AlertCircle, LogOut } from 'lucide-react'
 import { useHostedAppStore } from '../../store/hostedAppStore'
-import { getFacetDeploymentMode } from '../../utils/hostedSession'
+import { getFacetDeploymentMode, signOutHostedSession } from '../../utils/hostedSession'
+import { reloadPage } from '../../utils/windowLocation'
 import './account.css'
 
 // Human-readable labels for the hosted AI Pro bundle. Some labels group multiple
@@ -40,6 +41,8 @@ export function AccountPage() {
   const actor = hostedApp.context?.actor ?? null
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [signOutLoading, setSignOutLoading] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
 
   if (deploymentMode !== 'hosted') {
     return (
@@ -101,6 +104,18 @@ export function AccountPage() {
     }
   }
 
+  const handleSignOut = async () => {
+    setSignOutLoading(true)
+    setSignOutError(null)
+    try {
+      await signOutHostedSession()
+      reloadPage()
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : 'Sign out failed.')
+      setSignOutLoading(false)
+    }
+  }
+
   return (
     <div className="account-page">
       {actor ? (
@@ -113,6 +128,22 @@ export function AccountPage() {
             <dt>Email</dt>
             <dd>{actor.email}</dd>
           </dl>
+          <div className="account-actions">
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={() => void handleSignOut()}
+              disabled={signOutLoading}
+            >
+              <LogOut size={16} strokeWidth={1.75} />
+              {signOutLoading ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
+          {signOutError ? (
+            <p className="account-error" role="alert">
+              <AlertCircle size={14} /> {signOutError}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
