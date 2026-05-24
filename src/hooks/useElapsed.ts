@@ -19,7 +19,6 @@ export function useElapsed(active: boolean): number {
 
   useEffect(() => {
     if (!active) {
-      setElapsedMs(0)
       return
     }
 
@@ -27,7 +26,7 @@ export function useElapsed(active: boolean): number {
       typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? performance.now()
         : Date.now()
-    setElapsedMs(0)
+    const reset = setTimeout(() => setElapsedMs(0), 0)
 
     const interval = setInterval(() => {
       const now =
@@ -38,11 +37,12 @@ export function useElapsed(active: boolean): number {
     }, 1000)
 
     return () => {
+      clearTimeout(reset)
       clearInterval(interval)
     }
   }, [active])
 
-  return elapsedMs
+  return active ? elapsedMs : 0
 }
 
 /** Format an elapsed-ms value as a compact human label: `"3s"`, `"47s"`, `"1m 12s"`. */

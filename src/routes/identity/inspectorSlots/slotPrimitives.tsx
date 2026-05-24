@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { ReactNode } from 'react'
 import type {
   ProfessionalIdentityV3,
@@ -61,7 +62,9 @@ export function NotFound({ label }: { label: string }) {
   return (
     <div className="inspector-section">
       <p className="inspector-eyebrow label-tracked">Selection stale</p>
-      <p className="inspector-body chapter-copy">The {label} you selected is no longer in the model.</p>
+      <p className="inspector-body chapter-copy">
+        The {label} you selected is no longer in the model.
+      </p>
     </div>
   )
 }
@@ -77,9 +80,7 @@ export function BulletPair({
   value: string
   tone?: BulletPairTone
 }) {
-  const className = tone
-    ? `inspector-bullet-pair tone-${tone}`
-    : 'inspector-bullet-pair'
+  const className = tone ? `inspector-bullet-pair tone-${tone}` : 'inspector-bullet-pair'
   return (
     <div className={className}>
       <p className="inspector-bullet-pair-label label-tracked">{label}</p>
@@ -96,6 +97,8 @@ export const allBulletsHaveSource = (role: ProfessionalRole): boolean =>
 
 export function citedInProfiles(identity: ProfessionalIdentityV3, tags: string[]): string {
   if (tags.length === 0) return '—'
-  const matches = identity.profiles.filter((p) => p.tags.some((t) => tags.includes(t))).map((p) => p.id)
+  const matches = identity.profiles
+    .filter((p) => p.tags.some((t) => tags.includes(t)))
+    .map((p) => p.id)
   return matches.length > 0 ? matches.join(' · ') : '—'
 }
