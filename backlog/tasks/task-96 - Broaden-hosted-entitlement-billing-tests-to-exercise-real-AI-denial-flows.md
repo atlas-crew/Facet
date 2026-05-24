@@ -1,10 +1,11 @@
 ---
 id: TASK-96
 title: Broaden hosted entitlement billing tests to exercise real AI denial flows
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-08 16:54'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 13:45'
 labels:
   - tests
   - wave-1
@@ -32,6 +33,12 @@ Independent audit still flags shallow or missing AI-request coverage in hosted e
 - [ ] #3 Trigger billing_issue denial and assert the user-visible denial UX, not just account-state labels.
 - [ ] #4 Verify Refresh Billing State behavior or replace it with a more testable recovery contract.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Codex taking TASK-96. First loop: inspect hosted entitlement/JD-analysis tests against the pass lifecycle from TASK-242, add local regression coverage for real AI success and denial UX where feasible, then run focused/full gates and independent test audit.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
