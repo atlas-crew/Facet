@@ -51,22 +51,10 @@ export function createStripeBillingClient(options) {
   })
 }
 
-const AI_PRO_ACCESS_DAYS = 90
-
-function computeEffectiveThrough(fromDate, days) {
-  const date = new Date(fromDate)
-  date.setDate(date.getDate() + days)
-  return date.toISOString()
-}
-
 function isoFromStripeCreated(created) {
   return typeof created === 'number'
     ? new Date(created * 1000).toISOString()
     : new Date().toISOString()
-}
-
-function resolveAccessDays(metadata) {
-  return parseInt(metadata?.accessDays ?? String(AI_PRO_ACCESS_DAYS), 10)
 }
 
 function resolveStripeId(value) {
@@ -86,6 +74,43 @@ function passHistoryEntry(pass) {
   return entry
 }
 
+function parseIsoDate(value) {
+  if (typeof value !== 'string') return null
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+function latestActivePassExpiry(billingPass, now = new Date()) {
+  const candidates = []
+  const collect = (pass) => {
+    if (pass?.status !== 'active') return
+    const expiresAt = parseIsoDate(pass.expiresAt)
+    if (expiresAt && expiresAt > now) {
+      candidates.push(expiresAt)
+    }
+  }
+
+  collect(billingPass)
+  for (const pass of billingPass?.history ?? []) {
+    collect(pass)
+  }
+
+  return candidates.reduce(
+    (latest, candidate) => (latest && latest > candidate ? latest : candidate),
+    null,
+  )
+}
+
+function currentActiveEntitlementExpiry(entitlement, now = new Date()) {
+  if (entitlement?.status !== 'active') return null
+  const effectiveThrough = parseIsoDate(entitlement.effectiveThrough)
+  return effectiveThrough && effectiveThrough > now ? effectiveThrough : null
+}
+
+function activeEntitlementIsCurrent(entitlement) {
+  return currentActiveEntitlementExpiry(entitlement) !== null
+}
+
 async function resolvePassState(billingStore, tenantId, accountId, paymentIntentId) {
   if (tenantId && accountId) {
     const currentState = await billingStore.getAccountState(tenantId, accountId)
@@ -101,14 +126,13 @@ async function resolvePassState(billingStore, tenantId, accountId, paymentIntent
   return null
 }
 
-async function activatePass({
+async function recordPaidPass({
   billingStore,
   tenantId,
   accountId,
   customerId,
   paymentIntentId,
   purchasedAt,
-  accessDays,
 }) {
   const existingStateByPaymentIntent =
     await billingStore.findAccountStateByPaymentIntentId(paymentIntentId)
@@ -127,17 +151,13 @@ async function activatePass({
     throw new Error('Stripe customer mismatch for hosted billing pass.')
   }
 
-  const now = new Date()
-  const extendFrom =
-    currentState?.entitlement?.effectiveThrough &&
-    new Date(currentState.entitlement.effectiveThrough) > now
-      ? new Date(currentState.entitlement.effectiveThrough)
-      : new Date(purchasedAt)
-  const expiresAt = computeEffectiveThrough(extendFrom, accessDays)
   const currentPass = passHistoryEntry(currentState?.billingPass)
   const history = currentPass
     ? [currentPass, ...(currentState.billingPass?.history ?? [])]
     : (currentState?.billingPass?.history ?? [])
+  const currentEntitlement = activeEntitlementIsCurrent(currentState?.entitlement)
+    ? currentState.entitlement
+    : null
 
   return billingStore.upsertAccountState({
     tenantId,
@@ -150,18 +170,18 @@ async function activatePass({
       provider: 'stripe',
       paymentIntentId,
       planId: 'ai-pro',
-      status: 'active',
+      status: 'paid',
       purchasedAt,
-      activatedAt: purchasedAt,
-      expiresAt,
+      activatedAt: null,
+      expiresAt: null,
       ...(history.length > 0 ? { history } : {}),
     },
-    entitlement: {
+    entitlement: currentEntitlement ?? {
       planId: 'ai-pro',
-      status: 'active',
+      status: 'paid',
       source: 'stripe',
       features: AI_PRO_FEATURES,
-      effectiveThrough: expiresAt,
+      effectiveThrough: null,
     },
   })
 }
@@ -175,36 +195,65 @@ async function refundPass({ billingStore, paymentIntentId }) {
   const history = (currentState.billingPass.history ?? []).map((pass) =>
     pass.paymentIntentId === paymentIntentId ? { ...pass, status: 'refunded' } : pass,
   )
+  const billingPass = isCurrentPass
+    ? {
+        ...currentState.billingPass,
+        status: 'refunded',
+        history,
+      }
+    : {
+        ...currentState.billingPass,
+        history,
+      }
+  const activeExpiry = latestActivePassExpiry(billingPass)
+  const refundedCurrentPassExpiry =
+    isCurrentPass && currentState.billingPass.status === 'active'
+      ? parseIsoDate(currentState.billingPass.expiresAt)
+      : null
+  const currentEntitlementExpiry = currentActiveEntitlementExpiry(currentState.entitlement)
+  const entitlementExpiry =
+    refundedCurrentPassExpiry &&
+    currentEntitlementExpiry &&
+    refundedCurrentPassExpiry.getTime() === currentEntitlementExpiry.getTime()
+      ? null
+      : currentEntitlementExpiry
+  const effectiveActiveExpiry =
+    activeExpiry && entitlementExpiry
+      ? activeExpiry > entitlementExpiry
+        ? activeExpiry
+        : entitlementExpiry
+      : (activeExpiry ?? entitlementExpiry)
+  const hasPaidPass =
+    billingPass.status === 'paid' || billingPass.history?.some((pass) => pass.status === 'paid')
 
   return billingStore.upsertAccountState({
     tenantId: currentState.tenantId,
     accountId: currentState.accountId,
     billingCustomer: currentState.billingCustomer ?? null,
-    billingPass: isCurrentPass
+    billingPass,
+    entitlement: effectiveActiveExpiry
       ? {
-          ...currentState.billingPass,
-          status: 'refunded',
-          history,
-        }
-      : {
-          ...currentState.billingPass,
-          history,
-        },
-    entitlement: isCurrentPass
-      ? {
-          planId: 'free',
-          status: 'inactive',
-          source: 'stripe',
-          features: [],
-          effectiveThrough: null,
-        }
-      : {
           planId: 'ai-pro',
-          status: 'delinquent',
+          status: 'active',
           source: 'stripe',
           features: AI_PRO_FEATURES,
-          effectiveThrough: currentState.entitlement?.effectiveThrough ?? null,
-        },
+          effectiveThrough: effectiveActiveExpiry.toISOString(),
+        }
+      : hasPaidPass
+        ? {
+            planId: 'ai-pro',
+            status: 'paid',
+            source: 'stripe',
+            features: AI_PRO_FEATURES,
+            effectiveThrough: null,
+          }
+        : {
+            planId: 'ai-pro',
+            status: 'refunded',
+            source: 'stripe',
+            features: AI_PRO_FEATURES,
+            effectiveThrough: null,
+          },
   })
 }
 
@@ -220,26 +269,17 @@ async function markPaymentFailed({
     return null
   }
 
-  return billingStore.upsertAccountState({
-    tenantId: currentState.tenantId,
-    accountId: currentState.accountId,
-    billingCustomer:
-      currentState.billingCustomer ??
-      (customerId
-        ? {
-            provider: 'stripe',
-            customerId,
-          }
-        : null),
-    billingPass: currentState.billingPass,
-    entitlement: {
-      planId: 'ai-pro',
-      status: 'delinquent',
-      source: 'stripe',
-      features: AI_PRO_FEATURES,
-      effectiveThrough: currentState.entitlement?.effectiveThrough ?? null,
-    },
-  })
+  if (!currentState.billingCustomer && customerId) {
+    return billingStore.upsertAccountState({
+      ...currentState,
+      billingCustomer: {
+        provider: 'stripe',
+        customerId,
+      },
+    })
+  }
+
+  return currentState
 }
 
 export function createBillingWebhookHandler({
@@ -306,7 +346,6 @@ export function createBillingWebhookHandler({
         const accountId = paymentIntent.metadata?.accountId
         const customerId = resolveStripeId(paymentIntent.customer)
         const paymentIntentId = paymentIntent.id
-        const accessDays = resolveAccessDays(paymentIntent.metadata)
 
         if (
           !tenantId ||
@@ -320,14 +359,13 @@ export function createBillingWebhookHandler({
           return
         }
 
-        await activatePass({
+        await recordPaidPass({
           billingStore,
           tenantId,
           accountId,
           customerId,
           paymentIntentId,
           purchasedAt: isoFromStripeCreated(paymentIntent.created),
-          accessDays,
         })
 
         onEvent?.('billing.webhook', 'success', { eventType: event.type, tenantId, accountId })

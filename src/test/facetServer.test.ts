@@ -120,10 +120,28 @@ async function createHostedSessionToken(
 async function startHostedServer(options?: {
   entitlement?: {
     planId: 'free' | 'ai-pro'
-    status: 'inactive' | 'trial' | 'active' | 'grace' | 'delinquent'
+    status: 'inactive' | 'paid' | 'active' | 'expired' | 'refunded'
     source: 'stripe'
     features: string[]
     effectiveThrough: string | null
+  } | null
+  billingPass?: {
+    provider: 'stripe'
+    paymentIntentId: string
+    planId: 'ai-pro'
+    status: 'paid' | 'active' | 'expired' | 'refunded'
+    purchasedAt: string
+    activatedAt: string | null
+    expiresAt: string | null
+    history?: Array<{
+      provider: 'stripe'
+      paymentIntentId: string
+      planId: 'ai-pro'
+      status: 'paid' | 'active' | 'expired' | 'refunded'
+      purchasedAt: string
+      activatedAt: string | null
+      expiresAt: string | null
+    }>
   } | null
   includeDefaultWorkspace?: boolean
   hostedRateLimits?: {
@@ -183,7 +201,7 @@ async function startHostedServer(options?: {
       tenantId: 'tenant-1',
       accountId: 'account-1',
       billingCustomer: null,
-      billingPass: null,
+      billingPass: options?.billingPass ?? null,
       entitlement: options?.entitlement ?? {
         planId: 'free',
         status: 'inactive',
@@ -889,7 +907,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search', 'research.profile-inference'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
     })
     servers.add(server)
@@ -918,6 +936,334 @@ describe('facetServer persistence API', () => {
     )
   })
 
+  it('activates a paid AI Pro pass on first hosted AI use', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      billingPass: {
+        provider: 'stripe',
+        paymentIntentId: 'pi_paid_123',
+        planId: 'ai-pro',
+        status: 'paid',
+        purchasedAt: '2026-03-01T12:00:00.000Z',
+        activatedAt: null,
+        expiresAt: null,
+      },
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'paid',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: null,
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const context = await fetch(`${baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(context.status).toBe(200)
+    await expect(context.json()).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_paid_123',
+          status: 'active',
+          activatedAt: '2026-03-14T12:00:00.000Z',
+          expiresAt: '2026-06-12T12:00:00.000Z',
+        }),
+        entitlement: expect.objectContaining({
+          status: 'active',
+          effectiveThrough: '2026-06-12T12:00:00.000Z',
+        }),
+      }),
+    })
+  })
+
+  it('activates queued paid passes in purchase order on first hosted AI use', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      billingPass: {
+        provider: 'stripe',
+        paymentIntentId: 'pi_paid_second',
+        planId: 'ai-pro',
+        status: 'paid',
+        purchasedAt: '2026-03-02T12:00:00.000Z',
+        activatedAt: null,
+        expiresAt: null,
+        history: [
+          {
+            provider: 'stripe',
+            paymentIntentId: 'pi_paid_first',
+            planId: 'ai-pro',
+            status: 'paid',
+            purchasedAt: '2026-03-01T12:00:00.000Z',
+            activatedAt: null,
+            expiresAt: null,
+          },
+        ],
+      },
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'paid',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: null,
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const context = await fetch(`${baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(context.status).toBe(200)
+    await expect(context.json()).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_paid_second',
+          status: 'paid',
+          activatedAt: null,
+          expiresAt: null,
+          history: [
+            expect.objectContaining({
+              paymentIntentId: 'pi_paid_first',
+              status: 'active',
+              activatedAt: '2026-03-14T12:00:00.000Z',
+              expiresAt: '2026-06-12T12:00:00.000Z',
+            }),
+          ],
+        }),
+        entitlement: expect.objectContaining({
+          status: 'active',
+          effectiveThrough: '2026-06-12T12:00:00.000Z',
+        }),
+      }),
+    })
+  })
+
+  it('keeps queued paid passes unactivated while active access is still valid', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      billingPass: {
+        provider: 'stripe',
+        paymentIntentId: 'pi_paid_extension',
+        planId: 'ai-pro',
+        status: 'paid',
+        purchasedAt: '2026-03-02T12:00:00.000Z',
+        activatedAt: null,
+        expiresAt: null,
+        history: [
+          {
+            provider: 'stripe',
+            paymentIntentId: 'pi_active_first',
+            planId: 'ai-pro',
+            status: 'active',
+            purchasedAt: '2026-03-01T12:00:00.000Z',
+            activatedAt: '2026-03-14T12:00:00.000Z',
+            expiresAt: '2026-06-12T12:00:00.000Z',
+          },
+        ],
+      },
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-06-12T12:00:00.000Z',
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const context = await fetch(`${baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(context.status).toBe(200)
+    await expect(context.json()).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_paid_extension',
+          status: 'paid',
+          activatedAt: null,
+          expiresAt: null,
+        }),
+        entitlement: expect.objectContaining({
+          status: 'active',
+          effectiveThrough: '2026-06-12T12:00:00.000Z',
+        }),
+      }),
+    })
+  })
+
+  it('fails closed when a paid pass cannot be activated', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      billingPass: {
+        provider: 'stripe',
+        paymentIntentId: 'pi_invalid_paid',
+        planId: 'ai-pro',
+        status: 'paid',
+        purchasedAt: 'not-a-date',
+        activatedAt: null,
+        expiresAt: null,
+      },
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'paid',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: null,
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'ai_access_denied',
+      reason: 'upgrade_required',
+      feature: 'research.search',
+      error: 'Upgrade to AI Pro to use this hosted AI feature.',
+    })
+  })
+
+  it('expires paid passes that are redeemed after the 12-month window', async () => {
+    const { server, baseUrl, accessToken } = await startHostedServer({
+      billingPass: {
+        provider: 'stripe',
+        paymentIntentId: 'pi_old_paid',
+        planId: 'ai-pro',
+        status: 'paid',
+        purchasedAt: '2025-02-01T12:00:00.000Z',
+        activatedAt: null,
+        expiresAt: null,
+      },
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'paid',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: null,
+      },
+    })
+    servers.add(server)
+
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'research.search',
+        model: 'haiku',
+        system: 'Return JSON only.',
+        messages: [{ role: 'user', content: 'Find jobs.' }],
+      }),
+    })
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      code: 'ai_access_denied',
+      reason: 'access_expired',
+      feature: 'research.search',
+      error: 'Your AI Pro access has expired. Purchase again to continue using AI features.',
+    })
+
+    const context = await fetch(`${baseUrl}/api/account/context`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+    expect(context.status).toBe(200)
+    await expect(context.json()).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_old_paid',
+          status: 'expired',
+        }),
+        entitlement: expect.objectContaining({
+          status: 'expired',
+          effectiveThrough: '2026-02-01T12:00:00.000Z',
+        }),
+      }),
+    })
+  })
+
   it('records ai_call_usage with tokens and cost after a successful hosted AI call', async () => {
     const recordCall = vi.fn().mockResolvedValue(undefined)
     const { server, baseUrl, accessToken } = await startHostedServer({
@@ -926,7 +1272,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: { recordCall },
       // 10k input + 5k output at Opus = 15 + ceil(37.5) = 53 cents (see pricing.test.ts)
@@ -977,7 +1323,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: { recordCall },
       anthropicUsage: { input_tokens: 100, output_tokens: 200 },
@@ -1866,7 +2212,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['identity.deepen'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
     })
     servers.add(server)
@@ -1902,7 +2248,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       hostedRateLimits: {
         ai: { max: 1, windowMs: 60_000 },
@@ -1962,7 +2308,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       hostedRateLimits: {
         ai: { max: 1, windowMs: 60_000 },
@@ -2016,7 +2362,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate', 'research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       hostedRateLimits: {
         ai: { max: 99, windowMs: 60_000 },
@@ -2076,7 +2422,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2141,7 +2487,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2195,7 +2541,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2247,7 +2593,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2296,7 +2642,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2341,7 +2687,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['prep.generate'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       hostedAiUsagePolicy: {
         dailyFeatureCaps: {
@@ -2383,7 +2729,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2436,7 +2782,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,
@@ -2491,7 +2837,7 @@ describe('facetServer persistence API', () => {
         status: 'active',
         source: 'stripe',
         features: ['research.search'],
-        effectiveThrough: '2026-05-14T00:00:00.000Z',
+        effectiveThrough: '2099-05-14T00:00:00.000Z',
       },
       usageStore: {
         recordCall,

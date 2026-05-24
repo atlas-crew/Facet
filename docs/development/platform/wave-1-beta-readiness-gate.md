@@ -65,8 +65,10 @@ The staging pass is complete only when every line below is validated against the
 ### AI Entitlement Gating
 
 - with an active AI Pro entitlement, run one hosted AI request successfully
+- with a paid AI Pro entitlement, confirm the first hosted AI request activates the pass
 - with no entitlement or missing feature coverage, confirm the UI or proxy returns `upgrade_required`
-- with a delinquent entitlement, confirm the UI or proxy returns `billing_issue`
+- with an expired entitlement, confirm the UI or proxy returns `access_expired`
+- with a refunded entitlement, confirm the UI or proxy returns `billing_issue`
 - confirm AI denial does not block hosted persistence or workspace access
 
 ### Billing-State Resilience
@@ -91,7 +93,7 @@ Launch is a **no-go** if any of these are false:
 - staged auth, workspace bootstrap, persistence, migration, and AI entitlement checks all pass
 - no staging dependency remains on local-only auth shortcuts
 - rollback and restore procedures have been rehearsed against the current staging backing store
-- free hosted persistence remains available even when AI entitlement is missing or billing is delinquent
+- free hosted persistence remains available even when AI entitlement is missing, expired, or refunded
 - support has the current hosted-account guide, pricing doc, and beta support playbook
 
 ### Automatic No-Go Conditions

@@ -2,10 +2,7 @@ import type {
   FacetAiAccessContext,
   FacetAiAccessDecision,
   FacetAiFeatureKey,
-  FacetEntitlementStatus,
 } from '../types/hosted'
-
-const HOSTED_ALLOWED_STATUSES = new Set<FacetEntitlementStatus>(['trial', 'active', 'grace'])
 
 export function resolveAiAccess(
   context: FacetAiAccessContext,
@@ -34,7 +31,28 @@ export function resolveAiAccess(
     }
   }
 
-  if (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < new Date()) {
+  if (entitlement.status === 'paid') {
+    const hasPaidPass =
+      context.billingPass?.status === 'paid' ||
+      context.billingPass?.history?.some((pass) => pass.status === 'paid')
+
+    return hasPaidPass
+      ? {
+          allowed: true,
+          source: 'hosted-entitlement',
+          reason: null,
+        }
+      : {
+          allowed: false,
+          source: 'none',
+          reason: 'upgrade_required',
+        }
+  }
+
+  if (
+    entitlement.status === 'expired' ||
+    (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < new Date())
+  ) {
     return {
       allowed: false,
       source: 'none',
@@ -42,7 +60,7 @@ export function resolveAiAccess(
     }
   }
 
-  if (HOSTED_ALLOWED_STATUSES.has(entitlement.status)) {
+  if (entitlement.status === 'active') {
     return {
       allowed: true,
       source: 'hosted-entitlement',
@@ -50,7 +68,7 @@ export function resolveAiAccess(
     }
   }
 
-  if (entitlement.status === 'delinquent') {
+  if (entitlement.status === 'refunded') {
     return {
       allowed: false,
       source: 'none',

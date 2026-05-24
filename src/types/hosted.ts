@@ -24,7 +24,7 @@ export type FacetWorkspaceRole = 'owner'
 
 export type FacetPlanId = 'free' | 'ai-pro'
 
-export type FacetEntitlementStatus = 'inactive' | 'trial' | 'active' | 'grace' | 'delinquent'
+export type FacetEntitlementStatus = 'inactive' | 'paid' | 'active' | 'expired' | 'refunded'
 
 export interface FacetTenantAccount {
   tenantId: string
@@ -60,7 +60,7 @@ export interface FacetBillingPassHistoryEntry {
   provider: 'stripe'
   paymentIntentId: string
   planId: Exclude<FacetPlanId, 'free'>
-  status: 'active' | 'expired' | 'refunded'
+  status: 'paid' | 'active' | 'expired' | 'refunded'
   purchasedAt: string
   activatedAt: string | null
   expiresAt: string | null

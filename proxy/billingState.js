@@ -37,7 +37,10 @@ function normalizeBillingPass(value) {
     typeof value.paymentIntentId === 'string' ? value.paymentIntentId.trim() : ''
   const planId = value.planId === 'ai-pro' ? 'ai-pro' : null
   const status =
-    value.status === 'active' || value.status === 'expired' || value.status === 'refunded'
+    value.status === 'paid' ||
+    value.status === 'active' ||
+    value.status === 'expired' ||
+    value.status === 'refunded'
       ? value.status
       : null
   const purchasedAt = typeof value.purchasedAt === 'string' ? value.purchasedAt : ''
@@ -67,20 +70,35 @@ function normalizeBillingPass(value) {
   return history.length > 0 ? { ...normalized, history } : normalized
 }
 
+function normalizeEntitlementStatus(status) {
+  if (
+    status === 'inactive' ||
+    status === 'paid' ||
+    status === 'active' ||
+    status === 'expired' ||
+    status === 'refunded'
+  ) {
+    return status
+  }
+
+  if (status === 'trial' || status === 'grace') {
+    return 'active'
+  }
+
+  if (status === 'delinquent') {
+    return 'refunded'
+  }
+
+  return null
+}
+
 function normalizeEntitlement(value) {
   if (!isRecord(value)) {
     return null
   }
 
   const planId = value.planId === 'free' || value.planId === 'ai-pro' ? value.planId : null
-  const status =
-    value.status === 'inactive' ||
-    value.status === 'trial' ||
-    value.status === 'active' ||
-    value.status === 'grace' ||
-    value.status === 'delinquent'
-      ? value.status
-      : null
+  const status = normalizeEntitlementStatus(value.status)
   const features = Array.isArray(value.features)
     ? value.features.filter((feature) => typeof feature === 'string')
     : []

@@ -1,10 +1,10 @@
 ---
 id: TASK-242
 title: Adapt entitlement state model to pass lifecycle (active / expired / refunded)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-07 21:11'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 02:35'
 labels:
   - billing
   - wave-1
@@ -88,9 +88,17 @@ Once the state model is decided:
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Linters report no WARNINGS or ERRORS for touched files
-- [ ] #5 Regression tests pass for touched files
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Linters report no WARNINGS or ERRORS for touched files
+- [x] #5 Regression tests pass for touched files
 <!-- DOD:END -->
+
+## Implementation Notes
+
+- 2026-05-24: Adopted the hosted pass lifecycle: `inactive`, `paid`, `active`, `expired`, and `refunded`.
+- `payment_intent.succeeded` now records a `paid` pass; hosted AI activation starts the 90-day window from first eligible use.
+- Queued passes stay paid while active access remains valid; refunds recalculate the next `active`, `paid`, or `refunded` entitlement state from pass history.
+- Legacy `trial` / `grace` / `delinquent` records normalize defensively into the pass lifecycle.
+- Verification: focused Vitest suite, typecheck, ESLint, Prettier, independent source review, and independent test audit completed.

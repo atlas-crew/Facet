@@ -2,37 +2,48 @@ import { FACET_AI_FEATURE_KEYS } from './aiFeatures.js'
 
 export { FACET_AI_FEATURE_KEYS }
 
-const HOSTED_ALLOWED_STATUSES = new Set(['trial', 'active', 'grace'])
-
 export function isFacetAiFeatureKey(value) {
   return typeof value === 'string' && FACET_AI_FEATURE_KEYS.includes(value)
 }
 
 export function resolveHostedAiAccess(state, feature) {
   const entitlement = state?.entitlement
-  if (!entitlement || !Array.isArray(entitlement.features) || !entitlement.features.includes(feature)) {
+  if (
+    !entitlement ||
+    !Array.isArray(entitlement.features) ||
+    !entitlement.features.includes(feature)
+  ) {
     return {
       allowed: false,
       reason: 'upgrade_required',
     }
   }
 
-  // Check time-boxed access window (one-time purchases)
-  if (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < new Date()) {
+  if (entitlement.status === 'paid') {
+    return {
+      allowed: false,
+      reason: 'upgrade_required',
+    }
+  }
+
+  if (
+    entitlement.status === 'expired' ||
+    (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < new Date())
+  ) {
     return {
       allowed: false,
       reason: 'access_expired',
     }
   }
 
-  if (HOSTED_ALLOWED_STATUSES.has(entitlement.status)) {
+  if (entitlement.status === 'active') {
     return {
       allowed: true,
       reason: null,
     }
   }
 
-  if (entitlement.status === 'delinquent') {
+  if (entitlement.status === 'refunded') {
     return {
       allowed: false,
       reason: 'billing_issue',

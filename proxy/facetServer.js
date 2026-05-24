@@ -17,6 +17,7 @@ import {
 } from './billingApi.js'
 import {
   createHostedAiErrorPayload,
+  FACET_AI_FEATURE_KEYS,
   isFacetAiFeatureKey,
   resolveHostedAiAccess,
 } from './aiAccess.js'
@@ -103,6 +104,9 @@ const OPUS_UNAVAILABLE_ERROR = {
   reason: 'opus_unavailable',
   capability: 'opus',
 }
+
+const AI_PRO_PASS_ACCESS_DAYS = 90
+const AI_PRO_PASS_REDEMPTION_MONTHS = 12
 
 // Per-feature model tiering (see backlog doc-24 for product context):
 //   Opus 4.7   — quality-critical user-facing output ("represents the product to the user")
@@ -430,6 +434,141 @@ function normalizeTimestampMs(value, fallback = Date.now()) {
   }
 
   return fallback
+}
+
+function parseIsoDate(value) {
+  if (typeof value !== 'string') return null
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+function addUtcDays(date, days) {
+  const next = new Date(date)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function addUtcMonths(date, months) {
+  const next = new Date(date)
+  next.setUTCMonth(next.getUTCMonth() + months)
+  return next
+}
+
+function latestActiveAccessExpiry(billingState, now) {
+  const candidates = []
+  const collect = (pass) => {
+    if (pass?.status !== 'active') return
+    const expiresAt = parseIsoDate(pass.expiresAt)
+    if (expiresAt && expiresAt > now) {
+      candidates.push(expiresAt)
+    }
+  }
+
+  collect(billingState?.billingPass)
+  for (const pass of billingState?.billingPass?.history ?? []) {
+    collect(pass)
+  }
+
+  if (billingState?.entitlement?.status === 'active') {
+    const effectiveThrough = parseIsoDate(billingState.entitlement.effectiveThrough)
+    if (effectiveThrough && effectiveThrough > now) {
+      candidates.push(effectiveThrough)
+    }
+  }
+
+  return candidates.reduce(
+    (latest, candidate) => (latest && latest > candidate ? latest : candidate),
+    null,
+  )
+}
+
+async function activatePaidPassForAiUse({ billingStore, billingState, nowMs }) {
+  if (!billingStore || billingState?.billingPass?.status !== 'paid') {
+    const hasPaidHistory = billingState?.billingPass?.history?.some(
+      (pass) => pass.status === 'paid',
+    )
+    if (!hasPaidHistory) {
+      return billingState
+    }
+  }
+
+  const paidPasses = [billingState.billingPass, ...(billingState.billingPass?.history ?? [])]
+    .filter((pass) => pass?.status === 'paid')
+    .map((pass) => ({ pass, purchasedAt: parseIsoDate(pass.purchasedAt) }))
+    .filter(({ purchasedAt }) => purchasedAt)
+    .sort((first, second) => first.purchasedAt.getTime() - second.purchasedAt.getTime())
+
+  if (paidPasses.length === 0) {
+    return billingState
+  }
+
+  const now = new Date(nowMs)
+  const currentActiveExpiry = latestActiveAccessExpiry(billingState, now)
+  if (currentActiveExpiry && currentActiveExpiry > now) {
+    return billingState
+  }
+
+  let latestRedeemBy = null
+  const updatedPasses = new Map()
+
+  for (const { pass, purchasedAt } of paidPasses) {
+    const redeemBy = addUtcMonths(purchasedAt, AI_PRO_PASS_REDEMPTION_MONTHS)
+    latestRedeemBy = latestRedeemBy && latestRedeemBy > redeemBy ? latestRedeemBy : redeemBy
+
+    if (now > redeemBy) {
+      updatedPasses.set(pass.paymentIntentId, {
+        ...pass,
+        status: 'expired',
+      })
+      continue
+    }
+
+    const expiresAt = addUtcDays(now, AI_PRO_PASS_ACCESS_DAYS)
+    updatedPasses.set(pass.paymentIntentId, {
+      ...pass,
+      status: 'active',
+      activatedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    })
+    break
+  }
+
+  const currentPass =
+    updatedPasses.get(billingState.billingPass.paymentIntentId) ?? billingState.billingPass
+  const history = (billingState.billingPass.history ?? []).map(
+    (pass) => updatedPasses.get(pass.paymentIntentId) ?? pass,
+  )
+  const nextBillingPass = {
+    ...currentPass,
+    ...(history.length > 0 ? { history } : {}),
+  }
+  const activeAccessExpiry = latestActiveAccessExpiry(
+    {
+      ...billingState,
+      billingPass: nextBillingPass,
+    },
+    now,
+  )
+
+  return billingStore.upsertAccountState({
+    ...billingState,
+    billingPass: nextBillingPass,
+    entitlement: activeAccessExpiry
+      ? {
+          planId: 'ai-pro',
+          status: 'active',
+          source: 'stripe',
+          features: billingState.entitlement?.features ?? FACET_AI_FEATURE_KEYS,
+          effectiveThrough: activeAccessExpiry.toISOString(),
+        }
+      : {
+          planId: 'ai-pro',
+          status: 'expired',
+          source: 'stripe',
+          features: billingState.entitlement?.features ?? FACET_AI_FEATURE_KEYS,
+          effectiveThrough: latestRedeemBy?.toISOString() ?? null,
+        },
+  })
 }
 
 function isHostedAiUsagePolicyEnabled(policy) {
@@ -1520,7 +1659,15 @@ export function createFacetServer(options = {}) {
         }
 
         try {
-          const billingState = await billingStore.getAccountState(actor.tenantId, actor.accountId)
+          const loadedBillingState = await billingStore.getAccountState(
+            actor.tenantId,
+            actor.accountId,
+          )
+          const billingState = await activatePaidPassForAiUse({
+            billingStore,
+            billingState: loadedBillingState,
+            nowMs: normalizeTimestampMs(options.billingNow?.() ?? options.now?.(), Date.now()),
+          })
           const access = resolveHostedAiAccess(billingState, feature)
           if (!access.allowed) {
             operationsMonitor.record('ai', 'denied', {

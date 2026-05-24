@@ -239,7 +239,10 @@ export function AppShell() {
   const isHomeRoute = currentPath === HOME_ROUTE
   const visibleNavItems = useMemo(
     // Filter inputs are module constants, so this list is stable for the life of the app shell.
-    () => NAV_ITEMS.filter(({ to }) => (AI_ENABLED || !AI_ROUTES.has(to)) && (to !== '/admin' || isAdmin)),
+    () =>
+      NAV_ITEMS.filter(
+        ({ to }) => (AI_ENABLED || !AI_ROUTES.has(to)) && (to !== '/admin' || isAdmin),
+      ),
     [isAdmin],
   )
   const visibleNavGroups = useMemo(
@@ -304,6 +307,9 @@ export function AppShell() {
   }, [activeNavGroup, activeNavItem, currentPath, isHelpRoute, isHomeRoute])
 
   const entitlement = hostedApp.context?.entitlement ?? null
+  const billingPass = hostedApp.context?.billingPass ?? null
+  const hasPendingPass =
+    billingPass?.status === 'paid' || billingPass?.history?.some((pass) => pass.status === 'paid')
   const accountDaysLeft = useMemo(() => {
     if (!entitlement?.effectiveThrough) return null
     const nowMs = new Date().getTime()
@@ -316,26 +322,31 @@ export function AppShell() {
   const accountLabel = useMemo(() => {
     if (hostedApp.deploymentMode !== 'hosted') return 'Account'
     if (!entitlement || entitlement.status === 'inactive') return 'Free'
+    if (entitlement.status === 'paid') return 'Pro ready'
+    if (entitlement.status === 'expired' && hasPendingPass) return 'Pro ready'
     if (entitlement.status === 'active' && accountDaysLeft !== null) {
-      if (accountDaysLeft === 0) return 'Expired'
+      if (accountDaysLeft === 0) return hasPendingPass ? 'Pro ready' : 'Expired'
+      if (hasPendingPass) return `Pro · ${accountDaysLeft}d + pass`
       if (accountDaysLeft <= 3) return `Pro · ${accountDaysLeft}d · Renew`
       if (accountDaysLeft <= 14) return `Pro · ${accountDaysLeft}d`
       return `Pro · ${accountDaysLeft}d`
     }
-    if (entitlement.status === 'delinquent') return 'Billing issue'
-    if (entitlement.status === 'grace') return 'Grace'
-    if (entitlement.status === 'trial') return 'Trial'
+    if (entitlement.status === 'refunded') return 'Billing issue'
+    if (entitlement.status === 'expired') return 'Expired'
     return 'Pro'
-  }, [hostedApp.deploymentMode, entitlement, accountDaysLeft])
+  }, [hostedApp.deploymentMode, entitlement, accountDaysLeft, hasPendingPass])
 
   const accountTone = useMemo(() => {
     if (hostedApp.deploymentMode !== 'hosted' || !entitlement) return ''
     if (entitlement.status === 'inactive') return ''
-    if (entitlement.status === 'delinquent') return 'app-topbar-link-danger'
+    if (hasPendingPass && entitlement.status !== 'refunded') return ''
+    if (entitlement.status === 'expired' || entitlement.status === 'refunded') {
+      return 'app-topbar-link-danger'
+    }
     if (accountDaysLeft !== null && accountDaysLeft <= 3) return 'app-topbar-link-danger'
     if (accountDaysLeft !== null && accountDaysLeft <= 14) return 'app-topbar-link-warning'
     return ''
-  }, [hostedApp.deploymentMode, entitlement, accountDaysLeft])
+  }, [hostedApp.deploymentMode, entitlement, accountDaysLeft, hasPendingPass])
 
   const [backupOpen, setBackupOpen] = useState(false)
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false)

@@ -36,6 +36,7 @@ export function AccountPage() {
   const deploymentMode = getFacetDeploymentMode()
   const hostedApp = useHostedAppStore()
   const entitlement = hostedApp.context?.entitlement ?? null
+  const billingPass = hostedApp.context?.billingPass ?? null
   const actor = hostedApp.context?.actor ?? null
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
@@ -59,9 +60,13 @@ export function AccountPage() {
 
   const isActive = entitlement?.status === 'active'
   const isExpired =
-    isActive && entitlement?.effectiveThrough
+    entitlement?.status === 'expired' ||
+    (isActive && entitlement?.effectiveThrough
       ? new Date(entitlement.effectiveThrough) < new Date()
-      : false
+      : false)
+  const hasPendingPass =
+    billingPass?.status === 'paid' || billingPass?.history?.some((pass) => pass.status === 'paid')
+  const isPaid = entitlement?.status === 'paid' || (isExpired && hasPendingPass)
   const isFree = !entitlement || entitlement.status === 'inactive'
   const remaining = daysUntil(entitlement?.effectiveThrough ?? null)
 
@@ -126,8 +131,9 @@ export function AccountPage() {
               <dd>{remaining ?? '—'}</dd>
             </dl>
             <p className="account-note">
-              Purchase another pass to extend your access. Days are added to the current expiry
-              date.
+              {hasPendingPass
+                ? 'Additional 90-day pass purchased. It will start on first AI use after current access ends.'
+                : 'Purchase another pass to extend your access. The next pass starts on first AI use after current access ends.'}
             </p>
             <button
               className="btn-secondary"
@@ -136,6 +142,25 @@ export function AccountPage() {
               disabled={checkoutLoading}
             >
               {checkoutLoading ? 'Starting checkout…' : `Extend Access — ${AI_PRO_PRICE_LABEL}`}
+            </button>
+            <p className="account-note">
+              7-day refund policy. Contact{' '}
+              <a href="mailto:support@myfacets.cv">support@myfacets.cv</a> for assistance.
+            </p>
+          </>
+        ) : isPaid ? (
+          <>
+            <div className="account-status account-status-active">Purchased</div>
+            <p>Your AI Pro pass is ready. The 90-day access window starts on first AI use.</p>
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={() => void handleCheckout()}
+              disabled={checkoutLoading}
+            >
+              {checkoutLoading
+                ? 'Starting checkout…'
+                : `Purchase another pass — ${AI_PRO_PRICE_LABEL}`}
             </button>
             <p className="account-note">
               7-day refund policy. Contact{' '}
@@ -172,9 +197,7 @@ export function AccountPage() {
         ) : (
           <>
             <div className="account-status account-status-issue">
-              {entitlement?.status === 'delinquent'
-                ? 'Billing issue'
-                : (entitlement?.status ?? 'Unknown')}
+              {entitlement?.status === 'refunded' ? 'Refunded' : (entitlement?.status ?? 'Unknown')}
             </div>
             <p>There's an issue with your access. Contact support if this persists.</p>
           </>

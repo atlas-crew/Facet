@@ -563,6 +563,181 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.queryByText(/connecting your hosted account/i)).toBeNull()
   })
 
+  it('shows a queued hosted pass in the account topbar while access is active', () => {
+    setHostedStore({
+      context: {
+        ...hostedContext,
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_paid_extension',
+          planId: 'ai-pro',
+          status: 'paid',
+          purchasedAt: '2026-05-10T12:00:00.000Z',
+          activatedAt: null,
+          expiresAt: null,
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'active',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2099-05-10T12:00:00.000Z',
+        },
+      },
+    })
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByText(/Pro · \d+d \+ pass/)).toBeTruthy()
+  })
+
+  it('does not warn for expiring active access when a queued pass exists', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-05-24T12:00:00.000Z'))
+      setHostedStore({
+        context: {
+          ...hostedContext,
+          billingPass: {
+            provider: 'stripe',
+            paymentIntentId: 'pi_paid_extension',
+            planId: 'ai-pro',
+            status: 'paid',
+            purchasedAt: '2026-05-10T12:00:00.000Z',
+            activatedAt: null,
+            expiresAt: null,
+          },
+          entitlement: {
+            planId: 'ai-pro',
+            status: 'active',
+            source: 'stripe',
+            features: ['research.search'],
+            effectiveThrough: '2026-05-26T12:00:00.000Z',
+          },
+        },
+      })
+      setPersistenceHydration(true, 'ws-1')
+      runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+        start: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      })
+
+      render(<AppShell />)
+
+      expect(screen.getByText('Pro · 2d + pass')).toBeTruthy()
+      const accountLink = screen.getByRole('link', { name: 'Account' })
+      expect(accountLink.className).not.toContain('app-topbar-link-danger')
+      expect(accountLink.className).not.toContain('app-topbar-link-warning')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows Pro ready without a danger tone when expired access has a queued pass', () => {
+    setHostedStore({
+      context: {
+        ...hostedContext,
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_paid_extension',
+          planId: 'ai-pro',
+          status: 'paid',
+          purchasedAt: '2026-05-10T12:00:00.000Z',
+          activatedAt: null,
+          expiresAt: null,
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'active',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2020-05-10T12:00:00.000Z',
+        },
+      },
+    })
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByText('Pro ready')).toBeTruthy()
+    const accountLink = screen.getByRole('link', { name: 'Account' })
+    expect(accountLink).toBeTruthy()
+    expect(accountLink.className).not.toContain('app-topbar-link-danger')
+  })
+
+  it('shows danger account labels for expired and refunded hosted entitlements', () => {
+    setHostedStore({
+      context: {
+        ...hostedContext,
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_expired',
+          planId: 'ai-pro',
+          status: 'expired',
+          purchasedAt: '2026-01-01T12:00:00.000Z',
+          activatedAt: '2026-01-01T12:00:00.000Z',
+          expiresAt: '2026-04-01T12:00:00.000Z',
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'expired',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2026-04-01T12:00:00.000Z',
+        },
+      },
+    })
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+    })
+
+    const { rerender } = render(<AppShell />)
+
+    expect(screen.getByText('Expired')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Account' }).className).toContain(
+      'app-topbar-link-danger',
+    )
+
+    setHostedStore({
+      context: {
+        ...hostedContext,
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_refunded',
+          planId: 'ai-pro',
+          status: 'refunded',
+          purchasedAt: '2026-01-01T12:00:00.000Z',
+          activatedAt: null,
+          expiresAt: null,
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'refunded',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: null,
+        },
+      },
+    })
+    rerender(<AppShell />)
+
+    expect(screen.getByText('Billing issue')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Account' }).className).toContain(
+      'app-topbar-link-danger',
+    )
+  })
+
   it('shows a non-blocking cross-tab Identity toast with a staleness review link', () => {
     useHostedAppStore.setState({
       deploymentMode: 'self-hosted',

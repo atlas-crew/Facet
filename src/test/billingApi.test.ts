@@ -279,6 +279,53 @@ describe('facetServer billing API', () => {
     expect(AI_PRO_FEATURES).toEqual(FACET_PAID_AI_FEATURES)
   })
 
+  it('normalizes legacy hosted entitlement states into the pass lifecycle', async () => {
+    const { createInMemoryHostedBillingStore } = await loadProxyModules()
+    const store = createInMemoryHostedBillingStore([
+      {
+        tenantId: 'tenant-1',
+        accountId: 'account-1',
+        billingCustomer: null,
+        billingPass: null,
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'grace',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2099-04-01T00:00:00.000Z',
+        },
+      },
+      {
+        tenantId: 'tenant-1',
+        accountId: 'account-2',
+        billingCustomer: null,
+        billingPass: null,
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'delinquent',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: null,
+        },
+      },
+    ])
+
+    await expect(store.getAccountState('tenant-1', 'account-1')).resolves.toEqual(
+      expect.objectContaining({
+        entitlement: expect.objectContaining({
+          status: 'active',
+        }),
+      }),
+    )
+    await expect(store.getAccountState('tenant-1', 'account-2')).resolves.toEqual(
+      expect.objectContaining({
+        entitlement: expect.objectContaining({
+          status: 'refunded',
+        }),
+      }),
+    )
+  })
+
   const servers = new Set<import('node:http').Server>()
 
   afterEach(async () => {
@@ -628,7 +675,7 @@ describe('facetServer billing API', () => {
     })
   })
 
-  it('activates an AI Pro pass from payment_intent.succeeded webhooks', async () => {
+  it('records a paid AI Pro pass from payment_intent.succeeded webhooks', async () => {
     const { server, baseUrl, accessToken } = await startBillingServer({
       stripeWebhookSecret: 'whsec_test',
     })
@@ -665,13 +712,82 @@ describe('facetServer billing API', () => {
           provider: 'stripe',
           paymentIntentId: 'pi_pass_123',
           planId: 'ai-pro',
+          status: 'paid',
+          purchasedAt: '2026-05-09T12:00:00.000Z',
+          activatedAt: null,
+          expiresAt: null,
+        },
+        entitlement: expect.objectContaining({
+          planId: 'ai-pro',
+          status: 'paid',
+          effectiveThrough: null,
+        }),
+      }),
+    })
+  })
+
+  it('preserves active entitlement days when recording an extension pass', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      stripeWebhookSecret: 'whsec_test',
+      billingState: {
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_paid',
+        },
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_first',
+          planId: 'ai-pro',
           status: 'active',
           purchasedAt: '2026-05-09T12:00:00.000Z',
           activatedAt: '2026-05-09T12:00:00.000Z',
           expiresAt: '2026-08-07T12:00:00.000Z',
         },
-        entitlement: expect.objectContaining({
+        entitlement: {
           planId: 'ai-pro',
+          status: 'active',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2026-08-07T12:00:00.000Z',
+        },
+      },
+    })
+    servers.add(server)
+
+    const webhook = await postStripeEvent(baseUrl, {
+      id: 'evt_pi_extension_succeeded',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_second',
+          customer: 'cus_paid',
+          created: Date.parse('2026-05-10T12:00:00.000Z') / 1000,
+          metadata: {
+            tenantId: 'tenant-1',
+            accountId: 'account-1',
+            source: 'facet-checkout',
+            accessDays: '90',
+          },
+        },
+      },
+    })
+
+    expect(webhook.status).toBe(200)
+
+    await expect(fetchHostedContext(baseUrl, accessToken)).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_second',
+          status: 'paid',
+          history: [
+            expect.objectContaining({
+              paymentIntentId: 'pi_first',
+              status: 'active',
+              expiresAt: '2026-08-07T12:00:00.000Z',
+            }),
+          ],
+        }),
+        entitlement: expect.objectContaining({
           status: 'active',
           effectiveThrough: '2026-08-07T12:00:00.000Z',
         }),
@@ -728,10 +844,13 @@ describe('facetServer billing API', () => {
       context: expect.objectContaining({
         billingPass: expect.objectContaining({
           paymentIntentId: 'pi_pass_123',
-          expiresAt: '2026-08-07T12:00:00.000Z',
+          status: 'paid',
+          activatedAt: null,
+          expiresAt: null,
         }),
         entitlement: expect.objectContaining({
-          effectiveThrough: '2026-08-07T12:00:00.000Z',
+          status: 'paid',
+          effectiveThrough: null,
         }),
       }),
     })
@@ -786,12 +905,160 @@ describe('facetServer billing API', () => {
           status: 'refunded',
         }),
         entitlement: {
-          planId: 'free',
-          status: 'inactive',
+          planId: 'ai-pro',
+          status: 'refunded',
           source: 'stripe',
-          features: [],
+          features: expect.arrayContaining(['research.search']),
           effectiveThrough: null,
         },
+      }),
+    })
+  })
+
+  it('keeps previous active access when the current stacked pass is refunded', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      stripeWebhookSecret: 'whsec_test',
+      billingState: {
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_paid',
+        },
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_second',
+          planId: 'ai-pro',
+          status: 'active',
+          purchasedAt: '2026-05-10T12:00:00.000Z',
+          activatedAt: '2026-05-10T12:00:00.000Z',
+          expiresAt: '2026-11-05T12:00:00.000Z',
+          history: [
+            {
+              provider: 'stripe',
+              paymentIntentId: 'pi_first',
+              planId: 'ai-pro',
+              status: 'active',
+              purchasedAt: '2026-05-09T12:00:00.000Z',
+              activatedAt: '2026-05-09T12:00:00.000Z',
+              expiresAt: '2026-08-07T12:00:00.000Z',
+            },
+          ],
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'active',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2026-11-05T12:00:00.000Z',
+        },
+      },
+    })
+    servers.add(server)
+
+    const webhook = await postStripeEvent(baseUrl, {
+      id: 'evt_charge_refunded_current_stacked',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_refunded_second',
+          payment_intent: 'pi_second',
+          refunded: true,
+        },
+      },
+    })
+
+    expect(webhook.status).toBe(200)
+
+    await expect(fetchHostedContext(baseUrl, accessToken)).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_second',
+          status: 'refunded',
+          history: [
+            expect.objectContaining({
+              paymentIntentId: 'pi_first',
+              status: 'active',
+            }),
+          ],
+        }),
+        entitlement: expect.objectContaining({
+          planId: 'ai-pro',
+          status: 'active',
+          effectiveThrough: '2026-08-07T12:00:00.000Z',
+        }),
+      }),
+    })
+  })
+
+  it('keeps queued paid access when the current pass is refunded', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      stripeWebhookSecret: 'whsec_test',
+      billingState: {
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_paid',
+        },
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_second',
+          planId: 'ai-pro',
+          status: 'paid',
+          purchasedAt: '2026-05-10T12:00:00.000Z',
+          activatedAt: null,
+          expiresAt: null,
+          history: [
+            {
+              provider: 'stripe',
+              paymentIntentId: 'pi_first',
+              planId: 'ai-pro',
+              status: 'paid',
+              purchasedAt: '2026-05-09T12:00:00.000Z',
+              activatedAt: null,
+              expiresAt: null,
+            },
+          ],
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'paid',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: null,
+        },
+      },
+    })
+    servers.add(server)
+
+    const webhook = await postStripeEvent(baseUrl, {
+      id: 'evt_charge_refunded_current_paid',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_refunded_second',
+          payment_intent: 'pi_second',
+          refunded: true,
+        },
+      },
+    })
+
+    expect(webhook.status).toBe(200)
+
+    await expect(fetchHostedContext(baseUrl, accessToken)).resolves.toEqual({
+      context: expect.objectContaining({
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_second',
+          status: 'refunded',
+          history: [
+            expect.objectContaining({
+              paymentIntentId: 'pi_first',
+              status: 'paid',
+            }),
+          ],
+        }),
+        entitlement: expect.objectContaining({
+          planId: 'ai-pro',
+          status: 'paid',
+          effectiveThrough: null,
+        }),
       }),
     })
   })
@@ -854,7 +1121,7 @@ describe('facetServer billing API', () => {
     })
   })
 
-  it('marks access for review when an earlier pass in history is refunded', async () => {
+  it('preserves current active access when an earlier pass in history is refunded', async () => {
     const { server, baseUrl, accessToken } = await startBillingServer({
       stripeWebhookSecret: 'whsec_test',
       billingState: {
@@ -921,7 +1188,7 @@ describe('facetServer billing API', () => {
         }),
         entitlement: expect.objectContaining({
           planId: 'ai-pro',
-          status: 'delinquent',
+          status: 'active',
           effectiveThrough: '2026-11-05T12:00:00.000Z',
         }),
       }),
@@ -964,7 +1231,7 @@ describe('facetServer billing API', () => {
     })
   })
 
-  it('marks existing hosted passes with a billing issue from payment_intent.payment_failed webhooks', async () => {
+  it('leaves existing hosted passes unchanged from payment_intent.payment_failed webhooks', async () => {
     const { server, baseUrl, accessToken } = await startBillingServer({
       stripeWebhookSecret: 'whsec_test',
       billingState: {
@@ -1021,7 +1288,67 @@ describe('facetServer billing API', () => {
         }),
         entitlement: expect.objectContaining({
           planId: 'ai-pro',
-          status: 'delinquent',
+          status: 'active',
+          effectiveThrough: '2026-08-07T12:00:00.000Z',
+        }),
+      }),
+    })
+  })
+
+  it('attaches a Stripe customer on failed payments without changing pass access', async () => {
+    const { server, baseUrl, accessToken } = await startBillingServer({
+      stripeWebhookSecret: 'whsec_test',
+      billingState: {
+        billingCustomer: null,
+        billingPass: {
+          provider: 'stripe',
+          paymentIntentId: 'pi_pass_123',
+          planId: 'ai-pro',
+          status: 'active',
+          purchasedAt: '2026-05-09T12:00:00.000Z',
+          activatedAt: '2026-05-09T12:00:00.000Z',
+          expiresAt: '2026-08-07T12:00:00.000Z',
+        },
+        entitlement: {
+          planId: 'ai-pro',
+          status: 'active',
+          source: 'stripe',
+          features: ['research.search'],
+          effectiveThrough: '2026-08-07T12:00:00.000Z',
+        },
+      },
+    })
+    servers.add(server)
+
+    const webhook = await postStripeEvent(baseUrl, {
+      id: 'evt_pi_failed_customer_link',
+      type: 'payment_intent.payment_failed',
+      data: {
+        object: {
+          id: 'pi_pass_123',
+          customer: 'cus_failed',
+          metadata: {
+            tenantId: 'tenant-1',
+            accountId: 'account-1',
+          },
+        },
+      },
+    })
+
+    expect(webhook.status).toBe(200)
+
+    await expect(fetchHostedContext(baseUrl, accessToken)).resolves.toEqual({
+      context: expect.objectContaining({
+        billingCustomer: {
+          provider: 'stripe',
+          customerId: 'cus_failed',
+        },
+        billingPass: expect.objectContaining({
+          paymentIntentId: 'pi_pass_123',
+          status: 'active',
+        }),
+        entitlement: expect.objectContaining({
+          status: 'active',
           effectiveThrough: '2026-08-07T12:00:00.000Z',
         }),
       }),

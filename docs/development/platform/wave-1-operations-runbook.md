@@ -128,7 +128,7 @@ enough.
    - local-to-hosted import
    - one hosted save
    - one hosted AI request with a paid entitlement
-   - one hosted AI denial with a free or delinquent entitlement
+   - one hosted AI denial with a free, expired, or refunded entitlement
 5. Re-enable traffic gradually.
 
 ## Staging Exit Check

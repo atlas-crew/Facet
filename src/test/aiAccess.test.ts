@@ -57,6 +57,66 @@ describe('resolveAiAccess', () => {
     expect(proxyFeatureKeys).toEqual(FACET_AI_FEATURE_KEYS)
   })
 
+  it('keeps the hosted proxy access gate fail-closed for non-active pass states', async () => {
+    const { resolveHostedAiAccess } =
+      // @ts-expect-error runtime-tested local proxy module
+      await import('../../proxy/aiAccess.js')
+
+    expect(
+      resolveHostedAiAccess(
+        {
+          billingPass: {
+            provider: 'stripe',
+            paymentIntentId: 'pi_paid',
+            planId: 'ai-pro',
+            status: 'paid',
+            purchasedAt: '2026-04-01T00:00:00.000Z',
+            activatedAt: null,
+            expiresAt: null,
+          },
+          entitlement: {
+            planId: 'ai-pro',
+            status: 'paid',
+            source: 'stripe',
+            features: ['research.search'],
+            effectiveThrough: null,
+          },
+        },
+        'research.search',
+      ),
+    ).toEqual({
+      allowed: false,
+      reason: 'upgrade_required',
+    })
+
+    expect(
+      resolveHostedAiAccess(
+        {
+          billingPass: {
+            provider: 'stripe',
+            paymentIntentId: 'pi_refunded',
+            planId: 'ai-pro',
+            status: 'refunded',
+            purchasedAt: '2026-04-01T00:00:00.000Z',
+            activatedAt: null,
+            expiresAt: null,
+          },
+          entitlement: {
+            planId: 'ai-pro',
+            status: 'refunded',
+            source: 'stripe',
+            features: ['research.search'],
+            effectiveThrough: null,
+          },
+        },
+        'research.search',
+      ),
+    ).toEqual({
+      allowed: false,
+      reason: 'billing_issue',
+    })
+  })
+
   it('allows paid hosted AI features for active entitlements', () => {
     expect(resolveAiAccess(hostedContext(), 'research.search')).toEqual({
       allowed: true,
@@ -89,16 +149,25 @@ describe('resolveAiAccess', () => {
     })
   })
 
-  it('allows hosted trial and grace access', () => {
+  it('allows purchased passes before the first hosted AI use activates the window', () => {
     expect(
       resolveAiAccess(
         hostedContext({
+          billingPass: {
+            provider: 'stripe',
+            paymentIntentId: 'pi_123',
+            planId: 'ai-pro',
+            status: 'paid',
+            purchasedAt: '2026-04-01T00:00:00.000Z',
+            activatedAt: null,
+            expiresAt: null,
+          },
           entitlement: {
             planId: 'ai-pro',
-            status: 'trial',
+            status: 'paid',
             source: 'stripe',
             features: [...FACET_PAID_AI_FEATURES],
-            effectiveThrough: '2099-04-01T00:00:00.000Z',
+            effectiveThrough: null,
           },
         }),
         'prep.generate',
@@ -108,16 +177,60 @@ describe('resolveAiAccess', () => {
       source: 'hosted-entitlement',
       reason: null,
     })
+  })
 
+  it('requires upgrade when a paid entitlement has no matching paid pass', () => {
     expect(
       resolveAiAccess(
         hostedContext({
+          billingPass: null,
           entitlement: {
             planId: 'ai-pro',
-            status: 'grace',
+            status: 'paid',
             source: 'stripe',
             features: [...FACET_PAID_AI_FEATURES],
-            effectiveThrough: '2099-04-01T00:00:00.000Z',
+            effectiveThrough: null,
+          },
+        }),
+        'letters.generate',
+      ),
+    ).toEqual({
+      allowed: false,
+      source: 'none',
+      reason: 'upgrade_required',
+    })
+  })
+
+  it('allows purchased passes stored in pass history before activation', () => {
+    expect(
+      resolveAiAccess(
+        hostedContext({
+          billingPass: {
+            provider: 'stripe',
+            paymentIntentId: 'pi_refunded_current',
+            planId: 'ai-pro',
+            status: 'refunded',
+            purchasedAt: '2026-04-02T00:00:00.000Z',
+            activatedAt: null,
+            expiresAt: null,
+            history: [
+              {
+                provider: 'stripe',
+                paymentIntentId: 'pi_paid_history',
+                planId: 'ai-pro',
+                status: 'paid',
+                purchasedAt: '2026-04-01T00:00:00.000Z',
+                activatedAt: null,
+                expiresAt: null,
+              },
+            ],
+          },
+          entitlement: {
+            planId: 'ai-pro',
+            status: 'paid',
+            source: 'stripe',
+            features: [...FACET_PAID_AI_FEATURES],
+            effectiveThrough: null,
           },
         }),
         'letters.generate',
@@ -176,7 +289,7 @@ describe('resolveAiAccess', () => {
     })
   })
 
-  it('denies hosted AI access with a billing issue when entitlement is delinquent', () => {
+  it('denies hosted AI access with a billing issue when entitlement is refunded', () => {
     expect(
       resolveAiAccess(
         hostedContext({
@@ -184,17 +297,17 @@ describe('resolveAiAccess', () => {
             provider: 'stripe',
             paymentIntentId: 'pi_123',
             planId: 'ai-pro',
-            status: 'active',
+            status: 'refunded',
             purchasedAt: '2026-04-01T00:00:00.000Z',
             activatedAt: '2026-04-01T00:00:00.000Z',
             expiresAt: '2099-04-01T00:00:00.000Z',
           },
           entitlement: {
             planId: 'ai-pro',
-            status: 'delinquent',
+            status: 'refunded',
             source: 'stripe',
             features: [...FACET_PAID_AI_FEATURES],
-            effectiveThrough: '2099-04-01T00:00:00.000Z',
+            effectiveThrough: null,
           },
         }),
         'build.bullet-reframe',
@@ -213,6 +326,34 @@ describe('resolveAiAccess', () => {
           entitlement: {
             planId: 'ai-pro',
             status: 'active',
+            source: 'stripe',
+            features: [...FACET_PAID_AI_FEATURES],
+            effectiveThrough: '2020-01-01T00:00:00.000Z',
+          },
+        }),
+        'identity.deepen',
+      ),
+    ).toEqual({
+      allowed: false,
+      source: 'none',
+      reason: 'access_expired',
+    })
+
+    expect(
+      resolveAiAccess(
+        hostedContext({
+          billingPass: {
+            provider: 'stripe',
+            paymentIntentId: 'pi_123',
+            planId: 'ai-pro',
+            status: 'expired',
+            purchasedAt: '2026-04-01T00:00:00.000Z',
+            activatedAt: '2026-04-01T00:00:00.000Z',
+            expiresAt: '2020-01-01T00:00:00.000Z',
+          },
+          entitlement: {
+            planId: 'ai-pro',
+            status: 'expired',
             source: 'stripe',
             features: [...FACET_PAID_AI_FEATURES],
             effectiveThrough: '2020-01-01T00:00:00.000Z',
