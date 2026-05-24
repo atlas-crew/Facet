@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-03-12 16:07'
-updated_date: '2026-05-24 14:55'
+updated_date: '2026-05-24 15:18'
 labels:
   - feature
   - billing
@@ -55,6 +55,8 @@ Create the final release gate for Wave 1 hosted accounts. This task should bundl
 2026-05-06 Wave 1 consolidation: TASK-80, 81, 82, 83 closed Done. Their engineering and docs shipped between 2026-03-14 and 2026-04-08 per their respective notes; what remained were operator-action gates (docs-architect approval, hosted staging env, Stripe sandbox rehearsal, restore/rollback drill). Those gates are now consolidated here as the single holder for Wave 1 launch readiness. Five ACs added covering: TASK-81's three sync/entitlement/recovery verifications (rolled up unticked because the original agent never formally verified them — staging pass is the right place to do that once), docs-architect signoff on the consolidated docs package, and the missing restore/rollback rehearsal. Priority lowered to Low because Facet is pre-launch with no users; this task is dormant until a hosted-beta launch is actually scheduled. Existing dependencies on the now-closed sibling tasks are preserved for history but are effectively satisfied.
 
 2026-05-24 Codex taking TASK-84 for final Wave 1 readiness execution. Plan: verify live hosted frontend/API/Supabase/Fly state; run staged hosted auth, persistence, migration/import, entitlement-denial, checkout/refund, restore, and rollback evidence where safe; update readiness docs/task with go/no-go decision and concrete receipts; request docs-architect review for the consolidated docs package if docs are changed.
+
+2026-05-24 Codex progress: fixed hosted workspace default snapshot blocker discovered during TASK-84 staging validation. Commit 96bd228 centralizes hosted snapshot defaults, adds jdAnalysis/current resume/cover-letter/research shapes, normalizes legacy hosted snapshots on read, updates the example hosted workspace file, and adds the SPA rewrite config. Verification: pnpm exec vitest run src/test/hostedWorkspaceStore.test.ts src/test/facetServer.test.ts (73 passed); scoped ESLint passed; git diff --check passed; pnpm run build passed with existing chunk-size warnings; independent review artifacts .agents/reviews/review-20260524-110527.md, review-20260524-110946.md, review-20260524-111323.md informed remediation; deployed Fly facet-api image deployment-01KSD8XWB3G39PW1BZ4XDZRQ37; live Supabase-session smoke against https://facet-api.fly.dev passed create workspace -> immediate generated snapshot save (revision 1, jdAnalysis revision 1) -> invalid pipeline payload returns 400 -> delete returns 200. Remaining TASK-84 blocker: Vercel frontend deploy failed because the configured Vercel token is invalid; https://myfacets.cv/account and https://facet-app-navy.vercel.app/account still return Vercel 404 until the SPA rewrite is deployed.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
