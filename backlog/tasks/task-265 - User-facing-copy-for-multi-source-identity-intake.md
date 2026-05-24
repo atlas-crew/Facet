@@ -1,10 +1,10 @@
 ---
 id: TASK-265
 title: User-facing copy for multi-source identity intake
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-11 05:21'
-updated_date: '2026-05-11 05:21'
+updated_date: '2026-05-24 01:03'
 labels:
   - documentation
   - identity
@@ -14,7 +14,7 @@ dependencies:
   - TASK-260
 modified_files:
   - src/routes/identity/ExtractionAgentCard.tsx
-  - src/routes/identity/identity.css
+  - src/test/IdentityPage.test.tsx
 priority: low
 ordinal: 6000
 ---
@@ -43,22 +43,28 @@ REFERENCES:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Empty bay text states recommended count (3-10), recency hint (last 2 years), and format limit (single-column PDF)
-- [ ] #2 Empty bay text includes a plain-language why-it-helps sentence (more variants = denser canonical fields = better JD-tailored regen)
-- [ ] #3 Per-file label input shows the placeholder 'optional positioning hint, e.g. platform, security, engineering manager' or equivalent concrete examples
-- [ ] #4 Bay heading uses source-agnostic language (e.g., 'intake sources') leaving room for non-resume sources later
-- [ ] #5 Synthesize button copy clearly reflects multi-source intent and dynamic source count
-- [ ] #6 Above-cap warning copy explains the 10-source limit in plain language without referencing implementation
-- [ ] #7 All new copy passes existing tone-of-voice guidance from src/routes/identity/ (read existing copy for style match)
-- [ ] #8 Visual regression: existing single-file copy adjusted but the bay still looks coherent for the N=1 case
+- [x] #1 Empty bay text states recommended count (3-10), recency hint (last 2 years), and format limit (single-column PDF)
+- [x] #2 Empty bay text includes a plain-language why-it-helps sentence (more variants = denser canonical fields = better JD-tailored regen)
+- [x] #3 Per-file label input shows the placeholder 'optional positioning hint, e.g. platform, security, engineering manager' or equivalent concrete examples
+- [x] #4 Bay heading uses source-agnostic language (e.g., 'intake sources') leaving room for non-resume sources later
+- [x] #5 Synthesize button copy clearly reflects multi-source intent and dynamic source count
+- [x] #6 Above-cap warning copy explains the 10-source limit in plain language without referencing implementation
+- [x] #7 All new copy passes existing tone-of-voice guidance from src/routes/identity/ (read existing copy for style match)
+- [x] #8 Visual regression: existing single-file copy adjusted but the bay still looks coherent for the N=1 case
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Updated the Identity intake source copy to explain the multi-source workflow, recommended 3-10 recent single-column PDFs, positioning hint examples, dynamic synthesis button text, and plain-language 10-source cap warning. Added IdentityPage regression coverage for empty-state copy, per-source placeholders, dynamic source counts, N=1 coherence, above-cap copy, and future mixed-source cap handling. Verification: npx vitest run src/test/IdentityPage.test.tsx; npm run typecheck; npx eslint src/routes/identity/ExtractionAgentCard.tsx src/test/IdentityPage.test.tsx; git diff --check; independent code review clean at .agents/reviews/review-20260523-205910.md; independent test audit clean at .agents/reviews/test-audit-20260523-210054.md. Note: npm run lint invokes eslint . and still reports pre-existing unrelated lint errors outside touched files.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
