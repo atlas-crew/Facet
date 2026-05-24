@@ -8,7 +8,7 @@ import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 import { resolveStorage } from '../store/storage'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
-import type { ResumeScanResult } from '../types/identity'
+import type { IntakeSource, ResumeScanResult } from '../types/identity'
 
 const navigateMock = vi.fn(async () => undefined)
 const identityExtractionMocks = vi.hoisted(() => ({
@@ -180,16 +180,18 @@ const setupExportMocks = (url: string, expectedFilename: string) => ({
 })
 
 const getSourceIntakeSection = (): HTMLElement => {
-  const heading = screen.getByRole('heading', { name: 'Source Intake' })
+  const heading = screen.getByRole('heading', { name: 'Intake Sources' })
   const section = heading.closest('section')
   if (!section) {
-    throw new Error('Source Intake section not found.')
+    throw new Error('Intake Sources section not found.')
   }
   return section
 }
 
 const clickSourceGenerateDraft = () => {
-  const button = within(getSourceIntakeSection()).getByRole('button', { name: 'Generate Draft' })
+  const button = within(getSourceIntakeSection()).getByRole('button', {
+    name: /^(Generate Draft|Synthesize identity from \d+ sources?)$/,
+  })
   button.focus()
   fireEvent.click(button)
   return button
@@ -722,10 +724,21 @@ describe('IdentityPage', () => {
     expect(inputClickMock).toHaveBeenCalledTimes(1)
   })
 
+  it('describes the multi-source intake recommendations before upload', () => {
+    render(<IdentityPage />)
+
+    expect(screen.getByRole('heading', { name: 'Intake Sources' })).toBeTruthy()
+    expect(screen.getByText('Drag intake source PDFs here or click to browse')).toBeTruthy()
+    expect(screen.getByText(/Use 3-10 text-based, single-column PDFs from the last 2 years/))
+      .toBeTruthy()
+    expect(screen.getByText(/denser canonical bullet fields/)).toBeTruthy()
+    expect(screen.getByText('No intake sources yet')).toBeTruthy()
+  })
+
   it('scans a dropped PDF from the upload zone', async () => {
     render(<IdentityPage />)
 
-    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+    fireEvent.drop(screen.getByText('Drag intake source PDFs here or click to browse'), {
       dataTransfer: {
         files: [new File(['%PDF-1.4'], 'resume.pdf', { type: 'application/pdf' })],
       },
@@ -734,6 +747,11 @@ describe('IdentityPage', () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
     })
+    expect(
+      within(getSourceIntakeSection()).getByRole('button', {
+        name: 'Synthesize identity from 1 source',
+      }),
+    ).toBeTruthy()
   })
 
   it('appends multiple PDFs from a single drop in order', async () => {
@@ -749,7 +767,7 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+    fireEvent.drop(screen.getByText('Drag intake source PDFs here or click to browse'), {
       dataTransfer: {
         files: [
           new File(['%PDF-1.4'], 'platform.pdf', { type: 'application/pdf' }),
@@ -765,6 +783,16 @@ describe('IdentityPage', () => {
     expect(sources[0]?.kind === 'resume' && sources[0].scan.fileName).toBe('platform.pdf')
     expect(sources[1]?.kind === 'resume' && sources[1].scan.fileName).toBe('security.pdf')
     expect(screen.getByRole('list', { name: 'Intake sources' })).toBeTruthy()
+    expect(
+      screen.getAllByPlaceholderText(
+        'optional positioning hint, e.g. platform, security, engineering manager',
+      ),
+    ).toHaveLength(2)
+    expect(
+      within(getSourceIntakeSection()).getByRole('button', {
+        name: 'Synthesize identity from 2 sources',
+      }),
+    ).toBeTruthy()
   })
 
   it('isolates per-file scan failures without aborting the batch', async () => {
@@ -778,7 +806,7 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+    fireEvent.drop(screen.getByText('Drag intake source PDFs here or click to browse'), {
       dataTransfer: {
         files: [
           new File(['%PDF-1.4'], 'broken.pdf', { type: 'application/pdf' }),
@@ -807,7 +835,7 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    fireEvent.drop(screen.getByText('Drag resume PDFs here or click to browse'), {
+    fireEvent.drop(screen.getByText('Drag intake source PDFs here or click to browse'), {
       dataTransfer: {
         files: [
           new File(['%PDF-1.4'], 'one.pdf', { type: 'application/pdf' }),
@@ -843,9 +871,39 @@ describe('IdentityPage', () => {
     render(<IdentityPage />)
 
     expect(
-      screen.getByText(/1 source above the 10-source cap won't contribute to synthesis/),
+      screen.getByText(/Facet will synthesize from the first 10 sources only/),
     ).toBeTruthy()
+    expect(screen.getByText(/Remove 1 extra source before generating/)).toBeTruthy()
     expect(screen.getAllByText('Over cap')).toHaveLength(1)
+  })
+
+  it('counts only resume intake sources for cap warnings and source card state', () => {
+    const futureIntakeSource = {
+      kind: 'jd',
+      id: 'future-jd-source',
+      userLabel: 'Future JD source',
+    } as unknown as IntakeSource
+    const sources = Array.from({ length: 10 }, (_, index) => {
+      const scan = scanFixture()
+      scan.fileName = `resume-${index + 1}.pdf`
+      return {
+        kind: 'resume' as const,
+        id: `intake-${index + 1}`,
+        scan,
+      }
+    })
+    useIdentityStore.setState({ intakeSources: [futureIntakeSource, ...sources] })
+
+    render(<IdentityPage />)
+
+    expect(screen.queryByText(/Facet will synthesize from the first 10 sources only/)).toBeNull()
+    expect(screen.getByText('Primary')).toBeTruthy()
+    expect(screen.getByText('resume-1.pdf')).toBeTruthy()
+    expect(
+      within(getSourceIntakeSection()).getByRole('button', {
+        name: 'Synthesize identity from 10 sources',
+      }),
+    ).toBeTruthy()
   })
 
   it('rejects non-PDF uploads before invoking the scanner', async () => {
@@ -1767,7 +1825,7 @@ describe('IdentityPage', () => {
     })
 
     expect(openButton.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByText('Source Intake')).toBeTruthy()
+    expect(screen.getByText('Intake Sources')).toBeTruthy()
     expect(screen.getByText('No source loaded yet')).toBeTruthy()
     expect(screen.getByText('Apply / Review Draft')).toBeTruthy()
     expect(screen.getByText('No draft generated yet')).toBeTruthy()

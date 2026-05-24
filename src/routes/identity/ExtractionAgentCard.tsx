@@ -136,15 +136,23 @@ export function ExtractionAgentCard({
   const hasRunningBullet = scanResult
     ? Object.values(scanResult.progress.bullets).some((progress) => progress.status === 'running')
     : false
+  const resumeSources = intakeSources.filter((source) => source.kind === 'resume')
+  const contributingSourceCount = Math.min(resumeSources.length, INTAKE_SOURCE_CAP)
+  const generateButtonLabel =
+    intakeMode === 'upload' && contributingSourceCount > 0
+      ? `Synthesize identity from ${contributingSourceCount} source${
+          contributingSourceCount === 1 ? '' : 's'
+        }`
+      : 'Generate Draft'
 
   return (
     <section className="identity-card">
       <div className="identity-card-header">
         <div>
-          <h2>Source Intake</h2>
+          <h2>Intake Sources</h2>
           <p>
-            Bring in a resume first, then fall back to pasted source text when the scan needs
-            clarification.
+            Bring in recent source variants first, then fall back to pasted source text when the
+            scan needs clarification.
           </p>
           {statusLabel ? <span className="identity-section-status">{statusLabel}</span> : null}
         </div>
@@ -173,7 +181,7 @@ export function ExtractionAgentCard({
             aria-busy={isGenerating || isScanning}
           >
             <Sparkles size={16} />
-            {isGenerating ? 'Generating…' : 'Generate Draft'}
+            {isGenerating ? 'Synthesizing…' : generateButtonLabel}
           </button>
           <button
             className="identity-btn"
@@ -222,29 +230,26 @@ export function ExtractionAgentCard({
           >
             <Upload size={22} aria-hidden="true" />
             <strong>
-              {isScanning ? 'Scanning PDF…' : 'Drag resume PDFs here or click to browse'}
+              {isScanning ? 'Scanning PDF…' : 'Drag intake source PDFs here or click to browse'}
             </strong>
           </div>
           <p className="identity-muted">
-            Resume Scanner v1 is PDF-only and performs a local structural parse before any AI call.
-            Use text-based, single-column PDFs. OCR and image-only resumes are out of scope for this
-            pass. Drop multiple resumes to feed variant context into the draft.
+            Use 3-10 text-based, single-column PDFs from the last 2 years when you have them. More
+            variants give Facet denser canonical bullet fields, which improves JD-tailored
+            regeneration later. OCR and image-only sources are out of scope for this pass.
           </p>
-          {intakeSources.length > 0 || failedFiles.length > 0 ? (
+          {resumeSources.length > 0 || failedFiles.length > 0 ? (
             <>
-              {intakeSources.length > INTAKE_SOURCE_CAP ? (
+              {resumeSources.length > INTAKE_SOURCE_CAP ? (
                 <p className="identity-source-cap-warning" role="alert">
-                  {intakeSources.length - INTAKE_SOURCE_CAP} source
-                  {intakeSources.length - INTAKE_SOURCE_CAP === 1 ? '' : 's'} above the{' '}
-                  {INTAKE_SOURCE_CAP}-source cap won&apos;t contribute to synthesis. Remove some to
-                  bring the count to {INTAKE_SOURCE_CAP} or fewer.
+                  Facet will synthesize from the first {INTAKE_SOURCE_CAP} sources only. Remove{' '}
+                  {resumeSources.length - INTAKE_SOURCE_CAP} extra source
+                  {resumeSources.length - INTAKE_SOURCE_CAP === 1 ? '' : 's'} before generating if
+                  you want every file included.
                 </p>
               ) : null}
               <ul className="identity-source-list" aria-label="Intake sources">
-                {intakeSources.map((source, index) => {
-                  if (source.kind !== 'resume') {
-                    return null
-                  }
+                {resumeSources.map((source, index) => {
                   const isActive = index === 0
                   const isOverCap = index >= INTAKE_SOURCE_CAP
                   const cardClassName = [
@@ -289,7 +294,7 @@ export function ExtractionAgentCard({
                           type="text"
                           value={source.userLabel ?? ''}
                           onChange={(event) => onSetSourceLabel(source.id, event.target.value)}
-                          placeholder="e.g. platform, security, backend"
+                          placeholder="optional positioning hint, e.g. platform, security, engineering manager"
                         />
                       </label>
                     </li>
@@ -465,11 +470,11 @@ export function ExtractionAgentCard({
             </>
           ) : (
             <div className="identity-empty">
-              <h3>No scanned resume yet</h3>
+              <h3>No intake sources yet</h3>
               <p>
-                Upload a text-based PDF to build a partial identity shell without a network call. If
-                the parser cannot recover a reliable structure, switch to paste-text mode and
-                continue there.
+                Upload a recent single-column PDF to build a partial identity shell without a
+                network call. A few source variants help Facet preserve stronger bullet evidence for
+                later job-specific regeneration.
               </p>
             </div>
           )}
