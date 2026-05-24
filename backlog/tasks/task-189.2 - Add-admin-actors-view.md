@@ -1,10 +1,11 @@
 ---
 id: TASK-189.2
 title: Add admin actors view
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-22 03:28'
-updated_date: '2026-05-08 23:20'
+updated_date: '2026-05-24 17:30'
 labels:
   - admin
   - proxy
@@ -72,6 +73,17 @@ Add `GET /admin/actors` mounted under the existing `requireAdmin` middleware:
 - [ ] #7 Integration test covers happy path, filter path, and 403 path
 - [ ] #8 Boundary test confirms ?limit is clamped to 500
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation plan (Codex, 2026-05-24):
+1. Reuse the 189.1 admin scaffold: inspect `requireAdmin`, existing admin endpoint/store patterns, AdminPage subnav/state, and tests before editing.
+2. Add a read-only `/admin/actors` proxy path backed by the existing Postgres store, with default/max limit handling, tenant_id filter, q email substring filter, created_at DESC ordering, and workspace_count aggregation.
+3. Extend the admin client view with an Actors subnav tab, table columns, loading/error/empty states, and a 300ms debounced q query parameter.
+4. Add proxy integration coverage for happy path, tenant filter, 403, and limit clamp; add client coverage for debounced query param behavior.
+5. Run focused tests, lint, build, independent review/audit if feasible, then update AC/DoD and commit atomically with `cortex git commit`.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
