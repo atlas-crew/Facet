@@ -73,6 +73,31 @@ function readNestedMessage(value: unknown): string {
   return ''
 }
 
+function readPayloadMessage(payload: FacetAiProxyErrorPayload | null): string {
+  if (!payload) {
+    return ''
+  }
+
+  return (
+    (typeof payload.error === 'string' && payload.error.trim()) ||
+    readNestedMessage(payload.error) ||
+    (typeof payload.message === 'string' && payload.message.trim()) ||
+    ''
+  )
+}
+
+function readNestedType(value: unknown): string {
+  if (!isRecord(value)) {
+    return ''
+  }
+
+  return typeof value.type === 'string' ? value.type.trim() : ''
+}
+
+function isAuthenticationErrorPayload(payload: FacetAiProxyErrorPayload | null): boolean {
+  return readNestedType(payload?.error) === 'authentication_error'
+}
+
 function isBillingIssueMessage(message: string): boolean {
   const normalized = message.toLowerCase()
   return (
@@ -104,7 +129,12 @@ function isRateLimitMessage(message: string): boolean {
 }
 
 export async function readAiProxyError(response: Response): Promise<Error> {
-  const text = await response.text()
+  let text = ''
+  try {
+    text = await response.text()
+  } catch {
+    text = ''
+  }
   let parsed: unknown = null
 
   if (text.trim()) {
@@ -116,12 +146,8 @@ export async function readAiProxyError(response: Response): Promise<Error> {
   }
 
   const payload = isRecord(parsed) ? (parsed as FacetAiProxyErrorPayload) : null
-  const errorMessage =
-    (payload &&
-      ((typeof payload.error === 'string' && payload.error.trim()) ||
-        readNestedMessage(payload.error) ||
-        (typeof payload.message === 'string' && payload.message.trim()))) ||
-    text.trim()
+  const payloadMessage = readPayloadMessage(payload)
+  const errorMessage = payloadMessage || text.trim()
 
   const code =
     payload?.code === 'ai_access_denied' ||
@@ -160,6 +186,19 @@ export async function readAiProxyError(response: Response): Promise<Error> {
         feature,
       },
     )
+  }
+
+  if (response.status === 401 || isAuthenticationErrorPayload(payload)) {
+    const authMessage =
+      payloadMessage ||
+      'AI proxy authentication failed. Check the configured provider credentials and try again.'
+
+    return new FacetAiProxyError(authMessage, {
+      status: response.status,
+      code: 'auth_internal_error',
+      reason: null,
+      feature,
+    })
   }
 
   if (isBillingIssueMessage(errorMessage)) {
