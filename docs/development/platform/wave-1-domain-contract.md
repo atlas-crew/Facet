@@ -143,11 +143,15 @@ Wave 1 statuses:
 
 Wave 1 paid AI features are:
 
-- `build.jd-analysis`
 - `build.bullet-reframe`
+- `identity.extract`
+- `identity.deepen`
 - `match.jd-analysis`
+- `pipeline.t3.interviewer`
+- `research.deep-search`
 - `research.profile-inference`
 - `research.search`
+- `research.thesis`
 - `prep.generate`
 - `letters.generate`
 - `linkedin.generate`

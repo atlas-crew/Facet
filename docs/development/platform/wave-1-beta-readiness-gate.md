@@ -12,6 +12,7 @@ Use this with:
 - `docs/development/platform/wave-1-operations-runbook.md`
 - `docs/development/platform/wave-1-beta-support-playbook.md`
 - `docs/development/platform/wave-1-pricing-and-entitlements.md`
+- `docs/development/platform/wave-1-beta-validation-2026-05-24.md`
 
 ## Wave 1 Scope Boundary
 
@@ -150,69 +151,67 @@ For the actual launch decision, record:
 
 ## Current Validation Snapshot
 
-Date: 2026-04-08
+Date: 2026-05-24
 
-Scope executed from this checkout:
+Scope executed against hosted staging/production-equivalent Wave 1 runtime:
 
-- local repository validation plus hosted environment-contract verification
-- required hosted browser env keys are present in `.env`, `.env.production`, and `.vercel/.env.production.local`
-- required hosted proxy auth and billing keys are present in `proxy/.env`
-- this machine did not re-run the authenticated staged browser pass; sign-in and Stripe checkout were previously validated outside this session
+- frontend: Vercel production deployment `dpl_5yvxDPU8cowDfV48EroroQjCADme`
+- frontend aliases: `https://myfacets.cv`, `https://facet-app-navy.vercel.app`
+- proxy: Fly app `facet-api`, image tag `deployment-01KSDBPBQBRW7F2FM00SDN4YHB`
+- proxy digest: `sha256:3c7e3d23b28f34707812142e65f6bf6715869f631617a5a2a7cf7e1e7ecf3241`
+- Supabase project: `zxcptjtlcvbtvzxybqio`
 
-Open blockers before declaring the staging pass complete:
+Live evidence captured:
 
-- no recorded staged browser pass yet for hosted workspace bootstrap, persistence, local-to-hosted migration, or workspace recovery flows
-- no recorded staged browser pass yet for session reuse or expired-session recovery against the current Supabase environment
-- no recorded staged browser pass yet for AI entitlement denial or billing-state recovery flows
-- no restore or rollback rehearsal has been recorded yet against the current hosted backing store
+- `/tmp/facet-task84-final-live.json` -> `30` hosted API checks passed, `0` failed
+- `/tmp/facet-task84-browser.json` -> `3` browser checks passed, `0` failed
+- `https://myfacets.cv/account` -> HTTP `200`, served `index.html`
+- `https://facet-app-navy.vercel.app/account` -> HTTP `200`, served `index.html`
+- browser Account page rendered authenticated app shell and AI Pro/free billing state
+- raw Vercel deployment URL is protected by Vercel SSO, but production aliases serve the app correctly
 
-Local evidence captured:
+Coverage:
 
-- `npm run typecheck` -> pass
-- `npm run build` -> pass
-- `pnpm run test:wave1` -> pass
-  - current result: `128` passed across `5` test files
-  - the focused Wave 1 local receipt is clean again after refreshing the AppShell expectations to the current shell contract
-- operator-reported staged validations already completed outside this machine:
-  - hosted sign-in — reported by the user on 2026-04-08 in the current release thread
-  - Stripe sandbox checkout — reported by the user on 2026-04-08 in the current release thread
+- hosted auth: pass
+- session reuse and re-auth: pass
+- workspace create, rename, load, save, delete: pass
+- hosted sync states saving/saved/error/offline: pass
+- local-to-hosted import from local-export-shaped snapshot: pass
+- AI entitlement gating: pass for `upgrade_required`, `access_expired`, `billing_issue`, and paid-pass activation
+- hosted persistence during AI denials: pass
+- restore rehearsal from known-good snapshot: pass
+- billing rollback fallback to free/no-entitlement hosted context: pass
+- post-rollback hosted persistence load: pass
 
 Implication:
 
-- the hosted implementation currently passes local type-check, build, and focused Wave 1 test validation
-- the hosted env and billing/auth configuration required for a real staged pass are present in this checkout
-- launch is still a no-go until the remaining staged workspace or recovery validation and restore or rollback rehearsal are recorded
+- Wave 1 hosted beta is a go for the bounded beta scope in this document.
+- Expansion should remain staged and reversible; any persistence, billing-state, or entitlement regression should pause rollout immediately.
 
 ## Decision Log
 
-| Field                     | Value                                                                                                                                                                                                                |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Candidate build           | `b9d99e7`                                                                                                                                                                                                            |
-| Candidate build note      | pinned to the last local Wave 1 validation receipt from this checkout; docs-only or backlog-only commits after the pinned candidate do not require revalidation, but any product, proxy, or test receipt change does |
-| Validation date           | `2026-04-08`                                                                                                                                                                                                         |
-| Validator or owner        | Codex local validation pass                                                                                                                                                                                          |
-| Validation environment    | local repository evidence plus hosted env-contract verification; staged sign-in and Stripe checkout were previously operator-validated outside this session                                                          |
-| Auth validation           | partial                                                                                                                                                                                                              |
-| Persistence validation    | fail                                                                                                                                                                                                                 |
-| Migration validation      | fail                                                                                                                                                                                                                 |
-| AI entitlement validation | partial                                                                                                                                                                                                              |
-| Restore rehearsal         | fail                                                                                                                                                                                                                 |
-| Rollback rehearsal        | fail                                                                                                                                                                                                                 |
-| Launch decision           | no-go                                                                                                                                                                                                                |
-| Blocking issues           | See "Current blocking details" below.                                                                                                                                                                                |
-| Blocking owners           | See "Current blocking details" below.                                                                                                                                                                                |
+| Field                     | Value                                                                                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Candidate build           | Vercel `dpl_5yvxDPU8cowDfV48EroroQjCADme`; Fly image `deployment-01KSDBPBQBRW7F2FM00SDN4YHB`; proxy source SHA `2b7181f05f41b89c1fa589b9e07fd5fc4182795d`                                       |
+| Candidate build note      | product runtime validated on hosted aliases and Fly proxy; docs-only or backlog-only commits after this receipt do not require revalidation, but product, proxy, env, or entitlement changes do |
+| Validation date           | `2026-05-24`                                                                                                                                                                                    |
+| Validator or owner        | Codex hosted validation pass                                                                                                                                                                    |
+| Validation environment    | Vercel production aliases, Fly hosted proxy, Supabase hosted auth and persistence backing store, Stripe-shaped billing rows via hosted billing store                                            |
+| Auth validation           | pass                                                                                                                                                                                            |
+| Persistence validation    | pass                                                                                                                                                                                            |
+| Migration validation      | pass                                                                                                                                                                                            |
+| AI entitlement validation | pass                                                                                                                                                                                            |
+| Restore rehearsal         | pass                                                                                                                                                                                            |
+| Rollback rehearsal        | pass                                                                                                                                                                                            |
+| Launch decision           | go                                                                                                                                                                                              |
+| Blocking issues           | none for Wave 1 bounded beta                                                                                                                                                                    |
+| Blocking owners           | none                                                                                                                                                                                            |
 
 ### Current Blocking Details
 
-Blocking issues:
-
-1. Staged hosted validation still lacks recorded workspace bootstrap, persistence, migration, session-recovery, and billing-state or entitlement-recovery coverage.
-2. Restore and rollback rehearsal has not been recorded yet against the current hosted backing store.
-
-Blocking owners:
-
-1. Release owner or staged validator with hosted account access.
-2. Hosted platform or release owner.
+No open blockers remain for Wave 1 bounded beta launch. Keep the automatic no-go
+conditions above active during staged rollout and pause expansion on any
+persistence, billing-state, or entitlement regression.
 
 ## Decision Log Template
 

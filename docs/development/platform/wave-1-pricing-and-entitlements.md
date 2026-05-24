@@ -42,21 +42,27 @@ and [`brand/MANIFESTO.md`](../../../brand/MANIFESTO.md) "Career-search runs in b
 The executable source of truth is:
 
 - `src/types/hosted.ts`
+- `proxy/aiFeatures.js`
 - `proxy/aiAccess.js`
 
 Wave 1 paid AI features are:
 
-- `build.jd-analysis`
 - `build.bullet-reframe`
+- `identity.extract`
+- `identity.deepen`
 - `match.jd-analysis`
+- `pipeline.t3.interviewer`
+- `research.deep-search`
 - `research.profile-inference`
 - `research.search`
+- `research.thesis`
 - `prep.generate`
 - `letters.generate`
 - `linkedin.generate`
 - `debrief.generate`
 
-Everything outside that list remains on the free hosted product boundary.
+Everything outside that executable feature inventory remains on the free hosted
+product boundary.
 
 ## Free Hosted Surface
 
@@ -119,6 +125,7 @@ When triaging customer reports:
 Any future Wave 1 pricing change must update:
 
 - `src/types/hosted.ts`
+- `proxy/aiFeatures.js`
 - `proxy/aiAccess.js`
 - this document
 - `docs/user-guides/hosted-accounts.md`
