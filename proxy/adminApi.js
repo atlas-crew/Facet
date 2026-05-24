@@ -73,6 +73,11 @@ function normalizeCreatedAt(value) {
   return null
 }
 
+function timestampMs(value) {
+  const parsed = typeof value === 'string' ? Date.parse(value) : Number.NaN
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 function normalizeWorkspaceCount(value) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(0, Math.trunc(value))
@@ -88,6 +93,23 @@ function normalizeWorkspaceCount(value) {
   }
 
   return 0
+}
+
+function normalizeInteger(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value)
+  }
+
+  if (typeof value === 'bigint') {
+    return Number(value)
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
 }
 
 function normalizeActorRecord(value) {
@@ -130,10 +152,172 @@ function normalizeActorRecord(value) {
   }
 }
 
-function parseWebhookQuery(searchParams) {
+function normalizeWorkspaceRecord(value) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const tenantId =
+    typeof value.tenant_id === 'string'
+      ? value.tenant_id.trim()
+      : typeof value.tenantId === 'string'
+        ? value.tenantId.trim()
+        : ''
+  const workspaceId =
+    typeof value.workspace_id === 'string'
+      ? value.workspace_id.trim()
+      : typeof value.workspaceId === 'string'
+        ? value.workspaceId.trim()
+        : ''
+  const name = typeof value.name === 'string' ? value.name.trim() : ''
+  const revision = normalizeInteger(value.revision)
+  const createdAt = normalizeCreatedAt(value.created_at ?? value.createdAt)
+  const updatedAt = normalizeCreatedAt(value.updated_at ?? value.updatedAt)
+
+  if (!tenantId || !workspaceId) {
+    return null
+  }
+
+  return {
+    tenant_id: tenantId,
+    workspace_id: workspaceId,
+    name: name || null,
+    revision,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    snapshot_revision: normalizeInteger(value.snapshot_revision ?? value.snapshotRevision),
+    snapshot_exported_at: normalizeCreatedAt(
+      value.snapshot_exported_at ?? value.snapshotExportedAt,
+    ),
+    owner_user_id:
+      typeof value.owner_user_id === 'string'
+        ? value.owner_user_id.trim() || null
+        : typeof value.ownerUserId === 'string'
+          ? value.ownerUserId.trim() || null
+          : null,
+    owner_email:
+      typeof value.owner_email === 'string'
+        ? value.owner_email.trim() || null
+        : typeof value.ownerEmail === 'string'
+          ? value.ownerEmail.trim() || null
+          : null,
+  }
+}
+
+function normalizeWorkspaceMembership(value) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const userId =
+    typeof value.user_id === 'string'
+      ? value.user_id.trim()
+      : typeof value.userId === 'string'
+        ? value.userId.trim()
+        : ''
+  const tenantId =
+    typeof value.tenant_id === 'string'
+      ? value.tenant_id.trim()
+      : typeof value.tenantId === 'string'
+        ? value.tenantId.trim()
+        : ''
+  const workspaceId =
+    typeof value.workspace_id === 'string'
+      ? value.workspace_id.trim()
+      : typeof value.workspaceId === 'string'
+        ? value.workspaceId.trim()
+        : ''
+
+  if (!userId || !tenantId || !workspaceId) {
+    return null
+  }
+
+  return {
+    user_id: userId,
+    tenant_id: tenantId,
+    workspace_id: workspaceId,
+    is_default: Boolean(value.is_default ?? value.isDefault),
+  }
+}
+
+function normalizeWorkspaceSnapshotRecord(value) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const tenantId =
+    typeof value.tenant_id === 'string'
+      ? value.tenant_id.trim()
+      : typeof value.tenantId === 'string'
+        ? value.tenantId.trim()
+        : ''
+  const workspaceId =
+    typeof value.workspace_id === 'string'
+      ? value.workspace_id.trim()
+      : typeof value.workspaceId === 'string'
+        ? value.workspaceId.trim()
+        : ''
+  const revision = normalizeInteger(value.revision)
+
+  if (!tenantId || !workspaceId || revision === null) {
+    return null
+  }
+
+  return {
+    tenant_id: tenantId,
+    workspace_id: workspaceId,
+    revision,
+    exported_at: normalizeCreatedAt(value.exported_at ?? value.exportedAt),
+  }
+}
+
+function normalizeBillingRecord(value) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const tenantId =
+    typeof value.tenant_id === 'string'
+      ? value.tenant_id.trim()
+      : typeof value.tenantId === 'string'
+        ? value.tenantId.trim()
+        : ''
+  const accountId =
+    typeof value.account_id === 'string'
+      ? value.account_id.trim()
+      : typeof value.accountId === 'string'
+        ? value.accountId.trim()
+        : ''
+  const updatedAt = normalizeCreatedAt(value.updated_at ?? value.updatedAt)
+
+  if (!tenantId || !accountId || !updatedAt) {
+    return null
+  }
+
+  return {
+    tenant_id: tenantId,
+    account_id: accountId,
+    owner_email:
+      typeof value.owner_email === 'string'
+        ? value.owner_email
+        : typeof value.ownerEmail === 'string'
+          ? value.ownerEmail
+          : null,
+    customer: value.customer ?? null,
+    subscription: value.subscription ?? value.pass ?? null,
+    entitlement: value.entitlement ?? null,
+    updated_at: updatedAt,
+  }
+}
+
+function parseLimitedQuery(searchParams) {
   const rawLimit = searchParams.get('limit')
   const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 100
-  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(500, parsedLimit)) : 100
+  return Number.isFinite(parsedLimit) ? Math.max(1, Math.min(500, parsedLimit)) : 100
+}
+
+function parseWebhookQuery(searchParams) {
+  const limit = parseLimitedQuery(searchParams)
 
   const rawSince = searchParams.get('since')
   if (!rawSince) {
@@ -160,9 +344,7 @@ function parseWebhookQuery(searchParams) {
 }
 
 function parseActorsQuery(searchParams) {
-  const rawLimit = searchParams.get('limit')
-  const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 100
-  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(500, parsedLimit)) : 100
+  const limit = parseLimitedQuery(searchParams)
   const tenantId = searchParams.get('tenant_id')?.trim() || null
   const query = searchParams.get('q')?.trim() || null
   if (query && query.length > 256) {
@@ -181,6 +363,22 @@ function parseActorsQuery(searchParams) {
   }
 
   return { limit, tenantId, query, error: null }
+}
+
+function parseWorkspacesQuery(searchParams) {
+  return {
+    limit: parseLimitedQuery(searchParams),
+    tenantId: searchParams.get('tenant_id')?.trim() || null,
+    userId: searchParams.get('user_id')?.trim() || null,
+  }
+}
+
+function parseBillingQuery(searchParams) {
+  return {
+    limit: parseLimitedQuery(searchParams),
+    tenantId: searchParams.get('tenant_id')?.trim() || null,
+    accountId: searchParams.get('account_id')?.trim() || null,
+  }
 }
 
 export function requireAdmin(req, res, next, options = {}) {
@@ -213,10 +411,30 @@ export function requireAdmin(req, res, next, options = {}) {
 export function createInMemoryAdminStore(records = {}) {
   const webhooks = Array.isArray(records) ? records : records.webhooks
   const actors = Array.isArray(records) ? [] : records.actors
+  const workspaces = Array.isArray(records) ? [] : records.workspaces
+  const workspaceMemberships = Array.isArray(records)
+    ? []
+    : (records.workspaceMemberships ?? records.memberships)
+  const workspaceSnapshots = Array.isArray(records)
+    ? []
+    : (records.workspaceSnapshots ?? records.snapshots)
+  const billing = Array.isArray(records) ? [] : records.billing
   const receipts = Array.isArray(webhooks)
     ? webhooks.map(normalizeWebhookReceipt).filter(Boolean)
     : []
   const actorRecords = Array.isArray(actors) ? actors.map(normalizeActorRecord).filter(Boolean) : []
+  const workspaceRecords = Array.isArray(workspaces)
+    ? workspaces.map(normalizeWorkspaceRecord).filter(Boolean)
+    : []
+  const membershipRecords = Array.isArray(workspaceMemberships)
+    ? workspaceMemberships.map(normalizeWorkspaceMembership).filter(Boolean)
+    : []
+  const workspaceSnapshotRecords = Array.isArray(workspaceSnapshots)
+    ? workspaceSnapshots.map(normalizeWorkspaceSnapshotRecord).filter(Boolean)
+    : []
+  const billingRecords = Array.isArray(billing)
+    ? billing.map(normalizeBillingRecord).filter(Boolean)
+    : []
 
   return {
     async listWebhookReceipts({ limit = 100, since = null } = {}) {
@@ -241,6 +459,74 @@ export function createInMemoryAdminStore(records = {}) {
           )
           .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
           .slice(0, limit),
+      )
+    },
+
+    async listWorkspaces({ limit = 100, tenantId = null, userId = null } = {}) {
+      return cloneValue(
+        workspaceRecords
+          .filter((workspace) => tenantId === null || workspace.tenant_id === tenantId)
+          .filter(
+            (workspace) =>
+              userId === null ||
+              membershipRecords.some(
+                (membership) =>
+                  membership.user_id === userId &&
+                  membership.tenant_id === workspace.tenant_id &&
+                  membership.workspace_id === workspace.workspace_id,
+              ),
+          )
+          .sort((left, right) => timestampMs(right.updated_at) - timestampMs(left.updated_at))
+          .slice(0, limit)
+          .map((workspace) => {
+            const snapshot = workspaceSnapshotRecords
+              .filter(
+                (entry) =>
+                  entry.tenant_id === workspace.tenant_id &&
+                  entry.workspace_id === workspace.workspace_id,
+              )
+              .sort((left, right) => right.revision - left.revision)[0]
+            const ownerMembership = membershipRecords.find(
+              (membership) =>
+                membership.tenant_id === workspace.tenant_id &&
+                membership.workspace_id === workspace.workspace_id &&
+                membership.is_default,
+            )
+            const ownerActor = actorRecords.find(
+              (actor) =>
+                ownerMembership?.user_id === actor.user_id &&
+                actor.tenant_id === workspace.tenant_id,
+            )
+
+            return {
+              ...workspace,
+              snapshot_revision: workspace.snapshot_revision ?? snapshot?.revision ?? null,
+              snapshot_exported_at: workspace.snapshot_exported_at ?? snapshot?.exported_at ?? null,
+              owner_user_id: workspace.owner_user_id ?? ownerMembership?.user_id ?? null,
+              owner_email: workspace.owner_email ?? ownerActor?.email ?? null,
+            }
+          }),
+      )
+    },
+
+    async listBilling({ limit = 100, tenantId = null, accountId = null } = {}) {
+      return cloneValue(
+        billingRecords
+          .filter((entry) => tenantId === null || entry.tenant_id === tenantId)
+          .filter((entry) => accountId === null || entry.account_id === accountId)
+          .sort((left, right) => timestampMs(right.updated_at) - timestampMs(left.updated_at))
+          .slice(0, limit)
+          .map((entry) => {
+            const ownerActor = actorRecords.find(
+              (actor) =>
+                actor.tenant_id === entry.tenant_id && actor.account_id === entry.account_id,
+            )
+
+            return {
+              ...entry,
+              owner_email: entry.owner_email ?? ownerActor?.email ?? null,
+            }
+          }),
       )
     },
   }
@@ -283,6 +569,83 @@ export function createPostgresAdminStore(pool) {
 
       return rows.map(normalizeActorRecord).filter(Boolean)
     },
+
+    async listWorkspaces({ limit = 100, tenantId = null, userId = null } = {}) {
+      const { rows } = await pool.query(
+        `SELECT w.tenant_id,
+                w.workspace_id,
+                w.name,
+                w.revision,
+                w.created_at,
+                w.updated_at,
+                s.revision AS snapshot_revision,
+                s.exported_at AS snapshot_exported_at,
+                owner_m.user_id AS owner_user_id,
+                owner.email AS owner_email
+         FROM workspaces w
+         LEFT JOIN LATERAL (
+           SELECT s.revision, s.exported_at
+           FROM workspace_snapshots s
+           WHERE s.tenant_id = w.tenant_id AND s.workspace_id = w.workspace_id
+           ORDER BY s.revision DESC
+           LIMIT 1
+         ) s ON true
+         LEFT JOIN LATERAL (
+           SELECT m.user_id
+           FROM workspace_memberships m
+           WHERE m.tenant_id = w.tenant_id
+             AND m.workspace_id = w.workspace_id
+             AND m.is_default = true
+           ORDER BY m.user_id ASC
+           LIMIT 1
+         ) owner_m ON true
+         LEFT JOIN actors owner
+           ON owner.user_id = owner_m.user_id AND owner.tenant_id = w.tenant_id
+         WHERE ($1::text IS NULL OR w.tenant_id = $1::text)
+           AND (
+             $2::text IS NULL
+             OR EXISTS (
+               SELECT 1
+               FROM workspace_memberships member_filter
+               WHERE member_filter.user_id = $2::text
+                 AND member_filter.tenant_id = w.tenant_id
+                 AND member_filter.workspace_id = w.workspace_id
+             )
+           )
+         ORDER BY w.updated_at DESC
+         LIMIT $3`,
+        [tenantId, userId, limit],
+      )
+
+      return rows.map(normalizeWorkspaceRecord).filter(Boolean)
+    },
+
+    async listBilling({ limit = 100, tenantId = null, accountId = null } = {}) {
+      const { rows } = await pool.query(
+        `SELECT b.tenant_id,
+                b.account_id,
+                owner.email AS owner_email,
+                b.customer,
+                b.pass AS subscription,
+                b.entitlement,
+                b.updated_at
+         FROM billing_accounts b
+         LEFT JOIN LATERAL (
+           SELECT a.email
+           FROM actors a
+           WHERE a.tenant_id = b.tenant_id AND a.account_id = b.account_id
+           ORDER BY a.created_at ASC
+           LIMIT 1
+         ) owner ON true
+         WHERE ($1::text IS NULL OR b.tenant_id = $1::text)
+           AND ($2::text IS NULL OR b.account_id = $2::text)
+         ORDER BY b.updated_at DESC
+         LIMIT $3`,
+        [tenantId, accountId, limit],
+      )
+
+      return rows.map(normalizeBillingRecord).filter(Boolean)
+    },
   }
 }
 
@@ -295,18 +658,24 @@ export function createAdminApi({
 }) {
   const webhooksRoute = '/admin/webhooks'
   const actorsRoute = '/admin/actors'
+  const workspacesRoute = '/admin/workspaces'
+  const billingRoute = '/admin/billing'
+  const routeScopes = new Map([
+    [webhooksRoute, 'admin.webhooks'],
+    [actorsRoute, 'admin.actors'],
+    [workspacesRoute, 'admin.workspaces'],
+    [billingRoute, 'admin.billing'],
+  ])
 
   return {
     canHandle(req) {
       const url = new URL(req.url ?? '/', 'http://localhost')
-      return (
-        req.method === 'GET' && (url.pathname === webhooksRoute || url.pathname === actorsRoute)
-      )
+      return req.method === 'GET' && routeScopes.has(url.pathname)
     },
 
     async handle(req, res, sendJson) {
       const url = new URL(req.url ?? '/', 'http://localhost')
-      const eventScope = url.pathname === actorsRoute ? 'admin.actors' : 'admin.webhooks'
+      const eventScope = routeScopes.get(url.pathname) ?? 'admin.unknown'
       let actor
       try {
         actor = await actorResolver(req)
@@ -395,6 +764,85 @@ export function createAdminApi({
         res.setHeader('Pragma', 'no-cache')
         res.setHeader('Vary', 'Authorization')
         sendJson(res, 200, { actors })
+        return
+      }
+
+      if (url.pathname === workspacesRoute) {
+        if (!adminStore || typeof adminStore.listWorkspaces !== 'function') {
+          sendJson(res, 500, {
+            error: 'Admin workspaces store is unavailable.',
+            code: 'admin_store_unavailable',
+          })
+          return
+        }
+
+        const query = parseWorkspacesQuery(url.searchParams)
+        let workspaces
+        try {
+          workspaces = await adminStore.listWorkspaces({
+            limit: query.limit,
+            tenantId: query.tenantId,
+            userId: query.userId,
+          })
+        } catch (error) {
+          onEvent?.('admin.workspaces', 'error', {
+            code: 'workspaces_unavailable',
+            method: req.method,
+            path: url.pathname,
+            userId: actor.userId,
+          })
+          throw error
+        }
+        onEvent?.('admin.workspaces', 'success', {
+          method: req.method,
+          path: url.pathname,
+          userId: actor.userId,
+          workspaceCount: workspaces.length,
+        })
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('Pragma', 'no-cache')
+        res.setHeader('Vary', 'Authorization')
+        sendJson(res, 200, { workspaces })
+        return
+      }
+
+      if (url.pathname === billingRoute) {
+        if (!adminStore || typeof adminStore.listBilling !== 'function') {
+          sendJson(res, 500, {
+            error: 'Admin billing store is unavailable.',
+            code: 'admin_store_unavailable',
+          })
+          return
+        }
+
+        const query = parseBillingQuery(url.searchParams)
+        let billing
+        try {
+          billing = await adminStore.listBilling({
+            limit: query.limit,
+            tenantId: query.tenantId,
+            accountId: query.accountId,
+          })
+        } catch (error) {
+          onEvent?.('admin.billing', 'error', {
+            code: 'billing_unavailable',
+            method: req.method,
+            path: url.pathname,
+            userId: actor.userId,
+          })
+          throw error
+        }
+        onEvent?.('admin.billing', 'success', {
+          billingCount: billing.length,
+          includesPayload: true,
+          method: req.method,
+          path: url.pathname,
+          userId: actor.userId,
+        })
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('Pragma', 'no-cache')
+        res.setHeader('Vary', 'Authorization')
+        sendJson(res, 200, { billing })
         return
       }
 

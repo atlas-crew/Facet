@@ -85,6 +85,12 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.admin-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 320px));
+  gap: var(--space-3);
+}
+
 .admin-filter {
   display: grid;
   gap: var(--space-1);
@@ -151,6 +157,11 @@
   min-width: 920px;
 }
 
+.admin-workspaces-table,
+.admin-billing-table {
+  min-width: 1040px;
+}
+
 .admin-data-table th,
 .admin-data-table td {
   padding: var(--space-3) var(--space-4);
@@ -177,10 +188,31 @@
   background: var(--bg-surface-hover);
 }
 
+.admin-data-table tr.admin-row-drift {
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-surface));
+}
+
+.admin-data-table tr.admin-row-drift:hover {
+  background: color-mix(in srgb, var(--warning) 12%, var(--bg-surface));
+}
+
 .admin-data-table code {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-primary);
+}
+
+.admin-drift-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+  color: var(--warning);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
 }
 
 .admin-row-toggle {
@@ -213,6 +245,10 @@
   line-height: 1.5;
 }
 
+.admin-billing-payload {
+  border-top: 0;
+}
+
 @media (max-width: 760px) {
   .admin-page {
     grid-template-columns: 1fr;
@@ -220,5 +256,10 @@
 
   .admin-subnav {
     flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .admin-filter-grid {
+    grid-template-columns: 1fr;
   }
 }

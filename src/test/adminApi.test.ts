@@ -5,7 +5,7 @@ async function loadProxyModules() {
   const [
     { createFacetServer },
     { createInMemoryHostedWorkspaceStore },
-    { requireAdmin, createInMemoryAdminStore, createPostgresAdminStore },
+    { createAdminApi, requireAdmin, createInMemoryAdminStore, createPostgresAdminStore },
   ] = await Promise.all([
     // @ts-expect-error runtime-tested local proxy module
     import('../../proxy/facetServer.js'),
@@ -19,6 +19,7 @@ async function loadProxyModules() {
     createFacetServer,
     createInMemoryHostedWorkspaceStore,
     requireAdmin,
+    createAdminApi,
     createInMemoryAdminStore,
     createPostgresAdminStore,
   }
@@ -78,6 +79,10 @@ async function startHostedAdminServer(
   records: {
     webhooks?: Array<Record<string, unknown>>
     actors?: Array<Record<string, unknown>>
+    workspaces?: Array<Record<string, unknown>>
+    workspaceMemberships?: Array<Record<string, unknown>>
+    workspaceSnapshots?: Array<Record<string, unknown>>
+    billing?: Array<Record<string, unknown>>
   } = {},
   options: {
     hostedRateLimits?: {
@@ -411,6 +416,39 @@ describe('adminApi', () => {
     )
   })
 
+  it.each(['/admin/workspaces', '/admin/billing'])(
+    'rate-limits hosted admin reads for %s',
+    async (path) => {
+      const { server, baseUrl, createAccessToken } = await startHostedAdminServer(
+        {},
+        {
+          hostedRateLimits: {
+            adminReads: { max: 1, windowMs: 60_000 },
+          },
+        },
+      )
+      servers.add(server)
+      const adminToken = await createAccessToken({
+        appMetadata: { role: 'admin' },
+      })
+      const headers = {
+        Authorization: `Bearer ${adminToken}`,
+        Origin: 'http://localhost:5173',
+      }
+
+      const first = await fetch(`${baseUrl}${path}`, { headers })
+      const second = await fetch(`${baseUrl}${path}`, { headers })
+
+      expect(first.status).toBe(200)
+      expect(second.status).toBe(429)
+      await expect(second.json()).resolves.toEqual(
+        expect.objectContaining({
+          code: 'rate_limited',
+        }),
+      )
+    },
+  )
+
   it('queries Postgres webhook receipts with timestamp bounds and limit', async () => {
     const { createPostgresAdminStore } = await loadProxyModules()
     const query = vi.fn().mockResolvedValue({
@@ -462,6 +500,951 @@ describe('adminApi', () => {
 
     expect(denied.status).toBe(403)
     await expect(denied.json()).resolves.toEqual({
+      error: 'Admin access required.',
+      code: 'admin_required',
+    })
+  })
+
+  it('requires admin claims for hosted admin workspaces', async () => {
+    const { server, baseUrl, accessToken } = await startHostedAdminServer()
+    servers.add(server)
+
+    const denied = await fetch(`${baseUrl}/admin/workspaces`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+
+    expect(denied.status).toBe(403)
+    await expect(denied.json()).resolves.toEqual({
+      error: 'Admin access required.',
+      code: 'admin_required',
+    })
+  })
+
+  it('lists hosted admin workspaces with membership filters and null snapshots', async () => {
+    const { server, baseUrl, createAccessToken } = await startHostedAdminServer({
+      actors: [
+        {
+          user_id: 'user-owner',
+          tenant_id: 'tenant-1',
+          account_id: 'account-1',
+          email: 'owner@example.com',
+          created_at: '2026-03-14T09:00:00.000Z',
+        },
+        {
+          user_id: 'user-member',
+          tenant_id: 'tenant-1',
+          account_id: 'account-1',
+          email: 'member@example.com',
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+      ],
+      workspaces: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-current',
+          name: 'Current Workspace',
+          revision: 4,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T12:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-without-snapshot',
+          name: 'Unsnapshotted Workspace',
+          revision: 7,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T13:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-2',
+          workspace_id: 'ws-other-tenant',
+          name: 'Other Tenant',
+          revision: 1,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T14:00:00.000Z',
+        },
+      ],
+      workspaceMemberships: [
+        {
+          user_id: 'user-owner',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-current',
+          is_default: true,
+        },
+        {
+          user_id: 'user-member',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-current',
+        },
+        {
+          user_id: 'user-owner',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-without-snapshot',
+          is_default: true,
+        },
+        {
+          user_id: 'user-member',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-without-snapshot',
+        },
+        {
+          user_id: 'user-member',
+          tenant_id: 'tenant-2',
+          workspace_id: 'ws-other-tenant',
+        },
+      ],
+      workspaceSnapshots: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-current',
+          revision: 2,
+          exported_at: '2026-03-14T11:30:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-current',
+          revision: 4,
+          exported_at: '2026-03-14T12:30:00.000Z',
+        },
+      ],
+    })
+    servers.add(server)
+    const adminToken = await createAccessToken({
+      appMetadata: { role: 'admin' },
+    })
+
+    const response = await fetch(
+      `${baseUrl}/admin/workspaces?tenant_id=tenant-1&user_id=user-member`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          Origin: 'http://localhost:5173',
+        },
+      },
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('pragma')).toBe('no-cache')
+    expect(response.headers.get('vary')).toBe('Authorization')
+    await expect(response.json()).resolves.toEqual({
+      workspaces: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-without-snapshot',
+          name: 'Unsnapshotted Workspace',
+          revision: 7,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T13:00:00.000Z',
+          snapshot_revision: null,
+          snapshot_exported_at: null,
+          owner_user_id: 'user-owner',
+          owner_email: 'owner@example.com',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-current',
+          name: 'Current Workspace',
+          revision: 4,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T12:00:00.000Z',
+          snapshot_revision: 4,
+          snapshot_exported_at: '2026-03-14T12:30:00.000Z',
+          owner_user_id: 'user-owner',
+          owner_email: 'owner@example.com',
+        },
+      ],
+    })
+  })
+
+  it('queries Postgres workspaces with snapshot and member filters', async () => {
+    const { createPostgresAdminStore } = await loadProxyModules()
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-1',
+          name: 'Primary Workspace',
+          revision: 3,
+          created_at: new Date('2026-03-14T10:00:00.000Z'),
+          updated_at: new Date('2026-03-14T12:00:00.000Z'),
+          snapshot_revision: null,
+          snapshot_exported_at: null,
+          owner_user_id: 'user-1',
+          owner_email: 'owner@example.com',
+        },
+        {
+          tenant_id: 'tenant-1',
+          name: 'Missing Workspace ID',
+          revision: 4,
+          created_at: new Date('2026-03-14T10:00:00.000Z'),
+          updated_at: new Date('2026-03-14T13:00:00.000Z'),
+        },
+      ],
+    })
+    const store = createPostgresAdminStore({ query })
+
+    await expect(
+      store.listWorkspaces({
+        limit: 25,
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+      }),
+    ).resolves.toEqual([
+      {
+        tenant_id: 'tenant-1',
+        workspace_id: 'ws-1',
+        name: 'Primary Workspace',
+        revision: 3,
+        created_at: '2026-03-14T10:00:00.000Z',
+        updated_at: '2026-03-14T12:00:00.000Z',
+        snapshot_revision: null,
+        snapshot_exported_at: null,
+        owner_user_id: 'user-1',
+        owner_email: 'owner@example.com',
+      },
+    ])
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('workspace_snapshots'), [
+      'tenant-1',
+      'user-1',
+      25,
+    ])
+    expect(query.mock.calls[0]?.[0]).toContain('member_filter.user_id = $2::text')
+    expect(query.mock.calls[0]?.[0]).toContain('ORDER BY w.updated_at DESC')
+  })
+
+  it('drops workspaces missing identifiers and preserves malformed display fields', async () => {
+    const { createInMemoryAdminStore } = await loadProxyModules()
+    const store = createInMemoryAdminStore({
+      actors: [
+        {
+          user_id: 'owner-1',
+          tenant_id: 'tenant-1',
+          account_id: 'account-1',
+          email: 'owner@example.com',
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+      ],
+      workspaces: [
+        {
+          workspace_id: 'missing-tenant',
+          name: 'Missing Tenant',
+          revision: 1,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T12:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'missing-updated-at',
+          name: 'Missing Updated At',
+          revision: 1,
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-normalized',
+          name: 'Normalized Workspace',
+          revision: 3.8,
+          created_at: new Date('2026-03-14T10:00:00.000Z'),
+          updated_at: new Date('2026-03-14T12:00:00.000Z'),
+        },
+      ],
+      workspaceMemberships: [
+        {
+          user_id: 'owner-1',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-normalized',
+          is_default: true,
+        },
+      ],
+      workspaceSnapshots: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-normalized',
+          revision: '2',
+          exported_at: '2026-03-14T11:30:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-normalized',
+          revision: 4n,
+          exported_at: '2026-03-14T12:30:00.000Z',
+        },
+      ],
+    })
+
+    await expect(store.listWorkspaces()).resolves.toEqual([
+      {
+        tenant_id: 'tenant-1',
+        workspace_id: 'ws-normalized',
+        name: 'Normalized Workspace',
+        revision: 3,
+        created_at: '2026-03-14T10:00:00.000Z',
+        updated_at: '2026-03-14T12:00:00.000Z',
+        snapshot_revision: 4,
+        snapshot_exported_at: '2026-03-14T12:30:00.000Z',
+        owner_user_id: 'owner-1',
+        owner_email: 'owner@example.com',
+      },
+      {
+        tenant_id: 'tenant-1',
+        workspace_id: 'missing-updated-at',
+        name: 'Missing Updated At',
+        revision: 1,
+        created_at: '2026-03-14T10:00:00.000Z',
+        updated_at: null,
+        snapshot_revision: null,
+        snapshot_exported_at: null,
+        owner_user_id: null,
+        owner_email: null,
+      },
+    ])
+  })
+
+  it('normalizes camelCase workspace and billing fixtures with membership and snapshot aliases', async () => {
+    const { createInMemoryAdminStore } = await loadProxyModules()
+    const store = createInMemoryAdminStore({
+      actors: [
+        {
+          userId: 'owner-camel',
+          tenantId: 'tenant-camel',
+          accountId: 'account-camel',
+          email: 'owner-camel@example.com',
+          createdAt: '2026-03-14T09:00:00.000Z',
+        },
+      ],
+      workspaces: [
+        {
+          tenantId: 'tenant-camel',
+          workspaceId: 'ws-explicit',
+          name: '  Explicit Camel Workspace  ',
+          revision: '8',
+          createdAt: '2026-03-14T10:00:00.000Z',
+          updatedAt: '2026-03-14T13:00:00.000Z',
+          snapshotRevision: '6',
+          snapshotExportedAt: '2026-03-14T12:30:00.000Z',
+          ownerUserId: '  explicit-owner  ',
+          ownerEmail: '  explicit-owner@example.com  ',
+        },
+        {
+          tenantId: 'tenant-camel',
+          workspaceId: 'ws-fallback',
+          name: 'Fallback Camel Workspace',
+          revision: 3,
+          createdAt: '2026-03-14T10:00:00.000Z',
+          updatedAt: '2026-03-14T12:00:00.000Z',
+        },
+      ],
+      memberships: [
+        {
+          userId: 'owner-camel',
+          tenantId: 'tenant-camel',
+          workspaceId: 'ws-fallback',
+          isDefault: true,
+        },
+      ],
+      snapshots: [
+        {
+          tenantId: 'tenant-camel',
+          workspaceId: 'ws-fallback',
+          revision: '5',
+          exportedAt: '2026-03-14T11:30:00.000Z',
+        },
+      ],
+      billing: [
+        {
+          tenantId: 'tenant-camel',
+          accountId: 'account-camel',
+          ownerEmail: 'billing-owner@example.com',
+          customer: { id: 'cus_camel' },
+          subscription: { status: 'active' },
+          entitlement: { planId: 'ai-pro' },
+          updatedAt: '2026-03-14T14:00:00.000Z',
+        },
+      ],
+    })
+
+    await expect(store.listWorkspaces()).resolves.toEqual([
+      {
+        tenant_id: 'tenant-camel',
+        workspace_id: 'ws-explicit',
+        name: 'Explicit Camel Workspace',
+        revision: 8,
+        created_at: '2026-03-14T10:00:00.000Z',
+        updated_at: '2026-03-14T13:00:00.000Z',
+        snapshot_revision: 6,
+        snapshot_exported_at: '2026-03-14T12:30:00.000Z',
+        owner_user_id: 'explicit-owner',
+        owner_email: 'explicit-owner@example.com',
+      },
+      {
+        tenant_id: 'tenant-camel',
+        workspace_id: 'ws-fallback',
+        name: 'Fallback Camel Workspace',
+        revision: 3,
+        created_at: '2026-03-14T10:00:00.000Z',
+        updated_at: '2026-03-14T12:00:00.000Z',
+        snapshot_revision: 5,
+        snapshot_exported_at: '2026-03-14T11:30:00.000Z',
+        owner_user_id: 'owner-camel',
+        owner_email: 'owner-camel@example.com',
+      },
+    ])
+    await expect(store.listBilling()).resolves.toEqual([
+      {
+        tenant_id: 'tenant-camel',
+        account_id: 'account-camel',
+        owner_email: 'billing-owner@example.com',
+        customer: { id: 'cus_camel' },
+        subscription: { status: 'active' },
+        entitlement: { planId: 'ai-pro' },
+        updated_at: '2026-03-14T14:00:00.000Z',
+      },
+    ])
+  })
+
+  it('keeps workspace and billing ownership scoped to explicit matching signals', async () => {
+    const { createInMemoryAdminStore } = await loadProxyModules()
+    const store = createInMemoryAdminStore({
+      actors: [
+        {
+          user_id: 'wrong-account-user',
+          tenant_id: 'tenant-1',
+          account_id: 'account-wrong',
+          email: 'wrong-account@example.com',
+          created_at: '2026-03-14T09:00:00.000Z',
+        },
+        {
+          user_id: 'matching-account-user',
+          tenant_id: 'tenant-1',
+          account_id: 'account-match',
+          email: 'matching-account@example.com',
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+      ],
+      workspaces: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-no-default',
+          name: 'No Default Workspace',
+          revision: 4,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T12:00:00.000Z',
+        },
+      ],
+      workspaceMemberships: [
+        {
+          user_id: 'wrong-account-user',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-no-default',
+          is_default: false,
+        },
+        {
+          user_id: 'matching-account-user',
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-no-default',
+        },
+      ],
+      workspaceSnapshots: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-no-default',
+          revision: 'not-a-number',
+          exported_at: '2026-03-14T11:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-no-default',
+          revision: 3,
+          exported_at: '2026-03-14T11:30:00.000Z',
+        },
+      ],
+      billing: [
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'account-match',
+          customer: { id: 'cus_match' },
+          subscription: { status: 'active' },
+          entitlement: { planId: 'ai-pro' },
+          updated_at: '2026-03-14T13:00:00.000Z',
+        },
+      ],
+    })
+
+    await expect(store.listWorkspaces()).resolves.toEqual([
+      {
+        tenant_id: 'tenant-1',
+        workspace_id: 'ws-no-default',
+        name: 'No Default Workspace',
+        revision: 4,
+        created_at: '2026-03-14T10:00:00.000Z',
+        updated_at: '2026-03-14T12:00:00.000Z',
+        snapshot_revision: 3,
+        snapshot_exported_at: '2026-03-14T11:30:00.000Z',
+        owner_user_id: null,
+        owner_email: null,
+      },
+    ])
+    await expect(store.listBilling()).resolves.toEqual([
+      {
+        tenant_id: 'tenant-1',
+        account_id: 'account-match',
+        owner_email: 'matching-account@example.com',
+        customer: { id: 'cus_match' },
+        subscription: { status: 'active' },
+        entitlement: { planId: 'ai-pro' },
+        updated_at: '2026-03-14T13:00:00.000Z',
+      },
+    ])
+  })
+
+  it('sorts workspaces with invalid or missing updated_at values after dated rows', async () => {
+    const { createInMemoryAdminStore } = await loadProxyModules()
+    const store = createInMemoryAdminStore({
+      workspaces: [
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-invalid-date',
+          name: 'Invalid Date Workspace',
+          revision: 1,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: 'not-a-date',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-missing-date',
+          name: 'Missing Date Workspace',
+          revision: 1,
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          workspace_id: 'ws-dated',
+          name: 'Dated Workspace',
+          revision: 1,
+          created_at: '2026-03-14T10:00:00.000Z',
+          updated_at: '2026-03-14T12:00:00.000Z',
+        },
+      ],
+    })
+
+    await expect(store.listWorkspaces()).resolves.toEqual([
+      expect.objectContaining({
+        workspace_id: 'ws-dated',
+        updated_at: '2026-03-14T12:00:00.000Z',
+      }),
+      expect.objectContaining({
+        workspace_id: 'ws-invalid-date',
+        updated_at: 'not-a-date',
+      }),
+      expect.objectContaining({
+        workspace_id: 'ws-missing-date',
+        updated_at: null,
+      }),
+    ])
+  })
+
+  it('requires admin claims for hosted admin billing', async () => {
+    const { server, baseUrl, accessToken } = await startHostedAdminServer()
+    servers.add(server)
+
+    const denied = await fetch(`${baseUrl}/admin/billing`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Origin: 'http://localhost:5173',
+      },
+    })
+
+    expect(denied.status).toBe(403)
+    await expect(denied.json()).resolves.toEqual({
+      error: 'Admin access required.',
+      code: 'admin_required',
+    })
+  })
+
+  it('lists hosted admin billing with filters and preserves JSON null fields', async () => {
+    const { server, baseUrl, createAccessToken } = await startHostedAdminServer({
+      actors: [
+        {
+          user_id: 'user-active',
+          tenant_id: 'tenant-1',
+          account_id: 'account-active',
+          email: 'active@example.com',
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+        {
+          user_id: 'user-empty',
+          tenant_id: 'tenant-1',
+          account_id: 'account-empty',
+          email: 'empty@example.com',
+          created_at: '2026-03-14T11:00:00.000Z',
+        },
+      ],
+      billing: [
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'account-active',
+          customer: { id: 'cus_123' },
+          subscription: { status: 'active' },
+          entitlement: { passType: 'quarterly' },
+          updated_at: '2026-03-14T12:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'account-empty',
+          customer: null,
+          subscription: null,
+          entitlement: null,
+          updated_at: '2026-03-14T13:00:00.000Z',
+        },
+      ],
+    })
+    servers.add(server)
+    const adminToken = await createAccessToken({
+      appMetadata: { role: 'admin' },
+    })
+
+    const response = await fetch(
+      `${baseUrl}/admin/billing?tenant_id=tenant-1&account_id=account-empty`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          Origin: 'http://localhost:5173',
+        },
+      },
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('pragma')).toBe('no-cache')
+    expect(response.headers.get('vary')).toBe('Authorization')
+    await expect(response.json()).resolves.toEqual({
+      billing: [
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'account-empty',
+          owner_email: 'empty@example.com',
+          customer: null,
+          subscription: null,
+          entitlement: null,
+          updated_at: '2026-03-14T13:00:00.000Z',
+        },
+      ],
+    })
+  })
+
+  it('queries Postgres billing with filters and aliases pass JSON as subscription', async () => {
+    const { createPostgresAdminStore } = await loadProxyModules()
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'account-1',
+          owner_email: 'owner@example.com',
+          customer: { id: 'cus_123' },
+          subscription: { status: 'active' },
+          entitlement: null,
+          updated_at: new Date('2026-03-14T12:00:00.000Z'),
+        },
+        {
+          tenant_id: 'tenant-1',
+          owner_email: 'broken@example.com',
+          customer: { id: 'cus_broken' },
+          subscription: { status: 'active' },
+          entitlement: null,
+          updated_at: new Date('2026-03-14T13:00:00.000Z'),
+        },
+      ],
+    })
+    const store = createPostgresAdminStore({ query })
+
+    await expect(
+      store.listBilling({
+        limit: 25,
+        tenantId: 'tenant-1',
+        accountId: 'account-1',
+      }),
+    ).resolves.toEqual([
+      {
+        tenant_id: 'tenant-1',
+        account_id: 'account-1',
+        owner_email: 'owner@example.com',
+        customer: { id: 'cus_123' },
+        subscription: { status: 'active' },
+        entitlement: null,
+        updated_at: '2026-03-14T12:00:00.000Z',
+      },
+    ])
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM billing_accounts b'), [
+      'tenant-1',
+      'account-1',
+      25,
+    ])
+    expect(query.mock.calls[0]?.[0]).toContain('b.pass AS subscription')
+    expect(query.mock.calls[0]?.[0]).toContain('ORDER BY b.updated_at DESC')
+  })
+
+  it('drops invalid billing rows and preserves normalized JSON null fields', async () => {
+    const { createInMemoryAdminStore } = await loadProxyModules()
+    const store = createInMemoryAdminStore({
+      actors: [
+        {
+          user_id: 'owner-1',
+          tenant_id: 'tenant-1',
+          account_id: 'account-1',
+          email: 'owner@example.com',
+          created_at: '2026-03-14T10:00:00.000Z',
+        },
+      ],
+      billing: [
+        {
+          tenant_id: 'tenant-1',
+          customer: { id: 'missing-account' },
+          updated_at: '2026-03-14T12:00:00.000Z',
+        },
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'missing-updated-at',
+          customer: { id: 'missing-updated-at' },
+        },
+        {
+          tenant_id: 'tenant-1',
+          account_id: 'account-1',
+          customer: undefined,
+          pass: { status: 'active' },
+          entitlement: undefined,
+          updated_at: new Date('2026-03-14T12:00:00.000Z'),
+        },
+      ],
+    })
+
+    await expect(store.listBilling()).resolves.toEqual([
+      {
+        tenant_id: 'tenant-1',
+        account_id: 'account-1',
+        owner_email: 'owner@example.com',
+        customer: null,
+        subscription: { status: 'active' },
+        entitlement: null,
+        updated_at: '2026-03-14T12:00:00.000Z',
+      },
+    ])
+  })
+
+  it.each([
+    ['/admin/workspaces', {}, 'Admin workspaces store is unavailable.', 'admin_store_unavailable'],
+    ['/admin/billing', {}, 'Admin billing store is unavailable.', 'admin_store_unavailable'],
+  ])(
+    'returns a 500 when %s store support is unavailable',
+    async (path, adminStore, error, code) => {
+      const { createAdminApi } = await loadProxyModules()
+      const sendJson = vi.fn()
+      const api = createAdminApi({
+        actorResolver: async () => ({ userId: 'admin-1' }),
+        adminStore,
+        logger: { warn: vi.fn() },
+      })
+
+      await api.handle(
+        {
+          method: 'GET',
+          url: path,
+          _facetHostedClaims: { sub: 'admin-1', app_metadata: { role: 'admin' } },
+          _facetHostedActor: { userId: 'admin-1', authMode: 'hosted' },
+        },
+        { setHeader: vi.fn() },
+        sendJson,
+      )
+
+      expect(sendJson).toHaveBeenCalledWith(expect.anything(), 500, {
+        error,
+        code,
+      })
+    },
+  )
+
+  it.each([
+    [
+      '/admin/workspaces',
+      'listWorkspaces',
+      'admin.workspaces',
+      'workspaceCount',
+      [{ workspace_id: 'ws-1' }],
+      { workspaces: [{ workspace_id: 'ws-1' }] },
+      {},
+    ],
+    [
+      '/admin/billing',
+      'listBilling',
+      'admin.billing',
+      'billingCount',
+      [{ account_id: 'account-1' }],
+      { billing: [{ account_id: 'account-1' }] },
+      { includesPayload: true },
+    ],
+  ])(
+    'emits success telemetry when %s requests complete',
+    async (path, method, scope, countKey, rows, body, expectedTelemetry) => {
+      const { createAdminApi } = await loadProxyModules()
+      const onEvent = vi.fn()
+      const sendJson = vi.fn()
+      const api = createAdminApi({
+        actorResolver: async () => ({ userId: 'admin-1' }),
+        adminStore: {
+          [method]: vi.fn().mockResolvedValue(rows),
+        },
+        logger: { warn: vi.fn() },
+        onEvent,
+      })
+
+      await api.handle(
+        {
+          method: 'GET',
+          url: path,
+          _facetHostedClaims: { sub: 'admin-1', app_metadata: { role: 'admin' } },
+          _facetHostedActor: { userId: 'admin-1', authMode: 'hosted' },
+        },
+        { setHeader: vi.fn() },
+        sendJson,
+      )
+
+      expect(onEvent).toHaveBeenCalledWith(
+        scope,
+        'success',
+        expect.objectContaining({
+          [countKey]: 1,
+          ...expectedTelemetry,
+          method: 'GET',
+          path,
+          userId: 'admin-1',
+        }),
+      )
+      expect(sendJson).toHaveBeenCalledWith(expect.anything(), 200, body)
+    },
+  )
+
+  it.each([
+    ['/admin/workspaces', 'listWorkspaces', 'admin.workspaces', 'workspaces_unavailable'],
+    ['/admin/billing', 'listBilling', 'admin.billing', 'billing_unavailable'],
+  ])('emits admin telemetry when %s store calls fail', async (path, method, scope, code) => {
+    const { createAdminApi } = await loadProxyModules()
+    const failure = new Error('store down')
+    const onEvent = vi.fn()
+    const sendJson = vi.fn()
+    const api = createAdminApi({
+      actorResolver: async () => ({ userId: 'admin-1' }),
+      adminStore: {
+        [method]: vi.fn().mockRejectedValue(failure),
+      },
+      logger: { warn: vi.fn() },
+      onEvent,
+    })
+
+    await expect(
+      api.handle(
+        {
+          method: 'GET',
+          url: path,
+          _facetHostedClaims: { sub: 'admin-1', app_metadata: { role: 'admin' } },
+          _facetHostedActor: { userId: 'admin-1', authMode: 'hosted' },
+        },
+        { setHeader: vi.fn() },
+        sendJson,
+      ),
+    ).rejects.toThrow('store down')
+
+    expect(onEvent).toHaveBeenCalledWith(
+      scope,
+      'error',
+      expect.objectContaining({
+        code,
+        method: 'GET',
+        path,
+        userId: 'admin-1',
+      }),
+    )
+    expect(sendJson).not.toHaveBeenCalledWith(expect.anything(), 200, expect.anything())
+  })
+
+  it('emits unknown admin telemetry when handle is called directly for an unmapped path', async () => {
+    const { createAdminApi } = await loadProxyModules()
+    const onEvent = vi.fn()
+    const sendJson = vi.fn()
+    const api = createAdminApi({
+      actorResolver: async () => {
+        throw Object.assign(new Error('missing auth'), { status: 401 })
+      },
+      adminStore: {},
+      logger: { warn: vi.fn() },
+      onEvent,
+    })
+
+    await api.handle(
+      {
+        method: 'GET',
+        url: '/admin/unknown',
+      },
+      { setHeader: vi.fn() },
+      sendJson,
+    )
+
+    expect(onEvent).toHaveBeenCalledWith(
+      'admin.unknown',
+      'denied',
+      expect.objectContaining({
+        code: 'auth_required',
+        method: 'GET',
+        path: '/admin/unknown',
+      }),
+    )
+    expect(sendJson).toHaveBeenCalledWith(expect.anything(), 401, {
+      error: 'Authorization required.',
+      code: 'auth_required',
+    })
+  })
+
+  it.each([
+    ['/admin/workspaces', 'admin.workspaces'],
+    ['/admin/billing', 'admin.billing'],
+  ])('emits denied telemetry for non-admin %s requests', async (path, scope) => {
+    const { createAdminApi } = await loadProxyModules()
+    const onEvent = vi.fn()
+    const sendJson = vi.fn()
+    const api = createAdminApi({
+      actorResolver: async () => ({ userId: 'member-1' }),
+      adminStore: {},
+      logger: { warn: vi.fn() },
+      onEvent,
+    })
+
+    await api.handle(
+      {
+        method: 'GET',
+        url: path,
+        _facetHostedClaims: { sub: 'member-1', app_metadata: { role: 'member' } },
+        _facetHostedActor: { userId: 'member-1', authMode: 'hosted' },
+      },
+      { setHeader: vi.fn() },
+      sendJson,
+    )
+
+    expect(onEvent).toHaveBeenCalledWith(
+      scope,
+      'denied',
+      expect.objectContaining({
+        method: 'GET',
+        path,
+        userId: 'member-1',
+      }),
+    )
+    expect(sendJson).toHaveBeenCalledWith(expect.anything(), 403, {
       error: 'Admin access required.',
       code: 'admin_required',
     })
