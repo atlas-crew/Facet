@@ -1,9 +1,11 @@
 ---
 id: TASK-6
 title: Expand serializer validation matrix tests
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-02-28 05:46'
+updated_date: '2026-05-25 14:01'
 labels:
   - remediation
   - testing
@@ -35,3 +37,9 @@ Test audit flagged shallow coverage across serializer field validation. Build a 
 3. Keep error assertions path-specific where practical.
 4. Run lint/typecheck/test/build.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-25 Codex starting TASK-6 in branch codex/task-6. Plan: expand serializerValidation matrix around malformed nested records and object-shape guards for vectors/projects/bullets/education, add root non-object variants and invalid skill order shape/value assertions, run focused serializer tests plus lint/typecheck/build gates, run independent review/audit fallback if needed, commit with cortex git commit and close with receipts.
+<!-- SECTION:NOTES:END -->
