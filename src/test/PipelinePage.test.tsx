@@ -10,6 +10,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { useUiStore } from '../store/uiStore'
 import { untagged, untaggedNote } from '../types/audience'
 import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
+import type { PipelineEntry } from '../types/pipeline'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 
 const mockNavigate = vi.fn()
@@ -30,7 +31,8 @@ vi.mock('../utils/jdAnalysis', async () => {
   const actual = await vi.importActual<typeof import('../utils/jdAnalysis')>('../utils/jdAnalysis')
   return {
     ...actual,
-    analyzePipelineJobDescription: (...args: unknown[]) => mockAnalyzePipelineJobDescription(...args),
+    analyzePipelineJobDescription: (...args: unknown[]) =>
+      mockAnalyzePipelineJobDescription(...args),
   }
 })
 
@@ -66,6 +68,17 @@ const baseEntry = {
   createdAt: '2026-04-14',
   history: [],
 }
+
+const makeEntry = (overrides: Partial<PipelineEntry>): PipelineEntry =>
+  ({
+    ...baseEntry,
+    ...overrides,
+  }) as PipelineEntry
+
+const getPipelineRowTexts = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll<HTMLTableRowElement>('tbody tr.pipeline-row')).map(
+    (row) => row.textContent ?? '',
+  )
 
 const analyzedJobDescription = 'We need a platform-minded engineer.'
 
@@ -148,7 +161,9 @@ describe('PipelinePage', () => {
     useJDAnalysisStore.setState({ analyses: [] })
     useUiStore.setState({ selectedVector: 'all' })
     useIdentityStore.setState({
-      currentIdentity: { model_revision: 1 } as Parameters<typeof mockAnalyzePipelineJobDescription>[0],
+      currentIdentity: { model_revision: 1 } as Parameters<
+        typeof mockAnalyzePipelineJobDescription
+      >[0],
     })
     usePipelineStore.setState({
       entries: [baseEntry],
@@ -184,7 +199,9 @@ describe('PipelinePage', () => {
     expect(screen.getByText('Start your opportunity pipeline')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Add Entry/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Paste JD/i })).toBeTruthy()
-    expect(container.querySelectorAll('.pipeline-empty-actions .pipeline-btn-primary')).toHaveLength(1)
+    expect(
+      container.querySelectorAll('.pipeline-empty-actions .pipeline-btn-primary'),
+    ).toHaveLength(1)
     expect(screen.getByText(/Add a role, paste a JD for faster capture/)).toBeTruthy()
   })
 
@@ -196,6 +213,106 @@ describe('PipelinePage', () => {
     expect(screen.getByRole('button', { name: /^Add Entry$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^Paste JD$/i })).toBeTruthy()
     expect(container.querySelectorAll('.pipeline-header .pipeline-btn-primary')).toHaveLength(1)
+  })
+
+  it('renders multiple entries and summarizes active pipeline counts', () => {
+    usePipelineStore.setState({
+      entries: [
+        makeEntry({
+          id: 'pipe-zenith',
+          company: 'Zenith Cloud',
+          role: 'Principal Infrastructure Engineer',
+          tier: '1',
+          status: 'researching',
+        }),
+        makeEntry({
+          id: 'pipe-acme',
+          company: 'Acme Corp',
+          role: 'Staff Platform Engineer',
+          tier: '2',
+          status: 'applied',
+        }),
+        makeEntry({
+          id: 'pipe-beta',
+          company: 'Beta Systems',
+          role: 'Engineering Manager',
+          tier: '3',
+          status: 'interviewing',
+        }),
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    const { container } = render(<PipelinePage />)
+
+    expect(
+      screen.getByText('3 active opportunities, 1 in interviews, 0 offers in play.'),
+    ).toBeTruthy()
+    expect(getPipelineRowTexts(container)).toHaveLength(3)
+    expect(screen.getByText('Zenith Cloud')).toBeTruthy()
+    expect(screen.getByText('Acme Corp')).toBeTruthy()
+    expect(screen.getByText('Beta Systems')).toBeTruthy()
+  })
+
+  it('filters by tier status and search while preserving sortable row order', () => {
+    usePipelineStore.setState({
+      entries: [
+        makeEntry({
+          id: 'pipe-zenith',
+          company: 'Zenith Cloud',
+          role: 'Principal Infrastructure Engineer',
+          tier: '1',
+          status: 'researching',
+        }),
+        makeEntry({
+          id: 'pipe-acme',
+          company: 'Acme Corp',
+          role: 'Staff Platform Engineer',
+          tier: '2',
+          status: 'applied',
+        }),
+        makeEntry({
+          id: 'pipe-beta',
+          company: 'Beta Systems',
+          role: 'Engineering Manager',
+          tier: 'watch',
+          status: 'applied',
+        }),
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    const { container } = render(<PipelinePage />)
+
+    expect(getPipelineRowTexts(container)[0]).toContain('Zenith Cloud')
+
+    fireEvent.click(screen.getByText('Company'))
+    expect(
+      getPipelineRowTexts(container).map(
+        (row) => row.match(/Acme Corp|Beta Systems|Zenith Cloud/)?.[0],
+      ),
+    ).toEqual(['Acme Corp', 'Beta Systems', 'Zenith Cloud'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'T1' }))
+    expect(screen.getByText('Zenith Cloud')).toBeTruthy()
+    expect(screen.queryByText('Acme Corp')).toBeNull()
+    expect(screen.queryByText('Beta Systems')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'T1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Applied' }))
+    expect(screen.queryByText('Zenith Cloud')).toBeNull()
+    expect(screen.getByText('Acme Corp')).toBeTruthy()
+    expect(screen.getByText('Beta Systems')).toBeTruthy()
+
+    fireEvent.change(screen.getByPlaceholderText('Search company or role...'), {
+      target: { value: 'manager' },
+    })
+    expect(screen.queryByText('Acme Corp')).toBeNull()
+    expect(screen.getByText('Beta Systems')).toBeTruthy()
   })
 
   it('disables pipeline investigation when the AI proxy is not configured', () => {
@@ -245,9 +362,15 @@ describe('PipelinePage', () => {
     fireEvent.click(screen.getByText('Acme Corp'))
 
     expect(screen.getByText('Seeded from Research')).toBeTruthy()
-    expect(screen.getByText('Strong fit from the research phase.', { selector: '.pipeline-card-summary-text' })).toBeTruthy()
+    expect(
+      screen.getByText('Strong fit from the research phase.', {
+        selector: '.pipeline-card-summary-text',
+      }),
+    ).toBeTruthy()
     const researchButton = screen.getByRole('button', { name: /^Research$/i })
-    const researchPanel = document.getElementById(researchButton.getAttribute('aria-controls') ?? '')
+    const researchPanel = document.getElementById(
+      researchButton.getAttribute('aria-controls') ?? '',
+    )
     expect(researchButton.getAttribute('aria-expanded')).toBe('false')
     expect(researchPanel?.hasAttribute('hidden')).toBe(true)
     fireEvent.click(researchButton)
@@ -298,16 +421,70 @@ describe('PipelinePage', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Investigated with AI').length).toBeGreaterThan(0)
-      expect(screen.getAllByText('Public signals point to a platform reliability leadership role.').length).toBeGreaterThan(0)
+      expect(
+        screen.getAllByText('Public signals point to a platform reliability leadership role.')
+          .length,
+      ).toBeGreaterThan(0)
     })
 
     fireEvent.click(screen.getByRole('button', { name: /^Research$/i }))
-    expect(screen.getByText('Public reports mention a recruiter screen and system design round.')).toBeTruthy()
+    expect(
+      screen.getByText('Public reports mention a recruiter screen and system design round.'),
+    ).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Acme careers' })).toBeTruthy()
     expect(usePipelineStore.getState().entries[0]?.format).toEqual(['hr-screen', 'system-design'])
-    expect(usePipelineStore.getState().entries[0]?.jobDescription).toContain('Lead platform reliability initiatives')
-    expect(usePipelineStore.getState().entries[0]?.history.at(-1)?.note).toBe('Investigated with AI')
+    expect(usePipelineStore.getState().entries[0]?.jobDescription).toContain(
+      'Lead platform reliability initiatives',
+    )
+    expect(usePipelineStore.getState().entries[0]?.history.at(-1)?.note).toBe(
+      'Investigated with AI',
+    )
   }, 10000)
+
+  it('disables investigation while an AI investigation is in flight', async () => {
+    let resolveInvestigation: (
+      value: Awaited<ReturnType<typeof mockInvestigatePipelineEntry>>,
+    ) => void
+    mockInvestigatePipelineEntry.mockReturnValue(
+      new Promise((resolve) => {
+        resolveInvestigation = resolve
+      }),
+    )
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByText('Acme Corp'))
+    fireEvent.click(screen.getByRole('button', { name: /Investigate with AI/i }))
+
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /Investigating/i }) as HTMLButtonElement
+      expect(button.disabled).toBe(true)
+      expect(button.getAttribute('aria-busy')).toBe('true')
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Investigating/i }))
+    expect(mockInvestigatePipelineEntry).toHaveBeenCalledTimes(1)
+
+    resolveInvestigation!({
+      jobDescription: 'Lead platform reliability initiatives across product and infrastructure.',
+      format: ['hr-screen'],
+      nextStep: 'Prepare the recruiter screen story.',
+      research: {
+        status: 'investigated',
+        summary: 'Research finished.',
+        jobDescriptionSummary: '',
+        interviewSignals: [],
+        people: [],
+        sources: [],
+        searchQueries: [],
+        lastInvestigatedAt: '2026-04-14T10:00:00.000Z',
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Investigated with AI').length).toBeGreaterThan(0)
+      expect(screen.getByRole('button', { name: /Refresh Research/i })).toBeTruthy()
+    })
+  })
 
   it('shows an error and keeps store state unchanged when investigation fails', async () => {
     mockInvestigatePipelineEntry.mockRejectedValue(new Error('Proxy search failed'))
@@ -411,7 +588,9 @@ describe('PipelinePage', () => {
     render(<PipelinePage />)
 
     fireEvent.click(screen.getByText('Acme Corp'))
-    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
     const roundsButton = screen.getByRole('button', { name: /^Rounds \(1\)$/i })
     const roundsPanel = document.getElementById(roundsButton.getAttribute('aria-controls') ?? '')
     expect(roundsPanel?.hasAttribute('hidden')).toBe(true)
@@ -427,12 +606,16 @@ describe('PipelinePage', () => {
     expect(screen.getByText('Technical panel')).toBeTruthy()
     expect(screen.getByText('System Design · 1 interviewer')).toBeTruthy()
     const roundExpandButton = screen.getByRole('button', { name: /Expand Technical panel round/i })
-    const roundPanel = document.getElementById(roundExpandButton.getAttribute('aria-controls') ?? '')
+    const roundPanel = document.getElementById(
+      roundExpandButton.getAttribute('aria-controls') ?? '',
+    )
     expect(roundPanel?.hasAttribute('hidden')).toBe(true)
 
     fireEvent.click(roundExpandButton)
     expect(screen.getByDisplayValue('Technical panel')).toBeTruthy()
-    const roundCollapseButton = screen.getByRole('button', { name: /Collapse Technical panel round/i })
+    const roundCollapseButton = screen.getByRole('button', {
+      name: /Collapse Technical panel round/i,
+    })
     expect(roundPanel?.hasAttribute('hidden')).toBe(false)
     expect(screen.getByRole('option', { name: 'System Design' })).toBeTruthy()
     expect(screen.queryByRole('option', { name: 'system-design' })).toBeNull()
@@ -468,10 +651,16 @@ describe('PipelinePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Add Round$/i }))
 
-    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(
+      screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('true')
     expect(roundsPanel?.hasAttribute('hidden')).toBe(false)
     expect(screen.queryByText('HR screen · 0 interviewers')).toBeNull()
-    expect(screen.getByRole('button', { name: /Collapse New round round/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(
+      screen
+        .getByRole('button', { name: /Collapse New round round/i })
+        .getAttribute('aria-expanded'),
+    ).toBe('true')
     expect(screen.getByDisplayValue('New round')).toBeTruthy()
   })
 
@@ -513,7 +702,9 @@ describe('PipelinePage', () => {
     render(<PipelinePage />)
 
     fireEvent.click(screen.getByText('Acme Corp'))
-    expect(screen.getByRole('button', { name: /^Rounds \(2\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /^Rounds \(2\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
     expect(screen.getByText('2 rounds tracked')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /^Rounds \(2\)$/i }))
@@ -561,19 +752,37 @@ describe('PipelinePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Research$/i }))
     fireEvent.click(screen.getByRole('button', { name: /^Rounds \(1\)$/i }))
     fireEvent.click(screen.getByRole('button', { name: /^History \(1\)$/i }))
-    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe(
+      'true',
+    )
+    expect(
+      screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('true')
+    expect(
+      screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('true')
 
     fireEvent.click(screen.getByText('Beta Systems'))
-    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe(
+      'false',
+    )
+    expect(
+      screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
 
     fireEvent.click(screen.getByText('Acme Corp'))
-    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /^Research$/i }).getAttribute('aria-expanded')).toBe(
+      'false',
+    )
+    expect(
+      screen.getByRole('button', { name: /^Rounds \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /^History \(1\)$/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
   })
 
   it('shows and opens a saved JD analysis from the pipeline tracker', () => {
@@ -620,7 +829,9 @@ describe('PipelinePage', () => {
 
     fireEvent.click(hideButton)
     expect(screen.queryByRole('heading', { name: /Lead with platform reliability/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /Show JD Analysis/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /Show JD Analysis/i }).getAttribute('aria-expanded'),
+    ).toBe('false')
   })
 
   it('opens missing saved JD analysis references as non-destructive unavailable state', () => {
@@ -670,7 +881,9 @@ describe('PipelinePage', () => {
     fireEvent.click(screen.getByText('Acme Corp'))
     expect(screen.getByText(/Saved JD analysis may need review/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
-    expect(screen.getByText(/^Saved analysis may need review because the job description changed\.$/i)).toBeTruthy()
+    expect(
+      screen.getByText(/^Saved analysis may need review because the job description changed\.$/i),
+    ).toBeTruthy()
   })
 
   it('shows saved analysis as pending, not stale, when identity is unloaded', () => {
@@ -720,12 +933,16 @@ describe('PipelinePage', () => {
     expect(screen.getByText('JD stale')).toBeTruthy()
     fireEvent.click(screen.getByText('Acme Corp'))
     fireEvent.click(screen.getByRole('button', { name: /Show JD Analysis/i }))
-    expect(screen.getByText(/^Saved analysis may need review because the job description changed\.$/i)).toBeTruthy()
+    expect(
+      screen.getByText(/^Saved analysis may need review because the job description changed\.$/i),
+    ).toBeTruthy()
   })
 
   it('explains identity and model drift in the saved analysis panel', () => {
     useIdentityStore.setState({
-      currentIdentity: { model_revision: 2 } as Parameters<typeof mockAnalyzePipelineJobDescription>[0],
+      currentIdentity: { model_revision: 2 } as Parameters<
+        typeof mockAnalyzePipelineJobDescription
+      >[0],
     })
     usePipelineStore.setState({
       entries: [
@@ -778,7 +995,9 @@ describe('PipelinePage', () => {
     expect(generateButton.getAttribute('aria-disabled')).toBe('true')
     const hintId = generateButton.getAttribute('aria-describedby')
     expect(hintId).toBeTruthy()
-    expect(document.getElementById(hintId ?? '')?.textContent).toContain('Analyze JD before generating')
+    expect(document.getElementById(hintId ?? '')?.textContent).toContain(
+      'Analyze JD before generating',
+    )
     fireEvent.click(generateButton)
     expect(screen.getByRole('alert').textContent).toContain('Analyze this JD from Pipeline')
     expect(useHandoffStore.getState().pendingGeneration).toBeNull()
@@ -831,7 +1050,10 @@ describe('PipelinePage', () => {
     render(<PipelinePage />)
 
     fireEvent.click(screen.getByText('Acme Corp'))
-    expect(screen.getByRole('button', { name: /Generate Cover Letter/i })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: /Generate Cover Letter/i })).toHaveProperty(
+      'disabled',
+      true,
+    )
     fireEvent.click(screen.getByRole('button', { name: /Generate Resume/i }))
 
     expect(useHandoffStore.getState().pendingGeneration).toMatchObject({
