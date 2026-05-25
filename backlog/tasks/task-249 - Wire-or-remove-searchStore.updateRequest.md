@@ -1,9 +1,11 @@
 ---
 id: TASK-249
 title: Wire or remove searchStore.updateRequest
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-10 08:13'
+updated_date: '2026-05-25 14:40'
 labels:
   - audit-finding
   - wiring-cleanup
@@ -56,6 +58,12 @@ If editable → wire an edit affordance on the saved-searches surface. Note this
 - [ ] #4 If remove: type decl, impl, and test deleted
 - [ ] #5 Audit finding W-4 updated to resolved
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-25 Codex starting searchStore cleanup cluster. Decision path: remove unwired APIs rather than build UI affordances; saved search requests/runs remain append-only durable history until a product surface explicitly needs editing/deletion/drill-down. Plan: remove store type declarations and implementations, delete test-only coverage for those APIs, update the 2026-05-10 audit report and capability registry, run focused searchStore tests plus typecheck/lint/format, independent review, commit with cortex git commit, then close TASK-249 with receipts.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
