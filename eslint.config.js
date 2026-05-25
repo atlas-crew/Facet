@@ -7,12 +7,24 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
+  // Generated outputs are intentionally outside the lint surface so
+  // `eslint .` reports source debt instead of bundled/transformed artifacts.
   globalIgnores([
+    'coverage',
+    'coverage/**',
     'dist',
+    'dist/**',
+    'dist-*',
+    'dist-*/**',
+    'dist-unmin',
+    'dist-unmin/**',
+    'dist-unmin-*',
+    'dist-unmin-*/**',
     '.vercel',
+    '.vercel/**',
+    '**/.vercel/**',
     '.agents',
     '.claude',
-    'dist-*',
     '.codanna',
     'backlog',
     'brand',
