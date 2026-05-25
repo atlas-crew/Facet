@@ -1,10 +1,11 @@
 ---
 id: TASK-239
 title: Exclude generated build artifacts from repo lint scope
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-07 00:45'
-updated_date: '2026-05-07 00:48'
+updated_date: '2026-05-25 13:47'
 labels:
   - bug
   - cleanup
@@ -30,6 +31,12 @@ TASK-206 verification confirmed direct focused ESLint passes, but npm run lint e
 - [ ] #1 npm run lint no longer traverses generated .vercel or dist-unmin build artifacts.
 - [ ] #2 Any remaining source lint debt is reported separately from generated artifact noise.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-25 Codex starting TASK-239 in branch codex/task-239. Plan: inspect current ESLint ignore/config and package lint command; reproduce or identify generated-artifact traversal for .vercel/dist-unmin; tighten lint ignores/input scope without masking source lint; run focused config checks plus npm run lint to separate generated artifact noise from remaining source debt; format touched config/docs; commit with cortex git commit and close task with exact lint receipts.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
