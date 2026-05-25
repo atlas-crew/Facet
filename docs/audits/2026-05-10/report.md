@@ -18,7 +18,7 @@ by-category:
   permission-drift: 0
   stale-label: 0
   unsurfaced-config: 2
-priors_used: true  # docs/architecture/2026-05-09/
+priors_used: true # docs/architecture/2026-05-09/
 ---
 
 # Wiring Audit — 2026-05-10 — Research Workspace
@@ -27,9 +27,9 @@ priors_used: true  # docs/architecture/2026-05-09/
 
 The research workspace is **mostly clean on the wire**: no broken consumptions, no method or shape drift on the calls that exist, no stale labels (the `searchOverrides.filters → lookFor/avoid` migration was carried through correctly with documented fences). The dominant category is **unwired capabilities** — store actions exported but consumed only by tests, not by any production caller. Eleven of these in `searchStore.ts` alone, plus two unsurfaced-config items.
 
-The most architecturally interesting finding is **W-1**: `setThesisUserCorrections` / `setThesisCustomDirective` are exported store setters with no production consumer, even though the UI has explicit "Corrections (applied on regenerate)" and "Custom search direction" inputs. **Initial reading suggested persistence was missing; deeper investigation shows persistence works via a different mechanism** — the regenerate cycle (form hydration from `activeThesis?.customDirective` → pass to generator → generator writes back into new thesis → form re-sync after save). The setters themselves are dead because the UI chose this regenerate-cycle path 3 minutes after the setters were added (commits `32f582e` then `dbcf952` on 2026-04-29). For `userCorrections`, the setter would actively contradict the design (`types/search.ts:597` says corrections *"clear once the new thesis is saved"*). The right fix is removal, not wiring.
+The most architecturally interesting finding is **W-1**: `setThesisUserCorrections` / `setThesisCustomDirective` are exported store setters with no production consumer, even though the UI has explicit "Corrections (applied on regenerate)" and "Custom search direction" inputs. **Initial reading suggested persistence was missing; deeper investigation shows persistence works via a different mechanism** — the regenerate cycle (form hydration from `activeThesis?.customDirective` → pass to generator → generator writes back into new thesis → form re-sync after save). The setters themselves are dead because the UI chose this regenerate-cycle path 3 minutes after the setters were added (commits `32f582e` then `dbcf952` on 2026-04-29). For `userCorrections`, the setter would actively contradict the design (`types/search.ts:597` says corrections _"clear once the new thesis is saved"_). The right fix is removal, not wiring.
 
-The other dead store actions cluster in two patterns: (a) **delete/edit affordances missing** (`deleteRequest`, `deleteRun`, `updateRequest` — the user can create saved searches and runs but can't edit or remove them), and (b) **granular profile editors superseded** by full-replace `setProfile` (the four `updateProfile*` partial mutators became dead when search profile inference moved upstream into identity).
+The other dead store actions cluster in two patterns: (a) **delete/edit affordances missing** (`deleteRequest`, `deleteRun`, `updateRequest` — later resolved on the remove path because saved search requests/runs are append-only durable history), and (b) **granular profile editors superseded** by full-replace `setProfile` (the four `updateProfile*` partial mutators became dead when search profile inference moved upstream into identity).
 
 ## Scope
 
@@ -45,7 +45,7 @@ Eleven of thirteen findings are **`unwired-capability`**. Three clusters explain
 
 - **Setters superseded by regenerate cycle** (W-1): `setThesisUserCorrections`, `setThesisCustomDirective` — added defensively in `32f582e`, made dead 3 minutes later in `dbcf952` when the UI was built using a regenerate-cycle persistence path that doesn't need setter calls.
 - **Granular profile editors superseded** (W-7 through W-10): `updateProfileSkills`, `updateProfileConstraints`, `updateProfileFilters`, `updateProfileInterviewPrefs` — added when research authored its own search profile, made dead when profile inference moved to identity (research now consumes the inferred profile via `setProfile` full-replace).
-- **Delete/edit affordances absent** (W-2, W-3, W-4): `deleteRequest`, `deleteRun`, `updateRequest` — backed by tests but no UI to invoke them. Users can accumulate saved requests and runs indefinitely with no way to remove or edit them.
+- **Delete/edit affordances absent** (W-2, W-3, W-4): `deleteRequest`, `deleteRun`, `updateRequest` — backed by tests but no UI to invoke them. Resolved 2026-05-25 on the remove path: request/run history is append-only by design.
 
 The pattern signal is **store API designed ahead of UI**. None of these are bugs that will fail at runtime; they're inventory of dead capabilities that should be either wired or removed. W-1 and W-7–W-10 are clear removal candidates (the API was superseded by a different mechanism); W-2/W-3/W-4 require a product decision (append-only by design, or genuine UX gap?).
 
@@ -53,26 +53,26 @@ The pattern signal is **store API designed ahead of UI**. None of these are bugs
 
 ## P3 — Gap (revised from P1 after history investigation)
 
-### W-1  Unwired — `setThesisUserCorrections` + `setThesisCustomDirective` (superseded by regenerate-cycle persistence)
+### W-1 Unwired — `setThesisUserCorrections` + `setThesisCustomDirective` (superseded by regenerate-cycle persistence)
 
-| Field | Value |
-|---|---|
-| Severity | gap (revised down from `drifted` after history investigation) |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:993` (setThesisUserCorrections), `src/store/searchStore.ts:997` (setThesisCustomDirective); type decls at `:146`, `:148` |
-| UI side | UI has "Corrections (applied on regenerate)" textarea at `src/routes/research/searchWorkspaceComponents.tsx:310` and "Custom search direction" input at `:325`. **Persistence works via the regenerate cycle, not via these setters.** |
-| Identifier | `exported_function setThesisUserCorrections`, `exported_function setThesisCustomDirective` |
+| Field        | Value                                                                                                                                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity     | gap (revised down from `drifted` after history investigation)                                                                                                                                                                          |
+| Category     | unwired-capability                                                                                                                                                                                                                     |
+| Confidence   | high                                                                                                                                                                                                                                   |
+| Backend side | `src/store/searchStore.ts:993` (setThesisUserCorrections), `src/store/searchStore.ts:997` (setThesisCustomDirective); type decls at `:146`, `:148`                                                                                     |
+| UI side      | UI has "Corrections (applied on regenerate)" textarea at `src/routes/research/searchWorkspaceComponents.tsx:310` and "Custom search direction" input at `:325`. **Persistence works via the regenerate cycle, not via these setters.** |
+| Identifier   | `exported_function setThesisUserCorrections`, `exported_function setThesisCustomDirective`                                                                                                                                             |
 
 **Persistence cycle (operational without the setters):**
 
-| Step | Location | Behavior |
-|---|---|---|
-| Form hydration on mount | `src/routes/research/ResearchPage.tsx:1060` | `setDirectiveDraft(activeThesis?.customDirective ?? '')` |
-| Change detection | `src/routes/research/searchWorkspaceComponents.tsx:206` | `directiveChanged = (activeThesis?.customDirective ?? '') !== directiveDraft.trim()` (drives "Regenerate with changes" button label) |
-| Pass to generator on regenerate | `src/routes/research/ResearchPage.tsx:1600` | `customDirective: directive` |
-| Generator writes back to new thesis | `src/utils/thesisGenerator.ts:492` | `...(directiveTrimmed ? { customDirective: directiveTrimmed } : {})` |
-| Form re-sync after save | `src/routes/research/ResearchPage.tsx:1627` | `setDirectiveDraft(saved.customDirective ?? '')` |
+| Step                                | Location                                                | Behavior                                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Form hydration on mount             | `src/routes/research/ResearchPage.tsx:1060`             | `setDirectiveDraft(activeThesis?.customDirective ?? '')`                                                                             |
+| Change detection                    | `src/routes/research/searchWorkspaceComponents.tsx:206` | `directiveChanged = (activeThesis?.customDirective ?? '') !== directiveDraft.trim()` (drives "Regenerate with changes" button label) |
+| Pass to generator on regenerate     | `src/routes/research/ResearchPage.tsx:1600`             | `customDirective: directive`                                                                                                         |
+| Generator writes back to new thesis | `src/utils/thesisGenerator.ts:492`                      | `...(directiveTrimmed ? { customDirective: directiveTrimmed } : {})`                                                                 |
+| Form re-sync after save             | `src/routes/research/ResearchPage.tsx:1627`             | `setDirectiveDraft(saved.customDirective ?? '')`                                                                                     |
 
 **Type-doc design intent (`src/types/search.ts:594-606`):**
 
@@ -103,9 +103,9 @@ The setters were added defensively in `32f582e`. Three minutes later, `dbcf952` 
 
 **Why the original audit framing was wrong:**
 
-The first reading concluded "UI inputs exist but persistence isn't wired." That conclusion was based on the absence of setter calls. But persistence doesn't *need* setter calls — it's mediated by the regenerate cycle. The form is hydrated from the active thesis on mount/active-thesis-change; the value is passed to the generator on regenerate; the generator writes the trimmed value back into the new thesis at `thesisGenerator.ts:492`; the form re-syncs after save. `customDirective` does survive across remounts and workspace switches.
+The first reading concluded "UI inputs exist but persistence isn't wired." That conclusion was based on the absence of setter calls. But persistence doesn't _need_ setter calls — it's mediated by the regenerate cycle. The form is hydrated from the active thesis on mount/active-thesis-change; the value is passed to the generator on regenerate; the generator writes the trimmed value back into the new thesis at `thesisGenerator.ts:492`; the form re-syncs after save. `customDirective` does survive across remounts and workspace switches.
 
-For `userCorrections` specifically, the setter at `searchStore.ts:993` would *contradict* the design — the type doc says corrections clear on save, but the setter would persist them onto the thesis between regenerations. Calling that setter would surface stale corrections in the UI on next mount.
+For `userCorrections` specifically, the setter at `searchStore.ts:993` would _contradict_ the design — the type doc says corrections clear on save, but the setter would persist them onto the thesis between regenerations. Calling that setter would surface stale corrections in the UI on next mount.
 
 **Suggested fix: remove, don't wire.**
 
@@ -120,151 +120,156 @@ Estimated scope: ~30 LoC across searchStore.ts + searchStore.test.ts. No UI chan
 
 **Severity rationale (gap, not drifted):**
 
-The original `drifted` classification assumed broken behavior the user would hit — corrections/directive would vanish on remount. After verifying the regenerate-cycle persistence works, that's not actually true for `customDirective`. For `userCorrections`, the design says it *should* clear on save, so the user doesn't expect persistence. Both setters are dead code without behavioral consequences. **Severity: gap.**
+The original `drifted` classification assumed broken behavior the user would hit — corrections/directive would vanish on remount. After verifying the regenerate-cycle persistence works, that's not actually true for `customDirective`. For `userCorrections`, the design says it _should_ clear on save, so the user doesn't expect persistence. Both setters are dead code without behavioral consequences. **Severity: gap.**
 
 ---
 
 ## P3 — Gap (unwired capabilities)
 
-### W-2  Unwired — `deleteRequest`
+### W-2 Unwired — `deleteRequest`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:825` |
-| UI side | absent — `grep -rn "deleteRequest" src/` returns only the store and 3 test files |
-| Identifier | `exported_function deleteRequest` |
+| Field        | Value                                                                            |
+| ------------ | -------------------------------------------------------------------------------- |
+| Severity     | gap                                                                              |
+| Category     | unwired-capability                                                               |
+| Confidence   | high                                                                             |
+| Backend side | `src/store/searchStore.ts:825`                                                   |
+| UI side      | absent — `grep -rn "deleteRequest" src/` returns only the store and 3 test files |
+| Identifier   | `exported_function deleteRequest`                                                |
+| Disposition  | Resolved 2026-05-25 — removed; saved requests are append-only durable history.   |
 
 **Evidence:** Store action exists with cascade-delete semantics (also clears child runs). Type decl at `searchStore.ts:130`. Tests at `searchStore.test.ts:224,283,1661`. No production UI affordance to delete a saved search request.
 
 **Suggested fix:** Either add a delete button to the saved-searches surface (`SearchInstancePreferences` component or wherever requests render), or document that requests are append-only by design and remove the action.
 
-### W-3  Unwired — `deleteRun`
+### W-3 Unwired — `deleteRun`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:881` |
-| UI side | absent — only test consumers (`searchStore.test.ts:575,1587`) |
-| Identifier | `exported_function deleteRun` |
+| Field        | Value                                                                  |
+| ------------ | ---------------------------------------------------------------------- |
+| Severity     | gap                                                                    |
+| Category     | unwired-capability                                                     |
+| Confidence   | high                                                                   |
+| Backend side | `src/store/searchStore.ts:881`                                         |
+| UI side      | absent — only test consumers (`searchStore.test.ts:575,1587`)          |
+| Identifier   | `exported_function deleteRun`                                          |
+| Disposition  | Resolved 2026-05-25 — removed, paired with W-2's append-only decision. |
 
-**Evidence:** Implementation includes a comment about cascading: *"deleteRequest's cascade: stale events would otherwise be returned by [...]"* (`searchStore.ts:883`). The cascade deletes feedback events tied to runs. So `deleteRun` was designed with side-effect awareness, but no UI invokes it.
+**Evidence:** Implementation includes a comment about cascading: _"deleteRequest's cascade: stale events would otherwise be returned by [...]"_ (`searchStore.ts:883`). The cascade deletes feedback events tied to runs. So `deleteRun` was designed with side-effect awareness, but no UI invokes it.
 
 **Suggested fix:** Likely paired with W-2 — if research adds delete-request UI, delete-run is a natural sibling. Otherwise the codebase accumulates SearchRun records indefinitely (one per executed search).
 
-### W-4  Unwired — `updateRequest`
+### W-4 Unwired — `updateRequest`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:810` |
-| UI side | absent — only test consumer (`searchStore.test.ts:202`) |
-| Identifier | `exported_function updateRequest` |
+| Field        | Value                                                                  |
+| ------------ | ---------------------------------------------------------------------- |
+| Severity     | gap                                                                    |
+| Category     | unwired-capability                                                     |
+| Confidence   | high                                                                   |
+| Backend side | `src/store/searchStore.ts:810`                                         |
+| UI side      | absent — only test consumer (`searchStore.test.ts:202`)                |
+| Identifier   | `exported_function updateRequest`                                      |
+| Disposition  | Resolved 2026-05-25 — removed; refinements create new request records. |
 
 **Evidence:** `updateRequest: (id, patch: Partial<SearchRequest>) => void`. Lets a saved request be edited in place. No UI calls it.
 
 **Suggested fix:** If saved requests are immutable by design, remove. If editable, wire from wherever the request list renders. The current behavior is "create new request to change anything" which produces request churn.
 
-### W-5  Unwired — `getRunsForRequest`
+### W-5 Unwired — `getRunsForRequest`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:894` |
-| UI side | absent — only test consumer (`searchStore.test.ts:277`) |
-| Identifier | `exported_function getRunsForRequest` |
+| Field        | Value                                                                         |
+| ------------ | ----------------------------------------------------------------------------- |
+| Severity     | gap                                                                           |
+| Category     | unwired-capability                                                            |
+| Confidence   | high                                                                          |
+| Backend side | `src/store/searchStore.ts:894`                                                |
+| UI side      | absent — only test consumer (`searchStore.test.ts:277`)                       |
+| Identifier   | `exported_function getRunsForRequest`                                         |
+| Disposition  | Resolved 2026-05-25 — removed until a real request drill-down surface exists. |
 
 **Evidence:** Read selector `(requestId) => get().runs.filter(...)`. Useful for showing "all runs for this saved request" view. No UI consumes it.
 
 **Suggested fix:** Lower priority — read selectors with no consumers are cheap. Either build a per-request runs view or remove the selector.
 
-### W-6  Unwired — `getFeedbackEventsForRun`
+### W-6 Unwired — `getFeedbackEventsForRun`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:1095` |
-| UI side | absent — only test consumer (`searchStore.test.ts:1504`) |
-| Identifier | `exported_function getFeedbackEventsForRun` |
+| Field        | Value                                                                    |
+| ------------ | ------------------------------------------------------------------------ |
+| Severity     | gap                                                                      |
+| Category     | unwired-capability                                                       |
+| Confidence   | high                                                                     |
+| Backend side | `src/store/searchStore.ts:1095`                                          |
+| UI side      | absent — only test consumer (`searchStore.test.ts:1504`)                 |
+| Identifier   | `exported_function getFeedbackEventsForRun`                              |
+| Disposition  | Resolved 2026-05-25 — removed, paired with W-5's no-drill-down decision. |
 
 **Evidence:** Read selector `(runId) => get().feedbackEvents.filter(...)`. Companion to per-run feedback display. No UI surface.
 
 **Suggested fix:** Same as W-5 — low-priority cleanup unless a per-run feedback view is planned.
 
-### W-7  Unwired — `updateProfileSkills`
+### W-7 Unwired — `updateProfileSkills`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:744` (impl), `:123` (decl) |
-| UI side | absent — only test consumers (`searchStore.test.ts:154,531`) |
-| Identifier | `exported_function updateProfileSkills` |
+| Field        | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Severity     | gap                                                          |
+| Category     | unwired-capability                                           |
+| Confidence   | high                                                         |
+| Backend side | `src/store/searchStore.ts:744` (impl), `:123` (decl)         |
+| UI side      | absent — only test consumers (`searchStore.test.ts:154,531`) |
+| Identifier   | `exported_function updateProfileSkills`                      |
 
 **Evidence:** Replaces `profile.skills` partially. Useful for editing one slice of the search profile without replacing the whole thing.
 
 **Suggested fix:** Likely superseded — search profile inference moved to identity (`adaptIdentityToSearchProfile`), and research consumes the full profile via `setProfile`. Granular partial editors are no longer needed. Recommend removing along with W-8/W-9/W-10 in one coordinated cleanup.
 
-### W-8  Unwired — `updateProfileConstraints`
+### W-8 Unwired — `updateProfileConstraints`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:758` |
-| UI side | absent — only test consumers (`searchStore.test.ts:162,534`) |
-| Identifier | `exported_function updateProfileConstraints` |
+| Field        | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Severity     | gap                                                          |
+| Category     | unwired-capability                                           |
+| Confidence   | high                                                         |
+| Backend side | `src/store/searchStore.ts:758`                               |
+| UI side      | absent — only test consumers (`searchStore.test.ts:162,534`) |
+| Identifier   | `exported_function updateProfileConstraints`                 |
 
 **Suggested fix:** Same cluster as W-7 — coordinated removal recommended.
 
-### W-9  Unwired — `updateProfileFilters`
+### W-9 Unwired — `updateProfileFilters`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:772` |
-| UI side | absent — only test consumers (`searchStore.test.ts:168,540`) |
-| Identifier | `exported_function updateProfileFilters` |
+| Field        | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Severity     | gap                                                          |
+| Category     | unwired-capability                                           |
+| Confidence   | high                                                         |
+| Backend side | `src/store/searchStore.ts:772`                               |
+| UI side      | absent — only test consumers (`searchStore.test.ts:168,540`) |
+| Identifier   | `exported_function updateProfileFilters`                     |
 
-**Suggested fix:** Same cluster — note that the *thesis-level* `searchOverrides` migrated `filters` → `lookFor`/`avoid` signals, but the *profile-level* `filters` field persists (still has `prioritize` and `avoid` lists). The store action is unwired but the underlying profile field is current.
+**Suggested fix:** Same cluster — note that the _thesis-level_ `searchOverrides` migrated `filters` → `lookFor`/`avoid` signals, but the _profile-level_ `filters` field persists (still has `prioritize` and `avoid` lists). The store action is unwired but the underlying profile field is current.
 
-### W-10  Unwired — `updateProfileInterviewPrefs`
+### W-10 Unwired — `updateProfileInterviewPrefs`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | high |
-| Backend side | `src/store/searchStore.ts:786` |
-| UI side | absent — only test consumers (`searchStore.test.ts:172,541`) |
-| Identifier | `exported_function updateProfileInterviewPrefs` |
+| Field        | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Severity     | gap                                                          |
+| Category     | unwired-capability                                           |
+| Confidence   | high                                                         |
+| Backend side | `src/store/searchStore.ts:786`                               |
+| UI side      | absent — only test consumers (`searchStore.test.ts:172,541`) |
+| Identifier   | `exported_function updateProfileInterviewPrefs`              |
 
 **Suggested fix:** Same cluster — coordinated removal.
 
-### W-11  Unwired — `findByPipelineEntry` on `useJDAnalysisStore`
+### W-11 Unwired — `findByPipelineEntry` on `useJDAnalysisStore`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unwired-capability |
-| Confidence | medium |
-| Backend side | `src/store/jdAnalysisStore.ts:84` |
-| UI side | absent from research (`getState().analyses.find(...)` is used directly in `stalenessRefreshHandlers.ts` instead, bypassing the helper) |
-| Identifier | `exported_function findByPipelineEntry` |
+| Field        | Value                                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity     | gap                                                                                                                                    |
+| Category     | unwired-capability                                                                                                                     |
+| Confidence   | medium                                                                                                                                 |
+| Backend side | `src/store/jdAnalysisStore.ts:84`                                                                                                      |
+| UI side      | absent from research (`getState().analyses.find(...)` is used directly in `stalenessRefreshHandlers.ts` instead, bypassing the helper) |
+| Identifier   | `exported_function findByPipelineEntry`                                                                                                |
 
 **Evidence:** `stalenessRefreshHandlers.ts:140` and `:261` open-codes the lookup `analyses.find(...)` rather than calling `findByPipelineEntry`. The helper exists but goes unused; the lookup is duplicated inline.
 
@@ -274,14 +279,14 @@ The original `drifted` classification assumed broken behavior the user would hit
 
 ## P3 — Gap (unsurfaced configuration)
 
-### W-12  Unsurfaced — `RESEARCH_JOB_POLL_DELAYS_MS` hardcoded backoff
+### W-12 Unsurfaced — `RESEARCH_JOB_POLL_DELAYS_MS` hardcoded backoff
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unsurfaced-config |
-| Confidence | high |
-| Backend side | `src/utils/deepSearchClient.ts:22` |
+| Field        | Value                                              |
+| ------------ | -------------------------------------------------- |
+| Severity     | gap                                                |
+| Category     | unsurfaced-config                                  |
+| Confidence   | high                                               |
+| Backend side | `src/utils/deepSearchClient.ts:22`                 |
 | Surface side | absent — no UI/admin/env-var controls the schedule |
 
 **Evidence:**
@@ -301,14 +306,14 @@ The poll-loop backoff for active research jobs is a hardcoded 2s → 5s → 15s 
 
 Probably option 1 unless the cadence becomes a problem. Worth a brief comment at line 22 explaining the choice.
 
-### W-13  Unsurfaced — `VITE_FACET_API_BASE_URL` not in `.env.example`
+### W-13 Unsurfaced — `VITE_FACET_API_BASE_URL` not in `.env.example`
 
-| Field | Value |
-|---|---|
-| Severity | gap |
-| Category | unsurfaced-config |
-| Confidence | high |
-| Backend side | `src/utils/facetEnv.ts:63` |
+| Field        | Value                                                                      |
+| ------------ | -------------------------------------------------------------------------- |
+| Severity     | gap                                                                        |
+| Category     | unsurfaced-config                                                          |
+| Confidence   | high                                                                       |
+| Backend side | `src/utils/facetEnv.ts:63`                                                 |
 | Surface side | absent from `.env.example` (only the other 5 `VITE_*` vars are documented) |
 
 **Evidence:**
@@ -342,43 +347,50 @@ After the audit was authored, the findings were triaged into three buckets and a
 
 ### Resolved (code changes landed)
 
-| Finding | Resolution | Files touched |
-|---|---|---|
-| W-1 | Removed `setThesisUserCorrections`, `setThesisCustomDirective` (type decls + impl + test assertions). Persistence works via the regenerate cycle; setters were dead since `dbcf952` on 2026-04-29. | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
-| W-7 | Removed `updateProfileSkills` (decl + impl). Superseded by `setProfile` full-replace after profile inference moved to identity. | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
-| W-8 | Removed `updateProfileConstraints`. Same cluster as W-7. | Same |
-| W-9 | Removed `updateProfileFilters`. Same cluster. | Same |
-| W-10 | Removed `updateProfileInterviewPrefs`. Same cluster. | Same |
-| W-12 | Added comment near `RESEARCH_JOB_POLL_DELAYS_MS` documenting the hardcoded-cadence decision. | `src/utils/deepSearchClient.ts` |
-| W-13 | Added `VITE_FACET_API_BASE_URL` to `.env.example` with a hosted-vs-self-hosted comment. | `.env.example` |
+| Finding | Resolution                                                                                                                                                                                         | Files touched                                              |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| W-1     | Removed `setThesisUserCorrections`, `setThesisCustomDirective` (type decls + impl + test assertions). Persistence works via the regenerate cycle; setters were dead since `dbcf952` on 2026-04-29. | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-2     | Removed `deleteRequest` (type decl + impl + test-only callers). Product call: saved search requests are append-only durable history until a real cleanup surface is intentionally designed.        | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-3     | Removed `deleteRun` (type decl + impl + test-only callers), paired with W-2's append-only decision for request/run history. Remaining orphan cleanup stays covered by migration/import pruning.    | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-4     | Removed `updateRequest` (type decl + impl + test-only caller). Product call: request refinement should create new durable request records rather than mutating historical search inputs in place.  | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-5     | Removed `getRunsForRequest` (type decl + impl + test-only caller). Product call: no saved-search drill-down surface exists; direct state selectors are enough until one is built.                  | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-6     | Removed `getFeedbackEventsForRun` (type decl + impl + test-only caller), paired with W-5's no-drill-down decision.                                                                                 | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-7     | Removed `updateProfileSkills` (decl + impl). Superseded by `setProfile` full-replace after profile inference moved to identity.                                                                    | `src/store/searchStore.ts`, `src/test/searchStore.test.ts` |
+| W-8     | Removed `updateProfileConstraints`. Same cluster as W-7.                                                                                                                                           | Same                                                       |
+| W-9     | Removed `updateProfileFilters`. Same cluster.                                                                                                                                                      | Same                                                       |
+| W-10    | Removed `updateProfileInterviewPrefs`. Same cluster.                                                                                                                                               | Same                                                       |
+| W-12    | Added comment near `RESEARCH_JOB_POLL_DELAYS_MS` documenting the hardcoded-cadence decision.                                                                                                       | `src/utils/deepSearchClient.ts`                            |
+| W-13    | Added `VITE_FACET_API_BASE_URL` to `.env.example` with a hosted-vs-self-hosted comment.                                                                                                            | `.env.example`                                             |
 
 Cleanup also removed three orphan type imports from `src/store/searchStore.ts` (`SearchInterviewPrefs`, `SearchProfileFilters`, `SkillCatalogEntry`) that were only used as parameter types on the removed setters. Verification: `npm run typecheck` passes; `npx vitest run src/test/searchStore.test.ts` reports 42/42 tests passing.
 
+The 2026-05-25 follow-up removed the remaining five unwired searchStore APIs (W-2 through W-6), trimmed their test-only coverage, and pruned their stale entries from the capability registry.
+
 ### Discarded after deeper investigation
 
-| Finding | Why discarded |
-|---|---|
-| W-11 | The audit's suggested fix was wrong. `resolvePipelineJdAnalysis` (in `src/utils/regen/coverLetterRegen.ts:31`) is **not equivalent** to `findByPipelineEntry` — the helper has stricter validation when `entry.jdAnalysisId` is set, requiring both the FK match AND the back-reference. Replacing the inline lookup with `findByPipelineEntry` would silently lose that bidirectional validation. Independent grep also showed `findByPipelineEntry` is consumed by 10 test-side assertions across 4 test files (`PipelinePage.test.tsx`, `jdAnalysis.test.ts`, `MatchPage.test.tsx`, `searchStore.test.ts`) — that's a legitimate test-helper usage, not dead code. Both APIs are correct as-is. |
+| Finding | Why discarded                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W-11    | The audit's suggested fix was wrong. `resolvePipelineJdAnalysis` (in `src/utils/regen/coverLetterRegen.ts:31`) is **not equivalent** to `findByPipelineEntry` — the helper has stricter validation when `entry.jdAnalysisId` is set, requiring both the FK match AND the back-reference. Replacing the inline lookup with `findByPipelineEntry` would silently lose that bidirectional validation. Independent grep also showed `findByPipelineEntry` is consumed by 10 test-side assertions across 4 test files (`PipelinePage.test.tsx`, `jdAnalysis.test.ts`, `MatchPage.test.tsx`, `searchStore.test.ts`) — that's a legitimate test-helper usage, not dead code. Both APIs are correct as-is. |
 
-### Deferred to backlog (product decision needed)
+### Deferred to backlog (resolved 2026-05-25)
 
-| Finding | Backlog task | Pairing |
-|---|---|---|
-| W-2 | `TASK-247` — Wire or remove `searchStore.deleteRequest` | Paired with W-3 |
-| W-3 | `TASK-248` — Wire or remove `searchStore.deleteRun` | Paired with W-2 |
-| W-4 | `TASK-249` — Wire or remove `searchStore.updateRequest` | Independent |
-| W-5 | `TASK-250` — Wire or remove `searchStore.getRunsForRequest` | Paired with W-6 |
-| W-6 | `TASK-251` — Wire or remove `searchStore.getFeedbackEventsForRun` | Paired with W-5 |
+| Finding | Backlog task                                                      | Pairing         |
+| ------- | ----------------------------------------------------------------- | --------------- |
+| W-2     | `TASK-247` — Wire or remove `searchStore.deleteRequest`           | Paired with W-3 |
+| W-3     | `TASK-248` — Wire or remove `searchStore.deleteRun`               | Paired with W-2 |
+| W-4     | `TASK-249` — Wire or remove `searchStore.updateRequest`           | Independent     |
+| W-5     | `TASK-250` — Wire or remove `searchStore.getRunsForRequest`       | Paired with W-6 |
+| W-6     | `TASK-251` — Wire or remove `searchStore.getFeedbackEventsForRun` | Paired with W-5 |
 
-All five filed under milestone **`m-30 "Wire dead store APIs (research)"`** with `priority: low`, labeled `audit-finding` / `wiring-cleanup` / `research` / `searchStore`. Each task frames the same product question — wire (build the UI affordance) or remove (declare append-only) — and carries the audit citation plus grep-verified absence evidence.
+All five were filed under milestone **`m-30 "Wire dead store APIs (research)"`** with `priority: low`, labeled `audit-finding` / `wiring-cleanup` / `research` / `searchStore`. They were resolved on the remove path: saved search requests and runs remain append-only durable history, and request/run drill-down selectors were removed until a real product surface needs them.
 
 ### Final tally
 
-- **7 findings resolved** (W-1, W-7, W-8, W-9, W-10, W-12, W-13) — code changes landed
+- **12 findings resolved** (W-1, W-2, W-3, W-4, W-5, W-6, W-7, W-8, W-9, W-10, W-12, W-13) — code changes landed
 - **1 finding discarded** (W-11) — audit suggestion was wrong; both APIs are correct
-- **5 findings deferred** (W-2, W-3, W-4, W-5, W-6) — filed as backlog tasks under milestone m-30
+- **0 findings deferred**
 
-Net: 12 of 13 findings closed in-session; the remaining 5 are tracked with explicit product questions to resolve before any code work.
+Net: 12 of 13 findings are resolved and one was discarded after deeper investigation; no deferred findings remain.
 
 ## Methodology
 
@@ -401,7 +413,7 @@ This audit was produced by the `wiring-audit` skill on 2026-05-10. Two parallel 
 
 ### Stale-label pass
 
-- Searched user labels (S-1, S-2 collected ~18 labels) against current capability evidence. Domain language in research UI ("look-for signals", "avoid", "skill-depth calibration", "competitive moat", "unfair advantages", "Search Thesis") matches current capability vocabulary in `searchStore.ts` and `thesisGenerator.ts`. The legacy `searchOverrides.filters` field (migrated to canonical `lookFor`/`avoid`) is correctly fenced — `searchWorkspaceComponents.tsx:449` even has a documenting comment: *"SearchInstanceOverrides intentionally carries no filters: migration folds [...]"*. **No stale-label findings.**
+- Searched user labels (S-1, S-2 collected ~18 labels) against current capability evidence. Domain language in research UI ("look-for signals", "avoid", "skill-depth calibration", "competitive moat", "unfair advantages", "Search Thesis") matches current capability vocabulary in `searchStore.ts` and `thesisGenerator.ts`. The legacy `searchOverrides.filters` field (migrated to canonical `lookFor`/`avoid`) is correctly fenced — `searchWorkspaceComponents.tsx:449` even has a documenting comment: _"SearchInstanceOverrides intentionally carries no filters: migration folds [...]"_. **No stale-label findings.**
 
 ### Synthesized inferences
 
@@ -416,7 +428,7 @@ All 13 finding citations Read or grep-verified. No fabricated absence claims; ev
 
 - **W-1: confirmed via history investigation.** Setters were added in `32f582e` (2026-04-29 05:52); UI was built 3 minutes later in `dbcf952` using regenerate-cycle persistence instead of setters. Setters have been dead since creation. Type-doc confirms `customDirective` persists via regenerate write-back, `userCorrections` is intentionally transient. **Fix direction: remove the setters.**
 - **W-2/W-3/W-4: are saved requests/runs append-only by design?** If yes, the dead actions can be removed cleanly. If no, the UI gap is real.
-- **W-7–W-10: timeline of the granular-editors → identity-inference shift.** A coordinated cleanup commit removing four store actions is reasonable, but worth confirming the `setProfile` full-replace path is the *only* intended profile-mutation path now.
+- **W-7–W-10: timeline of the granular-editors → identity-inference shift.** A coordinated cleanup commit removing four store actions is reasonable, but worth confirming the `setProfile` full-replace path is the _only_ intended profile-mutation path now.
 - **W-12: research poll cadence as user knob?** Probably no, but worth a brief comment near `RESEARCH_JOB_POLL_DELAYS_MS` documenting the decision.
 - **W-13: hosted-mode env documentation.** Beyond just adding `VITE_FACET_API_BASE_URL` to `.env.example`, is there a hosted-mode setup doc that should mention it? `docs/devel/` may need an audit.
 

@@ -107,6 +107,11 @@ type SearchOrphanPrunableState = {
   activeResearchJob: ActiveResearchJobState | null
 }
 
+/**
+ * Search requests and runs are append-only durable history. Refinements create
+ * new request/run records; orphan cleanup is limited to hydration/import
+ * boundaries through pruneOrphans.
+ */
 interface SearchState {
   profile: SearchProfile | null
   requests: SearchRequest[]
@@ -119,12 +124,8 @@ interface SearchState {
   setProfile: (profile: SearchProfileInput) => SearchProfile
   clearProfile: () => void
   addRequest: (request: SearchRequestInput) => SearchRequest
-  updateRequest: (id: string, patch: Partial<SearchRequest>) => void
-  deleteRequest: (id: string) => void
   addRun: (run: SearchRunInput) => SearchRun
   updateRun: (id: string, patch: Partial<SearchRun>) => void
-  deleteRun: (id: string) => void
-  getRunsForRequest: (requestId: string) => SearchRun[]
   addThesis: (thesis: SearchThesisInput) => SearchThesis
   markThesisStalenessReview: (id: string, review: ArtifactStalenessReview) => boolean
   saveThesisRevision: (baseId: string, patch: Partial<SearchThesis>) => SearchThesis | null
@@ -151,8 +152,6 @@ interface SearchState {
    * applied event (the "build a new thesis from scratch" case).
    */
   getUnreflectedFeedback: (currentThesisId?: string) => SearchFeedbackEvent[]
-  /** Every feedback event for a given artifact (run or result). */
-  getFeedbackEventsForRun: (runId: string) => SearchFeedbackEvent[]
 }
 
 const now = () => new Date().toISOString()
@@ -747,39 +746,6 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
     return hydrated
   },
 
-  updateRequest: (id, patch) => {
-    const restPatch = stripDurableMetadataPatch(patch)
-    set((state) => ({
-      requests: state.requests.map((request) =>
-        request.id === id
-          ? {
-              ...request,
-              ...restPatch,
-              durableMeta: touchDurableMetadata(request.durableMeta, now()),
-            }
-          : request,
-      ),
-    }))
-  },
-
-  deleteRequest: (id) => {
-    set((state) => {
-      // Cascade-delete feedback events that reference any run belonging to
-      // this request. Without this, orphaned events linger in the store and
-      // can be surfaced by `getUnreflectedFeedback()` after the originating
-      // run + request no longer exist.
-      const orphanedRunIds = new Set(
-        state.runs.filter((run) => run.requestId === id).map((run) => run.id),
-      )
-      return pruneOrphans({
-        ...state,
-        requests: state.requests.filter((request) => request.id !== id),
-        runs: state.runs.filter((run) => run.requestId !== id),
-        feedbackEvents: state.feedbackEvents.filter((event) => !orphanedRunIds.has(event.runId)),
-      })
-    })
-  },
-
   addRun: (run) => {
     const hydrated = hydrateRun(run)
     set((state) => ({ runs: [...state.runs, hydrated] }))
@@ -817,21 +783,6 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
       }),
     }))
   },
-
-  deleteRun: (id) => {
-    // Cascade-delete feedback events tied to this run — same reasoning as
-    // deleteRequest's cascade: stale events would otherwise be returned by
-    // `getUnreflectedFeedback()` long after the run they reference is gone.
-    set((state) =>
-      pruneOrphans({
-        ...state,
-        runs: state.runs.filter((run) => run.id !== id),
-        feedbackEvents: state.feedbackEvents.filter((event) => event.runId !== id),
-      }),
-    )
-  },
-
-  getRunsForRequest: (requestId) => get().runs.filter((run) => run.requestId === requestId),
 
   addThesis: (thesis) => {
     const existingIds = new Set(get().theses.map((item) => item.id))
@@ -1023,6 +974,4 @@ export const useSearchStore = create<SearchState>()((set, get) => ({
         (currentThesisId === undefined ||
           (event.reflectedInThesisId ?? event.reflectedInArtifactId) !== currentThesisId),
     ),
-
-  getFeedbackEventsForRun: (runId) => get().feedbackEvents.filter((event) => event.runId === runId),
 }))

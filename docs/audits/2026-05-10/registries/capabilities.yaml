@@ -5,25 +5,15 @@ capabilities:
   # ── searchStore.ts — primary research state ──────────────────────────────
   - { id: C-1, kind: exported_hook, identifier: useSearchStore, location: src/store/searchStore.ts:729 }
   - { id: C-2, kind: exported_function, identifier: setProfile, location: src/store/searchStore.ts:738 }
-  - { id: C-3, kind: exported_function, identifier: updateProfileSkills, location: src/store/searchStore.ts:744 }
-  - { id: C-4, kind: exported_function, identifier: updateProfileConstraints, location: src/store/searchStore.ts:758 }
-  - { id: C-5, kind: exported_function, identifier: updateProfileFilters, location: src/store/searchStore.ts:772 }
-  - { id: C-6, kind: exported_function, identifier: updateProfileInterviewPrefs, location: src/store/searchStore.ts:786 }
   - { id: C-7, kind: exported_function, identifier: clearProfile, location: src/store/searchStore.ts:800 }
   - { id: C-8, kind: exported_function, identifier: addRequest, location: src/store/searchStore.ts:804 }
-  - { id: C-9, kind: exported_function, identifier: updateRequest, location: src/store/searchStore.ts:810 }
-  - { id: C-10, kind: exported_function, identifier: deleteRequest, location: src/store/searchStore.ts:825 }
   - { id: C-11, kind: exported_function, identifier: addRun, location: src/store/searchStore.ts:843 }
   - { id: C-12, kind: exported_function, identifier: updateRun, location: src/store/searchStore.ts:849 }
-  - { id: C-13, kind: exported_function, identifier: deleteRun, location: src/store/searchStore.ts:881 }
-  - { id: C-14, kind: exported_function, identifier: getRunsForRequest, location: src/store/searchStore.ts:894 }
   - { id: C-15, kind: exported_function, identifier: addThesis, location: src/store/searchStore.ts:896 }
   - { id: C-16, kind: exported_function, identifier: markThesisStalenessReview, location: src/store/searchStore.ts:909 }
   - { id: C-17, kind: exported_function, identifier: saveThesisRevision, location: src/store/searchStore.ts:932 }
   - { id: C-18, kind: exported_function, identifier: updateThesisOverrides, location: src/store/searchStore.ts:963 }
   - { id: C-19, kind: exported_function, identifier: toggleThesisHiddenSkill, location: src/store/searchStore.ts:975 }
-  - { id: C-20, kind: exported_function, identifier: setThesisUserCorrections, location: src/store/searchStore.ts:993 }
-  - { id: C-21, kind: exported_function, identifier: setThesisCustomDirective, location: src/store/searchStore.ts:997 }
   - { id: C-22, kind: exported_function, identifier: setActiveThesis, location: src/store/searchStore.ts:1001 }
   - { id: C-23, kind: exported_function, identifier: setActiveResearchJob, location: src/store/searchStore.ts:1007 }
   - { id: C-24, kind: exported_function, identifier: updateActiveResearchJob, location: src/store/searchStore.ts:1011 }
@@ -32,7 +22,6 @@ capabilities:
   - { id: C-27, kind: exported_function, identifier: markFeedbackApplied, location: src/store/searchStore.ts:1049 }
   - { id: C-28, kind: exported_function, identifier: markFeedbackReflectedInThesis, location: src/store/searchStore.ts:1067 }
   - { id: C-29, kind: exported_function, identifier: getUnreflectedFeedback, location: src/store/searchStore.ts:1087 }
-  - { id: C-30, kind: exported_function, identifier: getFeedbackEventsForRun, location: src/store/searchStore.ts:1095 }
 
   # ── identityStore.ts — research-relevant subset ──────────────────────────
   - { id: C-33, kind: exported_hook, identifier: useIdentityStore, location: src/store/identityStore.ts:682 }

@@ -151,7 +151,7 @@ describe('searchStore', () => {
     expect(profile.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
   })
 
-  it('adds, updates, and deletes requests', () => {
+  it('adds requests with durable metadata', () => {
     const request = useSearchStore.getState().addRequest({
       companySizeOverride: 'growth',
       salaryAnchorOverride: '$250k total',
@@ -165,35 +165,9 @@ describe('searchStore', () => {
     expect(useSearchStore.getState().requests).toHaveLength(1)
     expect(request.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
     expect(request.durableMeta?.revision).toBe(0)
-
-    const before = useSearchStore.getState().requests[0]
-    useSearchStore.getState().updateRequest(request.id, {
-      customKeywords: 'platform engineering',
-      durableMeta: {
-        workspaceId: 'ignored-workspace',
-        tenantId: 'tenant-x',
-        userId: 'user-y',
-        schemaVersion: 7,
-        revision: 22,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-    })
-
-    expect(useSearchStore.getState().requests[0]?.customKeywords).toBe('platform engineering')
-    expect(useSearchStore.getState().requests[0]?.durableMeta?.workspaceId).toBe(
-      DEFAULT_LOCAL_WORKSPACE_ID,
-    )
-    expect(useSearchStore.getState().requests[0]?.durableMeta?.createdAt).toBe(
-      before?.durableMeta?.createdAt,
-    )
-    expect(useSearchStore.getState().requests[0]?.durableMeta?.revision).toBe(1)
-
-    useSearchStore.getState().deleteRequest(request.id)
-    expect(useSearchStore.getState().requests).toEqual([])
   })
 
-  it('adds runs and filters them by request id', () => {
+  it('adds and updates runs with durable metadata', () => {
     const requestOne = useSearchStore.getState().addRequest({
       companySizeOverride: '',
       salaryAnchorOverride: '',
@@ -242,15 +216,15 @@ describe('searchStore', () => {
       ],
     })
 
-    const requestOneRuns = useSearchStore.getState().getRunsForRequest(requestOne.id)
-    expect(requestOneRuns).toHaveLength(1)
-    expect(requestOneRuns[0]?.status).toBe('completed')
-    expect(requestOneRuns[0]?.durableMeta?.workspaceId).toBe(DEFAULT_LOCAL_WORKSPACE_ID)
-    expect(requestOneRuns[0]?.durableMeta?.revision).toBe(1)
-
-    useSearchStore.getState().deleteRequest(requestOne.id)
-    expect(useSearchStore.getState().runs).toHaveLength(1)
-    expect(useSearchStore.getState().runs[0]?.requestId).toBe(requestTwo.id)
+    const runs = useSearchStore.getState().runs
+    expect(runs).toHaveLength(2)
+    expect(runs.filter((run) => run.requestId === requestOne.id)).toHaveLength(1)
+    expect(runs.filter((run) => run.requestId === requestTwo.id)).toHaveLength(1)
+    expect(runs.find((run) => run.id === runOne.id)?.status).toBe('completed')
+    expect(runs.find((run) => run.id === runOne.id)?.durableMeta?.workspaceId).toBe(
+      DEFAULT_LOCAL_WORKSPACE_ID,
+    )
+    expect(runs.find((run) => run.id === runOne.id)?.durableMeta?.revision).toBe(1)
   })
 
   it('clears run staleness review metadata when identity version changes without a new review', () => {
@@ -493,7 +467,7 @@ describe('searchStore', () => {
     })
   })
 
-  it('supports clear/delete run', () => {
+  it('supports clearing the inferred search profile', () => {
     useSearchStore.getState().setProfile({
       skills: [],
       workSummary: [],
@@ -503,30 +477,7 @@ describe('searchStore', () => {
       interviewPrefs: { strongFit: [], redFlags: [] },
       inferredFromResumeVersion: 1,
     })
-
-    const request = useSearchStore.getState().addRequest({
-      companySizeOverride: '',
-      salaryAnchorOverride: '',
-      geoExpand: true,
-      customKeywords: '',
-      excludeCompanies: [],
-      maxResults: { tier1: 5, tier2: 10, tier3: 10 },
-    })
-    const firstRun = useSearchStore.getState().addRun({
-      requestId: request.id,
-      status: 'pending',
-      results: [],
-      searchLog: [],
-    })
-    useSearchStore.getState().addRun({
-      requestId: request.id,
-      status: 'completed',
-      results: [],
-      searchLog: [],
-    })
-
-    useSearchStore.getState().deleteRun(firstRun.id)
-    expect(useSearchStore.getState().runs).toHaveLength(1)
+    expect(useSearchStore.getState().profile).not.toBeNull()
 
     useSearchStore.getState().clearProfile()
     expect(useSearchStore.getState().profile).toBeNull()
@@ -1420,21 +1371,6 @@ describe('searchStore', () => {
       expect(ids).not.toContain(unapplied.id)
     })
 
-    it('getFeedbackEventsForRun filters by runId', () => {
-      const store = useSearchStore.getState()
-      const run1a = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-1' })
-      const run1b = store.addFeedbackEvent({
-        ...baseEventInput,
-        runId: 'srun-1',
-        resultId: 'sres-x',
-      })
-      store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-2' })
-
-      const events = useSearchStore.getState().getFeedbackEventsForRun('srun-1')
-      expect(events).toHaveLength(2)
-      expect(events.map((e) => e.id).sort()).toEqual([run1a.id, run1b.id].sort())
-    })
-
     it('migrates persisted state without feedbackEvents to an empty array', () => {
       const migrated = migrateSearchState({
         profile: null,
@@ -1466,134 +1402,6 @@ describe('searchStore', () => {
 
       expect(migrated.theses[0]?.durableMeta?.revision).toBe(7)
       expect(migrated.theses[0]?.durableMeta?.updatedAt).toBe('2026-04-22T12:34:56.000Z')
-    })
-
-    it('cascade-deletes feedback events when the referenced run is deleted', () => {
-      const store = useSearchStore.getState()
-      const keeper = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-keep' })
-      const doomed = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-doomed' })
-      useSearchStore.setState({
-        requests: [
-          {
-            id: 'sreq-1',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            focusLanes: [],
-            companySizeOverride: '',
-            salaryAnchorOverride: '',
-            geoExpand: false,
-            customKeywords: '',
-            excludeCompanies: [],
-            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
-          },
-        ],
-        runs: [
-          {
-            id: 'srun-keep',
-            requestId: 'sreq-1',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            status: 'completed',
-            results: [],
-            searchLog: [],
-            narrativeState: { status: 'pending' },
-          },
-          {
-            id: 'srun-doomed',
-            requestId: 'sreq-1',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            status: 'completed',
-            results: [],
-            searchLog: [],
-            narrativeState: { status: 'pending' },
-          },
-        ],
-        theses: [
-          buildSearchThesis({
-            feedbackIncorporated: [keeper.id, doomed.id],
-          }),
-        ],
-      })
-
-      useSearchStore.getState().deleteRun('srun-doomed')
-
-      const events = useSearchStore.getState().feedbackEvents
-      expect(events.map((e) => e.id)).toEqual([keeper.id])
-      expect(events.find((e) => e.id === doomed.id)).toBeUndefined()
-      expect(useSearchStore.getState().theses[0]?.feedbackIncorporated).toEqual([keeper.id])
-    })
-
-    it('cascade-deletes feedback events for every run when a request is deleted', () => {
-      const store = useSearchStore.getState()
-      const eventRunA = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-a' })
-      const eventRunB = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-b' })
-      const eventRunC = store.addFeedbackEvent({ ...baseEventInput, runId: 'srun-c' })
-      useSearchStore.setState({
-        runs: [
-          {
-            id: 'srun-a',
-            requestId: 'sreq-doomed',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            status: 'completed',
-            results: [],
-            searchLog: [],
-            narrativeState: { status: 'pending' },
-          },
-          {
-            id: 'srun-b',
-            requestId: 'sreq-doomed',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            status: 'completed',
-            results: [],
-            searchLog: [],
-            narrativeState: { status: 'pending' },
-          },
-          {
-            id: 'srun-c',
-            requestId: 'sreq-keep',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            status: 'completed',
-            results: [],
-            searchLog: [],
-            narrativeState: { status: 'pending' },
-          },
-        ],
-        requests: [
-          {
-            id: 'sreq-doomed',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            focusLanes: [],
-            companySizeOverride: '',
-            salaryAnchorOverride: '',
-            geoExpand: false,
-            customKeywords: '',
-            excludeCompanies: [],
-            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
-          },
-          {
-            id: 'sreq-keep',
-            createdAt: '2026-03-11T00:00:00.000Z',
-            focusLanes: [],
-            companySizeOverride: '',
-            salaryAnchorOverride: '',
-            geoExpand: false,
-            customKeywords: '',
-            excludeCompanies: [],
-            maxResults: { tier1: 5, tier2: 10, tier3: 10 },
-          },
-        ],
-        theses: [
-          buildSearchThesis({
-            feedbackIncorporated: [eventRunA.id, eventRunB.id, eventRunC.id],
-          }),
-        ],
-      })
-
-      useSearchStore.getState().deleteRequest('sreq-doomed')
-
-      const events = useSearchStore.getState().feedbackEvents
-      expect(events.map((e) => e.id)).toEqual([eventRunC.id])
-      expect(events.find((e) => e.id === eventRunA.id)).toBeUndefined()
-      expect(events.find((e) => e.id === eventRunB.id)).toBeUndefined()
-      expect(useSearchStore.getState().theses[0]?.feedbackIncorporated).toEqual([eventRunC.id])
     })
 
     it('preserves persisted feedbackEvents across migration when their run survives', () => {
