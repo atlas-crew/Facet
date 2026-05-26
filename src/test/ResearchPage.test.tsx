@@ -114,9 +114,8 @@ vi.mock('../utils/coverLetterGenerator', async () => {
 })
 
 vi.mock('../utils/prepGenerator', async () => {
-  const actual = await vi.importActual<typeof import('../utils/prepGenerator')>(
-    '../utils/prepGenerator',
-  )
+  const actual =
+    await vi.importActual<typeof import('../utils/prepGenerator')>('../utils/prepGenerator')
   return {
     ...actual,
     generateInterviewPrep: (...args: Parameters<typeof actual.generateInterviewPrep>) =>
@@ -1011,7 +1010,7 @@ describe('ResearchPage', () => {
       }),
     )
     expect(stalenessReview.textContent).toContain(
-      'Thesis, cover-letter, and prep deck refresh are available',
+      'Search run refreshes start a new deep research job',
     )
     expect(useSearchStore.getState().runs[0]?.stalenessReview).toMatchObject({
       decision: 'accepted-current',
@@ -1249,6 +1248,522 @@ describe('ResearchPage', () => {
     // Confirm the button label is type-specific and the action did NOT call generateCoverLetter
     // (the missing-entry guard fires before the AI call).
     expect(mockGenerateCoverLetter).not.toHaveBeenCalled()
+  })
+
+  it('requires cost confirmation before refreshing a stale search run', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    const originalRun = useSearchStore.getState().runs[0]!
+
+    const refreshButton = stalenessReview.querySelector<HTMLButtonElement>(
+      'button[aria-label="Refresh Search run with latest Identity"]',
+    )
+    if (!refreshButton) throw new Error('Expected search run refresh button.')
+    fireEvent.click(refreshButton)
+
+    const confirmPanel = within(stalenessReview)
+      .getByText('Confirm search run refresh')
+      .closest('[role="region"]') as HTMLElement
+    expect(confirmPanel.textContent).toContain('$6.18')
+    expect(confirmPanel.textContent).toContain('claude-opus-4-7')
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+
+    fireEvent.click(within(confirmPanel).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText('Confirm search run refresh')).toBeNull()
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(useSearchStore.getState().runs[0]).toMatchObject({
+      id: originalRun.id,
+      status: originalRun.status,
+      results: originalRun.results,
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
+  })
+
+  it('warns when the run refresh estimate would exceed the research budget', async () => {
+    mockFetchResearchUsage.mockResolvedValue({
+      ...buildResearchUsage(),
+      budget: {
+        ...buildResearchUsage().budget,
+        status: 'over',
+        wouldExceedNextRun: true,
+      },
+    })
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Budget blocked|Budget near limit|Budget ok/)).toBeTruthy()
+    })
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+
+    expect(screen.getByText(/this run would exceed the configured budget/)).toBeTruthy()
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+  })
+
+  it('regenerates a stale search run after cost confirmation and records the review', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    const refreshedResult: SearchResultEntry = {
+      ...useSearchStore.getState().runs[0]!.results[0]!,
+      company: 'RefreshCo',
+      candidateEdge:
+        'RefreshCo needs platform leverage and this candidate has directly comparable evidence.',
+    }
+    mockFetchDeepResearchJob.mockResolvedValueOnce(
+      buildResearchJob({
+        id: 'job-new',
+        status: 'completed',
+        thesisSnapshot: {
+          ...useSearchStore.getState().runs[0]!.thesisSnapshot!,
+          identityVersion: 3,
+        },
+        progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['fresh platform'] },
+        result: {
+          narrative: {
+            competitiveMoat: 'Refreshed moat.',
+            selectionMethodology: 'Refreshed methodology.',
+            marketContext: 'Refreshed market context.',
+            executiveSummary: 'Refreshed summary.',
+          },
+          results: [refreshedResult],
+          tokenUsage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+        },
+      }),
+    )
+    mockCreateDeepResearchJob.mockResolvedValueOnce({
+      jobId: 'job-new',
+      status: 'queued',
+      usage: {
+        ...buildResearchUsage(),
+        estimate: { ...buildResearchUsage().estimate, runCostCents: 777 },
+      },
+      warning: {
+        code: 'research_budget_near_limit',
+        message: 'Refresh is projected near the budget ceiling.',
+        projectedRemainingCents: 123,
+        limitCents: 1000,
+      },
+    })
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Confirm and refresh search run',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+    const submitted = mockCreateDeepResearchJob.mock.calls[0]?.[0]
+    expect(submitted).toMatchObject({
+      endpoint: 'https://ai.example/proxy',
+      thesisSnapshot: expect.objectContaining({
+        id: 'thesis-writeback',
+        identityVersion: 3,
+        identityFields: [
+          'skills.Kubernetes.depth',
+          'skills.Kubernetes.context',
+          'skills.Kubernetes.positioning',
+        ],
+      }),
+      params: expect.objectContaining({ id: 'sreq-1' }),
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().runs[0]?.status).toBe('completed')
+    })
+    expect(useSearchStore.getState().runs[0]).toMatchObject({
+      results: [expect.objectContaining({ company: 'RefreshCo' })],
+      stalenessReview: expect.objectContaining({
+        decision: 'accepted-current',
+        reviewedIdentityVersion: 3,
+        artifactIdentityVersionAtReview: 3,
+        mutationLabel: 'Kubernetes depth correction',
+        mutationFromRevision: 2,
+        mutationToRevision: 3,
+      }),
+    })
+    expect(stalenessReview.textContent).toContain('Status: Refreshed with latest Identity.')
+  })
+
+  it('disables other refresh actions while run refresh confirmation is open', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+
+    expect(screen.getByText('Confirm search run refresh')).toBeTruthy()
+    expect(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Acme prep deck with latest Identity',
+      }),
+    ).toHaveProperty('disabled', true)
+    expect(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Acme cover letter with latest Identity',
+      }),
+    ).toHaveProperty('disabled', true)
+  })
+
+  it('skips the search run review stamp when Identity drifts during refresh', async () => {
+    const { identity, stalenessReview } = await openBatchReviewFromSkillWriteback()
+    const driftResult: SearchResultEntry = {
+      ...useSearchStore.getState().runs[0]!.results[0]!,
+      company: 'DriftCo',
+      candidateEdge:
+        'DriftCo needs platform leverage and this candidate has directly comparable evidence.',
+    }
+    let resolveJob: ((job: ResearchJob) => void) | undefined
+    mockFetchDeepResearchJob.mockReturnValueOnce(
+      new Promise<ResearchJob>((resolve) => {
+        resolveJob = resolve
+      }),
+    )
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Confirm and refresh search run',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mockFetchDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: {
+          ...identity,
+          model_revision: 4,
+        },
+      })
+    })
+    await act(async () => {
+      resolveJob?.(
+        buildResearchJob({
+          id: 'job-new',
+          status: 'completed',
+          thesisSnapshot: {
+            ...useSearchStore.getState().runs[0]!.thesisSnapshot!,
+            identityVersion: 3,
+          },
+          progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['drift search'] },
+          result: {
+            narrative: {
+              competitiveMoat: 'Drift moat.',
+              selectionMethodology: 'Drift methodology.',
+              marketContext: 'Drift market context.',
+              executiveSummary: 'Drift summary.',
+            },
+            results: [driftResult],
+            tokenUsage: { inputTokens: 7, outputTokens: 8, totalTokens: 15 },
+          },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().runs[0]?.results[0]?.company).toBe('DriftCo')
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
+    expect(
+      screen.getByText(/Identity or review context changed during search run refresh/),
+    ).toBeTruthy()
+  })
+
+  it('skips the search run review stamp when the batch review closes during refresh', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    const closedReviewResult: SearchResultEntry = {
+      ...useSearchStore.getState().runs[0]!.results[0]!,
+      company: 'ClosedReviewCo',
+      candidateEdge:
+        'ClosedReviewCo needs platform leverage and this candidate has directly comparable evidence.',
+    }
+    let resolveJob: ((job: ResearchJob) => void) | undefined
+    mockFetchDeepResearchJob.mockReturnValueOnce(
+      new Promise<ResearchJob>((resolve) => {
+        resolveJob = resolve
+      }),
+    )
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Confirm and refresh search run',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mockFetchDeepResearchJob).toHaveBeenCalledTimes(1)
+    })
+    fireEvent.click(within(stalenessReview).getByText('Close batch review'))
+    await act(async () => {
+      resolveJob?.(
+        buildResearchJob({
+          id: 'job-new',
+          status: 'completed',
+          thesisSnapshot: {
+            ...useSearchStore.getState().runs[0]!.thesisSnapshot!,
+            identityVersion: 3,
+          },
+          progress: { phase: 'completed', elapsedMs: 120000, searchQueries: ['closed review'] },
+          result: {
+            narrative: {
+              competitiveMoat: 'Closed review moat.',
+              selectionMethodology: 'Closed review methodology.',
+              marketContext: 'Closed review market context.',
+              executiveSummary: 'Closed review summary.',
+            },
+            results: [closedReviewResult],
+            tokenUsage: { inputTokens: 10, outputTokens: 11, totalTokens: 21 },
+          },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().runs[0]?.results[0]?.company).toBe('ClosedReviewCo')
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
+    expect(
+      screen.getByText(/Identity or review context changed during search run refresh/),
+    ).toBeTruthy()
+  })
+
+  it('blocks search run refresh confirmation when another research job starts first', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    expect(screen.getByText('Confirm search run refresh')).toBeTruthy()
+
+    act(() => {
+      useSearchStore.getState().setActiveResearchJob({
+        jobId: 'job-other',
+        runId: 'srun-1',
+        requestId: 'sreq-1',
+        thesisId: 'thesis-writeback',
+        status: 'running',
+        lastObservedAt: '2026-03-10T10:07:00.000Z',
+      })
+    })
+
+    fireEvent.click(within(stalenessReview).getByText('Confirm and refresh search run'))
+
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'A deep research job is already running. Wait for it to finish before refreshing a search run.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('blocks opening run refresh confirmation while another research job is active', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    act(() => {
+      useSearchStore.getState().setActiveResearchJob({
+        jobId: 'job-active-before-queue',
+        runId: 'srun-1',
+        requestId: 'sreq-1',
+        thesisId: 'thesis-writeback',
+        status: 'running',
+        lastObservedAt: '2026-03-10T10:07:00.000Z',
+      })
+    })
+
+    const refreshButton = stalenessReview.querySelector<HTMLButtonElement>(
+      'button[aria-label="Refresh Search run with latest Identity"]',
+    )
+    if (!refreshButton) throw new Error('Expected search run refresh button.')
+    fireEvent.click(refreshButton)
+
+    expect(screen.queryByText('Confirm search run refresh')).toBeNull()
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'A deep research job is already running. Wait for it to finish before refreshing a search run.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('blocks search run refresh confirmation when Identity drifts before submit', async () => {
+    const { identity, stalenessReview } = await openBatchReviewFromSkillWriteback()
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    const confirmButton = within(stalenessReview).getByRole('button', {
+      name: 'Confirm and refresh search run',
+    })
+
+    act(() => {
+      useIdentityStore.setState({
+        currentIdentity: {
+          ...identity,
+          model_revision: 4,
+        },
+      })
+    })
+    fireEvent.click(confirmButton)
+
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        /Identity changed before refresh could run|Identity changed after batch review opened/,
+      ),
+    ).toBeTruthy()
+  })
+
+  it('leaves the original search run intact when refresh preflight fails', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    const originalRun = structuredClone(useSearchStore.getState().runs[0]!)
+    mockCreateDeepResearchJob.mockRejectedValueOnce(new Error('billing limit reached'))
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Confirm and refresh search run',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('billing limit reached')).toBeTruthy()
+    })
+    expect(useSearchStore.getState().runs[0]).toMatchObject({
+      id: originalRun.id,
+      status: originalRun.status,
+      results: originalRun.results,
+      searchLog: originalRun.searchLog,
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBe(originalRun.stalenessReview)
+  })
+
+  it('blocks search run refresh when the preserved thesis snapshot is missing', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    act(() => {
+      useSearchStore.getState().updateRun('srun-1', { thesisSnapshot: undefined })
+    })
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'Search run cannot be refreshed because its original thesis snapshot is missing.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('blocks search run refresh when the original search request is missing', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    act(() => {
+      useSearchStore.setState((state) => ({ ...state, requests: [] }))
+    })
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+
+    expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        'Search run cannot be refreshed because its original search request is missing.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('surfaces terminal search run refresh failures after the job starts', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    mockFetchDeepResearchJob.mockResolvedValueOnce(
+      buildResearchJob({
+        id: 'job-new',
+        status: 'failed',
+        error: {
+          code: 'provider_error',
+          message: 'proxy lost the research job',
+          retriable: true,
+        },
+      }),
+    )
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Confirm and refresh search run',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Search run refresh did not complete: proxy lost the research job'),
+      ).toBeTruthy()
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
+  })
+
+  it('surfaces terminal search run refresh cancelation after the job starts', async () => {
+    const { stalenessReview } = await openBatchReviewFromSkillWriteback()
+    mockFetchDeepResearchJob.mockResolvedValueOnce(
+      buildResearchJob({
+        id: 'job-new',
+        status: 'canceled',
+      }),
+    )
+
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Refresh Search run with latest Identity',
+      }),
+    )
+    fireEvent.click(
+      within(stalenessReview).getByRole('button', {
+        name: 'Confirm and refresh search run',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Search run refresh did not complete: Deep research job was canceled.'),
+      ).toBeTruthy()
+    })
+    expect(useSearchStore.getState().runs[0]?.stalenessReview).toBeUndefined()
   })
 
   it('discards a thesis refresh result when Identity changes mid-refresh', async () => {
@@ -1858,9 +2373,7 @@ describe('ResearchPage', () => {
     ).toBeTruthy()
     expect(screen.getByText('No confirmed depths yet.')).toBeTruthy()
     expect(
-      screen.getByText(
-        'No new skills surfaced. The thesis stayed within your identity skill set.',
-      ),
+      screen.getByText('No new skills surfaced. The thesis stayed within your identity skill set.'),
     ).toBeTruthy()
   })
 
