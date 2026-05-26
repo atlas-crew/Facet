@@ -1,11 +1,11 @@
 ---
 id: TASK-224
 title: Add unclassified-audience observability and review workflow
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 07:33'
-updated_date: '2026-05-26 18:57'
+updated_date: '2026-05-26 19:39'
 labels:
   - audience-tagging
   - observability
@@ -55,4 +55,6 @@ Add three layers of visibility:
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-26 Codex starting TASK-224. Plan: inspect audience projection/rules and current identity debug surfaces, add projection-level unclassified counts plus dev warning, surface a compact review path for unclassified insights, cover threshold/count/UI behavior with production-shaped fixtures, run focused/full gates plus independent review/audit, commit/close/push.
+
+2026-05-26 Codex completed TASK-224. Added unclassified audience projection metadata and dev warning threshold/dedup behavior; added Identity Workspace review card with manual retagging, stale-state handling, and route-scoped styling; covered projection counts, warning threshold/dedup/LRU/cache behavior, nested evidence retagging, label fallback, success/stale UI paths. Verification: npm run test -- src/test/audienceModule.test.ts src/test/IdentityPage.test.tsx; npm run typecheck; npm run lint; npm run test; npm run build. Independent review/audit: source review PASS WITH ISSUES with only non-blocking P2/P3 follow-ups; audience and identity diff test audits P0/P1 clean.
 <!-- SECTION:NOTES:END -->
