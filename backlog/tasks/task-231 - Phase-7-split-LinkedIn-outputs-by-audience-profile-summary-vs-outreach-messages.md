@@ -3,9 +3,11 @@ id: TASK-231
 title: >-
   Phase 7: split LinkedIn outputs by audience (profile summary vs outreach
   messages)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-26 21:34'
 labels:
   - audience-tagging
   - phase-7
@@ -48,3 +50,9 @@ LinkedIn workspace produces multiple artifacts: profile summary (candidate-facin
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-231 as part of three-surface audience push with TASK-232/TASK-236. Plan: inspect LinkedIn generators/page output types, apply candidate vs recruiter/hiring-manager projections at JDAnalysis boundaries, add focused audience-aware fixtures/tests, verify with scoped/full gates and independent review/audit before close.
+<!-- SECTION:NOTES:END -->
