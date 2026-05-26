@@ -3,6 +3,8 @@ import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type { ResumeMeta } from '../types'
 import { notesText } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
+import type { AudienceProjection } from './audienceFilter'
+import { projectForAudience } from './audienceFilter'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 /** Sonnet is sufficient because LettersPage gates generation on a fresh canonical JD analysis. */
@@ -10,6 +12,7 @@ const COVER_LETTER_MODEL = 'sonnet'
 const COVER_LETTER_MAX_TOKENS = 8000
 const COVER_LETTER_THINKING_BUDGET = 6000
 const COVER_LETTER_OUTPUT_CONFIG = { effort: 'high' }
+const COVER_LETTER_AUDIENCE = 'hiring_manager' as const
 const MAX_JD_ANALYSIS_REQUIREMENTS = 8
 const MAX_JD_ANALYSIS_SKILL_MATCHES = 8
 const MAX_JD_ANALYSIS_ADVANTAGES = 5
@@ -28,28 +31,6 @@ interface CoverLetterGenerationPayload {
   paragraphs: unknown[]
 }
 
-export type CoverLetterJDAnalysisContext = Pick<
-  JDAnalysis,
-  | 'summary'
-  | 'overallFit'
-  | 'fitScore'
-  | 'confidence'
-  | 'recommendation'
-  | 'oneLineSummary'
-  | 'rationale'
-  | 'requirements'
-  | 'skillMatches'
-  | 'strengthsToLead'
-  | 'advantages'
-  | 'gaps'
-  | 'gapFocus'
-  | 'watchOuts'
-  | 'positioningRecommendations'
-  | 'requirementCoverageScore'
-  | 'matchedKeywords'
-  | 'matchedRequirementIds'
->
-
 export interface CoverLetterGenerationRequest {
   company: string
   role: string
@@ -61,7 +42,7 @@ export interface CoverLetterGenerationRequest {
   companyResearch?: string
   experienceAuditTerms?: string[]
   jobDescription: string
-  jdAnalysis?: CoverLetterJDAnalysisContext
+  jdAnalysis?: JDAnalysis
   resumeContext: {
     candidate: ResumeMeta
     /** Legacy callers may still include this; generation does not use vector framing. */
@@ -123,7 +104,11 @@ function buildHeader(meta: ResumeMeta): string {
   return [meta.name.trim(), contactLine, linksLine].filter(Boolean).join('\n')
 }
 
-function collectCandidateEvidenceStrings(value: unknown, visited = new WeakSet<object>(), sourceKey = ''): string[] {
+function collectCandidateEvidenceStrings(
+  value: unknown,
+  visited = new WeakSet<object>(),
+  sourceKey = '',
+): string[] {
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (
@@ -146,7 +131,9 @@ function collectCandidateEvidenceStrings(value: unknown, visited = new WeakSet<o
   if (value && typeof value === 'object') {
     if (visited.has(value)) return []
     visited.add(value)
-    return Object.entries(value).flatMap(([key, entry]) => collectCandidateEvidenceStrings(entry, visited, key))
+    return Object.entries(value).flatMap(([key, entry]) =>
+      collectCandidateEvidenceStrings(entry, visited, key),
+    )
   }
 
   return []
@@ -156,9 +143,7 @@ function extractCandidateEvidenceForTerm(candidateEvidence: string[], term: stri
   const normalizedTerm = term.trim()
   if (!normalizedTerm) return []
 
-  const escapedTerm = normalizedTerm
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\s+/g, '\\s+')
+  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')
   const termPattern = new RegExp(`(^|[^A-Za-z0-9])${escapedTerm}(?=$|[^A-Za-z0-9])`, 'i')
 
   return candidateEvidence
@@ -171,7 +156,11 @@ function buildCompanyExperienceAudit(request: CoverLetterGenerationRequest): str
   const auditTermsByKey = new Map<string, string>()
   for (const term of [request.company, ...(request.experienceAuditTerms ?? [])]) {
     const trimmed = term.trim()
-    if (trimmed) auditTermsByKey.set(trimmed.toLowerCase(), auditTermsByKey.get(trimmed.toLowerCase()) ?? trimmed)
+    if (trimmed)
+      auditTermsByKey.set(
+        trimmed.toLowerCase(),
+        auditTermsByKey.get(trimmed.toLowerCase()) ?? trimmed,
+      )
   }
   const auditTerms = Array.from(auditTermsByKey.values())
   const assembledRecord =
@@ -183,7 +172,10 @@ function buildCompanyExperienceAudit(request: CoverLetterGenerationRequest): str
   const candidateEvidence = collectCandidateEvidenceStrings({
     identity: request.resumeContext.identity ?? null,
     candidate: request.resumeContext.candidate,
-    resume: assembledRecord && 'resume' in assembledRecord ? assembledRecord.resume : request.resumeContext.assembled,
+    resume:
+      assembledRecord && 'resume' in assembledRecord
+        ? assembledRecord.resume
+        : request.resumeContext.assembled,
   })
   const sections: string[] = []
 
@@ -208,10 +200,14 @@ function tightenConnectorLanguage(text: string): string {
   return VAGUE_CONNECTOR_REPLACEMENTS.reduce(
     (current, { pattern, replacement }) =>
       current.replace(pattern, (match) =>
-        match[0] === match[0]?.toUpperCase() ? replacement[0]?.toUpperCase() + replacement.slice(1) : replacement,
+        match[0] === match[0]?.toUpperCase()
+          ? replacement[0]?.toUpperCase() + replacement.slice(1)
+          : replacement,
       ),
     text,
-  ).replace(/[ \t]+/g, ' ').trim()
+  )
+    .replace(/[ \t]+/g, ' ')
+    .trim()
 }
 
 function stringifyForPrompt(value: unknown): string {
@@ -241,7 +237,11 @@ function truncateList(values: readonly string[], limit: number): string[] {
   return omittedCount > 0 ? [...visible, '... (' + omittedCount + ' more omitted)'] : visible
 }
 
-function formatStringList(values: readonly string[], limit: number, empty = 'None provided'): string {
+function formatStringList(
+  values: readonly string[],
+  limit: number,
+  empty = 'None provided',
+): string {
   const items = truncateList(values, limit)
   return items.length > 0 ? items.map((value) => '- ' + value).join('\n') : empty
 }
@@ -250,7 +250,12 @@ function truncatePromptText(value: string, maxChars: number): string {
   const trimmed = value.trim()
   if (trimmed.length <= maxChars) return trimmed
 
-  return trimmed.slice(0, maxChars).trimEnd() + '\n\n... (' + (trimmed.length - maxChars) + ' characters omitted)'
+  return (
+    trimmed.slice(0, maxChars).trimEnd() +
+    '\n\n... (' +
+    (trimmed.length - maxChars) +
+    ' characters omitted)'
+  )
 }
 
 function formatJobDescriptionForPrompt(request: CoverLetterGenerationRequest): string {
@@ -265,57 +270,107 @@ function buildResumeContextForPrompt(request: CoverLetterGenerationRequest): unk
   return resumeContext
 }
 
-function formatJdAnalysisForPrompt(analysis: CoverLetterJDAnalysisContext | undefined): string {
+function formatJdAnalysisForPrompt(analysis: AudienceProjection | undefined): string {
   if (!analysis) return 'Not provided.'
 
-  const omittedRequirements = Math.max(0, analysis.requirements.length - MAX_JD_ANALYSIS_REQUIREMENTS)
-  const requirements = analysis.requirements.slice(0, MAX_JD_ANALYSIS_REQUIREMENTS).map((requirement) =>
-    [
-      '- [' + requirement.priority + '] ' + requirement.label,
-      requirement.evidence ? '  Evidence: ' + requirement.evidence : '',
-      '  Coverage: ' + Math.round(requirement.coverageScore * 100) + '%',
-      requirement.keywords.length > 0 ? '  Keywords: ' + requirement.keywords.slice(0, 6).join(', ') : '',
-    ].filter(Boolean).join('\n'),
+  const omittedRequirements = Math.max(
+    0,
+    analysis.requirements.length - MAX_JD_ANALYSIS_REQUIREMENTS,
   )
+  const requirements = analysis.requirements
+    .slice(0, MAX_JD_ANALYSIS_REQUIREMENTS)
+    .map((requirement) =>
+      [
+        '- [' + requirement.priority + '] ' + requirement.label,
+        requirement.evidence ? '  Evidence: ' + requirement.evidence : '',
+        '  Coverage: ' + Math.round(requirement.coverageScore * 100) + '%',
+        requirement.keywords.length > 0
+          ? '  Keywords: ' + requirement.keywords.slice(0, 6).join(', ')
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    )
   if (omittedRequirements > 0) requirements.push('... (' + omittedRequirements + ' more omitted)')
 
-  const skillMatches = analysis.skillMatches.slice(0, MAX_JD_ANALYSIS_SKILL_MATCHES).map((match) =>
-    '- ' + match.skillName + ': ' + match.matchQuality + ' match for ' + match.requirementStrength +
-      ' requirement. ' + match.presentationGuidance,
+  const skillMatches = analysis.skillMatches
+    .slice(0, MAX_JD_ANALYSIS_SKILL_MATCHES)
+    .map(
+      (match) =>
+        '- ' +
+        match.skillName +
+        ': ' +
+        match.matchQuality +
+        ' match for ' +
+        match.requirementStrength +
+        ' requirement. ' +
+        match.presentationGuidance,
+    )
+  const omittedSkillMatches = Math.max(
+    0,
+    analysis.skillMatches.length - MAX_JD_ANALYSIS_SKILL_MATCHES,
   )
-  const omittedSkillMatches = Math.max(0, analysis.skillMatches.length - MAX_JD_ANALYSIS_SKILL_MATCHES)
   if (omittedSkillMatches > 0) skillMatches.push('... (' + omittedSkillMatches + ' more omitted)')
 
-  const advantages = analysis.advantages.slice(0, MAX_JD_ANALYSIS_ADVANTAGES).map((advantage) => '- ' + advantage.claim)
+  const advantages = analysis.advantages
+    .slice(0, MAX_JD_ANALYSIS_ADVANTAGES)
+    .map((advantage) => '- ' + advantage.claim)
   const omittedAdvantages = Math.max(0, analysis.advantages.length - MAX_JD_ANALYSIS_ADVANTAGES)
   if (omittedAdvantages > 0) advantages.push('... (' + omittedAdvantages + ' more omitted)')
 
-  const gaps = analysis.gaps.slice(0, MAX_JD_ANALYSIS_GAPS).map((gap) => '- [' + gap.severity + '] ' + gap.label + ': ' + gap.reason)
+  const gaps = analysis.gaps
+    .slice(0, MAX_JD_ANALYSIS_GAPS)
+    .map((gap) => '- [' + gap.severity + '] ' + gap.label + ': ' + gap.reason)
   const omittedGaps = Math.max(0, analysis.gaps.length - MAX_JD_ANALYSIS_GAPS)
   if (omittedGaps > 0) gaps.push('... (' + omittedGaps + ' more omitted)')
 
-  const watchOuts = analysis.watchOuts.slice(0, MAX_JD_ANALYSIS_WATCH_OUTS).map((watchOut) =>
-    '- [' + watchOut.severity + '] ' + watchOut.description + ' Action: ' + watchOut.suggestedAction,
-  )
+  const watchOuts = analysis.watchOuts
+    .slice(0, MAX_JD_ANALYSIS_WATCH_OUTS)
+    .map(
+      (watchOut) =>
+        '- [' +
+        watchOut.severity +
+        '] ' +
+        watchOut.description +
+        ' Action: ' +
+        watchOut.suggestedAction,
+    )
   const omittedWatchOuts = Math.max(0, analysis.watchOuts.length - MAX_JD_ANALYSIS_WATCH_OUTS)
   if (omittedWatchOuts > 0) watchOuts.push('... (' + omittedWatchOuts + ' more omitted)')
 
   return [
+    'Audience: ' + COVER_LETTER_AUDIENCE,
     'Summary: ' + (analysis.summary || analysis.oneLineSummary || 'Not provided'),
-    'Fit: ' + analysis.overallFit + ' (' + analysis.fitScore + '/100), ' + analysis.confidence +
-      ' confidence, recommendation: ' + analysis.recommendation,
+    'Fit: ' +
+      analysis.overallFit +
+      ' (' +
+      analysis.fitScore +
+      '/100), ' +
+      analysis.confidence +
+      ' confidence, recommendation: ' +
+      analysis.recommendation,
     'Rationale: ' + (analysis.rationale || 'Not provided'),
     'Requirement coverage: ' + Math.round(analysis.requirementCoverageScore * 100) + '%',
     'Requirements:\n' + (requirements.length > 0 ? requirements.join('\n') : 'None provided'),
     'Skill matches:\n' + (skillMatches.length > 0 ? skillMatches.join('\n') : 'None provided'),
-    'Strengths to lead:\n' + formatStringList(notesText(analysis.strengthsToLead), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
+    'Strengths to lead:\n' +
+      formatStringList(notesText(analysis.strengthsToLead), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
     'Advantages:\n' + (advantages.length > 0 ? advantages.join('\n') : 'None provided'),
     'Gaps:\n' + (gaps.length > 0 ? gaps.join('\n') : 'None provided'),
-    'Gap focus:\n' + formatStringList(notesText(analysis.gapFocus), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
+    'Gap focus:\n' +
+      formatStringList(notesText(analysis.gapFocus), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
     'Watch-outs:\n' + (watchOuts.length > 0 ? watchOuts.join('\n') : 'None provided'),
-    'Positioning recommendations:\n' + formatStringList(notesText(analysis.positioningRecommendations), MAX_JD_ANALYSIS_TEXT_LIST_ITEMS),
-    'Matched requirement ids: ' + (truncateList(analysis.matchedRequirementIds, MAX_JD_ANALYSIS_IDS).join(', ') || 'None provided'),
-    'Matched keywords: ' + (truncateList(analysis.matchedKeywords, MAX_JD_ANALYSIS_KEYWORDS).join(', ') || 'None provided'),
+    'Positioning recommendations:\n' +
+      formatStringList(
+        notesText(analysis.positioningRecommendations),
+        MAX_JD_ANALYSIS_TEXT_LIST_ITEMS,
+      ),
+    'Matched requirement ids: ' +
+      (truncateList(analysis.matchedRequirementIds, MAX_JD_ANALYSIS_IDS).join(', ') ||
+        'None provided'),
+    'Matched keywords: ' +
+      (truncateList(analysis.matchedKeywords, MAX_JD_ANALYSIS_KEYWORDS).join(', ') ||
+        'None provided'),
   ].join('\n\n')
 }
 
@@ -339,11 +394,15 @@ export async function generateCoverLetter(
   endpoint: string,
   request: CoverLetterGenerationRequest,
 ): Promise<CoverLetterGenerationResult> {
+  const hiringManagerJdAnalysis = request.jdAnalysis
+    ? projectForAudience(request.jdAnalysis, COVER_LETTER_AUDIENCE)
+    : undefined
+
   const systemPrompt = `You are an expert cover-letter writer for senior technical candidates. Return JSON only.
 Draft a concise, specific, truthful cover letter grounded only in the provided resume and job context.
 Favor 3 to 5 paragraphs with direct, modern language. Keep the tone confident but not inflated.
 Do not invent employers, projects, metrics, technologies, or responsibilities not present in the input.
-When canonical JD analysis is provided, treat it as the source of role emphasis. Use the raw job description only as grounding and backstop. Do not frame the letter around resume vectors.
+When canonical JD analysis is provided, treat it as the source of role emphasis. The Canonical JD Analysis block is already projected to audience "${COVER_LETTER_AUDIENCE}"; do not recover or infer candidate-only, recruiter-only, or internal-only material from omitted fields. Use the raw job description only as grounding and backstop. Do not frame the letter around resume vectors.
 If a hiring contact is unavailable, use a professional generic greeting.
 Make claim transitions direct and concrete. Avoid hedges and vague-positive connectors such as "lines up well", "lines up with", and generic claims like "build systems that scale with the org".
 When a company or product name appears in the job context, do not imply the candidate has direct experience with it unless the candidate evidence audit says that experience exists.
@@ -379,7 +438,7 @@ Candidate Experience Audit:
 ${buildCompanyExperienceAudit(request) || 'No audited candidate evidence found.'}
 
 Canonical JD Analysis:
-${formatJdAnalysisForPrompt(request.jdAnalysis)}
+${formatJdAnalysisForPrompt(hiringManagerJdAnalysis)}
 
 Job Description:
 ${formatJobDescriptionForPrompt(request)}
@@ -407,7 +466,12 @@ Return JSON only.`
   }
 
   const paragraphs = normalizeParagraphs(Array.isArray(parsed.paragraphs) ? parsed.paragraphs : [])
-  if (!isString(parsed.name) || !isString(parsed.greeting) || !isString(parsed.signOff) || paragraphs.length === 0) {
+  if (
+    !isString(parsed.name) ||
+    !isString(parsed.greeting) ||
+    !isString(parsed.signOff) ||
+    paragraphs.length === 0
+  ) {
     throw new Error('Cover letter response schema was invalid.')
   }
 

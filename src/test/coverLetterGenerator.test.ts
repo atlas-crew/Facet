@@ -4,6 +4,89 @@ import { defaultResumeData } from '../store/defaultData'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { JsonExtractionError } from '../utils/llmProxy'
 import { untagged, untaggedNote } from '../types/audience'
+import type { JDAnalysis } from '../types/jdAnalysis'
+import { JD_ANALYSIS_MODEL_VERSION } from '../types/jdAnalysis'
+import { applyRulesBasedAudiences, type JDAnalysisLike } from '../utils/audienceRules'
+
+const buildCoverLetterJdAnalysis = (overrides: Partial<JDAnalysisLike> = {}): JDAnalysis => {
+  const draft: JDAnalysisLike = {
+    id: 'analysis-1',
+    pipelineEntryId: 'pipe-1',
+    jdTextHash: 'abc123',
+    identityVersion: 7,
+    modelVersion: JD_ANALYSIS_MODEL_VERSION,
+    generatedAt: '2026-03-09T00:00:00.000Z',
+    updatedAt: '2026-03-09T00:00:00.000Z',
+    warnings: [untaggedNote('Internal-only calibration.')],
+    company: 'Acme Corp',
+    role: 'Staff Engineer',
+    summary: 'Own platform reliability for distributed systems.',
+    analyzedJobDescription: 'Raw JD still grounds the generated letter.',
+    jobDescriptionWordCount: 7,
+    jobDescriptionTruncated: false,
+    requirements: [
+      untagged({
+        id: 'req-platform',
+        label: 'Platform reliability ownership',
+        priority: 'core',
+        evidence: 'Job asks for distributed systems reliability.',
+        tags: ['platform'],
+        keywords: ['distributed systems', 'reliability'],
+        coverageScore: 0.92,
+        matchedAssetCount: 4,
+        matchedTags: ['platform'],
+      }),
+    ],
+    overallFit: 'strong',
+    fitScore: 88,
+    confidence: 'high',
+    recommendation: 'apply',
+    oneLineSummary: 'Strong platform match.',
+    rationale: 'Candidate evidence maps to backend platform ownership.',
+    matchedVectors: [],
+    primaryVectorId: 'backend',
+    skillMatches: [
+      untagged({
+        skillName: 'Distributed systems',
+        jdRequirement: 'Reliability ownership',
+        requirementStrength: 'required',
+        userDepth: 'expert',
+        userPositioning: 'Lead with reliability systems.',
+        matchQuality: 'strong',
+        presentationGuidance: 'Use concrete platform evidence.',
+      }),
+    ],
+    evidenceMapping: {
+      topBullets: [],
+      topSkills: [],
+      topProjects: [],
+      topProfiles: [],
+      topPhilosophy: [],
+    },
+    strengthsToLead: [untaggedNote('Backend platform reliability')],
+    advantages: [
+      untagged({
+        id: 'adv-1',
+        claim: 'Can own distributed platform delivery.',
+        requirementIds: ['req-platform'],
+        evidence: [],
+      }),
+    ],
+    advantageHypotheses: [],
+    gaps: [],
+    gapFocus: [untaggedNote('Do not over-index on frontend work.')],
+    watchOuts: [],
+    triggeredPrioritize: [],
+    triggeredAvoid: [],
+    relevantAwareness: [],
+    positioningRecommendations: [untaggedNote('Lead with reliability outcomes.')],
+    requirementCoverageScore: 0.92,
+    matchedRequirementIds: ['req-platform'],
+    matchedKeywords: ['distributed systems', 'reliability'],
+    ...overrides,
+  }
+  return applyRulesBasedAudiences(draft)
+}
 
 describe('coverLetterGenerator', () => {
   beforeEach(() => {
@@ -163,8 +246,12 @@ describe('coverLetterGenerator', () => {
     expect(body.system).toContain('For every audited term')
     expect(body.system).toContain('Do not frame the letter around resume vectors')
     expect(body.messages[0].content).not.toContain('Target Vector:')
-    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
-    expect(body.messages[0].content).toContain('Do not imply the candidate has worked at or directly used GitLab')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (GitLab): not found in candidate evidence.',
+    )
+    expect(body.messages[0].content).toContain(
+      'Do not imply the candidate has worked at or directly used GitLab',
+    )
   })
 
   it('uses canonical JD analysis as the role-emphasis source when provided', async () => {
@@ -172,48 +259,7 @@ describe('coverLetterGenerator', () => {
       company: 'Acme Corp',
       role: 'Staff Engineer',
       jobDescription: 'Raw JD still grounds the generated letter.',
-      jdAnalysis: {
-        summary: 'Own platform reliability for distributed systems.',
-        overallFit: 'strong',
-        fitScore: 88,
-        confidence: 'high',
-        recommendation: 'apply',
-        oneLineSummary: 'Strong platform match.',
-        rationale: 'Candidate evidence maps to backend platform ownership.',
-        requirements: [
-          untagged({
-            id: 'req-platform',
-            label: 'Platform reliability ownership',
-            priority: 'core',
-            evidence: 'Job asks for distributed systems reliability.',
-            tags: ['platform'],
-            keywords: ['distributed systems', 'reliability'],
-            coverageScore: 0.92,
-            matchedAssetCount: 4,
-            matchedTags: ['platform'],
-          }),
-        ],
-        skillMatches: [
-          untagged({
-            skillName: 'Distributed systems',
-            jdRequirement: 'Reliability ownership',
-            requirementStrength: 'required',
-            userDepth: 'expert',
-            userPositioning: 'Lead with reliability systems.',
-            matchQuality: 'strong',
-            presentationGuidance: 'Use concrete platform evidence.',
-          }),
-        ],
-        strengthsToLead: [untaggedNote('Backend platform reliability')],
-        advantages: [untagged({ id: 'adv-1', claim: 'Can own distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] })],
-        gaps: [],
-        gapFocus: [untaggedNote('Do not over-index on frontend work.')],
-        watchOuts: [],
-        positioningRecommendations: [untaggedNote('Lead with reliability outcomes.')],
-        requirementCoverageScore: 0.92,
-        matchedRequirementIds: ['req-platform'],
-        matchedKeywords: ['distributed systems', 'reliability'],
-      },
+      jdAnalysis: buildCoverLetterJdAnalysis(),
       resumeContext: {
         candidate: defaultResumeData.meta,
         vector: { id: 'backend' },
@@ -223,17 +269,27 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
+    const prompt = body.messages[0].content as string
     expect(body.system).toContain('When canonical JD analysis is provided')
-    expect(body.messages[0].content).toContain('Canonical JD Analysis:')
-    expect(body.messages[0].content).toContain('Own platform reliability for distributed systems.')
-    expect(body.messages[0].content).toContain('Platform reliability ownership')
-    expect(body.messages[0].content).toContain('Use concrete platform evidence.')
-    expect(body.messages[0].content).toContain('Lead with reliability outcomes.')
-    expect(body.messages[0].content).toContain('Matched keywords: distributed systems, reliability')
-    expect(body.messages[0].content).toContain('Raw JD still grounds the generated letter.')
-    expect(body.messages[0].content).toContain('Candidate evidence survives.')
-    expect(body.messages[0].content).not.toContain('"vector"')
-    expect(body.messages[0].content).not.toContain('"vectorId"')
+    expect(body.system).toContain('projected to audience "hiring_manager"')
+    expect(body.system).toContain(
+      'do not recover or infer candidate-only, recruiter-only, or internal-only material',
+    )
+    expect(prompt).toContain('Canonical JD Analysis:')
+    expect(prompt).toContain('Audience: hiring_manager')
+    expect(prompt).toContain('Own platform reliability for distributed systems.')
+    expect(prompt).toContain('Platform reliability ownership')
+    expect(prompt).toContain('Use concrete platform evidence.')
+    expect(prompt).toContain('Can own distributed platform delivery.')
+    expect(prompt).not.toContain('Lead with reliability outcomes.')
+    expect(prompt).not.toContain('Do not over-index on frontend work.')
+    expect(prompt).not.toContain('Internal-only calibration.')
+    expect(prompt).toContain('Matched keywords: distributed systems, reliability')
+    expect(prompt).toContain('Raw JD still grounds the generated letter.')
+    expect(prompt).toContain('Candidate evidence survives.')
+    expect(prompt).not.toMatch(/\b(?:undefined|NaN)\b/)
+    expect(prompt).not.toContain('"vector"')
+    expect(prompt).not.toContain('"vectorId"')
   })
 
   it('bounds raw job-description backstop text when canonical JD analysis is present', async () => {
@@ -241,12 +297,8 @@ describe('coverLetterGenerator', () => {
       company: 'Acme Corp',
       role: 'Staff Engineer',
       jobDescription: 'A'.repeat(6100),
-      jdAnalysis: {
+      jdAnalysis: buildCoverLetterJdAnalysis({
         summary: 'Use canonical role emphasis.',
-        overallFit: 'strong',
-        fitScore: 88,
-        confidence: 'high',
-        recommendation: 'apply',
         oneLineSummary: 'Strong match.',
         rationale: 'Canonical analysis covers the role.',
         requirements: [],
@@ -260,7 +312,7 @@ describe('coverLetterGenerator', () => {
         requirementCoverageScore: 0,
         matchedRequirementIds: [],
         matchedKeywords: [],
-      },
+      }),
       resumeContext: {
         candidate: defaultResumeData.meta,
         assembled: {},
@@ -313,7 +365,9 @@ describe('coverLetterGenerator', () => {
       fullLetterText: 'Original paragraph lines up well with the role.',
     })
 
-    expect(result.text).toBe('Rewritten paragraph matches the role with concrete platform evidence.')
+    expect(result.text).toBe(
+      'Rewritten paragraph matches the role with concrete platform evidence.',
+    )
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.feature).toBe('letters.generate')
@@ -327,9 +381,13 @@ describe('coverLetterGenerator', () => {
     expect(body.system).toContain('Avoid vague-positive connectors')
     expect(body.messages[0].content).toContain('Variant Name: Acme Variant')
     expect(body.messages[0].content).toContain('Section Label: Opening')
-    expect(body.messages[0].content).toContain('Current Paragraph:\nOriginal paragraph lines up well with the role.')
+    expect(body.messages[0].content).toContain(
+      'Current Paragraph:\nOriginal paragraph lines up well with the role.',
+    )
     expect(body.messages[0].content).toContain('Make this direct and concrete.')
-    expect(body.messages[0].content).toContain('Full Letter Context:\nOriginal paragraph lines up well with the role.')
+    expect(body.messages[0].content).toContain(
+      'Full Letter Context:\nOriginal paragraph lines up well with the role.',
+    )
   })
 
   it('rejects paragraph refinement responses without a JSON block', async () => {
@@ -487,9 +545,13 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (GitLab): candidate evidence found.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (GitLab): candidate evidence found.',
+    )
     expect(body.messages[0].content).toContain('Administered GitLab CI runners.')
-    expect(body.messages[0].content).toContain('Safe to claim direct experience only with this evidence')
+    expect(body.messages[0].content).toContain(
+      'Safe to claim direct experience only with this evidence',
+    )
   })
 
   it('does not treat job context as candidate evidence when routed beside resume context', async () => {
@@ -515,7 +577,9 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (GitLab): not found in candidate evidence.',
+    )
   })
 
   it('finds audited experience nested inside the identity model', async () => {
@@ -538,8 +602,12 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (Buildkite): candidate evidence found.')
-    expect(body.messages[0].content).toContain('Migrated delivery pipelines from Jenkins to Buildkite.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (Buildkite): candidate evidence found.',
+    )
+    expect(body.messages[0].content).toContain(
+      'Migrated delivery pipelines from Jenkins to Buildkite.',
+    )
   })
 
   it('handles circular resume context objects while collecting audit evidence', async () => {
@@ -610,7 +678,9 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (gitlab): candidate evidence found.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (gitlab): candidate evidence found.',
+    )
     expect(body.messages[0].content).toContain('Administered GitLab CI runners.')
   })
 
@@ -630,8 +700,12 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (Meta): not found in candidate evidence.')
-    expect(body.messages[0].content).toContain('Do not imply the candidate has worked at or directly used Meta')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (Meta): not found in candidate evidence.',
+    )
+    expect(body.messages[0].content).toContain(
+      'Do not imply the candidate has worked at or directly used Meta',
+    )
   })
 
   it('matches audited terms with regex special characters as literal evidence', async () => {
@@ -658,7 +732,9 @@ describe('coverLetterGenerator', () => {
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.messages[0].content).toContain('Experience audit (C++): candidate evidence found.')
     expect(body.messages[0].content).toContain('Wrote C++ services for ingestion.')
-    expect(body.messages[0].content).toContain('Experience audit (Vue.js): candidate evidence found.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (Vue.js): candidate evidence found.',
+    )
     expect(body.messages[0].content).toContain('Built Vue.js operations dashboards.')
   })
 
@@ -679,8 +755,12 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (Vue.js): candidate evidence found.')
-    expect(body.messages[0].content).toContain('Experience audit (Node.js): candidate evidence found.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (Vue.js): candidate evidence found.',
+    )
+    expect(body.messages[0].content).toContain(
+      'Experience audit (Node.js): candidate evidence found.',
+    )
   })
 
   it('matches multi-word audited terms across flexible whitespace', async () => {
@@ -693,14 +773,18 @@ describe('coverLetterGenerator', () => {
         candidate: defaultResumeData.meta,
         vector: defaultResumeData.vectors[0],
         assembled: {
-          roles: [{ company: 'Contoso', bullets: ['Delivered React   Native release automation.'] }],
+          roles: [
+            { company: 'Contoso', bullets: ['Delivered React   Native release automation.'] },
+          ],
         },
       },
     })
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (React Native): candidate evidence found.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (React Native): candidate evidence found.',
+    )
     expect(body.messages[0].content).toContain('Delivered React   Native release automation.')
   })
 
@@ -714,7 +798,9 @@ describe('coverLetterGenerator', () => {
         candidate: defaultResumeData.meta,
         vector: defaultResumeData.vectors[0],
         assembled: {
-          roles: [{ company: 'Contoso', bullets: ['Administered GitLab CI and Kubernetes clusters.'] }],
+          roles: [
+            { company: 'Contoso', bullets: ['Administered GitLab CI and Kubernetes clusters.'] },
+          ],
         },
       },
     })
@@ -815,7 +901,9 @@ describe('coverLetterGenerator', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
     const prompt = body.messages[0].content as string
-    const auditSection = prompt.split('Candidate Experience Audit:\n')[1].split('\n\nCanonical JD Analysis:')[0]
+    const auditSection = prompt
+      .split('Candidate Experience Audit:\n')[1]
+      .split('\n\nCanonical JD Analysis:')[0]
     expect(auditSection).toContain('GitLab evidence line 8')
     expect(auditSection).not.toContain('GitLab evidence line 9')
     expect(auditSection).not.toContain('GitLab evidence line 10')
@@ -840,7 +928,9 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (GitLab): not found in candidate evidence.',
+    )
   })
 
   it('does not treat contact emails or link URLs as direct audited experience', async () => {
@@ -861,7 +951,9 @@ describe('coverLetterGenerator', () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Experience audit (GitLab): not found in candidate evidence.')
+    expect(body.messages[0].content).toContain(
+      'Experience audit (GitLab): not found in candidate evidence.',
+    )
   })
 
   it('rewrites generated paragraphs with vague connector phrases', async () => {

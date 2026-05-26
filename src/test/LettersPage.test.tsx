@@ -15,14 +15,12 @@ import { JD_ANALYSIS_MODEL_VERSION } from '../types/jdAnalysis'
 import { untagged, untaggedNote } from '../types/audience'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { stripResumeVectorContext } from '../utils/coverLetterContext'
+import { applyRulesBasedAudiences, type JDAnalysisLike } from '../utils/audienceRules'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 
 const PIPELINE_JOB_DESCRIPTION = 'Build distributed systems and platform tooling.'
 
-const {
-  renderCoverLetterAsDocxMock,
-  renderLetterAsPdfMock,
-} = vi.hoisted(() => ({
+const { renderCoverLetterAsDocxMock, renderLetterAsPdfMock } = vi.hoisted(() => ({
   renderCoverLetterAsDocxMock: vi.fn(),
   renderLetterAsPdfMock: vi.fn(),
 }))
@@ -35,14 +33,13 @@ vi.mock('../utils/letterPdfRenderer', () => ({
   renderLetterAsPdf: renderLetterAsPdfMock,
 }))
 
-function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
-  return {
+function makeJdAnalysis(overrides: Partial<JDAnalysisLike> = {}): JDAnalysis {
+  const draft: JDAnalysisLike = {
     id: 'analysis-1',
     pipelineEntryId: 'pipe-1',
     jdTextHash: hashJobDescriptionText(PIPELINE_JOB_DESCRIPTION),
     identityVersion: 7,
     modelVersion: JD_ANALYSIS_MODEL_VERSION,
-    audienceRulesVersion: 'audience-rules.v1',
     generatedAt: '2026-03-09T00:00:00.000Z',
     updatedAt: '2026-03-09T00:00:00.000Z',
     warnings: [],
@@ -92,8 +89,21 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
       topPhilosophy: [],
     },
     strengthsToLead: [untaggedNote('Backend platform reliability')],
-    advantages: [untagged({ id: 'adv-1', claim: 'Owns distributed platform delivery.', requirementIds: ['req-platform'], evidence: [] })],
-    advantageHypotheses: [untagged({ id: 'hyp-1', claim: 'Can stabilize developer platforms.', requirementIds: ['req-platform'] })],
+    advantages: [
+      untagged({
+        id: 'adv-1',
+        claim: 'Owns distributed platform delivery.',
+        requirementIds: ['req-platform'],
+        evidence: [],
+      }),
+    ],
+    advantageHypotheses: [
+      untagged({
+        id: 'hyp-1',
+        claim: 'Can stabilize developer platforms.',
+        requirementIds: ['req-platform'],
+      }),
+    ],
     gaps: [],
     gapFocus: [untaggedNote('Keep the letter concise on frontend depth.')],
     watchOuts: [],
@@ -106,6 +116,7 @@ function makeJdAnalysis(overrides: Partial<JDAnalysis> = {}): JDAnalysis {
     matchedKeywords: ['distributed systems', 'platform tooling'],
     ...overrides,
   }
+  return applyRulesBasedAudiences(draft)
 }
 
 describe('LettersPage', () => {
@@ -114,7 +125,9 @@ describe('LettersPage', () => {
     renderCoverLetterAsDocxMock.mockReset()
     renderLetterAsPdfMock.mockReset()
     renderCoverLetterAsDocxMock.mockResolvedValue({
-      blob: new Blob(['docx'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      blob: new Blob(['docx'], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      }),
       generatedAt: '2026-05-04T00:00:00.000Z',
     })
     renderLetterAsPdfMock.mockResolvedValue({
@@ -125,7 +138,12 @@ describe('LettersPage', () => {
     })
     resolveStorage().removeItem('facet-cover-letter-data')
     resolveStorage().removeItem('vector-resume-data')
-    useCoverLetterStore.setState({ letters: [], snapshots: [], activeLetterId: null, templates: [] })
+    useCoverLetterStore.setState({
+      letters: [],
+      snapshots: [],
+      activeLetterId: null,
+      templates: [],
+    })
     useJDAnalysisStore.setState({ analyses: [makeJdAnalysis()] })
     useIdentityStore.setState({ currentIdentity: null })
     useResumeStore.setState({
@@ -244,7 +262,9 @@ describe('LettersPage', () => {
     })
     expect(source.nested[0].vectorId).toBe('backend')
     expect(stripResumeVectorContext('plain text')).toBe('plain text')
-    expect(stripResumeVectorContext([{ vectorId: 'backend', text: 'Keep me too' }])).toEqual([{ text: 'Keep me too' }])
+    expect(stripResumeVectorContext([{ vectorId: 'backend', text: 'Keep me too' }])).toEqual([
+      { text: 'Keep me too' },
+    ])
   })
 
   it('generates a template from the selected pipeline entry', async () => {
@@ -260,16 +280,24 @@ describe('LettersPage', () => {
 
     expect(screen.getByDisplayValue('Acme Staff Engineer Cover Letter')).toBeTruthy()
     expect(screen.getByText('Dear Jordan Lee,')).toBeTruthy()
-    expect(screen.getByText('I am excited to apply for the Staff Engineer role at Acme Corp.')).toBeTruthy()
+    expect(
+      screen.getByText('I am excited to apply for the Staff Engineer role at Acme Corp.'),
+    ).toBeTruthy()
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
     const prompt = body.messages?.[0]?.content ?? ''
     expect(prompt).not.toContain('Target Vector:')
     expect(prompt).toContain('Canonical JD Analysis:')
+    expect(prompt).toContain('Audience: hiring_manager')
     expect(prompt).toContain('Own platform reliability and distributed systems delivery.')
-    expect(prompt).toContain('Lead with platform reliability outcomes.')
+    expect(prompt).toContain('Platform reliability ownership')
+    expect(prompt).toContain('Use concrete backend platform evidence.')
+    expect(prompt).toContain('Owns distributed platform delivery.')
+    expect(prompt).not.toContain('Lead with platform reliability outcomes.')
+    expect(prompt).not.toContain('Keep the letter concise on frontend depth.')
     expect(prompt).toContain('Build distributed systems and platform tooling.')
+    expect(prompt).not.toMatch(/\b(?:undefined|NaN)\b/)
     expect(prompt).not.toContain('"vectors"')
     expect(prompt).not.toContain('"vectorId"')
     expect(prompt).not.toContain('"manualOverrides"')
@@ -292,7 +320,9 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    expect(screen.getByText('Analyze this pipeline JD before generating a cover letter.')).toBeTruthy()
+    expect(
+      screen.getByText('Analyze this pipeline JD before generating a cover letter.'),
+    ).toBeTruthy()
     expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
@@ -304,7 +334,11 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    expect(screen.getByText('Refresh JD analysis before generating a cover letter (job description changed).')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Refresh JD analysis before generating a cover letter (job description changed).',
+      ),
+    ).toBeTruthy()
     expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
@@ -338,7 +372,9 @@ describe('LettersPage', () => {
     fireEvent.click(generateButton)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Analyze this pipeline JD before generating a cover letter.').length).toBeGreaterThan(0)
+      expect(
+        screen.getAllByText('Analyze this pipeline JD before generating a cover letter.').length,
+      ).toBeGreaterThan(0)
     })
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
     expect(useCoverLetterStore.getState().templates).toHaveLength(0)
@@ -362,7 +398,9 @@ describe('LettersPage', () => {
     })
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
     const body = JSON.parse((init as RequestInit).body as string)
-    expect(body.messages[0].content).toContain('Own platform reliability and distributed systems delivery.')
+    expect(body.messages[0].content).toContain(
+      'Own platform reliability and distributed systems delivery.',
+    )
   })
 
   it('disables regeneration when the linked pipeline JD analysis is missing', async () => {
@@ -386,10 +424,14 @@ describe('LettersPage', () => {
       useJDAnalysisStore.setState({ analyses: [] })
     })
 
-    expect(await screen.findByText('Resume has changed since this letter was generated - regenerate?')).toBeTruthy()
+    expect(
+      await screen.findByText('Resume has changed since this letter was generated - regenerate?'),
+    ).toBeTruthy()
     const regenerateButton = screen.getByText('Regenerate') as HTMLButtonElement
     expect(regenerateButton.disabled).toBe(true)
-    expect(regenerateButton.title).toBe('Analyze this pipeline JD before generating a cover letter.')
+    expect(regenerateButton.title).toBe(
+      'Analyze this pipeline JD before generating a cover letter.',
+    )
   })
 
   it('names linked history items from pipeline entries and sorts by created date', () => {
@@ -475,7 +517,9 @@ describe('LettersPage', () => {
       }))
     })
 
-    expect(await screen.findByText('Resume has changed since this letter was generated - regenerate?')).toBeTruthy()
+    expect(
+      await screen.findByText('Resume has changed since this letter was generated - regenerate?'),
+    ).toBeTruthy()
     expect(screen.getByText('Regenerate')).toBeTruthy()
   })
 
@@ -508,7 +552,9 @@ describe('LettersPage', () => {
       }))
     })
 
-    expect(await screen.findByText(/changed since this letter was generated - regenerate\?/)).toBeTruthy()
+    expect(
+      await screen.findByText(/changed since this letter was generated - regenerate\?/),
+    ).toBeTruthy()
   })
 
   it('prompts with combined drift when the source resume changes and the pipeline switches resumes', async () => {
@@ -546,8 +592,16 @@ describe('LettersPage', () => {
       }))
     })
 
-    expect(await screen.findByText('Resume context changed since this letter was generated - regenerate?')).toBeTruthy()
-    expect(screen.getByText('The original source resume changed and the pipeline entry now points to a different resume.')).toBeTruthy()
+    expect(
+      await screen.findByText(
+        'Resume context changed since this letter was generated - regenerate?',
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'The original source resume changed and the pipeline entry now points to a different resume.',
+      ),
+    ).toBeTruthy()
   })
 
   it('regenerates a drifted letter into the same pipeline draft slot', async () => {
@@ -578,7 +632,9 @@ describe('LettersPage', () => {
       }))
     })
 
-    expect(await screen.findByText(/changed since this letter was generated - regenerate\?/)).toBeTruthy()
+    expect(
+      await screen.findByText(/changed since this letter was generated - regenerate\?/),
+    ).toBeTruthy()
 
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -638,7 +694,9 @@ describe('LettersPage', () => {
     expect(await screen.findByText('Source resume is unavailable - regenerate?')).toBeTruthy()
     const regenerateButton = screen.getByText('Regenerate') as HTMLButtonElement
     expect(regenerateButton.disabled).toBe(true)
-    expect(regenerateButton.title).toBe('Choose a current resume in the generator section before regenerating.')
+    expect(regenerateButton.title).toBe(
+      'Choose a current resume in the generator section before regenerating.',
+    )
   })
 
   it('keeps the pipeline entry linked to the resume used for generation', async () => {
@@ -656,7 +714,9 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    fireEvent.change(screen.getByLabelText('Source Resume'), { target: { value: alternateResumeId } })
+    fireEvent.change(screen.getByLabelText('Source Resume'), {
+      target: { value: alternateResumeId },
+    })
     fireEvent.click(screen.getByText('Generate with AI'))
 
     await waitFor(() => {
@@ -684,7 +744,9 @@ describe('LettersPage', () => {
 
     fireEvent.click(screen.getByLabelText('Delete Acme Corp - Staff Engineer'))
 
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Acme Corp - Staff Engineer"?')
+    expect(confirm).toHaveBeenCalledWith(
+      'Are you sure you want to delete the cover letter draft for "Acme Corp - Staff Engineer"?',
+    )
     expect(useCoverLetterStore.getState().letters).toHaveLength(0)
     expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBeNull()
   })
@@ -735,13 +797,17 @@ describe('LettersPage', () => {
     render(<LettersPage />)
 
     fireEvent.click(screen.getByLabelText('Create New Variant'))
-    expect(confirm).toHaveBeenCalledWith('This opportunity already has a linked cover letter draft. Replace the current draft link?')
+    expect(confirm).toHaveBeenCalledWith(
+      'This opportunity already has a linked cover letter draft. Replace the current draft link?',
+    )
     expect(useCoverLetterStore.getState().letters).toHaveLength(0)
     expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe('existing-letter')
 
     fireEvent.click(screen.getByLabelText('Create New Variant'))
     expect(useCoverLetterStore.getState().letters).toHaveLength(1)
-    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(useCoverLetterStore.getState().letters[0]?.id)
+    expect(usePipelineStore.getState().entries[0]?.coverLetterId).toBe(
+      useCoverLetterStore.getState().letters[0]?.id,
+    )
   })
 
   it('hides soft-deleted pipeline entries from the generator picker', () => {
@@ -761,9 +827,9 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    const optionLabels = Array.from((screen.getByLabelText('Pipeline Entry') as HTMLSelectElement).options).map(
-      (option) => option.textContent,
-    )
+    const optionLabels = Array.from(
+      (screen.getByLabelText('Pipeline Entry') as HTMLSelectElement).options,
+    ).map((option) => option.textContent)
     expect(optionLabels).toContain('Acme Corp - Staff Engineer')
     expect(optionLabels).not.toContain('Deleted Co - Archived Role')
   })
@@ -776,7 +842,11 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    expect(screen.getByText('This pipeline entry needs a job description before AI generation will work.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'This pipeline entry needs a job description before AI generation will work.',
+      ),
+    ).toBeTruthy()
     expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -810,7 +880,9 @@ describe('LettersPage', () => {
 
     fireEvent.change(screen.getByLabelText('Pipeline Entry'), { target: { value: 'pipe-2' } })
 
-    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(alternateResume.id)
+    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(
+      alternateResume.id,
+    )
     expect((screen.getByLabelText('Additional Notes') as HTMLTextAreaElement).value).toContain(
       'Lead with platform leadership.',
     )
@@ -840,7 +912,9 @@ describe('LettersPage', () => {
     const expectedFallbackId = [...useResumeStore.getState().resumes].sort((left, right) =>
       right.updatedAt.localeCompare(left.updatedAt),
     )[0]?.id
-    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(expectedFallbackId)
+    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(
+      expectedFallbackId,
+    )
   })
 
   it('preserves a manual source resume choice when resume ordering changes', () => {
@@ -854,7 +928,9 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    fireEvent.change(screen.getByLabelText('Source Resume'), { target: { value: alternateResume.id } })
+    fireEvent.change(screen.getByLabelText('Source Resume'), {
+      target: { value: alternateResume.id },
+    })
     act(() => {
       useResumeStore.setState((state) => ({
         ...state,
@@ -866,7 +942,9 @@ describe('LettersPage', () => {
       }))
     })
 
-    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(alternateResume.id)
+    expect((screen.getByLabelText('Source Resume') as HTMLSelectElement).value).toBe(
+      alternateResume.id,
+    )
   })
 
   it('shows progress while generating an Opus cover letter', async () => {
@@ -1097,13 +1175,17 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    const refineButton = screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement
+    const refineButton = screen.getByRole('button', {
+      name: /Refine Paragraph/,
+    }) as HTMLButtonElement
     expect(refineButton.disabled).toBe(true)
 
     fireEvent.change(screen.getByLabelText('Paragraph 1 refinement notes'), {
       target: { value: 'Make this more direct.' },
     })
-    expect((screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled).toBe(false)
+    expect(
+      (screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled,
+    ).toBe(false)
 
     fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
     fireEvent.change(screen.getByLabelText('Paragraph 1 text edit'), {
@@ -1144,7 +1226,9 @@ describe('LettersPage', () => {
 
     const { container, rerender } = render(<LettersPage />)
 
-    const generatorDisclosure = container.querySelector('.letters-generator-disclosure') as HTMLDetailsElement
+    const generatorDisclosure = container.querySelector(
+      '.letters-generator-disclosure',
+    ) as HTMLDetailsElement
     expect(generatorDisclosure.open).toBe(true)
     fireEvent.click(generatorDisclosure.querySelector('summary') as HTMLElement)
     expect(generatorDisclosure.open).toBe(false)
@@ -1161,7 +1245,9 @@ describe('LettersPage', () => {
 
     useCoverLetterStore.getState().updateTemplate('variant-1', { name: 'Renamed Variant' })
     rerender(<LettersPage />)
-    expect((container.querySelector('.letters-refinement-disclosure') as HTMLDetailsElement).open).toBe(true)
+    expect(
+      (container.querySelector('.letters-refinement-disclosure') as HTMLDetailsElement).open,
+    ).toBe(true)
     expect(container.querySelector('.letters-editor-nav')?.textContent).toContain('Paragraphs')
     expect(container.querySelector('.letters-save-status-saved')?.textContent).toBe('Saved')
   })
@@ -1195,7 +1281,9 @@ describe('LettersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Refine Paragraph/ }))
 
     await waitFor(() => {
-      expect(screen.getByText('AI refinement is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')).toBeTruthy()
+      expect(
+        screen.getByText('AI refinement is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
+      ).toBeTruthy()
     })
     expect(global.fetch).not.toHaveBeenCalled()
   })
@@ -1244,9 +1332,13 @@ describe('LettersPage', () => {
     })
     expect((screen.getByLabelText('Edit paragraph 1') as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByLabelText('Delete paragraph 1') as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByLabelText('Paragraph 1 refinement notes') as HTMLTextAreaElement).disabled).toBe(true)
+    expect(
+      (screen.getByLabelText('Paragraph 1 refinement notes') as HTMLTextAreaElement).disabled,
+    ).toBe(true)
     expect((screen.getByLabelText('Edit paragraph 2') as HTMLButtonElement).disabled).toBe(false)
-    expect((screen.getByLabelText('Paragraph 2 refinement notes') as HTMLTextAreaElement).disabled).toBe(false)
+    expect(
+      (screen.getByLabelText('Paragraph 2 refinement notes') as HTMLTextAreaElement).disabled,
+    ).toBe(false)
 
     fireEvent.click(screen.getByLabelText('Edit paragraph 2'))
     fireEvent.change(screen.getByLabelText('Paragraph 2 text edit'), {
@@ -1598,7 +1690,9 @@ describe('LettersPage', () => {
 
     confirm.mockReturnValueOnce(true).mockReturnValueOnce(true)
     fireEvent.click(screen.getByLabelText('Delete Acme Variant'))
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Acme Variant"?')
+    expect(confirm).toHaveBeenCalledWith(
+      'Are you sure you want to delete the cover letter draft for "Acme Variant"?',
+    )
     expect(useCoverLetterStore.getState().templates).toHaveLength(0)
   })
 
@@ -1636,8 +1730,12 @@ describe('LettersPage', () => {
     fireEvent.click(screen.getByLabelText('Delete Background Variant'))
 
     expect(confirm).not.toHaveBeenCalledWith('Discard unsaved edits?')
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Background Variant"?')
-    expect(useCoverLetterStore.getState().templates.map((template) => template.id)).toEqual(['active-variant'])
+    expect(confirm).toHaveBeenCalledWith(
+      'Are you sure you want to delete the cover letter draft for "Background Variant"?',
+    )
+    expect(useCoverLetterStore.getState().templates.map((template) => template.id)).toEqual([
+      'active-variant',
+    ])
     expect(screen.getByDisplayValue('Unsaved active header')).toBeTruthy()
   })
 
@@ -1809,8 +1907,12 @@ describe('LettersPage', () => {
 
     fireEvent.click(screen.getByLabelText('Edit paragraph 1'))
 
-    expect((screen.getByLabelText('Paragraph 1 refinement notes') as HTMLTextAreaElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect(
+      (screen.getByLabelText('Paragraph 1 refinement notes') as HTMLTextAreaElement).disabled,
+    ).toBe(true)
+    expect(
+      (screen.getByRole('button', { name: /Refine Paragraph/ }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
 
   it('creates pipeline-anchored variants at the top of history', () => {
@@ -1838,17 +1940,23 @@ describe('LettersPage', () => {
     })
 
     const { container } = render(<LettersPage />)
-    expect(container.querySelector('.letters-template-item')?.textContent).toContain('Newer Variant')
+    expect(container.querySelector('.letters-template-item')?.textContent).toContain(
+      'Newer Variant',
+    )
 
     fireEvent.click(screen.getByLabelText('Create New Variant'))
 
-    const created = useCoverLetterStore.getState().templates.find((template) => template.name === 'New Variant')
+    const created = useCoverLetterStore
+      .getState()
+      .templates.find((template) => template.name === 'New Variant')
     expect(created).toMatchObject({
       source: 'pipeline',
       pipelineEntryId: 'pipe-1',
     })
     expect(created?.generatedAt).toBeTruthy()
-    expect(container.querySelector('.letters-template-item')?.textContent).toContain('Acme Corp - Staff Engineer')
+    expect(container.querySelector('.letters-template-item')?.textContent).toContain(
+      'Acme Corp - Staff Engineer',
+    )
   })
 
   it('sorts legacy history items by durable metadata when generatedAt is absent', () => {
@@ -1893,7 +2001,9 @@ describe('LettersPage', () => {
 
     const { container } = render(<LettersPage />)
 
-    expect(container.querySelector('.letters-template-item')?.textContent).toContain('Newer Legacy Variant')
+    expect(container.querySelector('.letters-template-item')?.textContent).toContain(
+      'Newer Legacy Variant',
+    )
     expect(screen.getByDisplayValue('Newer Legacy Variant')).toBeTruthy()
   })
 
@@ -1936,8 +2046,12 @@ describe('LettersPage', () => {
     expect(screen.getByDisplayValue('Newest Variant')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('Delete Newest Variant'))
 
-    expect(confirm).toHaveBeenCalledWith('Are you sure you want to delete the cover letter draft for "Newest Variant"?')
-    expect(useCoverLetterStore.getState().templates.map((template) => template.id)).not.toContain('newest-variant')
+    expect(confirm).toHaveBeenCalledWith(
+      'Are you sure you want to delete the cover letter draft for "Newest Variant"?',
+    )
+    expect(useCoverLetterStore.getState().templates.map((template) => template.id)).not.toContain(
+      'newest-variant',
+    )
     expect(screen.getByDisplayValue('Middle Variant')).toBeTruthy()
   })
 
@@ -2179,7 +2293,11 @@ describe('LettersPage', () => {
 
     render(<LettersPage />)
 
-    expect(screen.getByText('Add a pipeline opportunity with a job description to generate a cover letter draft.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Add a pipeline opportunity with a job description to generate a cover letter draft.',
+      ),
+    ).toBeTruthy()
     expect(screen.queryByText('Current Match Report')).toBeNull()
     expect(screen.queryByLabelText('Pipeline Entry')).toBeNull()
     expect((screen.getByText('Generate with AI') as HTMLButtonElement).disabled).toBe(true)
