@@ -1,11 +1,11 @@
 ---
 id: TASK-259
 title: Add PrepDeckSection for deck-scoped sidebar grouping
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-11 04:53'
-updated_date: '2026-05-26 00:59'
+updated_date: '2026-05-26 01:43'
 labels:
   - prep
   - types
@@ -39,13 +39,13 @@ Depends on TASK-254 — sections reference cards, and the per-kind interfaces le
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PrepDeckSection interface declared in src/types/prep.ts: { id: string; title: string; cardIds: string[] }
-- [ ] #2 sections?: PrepDeckSection[] added to PrepDeck
-- [ ] #3 Sidebar renders deck.sections when present, ordered by section index then by cardIds order within each section
-- [ ] #4 Sidebar falls back to category-based grouping when sections is absent (existing behavior preserved)
-- [ ] #5 prepGenerator.ts emits sections per round-type: Panel rounds produce one section per interviewer card; Technical rounds produce Anchor + Scenarios + Deep Dives sections
-- [ ] #6 Contract validator allows the optional field and asserts cardIds resolve to actual card IDs in deck.cards
-- [ ] #7 Regression tests cover sidebar rendering with sections present and absent, plus generator section emission per round type
+- [x] #1 PrepDeckSection interface declared in src/types/prep.ts: { id: string; title: string; cardIds: string[] }
+- [x] #2 sections?: PrepDeckSection[] added to PrepDeck
+- [x] #3 Sidebar renders deck.sections when present, ordered by section index then by cardIds order within each section
+- [x] #4 Sidebar falls back to category-based grouping when sections is absent (existing behavior preserved)
+- [x] #5 prepGenerator.ts emits sections per round-type: Panel rounds produce one section per interviewer card; Technical rounds produce Anchor + Scenarios + Deep Dives sections
+- [x] #6 Contract validator allows the optional field and asserts cardIds resolve to actual card IDs in deck.cards
+- [x] #7 Regression tests cover sidebar rendering with sections present and absent, plus generator section emission per round type
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -54,12 +54,18 @@ Depends on TASK-254 — sections reference cards, and the per-kind interfaces le
 2026-05-26 Codex starting TASK-259. Plan: add PrepDeckSection and optional PrepDeck.sections; normalize/import/export/persist the optional deck sections safely; update PrepLiveMode/PrepPage sidebar grouping to prefer deck.sections and preserve current category fallback; teach prepGenerator schema/prompt/normalization/contract validation to emit/validate panel and technical round sections; add focused tests for typed deck sections, sidebar section rendering/fallback, generator emission, and invalid cardIds; run scoped tests, typecheck/lint/format/full-enough regression gates, independent review/audit where available, commit via cortex git commit, then close with receipts.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+2026-05-26 Codex completed TASK-259. Implemented PrepDeckSection and optional PrepDeck.sections across types, store normalization/export, import validation, generator schema/prompt/normalization/contract validation, and live cheatsheet/sidebar derivation. Deck sections now render ahead of fallback card-category sections when valid, preserve legacy category grouping for absent/unclaimed cards, keep opener cards in dedicated opener sections, and defensively skip malformed imported section payloads. Generator supports valid model-provided sections, deterministic panel sections, technical Anchor/Scenarios/Deep Dives fallbacks, invalid-section fallback repair, duplicate card ownership repair, and contract violations for missing/duplicate section cardIds. Verification: focused prep suite passed (8 files/167 tests), generator/contract suite passed (49 tests), store/import suite passed (32 tests), npm run typecheck passed, npm run lint passed, git diff --check passed, full npm run test passed (174 files/2572 tests). Independent review: specialist-review PASS WITH ISSUES after P1 remediation; remaining notes were maintainability/design tradeoffs. Independent audit: helper audit remediated P1/P2 gaps; generator audit remediated P1 gaps; store/import audit remediated P1 boundary gap.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
