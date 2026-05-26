@@ -1,10 +1,10 @@
 ---
 id: TASK-246
 title: Wire run refresh into batch staleness review with cost confirmation
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-05-09'
-updated_date: '2026-05-09'
+updated_date: '2026-05-26 04:08'
 labels:
   - shepherding
   - staleness
