@@ -213,7 +213,9 @@ describe('JDAnalysis canonical helpers', () => {
       endpoint: 'https://ai.example/proxy',
       pipelineEntryId: 'pipe-1',
       jobDescription: 'Own Kubernetes delivery systems.',
-      identity: { model_revision: 7 } as unknown as Parameters<typeof analyzePipelineJobDescription>[0]['identity'],
+      identity: { model_revision: 7 } as unknown as Parameters<
+        typeof analyzePipelineJobDescription
+      >[0]['identity'],
       analyzeJobMatch,
     })
 
@@ -234,7 +236,9 @@ describe('JDAnalysis canonical helpers', () => {
         endpoint: 'https://ai.example/proxy',
         pipelineEntryId: 'pipe-1',
         jobDescription: 'Own Kubernetes delivery systems.',
-        identity: { model_revision: 7 } as unknown as Parameters<typeof analyzePipelineJobDescription>[0]['identity'],
+        identity: { model_revision: 7 } as unknown as Parameters<
+          typeof analyzePipelineJobDescription
+        >[0]['identity'],
         analyzeJobMatch,
       }),
     ).rejects.toThrow('analysis failed')
@@ -296,8 +300,12 @@ describe('JDAnalysis canonical helpers', () => {
 
   it('hashes boundary JD text consistently', () => {
     expect(hashJobDescriptionText('')).toBe(hashJobDescriptionText('   '))
-    expect(hashJobDescriptionText('Line 1\r\nLine 2')).toBe(hashJobDescriptionText('Line 1\nLine 2'))
-    expect(hashJobDescriptionText('Platform 🚀\u200b')).toBe(hashJobDescriptionText('Platform 🚀\u200b'))
+    expect(hashJobDescriptionText('Line 1\r\nLine 2')).toBe(
+      hashJobDescriptionText('Line 1\nLine 2'),
+    )
+    expect(hashJobDescriptionText('Platform 🚀\u200b')).toBe(
+      hashJobDescriptionText('Platform 🚀\u200b'),
+    )
   })
 
   it('keeps one canonical analysis per pipeline entry in the store', () => {
@@ -481,6 +489,75 @@ describe('JDAnalysis canonical helpers', () => {
     ).toEqual([{ text: 'keep', audiences: { inferred: ['internal'], asserted: null } }])
   })
 
+  it('preserves LLM-asserted audience tags while applying rules-based inference', () => {
+    const analysis = createJdAnalysisFromMatchArtifacts({
+      pipelineEntryId: 'pipe-1',
+      jobDescription: 'Own Kubernetes delivery systems.',
+      artifacts: {
+        analysis: {
+          ...baseAnalysis,
+          strengthsToLead: [
+            {
+              text: 'Candidate strength.',
+              audiences: { inferred: ['unclassified'], asserted: ['candidate'] },
+            },
+          ],
+        },
+        report: {
+          ...baseReport,
+          requirements: [
+            {
+              ...baseReport.requirements[0]!,
+              audiences: { inferred: ['unclassified'], asserted: ['candidate', 'recruiter'] },
+            },
+          ],
+          positioningRecommendations: [
+            {
+              text: 'Recruiter-only hook.',
+              audiences: { inferred: ['unclassified'], asserted: ['recruiter'] },
+            },
+          ],
+          warnings: [
+            {
+              text: 'Internal-only extraction flag.',
+              audiences: { inferred: ['unclassified'], asserted: ['internal'] },
+            },
+          ],
+        },
+        extraction: {
+          ...baseExtraction,
+          advantageHypotheses: [
+            {
+              ...baseExtraction.advantageHypotheses[0]!,
+              audiences: { inferred: ['unclassified'], asserted: [] },
+            },
+          ],
+        },
+      },
+    })
+
+    expect(analysis.requirements[0]?.audiences).toEqual({
+      inferred: ['recruiter', 'hiring_manager', 'candidate'],
+      asserted: ['candidate', 'recruiter'],
+    })
+    expect(analysis.strengthsToLead[0]?.audiences).toEqual({
+      inferred: ['recruiter', 'hiring_manager', 'candidate'],
+      asserted: ['candidate'],
+    })
+    expect(analysis.positioningRecommendations[0]?.audiences).toEqual({
+      inferred: ['candidate', 'recruiter'],
+      asserted: ['recruiter'],
+    })
+    expect(analysis.warnings[0]?.audiences).toEqual({
+      inferred: ['internal'],
+      asserted: ['internal'],
+    })
+    expect(analysis.advantageHypotheses[0]?.audiences).toEqual({
+      inferred: ['internal', 'candidate'],
+      asserted: [],
+    })
+  })
+
   it('removes canonical analysis when a pipeline entry is deleted', () => {
     const analysis = createJdAnalysisFromMatchArtifacts({
       pipelineEntryId: 'pipe-1',
@@ -497,9 +574,7 @@ describe('JDAnalysis canonical helpers', () => {
 
     // deleteEntry is a soft-delete: the entry remains in `entries` with a
     // non-null deletedAt and a cleared jdAnalysisId.
-    const liveEntries = usePipelineStore
-      .getState()
-      .entries.filter((entry) => !entry.deletedAt)
+    const liveEntries = usePipelineStore.getState().entries.filter((entry) => !entry.deletedAt)
     expect(liveEntries).toEqual([])
     expect(useJDAnalysisStore.getState().findByPipelineEntry('pipe-1')).toBeNull()
   })

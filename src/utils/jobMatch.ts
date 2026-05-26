@@ -33,7 +33,13 @@ import type {
   VectorAwareMatchResult,
   WatchOut,
 } from '../types/match'
-import { type TaggedNote, untagged, untaggedNote } from '../types/audience'
+import {
+  type AudienceAssignment,
+  type AudienceTag,
+  type TaggedNote,
+  untagged,
+  untaggedNote,
+} from '../types/audience'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError } from './llmProxy'
 import { createId, slugify } from './idUtils'
 
@@ -133,19 +139,27 @@ const JD_MATCH_SYSTEM_PROMPT = [
   '      "priority": "core" | "important" | "supporting",',
   '      "evidence": string,',
   '      "tags": string[],',
-  '      "keywords": string[]',
+  '      "keywords": string[],',
+  '      "audiences": { "asserted": ("candidate" | "recruiter" | "hiring_manager" | "internal")[] }',
   '    }',
   '  ],',
   '  "advantage_hypotheses": [',
   '    {',
   '      "id": string,',
   '      "claim": string,',
-  '      "requirement_ids": string[]',
+  '      "requirement_ids": string[],',
+  '      "audiences": { "asserted": ("candidate" | "recruiter" | "hiring_manager" | "internal")[] }',
   '    }',
   '  ],',
-  '  "positioning_recommendations": string[],',
-  '  "gap_focus": string[],',
-  '  "warnings": string[]',
+  '  "positioning_recommendations": [',
+  '    { "text": string, "audiences": { "asserted": ("candidate" | "recruiter" | "hiring_manager" | "internal")[] } }',
+  '  ],',
+  '  "gap_focus": [',
+  '    { "text": string, "audiences": { "asserted": ("candidate" | "recruiter" | "hiring_manager" | "internal")[] } }',
+  '  ],',
+  '  "warnings": [',
+  '    { "text": string, "audiences": { "asserted": ("candidate" | "recruiter" | "hiring_manager" | "internal")[] } }',
+  '  ]',
   '}',
   'Rules:',
   '- Requirements should describe real hiring needs, not generic resume advice.',
@@ -153,6 +167,13 @@ const JD_MATCH_SYSTEM_PROMPT = [
   '- Tags should be short normalized concepts like "platform", "kubernetes", "pm-communication", "linux", "observability".',
   '- Keywords should be literal JD terms worth preserving for matching.',
   '- Keep advantage hypotheses specific to this JD. They should point to combinations of requirements, not generic praise.',
+  '- Emit audiences.asserted for every requirement, advantage hypothesis, positioning recommendation, gap focus item, and warning.',
+  '- Use [] when the rules-based default should decide visibility; use populated asserted tags only when content clearly belongs to specific readers.',
+  '- Candidate-only: prep notes, concerns, gap focus, and honest self-positioning for the candidate.',
+  '- Recruiter-only: pitch hooks, suggested intros, advocacy phrasing, and recruiter-facing positioning language.',
+  '- Hiring-manager: role-fit evidence, technical evaluation angles, and interview evaluation concerns; use both recruiter and hiring_manager when both need it.',
+  '- Internal-only: data-quality flags, extraction uncertainty, parser concerns, and system/debug notes.',
+  '- Never assert unclassified. If unsure, use [] and let Facet rules infer a floor.',
   '- Use 4-8 requirements unless the JD is unusually sparse.',
   '- Do not wrap the JSON in markdown fences.',
 ].join('\n')
@@ -266,6 +287,76 @@ const assertStringArray = (value: unknown, context: string): string[] => {
   return value.map((entry, index) => assertString(entry, context + '[' + index + ']'))
 }
 
+const ASSERTABLE_AUDIENCE_TAGS = new Set<AudienceTag>([
+  'candidate',
+  'recruiter',
+  'hiring_manager',
+  'internal',
+])
+
+const buildUnclassifiedAssignment = (): AudienceAssignment => ({
+  inferred: ['unclassified'],
+  asserted: null,
+})
+
+const normalizeAssertedAudiences = (value: unknown): AudienceTag[] | null => {
+  if (!Array.isArray(value)) return null
+
+  const asserted: AudienceTag[] = []
+  let sawInvalid = false
+  for (const entry of value) {
+    if (typeof entry !== 'string') {
+      sawInvalid = true
+      continue
+    }
+    const tag = entry.trim() as AudienceTag
+    if (!ASSERTABLE_AUDIENCE_TAGS.has(tag)) {
+      sawInvalid = true
+      continue
+    }
+    if (!asserted.includes(tag)) asserted.push(tag)
+  }
+  // [] is load-bearing: the LLM ran and intentionally left routing to inferred
+  // rules. Fully malformed arrays fall back to null.
+  if (asserted.length === 0 && sawInvalid) return null
+  return asserted
+}
+
+const normalizeAudienceAssignment = (record: Record<string, unknown>): AudienceAssignment => {
+  const audiences = isRecord(record.audiences) ? record.audiences : null
+  if (!audiences || !('asserted' in audiences)) return buildUnclassifiedAssignment()
+
+  return {
+    inferred: ['unclassified'],
+    asserted: normalizeAssertedAudiences(audiences.asserted),
+  }
+}
+
+const tagFromExtraction = <T>(
+  item: T,
+  record: Record<string, unknown>,
+): T & { audiences: AudienceAssignment } => ({
+  ...item,
+  audiences: normalizeAudienceAssignment(record),
+})
+
+const normalizeTaggedNotes = (value: unknown, context: string): TaggedNote[] => {
+  if (!Array.isArray(value)) {
+    throw new Error(context + ' must be an array.')
+  }
+
+  return value
+    .map((entry, index) => {
+      if (typeof entry === 'string') return untaggedNote(entry.trim())
+      const record = assertRecord(entry, context + '[' + index + ']')
+      return {
+        text: assertString(record.text, context + '[' + index + '].text').trim(),
+        audiences: normalizeAudienceAssignment(record),
+      }
+    })
+    .filter((entry) => entry.text.length > 0)
+}
+
 const roundScore = (value: number): number => Math.round(value * 1000) / 1000
 
 const clampScore = (value: number): number => Math.max(0, Math.min(1, roundScore(value)))
@@ -351,39 +442,45 @@ const jdMentionsPhrase = (jdText: string, normalizedJdText: string, phrase: stri
 const normalizeRequirement = (value: unknown, index: number): MatchRequirement => {
   const record = assertRecord(value, 'requirements[' + index + ']')
 
-  return untagged({
-    id:
-      slugify(assertString(record.id, 'requirements[' + index + '].id')) ||
-      'requirement-' + (index + 1),
-    label: assertString(record.label, 'requirements[' + index + '].label').trim(),
-    priority: normalizePriority(record.priority, 'requirements[' + index + '].priority'),
-    evidence: assertString(record.evidence, 'requirements[' + index + '].evidence').trim(),
-    tags: dedupeNormalized(assertStringArray(record.tags, 'requirements[' + index + '].tags')),
-    keywords: dedupeTrimmed(
-      assertStringArray(record.keywords, 'requirements[' + index + '].keywords'),
-    ),
-  })
+  return tagFromExtraction(
+    {
+      id:
+        slugify(assertString(record.id, 'requirements[' + index + '].id')) ||
+        'requirement-' + (index + 1),
+      label: assertString(record.label, 'requirements[' + index + '].label').trim(),
+      priority: normalizePriority(record.priority, 'requirements[' + index + '].priority'),
+      evidence: assertString(record.evidence, 'requirements[' + index + '].evidence').trim(),
+      tags: dedupeNormalized(assertStringArray(record.tags, 'requirements[' + index + '].tags')),
+      keywords: dedupeTrimmed(
+        assertStringArray(record.keywords, 'requirements[' + index + '].keywords'),
+      ),
+    },
+    record,
+  )
 }
 
 const normalizeAdvantageHypothesis = (value: unknown, index: number): MatchAdvantageHypothesis => {
   const record = assertRecord(value, 'advantage_hypotheses[' + index + ']')
 
-  return untagged({
-    id:
-      slugify(assertString(record.id, 'advantage_hypotheses[' + index + '].id')) ||
-      'advantage-' + (index + 1),
-    claim: assertString(record.claim, 'advantage_hypotheses[' + index + '].claim').trim(),
-    requirementIds: Array.from(
-      new Set(
-        assertStringArray(
-          record.requirement_ids,
-          'advantage_hypotheses[' + index + '].requirement_ids',
-        )
-          .map((entry) => slugify(entry))
-          .filter(Boolean),
+  return tagFromExtraction(
+    {
+      id:
+        slugify(assertString(record.id, 'advantage_hypotheses[' + index + '].id')) ||
+        'advantage-' + (index + 1),
+      claim: assertString(record.claim, 'advantage_hypotheses[' + index + '].claim').trim(),
+      requirementIds: Array.from(
+        new Set(
+          assertStringArray(
+            record.requirement_ids,
+            'advantage_hypotheses[' + index + '].requirement_ids',
+          )
+            .map((entry) => slugify(entry))
+            .filter(Boolean),
+        ),
       ),
-    ),
-  })
+    },
+    record,
+  )
 }
 
 const buildIdentityVocabulary = (identity: ProfessionalIdentityV3) => {
@@ -740,12 +837,13 @@ const buildAdvantages = (
         )
         .slice(0, 4)
 
-      return untagged({
+      return {
         id: hypothesis.id,
         claim: hypothesis.claim,
         requirementIds,
         evidence,
-      })
+        audiences: hypothesis.audiences,
+      }
     })
     .filter((advantage) => advantage.requirementIds.length > 0 && advantage.evidence.length > 0)
 
@@ -1125,24 +1223,9 @@ export const parseJdMatchExtractionResponse = (rawResponse: string): JdMatchExtr
     positioningRecommendations:
       root.positioning_recommendations === undefined
         ? []
-        : assertStringArray(root.positioning_recommendations, 'positioning_recommendations')
-            .map((entry) => entry.trim())
-            .filter(Boolean)
-            .map(untaggedNote),
-    gapFocus:
-      root.gap_focus === undefined
-        ? []
-        : assertStringArray(root.gap_focus, 'gap_focus')
-            .map((entry) => entry.trim())
-            .filter(Boolean)
-            .map(untaggedNote),
-    warnings:
-      root.warnings === undefined
-        ? []
-        : assertStringArray(root.warnings, 'warnings')
-            .map((entry) => entry.trim())
-            .filter(Boolean)
-            .map(untaggedNote),
+        : normalizeTaggedNotes(root.positioning_recommendations, 'positioning_recommendations'),
+    gapFocus: root.gap_focus === undefined ? [] : normalizeTaggedNotes(root.gap_focus, 'gap_focus'),
+    warnings: root.warnings === undefined ? [] : normalizeTaggedNotes(root.warnings, 'warnings'),
   }
 }
 

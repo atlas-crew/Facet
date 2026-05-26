@@ -289,6 +289,10 @@ describe('jobMatch', () => {
     expect(parsed.company).toBe('Atlas')
     expect(parsed.requirements[0]?.tags).toEqual(['platform', 'kubernetes', 'infrastructure'])
     expect(parsed.advantageHypotheses[0]?.requirementIds).toEqual(['platform-delivery'])
+    expect(parsed.positioningRecommendations[0]).toEqual({
+      text: 'Lead with platform migration stories.',
+      audiences: { inferred: ['unclassified'], asserted: null },
+    })
   })
 
   it('parses structured JD match output from raw JSON', () => {
@@ -316,6 +320,103 @@ describe('jobMatch', () => {
 
     expect(parsed.summary).toBe('Platform-heavy role.')
     expect(parsed.requirements).toHaveLength(1)
+    expect(parsed.requirements[0]?.audiences).toEqual({
+      inferred: ['unclassified'],
+      asserted: null,
+    })
+  })
+
+  it('preserves asserted audience tags from structured JD match output', () => {
+    const parsed = parseJdMatchExtractionResponse(
+      JSON.stringify({
+        summary: 'Audience-aware role.',
+        company: 'Atlas',
+        role: 'Platform Engineer',
+        requirements: [
+          {
+            id: 'platform-delivery',
+            label: 'Platform delivery',
+            priority: 'core',
+            evidence: 'Own the internal platform.',
+            tags: ['platform'],
+            keywords: ['platform'],
+            audiences: { asserted: ['candidate', 'external', 'recruiter', 'candidate'] },
+          },
+          {
+            id: 'hm-evaluation',
+            label: 'Architecture interview',
+            priority: 'important',
+            evidence: 'Discuss platform tradeoffs with engineering leaders.',
+            tags: ['architecture'],
+            keywords: ['tradeoffs'],
+            audiences: { asserted: ['hiring_manager'] },
+          },
+          {
+            id: 'collapsed-audience',
+            label: 'Collapsed audience',
+            priority: 'supporting',
+            evidence: 'The model collapsed a one-item audience array.',
+            tags: ['platform'],
+            keywords: ['platform'],
+            audiences: { asserted: 'candidate' },
+          },
+        ],
+        advantage_hypotheses: [
+          {
+            id: 'recruiter-hook',
+            claim: 'Recruiter-facing intro hook.',
+            requirement_ids: ['platform-delivery'],
+            audiences: { asserted: ['recruiter'] },
+          },
+          {
+            id: 'rules-default',
+            claim: 'Let rules decide.',
+            requirement_ids: ['platform-delivery'],
+            audiences: { asserted: [] },
+          },
+        ],
+        positioning_recommendations: [
+          {
+            text: 'Candidate positioning note.',
+            audiences: { asserted: ['candidate'] },
+          },
+          {
+            text: 'Recruiter intro hook.',
+            audiences: { asserted: ['recruiter'] },
+          },
+        ],
+        gap_focus: [
+          {
+            text: 'Candidate concern.',
+            audiences: { asserted: ['candidate'] },
+          },
+        ],
+        warnings: [
+          {
+            text: 'Internal parser concern.',
+            audiences: { asserted: ['internal'] },
+          },
+          {
+            text: 'Malformed audience falls back to rules.',
+            audiences: { asserted: ['external'] },
+          },
+        ],
+      }),
+    )
+
+    expect(parsed.requirements[0]?.audiences).toEqual({
+      inferred: ['unclassified'],
+      asserted: ['candidate', 'recruiter'],
+    })
+    expect(parsed.requirements[1]?.audiences.asserted).toEqual(['hiring_manager'])
+    expect(parsed.requirements[2]?.audiences.asserted).toBeNull()
+    expect(parsed.advantageHypotheses[0]?.audiences.asserted).toEqual(['recruiter'])
+    expect(parsed.advantageHypotheses[1]?.audiences.asserted).toEqual([])
+    expect(parsed.positioningRecommendations[0]?.audiences.asserted).toEqual(['candidate'])
+    expect(parsed.positioningRecommendations[1]?.audiences.asserted).toEqual(['recruiter'])
+    expect(parsed.gapFocus[0]?.audiences.asserted).toEqual(['candidate'])
+    expect(parsed.warnings[0]?.audiences.asserted).toEqual(['internal'])
+    expect(parsed.warnings[1]?.audiences.asserted).toBeNull()
   })
 
   it('throws when the JD extraction payload is malformed', () => {
@@ -356,6 +457,34 @@ describe('jobMatch', () => {
         }),
       ),
     ).toThrow()
+    expect(() =>
+      parseJdMatchExtractionResponse(
+        JSON.stringify({
+          summary: 'Broken notes.',
+          company: 'Atlas',
+          role: 'Platform Engineer',
+          requirements: [],
+          advantage_hypotheses: [],
+          positioning_recommendations: 'Lead with platform.',
+          gap_focus: [],
+          warnings: [],
+        }),
+      ),
+    ).toThrow('positioning_recommendations must be an array.')
+    expect(() =>
+      parseJdMatchExtractionResponse(
+        JSON.stringify({
+          summary: 'Broken note item.',
+          company: 'Atlas',
+          role: 'Platform Engineer',
+          requirements: [],
+          advantage_hypotheses: [],
+          positioning_recommendations: [],
+          gap_focus: [{ wrong_key: 'value' }],
+          warnings: [],
+        }),
+      ),
+    ).toThrow('gap_focus[0].text must be a string.')
     expect(() =>
       normalizeVectorMatchPayload({
         rawResponse: 'not-json',
@@ -911,6 +1040,19 @@ describe('jobMatch', () => {
   })
 
   it('runs the full vector-aware matcher and returns both analysis and adapted report', async () => {
+    const extractionRequirements = buildExtraction().requirements.map((requirement) =>
+      requirement.id === 'platform-delivery'
+        ? {
+            id: requirement.id,
+            label: requirement.label,
+            priority: requirement.priority,
+            evidence: requirement.evidence,
+            tags: requirement.tags,
+            keywords: requirement.keywords,
+            audiences: { asserted: ['hiring_manager'] },
+          }
+        : requirement,
+    )
     vi.stubGlobal(
       'fetch',
       vi
@@ -920,17 +1062,33 @@ describe('jobMatch', () => {
             summary: 'Strong platform fit with some AI caveats.',
             company: 'Atlas',
             role: 'Staff Platform Engineer',
-            requirements: buildExtraction().requirements,
+            requirements: extractionRequirements,
             advantage_hypotheses: [
               {
                 id: 'platform-systems-bridge',
                 claim: 'Strong platform and systems overlap.',
                 requirement_ids: ['platform-delivery', 'linux-debugging'],
+                audiences: { asserted: ['recruiter'] },
               },
             ],
-            positioning_recommendations: ['Lead with platform migration stories.'],
-            gap_focus: ['Do not over-claim AI depth.'],
-            warnings: [],
+            positioning_recommendations: [
+              {
+                text: 'Lead with platform migration stories.',
+                audiences: { asserted: ['recruiter'] },
+              },
+            ],
+            gap_focus: [
+              {
+                text: 'Do not over-claim AI depth.',
+                audiences: { asserted: ['candidate'] },
+              },
+            ],
+            warnings: [
+              {
+                text: 'JD is light on AI details.',
+                audiences: { asserted: ['internal'] },
+              },
+            ],
           }),
         )
         .mockResolvedValueOnce(
@@ -991,6 +1149,13 @@ describe('jobMatch', () => {
     expect(result.analysis.matchedVectors[0]?.vectorId).toBe('platform-lead')
     expect(result.analysis.relevantAwareness[0]?.awarenessId).toBe('ai-depth')
     expect(result.extraction.summary).toBe('Strong platform fit with some AI caveats.')
+    expect(result.extraction.requirements[0]?.audiences.asserted).toEqual(['hiring_manager'])
+    expect(result.extraction.advantageHypotheses[0]?.audiences.asserted).toEqual(['recruiter'])
+    expect(result.report.requirements[0]?.audiences.asserted).toEqual(['hiring_manager'])
+    expect(result.report.advantages[0]?.audiences.asserted).toEqual(['recruiter'])
+    expect(result.report.positioningRecommendations[0]?.audiences.asserted).toEqual(['recruiter'])
+    expect(result.report.gapFocus[0]?.audiences.asserted).toEqual(['candidate'])
+    expect(result.report.warnings[0]?.audiences.asserted).toEqual(['internal'])
     expect(result.report.matchScore).toBe(result.analysis.fitScore)
     expect(result.report.topBullets.length).toBeGreaterThan(0)
   })
@@ -1016,6 +1181,13 @@ describe('jobMatch', () => {
       jobDescription: 'Staff platform engineer role that requires five days onsite.',
     })
 
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as {
+      system?: string
+    }
+    expect(requestBody.system).toContain('audiences.asserted')
+    expect(requestBody.system).toContain('Recruiter-only')
+    expect(requestBody.system).toContain('Hiring-manager')
+    expect(requestBody.system).toContain('Internal-only')
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result.analysis.overallFit).toBe('filter-out')
     expect(result.analysis.recommendation).toBe('skip')
