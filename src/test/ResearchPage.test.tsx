@@ -1262,9 +1262,14 @@ describe('ResearchPage', () => {
 
     const confirmPanel = within(stalenessReview)
       .getByText('Confirm search run refresh')
-      .closest('[role="region"]') as HTMLElement
+      .closest('.research-warning') as HTMLElement
     expect(confirmPanel.textContent).toContain('$6.18')
     expect(confirmPanel.textContent).toContain('claude-opus-4-7')
+    expect(
+      screen
+        .getAllByRole('status')
+        .some((node) => node.textContent === 'Confirm search run refresh for Search run.'),
+    ).toBe(true)
     expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
 
     fireEvent.click(within(confirmPanel).getByRole('button', { name: 'Cancel' }))
@@ -1444,6 +1449,16 @@ describe('ResearchPage', () => {
     await waitFor(() => {
       expect(mockFetchDeepResearchJob).toHaveBeenCalledTimes(1)
     })
+    expect(
+      screen.getByText(
+        'Deep research refresh is running for Search run; this can take 60-120 seconds.',
+      ),
+    ).toBeTruthy()
+    const visualProgress = within(stalenessReview).getByText(
+      'Deep research refresh is running; this can take 60-120 seconds.',
+    )
+    expect(visualProgress.getAttribute('role')).toBeNull()
+    expect(visualProgress.getAttribute('aria-live')).toBeNull()
     act(() => {
       useIdentityStore.setState({
         currentIdentity: {
@@ -1572,6 +1587,7 @@ describe('ResearchPage', () => {
     fireEvent.click(within(stalenessReview).getByText('Confirm and refresh search run'))
 
     expect(mockCreateDeepResearchJob).not.toHaveBeenCalled()
+    expect(screen.queryByText('Confirm search run refresh')).toBeNull()
     expect(
       screen.getByText(
         'A deep research job is already running. Wait for it to finish before refreshing a search run.',
@@ -3755,10 +3771,15 @@ describe('ResearchPage', () => {
     expect(screen.queryByRole('button', { name: /Add Skill/i })).toBeNull()
     expect(screen.queryByLabelText('Skill name')).toBeNull()
     expect(screen.queryByLabelText('Skill context')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Search Launcher' })).toBeTruthy()
+    expect(screen.getByText('Focus lanes')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /Clear Profile/i }))
     expect(useSearchStore.getState().profile).toBeNull()
     expect(screen.getByText('No search profile yet')).toBeTruthy()
+    expect(screen.getByText(/Create a profile to launch search/i)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Search Launcher' })).toBeNull()
+    expect(screen.queryByText('Focus lanes')).toBeNull()
   })
 
   it('lets the user change focus lanes before launching search', async () => {

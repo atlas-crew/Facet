@@ -41,6 +41,7 @@ import type {
   SearchProfile,
   SearchRequest,
   SearchResultEntry,
+  SearchRun,
   SearchThesis,
   SearchThesisSignal,
 } from '../../types/search'
@@ -118,6 +119,17 @@ type RunRefreshConfirmation = {
   runId: string
   requestId: string
 }
+type RunRefreshContext =
+  | {
+      ok: true
+      currentIdentity: ProfessionalIdentityV3
+      currentIdentityRevision: number
+      stalenessReviewImpact: DownstreamImpact
+    }
+  | {
+      ok: false
+      reason: 'active-job' | 'identity-drift'
+    }
 type PendingRunRefreshReview = {
   jobId: string
   runId: string
@@ -1021,6 +1033,18 @@ export function ResearchPage() {
   })
   const primaryActionBusy = isSearching
   const budgetBadgeCopy = useMemo(() => getBudgetBadgeCopy(researchUsage), [researchUsage])
+  const runRefreshProgressAnnouncement = useMemo(() => {
+    if (!refreshingStalenessArtifactKey || !stalenessReviewImpact) return ''
+    const refreshingRun = stalenessReviewImpact.artifactsAffected.find(
+      (artifact) =>
+        artifact.artifactType === 'run' &&
+        getStalenessArtifactKey(artifact, stalenessReviewImpact.mutation) ===
+          refreshingStalenessArtifactKey,
+    )
+    return refreshingRun
+      ? `Deep research refresh is running for ${refreshingRun.label}; this can take 60-120 seconds.`
+      : 'Deep research refresh is running; this can take 60-120 seconds.'
+  }, [refreshingStalenessArtifactKey, stalenessReviewImpact])
 
   const vectorOptions = useMemo(
     () =>
@@ -1229,6 +1253,53 @@ export function ResearchPage() {
     }
   }, [])
 
+  const finalizeRunRefreshReview = useCallback(
+    (
+      pendingRunRefresh: PendingRunRefreshReview,
+      runPatch: Partial<SearchRun>,
+    ): Partial<SearchRun> => {
+      const nextRunPatch = { ...runPatch }
+      const latestIdentityRevision =
+        useIdentityStore.getState().currentIdentity?.model_revision ?? null
+      const reviewSnapshotStillOpen =
+        stalenessReviewImpactRef.current === pendingRunRefresh.refreshStartedImpact
+      if (
+        latestIdentityRevision === pendingRunRefresh.refreshStartedIdentityRevision &&
+        stalenessReviewIdentityRevisionRef.current ===
+          pendingRunRefresh.refreshStartedIdentityRevision &&
+        reviewSnapshotStillOpen
+      ) {
+        const refreshReview = sanitizeArtifactStalenessReview({
+          decision: 'accepted-current',
+          reviewedAt: new Date().toISOString(),
+          reviewedIdentityVersion: pendingRunRefresh.refreshStartedIdentityRevision,
+          artifactIdentityVersionAtReview: pendingRunRefresh.refreshStartedIdentityRevision,
+          mutationLabel: pendingRunRefresh.refreshStartedMutation.label,
+          mutationFields: [...pendingRunRefresh.refreshStartedMutation.fields],
+          mutationFromRevision: pendingRunRefresh.refreshStartedMutation.fromRevision,
+          mutationToRevision: pendingRunRefresh.refreshStartedMutation.toRevision,
+          reason: pendingRunRefresh.artifactReason || 'Refreshed with latest Identity context.',
+        } satisfies ArtifactStalenessReview)
+        if (refreshReview) {
+          nextRunPatch.stalenessReview = refreshReview
+        }
+        setRefreshedStalenessArtifactKeys((current) => ({
+          ...current,
+          [pendingRunRefresh.artifactKey]: true,
+        }))
+        setThesisNotice(
+          `${pendingRunRefresh.artifactLabel} refreshed with the latest Identity context.`,
+        )
+      } else {
+        setThesisNotice(
+          'Identity or review context changed during search run refresh. The regenerated run was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
+        )
+      }
+      return nextRunPatch
+    },
+    [setRefreshedStalenessArtifactKeys, setThesisNotice],
+  )
+
   const applyResearchJobUpdate = useCallback(
     (job: ResearchJob) => {
       setObservedResearchJob(job)
@@ -1243,45 +1314,10 @@ export function ResearchPage() {
         const pendingRunRefresh = pendingRunRefreshReviewRef.current
         const isPendingRunRefresh =
           pendingRunRefresh?.jobId === job.id && pendingRunRefresh.runId === activeResearchJob.runId
-        const nextRunPatch = { ...runPatch }
-        if (isPendingRunRefresh && job.status === 'completed') {
-          const latestIdentityRevision =
-            useIdentityStore.getState().currentIdentity?.model_revision ?? null
-          const reviewSnapshotStillOpen =
-            stalenessReviewImpactRef.current === pendingRunRefresh.refreshStartedImpact
-          if (
-            latestIdentityRevision === pendingRunRefresh.refreshStartedIdentityRevision &&
-            stalenessReviewIdentityRevisionRef.current ===
-              pendingRunRefresh.refreshStartedIdentityRevision &&
-            reviewSnapshotStillOpen
-          ) {
-            const refreshReview = sanitizeArtifactStalenessReview({
-              decision: 'accepted-current',
-              reviewedAt: new Date().toISOString(),
-              reviewedIdentityVersion: pendingRunRefresh.refreshStartedIdentityRevision,
-              artifactIdentityVersionAtReview: pendingRunRefresh.refreshStartedIdentityRevision,
-              mutationLabel: pendingRunRefresh.refreshStartedMutation.label,
-              mutationFields: [...pendingRunRefresh.refreshStartedMutation.fields],
-              mutationFromRevision: pendingRunRefresh.refreshStartedMutation.fromRevision,
-              mutationToRevision: pendingRunRefresh.refreshStartedMutation.toRevision,
-              reason: pendingRunRefresh.artifactReason || 'Refreshed with latest Identity context.',
-            } satisfies ArtifactStalenessReview)
-            if (refreshReview) {
-              nextRunPatch.stalenessReview = refreshReview
-            }
-            setRefreshedStalenessArtifactKeys((current) => ({
-              ...current,
-              [pendingRunRefresh.artifactKey]: true,
-            }))
-            setThesisNotice(
-              `${pendingRunRefresh.artifactLabel} refreshed with the latest Identity context.`,
-            )
-          } else {
-            setThesisNotice(
-              'Identity or review context changed during search run refresh. The regenerated run was saved but the staleness review decision was not recorded; reopen the review after loading the latest impact notice.',
-            )
-          }
-        }
+        const nextRunPatch =
+          isPendingRunRefresh && job.status === 'completed'
+            ? finalizeRunRefreshReview(pendingRunRefresh, runPatch)
+            : runPatch
         updateRun(activeResearchJob.runId, nextRunPatch)
         const narrativeViolations =
           runPatch.narrativeState?.status === 'ready' ||
@@ -1326,6 +1362,7 @@ export function ResearchPage() {
       clearActiveResearchJob,
       clearPollTimer,
       closeResearchEventSource,
+      finalizeRunRefreshReview,
       notifyResearchComplete,
       refreshResearchUsage,
       updateActiveResearchJob,
@@ -2108,25 +2145,44 @@ export function ResearchPage() {
   const runCoverLetterRefresh = createCoverLetterRefreshHandler(stalenessRefreshDeps)
   const runPrepDeckRefresh = createPrepDeckRefreshHandler(stalenessRefreshDeps, updatePrepDeck)
 
+  // Read from stores directly so the gate sees post-click identity/job state, not the render snapshot.
+  const getRunRefreshContext = (): RunRefreshContext => {
+    const latestActiveResearchJob = useSearchStore.getState().activeResearchJob
+    if (latestActiveResearchJob) {
+      return { ok: false, reason: 'active-job' }
+    }
+
+    const latestIdentity = useIdentityStore.getState().currentIdentity
+    const latestIdentityRevision = latestIdentity ? (latestIdentity.model_revision ?? 0) : null
+    const latestStalenessImpact = stalenessReviewImpactRef.current
+    const latestStalenessIdentityRevision = stalenessReviewIdentityRevisionRef.current
+    if (
+      !latestIdentity ||
+      !latestStalenessImpact ||
+      latestIdentityRevision === null ||
+      latestStalenessIdentityRevision !== latestIdentityRevision
+    ) {
+      return { ok: false, reason: 'identity-drift' }
+    }
+
+    return {
+      ok: true,
+      currentIdentity: latestIdentity,
+      currentIdentityRevision: latestIdentityRevision,
+      stalenessReviewImpact: latestStalenessImpact,
+    }
+  }
+
   const queueRunRefreshConfirmation = (
     artifact: DownstreamImpact['artifactsAffected'][number],
     artifactKey: string,
   ) => {
-    if (
-      !currentIdentity ||
-      !stalenessReviewImpact ||
-      currentIdentityRevision === null ||
-      stalenessReviewIdentityRevision !== currentIdentityRevision
-    ) {
+    const refreshContext = getRunRefreshContext()
+    if (!refreshContext.ok) {
       setThesisNotice(
-        'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
-      )
-      return
-    }
-
-    if (activeResearchJob) {
-      setThesisNotice(
-        'A deep research job is already running. Wait for it to finish before refreshing a search run.',
+        refreshContext.reason === 'active-job'
+          ? 'A deep research job is already running. Wait for it to finish before refreshing a search run.'
+          : 'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
       )
       return
     }
@@ -2166,22 +2222,18 @@ export function ResearchPage() {
 
   const confirmRunRefresh = async () => {
     if (!runRefreshConfirmation) return
-    if (activeResearchJob) {
-      setPageError(
-        'A deep research job is already running. Wait for it to finish before refreshing a search run.',
-      )
-      return
-    }
-    if (
-      !currentIdentity ||
-      !stalenessReviewImpact ||
-      currentIdentityRevision === null ||
-      stalenessReviewIdentityRevision !== currentIdentityRevision
-    ) {
+    const refreshContext = getRunRefreshContext()
+    if (!refreshContext.ok) {
       setRunRefreshConfirmation(null)
-      setThesisNotice(
-        'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
-      )
+      if (refreshContext.reason === 'active-job') {
+        setPageError(
+          'A deep research job is already running. Wait for it to finish before refreshing a search run.',
+        )
+      } else {
+        setThesisNotice(
+          'Identity changed before refresh could run. Generate a new impact notice to refresh the latest artifact state.',
+        )
+      }
       return
     }
     const { artifact, artifactKey, runId, requestId } = runRefreshConfirmation
@@ -2206,7 +2258,7 @@ export function ResearchPage() {
       collectThesisIdentityFieldDependencies(targetRun.thesisSnapshot)
     const thesisSnapshot: SearchThesis = {
       ...targetRun.thesisSnapshot,
-      identityVersion: currentIdentityRevision,
+      identityVersion: refreshContext.currentIdentityRevision,
       identityFields: runIdentityFields,
     }
     const refreshProfile =
@@ -2216,7 +2268,10 @@ export function ResearchPage() {
         id: identityProfileRef.current.id,
         inferredAt: identityProfileRef.current.inferredAt,
       } satisfies SearchProfile)
-    const identityEvidence = buildDeepResearchIdentityEvidence(currentIdentity, refreshProfile)
+    const identityEvidence = buildDeepResearchIdentityEvidence(
+      refreshContext.currentIdentity,
+      refreshProfile,
+    )
 
     try {
       ensureEndpoint()
@@ -2225,8 +2280,8 @@ export function ResearchPage() {
       refreshingStalenessArtifactKeyRef.current = artifactKey
       setRefreshingStalenessArtifactKey(artifactKey)
       setRunRefreshConfirmation(null)
-      const refreshStartedIdentityRevision = currentIdentityRevision
-      const refreshStartedImpact = stalenessReviewImpact
+      const refreshStartedIdentityRevision = refreshContext.currentIdentityRevision
+      const refreshStartedImpact = refreshContext.stalenessReviewImpact
       const refreshStartedMutation = refreshStartedImpact.mutation
       const created = await createDeepResearchJob({
         endpoint: aiEndpoint,
@@ -3071,9 +3126,8 @@ export function ResearchPage() {
           <div className="research-empty">
             <h2>No search profile yet</h2>
             <p>
-              {currentIdentity
-                ? 'Apply or import an identity model to bootstrap research from identity-backed search data.'
-                : 'Use your resume data to infer skills, vector search strategies, work summaries, and open questions you may want to refine before searching.'}
+              Create a profile to launch search, then refine skills, vector search strategies, work
+              summaries, and open questions before searching.
             </p>
           </div>
         ) : (
@@ -3303,13 +3357,17 @@ export function ResearchPage() {
                     Choices are saved on each reviewed artifact. Search run refreshes start a new
                     deep research job and require cost confirmation first.
                   </p>
+                  {/* Keep this live region mounted so screen readers announce confirmation changes. */}
+                  <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                    {runRefreshConfirmation
+                      ? `Confirm search run refresh for ${runRefreshConfirmation.artifact.label}.`
+                      : ''}
+                  </div>
+                  <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                    {runRefreshProgressAnnouncement}
+                  </div>
                   {runRefreshConfirmation ? (
-                    <div
-                      className="research-warning"
-                      role="region"
-                      aria-live="polite"
-                      aria-label={'Confirm refresh for ' + runRefreshConfirmation.artifact.label}
-                    >
+                    <div className="research-warning">
                       <strong>Confirm search run refresh</strong>
                       <p>
                         Re-run deep research for {runRefreshConfirmation.artifact.label}. The active
@@ -3409,7 +3467,7 @@ export function ResearchPage() {
                             .
                           </span>
                           {artifact.artifactType === 'run' && isRefreshing ? (
-                            <span className="research-muted" role="status" aria-live="polite">
+                            <span className="research-muted">
                               {' '}
                               Deep research refresh is running; this can take 60-120 seconds.
                             </span>
@@ -4162,6 +4220,7 @@ export function ResearchPage() {
               )}
             </section>
 
+            {/* The search-panel empty state owns the no-profile Search Launcher CTA. */}
             <section className="research-card">
               <div className="research-card-header">
                 <div>
@@ -4199,168 +4258,164 @@ export function ResearchPage() {
                 </div>
               ) : null}
 
-              {!effectiveProfile ? (
-                <p className="research-muted">Create a profile before launching search.</p>
-              ) : (
-                <div className="research-form-grid">
-                  <fieldset className="research-fieldset research-field research-field-span">
-                    <legend>Focus lanes</legend>
-                    {!activeThesis ? (
-                      <p className="research-muted">Generate Thesis before launching search.</p>
-                    ) : laneOptions.length === 0 ? (
-                      <p className="research-muted">
-                        Add at least one thesis lane before launching search.
-                      </p>
-                    ) : (
-                      <div className="research-checkbox-grid">
-                        {laneOptions.map((lane) => (
-                          <label key={lane.id} className="research-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={requestDraft.focusLanes.includes(lane.id)}
-                              onChange={(event) =>
-                                setRequestDraft((current) => ({
-                                  ...current,
-                                  focusLanes: event.target.checked
-                                    ? [...current.focusLanes, lane.id]
-                                    : current.focusLanes.filter((item) => item !== lane.id),
-                                }))
-                              }
-                            />
-                            <span>{lane.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </fieldset>
-
-                  <label className="research-field">
-                    <span>Company size override</span>
-                    <select
-                      className="research-select"
-                      value={requestDraft.companySizeOverride}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          companySizeOverride: event.target.value as SearchCompanySize | '',
-                        }))
-                      }
-                    >
-                      {COMPANY_SIZE_OPTIONS.map((option) => (
-                        <option key={option.value || 'none'} value={option.value}>
-                          {option.label}
-                        </option>
+              <div className="research-form-grid">
+                <fieldset className="research-fieldset research-field research-field-span">
+                  <legend>Focus lanes</legend>
+                  {!activeThesis ? (
+                    <p className="research-muted">Generate Thesis before launching search.</p>
+                  ) : laneOptions.length === 0 ? (
+                    <p className="research-muted">
+                      Add at least one thesis lane before launching search.
+                    </p>
+                  ) : (
+                    <div className="research-checkbox-grid">
+                      {laneOptions.map((lane) => (
+                        <label key={lane.id} className="research-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={requestDraft.focusLanes.includes(lane.id)}
+                            onChange={(event) =>
+                              setRequestDraft((current) => ({
+                                ...current,
+                                focusLanes: event.target.checked
+                                  ? [...current.focusLanes, lane.id]
+                                  : current.focusLanes.filter((item) => item !== lane.id),
+                              }))
+                            }
+                          />
+                          <span>{lane.label}</span>
+                        </label>
                       ))}
-                    </select>
-                  </label>
+                    </div>
+                  )}
+                </fieldset>
 
-                  <label className="research-field">
-                    <span>Salary anchor override</span>
-                    <input
-                      className="research-input"
-                      value={requestDraft.salaryAnchorOverride}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          salaryAnchorOverride: event.target.value,
-                        }))
-                      }
-                      placeholder="$230k base / $330k total"
-                    />
-                  </label>
+                <label className="research-field">
+                  <span>Company size override</span>
+                  <select
+                    className="research-select"
+                    value={requestDraft.companySizeOverride}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        companySizeOverride: event.target.value as SearchCompanySize | '',
+                      }))
+                    }
+                  >
+                    {COMPANY_SIZE_OPTIONS.map((option) => (
+                      <option key={option.value || 'none'} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                  <label className="research-field research-field-span">
-                    <span>Custom keywords</span>
-                    <input
-                      className="research-input"
-                      value={requestDraft.customKeywords}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          customKeywords: event.target.value,
-                        }))
-                      }
-                      placeholder="staff platform, developer productivity, internal tools"
-                    />
-                  </label>
+                <label className="research-field">
+                  <span>Salary anchor override</span>
+                  <input
+                    className="research-input"
+                    value={requestDraft.salaryAnchorOverride}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        salaryAnchorOverride: event.target.value,
+                      }))
+                    }
+                    placeholder="$230k base / $330k total"
+                  />
+                </label>
 
-                  <label className="research-checkbox research-checkbox-inline">
-                    <input
-                      type="checkbox"
-                      checked={requestDraft.geoExpand}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          geoExpand: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>
-                      Expand geography beyond preferred locations when fit is otherwise strong
-                    </span>
-                  </label>
+                <label className="research-field research-field-span">
+                  <span>Custom keywords</span>
+                  <input
+                    className="research-input"
+                    value={requestDraft.customKeywords}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        customKeywords: event.target.value,
+                      }))
+                    }
+                    placeholder="staff platform, developer productivity, internal tools"
+                  />
+                </label>
 
-                  <label className="research-field">
-                    <span>Tier 1 max</span>
-                    <input
-                      className="research-input"
-                      type="number"
-                      min="1"
-                      value={requestDraft.maxResults.tier1}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          maxResults: normalizeMaxResults(
-                            current.maxResults,
-                            'tier1',
-                            event.target.value,
-                          ),
-                        }))
-                      }
-                    />
-                  </label>
+                <label className="research-checkbox research-checkbox-inline">
+                  <input
+                    type="checkbox"
+                    checked={requestDraft.geoExpand}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        geoExpand: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    Expand geography beyond preferred locations when fit is otherwise strong
+                  </span>
+                </label>
 
-                  <label className="research-field">
-                    <span>Tier 2 max</span>
-                    <input
-                      className="research-input"
-                      type="number"
-                      min="1"
-                      value={requestDraft.maxResults.tier2}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          maxResults: normalizeMaxResults(
-                            current.maxResults,
-                            'tier2',
-                            event.target.value,
-                          ),
-                        }))
-                      }
-                    />
-                  </label>
+                <label className="research-field">
+                  <span>Tier 1 max</span>
+                  <input
+                    className="research-input"
+                    type="number"
+                    min="1"
+                    value={requestDraft.maxResults.tier1}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        maxResults: normalizeMaxResults(
+                          current.maxResults,
+                          'tier1',
+                          event.target.value,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
 
-                  <label className="research-field">
-                    <span>Tier 3 max</span>
-                    <input
-                      className="research-input"
-                      type="number"
-                      min="1"
-                      value={requestDraft.maxResults.tier3}
-                      onChange={(event) =>
-                        setRequestDraft((current) => ({
-                          ...current,
-                          maxResults: normalizeMaxResults(
-                            current.maxResults,
-                            'tier3',
-                            event.target.value,
-                          ),
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              )}
+                <label className="research-field">
+                  <span>Tier 2 max</span>
+                  <input
+                    className="research-input"
+                    type="number"
+                    min="1"
+                    value={requestDraft.maxResults.tier2}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        maxResults: normalizeMaxResults(
+                          current.maxResults,
+                          'tier2',
+                          event.target.value,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="research-field">
+                  <span>Tier 3 max</span>
+                  <input
+                    className="research-input"
+                    type="number"
+                    min="1"
+                    value={requestDraft.maxResults.tier3}
+                    onChange={(event) =>
+                      setRequestDraft((current) => ({
+                        ...current,
+                        maxResults: normalizeMaxResults(
+                          current.maxResults,
+                          'tier3',
+                          event.target.value,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
             </section>
 
             <section className="research-card">
