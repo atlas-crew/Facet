@@ -1,9 +1,11 @@
 ---
 id: TASK-230
 title: 'Phase 7: refactor debrief generator to apply candidate audience projection'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-26 08:03'
 labels:
   - audience-tagging
   - phase-7
@@ -45,3 +47,9 @@ Debriefs are candidate-only — post-interview reflection material. Same audienc
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-230. Plan: inspect debriefGenerator/DebriefPage and current tests, apply candidate projection at the generator boundary, update production-shaped audience fixtures, run focused gates plus independent review/audit, commit/close/push.
+<!-- SECTION:NOTES:END -->
