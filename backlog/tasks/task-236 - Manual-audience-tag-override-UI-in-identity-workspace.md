@@ -1,11 +1,11 @@
 ---
 id: TASK-236
 title: Manual audience tag override UI in identity workspace
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 20:29'
-updated_date: '2026-05-26 21:34'
+updated_date: '2026-05-26 22:19'
 labels:
   - audience-tagging
   - phase-8
@@ -60,4 +60,6 @@ Without a manual override path, a candidate has no way to say "this concern shou
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-26 Codex starting TASK-236 as part of three-surface audience push with TASK-231/TASK-232. Plan: extend TASK-224 Identity audience review into general asserted-audience editor, persist overrides through jdAnalysisStore, cover browsing/editing and rules-version preservation, run gates/review/audit before close.
+
+Implemented Identity workspace audience review editor for all tagged JD insights. The surface shows inferred/asserted audiences, writes user choices to asserted tags via jdAnalysisStore, preserves inferred tags/rules-version behavior, prevents empty selections, handles stale insight state, and includes focused UI/helper tests plus audit coverage. Verification: focused Vitest suite, typecheck, lint, build, specialist review, and split diff-test audits.
 <!-- SECTION:NOTES:END -->
