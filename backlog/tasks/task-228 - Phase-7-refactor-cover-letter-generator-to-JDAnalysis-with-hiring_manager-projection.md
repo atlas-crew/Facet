@@ -3,9 +3,11 @@ id: TASK-228
 title: >-
   Phase 7: refactor cover letter generator to JDAnalysis with hiring_manager
   projection
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-26 13:50'
 labels:
   - audience-tagging
   - phase-7
@@ -51,3 +53,9 @@ Cover letters are addressed to the hiring manager. The generator currently consu
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-228. Plan: inspect coverLetterGenerator, LettersPage, canonical JDAnalysis fixtures/tests, refactor generator to use hiring_manager projection, wire LettersPage to currentJDAnalysis, add production-shaped audience coverage, run focused gates plus browser check, independent review/audit, commit/close/push.
+<!-- SECTION:NOTES:END -->
