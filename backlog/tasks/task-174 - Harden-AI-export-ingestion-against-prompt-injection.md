@@ -1,11 +1,11 @@
 ---
 id: TASK-174
 title: Harden AI export ingestion against prompt injection
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-04-19 10:30'
-updated_date: '2026-05-26 03:18'
+updated_date: '2026-05-26 03:58'
 labels:
   - security
   - shepherding
@@ -91,28 +91,36 @@ TASK-157 builds the ingestion; this task adds the hardening layer on top. Best l
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Pasted AI export wrapped in explicit delimiters before inclusion in extraction prompt
-- [ ] #2 Extraction prompt instructs the model to treat the delimited block as data, not instructions
-- [ ] #3 Regex-based injection pattern scan flags suspicious content for user preview (non-blocking)
-- [ ] #4 Preview UI shows word count, detected sections, and flagged content before submission
-- [ ] #5 Proxy enforces max token count per paste (configurable, default 20K tokens)
-- [ ] #6 Extraction rejects output that contains known leakage artifacts (system prompt, test harness output, etc.)
-- [ ] #7 Tests: benign input extracts correctly; injection payloads trigger warnings; output containing leakage is rejected
-- [ ] #8 Documented in security notes within the codebase
+- [x] #1 Pasted AI export wrapped in explicit delimiters before inclusion in extraction prompt
+- [x] #2 Extraction prompt instructs the model to treat the delimited block as data, not instructions
+- [x] #3 Regex-based injection pattern scan flags suspicious content for user preview (non-blocking)
+- [x] #4 Preview UI shows word count, detected sections, and flagged content before submission
+- [x] #5 Proxy enforces max token count per paste (configurable, default 20K tokens)
+- [x] #6 Extraction rejects output that contains known leakage artifacts (system prompt, test harness output, etc.)
+- [x] #7 Tests: benign input extracts correctly; injection payloads trigger warnings; output containing leakage is rejected
+- [x] #8 Documented in security notes within the codebase
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Implementation plan: harden supplemental AI export intake by adding delimiter-aware prompt serialization, client preview scanning/confirmation, token-budget validation, proxy-enforced paste token metadata, leakage-artifact rejection, focused regression tests, and security notes.
+
+Implementation complete. Added delimiter-wrapped AI export evidence blocks, untrusted-data prompt instructions, AI export preview scanning and confirmation, per-paste token estimation/validation in UI and proxy, leakage-artifact rejection, and security documentation. Verification: npm run typecheck; npm run lint; npm run format:files:check on touched files; npx vitest run focused identity/proxy suites; npm run test; npm run build. Independent review used specialist-review (Gemini fallback) and split diff-test-audit passes; audit-driven test gaps were remediated.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Hardened AI conversation export ingestion against prompt injection. AI exports are serialized with explicit FACET_AI_EXPORT delimiters and prompt instructions treat them as data; the UI now previews word/token counts, detected sections, and flagged injection phrases with explicit review confirmation; client/proxy enforce configurable pasted-content token limits; extraction rejects leakage artifacts; security notes and regression coverage were added.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
