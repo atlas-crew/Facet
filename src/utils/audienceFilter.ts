@@ -2,8 +2,10 @@ import {
   UNCLASSIFIED_AUDIENCE,
   type AudienceTag,
   type AudienceTagged,
+  type AudienceResolutionSource,
   type TaggedNote,
   effectiveAudiences,
+  resolveAudiences,
 } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 
@@ -62,11 +64,22 @@ export interface UnclassifiedAudienceInsight {
   text: string
 }
 
+export interface AudienceReviewInsight extends UnclassifiedAudienceInsight {
+  inferredAudiences: AudienceTag[]
+  assertedAudiences: AudienceTag[] | null
+  effectiveAudiences: AudienceTag[]
+  effectiveSource: AudienceResolutionSource
+}
+
 export interface UnclassifiedAudienceSummary {
   totalTaggedCount: number
   unclassifiedCount: number
   unclassifiedRatio: number
   insights: UnclassifiedAudienceInsight[]
+}
+
+export interface AudienceReviewSummary extends Omit<UnclassifiedAudienceSummary, 'insights'> {
+  insights: AudienceReviewInsight[]
 }
 
 // Filter any collection of audience-tagged items to the ones that should be
@@ -103,6 +116,10 @@ export type AudienceProjection = Readonly<JDAnalysis> & {
 
 const warnedUnclassifiedAnalyses = new Set<string>()
 const warnedUnclassifiedAnalysisKeys: string[] = []
+const audienceReviewSummaryCache = new WeakMap<
+  JDAnalysis,
+  { updatedAt: string; summary: AudienceReviewSummary }
+>()
 const unclassifiedSummaryCache = new WeakMap<
   JDAnalysis,
   { updatedAt: string; summary: UnclassifiedAudienceSummary }
@@ -166,16 +183,13 @@ const insightText = (item: AudienceTagged): string =>
     'label',
   ])
 
-const collectUnclassifiedFromArray = (
+const collectAudienceReviewFromArray = (
   analysis: JDAnalysis,
   collection: AudienceCollectionKey,
   items: ReadonlyArray<AudienceTagged>,
-): UnclassifiedAudienceSummary => {
-  const insights = items.reduce<UnclassifiedAudienceInsight[]>((accumulator, item, index) => {
-    if (!effectiveAudiences(item.audiences).includes(UNCLASSIFIED_AUDIENCE)) {
-      return accumulator
-    }
-
+): AudienceReviewSummary => {
+  const insights = items.reduce<AudienceReviewInsight[]>((accumulator, item, index) => {
+    const resolution = resolveAudiences(item.audiences)
     accumulator.push({
       key: `${analysis.id}:${collection}:${index}`,
       analysisId: analysis.id,
@@ -184,21 +198,28 @@ const collectUnclassifiedFromArray = (
       index,
       label: insightLabel(collection, item),
       text: insightText(item),
+      inferredAudiences: item.audiences.inferred,
+      assertedAudiences: item.audiences.asserted,
+      effectiveAudiences: resolution.effective,
+      effectiveSource: resolution.source,
     })
     return accumulator
   }, [])
+  const unclassifiedCount = insights.filter((insight) =>
+    insight.effectiveAudiences.includes(UNCLASSIFIED_AUDIENCE),
+  ).length
 
   return {
     totalTaggedCount: items.length,
-    unclassifiedCount: insights.length,
-    unclassifiedRatio: items.length > 0 ? insights.length / items.length : 0,
+    unclassifiedCount,
+    unclassifiedRatio: items.length > 0 ? unclassifiedCount / items.length : 0,
     insights,
   }
 }
 
 const combineSummaries = (
-  summaries: ReadonlyArray<UnclassifiedAudienceSummary>,
-): UnclassifiedAudienceSummary => {
+  summaries: ReadonlyArray<AudienceReviewSummary>,
+): AudienceReviewSummary => {
   const combined = summaries.reduce(
     (accumulator, summary) => ({
       totalTaggedCount: accumulator.totalTaggedCount + summary.totalTaggedCount,
@@ -208,7 +229,7 @@ const combineSummaries = (
     {
       totalTaggedCount: 0,
       unclassifiedCount: 0,
-      insights: [] as UnclassifiedAudienceInsight[],
+      insights: [] as AudienceReviewInsight[],
     },
   )
   return {
@@ -216,6 +237,41 @@ const combineSummaries = (
     unclassifiedRatio:
       combined.totalTaggedCount > 0 ? combined.unclassifiedCount / combined.totalTaggedCount : 0,
   }
+}
+
+export const buildAudienceReviewSummary = (
+  analysis: JDAnalysis,
+): AudienceReviewSummary => {
+  const cached = audienceReviewSummaryCache.get(analysis)
+  if (cached?.updatedAt === analysis.updatedAt) {
+    return cached.summary
+  }
+
+  const summaries: AudienceReviewSummary[] = []
+
+  for (const key of TOP_LEVEL_AUDIENCE_COLLECTIONS) {
+    const value = analysis[key]
+    if (!isTaggedArray(value)) {
+      continue
+    }
+    summaries.push(collectAudienceReviewFromArray(analysis, key, value))
+  }
+
+  for (const [key, value] of Object.entries(analysis.evidenceMapping)) {
+    if (isTaggedArray(value)) {
+      summaries.push(
+        collectAudienceReviewFromArray(
+          analysis,
+          `evidenceMapping.${key}` as AudienceCollectionKey,
+          value,
+        ),
+      )
+    }
+  }
+
+  const summary = combineSummaries(summaries)
+  audienceReviewSummaryCache.set(analysis, { updatedAt: analysis.updatedAt, summary })
+  return summary
 }
 
 export const buildUnclassifiedAudienceSummary = (
@@ -226,31 +282,21 @@ export const buildUnclassifiedAudienceSummary = (
     return cached.summary
   }
 
-  const summaries: UnclassifiedAudienceSummary[] = []
-
-  for (const key of TOP_LEVEL_AUDIENCE_COLLECTIONS) {
-    const value = analysis[key]
-    if (!isTaggedArray(value)) {
-      continue
-    }
-    summaries.push(collectUnclassifiedFromArray(analysis, key, value))
+  const summary = buildAudienceReviewSummary(analysis)
+  const insights = summary.insights.filter((insight) =>
+    insight.effectiveAudiences.includes(UNCLASSIFIED_AUDIENCE),
+  )
+  const unclassifiedSummary = {
+    totalTaggedCount: summary.totalTaggedCount,
+    unclassifiedCount: summary.unclassifiedCount,
+    unclassifiedRatio: summary.unclassifiedRatio,
+    insights,
   }
-
-  for (const [key, value] of Object.entries(analysis.evidenceMapping)) {
-    if (isTaggedArray(value)) {
-      summaries.push(
-        collectUnclassifiedFromArray(
-          analysis,
-          `evidenceMapping.${key}` as AudienceCollectionKey,
-          value,
-        ),
-      )
-    }
-  }
-
-  const summary = combineSummaries(summaries)
-  unclassifiedSummaryCache.set(analysis, { updatedAt: analysis.updatedAt, summary })
-  return summary
+  unclassifiedSummaryCache.set(analysis, {
+    updatedAt: analysis.updatedAt,
+    summary: unclassifiedSummary,
+  })
+  return unclassifiedSummary
 }
 
 const rememberUnclassifiedWarningKey = (warningKey: string) => {
@@ -339,12 +385,11 @@ export const projectForAudience = (
   return projected as AudienceProjection
 }
 
-const setAudienceOverride = <T extends AudienceTagged>(item: T, audience: AudienceTag): T => {
-  const currentAsserted =
-    item.audiences.asserted && item.audiences.asserted.length > 0 ? item.audiences.asserted : []
-  const asserted = Array.from(
-    new Set([...currentAsserted.filter((tag) => tag !== UNCLASSIFIED_AUDIENCE), audience]),
-  )
+const setAudienceOverride = <T extends AudienceTagged>(
+  item: T,
+  audiences: ReadonlyArray<AudienceTag>,
+): T => {
+  const asserted = Array.from(new Set(audiences))
   return {
     ...item,
     audiences: {
@@ -357,29 +402,57 @@ const setAudienceOverride = <T extends AudienceTagged>(item: T, audience: Audien
 const patchTaggedArray = <T extends AudienceTagged>(
   items: ReadonlyArray<T>,
   index: number,
-  audience: AudienceTag,
+  audiences: ReadonlyArray<AudienceTag>,
 ): T[] =>
-  items.map((item, itemIndex) => (itemIndex === index ? setAudienceOverride(item, audience) : item))
+  items.map((item, itemIndex) =>
+    itemIndex === index ? setAudienceOverride(item, audiences) : item,
+  )
 
-export const setAudienceOverrideForInsight = (
+const resolveInsightItem = (
   analysis: JDAnalysis,
   insight: UnclassifiedAudienceInsight,
-  audience: AudienceTag,
-): JDAnalysis => {
+): AudienceTagged | null => {
   if (insight.collection.startsWith('evidenceMapping.')) {
     const evidenceKey = insight.collection.replace(
       'evidenceMapping.',
       '',
     ) as keyof JDAnalysis['evidenceMapping']
+    const items = analysis.evidenceMapping[evidenceKey]
+    return Array.isArray(items) ? items[insight.index] ?? null : null
+  }
+
+  const collection = insight.collection as keyof JDAnalysis
+  const value = analysis[collection]
+  if (!Array.isArray(value)) {
+    return null
+  }
+  const item = value[insight.index]
+  return isTaggedItem(item) ? item : null
+}
+
+export const setAudienceOverrideForInsightAudiences = (
+  analysis: JDAnalysis,
+  insight: UnclassifiedAudienceInsight,
+  audiences: ReadonlyArray<AudienceTag>,
+): JDAnalysis => {
+  if (!resolveInsightItem(analysis, insight)) {
+    return analysis
+  }
+
+  if (insight.collection.startsWith('evidenceMapping.')) {
+    const evidenceKey = insight.collection.replace(
+      'evidenceMapping.',
+      '',
+    ) as keyof JDAnalysis['evidenceMapping']
+    const value = analysis.evidenceMapping[evidenceKey]
+    if (!Array.isArray(value)) {
+      return analysis
+    }
     return {
       ...analysis,
       evidenceMapping: {
         ...analysis.evidenceMapping,
-        [evidenceKey]: patchTaggedArray(
-          analysis.evidenceMapping[evidenceKey],
-          insight.index,
-          audience,
-        ),
+        [evidenceKey]: patchTaggedArray(value, insight.index, audiences),
       },
     }
   }
@@ -392,6 +465,24 @@ export const setAudienceOverrideForInsight = (
 
   return {
     ...analysis,
-    [collection]: patchTaggedArray(value as ReadonlyArray<AudienceTagged>, insight.index, audience),
+    [collection]: patchTaggedArray(value as ReadonlyArray<AudienceTagged>, insight.index, audiences),
   }
 }
+
+export const setAudienceOverrideForInsight = (
+  analysis: JDAnalysis,
+  insight: UnclassifiedAudienceInsight,
+  audience: AudienceTag,
+): JDAnalysis =>
+  setAudienceOverrideForInsightAudiences(
+    analysis,
+    insight,
+    Array.from(
+      new Set([
+        ...((resolveInsightItem(analysis, insight)?.audiences.asserted ?? []).filter(
+          (tag) => tag !== UNCLASSIFIED_AUDIENCE,
+        )),
+        audience,
+      ]),
+    ),
+  )

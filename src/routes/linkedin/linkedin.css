@@ -129,6 +129,13 @@
   grid-column: 1 / -1;
 }
 
+.linkedin-toggle-field {
+  flex-direction: row;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 .linkedin-label {
   font-size: 0.78rem;
   font-weight: 600;

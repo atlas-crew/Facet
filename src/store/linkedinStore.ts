@@ -21,7 +21,12 @@ export const migrateLinkedInState = (persistedState: unknown) => {
         })
       : undefined
 
-  const drafts = Array.isArray(state?.drafts) ? state.drafts : []
+  const drafts = Array.isArray(state?.drafts)
+    ? state.drafts.map((draft) => ({
+        outputType: 'profile_summary' as const,
+        ...draft,
+      }))
+    : []
 
   return {
     ...state,

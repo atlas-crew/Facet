@@ -335,29 +335,68 @@ describe('IdentityPage', () => {
     navigateMock.mockReset()
   })
 
-  it('surfaces unclassified JD insights and lets the user retag them', () => {
+  it('surfaces JD insights and lets the user edit asserted audience tags', () => {
     useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture()] })
 
     render(<IdentityPage />)
 
-    expect(screen.getByRole('heading', { name: 'Review unclassified JD insights' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Review JD insight audiences' })).toBeTruthy()
     expect(screen.getByText('Acme - Staff Platform Engineer')).toBeTruthy()
     expect(screen.getByText('Requirements: Platform ownership')).toBeTruthy()
     expect(screen.getByText(/1 insight needs an audience/)).toBeTruthy()
+    expect(screen.getByText(/Inferred: Recruiter/)).toBeTruthy()
+    expect(screen.getByText(/Asserted: Unclassified/)).toBeTruthy()
 
-    fireEvent.change(screen.getByLabelText('Audience for Requirements: Platform ownership'), {
-      target: { value: 'candidate' },
-    })
+    fireEvent.click(screen.getByLabelText('Candidate audience for Requirements: Platform ownership'))
 
     const updatedAnalysis = useJDAnalysisStore.getState().analyses[0]
     expect(updatedAnalysis?.requirements[0]?.audiences.asserted).toEqual(['candidate'])
     expect(
-      screen.getByText('Tagged "Requirements: Platform ownership" for Candidate.'),
+      screen.getByText('Saved audiences for "Requirements: Platform ownership": Candidate.'),
     ).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'Review unclassified JD insights' })).toBeNull()
+    expect(screen.queryByText(/1 insight needs an audience/)).toBeNull()
   })
 
-  it('shows a stale-review error when a JD insight was already retagged', () => {
+  it('can narrow an inferred recruiter insight to internal-only without changing inferred tags', () => {
+    const analysis = jdAnalysisFixture()
+    useJDAnalysisStore.setState({
+      analyses: [
+        {
+          ...analysis,
+          requirements: [
+            {
+              ...analysis.requirements[0]!,
+              audiences: { inferred: ['recruiter', 'hiring_manager'], asserted: null },
+            },
+          ],
+        },
+      ],
+    })
+
+    render(<IdentityPage />)
+
+    expect(screen.getByText(/0 insights need an audience/)).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('Internal audience for Requirements: Platform ownership'))
+    expect(
+      screen.getByText(
+        'Saved audiences for "Requirements: Platform ownership": Recruiter, Hiring Manager, Internal.',
+      ),
+    ).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('Recruiter audience for Requirements: Platform ownership'))
+    fireEvent.click(screen.getByLabelText('Hiring Manager audience for Requirements: Platform ownership'))
+
+    const updatedAnalysis = useJDAnalysisStore.getState().analyses[0]
+    expect(updatedAnalysis?.requirements[0]?.audiences.inferred).toEqual([
+      'recruiter',
+      'hiring_manager',
+    ])
+    expect(updatedAnalysis?.requirements[0]?.audiences.asserted).toEqual(['internal'])
+    expect(
+      screen.getByLabelText('Internal audience for Requirements: Platform ownership'),
+    ).toHaveProperty('disabled', true)
+  })
+
+  it('shows a stale-review error when a JD insight is no longer available', () => {
     const analysis = jdAnalysisFixture()
     useJDAnalysisStore.setState({
       analyses: [
@@ -376,29 +415,22 @@ describe('IdentityPage', () => {
     render(<IdentityPage />)
 
     expect(screen.getByText(/2 insights need an audience/)).toBeTruthy()
-    const staleSelect = screen.getByLabelText('Audience for Requirements: Platform ownership')
+    const staleCheckbox = screen.getByLabelText(
+      'Recruiter audience for Requirements: Platform ownership',
+    )
 
     useJDAnalysisStore.getState().analyses[0] = {
       ...analysis,
-      requirements: [
-        {
-          ...analysis.requirements[0]!,
-          audiences: { inferred: ['recruiter'], asserted: ['candidate'] },
-        },
-      ],
+      requirements: [],
       warnings: [],
     }
 
-    fireEvent.change(staleSelect, {
-      target: { value: 'recruiter' },
-    })
+    fireEvent.click(staleCheckbox)
 
     expect(screen.getByRole('alert').textContent).toContain(
-      'That JD insight has already been reviewed.',
+      'That JD insight is no longer available for review.',
     )
-    expect(useJDAnalysisStore.getState().analyses[0]?.requirements[0]?.audiences.asserted).toEqual([
-      'candidate',
-    ])
+    expect(useJDAnalysisStore.getState().analyses[0]?.requirements).toEqual([])
   })
 
   it('uploads a PDF, populates the scan editor, and uses the scanned identity as the AI seed', async () => {

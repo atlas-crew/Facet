@@ -1,13 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useLinkedInStore } from '../../store/linkedinStore'
-import type { LinkedInProfileDraft } from '../../types/linkedin'
+import type { LinkedInOutputType, LinkedInProfileDraft } from '../../types/linkedin'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import { generateLinkedInProfile } from '../../utils/linkedinProfileGenerator'
 import './linkedin.css'
+
+const LINKEDIN_OUTPUT_OPTIONS: Array<{ value: LinkedInOutputType; label: string }> = [
+  { value: 'profile_summary', label: 'Profile summary' },
+  { value: 'recruiter_outreach', label: 'Recruiter outreach' },
+  { value: 'hiring_manager_outreach', label: 'Hiring manager outreach' },
+]
 
 const downloadDraft = (draft: LinkedInProfileDraft) => {
   const content = [
@@ -24,6 +31,12 @@ const downloadDraft = (draft: LinkedInProfileDraft) => {
     '',
     'Featured Highlights',
     ...draft.featuredHighlights.map((entry) => '- ' + entry),
+    ...(draft.outreachMessage
+      ? ['', 'Outreach Message', draft.outreachMessage]
+      : []),
+    ...(draft.outreachTalkingPoints?.length
+      ? ['', 'Outreach Talking Points', ...draft.outreachTalkingPoints.map((entry) => '- ' + entry)]
+      : []),
   ].join('\n')
 
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
@@ -39,11 +52,27 @@ const joinLines = (value: string[]): string => value.join('\n')
 const splitLines = (value: string): string[] =>
   value.split(/\n+/).map((entry) => entry.trim()).filter(Boolean)
 
+interface DraftListTextState {
+  draftId: string | null
+  topSkills: string
+  featuredHighlights: string
+  outreachTalkingPoints: string
+}
+
 export function LinkedInPage() {
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
+  const jdAnalyses = useJDAnalysisStore((state) => state.analyses)
   const { drafts, selectedDraftId, addDraft, updateDraft, deleteDraft, setSelectedDraftId } = useLinkedInStore()
   const [focus, setFocus] = useState('')
   const [audience, setAudience] = useState('')
+  const [outputType, setOutputType] = useState<LinkedInOutputType>('profile_summary')
+  const [useJobContext, setUseJobContext] = useState(true)
+  const [draftListText, setDraftListText] = useState<DraftListTextState>({
+    draftId: null,
+    topSkills: '',
+    featuredHighlights: '',
+    outreachTalkingPoints: '',
+  })
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
 
@@ -56,6 +85,21 @@ export function LinkedInPage() {
     () => drafts.find((draft) => draft.id === (selectedDraftId ?? drafts[0]?.id)) ?? null,
     [drafts, selectedDraftId],
   )
+
+  const activeDraftOutputType = activeDraft?.outputType ?? 'profile_summary'
+  const latestJDAnalysis = jdAnalyses[0] ?? null
+
+  useEffect(() => {
+    if (!activeDraft || draftListText.draftId === activeDraft.id) {
+      return
+    }
+    setDraftListText({
+      draftId: activeDraft.id,
+      topSkills: joinLines(activeDraft.topSkills),
+      featuredHighlights: joinLines(activeDraft.featuredHighlights),
+      outreachTalkingPoints: joinLines(activeDraft.outreachTalkingPoints ?? []),
+    })
+  }, [activeDraft, draftListText.draftId])
 
   const identityCounts = useMemo(() => {
     if (!currentIdentity) {
@@ -81,6 +125,7 @@ export function LinkedInPage() {
     const id = createId('linkedin-draft')
     addDraft({
       id,
+      outputType,
       name: 'New LinkedIn Draft',
       focus,
       audience,
@@ -109,6 +154,8 @@ export function LinkedInPage() {
       const generated = await generateLinkedInProfile(aiEndpoint, currentIdentity, {
         focus,
         audience,
+        outputType,
+        jdAnalysis: useJobContext ? latestJDAnalysis : null,
       })
 
       addDraft({
@@ -164,7 +211,7 @@ export function LinkedInPage() {
               <p className="linkedin-eyebrow">Phase 2</p>
               <h1>LinkedIn Profile Writer</h1>
               <p className="linkedin-copy">
-                Generate LinkedIn profile content directly from the applied identity model. No JD match report is required.
+                Generate LinkedIn profile or outreach content from the applied identity model and the latest match context when available.
               </p>
             </div>
             <button
@@ -185,6 +232,20 @@ export function LinkedInPage() {
 
           <div className="linkedin-grid">
             <label className="linkedin-field">
+              <span className="linkedin-label">Output</span>
+              <select
+                className="linkedin-input"
+                value={outputType}
+                onChange={(event) => setOutputType(event.target.value as LinkedInOutputType)}
+              >
+                {LINKEDIN_OUTPUT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="linkedin-field">
               <span className="linkedin-label">Focus</span>
               <input
                 className="linkedin-input"
@@ -202,6 +263,16 @@ export function LinkedInPage() {
                 placeholder="Recruiters, hiring managers, startup founders..."
               />
             </label>
+            {latestJDAnalysis ? (
+              <label className="linkedin-field linkedin-toggle-field">
+                <input
+                  type="checkbox"
+                  checked={useJobContext}
+                  onChange={(event) => setUseJobContext(event.target.checked)}
+                />
+                <span>Use latest match context</span>
+              </label>
+            ) : null}
           </div>
 
           {identityCounts ? (
@@ -210,6 +281,9 @@ export function LinkedInPage() {
               <span>{identityCounts.skills} skills</span>
               <span>{identityCounts.profiles} profiles</span>
               <span>{identityCounts.philosophy} philosophy snippets</span>
+              {latestJDAnalysis ? (
+                <span>{latestJDAnalysis.company} / {latestJDAnalysis.role}</span>
+              ) : null}
             </div>
           ) : null}
 
@@ -255,22 +329,69 @@ export function LinkedInPage() {
                   onChange={(event) => updateDraft(activeDraft.id, { about: event.target.value })}
                 />
               </label>
+              {activeDraftOutputType !== 'profile_summary' ? (
+                <label className="linkedin-field linkedin-field-span">
+                  <span className="linkedin-label">Outreach message</span>
+                  <textarea
+                    className="linkedin-textarea linkedin-textarea-lg"
+                    value={activeDraft.outreachMessage ?? ''}
+                    onChange={(event) =>
+                      updateDraft(activeDraft.id, { outreachMessage: event.target.value })
+                    }
+                  />
+                </label>
+              ) : null}
               <label className="linkedin-field">
                 <span className="linkedin-label">Top skills</span>
                 <textarea
                   className="linkedin-textarea"
-                  value={joinLines(activeDraft.topSkills)}
-                  onChange={(event) => updateDraft(activeDraft.id, { topSkills: splitLines(event.target.value) })}
+                  value={draftListText.topSkills}
+                  onChange={(event) =>
+                    setDraftListText((state) => ({ ...state, topSkills: event.target.value }))
+                  }
+                  onBlur={() =>
+                    updateDraft(activeDraft.id, { topSkills: splitLines(draftListText.topSkills) })
+                  }
                 />
               </label>
               <label className="linkedin-field">
                 <span className="linkedin-label">Featured highlights</span>
                 <textarea
                   className="linkedin-textarea"
-                  value={joinLines(activeDraft.featuredHighlights)}
-                  onChange={(event) => updateDraft(activeDraft.id, { featuredHighlights: splitLines(event.target.value) })}
+                  value={draftListText.featuredHighlights}
+                  onChange={(event) =>
+                    setDraftListText((state) => ({
+                      ...state,
+                      featuredHighlights: event.target.value,
+                    }))
+                  }
+                  onBlur={() =>
+                    updateDraft(activeDraft.id, {
+                      featuredHighlights: splitLines(draftListText.featuredHighlights),
+                    })
+                  }
                 />
               </label>
+              {activeDraftOutputType !== 'profile_summary' ? (
+                <label className="linkedin-field">
+                  <span className="linkedin-label">Outreach talking points</span>
+                  <textarea
+                    className="linkedin-textarea"
+                    value={draftListText.outreachTalkingPoints}
+                    onChange={(event) =>
+                      setDraftListText((state) => ({
+                        ...state,
+                        outreachTalkingPoints: event.target.value,
+                      }))
+                    }
+                    onBlur={() =>
+                      updateDraft(activeDraft.id, {
+                        outreachTalkingPoints: splitLines(draftListText.outreachTalkingPoints),
+                      })
+                    }
+                  />
+                </label>
+              ) : null}
             </div>
           </section>
         ) : (

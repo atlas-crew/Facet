@@ -8,11 +8,13 @@ import {
   resolveAudiences,
 } from '../types/audience'
 import {
+  buildAudienceReviewSummary,
   buildUnclassifiedAudienceSummary,
   filterInsights,
   formatAudienceLabel,
   notesForAudience,
   projectForAudience,
+  setAudienceOverrideForInsightAudiences,
   setAudienceOverrideForInsight,
   type UnclassifiedAudienceInsight,
 } from '../utils/audienceFilter'
@@ -213,6 +215,9 @@ describe('audience module — filter helpers', () => {
     const candidateView = projectForAudience(tagged, 'candidate')
     // Both gaps reach the candidate (gap default + high-severity overlap).
     expect(candidateView.gaps.map((g) => g.label).sort()).toEqual(['high gap', 'low gap'])
+
+    const internalView = projectForAudience(tagged, 'internal')
+    expect(internalView.evidenceMapping.topBullets.map((b) => b.id)).toEqual(['asset-strong'])
   })
 
   it('projectForAudience preserves untagged arrays (defense for partial fixtures)', () => {
@@ -469,6 +474,50 @@ describe('audience module — filter helpers', () => {
     expect(second.unclassifiedCount).toBe(2)
   })
 
+  it('caches audience review summaries until the analysis update stamp changes', () => {
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        id: 'analysis-review-summary-cache',
+        updatedAt: '2026-05-06T00:03:00.000Z',
+      }),
+      requirements: [
+        {
+          id: 'req-platform',
+          label: 'Platform ownership',
+          priority: 'core',
+          evidence: 'Owns distributed systems.',
+          tags: [],
+          keywords: [],
+          coverageScore: 0.8,
+          matchedAssetCount: 1,
+          matchedTags: [],
+          audiences: { inferred: ['recruiter'], asserted: null },
+        },
+      ],
+    }
+
+    const first = buildAudienceReviewSummary(analysis)
+    expect(buildAudienceReviewSummary(analysis)).toBe(first)
+
+    analysis.updatedAt = '2026-05-06T00:03:01.000Z'
+    analysis.requirements = [
+      ...analysis.requirements,
+      {
+        ...analysis.requirements[0]!,
+        id: 'req-scale',
+        label: 'Scale ownership',
+      },
+    ]
+
+    const second = buildAudienceReviewSummary(analysis)
+    expect(second).not.toBe(first)
+    expect(second.insights.map((insight) => insight.label)).toEqual([
+      'Requirements: Platform ownership',
+      'Requirements: Scale ownership',
+    ])
+  })
+
   it('applies manual audience overrides for unclassified insight review', () => {
     const analysis: JDAnalysis = {
       ...applyRulesBasedAudiences(baseAnalysis()),
@@ -556,6 +605,67 @@ describe('audience module — filter helpers', () => {
     expect(setAudienceOverrideForInsight(duplicateAudienceAnalysis, badInsight, 'candidate')).toBe(
       duplicateAudienceAnalysis,
     )
+
+    const invalidEvidenceInsight: UnclassifiedAudienceInsight = {
+      ...duplicateAudienceInsight,
+      collection: 'evidenceMapping.invalid' as UnclassifiedAudienceInsight['collection'],
+    }
+    expect(
+      setAudienceOverrideForInsightAudiences(duplicateAudienceAnalysis, invalidEvidenceInsight, [
+        'candidate',
+      ]),
+    ).toBe(duplicateAudienceAnalysis)
+
+    const outOfBoundsInsight: UnclassifiedAudienceInsight = {
+      ...duplicateAudienceInsight,
+      index: 999,
+    }
+    expect(
+      setAudienceOverrideForInsightAudiences(duplicateAudienceAnalysis, outOfBoundsInsight, [
+        'candidate',
+      ]),
+    ).toBe(duplicateAudienceAnalysis)
+  })
+
+  it('builds editable audience review insights and writes selected audiences to asserted tags', () => {
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences(baseAnalysis()),
+      requirements: [
+        {
+          id: 'req-platform',
+          label: 'Platform ownership',
+          priority: 'core',
+          evidence: 'Owns distributed systems.',
+          tags: [],
+          keywords: [],
+          coverageScore: 0.8,
+          matchedAssetCount: 1,
+          matchedTags: [],
+          audiences: { inferred: ['recruiter', 'hiring_manager'], asserted: null },
+        },
+      ],
+    }
+
+    const summary = buildAudienceReviewSummary(analysis)
+    expect(summary.unclassifiedCount).toBe(0)
+    expect(summary.insights[0]).toMatchObject({
+      key: 'analysis-1:requirements:0',
+      inferredAudiences: ['recruiter', 'hiring_manager'],
+      assertedAudiences: null,
+      effectiveAudiences: ['recruiter', 'hiring_manager'],
+      effectiveSource: 'inferred',
+    })
+
+    const updated = setAudienceOverrideForInsightAudiences(analysis, summary.insights[0]!, [
+      'internal',
+    ])
+
+    expect(updated.requirements[0]!.audiences.inferred).toEqual(['recruiter', 'hiring_manager'])
+    expect(updated.requirements[0]!.audiences.asserted).toEqual(['internal'])
+    expect(projectForAudience(updated, 'recruiter').requirements).toEqual([])
+    expect(projectForAudience(updated, 'internal').requirements.map((req) => req.id)).toEqual([
+      'req-platform',
+    ])
   })
 })
 

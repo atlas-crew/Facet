@@ -29,7 +29,7 @@ import type {
 //   - Stamped on every JDAnalysis at production time (analyzer pipeline) and at
 //     hydration time (jdAnalysisStore.sanitizeAnalysis).
 //   - `asserted` tags are *never* recomputed by rules. Only `inferred` is.
-export const AUDIENCE_RULES_VERSION = 'audience-rules.v1'
+export const AUDIENCE_RULES_VERSION = 'audience-rules.v2'
 
 // Default audience set per insight kind. Production audiences (candidate,
 // recruiter, hiring_manager, internal) only receive items whose effective
@@ -43,7 +43,7 @@ export const AUDIENCE_RULES_VERSION = 'audience-rules.v1'
 const DEFAULT_REQUIREMENT_AUDIENCES: AudienceTag[] = ['recruiter', 'hiring_manager']
 const DEFAULT_MATCHED_VECTOR_AUDIENCES: AudienceTag[] = ['internal', 'candidate']
 const DEFAULT_SKILL_MATCH_AUDIENCES: AudienceTag[] = ['recruiter', 'hiring_manager', 'candidate']
-const DEFAULT_EVIDENCE_AUDIENCES: AudienceTag[] = ['recruiter', 'hiring_manager']
+const DEFAULT_EVIDENCE_AUDIENCES: AudienceTag[] = ['internal', 'recruiter', 'hiring_manager']
 const DEFAULT_ADVANTAGE_AUDIENCES: AudienceTag[] = ['recruiter', 'hiring_manager']
 const DEFAULT_ADVANTAGE_HYPOTHESIS_AUDIENCES: AudienceTag[] = ['internal', 'candidate']
 const DEFAULT_GAP_AUDIENCES: AudienceTag[] = ['candidate']

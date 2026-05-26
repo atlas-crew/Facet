@@ -44,11 +44,12 @@ import {
   getIdentityEnrichmentProgress,
 } from '../../utils/identityEnrichment'
 import {
+  buildAudienceReviewSummary,
   buildUnclassifiedAudienceSummary,
   formatAudienceLabel,
-  setAudienceOverrideForInsight,
+  setAudienceOverrideForInsightAudiences,
 } from '../../utils/audienceFilter'
-import type { UnclassifiedAudienceInsight } from '../../utils/audienceFilter'
+import type { AudienceReviewInsight } from '../../utils/audienceFilter'
 import type { JDAnalysis } from '../../types/jdAnalysis'
 import { BulletConfidenceCard } from './BulletConfidenceCard'
 import { DraftSummaryCard } from './DraftSummaryCard'
@@ -191,10 +192,10 @@ export function IdentityPage() {
 
   const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
 
-  const unclassifiedAudienceItems = useMemo(
+  const audienceReviewItems = useMemo(
     () =>
       jdAnalyses.flatMap((analysis) =>
-        buildUnclassifiedAudienceSummary(analysis).insights.map((insight) => ({
+        buildAudienceReviewSummary(analysis).insights.map((insight) => ({
           analysis,
           insight,
         })),
@@ -202,22 +203,37 @@ export function IdentityPage() {
     [jdAnalyses],
   )
 
-  const handleRetagUnclassifiedInsight = useCallback(
-    (analysis: JDAnalysis, insight: UnclassifiedAudienceInsight, audience: AudienceTag) => {
+  const unclassifiedAudienceCount = useMemo(
+    () =>
+      jdAnalyses.reduce(
+        (total, analysis) => total + buildUnclassifiedAudienceSummary(analysis).unclassifiedCount,
+        0,
+      ),
+    [jdAnalyses],
+  )
+
+  const handleSetInsightAudiences = useCallback(
+    (analysis: JDAnalysis, insight: AudienceReviewInsight, audiences: AudienceTag[]) => {
       const currentAnalysis =
         useJDAnalysisStore.getState().analyses.find((entry) => entry.id === analysis.id) ?? analysis
-      const currentInsight = buildUnclassifiedAudienceSummary(currentAnalysis).insights.find(
+      const currentInsight = buildAudienceReviewSummary(currentAnalysis).insights.find(
         (entry) => entry.key === insight.key,
       )
       if (!currentInsight) {
         setPageNotice(null)
-        setPageError('That JD insight has already been reviewed.')
+        setPageError('That JD insight is no longer available for review.')
         return
       }
 
-      upsertAnalysis(setAudienceOverrideForInsight(currentAnalysis, currentInsight, audience))
+      upsertAnalysis(
+        setAudienceOverrideForInsightAudiences(currentAnalysis, currentInsight, audiences),
+      )
       setPageError(null)
-      setPageNotice(`Tagged "${currentInsight.label}" for ${formatAudienceLabel(audience)}.`)
+      setPageNotice(
+        `Saved audiences for "${currentInsight.label}": ${audiences
+          .map(formatAudienceLabel)
+          .join(', ')}.`,
+      )
     },
     [upsertAnalysis],
   )
@@ -1364,55 +1380,71 @@ export function IdentityPage() {
             </section>
           ) : null}
 
-          {unclassifiedAudienceItems.length > 0 ? (
+          {audienceReviewItems.length > 0 ? (
             <section className="identity-card identity-audience-review">
               <div className="identity-card-header">
                 <div>
                   <p className="identity-eyebrow">Audience Review</p>
-                  <h2>Review unclassified JD insights</h2>
+                  <h2>Review JD insight audiences</h2>
                   <p className="identity-muted">
-                    {unclassifiedAudienceItems.length}{' '}
-                    {unclassifiedAudienceItems.length === 1 ? 'insight needs' : 'insights need'} an
-                    audience before they appear in candidate, recruiter, hiring-manager, or internal
-                    projections.
+                    {unclassifiedAudienceCount}{' '}
+                    {unclassifiedAudienceCount === 1 ? 'insight needs' : 'insights need'} an
+                    audience. {audienceReviewItems.length}{' '}
+                    {audienceReviewItems.length === 1 ? 'tagged insight is' : 'tagged insights are'} editable.
                   </p>
                 </div>
               </div>
 
               <ul className="identity-audience-review-list">
-                {unclassifiedAudienceItems.map(({ analysis, insight }) => {
+                {audienceReviewItems.map(({ analysis, insight }) => {
                   const showInsightText = insight.text !== insightLabelDetail(insight.label)
+                  const selectedAudiences =
+                    insight.assertedAudiences && insight.assertedAudiences.length > 0
+                      ? insight.assertedAudiences.filter((audience) =>
+                          PRODUCTION_AUDIENCES.includes(audience),
+                        )
+                      : insight.effectiveAudiences.filter((audience) =>
+                          PRODUCTION_AUDIENCES.includes(audience),
+                        )
                   return (
                     <li className="identity-audience-review-item" key={insight.key}>
                       <div>
                         <p className="identity-audience-review-meta">{insight.analysisLabel}</p>
                         <h3>{insight.label}</h3>
                         {showInsightText ? <p>{insight.text}</p> : null}
+                        <p className="identity-audience-review-tags">
+                          Inferred: {insight.inferredAudiences.map(formatAudienceLabel).join(', ')}
+                          {insight.assertedAudiences && insight.assertedAudiences.length > 0
+                            ? ` | Asserted: ${insight.assertedAudiences.map(formatAudienceLabel).join(', ')}`
+                            : ' | Asserted: None'}
+                        </p>
                       </div>
 
-                      <label className="identity-field identity-audience-review-field">
-                        <span className="identity-label">Audience</span>
-                        <select
-                          className="identity-input"
-                          aria-label={`Audience for ${insight.label}`}
-                          value=""
-                          onChange={(event) => {
-                            const audience = event.target.value as AudienceTag
-                            if (PRODUCTION_AUDIENCES.includes(audience)) {
-                              handleRetagUnclassifiedInsight(analysis, insight, audience)
-                            }
-                          }}
-                        >
-                          <option value="" disabled hidden>
-                            Assign
-                          </option>
-                          {PRODUCTION_AUDIENCES.map((audience) => (
-                            <option key={audience} value={audience}>
-                              {formatAudienceLabel(audience)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <fieldset className="identity-audience-review-field">
+                        <legend className="identity-label">Audience</legend>
+                        {PRODUCTION_AUDIENCES.map((audience) => (
+                          <label className="identity-audience-review-option" key={audience}>
+                            <input
+                              type="checkbox"
+                              checked={selectedAudiences.includes(audience)}
+                              disabled={
+                                selectedAudiences.includes(audience) &&
+                                selectedAudiences.length === 1
+                              }
+                              aria-label={`${formatAudienceLabel(audience)} audience for ${insight.label}`}
+                              onChange={(event) => {
+                                const nextAudiences = event.target.checked
+                                  ? [...selectedAudiences, audience]
+                                  : selectedAudiences.filter((tag) => tag !== audience)
+                                if (nextAudiences.length > 0) {
+                                  handleSetInsightAudiences(analysis, insight, nextAudiences)
+                                }
+                              }}
+                            />
+                            <span>{formatAudienceLabel(audience)}</span>
+                          </label>
+                        ))}
+                      </fieldset>
                     </li>
                   )
                 })}
