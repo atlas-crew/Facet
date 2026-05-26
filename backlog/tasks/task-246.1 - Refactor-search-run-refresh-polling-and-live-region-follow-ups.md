@@ -4,6 +4,7 @@ title: Refactor search run refresh polling and live-region follow-ups
 status: To Do
 assignee: []
 created_date: '2026-05-26 04:24'
+updated_date: '2026-05-26 04:25'
 labels:
   - research
   - review-debt
@@ -21,7 +22,14 @@ ordinal: 8000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred non-blocking findings from TASK-246 independent review. Review artifact: .agents/reviews/review-20260526-002232.md.\n\nFindings deferred:\n- P2-002: applyResearchJobUpdate now contains dense search-run refresh completion logic; extract a finalizeRunRefreshReview helper.\n- P3-001: queueRunRefreshConfirmation and confirmRunRefresh duplicate prerequisite validation; extract shared validation.\n- P3-002: conditionally mounted aria-live regions may be missed by some screen readers; consider persistent live containers for confirmation/progress announcements.\n\nWhy deferred: TASK-246 blockers and behavior tests are resolved; these are maintainability/accessibility refinements that can land separately without changing the shipped run-refresh behavior.
+Deferred non-blocking findings from TASK-246 independent review. Review artifact: .agents/reviews/review-20260526-002232.md.
+
+Findings deferred:
+- P2-002: applyResearchJobUpdate now contains dense search-run refresh completion logic; extract a finalizeRunRefreshReview helper.
+- P3-001: queueRunRefreshConfirmation and confirmRunRefresh duplicate prerequisite validation; extract shared validation.
+- P3-002: conditionally mounted aria-live regions may be missed by some screen readers; consider persistent live containers for confirmation/progress announcements.
+
+Why deferred: TASK-246 blockers and behavior tests are resolved; these are maintainability/accessibility refinements that can land separately without changing the shipped run-refresh behavior.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
