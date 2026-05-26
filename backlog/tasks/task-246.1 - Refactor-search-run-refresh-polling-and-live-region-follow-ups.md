@@ -1,10 +1,10 @@
 ---
 id: TASK-246.1
 title: Refactor search run refresh polling and live-region follow-ups
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-26 04:24'
-updated_date: '2026-05-26 04:49'
+updated_date: '2026-05-26 05:25'
 labels:
   - research
   - review-debt
@@ -36,20 +36,26 @@ Why deferred: TASK-246 blockers and behavior tests are resolved; these are maint
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Run refresh completion review stamping is extracted from the polling callback without behavior changes.
-- [ ] #2 Run refresh prerequisite validation is shared between queue and confirm paths.
-- [ ] #3 Run refresh confirmation/progress announcements use a persistent live-region pattern or an equivalent accessible announcement mechanism.
-- [ ] #4 Remove the redundant Search Launcher effectiveProfile fallback without behavior changes.
+- [x] #1 Run refresh completion review stamping is extracted from the polling callback without behavior changes.
+- [x] #2 Run refresh prerequisite validation is shared between queue and confirm paths.
+- [x] #3 Run refresh confirmation/progress announcements use a persistent live-region pattern or an equivalent accessible announcement mechanism.
+- [x] #4 Remove the redundant Search Launcher effectiveProfile fallback without behavior changes.
 <!-- AC:END -->
 
+## Final Summary
 
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented follow-up cleanup for search run refresh: extracted completion review stamping into finalizeRunRefreshReview, shared queue/confirm context validation through a latest-store RunRefreshContext helper, moved confirmation/progress announcements to persistent live regions, removed the unreachable Search Launcher no-profile fallback, and strengthened regression coverage for no-profile gating, active-job dismissal, and live-region announcements.
+
+Verification: npm run format:files -- src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; npm run typecheck; npx vitest run src/test/ResearchPage.test.tsx; npm run lint -- src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; npm run format:files:check -- src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; specialist review artifacts .agents/reviews/review-20260526-010358.md, .agents/reviews/review-20260526-010813.md, .agents/reviews/review-20260526-011035.md with final source review P0/P1 clear; diff test audit .agents/reviews/test-audit-20260526-012344.md clean after Gemini fallback; npm run build passed with existing Vite large-chunk warning.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
