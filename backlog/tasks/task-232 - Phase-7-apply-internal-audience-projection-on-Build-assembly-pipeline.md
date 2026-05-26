@@ -1,11 +1,11 @@
 ---
 id: TASK-232
 title: 'Phase 7: apply internal audience projection on Build assembly pipeline'
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 20:28'
-updated_date: '2026-05-26 21:34'
+updated_date: '2026-05-26 22:19'
 labels:
   - audience-tagging
   - phase-7
@@ -53,4 +53,6 @@ The Build workspace assembles resumes from JDAnalysis + identity. Build artifact
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-26 Codex starting TASK-232 as part of three-surface audience push with TASK-231/TASK-236. Plan: inspect buildProjection/matchAssembler usage, project JDAnalysis to internal before Build extraction, cover internal-only vs candidate-only behavior with production-shaped fixtures, run gates/review/audit before close.
+
+Closed via fix(build): apply internal audience projection. Build projection now consumes the internal JDAnalysis projection before extracting vectors, evidence, notes, and internal warnings/watch-outs; evidence rules were bumped to v2 so Build keeps proof points while candidate-only content is filtered. Verification: buildProjection/audience tests, typecheck, lint, build, specialist review, and split diff-test audits.
 <!-- SECTION:NOTES:END -->
