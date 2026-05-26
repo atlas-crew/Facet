@@ -1,9 +1,11 @@
 ---
 id: TASK-174
 title: Harden AI export ingestion against prompt injection
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 10:30'
+updated_date: '2026-05-26 03:18'
 labels:
   - security
   - shepherding
@@ -98,6 +100,12 @@ TASK-157 builds the ingestion; this task adds the hardening layer on top. Best l
 - [ ] #7 Tests: benign input extracts correctly; injection payloads trigger warnings; output containing leakage is rejected
 - [ ] #8 Documented in security notes within the codebase
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation plan: harden supplemental AI export intake by adding delimiter-aware prompt serialization, client preview scanning/confirmation, token-budget validation, proxy-enforced paste token metadata, leakage-artifact rejection, focused regression tests, and security notes.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
