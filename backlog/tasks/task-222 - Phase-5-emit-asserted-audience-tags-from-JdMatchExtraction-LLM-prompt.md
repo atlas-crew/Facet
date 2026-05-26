@@ -1,11 +1,11 @@
 ---
 id: TASK-222
 title: 'Phase 5: emit asserted audience tags from JdMatchExtraction LLM prompt'
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 07:33'
-updated_date: '2026-05-26 06:36'
+updated_date: '2026-05-26 06:54'
 labels:
   - audience-tagging
   - ai
@@ -48,16 +48,24 @@ Keep `applyRulesBasedAudiences` running before AND after extraction for fallback
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-26 Codex starting TASK-222. Plan: map JdMatchExtraction prompt/schema/normalization, preserve asserted audience semantics (null vs [] vs populated), keep rules-based inference as fallback floor, add focused parser/pipeline tests, run gates plus independent review/audit, commit/close.
+
+2026-05-26 Codex completed TASK-222 implementation. JD match extraction prompt now asks for audiences.asserted on requirements, advantage hypotheses, positioning recommendations, gap focus, and warnings. Parser preserves asserted null vs [] vs populated tags, sanitizes malformed tags, supports legacy string note arrays, and carries hypothesis audiences through generated report advantages. Rules-based inference remains the floor through createJdAnalysisFromMatchArtifacts/applyRulesBasedAudiences.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented Phase 5 asserted audience extraction for JD matching. Updated the decomposition prompt contract, parser normalization, and advantage propagation so LLM asserted tags can enter the canonical JDAnalysis pipeline while rules-based inferred audiences remain intact. Added tests for prompt contract, valid/empty/malformed asserted semantics, omitted audience fallback, legacy string notes, malformed note validation, report advantage propagation, and JDAnalysis rules preservation. Verification: format:files, typecheck, focused jobMatch/JDAnalysis/audience tests, lint, build, independent source review PASS WITH ISSUES only P3 unused-import false positive, diff test audit no gaps.
+<!-- SECTION:FINAL_SUMMARY:END -->
