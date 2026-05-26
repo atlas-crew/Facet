@@ -1,9 +1,11 @@
 ---
 id: TASK-157
 title: Build free context source ingestion for onboarding
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-04-19 06:03'
+updated_date: '2026-05-26 01:46'
 labels:
   - shepherding
   - onboarding
@@ -62,6 +64,12 @@ Implement the "Import, Don't Recreate" principle from the shepherding design. At
 - [ ] #6 Context sources surfaced contextually later in the app (GitHub during project discussion, perf reviews when impact data is thin)
 - [ ] #7 Each source type has clear labeling explaining its value
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-157. Initial slice: read doc-26/doc-21 and current onboarding/extraction code; implement manual supplementary context sources for AI conversation export and brag doc text/file intake in Identity onboarding; wire accepted text into identity extraction as candidate-only supplemental context; keep resume-only flow working; add focused UI and extraction prompt tests; run scoped gates, independent review/audit, commit via cortex git commit, then close with receipts.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
