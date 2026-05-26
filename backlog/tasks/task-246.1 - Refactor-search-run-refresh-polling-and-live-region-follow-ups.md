@@ -1,10 +1,10 @@
 ---
 id: TASK-246.1
 title: Refactor search run refresh polling and live-region follow-ups
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-05-26 04:24'
-updated_date: '2026-05-26 04:45'
+updated_date: '2026-05-26 04:49'
 labels:
   - research
   - review-debt
