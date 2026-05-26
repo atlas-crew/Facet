@@ -276,6 +276,13 @@ function getSectionContainer(title: string) {
   return heading?.closest('.prep-live-section') ?? null
 }
 
+function querySectionContainer(title: string) {
+  const heading = screen
+    .queryAllByRole('heading', { name: title })
+    .find((candidate) => candidate.closest('.prep-live-section'))
+  return heading?.closest('.prep-live-section') ?? null
+}
+
 function getNavLink(title: string) {
   return screen
     .getAllByRole('button')
@@ -422,6 +429,81 @@ describe('PrepLiveMode', () => {
       getSectionContainer('Reliability metrics')?.querySelector('.prep-live-budget-badge')
         ?.textContent,
     ).toBe('1.5m')
+  })
+
+  it('uses deck-scoped sections for card grouping before falling back to categories', () => {
+    const sectionedDeck: PrepDeck = {
+      ...mockDeck,
+      cards: [
+        mockDeck.cards[0],
+        {
+          id: 'anchor-card',
+          category: 'technical',
+          kind: 'anchor',
+          title: 'Platform rebuild anchor',
+          tags: ['system-design'],
+          storyBlocks: [{ label: 'problem', text: 'The platform carried tenant coupling.' }],
+          subDecisions: [
+            {
+              id: 'decision-1',
+              title: 'Choose staged migration',
+              blocks: [{ label: 'solution', text: 'Moved traffic behind checkpoints.' }],
+            },
+            {
+              id: 'decision-2',
+              title: 'Limit dual writes',
+              blocks: [{ label: 'solution', text: 'Instrumented mismatch windows.' }],
+            },
+            {
+              id: 'decision-3',
+              title: 'Sequence tenants',
+              blocks: [{ label: 'result', text: 'Reduced rollout blast radius.' }],
+            },
+          ],
+        },
+        {
+          id: 'scenario-card',
+          category: 'situational',
+          kind: 'scenario',
+          title: 'How would you sequence the rollout?',
+          tags: ['scenario'],
+          whyLikely: 'The round is system-design heavy.',
+        },
+        {
+          id: 'deep-dive-card',
+          category: 'technical',
+          kind: 'deep-dive',
+          title: 'Migration details',
+          tags: ['deep-dive'],
+          notes: 'Have the low-level migration facts ready.',
+        },
+      ],
+      sections: [
+        { id: 'panel-intro', title: 'Panel Intro', cardIds: ['card-1'] },
+        { id: 'anchor', title: 'Anchor', cardIds: ['anchor-card'] },
+        { id: 'scenarios', title: 'Scenarios', cardIds: ['scenario-card'] },
+      ],
+    }
+
+    const { container } = render(<PrepLiveMode deck={sectionedDeck} />)
+
+    const anchorSection = getSectionContainer('Anchor')
+    const scenarioSection = getSectionContainer('Scenarios')
+    const fallbackSection = getSectionContainer('Technical Topics')
+    expect(querySectionContainer('Panel Intro')).toBeNull()
+    expect(anchorSection?.textContent).toContain('Platform rebuild anchor')
+    expect(scenarioSection?.textContent).toContain('How would you sequence the rollout?')
+    expect(fallbackSection?.textContent).toContain('Migration details')
+    const sectionsWithIntroCard = Array.from(
+      container.querySelectorAll('.prep-live-section'),
+    ).filter((section) => section.textContent?.includes('Tell me about yourself'))
+    expect(sectionsWithIntroCard).toHaveLength(1)
+
+    const liveHeadings = Array.from(
+      container.querySelectorAll('.prep-live-section h2, .prep-live-section h3'),
+    ).map((node) => node.textContent)
+    expect(liveHeadings.indexOf('Anchor')).toBeLessThan(liveHeadings.indexOf('Scenarios'))
+    expect(liveHeadings.indexOf('Scenarios')).toBeLessThan(liveHeadings.indexOf('Technical Topics'))
   })
 
   it('supports search, timer, and section shortcuts', () => {

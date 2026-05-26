@@ -598,6 +598,12 @@ export interface PrepCardStudyState {
   lastReviewedAt?: string
 }
 
+export interface PrepDeckSection {
+  id: string
+  title: string
+  cardIds: string[]
+}
+
 export interface PrepDeck {
   id: string
   durableMeta?: DurableMetadata
@@ -648,6 +654,7 @@ export interface PrepDeck {
   contractViolations?: PrepContractViolation[]
   openerCardId?: string
   closerCardId?: string
+  sections?: PrepDeckSection[]
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string

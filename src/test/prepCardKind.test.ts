@@ -20,7 +20,13 @@ import {
   parsePrepScriptKind,
   resolvePrepCardKind,
 } from '../types/prep'
-import type { PrepAnchorSubDecision, PrepCard, PrepCardBase, PrepCardKind } from '../types/prep'
+import type {
+  PrepAnchorSubDecision,
+  PrepCard,
+  PrepCardBase,
+  PrepCardKind,
+  PrepDeckSection,
+} from '../types/prep'
 
 const guardByKind = {
   opener: isOpenerCard,
@@ -216,5 +222,15 @@ describe('prep card kind helpers', () => {
 
     expect(isAnchorCard(card)).toBe(true)
     expect(card.subDecisions).toEqual(subDecisions)
+  })
+
+  it('models deck-scoped sections as ordered card id groups', () => {
+    const sections = [
+      { id: 'anchor', title: 'Anchor', cardIds: ['anchor-card'] },
+      { id: 'scenarios', title: 'Scenarios', cardIds: ['scenario-card-1', 'scenario-card-2'] },
+    ] satisfies PrepDeckSection[]
+
+    expect(sections[0].title).toBe('Anchor')
+    expect(sections[1].cardIds).toEqual(['scenario-card-1', 'scenario-card-2'])
   })
 })

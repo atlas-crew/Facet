@@ -17,6 +17,7 @@ import type {
   PrepContextGap,
   PrepContextGapPriority,
   PrepDeck,
+  PrepDeckSection,
   PrepCategory,
   PrepDeepDive,
   PrepFollowUp,
@@ -68,6 +69,7 @@ import {
   isPrepStoryVariantPracticeKey,
   parsePrepStoryVariantPracticeKey,
 } from '../utils/prepCardContent'
+import { claimPrepDeckSectionCardIds, createPrepDeckSectionId } from '../utils/prepDeckSections'
 
 const LEGACY_STORAGE_KEY = 'facet-prep-data'
 
@@ -104,6 +106,7 @@ interface CreateDeckInput {
   contractViolations?: PrepContractViolation[]
   openerCardId?: string
   closerCardId?: string
+  sections?: PrepDeckSection[]
   roundNumber?: number
   roundDebriefs?: PrepRoundDebrief[]
   generatedAt?: string
@@ -523,6 +526,39 @@ function sanitizeStoryVariants(
       },
     ]
   })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeDeckSections(
+  sections: PrepDeckSection[] | undefined,
+  cardIds: Set<string>,
+  options: SanitizeOptions = {},
+): PrepDeckSection[] | undefined {
+  if (!Array.isArray(sections)) return undefined
+  const seenSectionIds = new Set<string>()
+  const claimedCardIds = new Set<string>()
+  const sanitized = sections.flatMap((section) => {
+    if (!section || typeof section !== 'object') return []
+    const record = section as Partial<PrepDeckSection>
+    const title = sanitizeText(record.title, options)
+    if (!title) return []
+
+    const validCardIds = claimPrepDeckSectionCardIds(
+      sanitizeIdentifierList(record.cardIds),
+      cardIds,
+      claimedCardIds,
+    )
+    if (!validCardIds) return []
+
+    const id = createPrepDeckSectionId({
+      id: sanitizeIdentifier(record.id),
+      title,
+      seenIds: seenSectionIds,
+    })
+
+    return [{ id, title, cardIds: validCardIds }]
+  })
+
   return sanitized.length > 0 ? sanitized : undefined
 }
 
@@ -1104,6 +1140,8 @@ function sanitizeDeck(
     closerCardId && closerCardId !== resolvedOpenerCardId && cardsById.has(closerCardId)
       ? closerCardId
       : undefined
+  const cardIds = new Set(cards.map((card) => card.id))
+  const sections = sanitizeDeckSections(deck.sections, cardIds, options)
   const studyProgress = Object.fromEntries(
     Object.entries(deck.studyProgress ?? {}).flatMap(([reviewKey, state]) => {
       if (
@@ -1178,6 +1216,7 @@ function sanitizeDeck(
     contractViolations: sanitizeContractViolations(deck.contractViolations),
     openerCardId: resolvedOpenerCardId,
     closerCardId: resolvedCloserCardId,
+    sections,
     generatedAt: deck.generatedAt,
     updatedAt: timestamp,
     cards,
@@ -1312,6 +1351,7 @@ function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {
     contextGaps: sanitizeContextGaps(deck.contextGaps),
     contextGapAnswers: sanitizeContextGapAnswers(deck.contextGapAnswers),
     contractViolations: sanitizeContractViolations(deck.contractViolations),
+    sections: sanitizeDeckSections(deck.sections, new Set(cards.map((card) => card.id))),
     cards,
     studyProgress,
   }
@@ -1426,6 +1466,7 @@ export const usePrepStore = create<PrepState>()((set, get) => ({
       contractViolations: input.contractViolations,
       openerCardId: input.openerCardId,
       closerCardId: input.closerCardId,
+      sections: input.sections,
       roundNumber: input.roundNumber,
       roundDebriefs: input.roundDebriefs,
       generatedAt: input.generatedAt,

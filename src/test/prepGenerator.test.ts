@@ -462,6 +462,8 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('3 to 5 nested technical decisions')
     expect(userPrompt).toContain('pushbackResponse for interviewer skepticism')
     expect(userPrompt).toContain('honestTradeoff for the credible downside')
+    expect(userPrompt).toContain('When emitting sections, every cardId must reference')
+    expect(userPrompt).toContain('emit sections titled "Anchor", "Scenarios", and "Deep Dives"')
     expect(userPrompt).toContain('decisionTree or phasedFramework')
     expect(userPrompt).toContain('option, whenRight, and tradeoff columns')
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
@@ -483,6 +485,7 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('"pushbackLabel": "optional string"')
     expect(systemPrompt).toContain('"storyVariants"')
     expect(systemPrompt).toContain('"subDecisions"')
+    expect(systemPrompt).toContain('"sections"')
     expect(userPrompt).toContain('add pushbackScript as the full expanded same-question answer')
     expect(userPrompt).toContain('Do not use pushbackScript for short Q&A follow-ups')
     expect(userPrompt).toContain('add storyVariants with 2 to 3 options')
@@ -776,6 +779,300 @@ describe('generateInterviewPrep', () => {
         coachingNote: "If unsure who you're talking to, ask how they connect to the role.",
       }),
     )
+  })
+
+  it('builds panel deck sections before technical fallback when interviewers are present', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            id: 'alice-card',
+            category: 'technical',
+            kind: 'anchor',
+            title: 'Alice platform anchor',
+            tags: ['system-design'],
+            interviewerIds: ['iv-1'],
+            storyBlocks: [{ label: 'problem', text: 'The platform was coupled.' }],
+            subDecisions: [
+              { title: 'Stage migration', blocks: [{ label: 'solution', text: 'Moved safely.' }] },
+              {
+                title: 'Limit blast radius',
+                blocks: [{ label: 'result', text: 'Safer rollout.' }],
+              },
+              { title: 'Measure risk', blocks: [{ label: 'result', text: 'Found gaps early.' }] },
+            ],
+          },
+          {
+            id: 'bob-card',
+            category: 'situational',
+            kind: 'scenario',
+            title: 'Bob rollout scenario',
+            tags: ['scenario'],
+            interviewerIds: ['iv-2'],
+            whyLikely: 'Bob owns the rollout path.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      pipelineEntryContext: {
+        company: 'Acme',
+        role: 'Staff Engineer',
+        tier: '1',
+        status: 'interviewing',
+        appMethod: 'direct-apply',
+        response: 'interview-scheduled',
+        formats: ['system-design'],
+        round: {
+          id: 'round-42',
+          label: 'Technical panel',
+          format: 'system-design',
+          interviewers: [
+            { id: 'iv-1', name: 'Alice', title: 'Principal' },
+            { id: 'iv-2', name: 'Bob', title: 'Staff Engineer' },
+            { id: 'iv-3', name: 'Eve', title: 'Architect' },
+          ],
+        },
+      },
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
+    })
+
+    expect(result.deck.sections).toEqual([
+      { id: 'iv-1', title: 'Alice', cardIds: ['alice-card'] },
+      { id: 'iv-2', title: 'Bob', cardIds: ['bob-card'] },
+    ])
+  })
+
+  it('passes through valid model-provided sections', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        sections: [
+          null,
+          { id: 'missing-title', cardIds: ['first-card'] },
+          { title: 'Missing cards' },
+          { title: 'Custom Flow', cardIds: ['first-card', 'second-card'] },
+        ],
+        cards: [
+          {
+            id: 'first-card',
+            category: 'technical',
+            kind: 'story',
+            title: 'First proof point',
+            tags: ['technical'],
+            notes: 'Concrete technical proof point.',
+          },
+          {
+            id: 'second-card',
+            category: 'situational',
+            kind: 'scenario',
+            title: 'Second scenario',
+            tags: ['scenario'],
+            whyLikely: 'The round is scenario-heavy.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
+    })
+
+    expect(result.contractViolations).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: expect.stringContaining('sections') }),
+      ]),
+    )
+    expect(result.deck.sections).toEqual([
+      {
+        id: 'prep-deck-section-custom-flow',
+        title: 'Custom Flow',
+        cardIds: ['first-card', 'second-card'],
+      },
+    ])
+  })
+
+  it('keeps duplicate model card ids unique while sections resolve to the first card', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        sections: [{ title: 'Duplicate Id Section', cardIds: ['dup-card'] }],
+        cards: [
+          {
+            id: 'dup-card',
+            category: 'technical',
+            kind: 'story',
+            title: 'First duplicate id card',
+            tags: ['technical'],
+            notes: 'First card keeps the provided id.',
+          },
+          {
+            id: 'dup-card',
+            category: 'technical',
+            kind: 'story',
+            title: 'Second duplicate id card',
+            tags: ['technical'],
+            notes: 'Second card is renamed.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'hm-screen',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
+    })
+
+    expect(result.deck.cards.find((card) => card.title === 'First duplicate id card')?.id).toBe(
+      'dup-card',
+    )
+    expect(result.deck.cards.find((card) => card.title === 'Second duplicate id card')?.id).toBe(
+      'dup-card-2',
+    )
+    expect(result.deck.sections).toEqual([
+      {
+        id: 'prep-deck-section-duplicate-id-section',
+        title: 'Duplicate Id Section',
+        cardIds: ['dup-card'],
+      },
+    ])
+  })
+
+  it('repairs model sections by keeping duplicate card ownership in the first section', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        sections: [
+          { title: 'First Section', cardIds: ['first-card', 'second-card'] },
+          { title: 'Second Section', cardIds: ['first-card', 'third-card'] },
+        ],
+        cards: [
+          {
+            id: 'first-card',
+            category: 'technical',
+            kind: 'story',
+            title: 'First card',
+            tags: ['technical'],
+            notes: 'First proof point.',
+          },
+          {
+            id: 'second-card',
+            category: 'technical',
+            kind: 'story',
+            title: 'Second card',
+            tags: ['technical'],
+            notes: 'Second proof point.',
+          },
+          {
+            id: 'third-card',
+            category: 'situational',
+            kind: 'scenario',
+            title: 'Third card',
+            tags: ['scenario'],
+            whyLikely: 'The round is scenario-heavy.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'hm-screen',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
+    })
+
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'sections[1].cardIds[0]',
+          kind: 'invalid-field',
+        }),
+      ]),
+    )
+    expect(result.deck.sections).toEqual([
+      {
+        id: 'prep-deck-section-first-section',
+        title: 'First Section',
+        cardIds: ['first-card', 'second-card'],
+      },
+      {
+        id: 'prep-deck-section-second-section',
+        title: 'Second Section',
+        cardIds: ['third-card'],
+      },
+    ])
+  })
+
+  it('does not build technical fallback sections for non-technical rounds', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Hiring Manager Prep',
+        cards: [
+          {
+            category: 'technical',
+            kind: 'anchor',
+            title: 'Technical anchor should stay unsectioned',
+            tags: ['system-design'],
+            storyBlocks: [{ label: 'problem', text: 'The platform was coupled.' }],
+            subDecisions: [
+              { title: 'Stage migration', blocks: [{ label: 'solution', text: 'Moved safely.' }] },
+              {
+                title: 'Limit blast radius',
+                blocks: [{ label: 'result', text: 'Safer rollout.' }],
+              },
+              { title: 'Measure risk', blocks: [{ label: 'result', text: 'Found gaps early.' }] },
+            ],
+          },
+          {
+            category: 'situational',
+            kind: 'scenario',
+            title: 'Scenario should stay unsectioned',
+            tags: ['scenario'],
+            whyLikely: 'The hiring manager may ask about judgment.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'hm-screen',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: { resume: { basics: { name: 'Alex Example' } } },
+    })
+
+    expect(result.deck.sections).toBeUndefined()
   })
 
   it('normalizes rich card fields and deck-level guidance from the AI response', async () => {
@@ -1562,6 +1859,94 @@ describe('generateInterviewPrep', () => {
     expect(result.contractViolations).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ field: 'subDecisions' })]),
     )
+  })
+
+  it('falls back to technical deck sections when generated sections reference missing cards', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        sections: [{ id: 'bad-section', title: 'Bad Section', cardIds: ['missing-card'] }],
+        cards: [
+          {
+            category: 'technical',
+            kind: 'anchor',
+            title: 'Platform migration anchor',
+            tags: ['system-design'],
+            storyBlocks: [{ label: 'problem', text: 'The platform carried tenant coupling.' }],
+            subDecisions: [
+              {
+                title: 'Choose staged migration',
+                blocks: [{ label: 'solution', text: 'Moved traffic behind checkpoints.' }],
+              },
+              {
+                title: 'Limit dual writes',
+                blocks: [{ label: 'solution', text: 'Instrumented mismatch windows.' }],
+              },
+              {
+                title: 'Sequence tenants',
+                blocks: [{ label: 'result', text: 'Reduced rollout blast radius.' }],
+              },
+            ],
+          },
+          {
+            category: 'situational',
+            kind: 'scenario',
+            title: 'How would you sequence the rollout?',
+            tags: ['scenario'],
+            whyLikely: 'The round is system-design heavy.',
+          },
+          {
+            category: 'technical',
+            kind: 'deep-dive',
+            title: 'Migration details',
+            tags: ['deep-dive'],
+            notes: 'Have the low-level migration facts ready.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    const cardsByTitle = new Map(result.deck.cards.map((card) => [card.title, card.id]))
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'sections[0].cardIds[0]',
+          kind: 'invalid-field',
+        }),
+      ]),
+    )
+    expect(result.deck.sections).toEqual([
+      {
+        id: 'prep-deck-section-anchor',
+        title: 'Anchor',
+        cardIds: [cardsByTitle.get('Platform migration anchor')],
+      },
+      {
+        id: 'prep-deck-section-scenarios',
+        title: 'Scenarios',
+        cardIds: [cardsByTitle.get('How would you sequence the rollout?')],
+      },
+      {
+        id: 'prep-deck-section-deep-dives',
+        title: 'Deep Dives',
+        cardIds: [cardsByTitle.get('Migration details')],
+      },
+    ])
   })
 
   it('drops malformed scenario decision nodes and phased framework phases', async () => {

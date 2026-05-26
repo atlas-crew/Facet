@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { migratePrepState, usePrepStore } from '../store/prepStore'
 import { resolveStorage } from '../store/storage'
 import { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+import type { PrepDeck } from '../types/prep'
 import {
   getPrepPushbackPracticeKey,
   getPrepStoryVariantPracticeKey,
@@ -133,6 +134,7 @@ describe('prepStore', () => {
       },
     ])
     expect(state.decks[0].contextGapAnswers).toEqual({ 'gap-1': 'Wanted broader ownership.' })
+    expect(state.decks[0].sections).toBeUndefined()
     expect(state.decks[0].companyIntel).toEqual({
       whatTheyDo: 'Platform SaaS',
       scale: '1,200 employees',
@@ -284,6 +286,94 @@ describe('prepStore', () => {
         },
       ],
     })
+  })
+
+  it('normalizes deck sections and drops missing or duplicate card ownership', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Acme Staff Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      cards: [
+        {
+          id: 'card-anchor',
+          category: 'technical',
+          kind: 'story',
+          title: 'Anchor story',
+          tags: [],
+        },
+        {
+          id: 'card-scenario',
+          category: 'situational',
+          kind: 'story',
+          title: 'Scenario story',
+          tags: [],
+        },
+      ],
+      sections: [
+        null,
+        123,
+        {
+          id: ' anchor ',
+          title: ' Anchor ',
+          cardIds: ['card-anchor', 'card-anchor', 'missing-card'],
+        },
+        { id: 'untitled', title: ' ', cardIds: ['card-scenario'] },
+        { id: 'duplicate', title: ' Duplicate ', cardIds: ['card-anchor'] },
+        { id: 'anchor', title: ' Scenarios ', cardIds: ['card-scenario'] },
+      ] as unknown as PrepDeck['sections'],
+    })
+
+    const deck = usePrepStore.getState().decks.find((entry) => entry.id === deckId)
+    expect(deck?.sections).toEqual([
+      { id: 'anchor', title: 'Anchor', cardIds: ['card-anchor'] },
+      { id: 'anchor-2', title: 'Scenarios', cardIds: ['card-scenario'] },
+    ])
+
+    const [exportedDeck] = usePrepStore.getState().exportDecks()
+    expect(exportedDeck.sections).toEqual(deck?.sections)
+  })
+
+  it('collapses empty deck section arrays and sanitizes section updates', () => {
+    const deckId = usePrepStore.getState().createDeck({
+      title: 'Acme Staff Prep',
+      company: 'Acme',
+      role: 'Staff Engineer',
+      cards: [
+        {
+          id: 'card-one',
+          category: 'technical',
+          kind: 'story',
+          title: 'Technical story',
+          tags: [],
+        },
+        {
+          id: 'card-two',
+          category: 'situational',
+          kind: 'story',
+          title: 'Scenario story',
+          tags: [],
+        },
+      ],
+      sections: [],
+    })
+
+    expect(
+      usePrepStore.getState().decks.find((entry) => entry.id === deckId)?.sections,
+    ).toBeUndefined()
+
+    usePrepStore.getState().updateDeck(deckId, {
+      sections: [
+        null,
+        { id: 'bad-section', title: '', cardIds: ['card-one'] },
+        { id: 'valid-section', title: 'Valid Section', cardIds: ['card-one', 'missing'] },
+        { id: 'second-section', title: 'Second Section', cardIds: ['card-two'] },
+      ] as unknown as PrepDeck['sections'],
+    })
+
+    expect(usePrepStore.getState().decks.find((entry) => entry.id === deckId)?.sections).toEqual([
+      { id: 'valid-section', title: 'Valid Section', cardIds: ['card-one'] },
+      { id: 'second-section', title: 'Second Section', cardIds: ['card-two'] },
+    ])
   })
 
   it('threads interviewers through createDeck and links them to cards by id', () => {

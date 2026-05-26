@@ -3,6 +3,7 @@ import type {
   PrepCard,
   PrepCategory,
   PrepDeck,
+  PrepDeckSection,
   PrepMetric,
   PrepQuestionToAsk,
   PrepStackAlignmentRow,
@@ -76,6 +77,7 @@ const DEFAULT_CARD_BUDGETS: Record<PrepCategory, number> = {
   metrics: 1.5,
   situational: 3,
 }
+const MIXED_SECTION_CARD_BUDGET_MINUTES = DEFAULT_CARD_BUDGETS.behavioral
 export const PREP_ANSWER_TEMPLATE_CATEGORIES = new Set<PrepCategory>(['technical', 'situational'])
 const NUMBERS_TO_KNOW_GROUPS = {
   candidate: 'Your Work',
@@ -169,6 +171,118 @@ function buildCardItems(cards: PrepCard[]): PrepCheatsheetItem[] {
     cardId: card.id,
     category: card.category,
   }))
+}
+
+function getCardSectionGroup(cards: PrepCard[]): PrepCheatsheetGroup {
+  // Intel and technical mixed sections are surfaced by priority; landmines only get their
+  // specialized group when the entire section shares that role.
+  if (
+    cards.some(
+      (card) =>
+        card.kind === 'intel' ||
+        (card.tags ?? []).some((tag) => tag.trim().toLowerCase() === 'intel'),
+    )
+  ) {
+    return 'Intel'
+  }
+  if (
+    cards.every((card) => (card.tags ?? []).some((tag) => tag.trim().toLowerCase() === 'landmine'))
+  ) {
+    return 'Landmines'
+  }
+  if (
+    cards.some(
+      (card) =>
+        card.category === 'technical' ||
+        card.category === 'situational' ||
+        card.kind === 'anchor' ||
+        card.kind === 'scenario' ||
+        card.kind === 'deep-dive',
+    )
+  ) {
+    return 'Technical'
+  }
+  return 'Core'
+}
+
+function getSharedSectionCategory(cards: PrepCard[]): PrepCategory | undefined {
+  const firstCategory = cards[0]?.category
+  if (!firstCategory) return undefined
+  return cards.every((card) => card.category === firstCategory) ? firstCategory : undefined
+}
+
+function getDeckSectionDescription(cards: PrepCard[]): string {
+  if (cards.some((card) => card.kind === 'anchor')) {
+    return 'The umbrella technical narrative and its supporting decisions.'
+  }
+  if (cards.some((card) => card.kind === 'scenario')) {
+    return 'Scenario questions, tradeoffs, and judgment calls grouped for this round.'
+  }
+  if (cards.some((card) => card.kind === 'deep-dive')) {
+    return 'Technical details and follow-up facts to have ready for deeper questioning.'
+  }
+  if (
+    cards.some(
+      (card) =>
+        card.kind === 'intel' ||
+        (card.tags ?? []).some((tag) => tag.trim().toLowerCase() === 'intel'),
+    )
+  ) {
+    return 'Interviewer-specific intel and tuned talking points for this round.'
+  }
+  return 'Round-specific cards grouped by this prep deck.'
+}
+
+function buildDeckScopedCardSections(
+  deck: PrepDeck,
+  cards: PrepCard[],
+): { sections: PrepCheatsheetSection[]; assignedCardIds: Set<string> } {
+  const cardsById = new Map(cards.map((card) => [card.id, card]))
+  const assignedCardIds = new Set<string>()
+  const seenSectionIds = new Set<string>()
+  const deckSections = Array.isArray(deck.sections) ? deck.sections : []
+  const sections = deckSections.flatMap((deckSection): PrepCheatsheetSection[] => {
+    if (!deckSection || typeof deckSection !== 'object') return []
+    const record = deckSection as Partial<PrepDeckSection>
+    const title = typeof record.title === 'string' ? record.title : ''
+    const sectionCardIds = Array.isArray(record.cardIds) ? record.cardIds : []
+    if (!title || sectionCardIds.length === 0) return []
+    const sectionCards = sectionCardIds.flatMap((cardId) => {
+      if (typeof cardId !== 'string') return []
+      if (assignedCardIds.has(cardId)) return []
+      const card = cardsById.get(cardId)
+      if (!card) return []
+      if (card.category === 'opener') return []
+      assignedCardIds.add(cardId)
+      return [card]
+    })
+    if (sectionCards.length === 0) return []
+
+    const sectionCategory = getSharedSectionCategory(sectionCards)
+    const fallbackBudget = sectionCategory
+      ? DEFAULT_CARD_BUDGETS[sectionCategory]
+      : MIXED_SECTION_CARD_BUDGET_MINUTES
+    const stableId = makeStableSectionId('deck-section-', record.id || title, seenSectionIds)
+
+    return [
+      withSectionMeta(deck, {
+        id: stableId,
+        title,
+        description: getDeckSectionDescription(sectionCards),
+        items: buildCardItems(sectionCards),
+        answerTemplate: sectionCards.some((card) =>
+          PREP_ANSWER_TEMPLATE_CATEGORIES.has(card.category),
+        )
+          ? (sanitizeText(deck.answerTemplate) ?? undefined)
+          : undefined,
+        timeBudgetMinutes: sumCardTimeBudgets(sectionCards, fallbackBudget),
+        group: getCardSectionGroup(sectionCards),
+        sectionCategory,
+      }),
+    ]
+  })
+
+  return { sections, assignedCardIds }
 }
 
 function buildQuestionsItems(questions: PrepQuestionToAsk[]): PrepCheatsheetItem[] {
@@ -319,6 +433,7 @@ function withSectionMeta(
     description: string
     items: PrepCheatsheetItem[]
     timeBudgetMinutes?: number
+    answerTemplate?: string
     guidance?: string
     group: PrepCheatsheetGroup
     sectionCategory?: PrepCategory
@@ -399,10 +514,12 @@ function getOpenerSectionMeta(
 export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSection[] {
   // Imported decks can briefly exist before store normalization restores cards. Keep cheatsheet derivation resilient during that window.
   const cards = Array.isArray(deck.cards) ? deck.cards : []
-  const landmineCards = cards.filter((card) =>
+  const { sections: deckScopedSections, assignedCardIds } = buildDeckScopedCardSections(deck, cards)
+  const unassignedCards = cards.filter((card) => !assignedCardIds.has(card.id))
+  const landmineCards = unassignedCards.filter((card) =>
     (card.tags ?? []).some((tag) => tag.trim().toLowerCase() === 'landmine'),
   )
-  const cardsByCategory = cards
+  const cardsByCategory = unassignedCards
     .filter((card) => !landmineCards.includes(card))
     .reduce<Record<PrepCategory, PrepCard[]>>(
       (map, card) => {
@@ -514,6 +631,7 @@ export function derivePrepCheatsheetSections(deck: PrepDeck): PrepCheatsheetSect
     .map(({ section }) => section)
 
   sections.push(...openerSections)
+  sections.push(...deckScopedSections)
 
   if (landmineCards.length > 0) {
     sections.push(

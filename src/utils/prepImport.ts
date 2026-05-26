@@ -6,6 +6,7 @@ import type {
   PrepConditional,
   PrepDecisionTreeNode,
   PrepDeck,
+  PrepDeckSection,
   PrepMetric,
   PrepNumbersToKnow,
   PrepPhasedFrameworkPhase,
@@ -23,6 +24,7 @@ import {
 } from '../types/prep'
 import { INTERVIEW_FORMAT_VALUES } from '../types/pipeline'
 import { createId } from './idUtils'
+import { claimPrepDeckSectionCardIds, createPrepDeckSectionId } from './prepDeckSections'
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
 const now = () => new Date().toISOString()
@@ -229,6 +231,34 @@ function validateStoryVariants(raw: unknown): PrepStoryVariant[] | undefined {
     ]
   })
   return variants.length > 0 ? variants : undefined
+}
+
+function validateDeckSections(raw: unknown, cardIds: Set<string>): PrepDeckSection[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seenSectionIds = new Set<string>()
+  const claimedCardIds = new Set<string>()
+  const sections = raw.flatMap((section) => {
+    if (!section || typeof section !== 'object') return []
+    const record = section as Record<string, unknown>
+    const title = typeof record.title === 'string' ? record.title.trim() : ''
+    if (!title) return []
+
+    const sectionCardIds = claimPrepDeckSectionCardIds(
+      validateStringList(record.cardIds),
+      cardIds,
+      claimedCardIds,
+    )
+    if (!sectionCardIds) return []
+
+    const id = createPrepDeckSectionId({
+      id: typeof record.id === 'string' ? record.id : undefined,
+      title,
+      seenIds: seenSectionIds,
+    })
+    return [{ id, title, cardIds: sectionCardIds }]
+  })
+
+  return sections.length > 0 ? sections : undefined
 }
 
 function validateAnchorSubDecisions(raw: unknown): PrepAnchorSubDecision[] | undefined {
@@ -528,6 +558,7 @@ function validateDeck(raw: unknown): PrepDeck | null {
     ),
     openerCardId,
     closerCardId,
+    sections: validateDeckSections(deck.sections, cardIds),
     roundNumber:
       typeof deck.roundNumber === 'number' && Number.isFinite(deck.roundNumber)
         ? Math.trunc(deck.roundNumber)

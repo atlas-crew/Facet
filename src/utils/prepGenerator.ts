@@ -26,6 +26,7 @@ import type {
   PrepIdentityMetricCandidate,
   PrepDecisionTreeNode,
   PrepDeck,
+  PrepDeckSection,
   PrepPhasedFrameworkPhase,
   PrepInterviewer,
   PrepInterviewerIntel,
@@ -49,6 +50,11 @@ import { hasOwnAnswerTemplate, normalizePrepAnswerTemplate } from './prepAnswerT
 import { isPrepPlaceholderOnly } from './prepCardContent'
 import { projectForAudience } from './audienceFilter'
 import type { AudienceProjection } from './audienceFilter'
+import {
+  claimPrepDeckSectionCardIds,
+  createPrepDeckSectionId,
+  makeUniqueId,
+} from './prepDeckSections'
 import {
   formatPrepSkillDepthConfidenceGuidance,
   mapSkillDepthToStackConfidence,
@@ -82,6 +88,7 @@ interface PrepGenerationPayload {
   interviewers?: PrepInterviewer[]
   categoryGuidance?: Record<string, string>
   contextGaps?: PrepContextGap[]
+  sections?: PrepDeckSection[]
   cards: Array<Omit<PrepCard, 'id'>>
 }
 
@@ -756,6 +763,7 @@ function normalizeCategoryGuidance(value: unknown): Record<string, string> | und
 }
 
 function normalizeCards(cards: unknown[]): PrepCard[] {
+  const seenIds = new Set<string>()
   return cards.flatMap((card): PrepCard[] => {
     if (!card || typeof card !== 'object') return []
     const record = card as Record<string, unknown>
@@ -792,8 +800,14 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
           })
         : undefined)
 
+    const providedId =
+      isString(record.id) && /^[A-Za-z0-9_-]{1,80}$/.test(record.id.trim()) ? record.id.trim() : ''
+    // Duplicate model ids are made unique; section references to the original id then resolve to
+    // the first card and leave later duplicates in the normal unsectioned fallback pool.
+    const id = makeUniqueId(providedId || createId('prep-card'), seenIds)
+
     const normalizedCard: PrepCardBase = {
-      id: createId('prep-card'),
+      id,
       category,
       title,
       tags,
@@ -969,6 +983,28 @@ function normalizeInterviewers(value: unknown): PrepInterviewer[] | undefined {
   return interviewers.length > 0 ? interviewers : undefined
 }
 
+function normalizeDeckSections(value: unknown): PrepDeckSection[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const seenIds = new Set<string>()
+  const sections = value.flatMap((section): PrepDeckSection[] => {
+    if (!section || typeof section !== 'object') return []
+    const record = section as Record<string, unknown>
+    const title = isString(record.title) ? record.title.trim() : ''
+    const cardIds = normalizeStringList(record.cardIds)
+    if (!title || !cardIds) return []
+
+    const id = createPrepDeckSectionId({
+      id: isString(record.id) ? record.id : undefined,
+      title,
+      seenIds,
+    })
+
+    return [{ id, title, cardIds }]
+  })
+
+  return sections.length > 0 ? sections : undefined
+}
+
 function normalizeInterviewerLikelyRole(value: unknown): PrepInterviewerLikelyRole | undefined {
   if (!isString(value)) return undefined
   const normalized = value.trim().toLowerCase()
@@ -1141,6 +1177,98 @@ function resolvePrepDeckBookends(cards: PrepCard[]): PrepDeckBookends {
   }
 }
 
+function filterDeckSectionsToCards(
+  sections: PrepDeckSection[] | undefined,
+  cards: PrepCard[],
+): PrepDeckSection[] | undefined {
+  if (!sections?.length) return undefined
+  const cardIds = new Set(cards.map((card) => card.id))
+  const claimedCardIds = new Set<string>()
+  const filteredSections = sections.flatMap((section): PrepDeckSection[] => {
+    const sectionCardIds = claimPrepDeckSectionCardIds(section.cardIds, cardIds, claimedCardIds)
+    return sectionCardIds ? [{ ...section, cardIds: sectionCardIds }] : []
+  })
+  return filteredSections.length > 0 ? filteredSections : undefined
+}
+
+function isTechnicalPrepRound(format: PrepGenerationRequest['roundType']): boolean {
+  return (
+    format === 'tech-discussion' ||
+    format === 'system-design' ||
+    format === 'take-home' ||
+    format === 'live-coding' ||
+    format === 'leetcode' ||
+    format === 'pair-programming'
+  )
+}
+
+function buildPanelDeckSections(
+  request: PrepGenerationRequest,
+  cards: PrepCard[],
+): PrepDeckSection[] | undefined {
+  const interviewers = readRoundInterviewers(request.pipelineEntryContext)
+  if (interviewers.length === 0) return undefined
+  const seenIds = new Set<string>()
+  const sections = interviewers.flatMap((interviewer): PrepDeckSection[] => {
+    const cardIds = cards
+      .filter((card) => card.interviewerIds?.includes(interviewer.id))
+      .map((card) => card.id)
+    if (cardIds.length === 0) return []
+    return [
+      {
+        id: createPrepDeckSectionId({
+          id: interviewer.id || interviewer.name,
+          title: interviewer.name,
+          seenIds,
+        }),
+        title: interviewer.name,
+        cardIds,
+      },
+    ]
+  })
+  return sections.length > 0 ? sections : undefined
+}
+
+function buildTechnicalDeckSections(
+  cards: PrepCard[],
+  format: PrepGenerationRequest['roundType'],
+): PrepDeckSection[] | undefined {
+  if (!isTechnicalPrepRound(format)) return undefined
+
+  const anchorIds = cards.filter((card) => card.kind === 'anchor').map((card) => card.id)
+  const scenarioIds = cards.filter((card) => card.kind === 'scenario').map((card) => card.id)
+  const deepDiveIds = cards.filter((card) => card.kind === 'deep-dive').map((card) => card.id)
+  const sections = [
+    anchorIds.length > 0
+      ? { id: 'prep-deck-section-anchor', title: 'Anchor', cardIds: anchorIds }
+      : null,
+    scenarioIds.length > 0
+      ? { id: 'prep-deck-section-scenarios', title: 'Scenarios', cardIds: scenarioIds }
+      : null,
+    deepDiveIds.length > 0
+      ? { id: 'prep-deck-section-deep-dives', title: 'Deep Dives', cardIds: deepDiveIds }
+      : null,
+  ].filter((section): section is PrepDeckSection => section !== null)
+
+  return sections.length > 0 ? sections : undefined
+}
+
+function resolvePrepDeckSections(params: {
+  parsedSections: unknown
+  cards: PrepCard[]
+  request: PrepGenerationRequest
+}): { normalizedSections?: PrepDeckSection[]; resolvedSections?: PrepDeckSection[] } {
+  const normalizedSections = normalizeDeckSections(params.parsedSections)
+  const fallbackSections =
+    buildPanelDeckSections(params.request, params.cards) ??
+    buildTechnicalDeckSections(params.cards, params.request.roundType)
+  const resolvedModelSections = filterDeckSectionsToCards(normalizedSections, params.cards)
+  const resolvedSections =
+    resolvedModelSections ?? filterDeckSectionsToCards(fallbackSections, params.cards)
+
+  return { normalizedSections, resolvedSections }
+}
+
 function validatePrepDeckBookends(
   deck: Pick<PrepDeck, 'cards' | 'openerCardId' | 'closerCardId'>,
   violations: PrepContractViolation[],
@@ -1171,6 +1299,42 @@ function validatePrepDeckBookends(
       severity: 'error',
     })
   }
+}
+
+function validatePrepDeckSections(
+  deck: Pick<PrepDeck, 'cards' | 'sections'>,
+  violations: PrepContractViolation[],
+): void {
+  if (!deck.sections?.length) return
+
+  const cardIds = new Set(deck.cards.map((card) => card.id))
+  const claimedCardIds = new Set<string>()
+
+  deck.sections.forEach((section, sectionIndex) => {
+    section.cardIds.forEach((cardId, cardIndex) => {
+      if (!cardIds.has(cardId)) {
+        addViolation(violations, {
+          kind: 'invalid-field',
+          field: `sections[${sectionIndex}].cardIds[${cardIndex}]`,
+          message: `Expected deck section "${section.title}" to reference an existing prep card id.`,
+          severity: 'error',
+        })
+        return
+      }
+
+      if (claimedCardIds.has(cardId)) {
+        addViolation(violations, {
+          kind: 'invalid-field',
+          field: `sections[${sectionIndex}].cardIds[${cardIndex}]`,
+          message: `Expected prep card id "${cardId}" to appear in only one deck section.`,
+          severity: 'error',
+        })
+        return
+      }
+
+      claimedCardIds.add(cardId)
+    })
+  })
 }
 
 function isPrepGapFramingCard(card: PrepCard): boolean {
@@ -1230,6 +1394,7 @@ function validatePrepGenerationContract(params: {
     | 'contextGaps'
     | 'openerCardId'
     | 'closerCardId'
+    | 'sections'
   >
   generatedCards: PrepCard[]
   hasParsedCards: boolean
@@ -1249,6 +1414,7 @@ function validatePrepGenerationContract(params: {
   }
 
   validatePrepDeckBookends(deck, violations)
+  validatePrepDeckSections(deck, violations)
 
   if (Array.isArray(rawCards)) {
     rawCards.forEach((rawCard, index) => {
@@ -2129,8 +2295,10 @@ Response schema:
     "metrics": "string",
     "situational": "string"
   },
+  "sections": [{ "id": "string", "title": "string", "cardIds": ["card id string"] }],
   "cards": [
     {
+      "id": "optional string; required when sections.cardIds references this card",
       "category": "opener|behavioral|technical|project|metrics|situational",
       "kind": "opener|intel|story|anchor|scenario|deep-dive|closer|reference|followup-qa",
       "title": "string",
@@ -2229,6 +2397,7 @@ Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullet
 When the round includes scenario questions or technical/system-design content, generate an answerTemplate at the deck level: a reusable 5-step drill framework for "How would you..." questions. Otherwise, omit answerTemplate. For technical, system-design, architecture-heavy, or tradeoff-heavy rounds, aim for 5 to 8 situational drill cards that follow the template; for behavioral, hiring-manager, recruiter, or general rounds, aim for 2 to 3. Each drill should use category "situational", kind "scenario", a scenario-question title, a required whyLikely grounding sentence, and either a decisionTree or phasedFramework.
 For scenario cards with competing approaches, use decisionTree with one or more nodes. Each node must include an options table with option, whenRight, and tradeoff columns; add recommendation for "What I'd pick" and trap for the interviewer trap or overclaim risk. For rollout/timeline scenarios, use phasedFramework instead: each phase needs a phase name, optional timeframe, and bullets. Keep scripts/keyPoints only as supporting live-mode cues; the decisionTree or phasedFramework is the primary structure.
 For technical, system-design, architecture-heavy, or tradeoff-heavy rounds, emit one category "technical", kind "anchor" card when the candidate has a credible umbrella technical story. Use storyBlocks for the unifying narrative and subDecisions for 3 to 5 nested technical decisions. Each subDecision needs id, title, optional tag, blocks with problem/solution/result shape, pushbackResponse for interviewer skepticism, and honestTradeoff for the credible downside or constraint. Do not use anchor cards for generic behavioral stories; reserve them for one big technical narrative with several defensible sub-decisions.
+When emitting sections, every cardId must reference a card id in the same response and a card must appear in at most one section. For panel rounds with named interviewers, emit one section per interviewer card using the interviewer name as the section title. For technical, system-design, architecture-heavy, or tradeoff-heavy rounds, emit sections titled "Anchor", "Scenarios", and "Deep Dives" when those card kinds are present.
 For opener cards, make keyPoints a beat sheet: ordered fallback cues that follow the candidate's through-line and the target role connection. Keep each cue around 8 words and do not prefix items with ordinals, bullets, or labels. Example: "Anchor identity in platform reliability"
 For all non-opener cards, including landmine and intel-tag people cards, make keyPoints glance points: compact noun-phrase bullets for recall, not alternate scripts or full sentences. Keep each glance point around 10 words. Example: "38% incident reduction"
 Build both beat sheets and glance points from Canonical JD Analysis requirements and evidenceMapping plus structured identity evidence. Do not infer keyPoints directly from Original Job Description Source Text except for source wording when canonical analysis omits a detail.
@@ -2355,6 +2524,11 @@ Return JSON only (inside the tags).`
   }
 
   const deckBookends = resolvePrepDeckBookends(cards)
+  const deckSections = resolvePrepDeckSections({
+    parsedSections: parsed.sections,
+    cards,
+    request,
+  })
   const contractViolations = validatePrepGenerationContract({
     deck: {
       title: isString(parsed.deckTitle) ? parsed.deckTitle.trim() : '',
@@ -2364,6 +2538,7 @@ Return JSON only (inside the tags).`
       categoryGuidance,
       contextGaps,
       ...deckBookends,
+      sections: deckSections.normalizedSections,
     },
     generatedCards: cards,
     hasParsedCards: Array.isArray(parsed.cards),
@@ -2409,6 +2584,7 @@ Return JSON only (inside the tags).`
     contextGaps,
     contextGapAnswers: request.contextGapAnswers,
     ...deckBookends,
+    sections: deckSections.resolvedSections,
     roundNumber: request.roundNumber,
     roundDebriefs: request.priorRoundDebriefs,
     generatedAt: now,

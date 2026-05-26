@@ -268,6 +268,62 @@ describe('prep contract validation', () => {
     )
   })
 
+  it('reports deck sections that reference missing or duplicate card ids', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        rules: ['Lead with specifics', 'Stay concrete', 'Name tradeoffs'],
+        categoryGuidance: {
+          opener: 'Lead with specifics.',
+          technical: 'Convince them with concrete examples and earn attention quickly.',
+        },
+        sections: [
+          { id: 'anchor', title: 'Anchor', cardIds: ['known-card', 'missing-card'] },
+          { id: 'duplicate', title: 'Duplicate', cardIds: ['known-card'] },
+        ],
+        cards: [
+          {
+            id: 'known-card',
+            category: 'technical',
+            kind: 'story',
+            title: 'Known technical card',
+            tags: ['technical'],
+            notes: 'A concrete technical proof point.',
+          },
+        ],
+      }),
+    )
+
+    const result = await generatePrepDeck('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'invalid-field',
+          field: 'sections[0].cardIds[1]',
+        }),
+        expect.objectContaining({
+          kind: 'invalid-field',
+          field: 'sections[1].cardIds[0]',
+        }),
+      ]),
+    )
+  })
+
   it('accepts a deck that satisfies the validation contract', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({

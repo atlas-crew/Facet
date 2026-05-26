@@ -153,6 +153,41 @@ const deck: PrepDeck = {
 }
 
 describe('derivePrepCheatsheetSections', () => {
+  it('skips malformed deck sections during pre-normalization import windows', () => {
+    const sections = derivePrepCheatsheetSections({
+      ...deck,
+      sections: [
+        null,
+        { id: 'missing-cards', title: 'Missing cards' },
+        { id: 'bad-card-ids', title: 'Bad card ids', cardIds: 'behavioral-1' },
+        { id: 'story-section', title: 'Story Section', cardIds: ['behavioral-1'] },
+      ] as unknown as PrepDeck['sections'],
+      cards: [{ ...deck.cards[3], tags: undefined as unknown as string[] }],
+    })
+
+    expect(sections.find((section) => section.title === 'Story Section')?.items[0]?.cardId).toBe(
+      'behavioral-1',
+    )
+  })
+
+  it('keeps opener cards in opener sections and de-dupes deck-scoped cards', () => {
+    const sections = derivePrepCheatsheetSections({
+      ...deck,
+      sections: [
+        {
+          id: 'mixed-section',
+          title: 'Mixed Section',
+          cardIds: ['opener-1', 'behavioral-1', 'behavioral-1'],
+        },
+      ],
+    })
+
+    expect(sections.find((section) => section.id === 'opener-1')?.items[0]?.cardId).toBe('opener-1')
+    expect(sections.find((section) => section.title === 'Mixed Section')?.items).toEqual([
+      expect.objectContaining({ cardId: 'behavioral-1' }),
+    ])
+  })
+
   it('builds grouped sections, guidance, and deck-level tactical sections', () => {
     const sections = derivePrepCheatsheetSections(deck)
 

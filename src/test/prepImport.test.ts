@@ -146,6 +146,18 @@ describe('prepImport', () => {
             rules: ['Be specific.'],
             openerCardId: 'scenario-card',
             closerCardId: 'missing-card',
+            sections: [
+              null,
+              123,
+              {
+                id: ' scenarios ',
+                title: ' Scenarios ',
+                cardIds: ['scenario-card', 'scenario-card', 'missing'],
+              },
+              { id: 'untitled', title: ' ', cardIds: ['second-scenario-card'] },
+              { id: 'scenarios', title: 'Second Scenarios', cardIds: ['second-scenario-card'] },
+              { id: 'duplicate', title: 'Duplicate', cardIds: ['scenario-card'] },
+            ],
             updatedAt: '2026-04-22T10:00:00.000Z',
             cards: [
               {
@@ -215,6 +227,13 @@ describe('prepImport', () => {
                   },
                 ],
               },
+              {
+                id: 'second-scenario-card',
+                title: 'How would you handle constraints?',
+                category: 'situational',
+                kind: 'scenario',
+                tags: ['tradeoffs'],
+              },
             ],
           },
           {
@@ -226,6 +245,7 @@ describe('prepImport', () => {
             pipelineRoundId: null,
             openerCardId: 'bookend-card',
             closerCardId: 'bookend-card',
+            sections: [],
             updatedAt: '2026-04-22T10:00:00.000Z',
             cards: [
               {
@@ -263,6 +283,14 @@ describe('prepImport', () => {
         situational: 'Answer the scenario directly.',
       },
       rules: ['Be specific.'],
+      sections: [
+        { id: 'scenarios', title: 'Scenarios', cardIds: ['scenario-card'] },
+        {
+          id: 'scenarios-2',
+          title: 'Second Scenarios',
+          cardIds: ['second-scenario-card'],
+        },
+      ],
     })
     expect(result.decks[0]?.cards[0]).toMatchObject({
       kind: 'scenario',
@@ -321,6 +349,7 @@ describe('prepImport', () => {
         },
       ],
     })
+    expect(result.decks[1]?.sections).toBeUndefined()
     expect(result.decks[1]).toMatchObject({
       openerCardId: 'bookend-card',
       closerCardId: undefined,
