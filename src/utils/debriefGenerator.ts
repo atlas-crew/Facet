@@ -6,7 +6,10 @@ import type {
   DebriefPatternSignal,
   DebriefQuestionReview,
 } from '../types/debrief'
+import { notesText } from '../types/audience'
 import type { IdentityAssumptionTag } from '../types/identity'
+import type { AudienceProjection } from './audienceFilter'
+import { projectForAudience } from './audienceFilter'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 const DEBRIEF_MODEL = 'sonnet'
@@ -14,7 +17,12 @@ const DEBRIEF_MODEL = 'sonnet'
 type RawObject = Record<string, unknown>
 
 const normalizeStringList = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter(isString).map((entry) => entry.trim()).filter(Boolean) : []
+  Array.isArray(value)
+    ? value
+        .filter(isString)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    : []
 
 const normalizeAssumptions = (value: unknown): IdentityAssumptionTag[] =>
   Array.isArray(value)
@@ -40,10 +48,12 @@ const normalizeQuestionReviews = (value: unknown): DebriefQuestionReview[] =>
         if (!entry || typeof entry !== 'object') return []
         const record = entry as RawObject
         if (!isString(record.question)) return []
-        return [{
-          question: record.question.trim(),
-          takeaway: isString(record.takeaway) ? record.takeaway.trim() : undefined,
-        }]
+        return [
+          {
+            question: record.question.trim(),
+            takeaway: isString(record.takeaway) ? record.takeaway.trim() : undefined,
+          },
+        ]
       })
     : []
 
@@ -53,15 +63,60 @@ const normalizePatternSignals = (value: unknown): DebriefPatternSignal[] =>
         if (!entry || typeof entry !== 'object') return []
         const record = entry as RawObject
         if (!isString(record.id) || !isString(record.label) || !isString(record.reason)) return []
-        return [{
-          id: record.id.trim(),
-          label: record.label.trim(),
-          reason: record.reason.trim(),
-          roleId: isString(record.roleId) ? record.roleId.trim() : undefined,
-          bulletId: isString(record.bulletId) ? record.bulletId.trim() : undefined,
-        }]
+        return [
+          {
+            id: record.id.trim(),
+            label: record.label.trim(),
+            reason: record.reason.trim(),
+            roleId: isString(record.roleId) ? record.roleId.trim() : undefined,
+            bulletId: isString(record.bulletId) ? record.bulletId.trim() : undefined,
+          },
+        ]
       })
     : []
+
+// Explicit LLM-context allow-list. When JDAnalysis grows, update this serializer
+// deliberately instead of sending every canonical/internal field by default.
+const formatJdAnalysisForPrompt = (analysis: AudienceProjection | null): string => {
+  if (!analysis) return 'Not provided.'
+
+  return JSON.stringify(
+    {
+      id: analysis.id,
+      audience: analysis.audience,
+      pipelineEntryId: analysis.pipelineEntryId,
+      generatedAt: analysis.generatedAt,
+      modelVersion: analysis.modelVersion,
+      jdTextHash: analysis.jdTextHash,
+      summary: analysis.summary,
+      oneLineSummary: analysis.oneLineSummary,
+      recommendation: analysis.recommendation,
+      confidence: analysis.confidence,
+      fitScore: analysis.fitScore,
+      rationale: analysis.rationale,
+      requirements: analysis.requirements,
+      skillMatches: analysis.skillMatches,
+      matchedVectors: analysis.matchedVectors,
+      primaryVectorId: analysis.primaryVectorId,
+      strengthsToLead: analysis.strengthsToLead,
+      advantages: analysis.advantages,
+      advantageHypotheses: analysis.advantageHypotheses,
+      gaps: analysis.gaps,
+      gapFocus: analysis.gapFocus,
+      watchOuts: analysis.watchOuts,
+      triggeredPrioritize: analysis.triggeredPrioritize,
+      triggeredAvoid: analysis.triggeredAvoid,
+      relevantAwareness: analysis.relevantAwareness,
+      positioningRecommendations: analysis.positioningRecommendations,
+      evidenceMapping: analysis.evidenceMapping,
+      requirementCoverageScore: analysis.requirementCoverageScore,
+      matchedRequirementIds: analysis.matchedRequirementIds,
+      matchedKeywords: analysis.matchedKeywords,
+    },
+    null,
+    2,
+  )
+}
 
 const normalizeBullet = (value: unknown): ProfessionalRoleBullet | null => {
   if (!value || typeof value !== 'object') return null
@@ -75,20 +130,21 @@ const normalizeBullet = (value: unknown): ProfessionalRoleBullet | null => {
     return null
   }
 
-  const metrics = record.metrics && typeof record.metrics === 'object'
-    ? Object.fromEntries(
-        Object.entries(record.metrics as RawObject).flatMap(([key, metricValue]) => {
-          if (
-            typeof metricValue === 'string' ||
-            typeof metricValue === 'boolean' ||
-            (typeof metricValue === 'number' && Number.isFinite(metricValue))
-          ) {
-            return [[key, metricValue]]
-          }
-          return []
-        }),
-      )
-    : {}
+  const metrics =
+    record.metrics && typeof record.metrics === 'object'
+      ? Object.fromEntries(
+          Object.entries(record.metrics as RawObject).flatMap(([key, metricValue]) => {
+            if (
+              typeof metricValue === 'string' ||
+              typeof metricValue === 'boolean' ||
+              (typeof metricValue === 'number' && Number.isFinite(metricValue))
+            ) {
+              return [[key, metricValue]]
+            }
+            return []
+          }),
+        )
+      : {}
 
   return {
     id: record.id.trim(),
@@ -135,18 +191,20 @@ const normalizeIdentityPatch = (value: unknown): DebriefIdentityPatch | null => 
           if (!entry || typeof entry !== 'object') return []
           const item = entry as RawObject
           if (!isString(item.roleId) || !isString(item.bulletId)) return []
-          return [{
-            roleId: item.roleId.trim(),
-            bulletId: item.bulletId.trim(),
-            addTags: normalizeStringList(item.addTags).map((tag) => tag.toLowerCase()),
-            impactAdditions: normalizeStringList(item.impactAdditions),
-            portfolioDive:
-              item.portfolioDive === null
-                ? null
-                : isString(item.portfolioDive)
-                  ? item.portfolioDive.trim()
-                  : undefined,
-          }]
+          return [
+            {
+              roleId: item.roleId.trim(),
+              bulletId: item.bulletId.trim(),
+              addTags: normalizeStringList(item.addTags).map((tag) => tag.toLowerCase()),
+              impactAdditions: normalizeStringList(item.impactAdditions),
+              portfolioDive:
+                item.portfolioDive === null
+                  ? null
+                  : isString(item.portfolioDive)
+                    ? item.portfolioDive.trim()
+                    : undefined,
+            },
+          ]
         })
       : [],
     newBullets: Array.isArray(record.newBullets)
@@ -156,12 +214,14 @@ const normalizeIdentityPatch = (value: unknown): DebriefIdentityPatch | null => 
           if (!isString(item.roleId)) return []
           const bullet = normalizeBullet(item.bullet)
           if (!bullet) return []
-          return [{
-            roleId: item.roleId.trim(),
-            bullet,
-            rewrite: isString(item.rewrite) ? item.rewrite.trim() : undefined,
-            assumptions: normalizeAssumptions(item.assumptions),
-          }]
+          return [
+            {
+              roleId: item.roleId.trim(),
+              bullet,
+              rewrite: isString(item.rewrite) ? item.rewrite.trim() : undefined,
+              assumptions: normalizeAssumptions(item.assumptions),
+            },
+          ]
         })
       : [],
     rewrites: Array.isArray(record.rewrites)
@@ -176,14 +236,16 @@ const normalizeIdentityPatch = (value: unknown): DebriefIdentityPatch | null => 
           ) {
             return []
           }
-          return [{
-            roleId: item.roleId.trim(),
-            roleLabel: item.roleLabel.trim(),
-            bulletId: item.bulletId.trim(),
-            rewrite: item.rewrite.trim(),
-            tags: normalizeStringList(item.tags).map((tag) => tag.toLowerCase()),
-            assumptions: normalizeAssumptions(item.assumptions),
-          }]
+          return [
+            {
+              roleId: item.roleId.trim(),
+              roleLabel: item.roleLabel.trim(),
+              bulletId: item.bulletId.trim(),
+              rewrite: item.rewrite.trim(),
+              tags: normalizeStringList(item.tags).map((tag) => tag.toLowerCase()),
+              assumptions: normalizeAssumptions(item.assumptions),
+            },
+          ]
         })
       : [],
   }
@@ -193,6 +255,16 @@ export async function generateDebriefReport(
   endpoint: string,
   request: DebriefGenerationRequest,
 ): Promise<DebriefGenerationResult> {
+  const candidateJdAnalysis = request.jdAnalysis
+    ? projectForAudience(request.jdAnalysis, 'candidate')
+    : null
+  const candidatePositioningRecommendations = candidateJdAnalysis?.positioningRecommendations ?? []
+  const matchSummary = candidateJdAnalysis?.summary || request.matchSummary || 'Not provided'
+  const positioningNotes =
+    candidatePositioningRecommendations.length > 0
+      ? notesText(candidatePositioningRecommendations).join('\n')
+      : request.positioningNotes || 'Not provided'
+
   const systemPrompt = `You are an expert interview debrief analyst. Return JSON only.
 You are given a candidate identity model, interview notes, explicit question/stories inputs, and target company context.
 Your job is to:
@@ -203,6 +275,7 @@ Your job is to:
 5. Produce a conservative identity patch that the candidate can review before it is merged back into their identity model.
 
 Do not invent employers, metrics, technologies, or outcomes.
+When canonical JD analysis is provided, use it as the source of truth for role requirements, strengths, gaps, watch-outs, priorities, and positioning. The Canonical JD Analysis block is already projected to audience "candidate"; do not recover or infer recruiter-only or internal-only material from omitted fields. Use the raw job description only for source wording when the canonical analysis omits a detail.
 When suggesting identity updates, prefer adding evidence tags, impact additions, interview-style refinements, and new bullet drafts only when the notes justify them.
 All bullet references must use existing roleId/bulletId values unless you are explicitly creating a new bullet draft.
 
@@ -272,9 +345,13 @@ Source: ${request.sourceKind}
 Round: ${request.roundName}
 Interview Date: ${request.interviewDate}
 Outcome: ${request.outcome}
-Job Description: ${request.jobDescription ?? 'Not provided'}
-Match Summary: ${request.matchSummary ?? 'Not provided'}
-Positioning Notes: ${request.positioningNotes ?? 'Not provided'}
+Original Job Description Source Text: ${request.jobDescription ?? 'Not provided'}
+Match Summary: ${matchSummary}
+Positioning Notes:
+${positioningNotes}
+
+Canonical JD Analysis:
+${formatJdAnalysisForPrompt(candidateJdAnalysis)}
 
 Questions Asked:
 ${request.questionsAsked.join('\n') || 'Not provided'}

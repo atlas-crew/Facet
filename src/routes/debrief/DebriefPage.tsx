@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
 import { useIdentityStore } from '../../store/identityStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useDebriefStore } from '../../store/debriefStore'
@@ -13,7 +14,11 @@ import type {
   DebriefStoryCapture,
   DebriefStoryOutcome,
 } from '../../types/debrief'
-import { buildDebriefCorrectionNotes, buildDebriefIdentityDraft } from '../../utils/debriefIdentityDraft'
+import { notesText } from '../../types/audience'
+import {
+  buildDebriefCorrectionNotes,
+  buildDebriefIdentityDraft,
+} from '../../utils/debriefIdentityDraft'
 import { generateDebriefReport } from '../../utils/debriefGenerator'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -38,12 +43,14 @@ const downloadSession = (session: DebriefSession) => {
     session.overallTakeaway,
     '',
     'Questions Asked',
-    ...session.questionsAsked.map((entry) => `- ${entry.question}${entry.takeaway ? ` — ${entry.takeaway}` : ''}`),
+    ...session.questionsAsked.map(
+      (entry) => `- ${entry.question}${entry.takeaway ? ` — ${entry.takeaway}` : ''}`,
+    ),
     '',
     'What Worked',
     ...session.whatWorked.map((entry) => '- ' + entry),
     '',
-    'What Didn\'t',
+    "What Didn't",
     ...session.whatDidnt.map((entry) => '- ' + entry),
   ].join('\n')
 
@@ -57,7 +64,10 @@ const downloadSession = (session: DebriefSession) => {
 }
 
 const splitLines = (value: string): string[] =>
-  value.split(/\n+/).map((entry) => entry.trim()).filter(Boolean)
+  value
+    .split(/\n+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
 
 const buildStoryCapture = (roleId = '', bulletId = ''): DebriefStoryCapture => ({
   id: createId('debrief-story'),
@@ -72,10 +82,15 @@ export function DebriefPage() {
   const navigate = useNavigate()
   const currentIdentity = useIdentityStore((state) => state.currentIdentity)
   const currentReport = useMatchStore((state) => state.currentReport)
+  const currentJDAnalysis = useMatchStore((state) => state.currentJDAnalysis)
+  const jdAnalyses = useJDAnalysisStore((state) => state.analyses)
   const pipelineEntries = usePipelineStore((state) => state.entries)
-  const { sessions, selectedSessionId, addSession, deleteSession, setSelectedSessionId } = useDebriefStore()
+  const { sessions, selectedSessionId, addSession, deleteSession, setSelectedSessionId } =
+    useDebriefStore()
 
-  const [sourceKind, setSourceKind] = useState<DebriefSourceKind>(currentReport ? 'match' : 'pipeline')
+  const [sourceKind, setSourceKind] = useState<DebriefSourceKind>(
+    currentReport ? 'match' : 'pipeline',
+  )
   const [selectedEntryId, setSelectedEntryId] = useState('')
   const [roundName, setRoundName] = useState('Hiring Manager')
   const [interviewDate, setInterviewDate] = useState(new Date().toISOString().slice(0, 10))
@@ -88,18 +103,17 @@ export function DebriefPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
 
-  const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
-    [],
-  )
+  const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
 
   const candidateEntries = useMemo(
-    () => [...pipelineEntries].sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
+    () =>
+      [...pipelineEntries].sort((left, right) => right.lastAction.localeCompare(left.lastAction)),
     [pipelineEntries],
   )
 
   const selectedEntry = useMemo(
-    () => candidateEntries.find((entry) => entry.id === selectedEntryId) ?? candidateEntries[0] ?? null,
+    () =>
+      candidateEntries.find((entry) => entry.id === selectedEntryId) ?? candidateEntries[0] ?? null,
     [candidateEntries, selectedEntryId],
   )
 
@@ -130,34 +144,50 @@ export function DebriefPage() {
         sourceKind: 'match' as const,
         pipelineEntryId: null,
         jobDescription: currentReport.jobDescription,
+        jdAnalysis: currentJDAnalysis,
         matchSummary: currentReport.summary,
-        positioningNotes: currentReport.positioningRecommendations.join(' | '),
+        positioningNotes: notesText(currentReport.positioningRecommendations).join(' | '),
       }
     }
 
     if (selectedEntry) {
+      const entryAnalyses = jdAnalyses.filter(
+        (analysis) => analysis.pipelineEntryId === selectedEntry.id,
+      )
+      const jdAnalysis = selectedEntry.jdAnalysisId
+        ? (jdAnalyses.find(
+            (analysis) =>
+              analysis.id === selectedEntry.jdAnalysisId &&
+              analysis.pipelineEntryId === selectedEntry.id,
+          ) ?? null)
+        : ([...entryAnalyses].sort((left, right) =>
+            right.generatedAt.localeCompare(left.generatedAt),
+          )[0] ?? null)
+
       return {
         company: selectedEntry.company,
         role: selectedEntry.role,
         sourceKind: 'pipeline' as const,
         pipelineEntryId: selectedEntry.id,
         jobDescription: selectedEntry.jobDescription,
+        jdAnalysis,
         matchSummary: undefined,
-        positioningNotes: [selectedEntry.positioning, selectedEntry.notes].filter(Boolean).join(' | '),
+        positioningNotes: [selectedEntry.positioning, selectedEntry.notes]
+          .filter(Boolean)
+          .join(' | '),
       }
     }
 
     return null
-  }, [currentReport, selectedEntry, sourceKind])
+  }, [currentJDAnalysis, currentReport, jdAnalyses, selectedEntry, sourceKind])
 
-  const helperMessage =
-    !aiEndpoint
-      ? 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
-      : !currentIdentity
-        ? 'Apply an identity model before generating a debrief.'
-        : !context
-          ? 'Select an interview context before generating a debrief.'
-          : null
+  const helperMessage = !aiEndpoint
+    ? 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
+    : !currentIdentity
+      ? 'Apply an identity model before generating a debrief.'
+      : !context
+        ? 'Select an interview context before generating a debrief.'
+        : null
 
   const handleAddStory = () => {
     const firstOption = storyOptions[0]
@@ -192,6 +222,7 @@ export function DebriefPage() {
         role: context.role,
         sourceKind: context.sourceKind,
         jobDescription: context.jobDescription,
+        jdAnalysis: context.jdAnalysis ?? undefined,
         matchSummary: context.matchSummary,
         positioningNotes: context.positioningNotes,
         roundName,
@@ -242,12 +273,19 @@ export function DebriefPage() {
   const handleSendToIdentity = async () => {
     if (!activeSession) return
     const identityState = useIdentityStore.getState()
-    const appendedNotes = [identityState.correctionNotes, buildDebriefCorrectionNotes({
-      summary: activeSession.identityDraft.summary,
-      correctionNotes: activeSession.correctionNotes,
-      followUpQuestions: activeSession.followUpQuestions,
-      questionsAsked: activeSession.questionsAsked,
-    }, activeSession.company, activeSession.role)]
+    const appendedNotes = [
+      identityState.correctionNotes,
+      buildDebriefCorrectionNotes(
+        {
+          summary: activeSession.identityDraft.summary,
+          correctionNotes: activeSession.correctionNotes,
+          followUpQuestions: activeSession.followUpQuestions,
+          questionsAsked: activeSession.questionsAsked,
+        },
+        activeSession.company,
+        activeSession.role,
+      ),
+    ]
       .filter(Boolean)
       .join('\n\n')
     identityState.setCorrectionNotes(appendedNotes)
@@ -269,7 +307,9 @@ export function DebriefPage() {
                 className={`debrief-session-button ${activeSession?.id === session.id ? 'active' : ''}`}
                 onClick={() => setSelectedSessionId(session.id)}
               >
-                <span>{session.company} — {session.role}</span>
+                <span>
+                  {session.company} — {session.role}
+                </span>
                 <small>{session.roundName}</small>
               </button>
               <button
@@ -293,7 +333,8 @@ export function DebriefPage() {
               <p className="debrief-eyebrow">Phase 3</p>
               <h1>Debrief Agent</h1>
               <p className="debrief-copy">
-                Capture what happened after an interview, identify anchor stories and recurring gaps, then stage identity updates back into the Phase 0 workspace.
+                Capture what happened after an interview, identify anchor stories and recurring
+                gaps, then stage identity updates back into the Phase 0 workspace.
               </p>
             </div>
             <button
@@ -357,17 +398,32 @@ export function DebriefPage() {
 
             <label className="debrief-field">
               <span className="debrief-label">Round</span>
-              <input className="debrief-input" value={roundName} onChange={(event) => setRoundName(event.target.value)} />
+              <input
+                className="debrief-input"
+                value={roundName}
+                onChange={(event) => setRoundName(event.target.value)}
+              />
             </label>
             <label className="debrief-field">
               <span className="debrief-label">Interview date</span>
-              <input className="debrief-input" type="date" value={interviewDate} onChange={(event) => setInterviewDate(event.target.value)} />
+              <input
+                className="debrief-input"
+                type="date"
+                value={interviewDate}
+                onChange={(event) => setInterviewDate(event.target.value)}
+              />
             </label>
             <label className="debrief-field">
               <span className="debrief-label">Outcome</span>
-              <select className="debrief-input" value={outcome} onChange={(event) => setOutcome(event.target.value as DebriefInterviewOutcome)}>
+              <select
+                className="debrief-input"
+                value={outcome}
+                onChange={(event) => setOutcome(event.target.value as DebriefInterviewOutcome)}
+              >
                 {INTERVIEW_OUTCOMES.map((entry) => (
-                  <option key={entry} value={entry}>{entry}</option>
+                  <option key={entry} value={entry}>
+                    {entry}
+                  </option>
                 ))}
               </select>
             </label>
@@ -393,15 +449,27 @@ export function DebriefPage() {
             </label>
             <label className="debrief-field">
               <span className="debrief-label">Questions asked</span>
-              <textarea className="debrief-textarea" value={questionsAsked} onChange={(event) => setQuestionsAsked(event.target.value)} />
+              <textarea
+                className="debrief-textarea"
+                value={questionsAsked}
+                onChange={(event) => setQuestionsAsked(event.target.value)}
+              />
             </label>
             <label className="debrief-field">
               <span className="debrief-label">What worked</span>
-              <textarea className="debrief-textarea" value={whatWorked} onChange={(event) => setWhatWorked(event.target.value)} />
+              <textarea
+                className="debrief-textarea"
+                value={whatWorked}
+                onChange={(event) => setWhatWorked(event.target.value)}
+              />
             </label>
             <label className="debrief-field">
               <span className="debrief-label">What didn't</span>
-              <textarea className="debrief-textarea" value={whatDidnt} onChange={(event) => setWhatDidnt(event.target.value)} />
+              <textarea
+                className="debrief-textarea"
+                value={whatDidnt}
+                onChange={(event) => setWhatDidnt(event.target.value)}
+              />
             </label>
           </div>
 
@@ -409,7 +477,10 @@ export function DebriefPage() {
             <div className="debrief-story-header">
               <div>
                 <h2>Stories told</h2>
-                <p>Map the stories you used back to identity bullets so the flywheel can learn what actually lands in interviews.</p>
+                <p>
+                  Map the stories you used back to identity bullets so the flywheel can learn what
+                  actually lands in interviews.
+                </p>
               </div>
               <button type="button" className="debrief-btn" onClick={handleAddStory}>
                 <Plus size={14} />
@@ -419,7 +490,9 @@ export function DebriefPage() {
 
             <div className="debrief-story-list">
               {storiesTold.map((story) => {
-                const storyRoleOptions = storyOptions.filter((option) => option.roleId === story.roleId)
+                const storyRoleOptions = storyOptions.filter(
+                  (option) => option.roleId === story.roleId,
+                )
                 return (
                   <article key={story.id} className="debrief-story-card">
                     <label className="debrief-field">
@@ -429,7 +502,9 @@ export function DebriefPage() {
                         value={story.roleId}
                         onChange={(event) => {
                           const nextRoleId = event.target.value
-                          const firstBullet = storyOptions.find((option) => option.roleId === nextRoleId)
+                          const firstBullet = storyOptions.find(
+                            (option) => option.roleId === nextRoleId,
+                          )
                           handleStoryChange(story.id, {
                             roleId: nextRoleId,
                             bulletId: firstBullet?.bulletId ?? '',
@@ -437,8 +512,14 @@ export function DebriefPage() {
                         }}
                       >
                         <option value="">Select role</option>
-                        {Array.from(new Map(storyOptions.map((option) => [option.roleId, option.roleLabel])).entries()).map(([roleId, label]) => (
-                          <option key={roleId} value={roleId}>{label}</option>
+                        {Array.from(
+                          new Map(
+                            storyOptions.map((option) => [option.roleId, option.roleLabel]),
+                          ).entries(),
+                        ).map(([roleId, label]) => (
+                          <option key={roleId} value={roleId}>
+                            {label}
+                          </option>
                         ))}
                       </select>
                     </label>
@@ -447,11 +528,15 @@ export function DebriefPage() {
                       <select
                         className="debrief-input"
                         value={story.bulletId}
-                        onChange={(event) => handleStoryChange(story.id, { bulletId: event.target.value })}
+                        onChange={(event) =>
+                          handleStoryChange(story.id, { bulletId: event.target.value })
+                        }
                       >
                         <option value="">Select bullet</option>
                         {storyRoleOptions.map((option) => (
-                          <option key={option.bulletId} value={option.bulletId}>{option.bulletLabel}</option>
+                          <option key={option.bulletId} value={option.bulletId}>
+                            {option.bulletLabel}
+                          </option>
                         ))}
                       </select>
                     </label>
@@ -460,10 +545,16 @@ export function DebriefPage() {
                       <select
                         className="debrief-input"
                         value={story.outcome}
-                        onChange={(event) => handleStoryChange(story.id, { outcome: event.target.value as DebriefStoryOutcome })}
+                        onChange={(event) =>
+                          handleStoryChange(story.id, {
+                            outcome: event.target.value as DebriefStoryOutcome,
+                          })
+                        }
                       >
                         {STORY_OUTCOMES.map((entry) => (
-                          <option key={entry} value={entry}>{entry}</option>
+                          <option key={entry} value={entry}>
+                            {entry}
+                          </option>
                         ))}
                       </select>
                     </label>
@@ -472,7 +563,9 @@ export function DebriefPage() {
                       <input
                         className="debrief-input"
                         value={story.interviewerSignal ?? ''}
-                        onChange={(event) => handleStoryChange(story.id, { interviewerSignal: event.target.value })}
+                        onChange={(event) =>
+                          handleStoryChange(story.id, { interviewerSignal: event.target.value })
+                        }
                       />
                     </label>
                     <label className="debrief-field debrief-field-span">
@@ -480,18 +573,26 @@ export function DebriefPage() {
                       <textarea
                         className="debrief-textarea"
                         value={story.notes}
-                        onChange={(event) => handleStoryChange(story.id, { notes: event.target.value })}
+                        onChange={(event) =>
+                          handleStoryChange(story.id, { notes: event.target.value })
+                        }
                       />
                     </label>
                   </article>
                 )
               })}
-              {storiesTold.length === 0 && <p className="debrief-empty-text">No story mappings yet.</p>}
+              {storiesTold.length === 0 && (
+                <p className="debrief-empty-text">No story mappings yet.</p>
+              )}
             </div>
           </section>
 
           {helperMessage && <p className="debrief-note">{helperMessage}</p>}
-          {generationError && <p className="debrief-note debrief-note-error" role="alert">{generationError}</p>}
+          {generationError && (
+            <p className="debrief-note debrief-note-error" role="alert">
+              {generationError}
+            </p>
+          )}
         </section>
 
         <section className="debrief-panel">
@@ -504,21 +605,39 @@ export function DebriefPage() {
           <div className="debrief-pattern-grid">
             <div className="debrief-pattern-card">
               <h3>Anchor Stories</h3>
-              {patternSummary.anchorStories.length > 0 ? patternSummary.anchorStories.map((entry) => (
-                <p key={entry.id}><strong>{entry.label}</strong> · {entry.count}x · {entry.reason}</p>
-              )) : <p>No anchor stories yet.</p>}
+              {patternSummary.anchorStories.length > 0 ? (
+                patternSummary.anchorStories.map((entry) => (
+                  <p key={entry.id}>
+                    <strong>{entry.label}</strong> · {entry.count}x · {entry.reason}
+                  </p>
+                ))
+              ) : (
+                <p>No anchor stories yet.</p>
+              )}
             </div>
             <div className="debrief-pattern-card">
               <h3>Recurring Gaps</h3>
-              {patternSummary.recurringGaps.length > 0 ? patternSummary.recurringGaps.map((entry) => (
-                <p key={entry.id}><strong>{entry.label}</strong> · {entry.count}x · {entry.reason}</p>
-              )) : <p>No recurring gaps yet.</p>}
+              {patternSummary.recurringGaps.length > 0 ? (
+                patternSummary.recurringGaps.map((entry) => (
+                  <p key={entry.id}>
+                    <strong>{entry.label}</strong> · {entry.count}x · {entry.reason}
+                  </p>
+                ))
+              ) : (
+                <p>No recurring gaps yet.</p>
+              )}
             </div>
             <div className="debrief-pattern-card">
               <h3>Best-Fit Company Types</h3>
-              {patternSummary.bestFitCompanyTypes.length > 0 ? patternSummary.bestFitCompanyTypes.map((entry) => (
-                <p key={entry.id}><strong>{entry.label}</strong> · {entry.count}x · {entry.reason}</p>
-              )) : <p>No company-type signals yet.</p>}
+              {patternSummary.bestFitCompanyTypes.length > 0 ? (
+                patternSummary.bestFitCompanyTypes.map((entry) => (
+                  <p key={entry.id}>
+                    <strong>{entry.label}</strong> · {entry.count}x · {entry.reason}
+                  </p>
+                ))
+              ) : (
+                <p>No company-type signals yet.</p>
+              )}
             </div>
           </div>
         </section>
@@ -531,11 +650,19 @@ export function DebriefPage() {
                 <p>{activeSession.summary}</p>
               </div>
               <div className="debrief-panel-actions">
-                <button type="button" className="debrief-btn" onClick={() => downloadSession(activeSession)}>
+                <button
+                  type="button"
+                  className="debrief-btn"
+                  onClick={() => downloadSession(activeSession)}
+                >
                   <Download size={16} />
                   Export
                 </button>
-                <button type="button" className="debrief-btn debrief-btn-primary" onClick={() => void handleSendToIdentity()}>
+                <button
+                  type="button"
+                  className="debrief-btn debrief-btn-primary"
+                  onClick={() => void handleSendToIdentity()}
+                >
                   Send to Identity
                 </button>
               </div>
@@ -545,22 +672,35 @@ export function DebriefPage() {
               <div className="debrief-detail-card">
                 <h3>Questions</h3>
                 {activeSession.questionsAsked.map((entry) => (
-                  <p key={entry.question}><strong>{entry.question}</strong>{entry.takeaway ? ` — ${entry.takeaway}` : ''}</p>
+                  <p key={entry.question}>
+                    <strong>{entry.question}</strong>
+                    {entry.takeaway ? ` — ${entry.takeaway}` : ''}
+                  </p>
                 ))}
               </div>
               <div className="debrief-detail-card">
                 <h3>What Worked</h3>
-                {activeSession.whatWorked.map((entry) => <p key={entry}>{entry}</p>)}
+                {activeSession.whatWorked.map((entry) => (
+                  <p key={entry}>{entry}</p>
+                ))}
               </div>
               <div className="debrief-detail-card">
                 <h3>What Didn't</h3>
-                {activeSession.whatDidnt.map((entry) => <p key={entry}>{entry}</p>)}
+                {activeSession.whatDidnt.map((entry) => (
+                  <p key={entry}>{entry}</p>
+                ))}
               </div>
               <div className="debrief-detail-card">
                 <h3>Identity Feedback</h3>
                 <p>{activeSession.identityDraft.summary}</p>
-                {activeSession.correctionNotes.map((entry) => <p key={entry}>{entry}</p>)}
-                {activeSession.followUpQuestions.map((entry) => <p key={entry}><strong>Follow-up:</strong> {entry}</p>)}
+                {activeSession.correctionNotes.map((entry) => (
+                  <p key={entry}>{entry}</p>
+                ))}
+                {activeSession.followUpQuestions.map((entry) => (
+                  <p key={entry}>
+                    <strong>Follow-up:</strong> {entry}
+                  </p>
+                ))}
               </div>
             </div>
           </section>

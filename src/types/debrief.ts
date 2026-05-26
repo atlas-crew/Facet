@@ -1,5 +1,10 @@
 import type { ProfessionalIdentityV3, ProfessionalRoleBullet } from '../identity/schema'
-import type { IdentityAssumptionTag, IdentityDraftBullet, IdentityExtractionDraft } from './identity'
+import type {
+  IdentityAssumptionTag,
+  IdentityDraftBullet,
+  IdentityExtractionDraft,
+} from './identity'
+import type { JDAnalysis } from './jdAnalysis'
 
 export type DebriefSourceKind = 'match' | 'pipeline'
 export type DebriefInterviewOutcome = 'advance' | 'hold' | 'reject' | 'unknown'
@@ -73,6 +78,7 @@ export interface DebriefGenerationRequest {
   role: string
   sourceKind: DebriefSourceKind
   jobDescription?: string
+  jdAnalysis?: JDAnalysis
   matchSummary?: string
   positioningNotes?: string
   roundName: string
