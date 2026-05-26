@@ -1,9 +1,11 @@
 ---
 id: TASK-233
 title: Apply candidate audience filtering to Match and Pipeline JD analysis render
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-26 06:06'
 labels:
   - audience-tagging
   - render
@@ -46,3 +48,9 @@ The MatchPage renders all warnings, all gap-focus, all positioning recommendatio
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-233. Placement: candidate-facing render projection only; no JDAnalysis ownership/schema changes. Plan: inspect projectForAudience and current Match/Pipeline render paths, apply candidate projection at render boundary, add focused tests for candidate-visible vs filtered audience-tagged notes, run focused gates, independent review/audit, commit/close.
+<!-- SECTION:NOTES:END -->
