@@ -544,7 +544,9 @@ describe('identityStore scan progress', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     useIdentityStore.getState().setScanResult(createScanResult())
     useIdentityStore.getState().startScanBulkDeepen()
-    const beforeBulk = structuredClone(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk)
+    const beforeBulk = structuredClone(
+      getActiveResumeScan(useIdentityStore.getState())?.progress.bulk,
+    )
 
     vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
     useIdentityStore
@@ -629,15 +631,18 @@ describe('identityStore scan progress', () => {
 
     for (const testCase of cases) {
       testCase.prepare()
-      const beforeBulk = structuredClone(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk)
+      const beforeBulk = structuredClone(
+        getActiveResumeScan(useIdentityStore.getState())?.progress.bulk,
+      )
 
       useIdentityStore
         .getState()
         .completeScannedBulletDeepen(createDeepenedBullet('missing-role', 'platform-migration'))
 
-      expect(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk, testCase.label).toEqual(
-        beforeBulk,
-      )
+      expect(
+        getActiveResumeScan(useIdentityStore.getState())?.progress.bulk,
+        testCase.label,
+      ).toEqual(beforeBulk)
     }
   })
 
@@ -732,7 +737,11 @@ describe('identityStore scan progress', () => {
     useIdentityStore.getState().requestCancelScanBulkDeepen()
 
     let persisted = await readPersistedIdentityState()
-    expect(persisted.state.intakeSources?.[0]?.kind === 'resume' ? persisted.state.intakeSources[0].scan.progress.bulk : undefined).toMatchObject({
+    expect(
+      persisted.state.intakeSources?.[0]?.kind === 'resume'
+        ? persisted.state.intakeSources[0].scan.progress.bulk
+        : undefined,
+    ).toMatchObject({
       status: 'cancelling',
       completed: 0,
       currentBulletKey: 'contoso::platform-migration',
@@ -743,7 +752,11 @@ describe('identityStore scan progress', () => {
     useIdentityStore.getState().finishScanBulkDeepen()
 
     persisted = await readPersistedIdentityState()
-    expect(persisted.state.intakeSources?.[0]?.kind === 'resume' ? persisted.state.intakeSources[0].scan.progress.bulk : undefined).toMatchObject({
+    expect(
+      persisted.state.intakeSources?.[0]?.kind === 'resume'
+        ? persisted.state.intakeSources[0].scan.progress.bulk
+        : undefined,
+    ).toMatchObject({
       status: 'idle',
       completed: 0,
       currentBulletKey: null,
@@ -1693,7 +1706,11 @@ describe('identityStore model_revision', () => {
 })
 
 describe('identityStore intake sources (multi-source intake)', () => {
-  const createResumeSource = (id: string, fileName: string, userLabel?: string): IntakeSource => ({
+  const createResumeSource = (
+    id: string,
+    fileName: string,
+    userLabel?: string,
+  ): Extract<IntakeSource, { kind: 'resume' }> => ({
     kind: 'resume',
     id,
     userLabel,

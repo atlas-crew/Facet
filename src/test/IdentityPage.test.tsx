@@ -729,8 +729,9 @@ describe('IdentityPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Intake Sources' })).toBeTruthy()
     expect(screen.getByText('Drag intake source PDFs here or click to browse')).toBeTruthy()
-    expect(screen.getByText(/Use 3-10 text-based, single-column PDFs from the last 2 years/))
-      .toBeTruthy()
+    expect(
+      screen.getByText(/Use 3-10 text-based, single-column PDFs from the last 2 years/),
+    ).toBeTruthy()
     expect(screen.getByText(/denser canonical bullet fields/)).toBeTruthy()
     expect(screen.getByText('No intake sources yet')).toBeTruthy()
   })
@@ -870,9 +871,7 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    expect(
-      screen.getByText(/Facet will synthesize from the first 10 sources only/),
-    ).toBeTruthy()
+    expect(screen.getByText(/Facet will synthesize from the first 10 sources only/)).toBeTruthy()
     expect(screen.getByText(/Remove 1 extra source before generating/)).toBeTruthy()
     expect(screen.getAllByText('Over cap')).toHaveLength(1)
   })
@@ -904,6 +903,326 @@ describe('IdentityPage', () => {
         name: 'Synthesize identity from 10 sources',
       }),
     ).toBeTruthy()
+  })
+
+  it('accepts optional AI export and brag doc context without blocking resume-only generation', async () => {
+    const clipboardWriteMock = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    })
+    useIdentityStore.setState({
+      sourceMaterial: 'Alex Example resume text.',
+    })
+
+    const { container } = render(<IdentityPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }))
+    await waitFor(() => {
+      expect(clipboardWriteMock).toHaveBeenCalledWith(
+        expect.stringContaining("I'm moving to a new career tool"),
+      )
+    })
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
+      target: {
+        value:
+          'I want staff platform roles, prefer async teams, and have prepped reliability stories.',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Context' }))
+    expect((screen.getByLabelText('Pasted AI export narrative') as HTMLTextAreaElement).value).toBe(
+      '',
+    )
+
+    fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
+      target: { value: 'Reduced incident response time by 40% across the platform.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Brag Doc' }))
+    expect((screen.getByLabelText('Pasted brag doc text') as HTMLTextAreaElement).value).toBe('')
+
+    const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
+    expect(bragInput).toBeTruthy()
+    fireEvent.change(bragInput as HTMLInputElement, {
+      target: {
+        files: [
+          new File(['Led the migration program for five product teams.'], 'brag.md', {
+            type: 'text/markdown',
+          }),
+        ],
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('brag.md')).toBeTruthy()
+    })
+
+    expect(useIdentityStore.getState().intakeSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'agent-dump',
+          text: expect.stringContaining('staff platform roles'),
+        }),
+        expect.objectContaining({
+          kind: 'brag-doc',
+          text: expect.stringContaining('Reduced incident response time'),
+        }),
+        expect.objectContaining({
+          kind: 'brag-doc',
+          fileName: 'brag.md',
+          text: expect.stringContaining('migration program'),
+        }),
+      ]),
+    )
+
+    clickSourceGenerateDraft()
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceMaterial: 'Alex Example resume text.',
+        supplementalContextSources: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'agent-dump',
+            text: expect.stringContaining('staff platform roles'),
+          }),
+          expect.objectContaining({
+            kind: 'brag-doc',
+            text: expect.stringContaining('Reduced incident response time'),
+          }),
+          expect.objectContaining({
+            kind: 'brag-doc',
+            fileName: 'brag.md',
+          }),
+        ]),
+      }),
+    )
+  })
+
+  it('rejects oversized brag doc uploads before reading file text', async () => {
+    const { container } = render(<IdentityPage />)
+    const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
+    const oversized = new File(['small'], 'huge-brag.md', { type: 'text/markdown' })
+    Object.defineProperty(oversized, 'size', { value: 3 * 1024 * 1024 })
+    const textSpy = vi.spyOn(oversized, 'text')
+
+    fireEvent.change(bragInput as HTMLInputElement, {
+      target: {
+        files: [oversized],
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Brag doc upload must be smaller than 2 MB.')).toBeTruthy()
+    })
+    expect(textSpy).toHaveBeenCalledTimes(0)
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(0)
+  })
+
+  it('rejects unsupported brag doc upload formats before reading file text', async () => {
+    const { container } = render(<IdentityPage />)
+    const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
+    const imageFile = new File(['binary-ish'], 'brag.png', { type: 'image/png' })
+    const textSpy = vi.spyOn(imageFile, 'text')
+
+    fireEvent.change(bragInput as HTMLInputElement, {
+      target: {
+        files: [imageFile],
+      },
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Brag doc upload supports plain text or Markdown files.'),
+      ).toBeTruthy()
+    })
+    expect(textSpy).toHaveBeenCalledTimes(0)
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(0)
+  })
+
+  it('rejects empty brag doc uploads', async () => {
+    const { container } = render(<IdentityPage />)
+    const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
+
+    fireEvent.change(bragInput as HTMLInputElement, {
+      target: {
+        files: [new File(['   '], 'empty-brag.md', { type: 'text/markdown' })],
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Brag doc file is empty.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(0)
+  })
+
+  it('rejects brag doc uploads that exceed the text character limit after reading', async () => {
+    const { container } = render(<IdentityPage />)
+    const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
+
+    fireEvent.change(bragInput as HTMLInputElement, {
+      target: {
+        files: [new File(['a'.repeat(100_001)], 'too-long-brag.md', { type: 'text/markdown' })],
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Brag doc text must be 100,000 characters or fewer.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(0)
+  })
+
+  it('rejects supplemental context once the combined payload is too large', async () => {
+    useIdentityStore.setState({
+      intakeSources: [
+        {
+          kind: 'agent-dump',
+          id: 'existing-ai-export',
+          text: 'a'.repeat(150_000),
+        },
+      ],
+    })
+    render(<IdentityPage />)
+
+    fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
+      target: { value: 'b'.repeat(60_000) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Brag Doc' }))
+
+    expect(
+      screen.getByText(
+        'Supplemental context sources must be 200,000 characters or fewer in total.',
+      ),
+    ).toBeTruthy()
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(1)
+  })
+
+  it('rejects oversized pasted supplemental context without truncating into state', () => {
+    render(<IdentityPage />)
+
+    fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
+      target: { value: 'a'.repeat(100_001) },
+    })
+
+    expect(
+      screen.getByText('AI conversation export must be 100,000 characters or fewer.'),
+    ).toBeTruthy()
+    expect((screen.getByLabelText('Pasted AI export narrative') as HTMLTextAreaElement).value).toBe(
+      '',
+    )
+  })
+
+  it('rejects oversized pasted brag doc context without truncating into state', () => {
+    render(<IdentityPage />)
+
+    fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
+      target: { value: 'a'.repeat(100_001) },
+    })
+
+    expect(screen.getByText('Brag doc text must be 100,000 characters or fewer.')).toBeTruthy()
+    expect((screen.getByLabelText('Pasted brag doc text') as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('keeps pasted context add actions disabled for empty or whitespace input', () => {
+    render(<IdentityPage />)
+
+    const addAiContextButton = screen.getByRole('button', { name: 'Add AI Context' })
+    const addBragDocButton = screen.getByRole('button', { name: 'Add Brag Doc' })
+    expect(addAiContextButton.hasAttribute('disabled')).toBe(true)
+    expect(addBragDocButton.hasAttribute('disabled')).toBe(true)
+
+    fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
+      target: { value: '   ' },
+    })
+    fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
+      target: { value: '   ' },
+    })
+
+    expect(addAiContextButton.hasAttribute('disabled')).toBe(true)
+    expect(addBragDocButton.hasAttribute('disabled')).toBe(true)
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(0)
+  })
+
+  it('surfaces clipboard failures for the AI export prompt', async () => {
+    const clipboardWriteMock = vi.fn(async () => {
+      throw new Error('Clipboard blocked')
+    })
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteMock },
+    })
+
+    render(<IdentityPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Clipboard access is unavailable. Select and copy the prompt text manually.',
+        ),
+      ).toBeTruthy()
+    })
+  })
+
+  it('synthesizes scanned resumes while passing supplemental context separately', async () => {
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
+      target: { value: 'I prefer staff platform roles and have strong reliability stories.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Context' }))
+    clickSourceGenerateDraft()
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(1)
+    })
+    expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceMaterial:
+          'Alex Example\nExperience\n• Ported the platform to Kubernetes-based installs.',
+        synthesisSeed: expect.objectContaining({
+          identity: expect.objectContaining({
+            identity: expect.objectContaining({ name: 'Alex Example' }),
+          }),
+        }),
+        supplementalContextSources: [
+          expect.objectContaining({
+            kind: 'agent-dump',
+            text: expect.stringContaining('staff platform roles'),
+          }),
+        ],
+      }),
+    )
+  })
+
+  it('removes supplemental context sources from the context source list', () => {
+    useIdentityStore.setState({
+      intakeSources: [
+        {
+          kind: 'agent-dump',
+          id: 'ai-export-source',
+          userLabel: 'AI conversation export',
+          text: 'Career context from prior AI conversations.',
+        },
+      ],
+    })
+
+    render(<IdentityPage />)
+
+    const contextList = screen.getByRole('list', { name: 'Supplemental context sources' })
+    expect(within(contextList).getByText('AI conversation export')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove AI conversation export' }))
+
+    expect(useIdentityStore.getState().intakeSources).toHaveLength(0)
   })
 
   it('rejects non-PDF uploads before invoking the scanner', async () => {

@@ -14,7 +14,14 @@ import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
-import { type IdentityApplyMode } from '../../types/identity'
+import {
+  getSupplementalContextLengthError,
+  SUPPLEMENTAL_CONTEXT_MAX_BYTES,
+  SUPPLEMENTAL_CONTEXT_TOTAL_MAX_CHARS,
+  type IdentityApplyMode,
+  type IntakeSource,
+  type SupplementalContextSource,
+} from '../../types/identity'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { createId, sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
@@ -231,6 +238,21 @@ export function IdentityPage() {
   }, [scanResult])
 
   const bulkStatus = scanResult?.progress.bulk.status ?? null
+  const resumeIntakeSources = useMemo(
+    () =>
+      intakeSources.filter(
+        (source): source is Extract<IntakeSource, { kind: 'resume' }> => source.kind === 'resume',
+      ),
+    [intakeSources],
+  )
+  const supplementalContextSources = useMemo(
+    () =>
+      intakeSources.filter(
+        (source): source is SupplementalContextSource =>
+          source.kind === 'agent-dump' || source.kind === 'brag-doc',
+      ),
+    [intakeSources],
+  )
   const hasSourceMaterial = useMemo(
     () => sourceMaterial.trim().length > 0 || Boolean(scanResult),
     [scanResult, sourceMaterial],
@@ -261,12 +283,15 @@ export function IdentityPage() {
       setPageNotice(null)
       setIsGenerating(true)
       const synthesisSeed =
-        shouldUseScan && intakeSources.length > 0 ? intakeSynthesis(intakeSources) : null
+        shouldUseScan && resumeIntakeSources.length > 0
+          ? intakeSynthesis(resumeIntakeSources)
+          : null
       const nextDraft = await generateIdentityDraft({
         endpoint: aiEndpoint,
         sourceMaterial: effectiveSourceMaterial,
         correctionNotes,
         synthesisSeed,
+        supplementalContextSources,
         existingDraft: mode === 'regenerate' ? (draft?.identity ?? currentIdentity) : null,
         signal: controller.signal,
       })
@@ -499,6 +524,113 @@ export function IdentityPage() {
 
   const handleDismissFailedFile = (id: string) => {
     setFailedFiles((prev) => prev.filter((entry) => entry.id !== id))
+  }
+
+  const canAppendSupplementalContext = (nextText: string): boolean => {
+    const existingLength = supplementalContextSources.reduce(
+      (total, source) => total + source.text.trim().length,
+      0,
+    )
+    if (existingLength + nextText.trim().length <= SUPPLEMENTAL_CONTEXT_TOTAL_MAX_CHARS) {
+      return true
+    }
+
+    setPageNotice(null)
+    setPageError('Supplemental context sources must be 200,000 characters or fewer in total.')
+    return false
+  }
+
+  const handleAddAgentExport = (text: string): boolean => {
+    const trimmed = text.trim()
+    if (!trimmed) {
+      setPageNotice(null)
+      setPageError('Paste an AI conversation export before adding it as context.')
+      return false
+    }
+    const lengthError = getSupplementalContextLengthError('agent-dump', trimmed)
+    if (lengthError) {
+      setPageNotice(null)
+      setPageError(lengthError)
+      return false
+    }
+    if (!canAppendSupplementalContext(trimmed)) {
+      return false
+    }
+
+    appendIntakeSource({
+      kind: 'agent-dump',
+      id: createId('intake'),
+      userLabel: 'AI conversation export',
+      agentName: 'AI conversation export',
+      text: trimmed,
+    })
+    setPageError(null)
+    setPageNotice('Added AI conversation export as supplemental extraction context.')
+    return true
+  }
+
+  const handleAddBragDocText = (text: string): boolean => {
+    const trimmed = text.trim()
+    if (!trimmed) {
+      setPageNotice(null)
+      setPageError('Paste brag doc text before adding it as context.')
+      return false
+    }
+    const lengthError = getSupplementalContextLengthError('brag-doc', trimmed)
+    if (lengthError) {
+      setPageNotice(null)
+      setPageError(lengthError)
+      return false
+    }
+    if (!canAppendSupplementalContext(trimmed)) {
+      return false
+    }
+
+    appendIntakeSource({
+      kind: 'brag-doc',
+      id: createId('intake'),
+      userLabel: 'Brag doc',
+      text: trimmed,
+    })
+    setPageError(null)
+    setPageNotice('Added brag doc text as supplemental extraction context.')
+    return true
+  }
+
+  const handleUploadBragDoc = async (file: File) => {
+    try {
+      if (!/\.(txt|md|markdown)$/i.test(file.name) && !file.type.startsWith('text/')) {
+        throw new Error('Brag doc upload supports plain text or Markdown files.')
+      }
+      if (file.size > SUPPLEMENTAL_CONTEXT_MAX_BYTES) {
+        throw new Error('Brag doc upload must be smaller than 2 MB.')
+      }
+
+      const text = (await file.text()).trim()
+      if (!text) {
+        throw new Error('Brag doc file is empty.')
+      }
+      const lengthError = getSupplementalContextLengthError('brag-doc', text)
+      if (lengthError) {
+        throw new Error(lengthError)
+      }
+      if (!canAppendSupplementalContext(text)) {
+        return
+      }
+
+      appendIntakeSource({
+        kind: 'brag-doc',
+        id: createId('intake'),
+        userLabel: file.name,
+        fileName: file.name,
+        text,
+      })
+      setPageError(null)
+      setPageNotice(`Added ${file.name} as supplemental extraction context.`)
+    } catch (error) {
+      setPageNotice(null)
+      setPageError(error instanceof Error ? error.message : 'Unable to read brag doc file.')
+    }
   }
 
   const handleContinueSkillEnrichment = () => {
@@ -1196,6 +1328,9 @@ export function IdentityPage() {
               onCancelDeepenAll={handleCancelDeepenAll}
               onUploadChange={handleUploadChange}
               onDrop={handleDrop}
+              onAddAgentExport={handleAddAgentExport}
+              onAddBragDocText={handleAddBragDocText}
+              onUploadBragDoc={handleUploadBragDoc}
               onRescan={handleRescan}
               onRemoveSource={handleRemoveIntakeSource}
               onSetSourceLabel={handleSetIntakeSourceLabel}

@@ -1,16 +1,56 @@
-import { AlertCircle, RefreshCcw, ScanSearch, Sparkles, Upload, X } from 'lucide-react'
-import type { ChangeEvent, DragEvent, RefObject } from 'react'
+import {
+  AlertCircle,
+  Check,
+  Clipboard,
+  FileText,
+  RefreshCcw,
+  ScanSearch,
+  Sparkles,
+  Upload,
+  X,
+} from 'lucide-react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type RefObject,
+} from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
-import { INTAKE_SOURCE_CAP } from '../../types/identity'
+import {
+  getSupplementalContextLengthError,
+  getSupplementalContextSourceLabel,
+  INTAKE_SOURCE_CAP,
+} from '../../types/identity'
 import type {
   IdentityIntakeMode,
   IdentityExtractionDraft,
   IntakeSource,
   ResumeScanResult,
+  SupplementalContextSource,
 } from '../../types/identity'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
 import { ScanReviewPane } from './ScanReviewPane'
 import { SOURCE_MATERIAL_SAMPLES } from './sampleSourceMaterial'
+
+export const AI_CONVERSATION_EXPORT_PROMPT = `I'm moving to a new career tool and I'd like to export what you know about me.
+Please produce a structured summary of everything you know about my professional
+background, including:
+
+1. Roles, companies, dates, and what I actually did (not just titles)
+2. Technical skills and how deeply I use each one
+3. Projects I've described to you and what was interesting about them
+4. Career goals, preferences, or constraints I've mentioned
+5. Interview prep we've done - questions practiced, stories refined
+6. Cover letters or resume content we've worked on
+7. Any career advice or strategy we discussed
+8. My communication style or voice patterns you've noticed
+9. Things I've said I'm NOT good at or don't want to do
+10. Anything else that would help a new career tool understand me
+
+Format this as a detailed narrative, not a resume. Include specifics, numbers,
+and context - the kind of detail that would be lost in a resume format.`
 
 interface FailedFileEntry {
   id: string
@@ -45,6 +85,9 @@ interface ExtractionAgentCardProps {
   onCancelDeepenAll: () => void
   onUploadChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
   onDrop: (event: DragEvent<HTMLDivElement>) => Promise<void>
+  onAddAgentExport: (text: string) => boolean
+  onAddBragDocText: (text: string) => boolean
+  onUploadBragDoc: (file: File) => Promise<void>
   onRescan: () => void
   onRemoveSource: (id: string) => void
   onSetSourceLabel: (id: string, label: string) => void
@@ -116,6 +159,9 @@ export function ExtractionAgentCard({
   onCancelDeepenAll,
   onUploadChange,
   onDrop,
+  onAddAgentExport,
+  onAddBragDocText,
+  onUploadBragDoc,
   onRescan,
   onRemoveSource,
   onSetSourceLabel,
@@ -133,10 +179,21 @@ export function ExtractionAgentCard({
   onUpdateProjectEntry,
   onUpdateEducationEntry,
 }: ExtractionAgentCardProps) {
+  const bragDocUploadRef = useRef<HTMLInputElement>(null)
+  const copyResetTimeoutRef = useRef<number | null>(null)
+  const [agentExportText, setAgentExportText] = useState('')
+  const [bragDocText, setBragDocText] = useState('')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [agentExportInputError, setAgentExportInputError] = useState<string | null>(null)
+  const [bragDocInputError, setBragDocInputError] = useState<string | null>(null)
   const hasRunningBullet = scanResult
     ? Object.values(scanResult.progress.bullets).some((progress) => progress.status === 'running')
     : false
   const resumeSources = intakeSources.filter((source) => source.kind === 'resume')
+  const contextSources = intakeSources.filter(
+    (source): source is SupplementalContextSource =>
+      source.kind === 'agent-dump' || source.kind === 'brag-doc',
+  )
   const contributingSourceCount = Math.min(resumeSources.length, INTAKE_SOURCE_CAP)
   const generateButtonLabel =
     intakeMode === 'upload' && contributingSourceCount > 0
@@ -144,6 +201,75 @@ export function ExtractionAgentCard({
           contributingSourceCount === 1 ? '' : 's'
         }`
       : 'Generate Draft'
+
+  useEffect(
+    () => () => {
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current)
+      }
+    },
+    [],
+  )
+
+  const copyExportPrompt = async () => {
+    if (copyResetTimeoutRef.current !== null) {
+      window.clearTimeout(copyResetTimeoutRef.current)
+      copyResetTimeoutRef.current = null
+    }
+    setCopyStatus('idle')
+    try {
+      await navigator.clipboard.writeText(AI_CONVERSATION_EXPORT_PROMPT)
+      setCopyStatus('copied')
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyResetTimeoutRef.current = null
+      }, 2000)
+    } catch {
+      setCopyStatus('error')
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyResetTimeoutRef.current = null
+      }, 4000)
+    }
+  }
+  const addAgentExport = () => {
+    if (onAddAgentExport(agentExportText)) {
+      setAgentExportText('')
+      setAgentExportInputError(null)
+    }
+  }
+  const addBragDocText = () => {
+    if (onAddBragDocText(bragDocText)) {
+      setBragDocText('')
+      setBragDocInputError(null)
+    }
+  }
+  const updateAgentExportText = (value: string) => {
+    const lengthError = getSupplementalContextLengthError('agent-dump', value)
+    if (lengthError) {
+      setAgentExportInputError(lengthError)
+      return
+    }
+    setAgentExportInputError(null)
+    setAgentExportText(value)
+  }
+  const updateBragDocText = (value: string) => {
+    const lengthError = getSupplementalContextLengthError('brag-doc', value)
+    if (lengthError) {
+      setBragDocInputError(lengthError)
+      return
+    }
+    setBragDocInputError(null)
+    setBragDocText(value)
+  }
+  const handleBragDocUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+    await onUploadBragDoc(file)
+  }
 
   return (
     <section className="identity-card">
@@ -201,7 +327,16 @@ export function ExtractionAgentCard({
         accept="application/pdf,.pdf"
         multiple
         className="sr-only"
+        tabIndex={-1}
         onChange={(event) => void onUploadChange(event)}
+      />
+      <input
+        ref={bragDocUploadRef}
+        type="file"
+        accept="text/plain,text/markdown,.txt,.md"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => void handleBragDocUploadChange(event)}
       />
 
       <AiWorkingStatus
@@ -238,6 +373,145 @@ export function ExtractionAgentCard({
             variants give Facet denser canonical bullet fields, which improves JD-tailored
             regeneration later. OCR and image-only sources are out of scope for this pass.
           </p>
+          <div className="identity-context-panel" aria-labelledby="identity-context-heading">
+            <div className="identity-stack">
+              <h3 id="identity-context-heading">Optional Context Sources</h3>
+              <p className="identity-muted">
+                The more context Facet has, the sharper the first draft gets. AI exports typically
+                reduce setup by 60%; brag docs add accomplishment detail that resumes compress.
+              </p>
+            </div>
+
+            <div className="identity-context-grid">
+              <div className="identity-context-card">
+                <div className="identity-source-card-row">
+                  <Clipboard size={16} aria-hidden="true" />
+                  <strong>AI conversation export</strong>
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={() => void copyExportPrompt()}
+                  >
+                    {copyStatus === 'copied' ? <Check size={16} /> : <Clipboard size={16} />}
+                    {copyStatus === 'copied' ? 'Copied' : 'Copy Prompt'}
+                  </button>
+                  <span className="sr-only" aria-live="polite">
+                    {copyStatus === 'copied' ? 'AI export prompt copied to clipboard.' : ''}
+                  </span>
+                </div>
+                <p className="identity-muted">
+                  Carries goals, voice, prep history, strategy, constraints, and the context that
+                  never survives a resume.
+                </p>
+                {copyStatus === 'error' ? (
+                  <p className="identity-source-card-error-message" role="alert">
+                    Clipboard access is unavailable. Select and copy the prompt text manually.
+                  </p>
+                ) : null}
+                {agentExportInputError ? (
+                  <p className="identity-source-card-error-message" role="alert">
+                    {agentExportInputError}
+                  </p>
+                ) : null}
+                <textarea
+                  className="identity-textarea identity-context-prompt"
+                  readOnly
+                  value={AI_CONVERSATION_EXPORT_PROMPT}
+                  aria-label="AI conversation export prompt"
+                />
+                <label className="identity-field">
+                  <span className="identity-label">Pasted AI export narrative</span>
+                  <textarea
+                    className="identity-textarea"
+                    value={agentExportText}
+                    onChange={(event) => updateAgentExportText(event.target.value)}
+                    placeholder="Paste the narrative export here after the AI assistant generates it."
+                  />
+                </label>
+                <div className="identity-card-actions">
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={addAgentExport}
+                    disabled={agentExportText.trim().length === 0}
+                  >
+                    <Sparkles size={16} />
+                    Add AI Context
+                  </button>
+                </div>
+              </div>
+
+              <div className="identity-context-card">
+                <div className="identity-source-card-row">
+                  <FileText size={16} aria-hidden="true" />
+                  <strong>Brag doc</strong>
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={() => bragDocUploadRef.current?.click()}
+                  >
+                    <Upload size={16} />
+                    Upload Text
+                  </button>
+                </div>
+                <p className="identity-muted">
+                  Adds wins, scope, metrics, feedback, and project details that can become PAIO
+                  bullet evidence.
+                </p>
+                {bragDocInputError ? (
+                  <p className="identity-source-card-error-message" role="alert">
+                    {bragDocInputError}
+                  </p>
+                ) : null}
+                <label className="identity-field">
+                  <span className="identity-label">Pasted brag doc text</span>
+                  <textarea
+                    className="identity-textarea"
+                    value={bragDocText}
+                    onChange={(event) => updateBragDocText(event.target.value)}
+                    placeholder="Paste accomplishments, weekly wins, promotion packets, or project notes."
+                  />
+                </label>
+                <div className="identity-card-actions">
+                  <button
+                    className="identity-btn"
+                    type="button"
+                    onClick={addBragDocText}
+                    disabled={bragDocText.trim().length === 0}
+                  >
+                    <FileText size={16} />
+                    Add Brag Doc
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {contextSources.length > 0 ? (
+              <ul className="identity-source-list" aria-label="Supplemental context sources">
+                {contextSources.map((source) => (
+                  <li key={source.id} className="identity-source-card">
+                    <div className="identity-source-card-row">
+                      {source.kind === 'agent-dump' ? (
+                        <Clipboard size={14} aria-hidden="true" />
+                      ) : (
+                        <FileText size={14} aria-hidden="true" />
+                      )}
+                      <strong>{getSupplementalContextSourceLabel(source)}</strong>
+                      <span className="identity-muted">{source.text.trim().length} chars</span>
+                      <button
+                        className="identity-btn identity-btn-icon"
+                        type="button"
+                        onClick={() => onRemoveSource(source.id)}
+                        aria-label={`Remove ${getSupplementalContextSourceLabel(source)}`}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           {resumeSources.length > 0 || failedFiles.length > 0 ? (
             <>
               {resumeSources.length > INTAKE_SOURCE_CAP ? (

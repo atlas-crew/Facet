@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../utils/llmProxy', async () => {
-  const actual = await vi.importActual<typeof import('../utils/llmProxy')>(
-    '../utils/llmProxy',
-  )
+  const actual = await vi.importActual<typeof import('../utils/llmProxy')>('../utils/llmProxy')
 
   return {
     ...actual,
@@ -38,7 +36,9 @@ const responseIdentityResult = importProfessionalIdentity({
   },
   self_model: {
     arc: [{ company: 'Acme', chapter: 'Scaled platform delivery' }],
-    philosophy: [{ id: 'boring-systems', text: 'Prefer boring systems that fail well.', tags: ['platform'] }],
+    philosophy: [
+      { id: 'boring-systems', text: 'Prefer boring systems that fail well.', tags: ['platform'] },
+    ],
     interview_style: {
       strengths: ['System design'],
       weaknesses: ['Over-explaining'],
@@ -233,8 +233,12 @@ describe('identityExtraction', () => {
     expect(EXTRACTION_SYSTEM_PROMPT).not.toContain('"role_fit"')
     expect(EXTRACTION_SYSTEM_PROMPT).toContain('"schema_revision": "3.1"')
     expect(EXTRACTION_SYSTEM_PROMPT).toContain('"matching": {')
-    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"prioritize": [{ "id": string, "label": string, "description": string, "weight": "high" | "medium" | "low" }]')
-    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"avoid": [{ "id": string, "label": string, "description": string, "severity": "hard" | "soft" }]')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"prioritize": [{ "id": string, "label": string, "description": string, "weight": "high" | "medium" | "low" }]',
+    )
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"avoid": [{ "id": string, "label": string, "description": string, "severity": "hard" | "soft" }]',
+    )
     expect(EXTRACTION_SYSTEM_PROMPT).toContain('"search_vectors": []')
     expect(EXTRACTION_SYSTEM_PROMPT).toContain('"awareness": { "open_questions": [] }')
     expect(BULLET_DEEPENING_SYSTEM_PROMPT).toContain('Professional Identity Schema v3.1')
@@ -248,7 +252,8 @@ describe('identityExtraction', () => {
           {
             role_id: 'acme',
             bullet_id: 'acme-1',
-            rewrite: 'Led platform migration [scope: guessing] to a unified deployment workflow with org-wide adoption.',
+            rewrite:
+              'Led platform migration [scope: guessing] to a unified deployment workflow with org-wide adoption.',
             tags: ['platform', 'delivery', 'platform'],
             assumptions: [{ label: 'scope', confidence: 'guessing' }],
           },
@@ -285,10 +290,10 @@ describe('identityExtraction', () => {
         bullets: [
           {
             ...(
-              ((partialIdentity.roles as Array<Record<string, unknown>>)[0]?.bullets as Array<
+              (partialIdentity.roles as Array<Record<string, unknown>>)[0]?.bullets as Array<
                 Record<string, unknown>
-              >)[0]
-            ),
+              >
+            )[0],
             problem: 'Deployment workflow was fragmented.',
             action: 'Led a platform migration to a unified pipeline.',
             outcome: 'Teams shipped through one deployment workflow.',
@@ -352,9 +357,7 @@ describe('identityExtraction', () => {
     expect(parsed.identity.identity.thesis).toBe(seedIdentity.identity.thesis)
     expect(parsed.identity.identity.links).toEqual(seedIdentity.identity.links)
     expect(parsed.bullets).toHaveLength(3)
-    expect(parsed.bullets[2]?.rewrite).toBe(
-      'Migrated legacy services onto Kubernetes clusters.',
-    )
+    expect(parsed.bullets[2]?.rewrite).toBe('Migrated legacy services onto Kubernetes clusters.')
     expect(
       parsed.warnings.some((warning) =>
         warning.includes('Preserved 1 scanned role omitted from AI extraction output.'),
@@ -646,7 +649,9 @@ describe('identityExtraction', () => {
       ],
     })
     expect(parsed.identity.preferences.constraints).toEqual({})
-    expect('role_fit' in (parsed.identity.preferences as unknown as Record<string, unknown>)).toBe(false)
+    expect('role_fit' in (parsed.identity.preferences as unknown as Record<string, unknown>)).toBe(
+      false,
+    )
     expect(parsed.identity.search_vectors).toEqual([])
     expect(parsed.identity.awareness).toEqual({ open_questions: [] })
     expect(parsed.warnings.some((warning) => warning.includes('role_fit'))).toBe(false)
@@ -678,10 +683,14 @@ describe('identityExtraction', () => {
     expect(parsed.identity.schema_revision).toBe('3.1')
     expect(parsed.identity.preferences.matching).toEqual({ prioritize: [], avoid: [] })
     expect(parsed.identity.preferences.constraints).toEqual({})
-    expect('role_fit' in (parsed.identity.preferences as unknown as Record<string, unknown>)).toBe(false)
+    expect('role_fit' in (parsed.identity.preferences as unknown as Record<string, unknown>)).toBe(
+      false,
+    )
     expect(parsed.identity.search_vectors).toEqual([])
     expect(parsed.identity.awareness).toEqual({ open_questions: [] })
-    expect(parsed.warnings).toContain('Added missing schema_revision "3.1" for AI extraction output.')
+    expect(parsed.warnings).toContain(
+      'Added missing schema_revision "3.1" for AI extraction output.',
+    )
     expect(parsed.warnings).toContain(
       'Dropped legacy preferences.role_fit from AI extraction output before schema import.',
     )
@@ -691,7 +700,13 @@ describe('identityExtraction', () => {
     expect(parsed.warnings).toContain(
       'Normalized invalid preferences.matching.avoid into an empty array for AI extraction output.',
     )
-    expect(parsed.warnings.some((warning) => warning.includes('Derived missing preferences.matching entries from legacy preferences.role_fit values'))).toBe(false)
+    expect(
+      parsed.warnings.some((warning) =>
+        warning.includes(
+          'Derived missing preferences.matching entries from legacy preferences.role_fit values',
+        ),
+      ),
+    ).toBe(false)
   })
 
   it('sanitizes partial matching rows instead of dropping the whole array', () => {
@@ -776,7 +791,9 @@ describe('identityExtraction', () => {
     expect(parsed.identity.preferences.work_model.preference).toBe('')
     expect(parsed.identity.preferences.matching).toEqual({ prioritize: [], avoid: [] })
     expect(parsed.identity.preferences.constraints).toEqual({})
-    expect('role_fit' in (parsed.identity.preferences as unknown as Record<string, unknown>)).toBe(false)
+    expect('role_fit' in (parsed.identity.preferences as unknown as Record<string, unknown>)).toBe(
+      false,
+    )
     expect(parsed.warnings).toContain(
       'Added missing preferences object with empty v3.1 defaults for AI extraction output.',
     )
@@ -1034,10 +1051,7 @@ describe('identity bullet deepening', () => {
   })
 
   it('normalizes numeric schema_revision values before sending a deepen request', async () => {
-    const identity = structuredClone(responseBody.identity) as unknown as Record<
-      string,
-      unknown
-    >
+    const identity = structuredClone(responseBody.identity) as unknown as Record<string, unknown>
     identity.schema_revision = 3.1
     vi.mocked(callLlmProxy).mockResolvedValueOnce(
       JSON.stringify({
@@ -1046,8 +1060,7 @@ describe('identity bullet deepening', () => {
           role_id: 'acme',
           bullet_id: 'acme-1',
           problem: 'Deployment workflow was fragmented across EKS clusters.',
-          action:
-            'Led a migration to EKS with Helm charts and Terraform modules.',
+          action: 'Led a migration to EKS with Helm charts and Terraform modules.',
           outcome: 'Teams shipped through one deployment workflow.',
           impact: ['Standardized delivery across 12 pipelines'],
           metrics: { pipelines: 12 },
@@ -1130,13 +1143,10 @@ describe('identity bullet deepening', () => {
       /Identity bullet deepening response/,
     )
   })
-
 })
 
 describe('identity extraction with multi-source synthesis seed', () => {
-  const makeSynthesisSeed = (
-    overrides: Partial<SynthesisSeed> = {},
-  ): SynthesisSeed => ({
+  const makeSynthesisSeed = (overrides: Partial<SynthesisSeed> = {}): SynthesisSeed => ({
     identity: responseBody.identity,
     bulletVariantPools: {},
     roleVariantTitles: {},
@@ -1152,6 +1162,35 @@ describe('identity extraction with multi-source synthesis seed', () => {
     expect(prompt).toContain('"resumes": []')
     expect(prompt).toContain('"jds": []')
     expect(prompt).toContain('"agent_dumps": []')
+  })
+
+  it('adds supplemental context sources to agent_dumps as untrusted evidence', () => {
+    const prompt = buildExtractionPrompt({
+      sourceMaterial: 'Pasted resume text.',
+      synthesisSeed: null,
+      supplementalContextSources: [
+        {
+          kind: 'agent-dump',
+          id: 'context-ai',
+          userLabel: 'AI conversation export',
+          text: 'I want staff platform roles and avoid heavy travel.',
+        },
+        {
+          kind: 'brag-doc',
+          id: 'context-brag',
+          fileName: 'brag.md',
+          text: 'Reduced incident response time by 40%.',
+        },
+      ],
+    })
+
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('untrusted evidence')
+    expect(prompt).toContain('"source_type": "ai_conversation_export"')
+    expect(prompt).toContain('"source_type": "brag_doc"')
+    expect(prompt).toContain('"source_label": "AI conversation export"')
+    expect(prompt).toContain('"source_label": "brag.md"')
+    expect(prompt).toContain('"agent_dumps": [')
+    expect(prompt).toContain('Reduced incident response time by 40%.')
   })
 
   it('pivots bulletVariantPools into per-source resumes entries with attributed bullets', () => {

@@ -170,20 +170,45 @@ export interface ResumeScanResult {
 /**
  * Discriminated union for sources fed into multi-source identity intake (m-33).
  *
- * Phase 1 wires only the `resume` arm — a parsed PDF resume scan with an
- * optional positioning-hint label. Future arms are reserved as seam plug
- * points so adding them later is purely additive:
+ * Phase 1 started with the `resume` arm — a parsed PDF resume scan with an
+ * optional positioning-hint label. Free context sources extend the same
+ * intake-time union without persisting into ProfessionalIdentityV3:
  *
  *   { kind: 'jd';         id; userLabel?; sourceUrl?; analysis: JDAnalysis }
- *   { kind: 'agent-dump'; id; agentName?; text: string }
  *
  * Discriminate on `kind` before destructuring. Intake-time state only — never
  * persisted into `ProfessionalIdentityV3`; discarded after draft acceptance.
  */
 export type IntakeSource =
   | { kind: 'resume'; id: string; userLabel?: string; scan: ResumeScanResult }
-  // Phase 2 plug point: | { kind: 'jd'; id: string; userLabel?: string; sourceUrl?: string; analysis: JDAnalysis }
-  // Phase 3 plug point: | { kind: 'agent-dump'; id: string; agentName?: string; text: string }
+  | { kind: 'agent-dump'; id: string; userLabel?: string; agentName?: string; text: string }
+  | { kind: 'brag-doc'; id: string; userLabel?: string; fileName?: string; text: string }
+// Phase 2 plug point: | { kind: 'jd'; id: string; userLabel?: string; sourceUrl?: string; analysis: JDAnalysis }
+
+export type SupplementalContextSource = Extract<IntakeSource, { kind: 'agent-dump' | 'brag-doc' }>
+
+export const SUPPLEMENTAL_CONTEXT_MAX_CHARS = 100_000
+export const SUPPLEMENTAL_CONTEXT_TOTAL_MAX_CHARS = 200_000
+export const SUPPLEMENTAL_CONTEXT_MAX_BYTES = 2 * 1024 * 1024
+
+export const getSupplementalContextSourceLabel = (source: SupplementalContextSource): string =>
+  source.userLabel ??
+  (source.kind === 'agent-dump'
+    ? (source.agentName ?? 'AI conversation export')
+    : (source.fileName ?? 'Brag doc'))
+
+export const getSupplementalContextLengthError = (
+  kind: SupplementalContextSource['kind'],
+  text: string,
+): string | null => {
+  if (text.length <= SUPPLEMENTAL_CONTEXT_MAX_CHARS) {
+    return null
+  }
+
+  return kind === 'agent-dump'
+    ? 'AI conversation export must be 100,000 characters or fewer.'
+    : 'Brag doc text must be 100,000 characters or fewer.'
+}
 
 /**
  * Soft cap on intake sources fed into a single synthesis run (m-33 LOCKED
@@ -274,4 +299,3 @@ export type MapSelection =
   | { type: 'match-rule'; kind: 'prioritize' | 'avoid'; id: string; justAdded?: boolean }
   | { type: 'search-vector'; id: string; justAdded?: boolean }
   | { type: 'awareness-question'; id: string; justAdded?: boolean }
-
