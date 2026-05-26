@@ -1,5 +1,6 @@
 import { PREP_CONDITIONAL_TONE_VALUES } from '../types/prep'
 import type {
+  PrepAnchorSubDecision,
   PrepCard,
   PrepConditional,
   PrepConditionalTone,
@@ -326,6 +327,16 @@ export function filterPrepStoryVariants(
   return filterPrepContent(variants, hasPrepStoryVariantContent)
 }
 
+export function hasPrepAnchorSubDecisionContent(decision: PrepAnchorSubDecision): boolean {
+  return decision.title.trim().length > 0 && filterPrepStoryBlocks(decision.blocks).length > 0
+}
+
+export function filterPrepAnchorSubDecisions(
+  decisions: PrepAnchorSubDecision[] | undefined,
+): PrepAnchorSubDecision[] {
+  return filterPrepContent(decisions, hasPrepAnchorSubDecisionContent)
+}
+
 export function getPrepRenderableStoryVariants(
   card: Pick<PrepCard, 'storyBlocks' | 'storyVariants'>,
 ): PrepStoryVariant[] {
@@ -449,6 +460,16 @@ export function hasPrepStoryBlockNeedsReview(block: PrepStoryBlock): boolean {
   return hasPrepNeedsReviewText(block.text)
 }
 
+export function hasPrepAnchorSubDecisionNeedsReview(decision: PrepAnchorSubDecision): boolean {
+  return (
+    hasPrepNeedsReviewText(decision.title) ||
+    hasPrepNeedsReviewText(decision.tag) ||
+    hasPrepNeedsReviewText(decision.pushbackResponse) ||
+    hasPrepNeedsReviewText(decision.honestTradeoff) ||
+    decision.blocks.some((block) => hasPrepStoryBlockNeedsReview(block))
+  )
+}
+
 export function hasPrepFollowUpNeedsReview(followUp: PrepFollowUp): boolean {
   return (
     hasPrepNeedsReviewText(followUp.question) ||
@@ -481,7 +502,7 @@ export function hasPrepCardNeedsReviewContent(
     | 'followUps'
     | 'deepDives'
     | 'tableData'
-  >,
+  > & { subDecisions?: PrepAnchorSubDecision[] },
 ): boolean {
   return (
     hasPrepNeedsReviewText(card.title) ||
@@ -504,6 +525,7 @@ export function hasPrepCardNeedsReviewContent(
         (variant.keyPoints ?? []).some((point) => hasPrepNeedsReviewText(point)) ||
         variant.storyBlocks.some((block) => hasPrepStoryBlockNeedsReview(block)),
     ) ||
+    (card.subDecisions ?? []).some((decision) => hasPrepAnchorSubDecisionNeedsReview(decision)) ||
     (card.conditionals ?? []).some((conditional) => hasPrepConditionalNeedsReview(conditional)) ||
     (card.metrics ?? []).some((metric) => hasPrepMetricNeedsReview(metric)) ||
     (card.followUps ?? []).some((followUp) => hasPrepFollowUpNeedsReview(followUp)) ||

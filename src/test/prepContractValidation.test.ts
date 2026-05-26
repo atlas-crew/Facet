@@ -217,6 +217,57 @@ describe('prep contract validation', () => {
     expect(loggedPayload?.fields).toHaveLength(new Set(loggedPayload?.fields).size)
   })
 
+  it('reports anchor cards with missing sub-decisions', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        companyResearchSummary: 'Acme is scaling carefully.',
+        rules: ['Lead with specifics', 'Stay concrete', 'Name tradeoffs'],
+        categoryGuidance: {
+          opener: 'Lead with specifics.',
+          technical: 'Convince them with concrete examples and earn attention quickly.',
+        },
+        cards: [
+          {
+            category: 'technical',
+            kind: 'anchor',
+            title: 'Platform migration anchor',
+            tags: ['system-design'],
+            storyBlocks: [
+              { label: 'problem', text: 'The platform carried tenant-specific coupling.' },
+            ],
+            subDecisions: [],
+          },
+        ],
+      }),
+    )
+
+    const result = await generatePrepDeck('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.contractViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'missing-field',
+          field: 'subDecisions',
+          message: expect.stringContaining('3 to 5 sub-decisions'),
+        }),
+      ]),
+    )
+  })
+
   it('accepts a deck that satisfies the validation contract', async () => {
     callLlmProxyMock.mockResolvedValueOnce(
       JSON.stringify({

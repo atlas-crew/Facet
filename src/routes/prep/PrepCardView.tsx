@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Check, ChevronRight, Copy, CopyPlus, Plus, Table2, Trash2 } from 'lucide-react'
 import { PREP_CONDITIONAL_TONE_VALUES, PREP_STORY_BLOCK_LABEL_VALUES } from '../../types/prep'
 import type {
+  PrepAnchorSubDecision,
   PrepCard,
   PrepCardPatch,
   PrepConditional,
@@ -14,6 +15,7 @@ import type {
 import { createId } from '../../utils/idUtils'
 import { PrepCollapsibleSection, type PrepSectionTone } from './PrepCollapsibleSection'
 import {
+  filterPrepAnchorSubDecisions,
   filterPrepConditionals,
   filterPrepDeepDives,
   filterPrepFollowUps,
@@ -52,12 +54,130 @@ function renderReadOnlyKindCard(
   if (card.kind === 'scenario') {
     return <ScenarioCardReadOnly card={card} needsReview={needsReview} />
   }
+  if (card.kind === 'anchor') {
+    return <AnchorCardReadOnly card={card} needsReview={needsReview} />
+  }
   if (card.kind !== 'intel' || !linkedInterviewer) return null
   return <IntelCardReadOnly card={card} interviewer={linkedInterviewer} needsReview={needsReview} />
 }
 
 function getScriptClassName(card: PrepCard): string {
   return card.scriptKind ? `prep-script prep-script-${card.scriptKind}` : 'prep-script'
+}
+
+function AnchorCardReadOnly({
+  card,
+  needsReview,
+}: {
+  card: Extract<PrepCard, { kind: 'anchor' }>
+  needsReview: boolean
+}) {
+  const displayTitle = getPrepDisplayText(card.title) || 'Anchor Story'
+  const displayNotes = getPrepSourceAwareText(card.notes, card.source)
+  const readOnlyStoryBlocks = filterPrepStoryBlocks(card.storyBlocks)
+  const subDecisions = filterPrepAnchorSubDecisions(card.subDecisions)
+
+  return (
+    <div className={`prep-card prep-anchor-card${needsReview ? ' prep-card-needs-review' : ''}`}>
+      <div className="prep-card-header">
+        <h3 className="prep-card-title">{displayTitle}</h3>
+        <div className="prep-card-meta">
+          <span className={`prep-category prep-category-${card.category}`}>{card.category}</span>
+          {needsReview ? <span className="prep-review-badge">Needs Review</span> : null}
+        </div>
+      </div>
+
+      {card.tags.length > 0 && (
+        <div className="prep-tags">
+          {card.tags.map((tag) => (
+            <span key={tag} className="prep-tag">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {displayNotes ? (
+        <div className="prep-anchor-note">
+          <div className="prep-anchor-label">Frame</div>
+          {displayNotes}
+        </div>
+      ) : null}
+
+      {readOnlyStoryBlocks.length > 0 ? (
+        <div className="prep-anchor-story-grid" aria-label="Anchor umbrella narrative">
+          {readOnlyStoryBlocks.map((block, index) => (
+            <div key={`${block.label}-${index}`} className="prep-anchor-story-block">
+              <div className="prep-anchor-label">{block.label}</div>
+              {getPrepSourceAwareText(block.text, card.source)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {subDecisions.length > 0 ? (
+        <div className="prep-anchor-subdecisions">
+          {subDecisions.map((decision, index) => (
+            <AnchorSubDecisionReadOnly
+              key={decision.id}
+              decision={decision}
+              source={card.source}
+              defaultOpen={index === 0}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function AnchorSubDecisionReadOnly({
+  decision,
+  source,
+  defaultOpen,
+}: {
+  decision: PrepAnchorSubDecision
+  source: PrepCard['source']
+  defaultOpen: boolean
+}) {
+  const title = getPrepDisplayText(decision.title) || 'Sub-decision'
+  const tag = getPrepDisplayText(decision.tag)
+  const blocks = filterPrepStoryBlocks(decision.blocks)
+  const pushbackResponse = getPrepSourceAwareText(decision.pushbackResponse, source)
+  const honestTradeoff = getPrepSourceAwareText(decision.honestTradeoff, source)
+
+  return (
+    <details className="prep-anchor-subdecision" open={defaultOpen}>
+      <summary>
+        <span className="prep-anchor-subdecision-title">{title}</span>
+        {tag ? <span className="prep-anchor-subdecision-tag">{tag}</span> : null}
+      </summary>
+      <div className="prep-anchor-subdecision-body">
+        {blocks.length > 0 ? (
+          <div className="prep-anchor-subdecision-blocks">
+            {blocks.map((block, index) => (
+              <div key={`${block.label}-${index}`} className="prep-anchor-story-block">
+                <div className="prep-anchor-label">{block.label}</div>
+                {getPrepSourceAwareText(block.text, source)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {pushbackResponse ? (
+          <div className="prep-anchor-callout prep-anchor-pushback">
+            <div className="prep-anchor-label">If they push</div>
+            {pushbackResponse}
+          </div>
+        ) : null}
+        {honestTradeoff ? (
+          <div className="prep-anchor-callout prep-anchor-tradeoff">
+            <div className="prep-anchor-label">Honest tradeoff</div>
+            {honestTradeoff}
+          </div>
+        ) : null}
+      </div>
+    </details>
+  )
 }
 
 function ScenarioCardReadOnly({

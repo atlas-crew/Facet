@@ -817,6 +817,54 @@ describe('PrepCardView', () => {
     expect(screen.getByText('Do not pretend the migration is only code movement.')).toBeTruthy()
   })
 
+  it('renders anchor cards as umbrella stories with collapsible sub-decisions', () => {
+    const { container } = render(
+      <PrepCardView
+        readOnly
+        card={makeCard({
+          category: 'technical',
+          kind: 'anchor',
+          title: 'Platform migration anchor',
+          tags: ['system-design'],
+          notes: 'Use this as the one big architecture story.',
+          storyBlocks: [
+            { label: 'problem', text: 'The platform carried tenant-specific coupling.' },
+            { label: 'result', text: 'The migration kept customer blast radius low.' },
+          ],
+          subDecisions: [
+            {
+              id: 'decision-1',
+              title: 'Choose staged migration',
+              tag: 'rollout',
+              blocks: [
+                { label: 'problem', text: 'A big bang cutover would concentrate risk.' },
+                { label: 'solution', text: 'I moved traffic behind explicit checkpoints.' },
+                { label: 'result', text: 'Teams retained rollback options throughout.' },
+              ],
+              pushbackResponse: 'I would name the reconciliation risk before defending the path.',
+              honestTradeoff: 'The staged path took longer but reduced production risk.',
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(container.querySelector('.prep-anchor-card')).toBeTruthy()
+    expect(screen.getByText('Use this as the one big architecture story.')).toBeTruthy()
+    expect(screen.getByText('The platform carried tenant-specific coupling.')).toBeTruthy()
+    expect(screen.getByText('Choose staged migration')).toBeTruthy()
+    expect(screen.getByText('rollout')).toBeTruthy()
+    expect(screen.getByText('A big bang cutover would concentrate risk.')).toBeTruthy()
+    expect(screen.getByText('If they push')).toBeTruthy()
+    expect(
+      screen.getByText('I would name the reconciliation risk before defending the path.'),
+    ).toBeTruthy()
+    expect(screen.getByText('Honest tradeoff')).toBeTruthy()
+    expect(
+      screen.getByText('The staged path took longer but reduced production risk.'),
+    ).toBeTruthy()
+  })
+
   it('renders scenario phased frameworks as rollout phases', () => {
     render(
       <PrepCardView

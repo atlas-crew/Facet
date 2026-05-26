@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  PrepAnchorSubDecision,
   PrepCard,
   PrepCardBase,
   PrepCardKind,
@@ -144,7 +145,8 @@ type PrepCardSanitizeInput = PrepCardPatch & {
 type PrepScenarioFields = Partial<
   Pick<PrepScenarioCard, 'whyLikely' | 'decisionTree' | 'phasedFramework'>
 >
-type PrepCardBaseWithScenarioFields = PrepCardBase & PrepScenarioFields
+type PrepAnchorFields = { subDecisions?: PrepAnchorSubDecision[] }
+type PrepCardBaseWithScenarioFields = PrepCardBase & PrepScenarioFields & PrepAnchorFields
 
 function sanitizeText(value: unknown, options: SanitizeOptions = {}): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -236,6 +238,7 @@ function createEmptyCard(
     alternativeScript: sanitizeText(partial.alternativeScript, options),
     warning: sanitizeText(partial.warning, options),
     storyBlocks: sanitizeStoryBlocks(partial.storyBlocks, options),
+    subDecisions: sanitizeAnchorSubDecisions(partial.subDecisions, options),
     storyVariants: sanitizeStoryVariants(partial.storyVariants, options),
     keyPoints: sanitizeStringList(partial.keyPoints, options),
     followUps: sanitizeFollowUps(partial.followUps, options)?.map((item) => ({
@@ -517,6 +520,44 @@ function sanitizeStoryVariants(
         keyPoints: sanitizeStringList(record.keyPoints, options),
         roleContext: sanitizeText(record.roleContext, options),
         when: sanitizeText(record.when, options),
+      },
+    ]
+  })
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeAnchorSubDecisions(
+  decisions?: PrepAnchorSubDecision[],
+  options: SanitizeOptions = {},
+): PrepAnchorSubDecision[] | undefined {
+  if (!Array.isArray(decisions)) return undefined
+  const seenIds = new Set<string>()
+  const sanitized = decisions.flatMap((decision) => {
+    if (!decision || typeof decision !== 'object') return []
+    const record = decision as Partial<PrepAnchorSubDecision>
+    const title = typeof record.title === 'string' ? record.title.trim() : ''
+    const blocks = sanitizeStoryBlocks(record.blocks, options)
+    if ((!blocks && !options.preserveDrafts) || (!options.preserveDrafts && !title)) return []
+
+    const stableId = slugify(
+      [title, typeof record.tag === 'string' ? record.tag.trim() : ''].filter(Boolean).join(' '),
+    )
+    const baseId =
+      typeof record.id === 'string' && record.id.trim().length > 0
+        ? record.id.trim()
+        : stableId
+          ? `prep-anchor-decision-${stableId}`
+          : createId('prep-anchor-decision')
+    const id = getUniqueStoryVariantId(baseId, seenIds)
+
+    return [
+      {
+        id,
+        title: title || (options.preserveDrafts ? '' : 'Sub-decision'),
+        tag: sanitizeText(record.tag, options),
+        blocks: blocks ?? [],
+        pushbackResponse: sanitizeText(record.pushbackResponse, options),
+        honestTradeoff: sanitizeText(record.honestTradeoff, options),
       },
     ]
   })
@@ -971,6 +1012,14 @@ function cardWithKind(
       phasedFramework: scenarioFields.phasedFramework,
     }
   }
+  if (kind === 'anchor') {
+    return {
+      ...base,
+      kind,
+      storyBlocks: base.storyBlocks ?? [],
+      subDecisions: base.subDecisions ?? [],
+    }
+  }
   return { ...base, kind }
 }
 
@@ -1139,8 +1188,7 @@ function sanitizeDeck(
 function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
   const category = PREP_CATEGORY_VALUES.includes(card.category) ? card.category : 'behavioral'
 
-  return {
-    ...card,
+  const baseCard: PrepCardBaseWithScenarioFields = {
     id: card.id,
     deckId,
     category,
@@ -1150,8 +1198,12 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
     source: card.source ?? 'manual',
     company: card.company?.trim() || undefined,
     role: card.role?.trim() || undefined,
+    vectorId: sanitizeIdentifier(card.vectorId),
     pipelineEntryId: card.pipelineEntryId ?? null,
+    interviewerIds: sanitizeIdentifierList(card.interviewerIds),
+    updatedAt: card.updatedAt,
     script: card.script?.trim() || undefined,
+    scriptKind: card.scriptKind,
     scriptLabel: card.scriptLabel?.trim() || undefined,
     pushbackScript: card.pushbackScript?.trim() || undefined,
     pushbackLabel: card.pushbackLabel?.trim() || undefined,
@@ -1163,6 +1215,8 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
         ? Math.round(card.timeBudgetMinutes * 10) / 10
         : undefined,
     storyBlocks: sanitizeStoryBlocks(card.storyBlocks),
+    subDecisions:
+      card.kind === 'anchor' ? sanitizeAnchorSubDecisions(card.subDecisions) : undefined,
     storyVariants: sanitizeStoryVariants(card.storyVariants),
     keyPoints: sanitizeStringList(card.keyPoints),
     followUps: sanitizeFollowUps(card.followUps)?.map((item) => ({
@@ -1178,8 +1232,15 @@ function stripDraftCardForExport(deckId: string, card: PrepCard): PrepCard {
       id: item.id ?? createId('prep-conditional'),
     })),
     metrics: sanitizeMetrics(card.metrics),
+    tableData: sanitizeTableData(card.tableData),
     perRoundState: sanitizeCardRoundState(card.perRoundState),
   }
+
+  return cardWithKind(baseCard, card.kind, {
+    whyLikely: card.kind === 'scenario' ? card.whyLikely : undefined,
+    decisionTree: card.kind === 'scenario' ? card.decisionTree : undefined,
+    phasedFramework: card.kind === 'scenario' ? card.phasedFramework : undefined,
+  })
 }
 
 function stripDraftDeckForExport(deck: PrepDeck): PrepDeck {

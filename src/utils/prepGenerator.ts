@@ -11,7 +11,9 @@ import {
   resolvePrepCardKind,
 } from '../types/prep'
 import type {
+  PrepAnchorSubDecision,
   PrepCard,
+  PrepCardBase,
   PrepCategory,
   PrepCompanyIntel,
   PrepConditional,
@@ -520,6 +522,43 @@ function normalizeStoryVariants(value: unknown): PrepStoryVariant[] | undefined 
   return variants.length > 0 ? variants : undefined
 }
 
+function normalizeAnchorSubDecisions(value: unknown): PrepAnchorSubDecision[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const seenIds = new Set<string>()
+  const decisions = value.flatMap((decision) => {
+    if (!decision || typeof decision !== 'object') return []
+    const record = decision as Record<string, unknown>
+    const title = isString(record.title) ? record.title.trim() : ''
+    const blocks = normalizeStoryBlocks(record.blocks)
+    if (!title || !blocks) return []
+
+    const stableId = slugify([title, isString(record.tag) ? record.tag.trim() : ''].join(' '))
+    const baseId =
+      isString(record.id) && record.id.trim()
+        ? record.id.trim()
+        : stableId
+          ? `prep-anchor-decision-${stableId}`
+          : createId('prep-anchor-decision')
+    const id = getUniqueAnchorSubDecisionId(baseId, seenIds)
+
+    return [
+      {
+        id,
+        title,
+        tag: isString(record.tag) ? record.tag.trim() || undefined : undefined,
+        blocks,
+        pushbackResponse: isString(record.pushbackResponse)
+          ? record.pushbackResponse.trim() || undefined
+          : undefined,
+        honestTradeoff: isString(record.honestTradeoff)
+          ? record.honestTradeoff.trim() || undefined
+          : undefined,
+      },
+    ]
+  })
+  return decisions.length > 0 ? decisions : undefined
+}
+
 function normalizeDecisionTree(value: unknown): PrepDecisionTreeNode[] | undefined {
   if (!Array.isArray(value)) return undefined
   const nodes = value.flatMap((node) => {
@@ -579,6 +618,17 @@ function normalizePhasedFramework(value: unknown): PrepPhasedFrameworkPhase[] | 
 }
 
 function getUniqueStoryVariantId(baseId: string, seenIds: Set<string>): string {
+  let id = baseId
+  let suffix = 2
+  while (seenIds.has(id)) {
+    id = `${baseId}-${suffix}`
+    suffix += 1
+  }
+  seenIds.add(id)
+  return id
+}
+
+function getUniqueAnchorSubDecisionId(baseId: string, seenIds: Set<string>): string {
   let id = baseId
   let suffix = 2
   while (seenIds.has(id)) {
@@ -742,7 +792,7 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
           })
         : undefined)
 
-    const normalizedCard: Omit<PrepCard, 'kind'> = {
+    const normalizedCard: PrepCardBase = {
       id: createId('prep-card'),
       category,
       title,
@@ -831,6 +881,17 @@ function normalizeCards(cards: unknown[]): PrepCard[] {
               : '[[needs-review]]',
           decisionTree: normalizeDecisionTree(record.decisionTree),
           phasedFramework: normalizePhasedFramework(record.phasedFramework),
+        },
+      ]
+    }
+
+    if (kind === 'anchor') {
+      return [
+        {
+          ...normalizedCard,
+          kind,
+          storyBlocks: normalizeStoryBlocks(record.storyBlocks) ?? [],
+          subDecisions: normalizeAnchorSubDecisions(record.subDecisions) ?? [],
         },
       ]
     }
@@ -1004,6 +1065,16 @@ function countWords(text: string): number {
 }
 
 function getCardValidationText(card: PrepCard): string {
+  const anchorParts =
+    card.kind === 'anchor'
+      ? card.subDecisions.flatMap((decision) => [
+          decision.title,
+          decision.tag,
+          decision.pushbackResponse,
+          decision.honestTradeoff,
+          ...decision.blocks.map((block) => block.text),
+        ])
+      : []
   const scenarioParts =
     card.kind === 'scenario'
       ? [
@@ -1032,6 +1103,7 @@ function getCardValidationText(card: PrepCard): string {
     card.warning,
     card.script,
     card.pushbackScript,
+    ...anchorParts,
     ...scenarioParts,
     ...(card.keyPoints ?? []),
     ...(card.storyBlocks ?? []).map((block) => block.text),
@@ -1235,6 +1307,20 @@ function validatePrepGenerationContract(params: {
       field: 'whyLikely',
       message:
         'Scenario cards need whyLikely so the decision tree is grounded in the role, company, or interviewer context.',
+      severity: 'error',
+    })
+  }
+
+  for (const card of deck.cards) {
+    if (card.kind !== 'anchor') continue
+    if (card.subDecisions.length >= 3) continue
+
+    addViolation(violations, {
+      kind: 'missing-field',
+      cardId: card.id,
+      field: 'subDecisions',
+      message:
+        'Anchor cards need 3 to 5 sub-decisions so the umbrella story has concrete technical judgment underneath it.',
       severity: 'error',
     })
   }
@@ -2060,6 +2146,7 @@ Response schema:
       "alternativeScript": "optional string",
       "warning": "optional string",
       "storyBlocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }],
+      "subDecisions": [{ "id": "string", "title": "string", "tag": "optional string", "blocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }], "pushbackResponse": "optional string", "honestTradeoff": "optional string" }],
       "storyVariants": [{ "id": "string", "label": "string", "roleContext": "optional string", "when": "optional string", "keyPoints": ["string"], "storyBlocks": [{ "label": "problem|solution|result|closer|note", "text": "string" }] }],
       "keyPoints": ["string"],
       "followUps": [{ "question": "string", "answer": "string" }],
@@ -2141,6 +2228,7 @@ Use structured identity bullets to map problem -> problem, action -> solution, a
 Request 3 to 5 keyPoints for every card so the live cheatsheet has glance bullets.
 When the round includes scenario questions or technical/system-design content, generate an answerTemplate at the deck level: a reusable 5-step drill framework for "How would you..." questions. Otherwise, omit answerTemplate. For technical, system-design, architecture-heavy, or tradeoff-heavy rounds, aim for 5 to 8 situational drill cards that follow the template; for behavioral, hiring-manager, recruiter, or general rounds, aim for 2 to 3. Each drill should use category "situational", kind "scenario", a scenario-question title, a required whyLikely grounding sentence, and either a decisionTree or phasedFramework.
 For scenario cards with competing approaches, use decisionTree with one or more nodes. Each node must include an options table with option, whenRight, and tradeoff columns; add recommendation for "What I'd pick" and trap for the interviewer trap or overclaim risk. For rollout/timeline scenarios, use phasedFramework instead: each phase needs a phase name, optional timeframe, and bullets. Keep scripts/keyPoints only as supporting live-mode cues; the decisionTree or phasedFramework is the primary structure.
+For technical, system-design, architecture-heavy, or tradeoff-heavy rounds, emit one category "technical", kind "anchor" card when the candidate has a credible umbrella technical story. Use storyBlocks for the unifying narrative and subDecisions for 3 to 5 nested technical decisions. Each subDecision needs id, title, optional tag, blocks with problem/solution/result shape, pushbackResponse for interviewer skepticism, and honestTradeoff for the credible downside or constraint. Do not use anchor cards for generic behavioral stories; reserve them for one big technical narrative with several defensible sub-decisions.
 For opener cards, make keyPoints a beat sheet: ordered fallback cues that follow the candidate's through-line and the target role connection. Keep each cue around 8 words and do not prefix items with ordinals, bullets, or labels. Example: "Anchor identity in platform reliability"
 For all non-opener cards, including landmine and intel-tag people cards, make keyPoints glance points: compact noun-phrase bullets for recall, not alternate scripts or full sentences. Keep each glance point around 10 words. Example: "38% incident reduction"
 Build both beat sheets and glance points from Canonical JD Analysis requirements and evidenceMapping plus structured identity evidence. Do not infer keyPoints directly from Original Job Description Source Text except for source wording when canonical analysis omits a detail.

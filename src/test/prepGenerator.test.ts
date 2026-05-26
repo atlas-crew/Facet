@@ -458,6 +458,10 @@ describe('generateInterviewPrep', () => {
     expect(userPrompt).toContain('return a stackAlignment table')
     expect(userPrompt).toContain('source of truth for stackAlignment.confidence')
     expect(userPrompt).toContain('kind "scenario"')
+    expect(userPrompt).toContain('kind "anchor"')
+    expect(userPrompt).toContain('3 to 5 nested technical decisions')
+    expect(userPrompt).toContain('pushbackResponse for interviewer skepticism')
+    expect(userPrompt).toContain('honestTradeoff for the credible downside')
     expect(userPrompt).toContain('decisionTree or phasedFramework')
     expect(userPrompt).toContain('option, whenRight, and tradeoff columns')
     expect(userPrompt).toContain('generate 1 to 2 technical gap-framing cards')
@@ -478,6 +482,7 @@ describe('generateInterviewPrep', () => {
     expect(systemPrompt).toContain('"pushbackScript": "optional string"')
     expect(systemPrompt).toContain('"pushbackLabel": "optional string"')
     expect(systemPrompt).toContain('"storyVariants"')
+    expect(systemPrompt).toContain('"subDecisions"')
     expect(userPrompt).toContain('add pushbackScript as the full expanded same-question answer')
     expect(userPrompt).toContain('Do not use pushbackScript for short Q&A follow-ups')
     expect(userPrompt).toContain('add storyVariants with 2 to 3 options')
@@ -1450,6 +1455,113 @@ describe('generateInterviewPrep', () => {
         },
       ],
     })
+  })
+
+  it('normalizes generated anchor cards with required sub-decisions', async () => {
+    callLlmProxyMock.mockResolvedValueOnce(
+      JSON.stringify({
+        deckTitle: 'Acme Staff Engineer Prep',
+        cards: [
+          {
+            category: 'technical',
+            kind: 'anchor',
+            title: 'Platform migration anchor',
+            tags: ['system-design'],
+            storyBlocks: [
+              { label: 'problem', text: 'The platform had tenant-specific coupling.' },
+              { label: 'result', text: 'The team migrated without concentrating risk.' },
+            ],
+            subDecisions: [
+              {
+                id: 'decision-1',
+                title: 'Choose staged migration',
+                tag: 'rollout',
+                blocks: [
+                  { label: 'problem', text: 'A big bang cutover concentrated risk.' },
+                  { label: 'solution', text: 'Move traffic behind checkpoints.' },
+                  { label: 'result', text: 'Keep rollback paths available.' },
+                ],
+                pushbackResponse: 'Name the reconciliation risk before defending the path.',
+                honestTradeoff: 'The staged path was slower but safer.',
+              },
+              {
+                title: 'Preserve dual writes only briefly',
+                blocks: [
+                  { label: 'problem', text: 'Dual writes could hide consistency drift.' },
+                  { label: 'solution', text: 'Limit the window and instrument mismatches.' },
+                  { label: 'result', text: 'The team saw drift before customers did.' },
+                ],
+              },
+              {
+                title: 'Sequence by tenant risk',
+                blocks: [
+                  { label: 'problem', text: 'Enterprise tenants had different blast radii.' },
+                  { label: 'solution', text: 'Move low-risk tenants before high-touch accounts.' },
+                  { label: 'result', text: 'Support teams had clean escalation windows.' },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const result = await generateInterviewPrep('https://ai.example/proxy', {
+      company: 'Acme',
+      role: 'Staff Engineer',
+      vectorId: 'backend',
+      vectorLabel: 'Backend',
+      roundType: 'system-design',
+      jobDescription: 'Build distributed systems and platform tooling.',
+      jdAnalysis: testJdAnalysis,
+      resumeContext: {
+        resume: {
+          basics: { name: 'Alex Example' },
+        },
+      },
+    })
+
+    expect(result.cards[0]).toMatchObject({
+      kind: 'anchor',
+      category: 'technical',
+      storyBlocks: [
+        { label: 'problem', text: 'The platform had tenant-specific coupling.' },
+        { label: 'result', text: 'The team migrated without concentrating risk.' },
+      ],
+      subDecisions: [
+        {
+          id: 'decision-1',
+          title: 'Choose staged migration',
+          tag: 'rollout',
+          blocks: [
+            { label: 'problem', text: 'A big bang cutover concentrated risk.' },
+            { label: 'solution', text: 'Move traffic behind checkpoints.' },
+            { label: 'result', text: 'Keep rollback paths available.' },
+          ],
+          pushbackResponse: 'Name the reconciliation risk before defending the path.',
+          honestTradeoff: 'The staged path was slower but safer.',
+        },
+        {
+          title: 'Preserve dual writes only briefly',
+          blocks: [
+            { label: 'problem', text: 'Dual writes could hide consistency drift.' },
+            { label: 'solution', text: 'Limit the window and instrument mismatches.' },
+            { label: 'result', text: 'The team saw drift before customers did.' },
+          ],
+        },
+        {
+          title: 'Sequence by tenant risk',
+          blocks: [
+            { label: 'problem', text: 'Enterprise tenants had different blast radii.' },
+            { label: 'solution', text: 'Move low-risk tenants before high-touch accounts.' },
+            { label: 'result', text: 'Support teams had clean escalation windows.' },
+          ],
+        },
+      ],
+    })
+    expect(result.contractViolations).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'subDecisions' })]),
+    )
   })
 
   it('drops malformed scenario decision nodes and phased framework phases', async () => {

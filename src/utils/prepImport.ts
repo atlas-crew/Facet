@@ -1,4 +1,5 @@
 import type {
+  PrepAnchorSubDecision,
   PrepCard,
   PrepCardBase,
   PrepCategory,
@@ -230,6 +231,38 @@ function validateStoryVariants(raw: unknown): PrepStoryVariant[] | undefined {
   return variants.length > 0 ? variants : undefined
 }
 
+function validateAnchorSubDecisions(raw: unknown): PrepAnchorSubDecision[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const decisions = raw.flatMap((decision) => {
+    if (!decision || typeof decision !== 'object') return []
+    const record = decision as Record<string, unknown>
+    const id =
+      typeof record.id === 'string' && record.id.trim()
+        ? record.id.trim()
+        : createId('prep-anchor-decision')
+    const title = typeof record.title === 'string' ? record.title.trim() : ''
+    const blocks = validateStoryBlocks(record.blocks)
+    if (!title || !blocks) return []
+    return [
+      {
+        id,
+        title,
+        tag: typeof record.tag === 'string' ? record.tag.trim() || undefined : undefined,
+        blocks,
+        pushbackResponse:
+          typeof record.pushbackResponse === 'string'
+            ? record.pushbackResponse.trim() || undefined
+            : undefined,
+        honestTradeoff:
+          typeof record.honestTradeoff === 'string'
+            ? record.honestTradeoff.trim() || undefined
+            : undefined,
+      },
+    ]
+  })
+  return decisions.length > 0 ? decisions : undefined
+}
+
 function validateConditionals(raw: unknown): PrepConditional[] | undefined {
   if (!Array.isArray(raw)) return undefined
   const conditionals = raw.flatMap((conditional) => {
@@ -418,6 +451,15 @@ function validateCard(raw: unknown): PrepCard | null {
       whyLikely: typeof c.whyLikely === 'string' ? c.whyLikely.trim() : '',
       decisionTree: validateDecisionTree(c.decisionTree),
       phasedFramework: validatePhasedFramework(c.phasedFramework),
+    }
+  }
+
+  if (cardKind === 'anchor') {
+    return {
+      ...baseCard,
+      kind: cardKind,
+      storyBlocks: baseCard.storyBlocks ?? [],
+      subDecisions: validateAnchorSubDecisions(c.subDecisions) ?? [],
     }
   }
 

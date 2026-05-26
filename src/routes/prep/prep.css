@@ -4202,6 +4202,114 @@
   border-left: 3px solid var(--accent-cyan);
 }
 
+.prep-anchor-card {
+  border-left: 3px solid var(--accent-violet);
+}
+
+.prep-anchor-note,
+.prep-anchor-story-block,
+.prep-anchor-subdecision,
+.prep-anchor-callout {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  padding: var(--space-3);
+}
+
+.prep-anchor-note {
+  background: color-mix(in srgb, var(--accent-violet) 8%, var(--bg-inset));
+  border-color: color-mix(in srgb, var(--accent-violet) 18%, var(--border-subtle));
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-anchor-label {
+  margin-bottom: 4px;
+  color: var(--accent-violet);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prep-anchor-story-grid,
+.prep-anchor-subdecisions,
+.prep-anchor-subdecision-blocks,
+.prep-anchor-subdecision-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.prep-anchor-story-block {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-anchor-subdecision {
+  padding: 0;
+  overflow: hidden;
+}
+
+.prep-anchor-subdecision summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+  padding: var(--space-3);
+  color: var(--text-primary);
+  font-weight: 700;
+  list-style: none;
+}
+
+.prep-anchor-subdecision summary::-webkit-details-marker {
+  display: none;
+}
+
+.prep-anchor-subdecision-title {
+  min-width: 0;
+}
+
+.prep-anchor-subdecision-tag {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--accent-violet) 24%, var(--border-subtle));
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--accent-violet);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.prep-anchor-subdecision-body {
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3);
+}
+
+.prep-anchor-callout {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prep-anchor-pushback {
+  border-color: color-mix(in srgb, var(--accent-primary) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-inset));
+}
+
+.prep-anchor-pushback .prep-anchor-label {
+  color: var(--accent-primary);
+}
+
+.prep-anchor-tradeoff {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-inset));
+}
+
+.prep-anchor-tradeoff .prep-anchor-label {
+  color: var(--warning);
+}
+
 .prep-scenario-why,
 .prep-scenario-recommendation,
 .prep-scenario-trap,

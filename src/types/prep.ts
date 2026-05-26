@@ -348,6 +348,15 @@ export interface PrepStoryVariant {
   when?: string
 }
 
+export interface PrepAnchorSubDecision {
+  id: string
+  title: string
+  tag?: string
+  blocks: PrepStoryBlock[]
+  pushbackResponse?: string
+  honestTradeoff?: string
+}
+
 export interface PrepDecisionOption {
   option: string
   whenRight: string
@@ -502,6 +511,8 @@ export interface PrepStoryCard extends PrepCardBase {
 
 export interface PrepAnchorCard extends PrepCardBase {
   kind: 'anchor'
+  storyBlocks: PrepStoryBlock[]
+  subDecisions: PrepAnchorSubDecision[]
 }
 
 export interface PrepScenarioCard extends PrepCardBase {
@@ -539,6 +550,7 @@ export type PrepCard =
   | PrepFollowUpQACard
 
 export type PrepCardPatch = Partial<Omit<PrepCardBase, 'id' | 'deckId'>> &
+  Partial<Pick<PrepAnchorCard, 'subDecisions'>> &
   Partial<Pick<PrepScenarioCard, 'whyLikely' | 'decisionTree' | 'phasedFramework'>> & {
     kind?: PrepCardKind
   }

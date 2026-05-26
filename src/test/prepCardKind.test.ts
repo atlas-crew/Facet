@@ -20,7 +20,7 @@ import {
   parsePrepScriptKind,
   resolvePrepCardKind,
 } from '../types/prep'
-import type { PrepCard, PrepCardBase, PrepCardKind } from '../types/prep'
+import type { PrepAnchorSubDecision, PrepCard, PrepCardBase, PrepCardKind } from '../types/prep'
 
 const guardByKind = {
   opener: isOpenerCard,
@@ -47,6 +47,21 @@ function makeCard(kind: PrepCardKind): PrepCard {
       ...base,
       kind,
       whyLikely: 'The interviewer has asked comparable architecture tradeoff questions.',
+    }
+  }
+
+  if (kind === 'anchor') {
+    return {
+      ...base,
+      kind,
+      storyBlocks: [{ label: 'problem', text: 'One umbrella technical problem.' }],
+      subDecisions: [
+        {
+          id: 'decision-1',
+          title: 'Pick the rollout path',
+          blocks: [{ label: 'solution', text: 'Moved traffic incrementally.' }],
+        },
+      ],
     }
   }
 
@@ -172,5 +187,34 @@ describe('prep card kind helpers', () => {
     expect(isScenarioCard(card)).toBe(true)
     expect(card.decisionTree?.[0]?.options?.[0]?.tradeoff).toBe('Requires routing discipline.')
     expect(card.phasedFramework?.[0]?.bullets).toContain('Pick rollback points')
+  })
+
+  it('models anchor sub-decisions as required technical story structure', () => {
+    const subDecisions = [
+      {
+        id: 'decision-1',
+        title: 'Choose staged migration',
+        tag: 'rollout',
+        blocks: [
+          { label: 'problem', text: 'The old platform could not move all at once.' },
+          { label: 'solution', text: 'I sequenced the rollout behind explicit checkpoints.' },
+          { label: 'result', text: 'The team kept rollback options during migration.' },
+        ],
+        pushbackResponse: 'I would name the reconciliation risk before defending the sequence.',
+        honestTradeoff: 'The staged path took longer but reduced customer blast radius.',
+      },
+    ] satisfies PrepAnchorSubDecision[]
+    const card: PrepCard = {
+      id: 'anchor-card',
+      category: 'technical',
+      kind: 'anchor',
+      title: 'Platform migration anchor',
+      tags: ['system-design'],
+      storyBlocks: [{ label: 'note', text: 'One story ties the architecture choices together.' }],
+      subDecisions,
+    }
+
+    expect(isAnchorCard(card)).toBe(true)
+    expect(card.subDecisions).toEqual(subDecisions)
   })
 })
