@@ -1,10 +1,11 @@
 ---
 id: TASK-222
 title: 'Phase 5: emit asserted audience tags from JdMatchExtraction LLM prompt'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 07:33'
-updated_date: '2026-05-06 20:29'
+updated_date: '2026-05-26 06:36'
 labels:
   - audience-tagging
   - ai
@@ -54,3 +55,9 @@ Keep `applyRulesBasedAudiences` running before AND after extraction for fallback
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-222. Plan: map JdMatchExtraction prompt/schema/normalization, preserve asserted audience semantics (null vs [] vs populated), keep rules-based inference as fallback floor, add focused parser/pipeline tests, run gates plus independent review/audit, commit/close.
+<!-- SECTION:NOTES:END -->
